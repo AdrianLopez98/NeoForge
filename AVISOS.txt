@@ -1,0 +1,36 @@
+AVISOS
+======
+
+
+NO ES UN PRODUCTO OFICIAL
+-------------------------
+
+NeoForge no esta afiliado, patrocinado ni aprobado por Wizards of the Coast.
+Magic: the Gathering, los nombres de las cartas y sus ilustraciones son
+propiedad de Wizards of the Coast LLC. Este es un proyecto de aficionado, sin
+animo de lucro: no se vende, no lleva publicidad y no se cobra por el.
+
+Las imagenes de las cartas NO se distribuyen con el programa. Se descargan de
+Scryfall (scryfall.com) al jugar, igual que hace Forge.
+
+
+DE QUE ESTA HECHO
+-----------------
+
+El motor de reglas, las cartas, la IA y todos los recursos de la carpeta res\
+son de FORGE (https://github.com/Card-Forge/forge), publicado bajo la licencia
+GNU GPL v3.
+
+NeoForge es una interfaz nueva construida encima de ese motor, y por tanto es
+obra derivada: se publica bajo la misma licencia, GNU GPL v3. El texto completo
+esta en el fichero LICENSE.
+
+La GPL da derecho a pedir el codigo fuente. El de NeoForge esta publicado en
+https://github.com/AdrianLopez98/NeoForge
+
+
+EL JAVA QUE VIENE DENTRO
+------------------------
+
+La carpeta runtime\ es un Java 17 de Eclipse Adoptium (Temurin), bajo licencia
+GPLv2 con Classpath Exception. Ver https://adoptium.net/
