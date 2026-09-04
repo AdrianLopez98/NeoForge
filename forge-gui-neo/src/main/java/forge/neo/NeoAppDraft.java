@@ -19,7 +19,7 @@ import java.util.List;
  * Draft y sellado: abrir sobres, el marcador del evento, jugar un partido y
  * el editor con el pool del jugador.
  *
- * <p>Nace de la auditoría del motor E2. Movido tal cual desde {@code NeoApp}, sin
+ * <p>Nace de la auditoría del motor, apartado E2. Movido tal cual desde {@code NeoApp}, sin
  * tocar la logica -- ver el javadoc de {@link NeoAppDebug} para el porque.
  */
 final class NeoAppDraft {
@@ -136,7 +136,7 @@ final class NeoAppDraft {
         startNewDraft(null);
     }
 
-    /** Abre sobres de UN CUBO (la auditoría del motor C2). */
+    /** Abre sobres de UN CUBO (la auditoría del motor, apartado C2). */
     void startNewDraftCube(final String cubeName) {
         final forge.neo.draft.NeoDraft draft = forge.neo.draft.NeoDraft.startCube(cubeName);
         if (draft == null) {
@@ -341,7 +341,7 @@ final class NeoAppDraft {
         final TableBinder liveBinder = new TableBinder(app.table);
         app.binder = liveBinder;
         final boolean autoMana = NeoSettings.autoPayMana();
-        // Bo3 es un ajuste del PROXIMO partido (la auditoría del motor C5), leido justo
+        // Bo3 es un ajuste del PROXIMO partido (la auditoría del motor, apartado C5), leido justo
         // aqui: cambiarlo desde el marcador solo afecta a partidos que
         // arrancan despues, nunca al que ya esta en curso.
         final int gamesPerMatch = NeoSettings.bo3() ? 3 : 1;

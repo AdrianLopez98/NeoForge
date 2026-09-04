@@ -1095,7 +1095,7 @@ public class DeckBuilderScreen extends StackPane {
     }
 
     /**
-     * Marcar (o quitar) el foil de una carta del mazo (la auditoría del motor D5).
+     * Marcar (o quitar) el foil de una carta del mazo (la auditoría del motor, apartado D5).
      *
      * <p>Cambia TODAS las copias de golpe, igual que cambiar el arte — de
      * hecho es exactamente el mismo mecanismo ({@code switchPrinting}): una
@@ -1379,7 +1379,7 @@ public class DeckBuilderScreen extends StackPane {
     }
 
     /**
-     * "Pega la URL y ya" (la auditoría del motor B7): Moxfield, Archidekt, TappedOut,
+     * "Pega la URL y ya" (la auditoría del motor, apartado B7): Moxfield, Archidekt, TappedOut,
      * MTGGoldfish. Mismo cuadro que pegar una lista — {@link #importList}
      * mira si lo pegado es una URL y manda aquí en vez de a
      * {@link #applyImport} — así que no hay botón nuevo que aprender.
@@ -1443,7 +1443,7 @@ public class DeckBuilderScreen extends StackPane {
     }
 
     /**
-     * "Genérame un mazo con este comandante" (la auditoría del motor B6).
+     * "Genérame un mazo con este comandante" (la auditoría del motor, apartado B6).
      *
      * <p>Sustituye el principal entero, así que con algo ya montado se
      * pregunta primero — es exactamente el principio 6 de las notas de diseño:

@@ -43,14 +43,24 @@ public final class NeoGame {
         public final String winner;
         /** Que pidio el jugador al salir: volver al menu o jugar otra. */
         public final NeoMatchUI.Exit exit;
+        /**
+         * Con cuanta vida termino el jugador, o -1 si no se pudo leer.
+         *
+         * <p>Lo pide Ascenso, donde la vida <b>se arrastra al nodo siguiente</b>
+         * y por tanto es el resultado que de verdad importa: ganar con 3 vidas
+         * y ganar con 30 son dos partidas distintas. Al resto de modos les da
+         * igual y por eso nadie lo miraba.
+         */
+        public final int yourLife;
 
         Result(final boolean completed, final int turns, final int decisions, final String winner,
-               final NeoMatchUI.Exit exit) {
+               final NeoMatchUI.Exit exit, final int yourLife) {
             this.completed = completed;
             this.turns = turns;
             this.decisions = decisions;
             this.winner = winner;
             this.exit = exit;
+            this.yourLife = yourLife;
         }
     }
 
@@ -140,7 +150,7 @@ public final class NeoGame {
     /**
      * Igual, pero al mejor de N partidas en vez de una sola.
      *
-     * <p>Solo tiene sentido en draft y sellado (la auditoría del motor C5): son los
+     * <p>Solo tiene sentido en draft y sellado (la auditoría del motor, apartado C5): son los
      * unicos formatos con banquillo de verdad
      * ({@code GameType.isSideboardingAllowed()}) y con un rival fijo al que
      * enfrentarse mas de una vez seguida. En Commander {@code gamesPerMatch}
@@ -158,11 +168,81 @@ public final class NeoGame {
                               final TableBinder binder, final String aiProfile,
                               final boolean autoPayMana, final NeoFormat format,
                               final List<Deck> opponentDecks, final int gamesPerMatch) {
+        return play(deck, opponents, mode, timeoutSecs, verbose, binder, aiProfile,
+                autoPayMana, format, opponentDecks, gamesPerMatch, null);
+    }
+
+    /**
+     * Quien monta los asientos cuando el formato no basta para decirlo todo.
+     *
+     * <p>Existe por Ascenso, y no se pudo resolver retocando el asiento despues
+     * de montarlo: los <b>esquemas</b> del archienemigo solo entran por
+     * {@code RegisteredPlayer.forVariants} — no hay setter — y la <b>vida</b>
+     * hay que ponerla justo despues, porque {@code forVariants} la pisa. O sea
+     * que el asiento hay que construirlo entero, no ajustarlo.
+     *
+     * <p>Lo que NO se saca por aqui es todo lo demas que hace este metodo: las
+     * preferencias del motor, el blindaje de la IA, la funda del mazo, la mesa
+     * y el menu de pausa. Ese fue el motivo de poner una costura en vez de que
+     * el modo montara su propio {@code HostedMatch}: un tercer camino que
+     * arranca partidas es exactamente lo que produjo el fallo del principio 8
+     * (las notas de diseño), con el duelo de la aventura jugandose con otros ajustes.
+     */
+    public interface Seating {
+        /** Las variantes de la partida. Van a las reglas Y a {@code forVariants}. */
+        EnumSet<GameType> variants();
+
+        /** El asiento del humano, con su mazo. */
+        RegisteredPlayer human(Deck deck, int seats);
+
+        /** El asiento del rival numero {@code i}, con el mazo que le toque. */
+        RegisteredPlayer opponent(int i, Deck deck, int seats);
+    }
+
+    /**
+     * Igual, pero con los asientos puestos por el modo.
+     *
+     * @param seating quien monta los asientos, o {@code null} para que los
+     *                monte el formato (lo de siempre)
+     */
+    public static Result play(final Deck deck, final int opponents, final NeoMatchUI.Mode mode,
+                              final int timeoutSecs, final boolean verbose,
+                              final TableBinder binder, final String aiProfile,
+                              final boolean autoPayMana, final NeoFormat format,
+                              final List<Deck> opponentDecks, final int gamesPerMatch,
+                              final Seating seating) {
+        return play(deck, opponents, mode, timeoutSecs, verbose, binder, aiProfile,
+                autoPayMana, format, opponentDecks, gamesPerMatch, seating,
+                NeoMatchUI.Ending.NORMAL);
+    }
+
+    /**
+     * Igual, diciendo ademas <b>a donde se vuelve al acabar</b>.
+     *
+     * <p>Lo pide Ascenso, y no es un adorno: la pantalla de fin de partida es
+     * lo que cierra el match, y sus botones tienen que decir la verdad sobre el
+     * modo que la lanzo. Con los de una partida suelta, "otra partida" en un
+     * nodo de Ascenso se leia como abandonar el duelo a medias y <b>se llevaba
+     * la run por delante</b>.
+     *
+     * <p>Va por aqui —y no en cada sitio que arranca una partida— por el
+     * principio 8 (las notas de diseño): la {@code NeoMatchUI} se construye <b>dentro
+     * de este metodo</b>, asi que este es el unico punto por el que pasan todos
+     * los modos que juegan por esta puerta.
+     *
+     * @param ending a donde vuelve el jugador al acabar
+     */
+    public static Result play(final Deck deck, final int opponents, final NeoMatchUI.Mode mode,
+                              final int timeoutSecs, final boolean verbose,
+                              final TableBinder binder, final String aiProfile,
+                              final boolean autoPayMana, final NeoFormat format,
+                              final List<Deck> opponentDecks, final int gamesPerMatch,
+                              final Seating seating, final NeoMatchUI.Ending ending) {
 
         if (mode == NeoMatchUI.Mode.HUMAN) {
             applyEnginePrefs();
         } else if (mode == NeoMatchUI.Mode.OBSERVE && binder == null) {
-            // Simulacion de fondo sin mesa (el torneo, la auditoría del motor C6,
+            // Simulacion de fondo sin mesa (el torneo, la auditoría del motor, apartado C6,
             // resolviendo emparejamientos en los que nadie mira). Aqui hay
             // DOS IA pensando de verdad -- a diferencia de AUTO_PLAY, que
             // solo tiene una y responde la otra con un guion casi
@@ -178,6 +258,7 @@ public final class NeoGame {
 
         final NeoMatchUI gui = new NeoMatchUI(mode, verbose);
         gui.setAutoPayMana(autoPayMana);
+        gui.setEnding(ending);
         if (binder != null) {
             gui.setBinder(binder);
             gui.setTable(binder.getTable());
@@ -198,7 +279,8 @@ public final class NeoGame {
         forge.neo.look.NeoLook.setDeckInPlay(
                 mode == NeoMatchUI.Mode.OBSERVE ? null : deck);
         if (mode != NeoMatchUI.Mode.OBSERVE) {
-            humanSeat = format.register(deck, seats);
+            humanSeat = seating == null ? format.register(deck, seats)
+                    : seating.human(deck, seats);
             humanSeat.setPlayer(forge.neo.look.NeoPlayers.human());
             players.add(humanSeat);
         }
@@ -206,7 +288,8 @@ public final class NeoGame {
         final int aiCount = mode == NeoMatchUI.Mode.OBSERVE ? opponents + 1 : opponents;
         for (int i = 0; i < aiCount; i++) {
             final Deck aiDeck = deckForOpponent(opponentDecks, i, deck);
-            final RegisteredPlayer ai = format.register(aiDeck, seats);
+            final RegisteredPlayer ai = seating == null ? format.register(aiDeck, seats)
+                    : seating.opponent(i, aiDeck, seats);
             // El perfil vacio significa "el que tenga puesto Forge": es lo que
             // hace la sobrecarga corta, asi que no hay que tratar el null aparte.
             ai.setPlayer(forge.neo.look.NeoPlayers.ai(i, aiProfile));
@@ -233,6 +316,7 @@ public final class NeoGame {
                 : devPlayFromGraveyard != null ? () -> putInGraveyard(match.getGame())
                 : devSpeed > 0 ? () -> riggedSpeed(match.getGame())
                 : devFilterLand ? () -> riggedFilterLand(match.getGame())
+                : devOppRelics > 0 ? () -> riggedOppRelics(match.getGame())
                 : devRig != null ? () -> riggedCards(match.getGame()) : null;
         match.setStartGameHook(SafeAi.hook(match, rig));
 
@@ -261,9 +345,13 @@ public final class NeoGame {
         // Lo pone el lobby de Forge al montar la partida (HostedMatch lo recibe
         // como parametro) y tambien su runner sin interfaz, SimulateMatch, con
         // exactamente esta linea. Nosotros pasabamos null.
-        rules.setAppliedVariants(EnumSet.of(format.getGameType()));
+        // Con Seating puesta, las variantes las decide el modo: Ascenso mete
+        // ademas Archenemy en el nodo de jefe, y sin eso en las reglas el motor
+        // no reparte esquemas por mucho que el asiento los lleve.
+        rules.setAppliedVariants(seating == null
+                ? EnumSet.of(format.getGameType()) : seating.variants());
 
-        // ---- preferencias que SOLO se aplican por GameRules (la auditoría del motor B4) ----
+        // ---- preferencias que SOLO se aplican por GameRules (la auditoría del motor, apartado B4) ----
         //
         // HostedMatch.getDefaultRules(GameType) las lee de FModel.getPreferences()
         // — pero es privado y solo lo usa el overload de startMatch(GameType,...),
@@ -305,11 +393,15 @@ public final class NeoGame {
         }
 
         final NeoMatchUI.Exit exit = gui.getExitAction();
+        // La vida ANTES de shutdown(): despues la vista ya no tiene por que
+        // seguir en pie, y es el dato del que vive una run de Ascenso.
+        final forge.game.player.PlayerView me = gui.localPlayerView();
+        final int yourLife = me == null ? -1 : me.getLife();
         gui.shutdown();
         // Se acabo el mazo en juego: si se dejara puesto, el siguiente puzzle o
         // el siguiente duelo de la aventura heredarian su funda.
         forge.neo.look.NeoLook.setDeckInPlay(null);
-        return new Result(completed, turns, gui.getDecisionCount(), winner, exit);
+        return new Result(completed, turns, gui.getDecisionCount(), winner, exit, yourLife);
     }
 
     /**
@@ -377,7 +469,7 @@ public final class NeoGame {
         final int turns = gui.getGameView() == null ? 0 : gui.getGameView().getTurn();
         final NeoMatchUI.Exit exit = gui.getExitAction();
         gui.shutdown();
-        return new Result(completed, turns, gui.getDecisionCount(), null, exit);
+        return new Result(completed, turns, gui.getDecisionCount(), null, exit, -1);
     }
 
     /**
@@ -469,7 +561,7 @@ public final class NeoGame {
         final int turns = gui.getGameView() == null ? 0 : gui.getGameView().getTurn();
         final NeoMatchUI.Exit exit = gui.getExitAction();
         gui.shutdown();
-        return new Result(completed, turns, gui.getDecisionCount(), null, exit);
+        return new Result(completed, turns, gui.getDecisionCount(), null, exit, -1);
     }
 
     /** Los puzzles que trae Forge, ordenados. */
@@ -547,6 +639,48 @@ public final class NeoGame {
 
     public static void setDevRig(final String names) {
         devRig = names;
+    }
+
+    /**
+     * Cuantas reliquias de Ascenso se le ponen al RIVAL en su zona de mando.
+     *
+     * <p>Solo para pruebas ({@code --rig-opp-relics=N}), y hace falta porque la
+     * unica forma de ver esto jugando es llegar a un jefe de Ascenso: una run a
+     * medias y diez minutos. Lo que hay que mirar es que sus reliquias se VEAN
+     * — del rival no se ensenya la zona de mando, solo su contador, asi que sin
+     * las pastillas de {@code PlayerBar} son invisibles.
+     *
+     * <p>Va por el camino de verdad (la carta entra en la zona de mando del
+     * motor) y no pintando la pastilla a mano: pintarla a mano no probaria
+     * nada, porque quien la tiene que descubrir es {@code TableBinder} leyendo
+     * el {@code PlayerView} — y ademas el binder la borraria en el siguiente
+     * refresco.
+     */
+    private static volatile int devOppRelics;
+
+    public static void setDevOppRelics(final int howMany) {
+        devOppRelics = howMany;
+    }
+
+    private static void riggedOppRelics(final forge.game.Game game) {
+        if (game == null || devOppRelics <= 0) {
+            return;
+        }
+        forge.neo.ascent.AscentRelics.install();
+        for (final forge.game.player.Player p : game.getPlayers()) {
+            if (!p.isAI()) {
+                continue;
+            }
+            int left = devOppRelics;
+            for (final forge.neo.ascent.AscentRelic relic : forge.neo.ascent.AscentRelics.all()) {
+                if (left-- <= 0) {
+                    break;
+                }
+                put(game, p, relic.getCardName(), forge.game.zone.ZoneType.Command);
+                System.out.println("  [dev] reliquia del rival: " + relic.getCardName());
+            }
+            return;
+        }
     }
 
     private static void riggedCards(final forge.game.Game game) {
@@ -751,7 +885,7 @@ public final class NeoGame {
         // Ver PlayerControllerHuman.useSelectCardsInput.
         prefs.setPref(FPref.UI_SELECT_FROM_CARD_DISPLAYS, false);
 
-        // ---- regla de mulligan (la auditoría del motor B4) ----
+        // ---- regla de mulligan (la auditoría del motor, apartado B4) ----
         //
         // No es una preferencia de Forge: MulliganService la lee de
         // StaticData.instance(), no de FModel.getPreferences(). Aplicarla aqui
@@ -760,7 +894,7 @@ public final class NeoGame {
         forge.StaticData.instance().setMulliganRule(forge.MulliganDefs.GetRuleByName(
                 NeoSettings.get(NeoSettings.MULLIGAN_RULE, NeoSettings.MULLIGAN_RULE_DEFAULT)));
 
-        // ---- tope de tiempo de la IA para el combate (la auditoría del motor B4) ----
+        // ---- tope de tiempo de la IA para el combate (la auditoría del motor, apartado B4) ----
         //
         // Esta SI es una preferencia de Forge de verdad: HostedMatch.startGame()
         // la lee sola de FModel.getPreferences() en cada partida

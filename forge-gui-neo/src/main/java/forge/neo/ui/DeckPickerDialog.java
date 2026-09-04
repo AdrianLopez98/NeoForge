@@ -91,7 +91,7 @@ public class DeckPickerDialog extends VBox {
     }
 
     /**
-     * @param generator "genérame uno" (la auditoría del motor B6) — null si aquí no
+     * @param generator "genérame uno" (la auditoría del motor, apartado B6) — null si aquí no
      *                  tiene sentido (elegir TU PROPIO mazo en una partida
      *                  privada, por ejemplo: nadie genera un mazo para sí
      *                  mismo a ciegas). Sólo lo pasa {@code HomeScreen}, al

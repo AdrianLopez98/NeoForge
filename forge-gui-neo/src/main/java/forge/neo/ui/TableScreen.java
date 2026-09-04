@@ -67,6 +67,38 @@ public class TableScreen extends Pane {
     private final PlayerBar selfBar = new PlayerBar(false);
     private final PlayerField opponentField;
     private final PlayerField selfField;
+
+    /**
+     * Los asientos de rival que se ven a la vez.
+     *
+     * <p>El asiento 0 es SIEMPRE {@link #opponentBar} / {@link #opponentField},
+     * los de toda la vida. Con un solo asiento — que es el modo pestanyas de
+     * siempre — estas listas tienen un elemento y todo el codigo recorre
+     * exactamente lo que recorria antes: el modo nuevo no puede romper el
+     * viejo porque no cambia su camino, solo anyade asientos al lado.
+     *
+     * <p>Los crea y los destruye {@link #setOpponentSeats(int)}.
+     */
+    private final List<PlayerBar> oppBars = new ArrayList<>();
+    private final List<PlayerField> oppFields = new ArrayList<>();
+
+    /** Separadores entre mesas de rival. Solo con mas de un asiento. */
+    private final List<Line> seatDividers = new ArrayList<>();
+
+    /**
+     * Cuanto del alto libre se lleva la fila de rivales cuando hay varios.
+     *
+     * <p>Con un solo rival el reparto es mitad y mitad, que es lo natural
+     * cuando enfrente hay una sola mesa. Con tres, la fila de arriba lleva tres
+     * mesas y la de abajo una, asi que se le da un poco mas — pero solo un
+     * poco: medido, esas mesas quedan limitadas por el ANCHO y no por el alto,
+     * asi que darles mas altura no agranda ni un pixel las cartas y en cambio
+     * se lo quita a la tuya, que si lo aprovecha.
+     */
+    private static final double MULTI_OPP_SHARE = 0.52;
+
+    /** Hueco entre dos mesas de rival contiguas. */
+    private static final double SEAT_GAP = 10;
     private final HandFan hand;
     private final CommandZone commandZone;
     private final PhaseRail phaseRail = new PhaseRail();
@@ -187,6 +219,10 @@ public class TableScreen extends Pane {
         selfField.setOnCardHover(this::hovered);
         opponentField.setOnCardClick(this::cardClicked);
         selfField.setOnCardClick(this::cardClicked);
+
+        // El asiento 0 son los de siempre. Ver oppBars/oppFields.
+        oppBars.add(opponentBar);
+        oppFields.add(opponentField);
 
         combatLine.getStyleClass().add("combat-line");
         hand.getStyleClass().add("hand-area");
@@ -358,8 +394,20 @@ public class TableScreen extends Pane {
             coach.resizeRelocate(0, 0, contentW, coachH);
         }
 
-        final double tabsH = opponentTabs.barHeight();
-        final double oppBarH = opponentBar.prefHeight(contentW);
+        // Con varias mesas a la vez las pestanyas sobran: estan para elegir a
+        // que rival miras, y los estas mirando a todos.
+        final boolean multi = isMultiBoard();
+        final double seatW = multi
+                ? (contentW - SEAT_GAP * (oppFields.size() - 1)) / oppFields.size()
+                : contentW;
+
+        final double tabsH = multi ? 0 : opponentTabs.barHeight();
+        // La fila de barras de rival mide lo que la mas alta: a 1/3 de ancho,
+        // PlayerBar envuelve su contenido y crece.
+        double oppBarH = 0;
+        for (final PlayerBar b : oppBars) {
+            oppBarH = Math.max(oppBarH, b.prefHeight(seatW));
+        }
         final double selfBarH = selfBar.prefHeight(contentW);
         double handH = hand.prefHeight(contentW);
 
@@ -373,28 +421,47 @@ public class TableScreen extends Pane {
         }
 
         final double fieldsH = Math.max(0, h - fixed - handH);
-        final double eachField = fieldsH / 2.0;
+        // Con un rival, mitad y mitad. Con varios, la fila de arriba lleva
+        // varias mesas: ver MULTI_OPP_SHARE.
+        final double oppH = multi ? fieldsH * MULTI_OPP_SHARE : fieldsH / 2.0;
+        final double selfH = fieldsH - oppH;
 
         double y = coachH;
         if (tabsH > 0) {
             opponentTabs.resizeRelocate(0, y, contentW, tabsH);
             y += tabsH;
         }
-        opponentBar.resizeRelocate(0, y, contentW, oppBarH);
+        for (int i = 0; i < oppBars.size(); i++) {
+            oppBars.get(i).resizeRelocate(i * (seatW + SEAT_GAP), y, seatW, oppBarH);
+        }
         y += oppBarH;
 
         // Desde aqui y hasta la barra de abajo, todo va dentro del visor, o
         // sea en SUS coordenadas: se le resta el origen.
         final double boardTop = y;
-        final double boardH = eachField * 2 + LINE_H;
+        final double boardH = oppH + selfH + LINE_H;
         viewport.resizeRelocate(0, boardTop, contentW, boardH);
         viewportClip.setWidth(contentW);
         viewportClip.setHeight(boardH);
         board.resizeRelocate(0, 0, contentW, boardH);
         applyBoardTransform();
 
-        opponentField.resizeRelocate(0, 0, contentW, eachField);
-        y += eachField;
+        for (int i = 0; i < oppFields.size(); i++) {
+            oppFields.get(i).resizeRelocate(i * (seatW + SEAT_GAP), 0, seatW, oppH);
+        }
+        // En coordenadas del VISOR, o sea las mismas que las mesas: asi se
+        // acercan y se arrastran con ellas y no dejan de separar al hacer zoom.
+        // Y llegan hasta la linea de combate, no solo hasta el final de la
+        // mesa: el hueco entre dos rivales tambien es de ellos.
+        for (int i = 0; i < seatDividers.size(); i++) {
+            final double x = (i + 1) * (seatW + SEAT_GAP) - SEAT_GAP / 2;
+            final Line d = seatDividers.get(i);
+            d.setStartX(x);
+            d.setEndX(x);
+            d.setStartY(0);
+            d.setEndY(oppH);
+        }
+        y += oppH;
 
         combatLine.setStartX(PAD * 3);
         combatLine.setEndX(contentW - PAD * 3);
@@ -411,8 +478,8 @@ public class TableScreen extends Pane {
 
         y += LINE_H;
 
-        selfField.resizeRelocate(0, y - boardTop, contentW, eachField);
-        y += eachField;
+        selfField.resizeRelocate(0, y - boardTop, contentW, selfH);
+        y += selfH;
 
         // El aviso de "estas mirando de cerca", en la esquina del visor. Es la
         // unica forma de volver sin adivinar: se clica y se deshace.
@@ -754,7 +821,18 @@ public class TableScreen extends Pane {
      * hay que tener las dos listas a la vez. Ver {@code PlayerField.setCards}.
      */
     public void setOpponentBattlefield(final List<CardView> cards) {
-        opponentCards = cards == null ? List.of() : cards;
+        setOpponentBattlefield(0, cards);
+    }
+
+    /** Los permanentes del rival que se sienta en ese asiento. */
+    public void setOpponentBattlefield(final int seat, final List<CardView> cards) {
+        while (oppCards.size() < oppFields.size()) {
+            oppCards.add(List.of());
+        }
+        if (seat < 0 || seat >= oppCards.size()) {
+            return;
+        }
+        oppCards.set(seat, cards == null ? List.of() : cards);
         repaintFields();
     }
 
@@ -763,13 +841,25 @@ public class TableScreen extends Pane {
         repaintFields();
     }
 
-    private List<CardView> opponentCards = List.of();
+    /** Los permanentes de cada asiento de rival, en el orden de {@link #oppFields}. */
+    private final List<List<CardView>> oppCards = new ArrayList<>(List.of(List.of()));
     private List<CardView> selfCards = List.of();
 
     private void repaintFields() {
+        // "everywhere" tiene que traer los permanentes de TODA la mesa, no solo
+        // los de los dos lados que se estan pintando: es lo que hace que un
+        // aura del rival sobre una criatura tuya se pinte debajo de tu
+        // criatura. Con varias mesas a la vez eso deja de ser un detalle y pasa
+        // a ser lo normal — a cuatro, la mayoria de lo enganchado cruza de
+        // mesa. Ver PlayerField.setCards.
         final List<CardView> everywhere = new ArrayList<>(selfCards);
-        everywhere.addAll(opponentCards);
-        opponentField.setCards(opponentCards, everywhere);
+        for (final List<CardView> board : oppCards) {
+            everywhere.addAll(board);
+        }
+        for (int i = 0; i < oppFields.size(); i++) {
+            oppFields.get(i).setCards(
+                    i < oppCards.size() ? oppCards.get(i) : List.of(), everywhere);
+        }
         selfField.setCards(selfCards, everywhere);
         reindex();
     }
@@ -781,8 +871,26 @@ public class TableScreen extends Pane {
 
     public void setOpponentZonePiles(final int graveyard, final int exile,
                                      final boolean gravePlayable, final boolean exilePlayable) {
-        opponentField.setZoneOwner(opponentBar.getPlayer());
-        opponentField.setZoneCounts(graveyard, exile, gravePlayable, exilePlayable);
+        setOpponentZonePiles(0, graveyard, exile, gravePlayable, exilePlayable);
+    }
+
+    public void setOpponentZonePiles(final int seat, final int graveyard, final int exile,
+                                     final boolean gravePlayable, final boolean exilePlayable) {
+        if (seat < 0 || seat >= oppFields.size()) {
+            return;
+        }
+        oppFields.get(seat).setZoneOwner(oppBars.get(seat).getPlayer());
+        oppFields.get(seat).setZoneCounts(graveyard, exile, gravePlayable, exilePlayable);
+    }
+
+    /** La barra de ese asiento de rival. */
+    public PlayerBar opponentBar(final int seat) {
+        return oppBars.get(Math.max(0, Math.min(seat, oppBars.size() - 1)));
+    }
+
+    /** El campo de ese asiento de rival. */
+    public PlayerField opponentField(final int seat) {
+        return oppFields.get(Math.max(0, Math.min(seat, oppFields.size() - 1)));
     }
 
     public void setSelfZonePiles(final int graveyard, final int exile) {
@@ -817,11 +925,185 @@ public class TableScreen extends Pane {
         reindex();
     }
 
+    // ---------------------------------------------------------------
+    // Los asientos de rival
+    // ---------------------------------------------------------------
+
+    /**
+     * Cuantas mesas de rival se ven a la vez.
+     *
+     * <p>1 es el modo de siempre: una mesa y las pestanyas para cambiar de
+     * rival. Mas de 1 es el modo "todas las mesas", que se enciende en Ajustes.
+     *
+     * <p>Los asientos que sobran se DESTRUYEN, no se esconden. Un campo oculto
+     * sigue teniendo sus {@code CardNode}, y esos nodos los recorren
+     * {@link #everyNode()}, {@link #setHighlighted} y {@link #boundsOf}: una
+     * flecha podria acabar apuntando a una carta que no se ve, y el resaltado
+     * del motor repartirse entre nodos invisibles.
+     *
+     * <p>El asiento 0 no se toca nunca: es {@link #opponentField}, que existe
+     * desde siempre y del que cuelgan las pruebas y las maquetas.
+     */
+    public void setOpponentSeats(final int seats) {
+        final int want = Math.max(1, seats);
+        if (want == oppFields.size()) {
+            return;
+        }
+
+        while (oppFields.size() > want) {
+            final PlayerField f = oppFields.remove(oppFields.size() - 1);
+            final PlayerBar b = oppBars.remove(oppBars.size() - 1);
+            board.getChildren().remove(f);
+            getChildren().remove(b);
+        }
+
+        while (oppFields.size() < want) {
+            final PlayerField f = new PlayerField(cardWidth * 0.92, true);
+            f.setOnCardHover(this::hovered);
+            f.setOnCardClick(this::cardClicked);
+            f.setOnZoneClicked(this::showZone);
+            // Con varias mesas en fila, el cementerio y el exilio se quedan en
+            // el contador de la barra: esa tira cuesta 173 px de ancho y a
+            // 1/3 de pantalla es el 36% de lo que le toca a cada rival.
+            // Medido: quitarla sube la carta de 28 px a 33.
+            f.setPilesOnBoard(false);
+            oppFields.add(f);
+
+            final PlayerBar b = new PlayerBar(true);
+            b.setOnZoneClicked(this::showZone);
+            b.setOnPlayerClicked(onPlayerClicked);
+            b.setSelectable(playersSelectable);
+            oppBars.add(b);
+
+            // El campo va DENTRO del visor (se acerca y se arrastra con el
+            // resto de la mesa); la barra, fuera (es un control).
+            board.getChildren().add(board.getChildren().indexOf(combatLine), f);
+            getChildren().add(getChildren().indexOf(viewport), b);
+        }
+
+        // Un separador menos que asientos.
+        while (seatDividers.size() > want - 1) {
+            getChildren().remove(seatDividers.remove(seatDividers.size() - 1));
+        }
+        while (seatDividers.size() < want - 1) {
+            final Line d = new Line();
+            // Sin setOpacity aqui: lo pone el CSS (.seat-divider). Un
+            // setOpacity programatico GANA a la hoja de estilos en JavaFX, asi
+            // que dejarlo puesto haria que retocar el CSS no sirviera de nada.
+            d.getStyleClass().add("seat-divider");
+            d.setMouseTransparent(true);
+            seatDividers.add(d);
+            // DENTRO del visor, con las mesas.
+            //
+            // La primera version los puso fuera, en coordenadas de pantalla,
+            // razonando que asi no se acercarian con el zoom. Era al reves: lo
+            // que delimitan son las mesas, y las mesas SI se acercan y se
+            // arrastran — o sea que un separador quieto deja de separar nada en
+            // cuanto tocas Ctrl+rueda. Reportado jugando: "al hacer zoom los
+            // limitadores ya no valen porque no se mueven".
+            //
+            // Van los PRIMEROS del visor para quedar por detras de las cartas:
+            // una linea cruzando por encima de un permanente se lee como que la
+            // carta esta partida.
+            board.getChildren().add(0, d);
+        }
+
+        // Los permanentes de los asientos que se han ido, FUERA.
+        //
+        // No es limpieza: esas listas siguen entrando en el "everywhere" de
+        // repaintFields, que es lo que decide debajo de que criatura se pinta
+        // cada aura y cada equipo. Dejarlas ahi engancharia cosas a cartas de
+        // un rival que ya no se pinta — y como el enganche cruza de lado a
+        // proposito, el sintoma seria un aura huerfana en TU mesa.
+        while (oppCards.size() > want) {
+            oppCards.remove(oppCards.size() - 1);
+        }
+        while (oppCards.size() < want) {
+            oppCards.add(List.of());
+        }
+
+        // El asiento 0 recupera su tira al volver a modo pestanyas, donde tiene
+        // el ancho entero para ella. Y las barras se ponen (o se quitan) en
+        // dos filas: con varias en fila no hay ancho para una sola. Ver
+        // PlayerBar.setCompact.
+        opponentField.setPilesOnBoard(want == 1);
+        for (final PlayerBar b : oppBars) {
+            b.setCompact(want > 1);
+        }
+        requestLayout();
+    }
+
+    /** Cuantas mesas de rival se estan viendo. 1 es el modo pestanyas. */
+    public int opponentSeats() {
+        return oppFields.size();
+    }
+
+    /** Lo que mide una barra compacta. Se calcula una vez. */
+    private double compactBarWidth;
+
+    /**
+     * Cuantas mesas de rival CABEN de verdad con el ancho de ahora.
+     *
+     * <p>El limite no lo pone la mesa, que encoge las cartas y encima se puede
+     * acercar con Ctrl+rueda: lo pone <b>la barra del jugador</b>, que no
+     * encoge. Lleva avatar, nombre, los cinco contadores de zona, la reserva de
+     * mana y la vida, y por debajo de su ancho natural no se reordena — se
+     * <b>recorta</b>. Visto en una captura a 1024 de ancho con tres rivales:
+     * desaparecia la VIDA de los tres, que es justo el numero por el que
+     * decides a quien atacas.
+     *
+     * <p>Asi que el ajuste no manda solo: pide el modo, y aqui se le contesta
+     * cuantos asientos caben. Si no cabe ninguno de mas, se juega con pestanyas
+     * como siempre — antes eso que una barra que miente.
+     *
+     * <p>Antes del primer reparto {@code getWidth()} es 0. Ahi se contesta 1,
+     * o sea el modo de siempre: cuando se duda, lo que ya funciona.
+     */
+    public int maxOpponentSeats() {
+        final double w = getWidth();
+        if (w <= 0) {
+            return 1;
+        }
+        final double contentW = Math.max(200, w - sideWidth);
+
+        // Lo que la barra pide para ella sola, sin recortar nada, EN SU VERSION
+        // DE DOS FILAS, que es la que se usa cuando hay varias. Se mide de
+        // verdad en vez de escribir un numero: el dia que la barra gane una
+        // pastilla mas, este limite se entera solo.
+        //
+        // Se mide sobre una barra de usar y tirar y no sobre opponentBar: esa
+        // esta en la escena, y ponerla y quitarla en compacto para preguntarle
+        // el ancho la haria parpadear en cada repintado.
+        if (compactBarWidth <= 0) {
+            final PlayerBar probe = new PlayerBar(true);
+            probe.setCompact(true);
+            probe.applyCss();
+            compactBarWidth = Math.max(200, probe.prefWidth(-1));
+        }
+        return Math.max(1, (int) Math.floor((contentW + SEAT_GAP) / (compactBarWidth + SEAT_GAP)));
+    }
+
+    /** true si se estan viendo todas las mesas a la vez. */
+    public boolean isMultiBoard() {
+        return oppFields.size() > 1;
+    }
+
     /** Pestanyas de rival, para partidas de mas de dos. */
     public void setOpponents(final List<PlayerView> opponents,
                              final PlayerView selected,
                              final PlayerView activeTurn) {
-        opponentTabs.setOpponents(opponents, selected, activeTurn);
+        if (isMultiBoard()) {
+            // Viendolos todos, las pestanyas no eligen nada. Y hay que
+            // apagarlas de verdad, no solo darles alto 0: siguen siendo un nodo
+            // clicable, y su click significa "cambia de rival" — que en este
+            // modo es ademas el gesto que elige a quien atacas (ver
+            // NeoMatchUI.onOpponentFocused). Un control invisible que sigue
+            // respondiendo es el principio 1 al reves.
+            opponentTabs.setVisible(false);
+            opponentTabs.setManaged(false);
+        } else {
+            opponentTabs.setOpponents(opponents, selected, activeTurn);
+        }
         requestLayout();
     }
 
@@ -830,7 +1112,9 @@ public class TableScreen extends Pane {
      * Ver {@link BattlefieldPane#skipRemovalAnimation()}.
      */
     public void skipOpponentRemovalAnimation() {
-        opponentField.skipRemovalAnimation();
+        for (final PlayerField f : oppFields) {
+            f.skipRemovalAnimation();
+        }
     }
 
     public void setOnOpponentSelected(final Consumer<PlayerView> h) {
@@ -1436,7 +1720,9 @@ public class TableScreen extends Pane {
      * concretas: una pila es un solo nodo y siempre elegiria la misma ficha.
      */
     public void setGroupingEnabled(final boolean on) {
-        opponentField.setGroupingEnabled(on);
+        for (final PlayerField f : oppFields) {
+            f.setGroupingEnabled(on);
+        }
         selfField.setGroupingEnabled(on);
         commandZone.setGroupingEnabled(on);
     }
@@ -1475,15 +1761,31 @@ public class TableScreen extends Pane {
 
     private java.util.function.ToIntFunction<CardView> actionable;
 
-    /** Que hacer cuando se clica el retrato de un jugador. */
+    /**
+     * Que hacer cuando se clica el retrato de un jugador.
+     *
+     * <p>Se recuerda porque los asientos de rival se crean y se destruyen sobre
+     * la marcha ({@link #setOpponentSeats}): un asiento nuevo tiene que nacer
+     * ya cableado, o clicar esa barra no haria nada y el motor se quedaria
+     * esperando una respuesta que nunca llega.
+     */
     public void setOnPlayerClicked(final Consumer<PlayerView> handler) {
-        opponentBar.setOnPlayerClicked(handler);
+        this.onPlayerClicked = handler;
+        for (final PlayerBar b : oppBars) {
+            b.setOnPlayerClicked(handler);
+        }
         selfBar.setOnPlayerClicked(handler);
     }
 
+    private Consumer<PlayerView> onPlayerClicked;
+    private boolean playersSelectable;
+
     /** Resalta los retratos cuando hay que elegir jugador. */
     public void setPlayersSelectable(final boolean on) {
-        opponentBar.setSelectable(on);
+        this.playersSelectable = on;
+        for (final PlayerBar b : oppBars) {
+            b.setSelectable(on);
+        }
         selfBar.setSelectable(on);
     }
 
@@ -1523,7 +1825,9 @@ public class TableScreen extends Pane {
         // habia nadie que se lo dijera. El arte solo aparecia al cambiar de
         // carta — o sea que el cartel iba SIEMPRE una carta por detras.
         CardNode.refreshAllIn(promptBanner);
-        opponentField.refreshAll();
+        for (final PlayerField f : oppFields) {
+            f.refreshAll();
+        }
         selfField.refreshAll();
         commandZone.refreshAll();
         for (final CardNode n : extraNodes) {
@@ -1534,7 +1838,9 @@ public class TableScreen extends Pane {
 
     private List<CardNode> everyNode() {
         final List<CardNode> all = new ArrayList<>(extraNodes);
-        all.addAll(opponentField.nodes());
+        for (final PlayerField f : oppFields) {
+            all.addAll(f.nodes());
+        }
         all.addAll(selfField.nodes());
         all.addAll(commandZone.nodes());
         return all;
@@ -1647,15 +1953,45 @@ public class TableScreen extends Pane {
      * jugador se representa con su barra: es lo que hace Arena, donde la flecha
      * del atacante apunta al retrato del rival.
      */
+    /**
+     * La barra de ese jugador, sea rival o tu.
+     *
+     * <p>Es el unico sitio que sabe donde se sienta cada uno. Antes esto era un
+     * {@code if/else} entre dos barras repetido en cinco metodos; con varias
+     * mesas a la vez eso serian cinco bucles distintos que hay que acordarse de
+     * cambiar a la vez, y olvidar uno no da ningun error: simplemente ese rival
+     * deja de poder ser objetivo, o de resaltarse, y no se nota hasta que
+     * pasa en una partida.
+     *
+     * @return null si ese jugador no tiene barra (todavia no se ha repartido)
+     */
+    private PlayerBar barOf(final PlayerView player) {
+        if (player == null) {
+            return null;
+        }
+        for (final PlayerBar b : oppBars) {
+            if (player.equals(b.getPlayer())) {
+                return b;
+            }
+        }
+        return player.equals(selfBar.getPlayer()) ? selfBar : null;
+    }
+
+    /** Todas las barras de la mesa, la tuya incluida. */
+    private List<PlayerBar> allBars() {
+        final List<PlayerBar> all = new ArrayList<>(oppBars);
+        all.add(selfBar);
+        return all;
+    }
+
     private Bounds boundsOf(final Object entity) {
         Node node = null;
         if (entity instanceof CardView cv) {
             node = nodeOf(cv);
         } else if (entity instanceof PlayerView pv) {
-            if (pv.equals(opponentBar.getPlayer())) {
-                node = opponentBar.getPortrait();
-            } else if (pv.equals(selfBar.getPlayer())) {
-                node = selfBar.getPortrait();
+            final PlayerBar bar = barOf(pv);
+            if (bar != null) {
+                node = bar.getPortrait();
             }
         }
         if (node == null || node.getScene() == null) {
@@ -1958,13 +2294,15 @@ public class TableScreen extends Pane {
         if (best != null) {
             return best.getCard();
         }
-        if (opponentBar.getPlayer() != null
-                && opponentBar.localToScene(opponentBar.getBoundsInLocal()).contains(sceneX, sceneY)) {
-            return opponentBar.getPlayer();
-        }
-        if (selfBar.getPlayer() != null
-                && selfBar.localToScene(selfBar.getBoundsInLocal()).contains(sceneX, sceneY)) {
-            return selfBar.getPlayer();
+        // Con varias mesas a la vez, cada rival tiene SU barra en pantalla: es
+        // lo que hace que arrastrar un atacante sobre el rival al que quieres
+        // pegar signifique exactamente eso, sin tener que cambiar de pestanya
+        // primero (que es de donde salia el fallo de atacar a quien no era).
+        for (final PlayerBar b : allBars()) {
+            if (b.getPlayer() != null
+                    && b.localToScene(b.getBoundsInLocal()).contains(sceneX, sceneY)) {
+                return b.getPlayer();
+            }
         }
         return null;
     }
@@ -2000,10 +2338,10 @@ public class TableScreen extends Pane {
             final CardView cv = n.getCard();
             n.setHighlighted(cv != null && test != null && test.test(cv));
         }
-        opponentBar.setHighlighted(test != null && opponentBar.getPlayer() != null
-                && test.test(opponentBar.getPlayer()));
-        selfBar.setHighlighted(test != null && selfBar.getPlayer() != null
-                && test.test(selfBar.getPlayer()));
+        for (final PlayerBar b : allBars()) {
+            b.setHighlighted(test != null && b.getPlayer() != null
+                    && test.test(b.getPlayer()));
+        }
     }
 
     // ---------------------------------------------------------------
@@ -2021,10 +2359,9 @@ public class TableScreen extends Pane {
         if (player == null) {
             return;
         }
-        if (player.equals(selfBar.getPlayer())) {
-            selfBar.setManaPoolActive(on);
-        } else if (player.equals(opponentBar.getPlayer())) {
-            opponentBar.setManaPoolActive(on);
+        final PlayerBar bar = barOf(player);
+        if (bar != null) {
+            bar.setManaPoolActive(on);
         }
     }
 

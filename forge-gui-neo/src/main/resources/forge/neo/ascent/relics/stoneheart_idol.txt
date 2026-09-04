@@ -1,0 +1,6 @@
+Name:Stoneheart Idol
+ManaCost:no cost
+Types:Enchantment
+S:Mode$ Continuous | EffectZone$ Command | Affected$ Creature.YouCtrl | AddToughness$ 3 | Description$ Creatures you control get +0/+3.
+AI:RemoveDeck:All
+Oracle:Creatures you control get +0/+3.

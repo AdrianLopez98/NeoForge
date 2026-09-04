@@ -1,0 +1,7 @@
+Name:Chronicle Page
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ Phase | Phase$ Upkeep | ValidPlayer$ You | TriggerZones$ Command | Execute$ Trig | TriggerDescription$ At the beginning of your upkeep, scry 2.
+SVar:Trig:DB$ Scry | Defined$ You | ScryNum$ 2
+AI:RemoveDeck:All
+Oracle:At the beginning of your upkeep, scry 2.

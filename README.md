@@ -14,6 +14,11 @@ línea de reglas es nuestra.**
 ## Qué hace
 
 - **Commander contra la IA**, y también Estándar, Brawl, Oathbreaker y Tiny Leaders.
+  A cuatro jugadores se puede ver **la mesa de todos los rivales a la vez**, en vez de una
+  y pestañas (se enciende en Ajustes; ver más abajo).
+- **Ascenso**, un modo roguelike propio: una run por un mapa de nodos ramificado, con la
+  vida arrastrándose entre combates, un mazo que se forma dentro de la run, 37 reliquias,
+  24 eventos, tienda, descansos y diez niveles de Ascensión con desbloqueos por hitos.
 - **Aventura** (el modo Quest de Forge): duelos, 37 desafíos, 93 mundos, tienda de sobres,
   bazar y colección.
 - **Draft** y **Sellado**, con elección de expansión y el mazo editable con tu pool.
@@ -24,6 +29,23 @@ línea de reglas es nuestra.**
 - **Deck builder** con catálogo buscable, curva de maná, cambio de arte e importación de
   decklists de Moxfield y Archidekt.
 - **Diez idiomas**, los mismos que Forge, y en ocho de ellos también los nombres de las cartas.
+
+### Ver todas las mesas a la vez
+
+En Commander a tres o cuatro jugadores, Ajustes → *Ver la mesa de todos los rivales a la vez*
+sustituye las pestañas de rival por una mesa por rival, en fila. **Viene apagado**, y no por
+prudencia: repartir el ancho entre tres deja las cartas bastante más pequeñas, así que es una
+decisión de gusto. Con él encendido se gana ver de un vistazo lo que tiene cada uno, y elegir
+a quién atacas sin cambiar de pestaña primero.
+
+Dos cosas que conviene saber:
+
+- **Actívalo antes de empezar la partida.** Es un ajuste de disposición de la mesa.
+- Si la ventana no da para tres barras de jugador enteras, se sigue jugando con pestañas y
+  se avisa por qué: una barra recortada esconde la vida del rival, que es justo el dato por
+  el que decides el combate.
+
+Para leer una carta pequeña: **clic derecho** la amplía, y **Ctrl + rueda** acerca la mesa.
 
 | | |
 |---|---|

@@ -1,6 +1,6 @@
 /* =====================================================================
    NeoForge - hoja de estilos
-   Todos los tokens de color y medida viven aqui. Cambiar la estetica aqui,
+   Tokens definidos en las notas de diseño seccion 6. Cambiar la estetica aqui,
    no en el codigo Java.
    ===================================================================== */
 
@@ -40,6 +40,20 @@
     -fx-stroke: -neo-line;
     -fx-stroke-dash-array: 6 8;
     -fx-opacity: 0.7;
+}
+
+/* Separador entre las mesas de dos rivales, cuando se ven todas a la vez.
+   Clase propia y no .combat-line: aquella SIGNIFICA algo en la partida (donde
+   se cruzan los ataques) y esto solo separa a dos jugadores.
+   El color es -neo-text-dim y no -neo-line: el token de separador (#2C3542) se
+   diseno para bordes sobre panel, y sobre el tapete oscuro con su velo no se ve
+   ni a plena opacidad. Sin separador visible, las tres mesas se leen como una
+   sola muy ancha, que es justo lo que hay que evitar. */
+.seat-divider {
+    -fx-stroke: -neo-text-dim;
+    -fx-stroke-dash-array: 3 7;
+    -fx-stroke-width: 2;
+    -fx-opacity: 0.55;
 }
 
 /* ---------- carta ---------- */
@@ -104,6 +118,50 @@
     -fx-border-color: #3A4552;
     -fx-border-radius: 5;
     -fx-border-width: 1;
+}
+
+/* --- la pastilla de una reliquia del rival, en su barra --------------
+ *
+ * El color lo pone PlayerBar en linea, sacado de la misma paleta que la
+ * carta (RelicArt.frameOf): aqui solo va la forma.
+ */
+.relic-chip {
+    -fx-background-color: rgba(0, 0, 0, 0.35);
+    -fx-background-radius: 5;
+    -fx-border-radius: 5;
+    -fx-border-width: 1;
+    -fx-padding: 3 8 3 6;
+}
+
+.relic-chip:hover {
+    -fx-background-color: rgba(0, 0, 0, 0.55);
+}
+
+.relic-chip-name {
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+}
+
+/* --- la cara de una reliquia de Ascenso (RelicArt) ---------------------
+ *
+ * Solo lo que NO cambia con la rareza. Los colores los pone RelicArt en
+ * linea, y a proposito: el mismo tono tine el marco (aqui) y el emblema
+ * (figuras de JavaFX, que no leen esta hoja). Ver su javadoc.
+ */
+.relic-face {
+    -fx-background-radius: 5;
+}
+
+.relic-name {
+    -fx-font-weight: bold;
+}
+
+.relic-type {
+    -fx-font-weight: bold;
+}
+
+.relic-text {
+    -fx-font-style: italic;
 }
 
 .card-fb-name {
@@ -439,7 +497,7 @@
     -fx-text-fill: -neo-danger;
 }
 
-/* ---------- cuadro del torneo (la auditoría del motor C6) ---------- */
+/* ---------- cuadro del torneo (la auditoría del motor, apartado C6) ---------- */
 
 .bracket-round-label {
     -fx-font-size: 0.8em;
@@ -2535,4 +2593,198 @@
     -fx-font-size: 0.98em;
     -fx-text-fill: -neo-text-dim;
     -fx-opacity: 0.85;
+}
+
+/* =====================================================================
+   ASCENSO - el mapa
+   Aqui se INVIERTE la regla de la mesa (fondo oscuro, cartas luminosas)
+   a proposito: en el mapa no hay cartas, hay iconos, y un icono sobre
+   negro no se ve. Ver el javadoc de AscentMapScreen.
+   ===================================================================== */
+
+.ascent-map-root {
+    -fx-background-color: linear-gradient(to bottom, #2A2118 0%, #17120C 100%);
+}
+
+/* Las barras no llevan fondo propio: van sobre el papel. Una franja opaca
+   encima del pergamino lo partiria en tres y se perderia el efecto de hoja. */
+.ascent-bar {
+    -fx-background-color: transparent;
+}
+
+.ascent-act {
+    -fx-text-fill: #3B2E1C;
+    -fx-font-size: 2.2em;
+    -fx-font-weight: 900;
+    -fx-padding: 0 16 0 0;
+}
+
+.ascent-hint {
+    -fx-text-fill: #6B5A3E;
+    -fx-font-size: 1.15em;
+    -fx-font-style: italic;
+}
+
+.ascent-pill-base {
+    -fx-padding: 6 16 6 16;
+    -fx-background-radius: 14;
+    -fx-font-weight: 800;
+    -fx-font-size: 1.25em;
+}
+
+.ascent-pill {
+    -fx-background-color: rgba(59,46,28,0.14);
+    -fx-text-fill: #3B2E1C;
+}
+
+.ascent-pill-life {
+    -fx-background-color: rgba(160,40,36,0.16);
+    -fx-text-fill: #7A211D;
+}
+
+.ascent-pill-relic {
+    -fx-background-color: rgba(74,155,224,0.20);
+    -fx-text-fill: #23496B;
+}
+
+.ascent-button {
+    -fx-background-color: rgba(59,46,28,0.14);
+    -fx-text-fill: #3B2E1C;
+    -fx-font-weight: 800;
+    -fx-font-size: 1.1em;
+    -fx-background-radius: 8;
+    -fx-padding: 9 22 9 22;
+    -fx-cursor: hand;
+}
+
+.ascent-button:hover {
+    -fx-background-color: rgba(59,46,28,0.22);
+}
+
+/* El elegido. Hace falta clase propia: .btn-primary la pisa .ascent-button
+   por orden de hoja, y sin marca visible no hay pregunta que valga
+   (principio 3: el estado se ve, no se lee). */
+.ascent-button-on {
+    -fx-background-color: #3B2E1C;
+    -fx-text-fill: #F3E7C8;
+}
+
+.ascent-button-on:hover {
+    -fx-background-color: #4C3B24;
+}
+
+.ascent-button-danger {
+    -fx-text-fill: #8C2F2B;
+}
+
+/* La ficha de "que hay en este nodo". Va sobre el papel, asi que es una
+   nota clavada encima, no un panel oscuro de la mesa. */
+.ascent-info {
+    -fx-background-color: rgba(250,244,228,0.94);
+    -fx-background-radius: 8;
+    -fx-border-color: rgba(59,46,28,0.35);
+    -fx-border-radius: 8;
+    -fx-border-width: 1.5;
+    -fx-padding: 12 16 12 16;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.45), 16, 0.3, 0, 4);
+}
+
+.ascent-info-title {
+    -fx-text-fill: #3B2E1C;
+    -fx-font-size: 1.15em;
+    -fx-font-weight: 900;
+}
+
+.ascent-info-text {
+    -fx-text-fill: #5A4A32;
+    -fx-font-size: 0.95em;
+}
+
+/* El mazo de la run dentro del descanso. Un ScrollPane pinta fondo propio
+   (blanco) y ahi parte el pergamino en dos: hay que vaciar el control Y su
+   viewport, que son dos reglas distintas y hacen falta las dos. */
+.ascent-scroll,
+.ascent-scroll > .viewport {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+}
+
+/* El nombre del plano, sobre su franja de arte. Lleva sombra porque va
+   encima de una imagen que no controlamos: sin ella, un plano de fondo
+   claro deja el texto ilegible. */
+.ascent-plane-name {
+    -fx-text-fill: #FBF3DF;
+    -fx-font-size: 1.05em;
+    -fx-font-weight: 800;
+    -fx-effect: dropshadow(gaussian, rgba(20,14,6,0.95), 8, 0.6, 0, 1);
+}
+
+/* El texto de un evento. Mas grande que una pista y con interlineado: es
+   lo unico que hay que leer en esa pantalla, y se lee de una vez. */
+.ascent-event-text {
+    -fx-text-fill: #4A3B26;
+    -fx-font-size: 1.35em;
+    -fx-line-spacing: 4;
+    -fx-text-alignment: center;
+    /* Y ademas -fx-alignment: text-alignment solo centra las LINEAS entre si.
+       Con una linea corta dentro de un Label ancho, el texto se queda pegado a
+       la izquierda: se vio en la captura del resultado del tahur. */
+    -fx-alignment: center;
+}
+
+/* Las opciones, todas del mismo ancho: una lista de botones de anchos
+   distintos se lee como cosas distintas, y aqui son alternativas de lo
+   mismo. */
+.ascent-event-option {
+    -fx-min-width: 520;
+    -fx-font-size: 1.15em;
+    -fx-padding: 12 24 12 24;
+}
+
+/* La tienda. Cada articulo es una ficha sobre el papel: sin marco, dos
+   cartas pegadas se leen como una sola fila de cartas y no como cosas que
+   se compran por separado. */
+.ascent-shop-item {
+    -fx-background-color: rgba(250,244,228,0.55);
+    -fx-background-radius: 10;
+    -fx-border-color: rgba(59,46,28,0.25);
+    -fx-border-radius: 10;
+    -fx-border-width: 1.5;
+    -fx-padding: 10 12 10 12;
+}
+
+/* El elegido, que es lo que dice sobre que va a cobrar el boton de abajo.
+   Aqui no basta con un borde fino: comprar no se deshace, asi que lo que
+   esta seleccionado tiene que verse desde el otro lado de la pantalla
+   (principio 3). */
+.ascent-shop-item-picked {
+    -fx-background-color: rgba(74,155,224,0.22);
+    -fx-border-color: #2F6FA8;
+    -fx-border-width: 3;
+    -fx-effect: dropshadow(gaussian, rgba(47,111,168,0.45), 14, 0.3, 0, 2);
+}
+
+/* El servicio de quitar carta no tiene carta que ensenyar, asi que ocupa
+   el mismo hueco con su aspa. Si midiera distinto, la fila se descuadraria
+   y pareceria que falta algo. */
+.ascent-shop-icon {
+    -fx-background-color: rgba(59,46,28,0.10);
+    -fx-background-radius: 8;
+    -fx-text-fill: #8C2F2B;
+    -fx-font-size: 3.4em;
+    -fx-font-weight: 900;
+}
+
+/* Un precio que no llega. Rojo y apagado: que no se pueda pagar se VE,
+   en vez de dejarte clicarlo y contestarte que no. */
+.ascent-pill-danger {
+    -fx-background-color: rgba(160,40,36,0.20);
+    -fx-text-fill: #8C2F2B;
+}
+
+.ascent-info-duel {
+    -fx-text-fill: #8C2F2B;
+    -fx-font-size: 0.95em;
+    -fx-font-weight: 700;
+    -fx-padding: 4 0 0 0;
 }

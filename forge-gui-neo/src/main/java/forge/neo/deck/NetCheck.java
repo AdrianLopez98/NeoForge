@@ -134,7 +134,7 @@ public final class NetCheck {
     }
 
     /**
-     * "Pega la URL y ya" (la auditoría del motor B7). Un sitio que no sabemos leer se
+     * "Pega la URL y ya" (la auditoría del motor, apartado B7). Un sitio que no sabemos leer se
      * rechaza SIN tocar la red — {@code DeckUrlLoader.getProvider} mira el
      * host antes de abrir ninguna conexión — así que esto vale sin
      * conexión, a diferencia de los otros dos.

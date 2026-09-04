@@ -47,9 +47,46 @@ public class PauseMenu extends StackPane {
      */
     private Consumer<String> gestureSpy;
 
+    /**
+     * Si al salir de esta partida se pierde algo que no se recupera.
+     *
+     * <p>Lo enciende Ascenso, y cambia dos cosas del menu. Ver
+     * {@link #PauseMenu(Actions, SettingsPanel.Host, boolean)}.
+     */
+    private final boolean runAtStake;
+
     public PauseMenu(final Actions actions, final SettingsPanel.Host settingsHost) {
+        this(actions, settingsHost, false);
+    }
+
+    /**
+     * @param runAtStake si esta partida es un nodo de una <b>run</b> de Ascenso
+     *
+     * <p><b>Que cambia, y por que.</b> En Ascenso un nodo <b>solo se marca
+     * resuelto al ganarlo</b>. O sea que dejar la partida a medias y volver
+     * significaria entrar otra vez en el mismo nodo con otra mano: es la unica
+     * forma de hacer trampa que tendria el modo, y ademas la mas tentadora
+     * (basta con que empiece a ir mal). Asi que salir a medias <b>cuesta la
+     * run</b>, igual que perder el duelo.
+     *
+     * <ul>
+     *   <li><b>"Reiniciar" no aparece.</b> Reiniciar el duelo <i>es</i> volver a
+     *       barajar tu mano: la trampa en estado puro. Y dejarlo puesto pero
+     *       haciendo que acabe la run seria un boton que dice una cosa y hace la
+     *       contraria, que es peor que no tenerlo (principio 1 del las notas de diseño).
+     *   <li><b>"Salir al menu" avisa de lo que cuesta</b>, con todas las letras.
+     *       Es el principio 6b: lo que no se deshace, pregunta.
+     * </ul>
+     *
+     * <p>La salida <b>sin coste</b> existe y esta donde tiene que estar: el
+     * boton "Volver" del mapa. Ahi no hay ninguna partida a medias que
+     * rebobinar, asi que la run se guarda y se continua cuando se quiera.
+     */
+    public PauseMenu(final Actions actions, final SettingsPanel.Host settingsHost,
+                     final boolean runAtStake) {
         this.actions = actions;
         this.settingsHost = settingsHost;
+        this.runAtStake = runAtStake;
         setAlignment(Pos.CENTER);
         showMain();
     }
@@ -68,15 +105,22 @@ public class PauseMenu extends StackPane {
 
         root.getChildren().addAll(title,
                 item(NeoText.get("pause.resume"), "btn-primary", actions::resume),
-                item(NeoText.get("common.settings"), "btn-secondary", this::showSettings),
-                item(NeoText.get("pause.restart"), "btn-secondary",
-                        () -> confirm(NeoText.get("pause.restart.ask"),
-                                NeoText.get("pause.restart.detail"),
-                                NeoText.get("pause.restart.yes"), actions::restart)),
-                item(NeoText.get("pause.quit"), "btn-secondary",
-                        () -> confirm(NeoText.get("pause.quit.ask"),
-                                NeoText.get("pause.quit.detail"),
-                                NeoText.get("pause.quit.yes"), actions::quitToMenu)));
+                item(NeoText.get("common.settings"), "btn-secondary", this::showSettings));
+
+        // Reiniciar NO se ofrece en una run: reiniciar el duelo es volver a
+        // barajar tu mano, o sea la trampa que el modo entero tiene que impedir.
+        if (!runAtStake) {
+            root.getChildren().add(item(NeoText.get("pause.restart"), "btn-secondary",
+                    () -> confirm(NeoText.get("pause.restart.ask"),
+                            NeoText.get("pause.restart.detail"),
+                            NeoText.get("pause.restart.yes"), actions::restart)));
+        }
+
+        root.getChildren().add(item(NeoText.get("pause.quit"), "btn-secondary",
+                () -> confirm(NeoText.get(runAtStake ? "pause.quit.run.ask" : "pause.quit.ask"),
+                        NeoText.get(runAtStake ? "pause.quit.run.detail" : "pause.quit.detail"),
+                        NeoText.get(runAtStake ? "pause.quit.run.yes" : "pause.quit.yes"),
+                        actions::quitToMenu)));
 
         getChildren().setAll(root);
     }

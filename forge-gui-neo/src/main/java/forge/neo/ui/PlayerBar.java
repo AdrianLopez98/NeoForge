@@ -1,5 +1,8 @@
 package forge.neo.ui;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import forge.card.mana.ManaAtom;
 import forge.neo.NeoText;
 import javafx.geometry.Insets;
@@ -43,6 +46,14 @@ public class PlayerBar extends HBox {
      * una derrota, es una sorpresa.
      */
     private final HBox playerCounters = new HBox(5);
+
+    /**
+     * Las reliquias de Ascenso de este jugador. Ver {@link #setRelics}.
+     *
+     * <p>Vacia en cualquier otro modo, y entonces no ocupa ni un pixel
+     * ({@code setManaged(false)}).
+     */
+    private final HBox relics = new HBox(6);
     private final Label manaCaption = new Label(NeoText.get("bar.mana"));
     private final Circle avatar = new Circle(18);
 
@@ -70,7 +81,7 @@ public class PlayerBar extends HBox {
      * <p>Solo aparece cuando hay dano: una pastilla a cero seria ruido en
      * todas las partidas en las que nadie conecta con su comandante.
      */
-    private final Label commanderDamage = new Label();
+    private final HBox commanderDamage = new HBox(4);
 
     /**
      * El estado completo del jugador, al pasar el raton.
@@ -86,6 +97,15 @@ public class PlayerBar extends HBox {
      */
     private String detailsText = "";
 
+    // Los trozos que se recolocan en modo compacto. Ver setCompact.
+    private final HBox nameRow;
+    private final HBox zones;
+    private final VBox info;
+    private final VBox manaBox;
+    private final VBox lifeBox;
+    private final Region spacer;
+    private boolean compact;
+
     public PlayerBar(final boolean opponent) {
         getStyleClass().addAll("player-bar", opponent ? "player-bar-opponent" : "player-bar-self");
         setAlignment(Pos.CENTER_LEFT);
@@ -97,7 +117,10 @@ public class PlayerBar extends HBox {
         name.getStyleClass().add("player-name");
         turnMark.getStyleClass().add("turn-mark");
         turnMark.setVisible(false);
-        commanderDamage.getStyleClass().add("commander-damage");
+        // El contenedor NO lleva la clase: la llevan las pastillas de dentro.
+        // Con las dos, el fondo de la pastilla se pintaba tambien detras de la
+        // fila entera y se veia un recuadro suelto cuando no habia nada.
+        commanderDamage.setAlignment(Pos.CENTER_LEFT);
         commanderDamage.setVisible(false);
         commanderDamage.setManaged(false);
 
@@ -125,6 +148,9 @@ public class PlayerBar extends HBox {
 
         final VBox info = new VBox(4, nameRow, zones, playerCounters);
         info.setAlignment(Pos.CENTER_LEFT);
+        this.nameRow = nameRow;
+        this.zones = zones;
+        this.info = info;
 
         manaPips.setAlignment(Pos.CENTER_LEFT);
         manaPips.getStyleClass().add("mana-pool");
@@ -140,8 +166,15 @@ public class PlayerBar extends HBox {
         manaCaption.setVisible(false);
         final VBox manaBox = new VBox(-2, manaPips, manaCaption);
         manaBox.setAlignment(Pos.CENTER_LEFT);
+        this.manaBox = manaBox;
+        this.lifeBox = lifeBox;
+        this.spacer = gap;
 
-        getChildren().addAll(avatar, info, gap, manaBox, lifeBox);
+        relics.setAlignment(Pos.CENTER_RIGHT);
+        relics.setVisible(false);
+        relics.setManaged(false);
+
+        getChildren().addAll(avatar, info, gap, relics, manaBox, lifeBox);
 
         // Toda la barra es zona de click, no solo el circulo: es un objetivo
         // mucho mas facil de acertar.
@@ -150,6 +183,56 @@ public class PlayerBar extends HBox {
                 onClick.accept(player);
             }
         });
+    }
+
+    /**
+     * La barra en DOS filas, para cuando no hay ancho.
+     *
+     * <p>Con tres rivales en fila cada barra se queda con un tercio de la
+     * pantalla, y esta barra <b>no encoge</b>: lleva avatar, nombre, los cinco
+     * contadores de zona, la reserva de mana y la vida, y por debajo de su
+     * ancho natural (~520 px) se <b>recorta</b>. Medido a 1024 de ancho con
+     * tres rivales: desaparecia la VIDA de los tres, que es justo el numero por
+     * el que decides a quien atacas.
+     *
+     * <p>Y esto NO lo arregla el zoom de la mesa, aunque arregle las cartas: la
+     * barra vive fuera del visor, asi que Ctrl+rueda no la toca. Habia que
+     * arreglarlo aqui.
+     *
+     * <p>La solucion es crecer hacia abajo, que es lo que sobra: en la fila de
+     * rivales las mesas quedan limitadas por el ANCHO y les sobra altura
+     * (medido — darles mas alto no agranda ni un pixel las cartas). Asi que la
+     * vida sube a la fila del nombre y el resto se apila debajo. <b>No se
+     * esconde ni un dato</b>: con las mesas de rival sin su tira de cementerio
+     * y exilio, estos contadores son el unico sitio donde se ven.
+     */
+    public void setCompact(final boolean on) {
+        if (compact == on) {
+            return;
+        }
+        compact = on;
+        if (on) {
+            nameRow.getChildren().addAll(spacer, lifeBox);
+            info.getChildren().setAll(nameRow, zones, manaBox, playerCounters, relics);
+            zones.setSpacing(6);
+            setSpacing(10);
+            setPadding(new Insets(6, 10, 6, 10));
+            getChildren().setAll(avatar, info);
+            HBox.setHgrow(info, Priority.ALWAYS);
+        } else {
+            nameRow.getChildren().removeAll(spacer, lifeBox);
+            info.getChildren().setAll(nameRow, zones, playerCounters);
+            zones.setSpacing(14);
+            setSpacing(18);
+            setPadding(new Insets(8, 16, 8, 16));
+            getChildren().setAll(avatar, info, spacer, relics, manaBox, lifeBox);
+        }
+        requestLayout();
+    }
+
+    /** true si la barra esta en su version de dos filas. */
+    public boolean isCompact() {
+        return compact;
     }
 
     public void setPlayer(final forge.game.player.PlayerView p) {
@@ -165,18 +248,60 @@ public class PlayerBar extends HBox {
      * @param worst el dano mas alto recibido de un solo comandante
      */
     public void setCommanderDamage(final int worst) {
-        final boolean show = worst > 0;
+        setCommanderDamage(worst > 0
+                ? List.of(new CommanderHit(null, worst)) : List.of());
+    }
+
+    /**
+     * Cuanto dano de comandante llevas, <b>y de quien</b>.
+     *
+     * <p>Una pastilla por comandante que te haya pegado, porque el limite de
+     * 21 es <b>por comandante</b> y no en total: el motor lo lleva en un
+     * {@code Map<Card, Integer>} y la derrota se comprueba entrada a entrada
+     * ({@code Player.java}, {@code if (entry.getValue() >= 21)}). O sea que
+     * tres rivales pegandote 10 cada uno <b>no</b> te matan, y una sola
+     * pastilla con el peor numero no deja verlo — que era justo la duda al
+     * jugar: no habia forma de saber si ese 10 era de uno o la suma de tres.
+     *
+     * <p>Se ordenan de mas a menos: la que te va a matar va primero.
+     */
+    public void setCommanderDamage(final List<CommanderHit> hits) {
+        final List<CommanderHit> list = hits == null ? List.<CommanderHit>of() : hits;
+        final boolean show = !list.isEmpty();
         commanderDamage.setVisible(show);
         commanderDamage.setManaged(show);
+        commanderDamage.getChildren().clear();
         if (!show) {
             return;
         }
-        commanderDamage.setText(NeoText.get("bar.commanderDamage", worst, LETHAL_COMMANDER));
-        // Ambar cuando queda poco, rojo cuando un golpe mas puede matarte. Es
-        // el codigo de color de la seccion 6: aviso y peligro.
-        commanderDamage.pseudoClassStateChanged(CMD_WARN,
-                worst >= LETHAL_COMMANDER / 2 && worst < LETHAL_COMMANDER - 6);
-        commanderDamage.pseudoClassStateChanged(CMD_DANGER, worst >= LETHAL_COMMANDER - 6);
+        final List<CommanderHit> sorted = new ArrayList<>(list);
+        sorted.sort((a, b) -> Integer.compare(b.damage(), a.damage()));
+        for (final CommanderHit hit : sorted) {
+            final Label pill = new Label(hit.who() == null
+                    ? NeoText.get("bar.commanderDamage", hit.damage(), LETHAL_COMMANDER)
+                    : NeoText.get("bar.commanderDamage.from", hit.who(), hit.damage(),
+                            LETHAL_COMMANDER));
+            pill.getStyleClass().add("commander-damage");
+            // Ambar cuando queda poco, rojo cuando un golpe mas puede matarte.
+            // Es el codigo de color de la seccion 6: aviso y peligro. Y por
+            // pastilla, no por el peor: lo que importa es cual de ellas esta
+            // cerca de los 21.
+            pill.pseudoClassStateChanged(CMD_WARN,
+                    hit.damage() >= LETHAL_COMMANDER / 2
+                            && hit.damage() < LETHAL_COMMANDER - 6);
+            pill.pseudoClassStateChanged(CMD_DANGER, hit.damage() >= LETHAL_COMMANDER - 6);
+            commanderDamage.getChildren().add(pill);
+        }
+    }
+
+    /**
+     * Un comandante que te ha pegado, y cuanto llevas de el.
+     *
+     * @param who    como se le llama en la pastilla, o null para no decirlo
+     *               (partidas a dos: solo puede ser uno)
+     * @param damage cuanto dano de ESE comandante llevas encima
+     */
+    public record CommanderHit(String who, int damage) {
     }
 
     /** A los 21 de un mismo comandante se pierde la partida (CR 903.10a). */
@@ -297,6 +422,109 @@ public class PlayerBar extends HBox {
             }
         });
         return box;
+    }
+
+    /**
+     * Las reliquias de Ascenso que lleva este jugador, en la barra.
+     *
+     * <h2>Por que no basta con el contador de la zona de mando</h2>
+     *
+     * <p>Del rival <b>no se ve la zona de mando</b>: es un contador ("2
+     * MANDO") que hay que clicar. Para un comandante da igual — se ve en la
+     * mesa en cuanto lo lanza —, pero una reliquia de Ascenso <b>nunca sale de
+     * ahi</b>: es una pasiva permanente que esta actuando todo el rato y que
+     * cambia como se juega el combate entero. Reportado jugando el 03-09-2026
+     * contra el jefe del acto 1: <i>"necesito poder ver sus reliquias, esa
+     * data es muy vital"</i>. Es el principio 3 — el estado se ve, no se lee —
+     * y ademas el mismo caso exacto que ya obligo a sacar la velocidad aqui
+     * ({@code PlayerSpeed}): un dato que el motor solo publica como una carta
+     * dentro del mando, o sea invisible.
+     *
+     * <h2>Por que esto no toca los demas modos</h2>
+     *
+     * <p>No hay ni una bandera de modo. Quien llama a esto
+     * ({@code TableBinder}) solo mete las cartas que {@code AscentRelics}
+     * reconoce por nombre, y esas cartas <b>solo existen si se ha jugado a
+     * Ascenso</b>: en Commander, en Estandar, en la aventura o en un draft la
+     * lista sale vacia sola y la fila ni se pinta. Un interruptor "estoy en
+     * Ascenso" habria que pasarlo por cuatro sitios y podria quedarse mal
+     * puesto; esto no puede.
+     *
+     * <p>Cada pastilla lleva el emblema y el nombre, y se clica para ver la
+     * carta entera con lo que hace. El emblema va del color de su rareza, el
+     * mismo que la carta ({@code RelicArt.frameOf}): son la misma reliquia
+     * vista de dos maneras.
+     */
+    public void setRelics(final java.util.List<forge.game.card.CardView> cards) {
+        relics.getChildren().clear();
+        if (cards == null || cards.isEmpty()) {
+            relics.setVisible(false);
+            relics.setManaged(false);
+            return;
+        }
+        for (final forge.game.card.CardView card : cards) {
+            final forge.neo.ascent.AscentRelic relic =
+                    forge.neo.ascent.AscentRelics.byCardName(nameOf(card));
+            if (relic == null) {
+                continue;
+            }
+            relics.getChildren().add(relicChip(relic, card));
+        }
+        final boolean any = !relics.getChildren().isEmpty();
+        relics.setVisible(any);
+        relics.setManaged(any);
+    }
+
+    private static String nameOf(final forge.game.card.CardView card) {
+        try {
+            return card == null || card.getCurrentState() == null
+                    ? null : card.getCurrentState().getName();
+        } catch (final RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** Una reliquia: su emblema y su nombre, y la carta detras del click. */
+    private Region relicChip(final forge.neo.ascent.AscentRelic relic,
+                             final forge.game.card.CardView card) {
+        final javafx.scene.paint.Color frame =
+                forge.neo.card.RelicArt.frameOf(relic.getRarity());
+        final javafx.scene.paint.Color ink =
+                forge.neo.card.RelicArt.inkOf(relic.getRarity());
+        final javafx.scene.paint.Color hole =
+                forge.neo.card.RelicArt.holeOf(relic.getRarity());
+
+        final double size = 20;
+        final javafx.scene.Group art = forge.neo.card.RelicEmblem.of(
+                forge.neo.card.RelicEmblem.motifOf(relic.getId()), size, ink, hole);
+        final StackPane holder = new StackPane(art);
+        holder.setMinSize(size, size);
+        holder.setPrefSize(size, size);
+        holder.setMaxSize(size, size);
+
+        final Label label = new Label(relic.getCardName());
+        label.getStyleClass().add("relic-chip-name");
+        label.setStyle("-fx-text-fill: " + hex(ink) + ";");
+
+        final HBox chip = new HBox(6, holder, label);
+        chip.getStyleClass().add("relic-chip");
+        chip.setAlignment(Pos.CENTER_LEFT);
+        chip.setStyle("-fx-border-color: " + hex(frame) + ";");
+        chip.setCursor(javafx.scene.Cursor.HAND);
+        // Como los contadores de zona: se consume para que mirar una reliquia
+        // no signifique ademas elegir a este jugador como objetivo.
+        chip.setOnMouseClicked(e -> {
+            e.consume();
+            forge.neo.ui.CardZoom.show(chip, card);
+        });
+        return chip;
+    }
+
+    private static String hex(final javafx.scene.paint.Color c) {
+        return String.format("#%02X%02X%02X",
+                (int) Math.round(c.getRed() * 255),
+                (int) Math.round(c.getGreen() * 255),
+                (int) Math.round(c.getBlue() * 255));
     }
 
     /** Que hacer al clicar un contador de zona. */

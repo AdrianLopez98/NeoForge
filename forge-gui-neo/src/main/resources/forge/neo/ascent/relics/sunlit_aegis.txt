@@ -1,0 +1,6 @@
+Name:Sunlit Aegis
+ManaCost:no cost
+Types:Enchantment
+S:Mode$ Continuous | EffectZone$ Command | Affected$ Creature.YouCtrl | AddKeyword$ Lifelink | Description$ Creatures you control have lifelink.
+AI:RemoveDeck:All
+Oracle:Creatures you control have lifelink.

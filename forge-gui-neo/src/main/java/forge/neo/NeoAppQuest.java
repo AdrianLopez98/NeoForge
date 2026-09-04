@@ -15,7 +15,7 @@ import javafx.util.Duration;
  * La aventura (Quest): cuartel general, tienda, bazar, coleccion, el
  * constructor de mazos con tu pool y jugar un duelo o un desafio.
  *
- * <p>Nace de la auditoría del motor E2. Movido tal cual desde {@code NeoApp}, sin
+ * <p>Nace de la auditoría del motor, apartado E2. Movido tal cual desde {@code NeoApp}, sin
  * tocar la logica -- ver el javadoc de {@link NeoAppDebug} para el porque.
  *
  * <p>Lo que NO viene aqui: {@code NeoApp.askChoice}, el dialogo generico de

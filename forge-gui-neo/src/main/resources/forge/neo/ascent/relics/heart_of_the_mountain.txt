@@ -1,0 +1,7 @@
+Name:Heart of the Mountain
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ Phase | Phase$ Main1 | ValidPlayer$ You | TriggerZones$ Command | Execute$ Trig | TriggerDescription$ At the beginning of your precombat main phase, add {C}{C}{C}.
+SVar:Trig:DB$ Mana | Produced$ C | Amount$ 3
+AI:RemoveDeck:All
+Oracle:At the beginning of your precombat main phase, add {C}{C}{C}.

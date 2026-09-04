@@ -55,6 +55,20 @@ public class PlayerField extends Pane {
     private final boolean opponent;
     private final double baseCardWidth;
 
+    /**
+     * Si el cementerio y el exilio se pintan EN la mesa, en el borde exterior.
+     *
+     * <p>Por defecto si, que es lo de siempre. Se puede apagar porque esa tira
+     * cuesta {@code baseCardWidth * 1.24 + 18} px de ancho — con una carta de
+     * 125 px son 173 — y eso es asumible cuando un jugador ocupa la pantalla
+     * entera, pero no cuando tres se reparten el mismo ancho. Con los rivales
+     * en fila esa tira sola se come el 36% de lo que le toca a cada uno.
+     *
+     * <p>Apagarla no esconde nada: el contador de las dos zonas sigue en la
+     * barra del jugador, y clicarlo abre el mismo {@link ZoneViewer}.
+     */
+    private boolean pilesOnBoard = true;
+
     public PlayerField(final double baseCardWidth, final boolean opponent) {
         this.opponent = opponent;
         this.baseCardWidth = baseCardWidth;
@@ -280,7 +294,7 @@ public class PlayerField extends Pane {
         final double w = getWidth();
         final double h = getHeight();
 
-        final double stripW = graveyard.getCardWidth() * 2 + 18;
+        final double stripW = pilesOnBoard ? graveyard.getCardWidth() * 2 + 18 : 0;
         final double rowsW = Math.max(120, w - stripW - 12);
 
         final int nCreatures = creatureRow.slotCount();
@@ -340,9 +354,21 @@ public class PlayerField extends Pane {
             cardW = Math.min(cardW, landRow.desiredCardWidth(landW));
         }
 
+        // El MISMO suelo que usa BattlefieldPane al dibujar.
+        //
+        // Si aqui se calcula con una carta mas pequenya que la que alli se va a
+        // pintar, esta fila sale mas baja que su contenido y el recorte lo
+        // siega. `desiredCardWidth` puede devolver 13 px con seis tierras en un
+        // hueco estrecho; alli el suelo lo sube a 28 y las cartas ya no caben
+        // en el alto que se les acaba de dar. Lo que hay que hacer con las que
+        // no caben a lo ancho es SOLAPARLAS, y de eso ya se encarga
+        // BattlefieldPane — pero solo puede si la fila tiene el alto correcto.
+        cardW = Math.max(cardW, BattlefieldPane.MIN_CARD_WIDTH);
+
         final double gaps = ROW_GAP * (visible - 1);
         if (cardW * CardNode.ASPECT * visible + gaps > h) {
-            cardW = Math.max(24, (h - gaps) / visible / CardNode.ASPECT);
+            cardW = Math.max(BattlefieldPane.MIN_CARD_WIDTH,
+                    (h - gaps) / visible / CardNode.ASPECT);
         }
 
         final double cardH = cardW * CardNode.ASPECT;
@@ -391,12 +417,33 @@ public class PlayerField extends Pane {
     }
 
     private void layoutPiles(final double w, final double h, final double stripW) {
+        if (!pilesOnBoard) {
+            return;
+        }
         final double pileW = graveyard.getCardWidth();
         final double pileH = graveyard.prefHeight(pileW);
         final double x = w - stripW + 6;
         final double y = Math.max(0, (h - pileH) / 2);
         graveyard.resizeRelocate(x, y, pileW + 6, pileH);
         exile.resizeRelocate(x + pileW + 12, y, pileW + 6, pileH);
+    }
+
+    /**
+     * Pinta (o no) el cementerio y el exilio en el borde de la mesa.
+     *
+     * <p>Aditivo y con el valor de siempre por defecto: quien no lo llame se
+     * comporta exactamente igual que antes. Ver {@link #pilesOnBoard}.
+     */
+    public void setPilesOnBoard(final boolean on) {
+        if (pilesOnBoard == on) {
+            return;
+        }
+        pilesOnBoard = on;
+        graveyard.setVisible(on);
+        graveyard.setManaged(on);
+        exile.setVisible(on);
+        exile.setManaged(on);
+        requestLayout();
     }
 
     public double getBaseCardWidth() {

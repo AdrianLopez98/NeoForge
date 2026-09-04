@@ -16,7 +16,7 @@ import forge.util.storage.IStorage;
 import forge.util.storage.StorageImmediatelySerialized;
 
 /**
- * El torneo (la auditoría del motor C6): un cuadro de eliminación directa, 4 u 8
+ * El torneo (la auditoría del motor, apartado C6): un cuadro de eliminación directa, 4 u 8
  * participantes, tú y el resto generados por el motor. Se juega ronda a
  * ronda hasta que sale un campeón — pierdes tu partida y quedas fuera, pero
  * el cuadro sigue solo hasta el final para que se pueda ver quién gana.
@@ -68,7 +68,7 @@ import forge.util.storage.StorageImmediatelySerialized;
  *
  * <p><b>Commander o Estándar</b>, elegido al montar el cuadro. Los rivales
  * salen de {@code DeckgenUtil.generateCommanderDeck} (el mismo que ya usa
- * {@code HomeScreen} para "Genérame uno", la auditoría del motor B6) o de
+ * {@code HomeScreen} para "Genérame uno", la auditoría del motor, apartado B6) o de
  * {@code DeckgenUtil.buildCardGenDeck} sobre el pozo de Estándar — las dos
  * son del propio motor, no hay generador nuestro. Cada rival se genera UNA
  * VEZ al crear el cuadro y juega con ese mismo mazo toda la ronda que le
@@ -207,7 +207,7 @@ public final class NeoTournament {
             // Estandar: el mismo generador de mazos "de arquetipo" que usan
             // el Gauntlet y las quest de Forge para rivales de construido —
             // no hay equivalente de "Generame uno" propio para este formato
-            // (la auditoría del motor B6 solo cubre los de comandante).
+            // (la auditoría del motor, apartado B6 solo cubre los de comandante).
             return DeckgenUtil.buildCardGenDeck(forge.model.FModel.getFormats().getStandard(), true);
         } catch (final RuntimeException e) {
             System.err.println("[neo] no se ha podido generar un participante de torneo: " + e);

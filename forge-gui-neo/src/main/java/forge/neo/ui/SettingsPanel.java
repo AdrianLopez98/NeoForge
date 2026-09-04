@@ -148,7 +148,7 @@ public class SettingsPanel extends VBox {
                     NeoSettings.save();
                 }));
 
-        // --- brillo de las foil (la auditoría del motor D5) ---
+        // --- brillo de las foil (la auditoría del motor, apartado D5) ---
         getChildren().add(toggleRow(NeoText.get("settings.foilEffect"),
                 NeoSettings.getBool(NeoSettings.FOIL_EFFECT, true),
                 on -> {
@@ -180,7 +180,7 @@ public class SettingsPanel extends VBox {
                     }
                 }));
 
-        // --- politica de arte (la auditoría del motor B4) ---
+        // --- politica de arte (la auditoría del motor, apartado B4) ---
         //
         // Solo decide la impresion por defecto cuando NADIE ha elegido una a
         // mano (importar una lista, un mazo que monta el motor, la IA):
@@ -254,7 +254,7 @@ public class SettingsPanel extends VBox {
                     NeoSettings.save();
                 }));
 
-        // --- regla de mulligan (la auditoría del motor B4) ---
+        // --- regla de mulligan (la auditoría del motor, apartado B4) ---
         //
         // El motor trae las cinco (Original, Paris, Vancouver, London,
         // Houston — MulliganDefs.MulliganRule) pero el jugador nunca podia
@@ -288,7 +288,7 @@ public class SettingsPanel extends VBox {
                     NeoSettings.save();
                 }));
 
-        // --- jugar por apuesta (la auditoría del motor B4) ---
+        // --- jugar por apuesta (la auditoría del motor, apartado B4) ---
         //
         // Apagado de fabrica A PROPOSITO: es el unico ajuste de esta pantalla
         // que PIERDE cartas del mazo de verdad si pierdes la partida, y algo
@@ -449,7 +449,7 @@ public class SettingsPanel extends VBox {
                     NeoSettings.save();
                 }));
 
-        // --- dificultad de la IA (la auditoría del motor B4) ---
+        // --- dificultad de la IA (la auditoría del motor, apartado B4) ---
         //
         // Dos ajustes de Forge que hoy no leiamos: cuanto puede "hacer
         // trampa" al barajar su biblioteca (un truco de mana concreto,
@@ -485,6 +485,18 @@ public class SettingsPanel extends VBox {
                     NeoSettings.save();
                 }));
 
+        // --- todas las mesas a la vez ---
+        //
+        // Solo cambia algo a mas de dos jugadores: con un rival ya se ve su
+        // mesa entera. Apagado de fabrica; ver NeoSettings.ALL_BOARDS, que
+        // trae los tamanyos medidos y por que se elige en vez de imponerse.
+        getChildren().add(toggleRow(NeoText.get("settings.allBoards"),
+                NeoSettings.getBool(NeoSettings.ALL_BOARDS, false),
+                on -> {
+                    NeoSettings.setBool(NeoSettings.ALL_BOARDS, on);
+                    NeoSettings.save();
+                }));
+
         // --- el aviso de la IA ---
         //
         // Forge lo suelta antes de CADA partida y hay que cerrarlo a mano. La
@@ -493,6 +505,19 @@ public class SettingsPanel extends VBox {
                 NeoSettings.getBool(NeoSettings.HIDE_AI_WARNING, false),
                 on -> {
                     NeoSettings.setBool(NeoSettings.HIDE_AI_WARNING, on);
+                    NeoSettings.save();
+                }));
+
+        // --- rivales mas modernos ---
+        //
+        // No quita ni un mazo: solo cambia el orden en que salen de la bolsa
+        // al sortear rival. Encendido de fabrica porque el reparto de fabrica
+        // esta muy escorado (en Estandar, 392 de 505 preconstruidos son de
+        // antes de 2018), pero se puede apagar: quien quiera azar plano manda.
+        getChildren().add(toggleRow(NeoText.get("settings.modernRivals"),
+                NeoSettings.getBool(NeoSettings.MODERN_RIVALS, true),
+                on -> {
+                    NeoSettings.setBool(NeoSettings.MODERN_RIVALS, on);
                     NeoSettings.save();
                 }));
 

@@ -125,18 +125,44 @@ public class NeoMatchUI extends NetworkGuiGame {
     private volatile Exit exitAction;
 
     /**
-     * Si esta partida es un duelo de la aventura.
+     * De donde viene esta partida, o sea <b>a donde se vuelve al acabarla</b>.
      *
-     * <p>Ahi "otra partida" es un boton que miente: el motor esta esperando a
-     * repartir la recompensa (el sobre de premio), y RESTART se salta esa
-     * pantalla entera para meterte directo en un duelo nuevo. Un boton que no
-     * hace lo que parece es peor que no tenerlo (principio 1 de las notas de diseño), asi
-     * que en un duelo de la aventura {@link GameOverScreen} no lo enseña.
+     * <p>Es lo unico que decide que botones ensena {@link GameOverScreen}, y no
+     * es cosmetico: en un modo con estado propio (la aventura, una run de
+     * Ascenso) "otra partida" es un boton que <b>miente</b> — el modo esta
+     * esperando a repartir su premio y a seguir su bucle, no a montar un duelo
+     * suelto. Un control que no hace lo que parece es peor que no tenerlo
+     * (principio 1 de las notas de diseño).
      */
-    private volatile boolean questDuel;
+    public enum Ending {
+        /**
+         * Partida suelta: "volver al menu" y "otra partida" dicen la verdad.
+         */
+        NORMAL,
+        /**
+         * Duelo de la aventura. Sin "otra partida": el motor esta esperando a
+         * repartir la recompensa (el sobre de premio), y RESTART se saltaba esa
+         * pantalla entera para meterte directo en un duelo nuevo. Y sin "volver
+         * al menu": de ahi se vuelve al cuartel general.
+         */
+        QUEST,
+        /**
+         * Nodo de una run de Ascenso. Un solo boton, "continuar Ascenso", que
+         * lleva al premio y al mapa.
+         *
+         * <p>Los dos de siempre mentian los dos a la vez: "otra partida" se
+         * trataba como abandonar el duelo a medias y <b>se llevaba la run por
+         * delante</b> (reportado jugando), y "volver al menu" no volvia a
+         * ningun menu — el bucle del modo seguia igual hacia el premio. Aqui
+         * solo hay una continuacion posible, asi que solo hay un boton.
+         */
+        ASCENT
+    }
 
-    public void setQuestDuel(final boolean questDuel) {
-        this.questDuel = questDuel;
+    private volatile Ending ending = Ending.NORMAL;
+
+    public void setEnding(final Ending ending) {
+        this.ending = ending == null ? Ending.NORMAL : ending;
     }
 
     /**
@@ -1851,7 +1877,7 @@ public class NeoMatchUI extends NetworkGuiGame {
         // consecuencia que tiene el boton. Asi que se dice, con la misma
         // pantalla de siempre, y de ahi al cuartel.
         if (exitAction != null) {
-            if (questDuel && exitAction == Exit.MENU && showGameOverScreen(false)) {
+            if (ending == Ending.QUEST && exitAction == Exit.MENU && showGameOverScreen(false)) {
                 return;
             }
             respondLater(() -> getGameController().nextGameDecision(NextGameDecision.QUIT));
@@ -1883,7 +1909,7 @@ public class NeoMatchUI extends NetworkGuiGame {
      * <p>Y es ademas lo que cierra el match: hasta que no se conteste,
      * {@code setOnMatchOver} no dispara.
      *
-     * <p>En un Bo3 (la auditoría del motor C5) esto puede llamarse una vez por cada
+     * <p>En un Bo3 (la auditoría del motor, apartado C5) esto puede llamarse una vez por cada
      * partida del partido, no solo al final: {@code GameView.isMatchOver()}
      * dice si esta era la ultima. Si no lo era, la pantalla no ofrece "otra
      * partida" ni "volver al menu" — esos botones mienten a mitad de un Bo3
@@ -1910,7 +1936,7 @@ public class NeoMatchUI extends NetworkGuiGame {
         // jugar — nunca la que viene.
         final int gameNumber = gv == null ? 0 : gv.getNumPlayedGamesInMatch() + 1;
         ui.runLater(() -> table.getOverlay().show(new GameOverScreen(
-                won, winner, turns, !questDuel, matchOver, gameNumber, totalGames,
+                won, winner, turns, ending, matchOver, gameNumber, totalGames,
                 decision -> {
                     table.getOverlay().hide();
                     if (decision == NextGameDecision.CONTINUE) {
@@ -4105,7 +4131,7 @@ public class NeoMatchUI extends NetworkGuiGame {
 
     /**
      * Banquillo entre partida y partida de un Bo3 (draft y sellado con
-     * banquillo — la auditoría del motor C5).
+     * banquillo — {@code la auditoría del motor} C5).
      *
      * <p>Solo lo llama el motor cuando el formato admite banquillo
      * ({@code GameType.isSideboardingAllowed()} — Commander no, draft y

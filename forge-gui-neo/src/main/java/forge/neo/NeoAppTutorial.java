@@ -9,7 +9,7 @@ import javafx.application.Platform;
 /**
  * El tutorial: las lecciones, jugarlas y a donde se vuelve al salir.
  *
- * <p>Nace de la auditoría del motor E2. Movido tal cual desde {@code NeoApp}, sin
+ * <p>Nace de la auditoría del motor, apartado E2. Movido tal cual desde {@code NeoApp}, sin
  * tocar la logica -- ver el javadoc de {@link NeoAppDebug} para el porque.
  */
 final class NeoAppTutorial {

@@ -11,6 +11,8 @@ import forge.item.PaperCard;
 import forge.neo.card.CardNode;
 import forge.neo.match.TableBinder;
 import forge.neo.ui.CombatOverlay;
+import forge.neo.ui.MultiBoardPreview;
+import forge.neo.ui.PlayerBar;
 import forge.neo.ui.TableScreen;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
@@ -22,7 +24,7 @@ import javafx.util.Duration;
  * maquetas ({@code --mock-*}), los disparadores de captura, y los ayudantes
  * de arrastre/click sintetico ({@code --drag-test}, {@code --autopilot}...).
  *
- * <p>Nace de la auditoría del motor E2: {@code NeoApp.java} habia crecido a casi 4.900
+ * <p>Nace de la auditoría del motor, apartado E2: {@code NeoApp.java} habia crecido a casi 4.900
  * lineas, y este bloque el solo eran mas de 1.300 -- ni una de ellas
  * alcanzable desde el juego de verdad, solo desde las banderas de linea de
  * comandos que usan las capturas y los comprobadores. Movido tal cual,
@@ -498,7 +500,7 @@ final class NeoAppDebug {
 
     /**
      * Maqueta: el brillo de una carta foil, al lado de la misma sin foil
-     * (la auditoría del motor D5). Sin esto no hay forma de comprobar el brillo sin
+     * (la auditoría del motor, apartado D5). Sin esto no hay forma de comprobar el brillo sin
      * esperar a que un sobre real saque una foil de verdad (~1 de cada 5).
      */
     void mockFoil(final List<String> args) {
@@ -525,8 +527,87 @@ final class NeoAppDebug {
     }
 
     /**
+     * Maqueta: las reliquias del RIVAL en su barra, como en un duelo de jefe.
+     *
+     * <p>Provocarlo jugando exige llegar a un jefe de Ascenso, o sea una run a
+     * medias y diez minutos. Y es justo lo que hay que poder mirar: del rival
+     * no se ve la zona de mando, solo su contador, asi que sin estas pastillas
+     * sus reliquias son invisibles (reportado jugando contra el jefe del acto
+     * 1: <i>"necesito poder ver sus reliquias, esa data es muy vital"</i>).
+     *
+     * <p>{@code -Dneo.mock.bossRelics=N} cuantas (2 es lo que lleva un jefe;
+     * 3 con la Ascension 10, que anyade el segundo aliento).
+     */
+    void mockBossRelics() {
+        forge.neo.ascent.AscentRelics.install();
+        final int howMany = Math.max(1, Integer.getInteger("neo.mock.bossRelics", 2));
+        final java.util.List<forge.game.card.CardView> cards = new java.util.ArrayList<>();
+        for (final forge.neo.ascent.AscentRelic relic : forge.neo.ascent.AscentRelics.all()) {
+            if (cards.size() >= howMany) {
+                break;
+            }
+            final forge.item.PaperCard card = forge.neo.ascent.AscentRelics.cardOf(relic);
+            if (card != null) {
+                cards.add(forge.game.card.CardView.getCardForUi(card));
+                System.out.println("[maqueta] reliquia del rival: " + relic.getCardName()
+                        + " (" + relic.getRarity() + ")");
+            }
+        }
+        app.table.getOpponentBar().setRelics(cards);
+    }
+
+    /**
+     * Maqueta: <b>las 37 reliquias de Ascenso a la vez</b>, con su cara
+     * dibujada ({@code RelicArt}).
+     *
+     * <p>Hace falta bandera propia porque no hay ninguna forma razonable de
+     * ver mas de tres juntas: los premios ofrecen una (tres si es un jefe) y
+     * salen sorteadas, asi que comprobar los 27 emblemas jugando serian
+     * decenas de runs. Aqui se ven todos de golpe y se captura.
+     *
+     * <p>Sale del <b>catalogo de verdad</b> ({@code AscentRelics.install()}),
+     * no de una lista escrita aqui: una reliquia nueva aparece sola, y si
+     * alguien anyade una sin darle emblema se ve en el acto — sale con el
+     * generico.
+     *
+     * <p>{@code -Dneo.relics.small=true} las pinta pequenyas, que es como se
+     * ven en la fila de premios: ahi la caja de texto se esconde a proposito
+     * (ver {@code RelicArt}), y eso tambien hay que poder mirarlo.
+     */
+    void mockRelics() {
+        final int n = forge.neo.ascent.AscentRelics.install();
+        final boolean small = Boolean.getBoolean("neo.relics.small");
+        final double w = app.table.zoomCardWidth() * (small ? 0.18 : 0.52);
+        final javafx.scene.layout.FlowPane grid = new javafx.scene.layout.FlowPane(10, 10);
+        grid.setAlignment(javafx.geometry.Pos.CENTER);
+        for (final forge.neo.ascent.AscentRelic relic : forge.neo.ascent.AscentRelics.all()) {
+            final forge.item.PaperCard card = forge.neo.ascent.AscentRelics.cardOf(relic);
+            if (card == null) {
+                System.out.println("[maqueta] sin carta: " + relic.getId());
+                continue;
+            }
+            final forge.neo.card.CardNode node = new forge.neo.card.CardNode(w);
+            node.setRotationEnabled(false);
+            node.setCard(forge.game.card.CardView.getCardForUi(card));
+            grid.getChildren().add(node);
+            System.out.println("[maqueta] " + relic.getId() + " -> "
+                    + forge.neo.card.RelicEmblem.motifOf(relic.getId())
+                    + " (" + relic.getRarity() + ")");
+        }
+        System.out.println("[maqueta] " + n + " reliquias registradas");
+        final javafx.scene.control.ScrollPane scroll = new javafx.scene.control.ScrollPane(grid);
+        scroll.setFitToWidth(true);
+        scroll.getStyleClass().add("dialog");
+        // Sin techo de alto el ScrollPane crece con su contenido y las de
+        // abajo se salen de la ventana: es la trampa de siempre con las
+        // rejillas grandes dentro de un overlay.
+        scroll.setPrefViewportHeight(app.table.getHeight() * 0.86);
+        app.table.getOverlay().show(scroll);
+    }
+
+    /**
      * Maqueta: el banquillo entre partida y partida de un Bo3 (draft/sellado
-     * con banquillo — la auditoría del motor C5).
+     * con banquillo — la auditoría del motor, apartado C5).
      *
      * <p>A proposito con <b>copias repetidas</b> (dos Bosque, dos Piedra
      * del Sol): es el caso que rompia el {@code ChoiceDialog} generico antes
@@ -1137,6 +1218,124 @@ final class NeoAppDebug {
                 + "resaltado debil, desplazamiento de fase, emparejadas y clones");
     }
 
+    /**
+     * MAQUETA: las cuatro mesas a la vez, para ver si el Commander a 4 cabe
+     * sin pestanyas ({@code --mock-multiboard}).
+     *
+     * <p>Reemplaza la raiz de la escena por un {@link MultiBoardPreview}. No
+     * toca {@code app.table} ni el binder: la mesa de verdad se queda como
+     * estaba y esto es una pantalla aparte que solo se pinta.
+     *
+     * <p>Lo que se viene a medir es <b>el ancho de carta que sale</b>, asi que
+     * se imprime al final. Se mide sobre el nodo ya repartido y no con una
+     * cuenta nuestra, que es lo unico que hace fiable la maqueta.
+     *
+     * <p>Banderas:
+     * <ul>
+     *   <li>{@code -Dneo.multiboard.perms=15} permanentes por rival. 15 es una
+     *       mesa normal a mitad de partida (8 tierras, 4 criaturas, 3 mas).</li>
+     *   <li>{@code -Dneo.multiboard.piles=false} quita el cementerio y el
+     *       exilio de la mesa del rival. Es LA palanca: esa tira cuesta 173 px
+     *       de los ~500 que le tocan a cada rival.</li>
+     *   <li>{@code -Dneo.multiboard.oppShare=0.52} cuanto del alto libre se
+     *       lleva la fila de rivales.</li>
+     * </ul>
+     */
+    void mockMultiBoard(final Deck deck) {
+        final int perms = Math.max(1, Integer.getInteger("neo.multiboard.perms", 15));
+        final int opponents = Math.max(1, Integer.getInteger("neo.multiboard.opponents", 3));
+        final boolean piles = !"false".equals(System.getProperty("neo.multiboard.piles"));
+
+        final MultiBoardPreview view = new MultiBoardPreview(
+                app.cardWidth, app.sideWidth, opponents, piles);
+
+        // Cartas de verdad: el reparto depende de cuantas son tierras y
+        // cuantas no, asi que con cartas inventadas la medida no valdria.
+        final List<PaperCard> pool = pickPermanents(deck, perms * (opponents + 1) + 8);
+        final List<CardView> everywhere = new ArrayList<>();
+        final List<List<CardView>> boards = new ArrayList<>();
+        for (int i = 0; i <= opponents; i++) {
+            // El pozo de un mazo se agota: se recicla desde el principio en vez
+            // de dejar mesas vacias, que falsearian el reparto a la baja.
+            final List<CardView> board = new ArrayList<>();
+            for (int k = 0; k < perms; k++) {
+                board.add(CardView.getCardForUi(pool.get((i * perms + k) % pool.size())));
+            }
+            boards.add(board);
+            everywhere.addAll(board);
+        }
+
+        for (int i = 0; i < opponents; i++) {
+            view.setOpponentBoard(i, boards.get(i), everywhere);
+            final PlayerBar bar = view.opponentBar(i);
+            bar.setPlayerName("IA-" + (i + 1));
+            bar.setLife(40 - i * 6);
+            bar.setZones(5 + i, 84 - i * 3, 3 + i, i, 1);
+            bar.setMana(0, i, 2, 0, 1, 1);
+            bar.setActiveTurn(i == 1);
+            view.opponentField(i).setZoneCounts(3 + i, i);
+        }
+
+        view.setSelfBoard(boards.get(opponents), everywhere);
+        view.getSelfBar().setPlayerName(deck.getName());
+        // El desglose de dano de comandante, que en una partida de verdad no se
+        // puede provocar a voluntad: hacen falta tres comandantes distintos
+        // conectandote. Es LO que hay que poder mirar — que 10+7+4 no se suman
+        // y que ninguno de los tres esta cerca de los 21.
+        view.getSelfBar().setCommanderDamage(List.of(
+                new PlayerBar.CommanderHit("Sephiroth", 10),
+                new PlayerBar.CommanderHit("Atraxa", 7),
+                new PlayerBar.CommanderHit("Kenrith", 18)));
+        view.getSelfBar().setLife(40);
+        view.getSelfBar().setZones(7, 86, 2, 1, 1);
+        view.getSelfBar().setMana(0, 0, 3, 0, 0, 2);
+        view.setHand(views(pickCards(deck, Integer.getInteger("neo.mock.hand", 7))),
+                app.cardWidth);
+
+        app.scene.setRoot(view);
+
+        // El tamanyo con el que se EVALUA, que no tiene por que ser el de esta
+        // ventana: lo normal es mirar esto en una sesion sin monitor de verdad.
+        // Ver setSnapshotNode.
+        final String[] wh = System.getProperty("neo.multiboard.size", "1920x1080")
+                .split("x");
+        final double renderW = Double.parseDouble(wh[0]);
+        final double renderH = Double.parseDouble(wh[1]);
+
+        // Se repite antes de capturar porque entre medias la escena hace su
+        // propio layout con el tamanyo de la ventana y pisa este.
+        final Runnable sizeAndMeasure = () -> {
+            view.resize(renderW, renderH);
+            view.setStyle(forge.neo.ui.UiScale.rootStyle(renderH));
+            // Medir DESPUES de un layout de verdad: antes de eso los anchos
+            // valen 0 y la maqueta diria que no cabe nada. Es la trampa de
+            // las trampas conocidas de las alturas medidas antes del primer layout.
+            view.applyCss();
+            view.layout();
+
+            final String hud = String.format(
+                    "MAQUETA · %d rivales en fila · %d permanentes cada uno · "
+                    + "cementerio/exilio en la mesa: %s · render %.0fx%.0f",
+                    opponents, perms, piles ? "SI" : "NO", renderW, renderH);
+            view.setHudText(hud + "\n" + view.report()
+                    + "     (suelo legible del propio codigo: 65 px  ·  "
+                    + "contadores completos a partir de 108 px  ·  "
+                    + "hoy con pestanyas: ~110 px)");
+            // El rotulo cambia de alto al cambiar de texto.
+            view.layout();
+
+            System.out.println("[multiboard] " + hud);
+            System.out.println("[multiboard] " + view.report());
+        };
+        sizeAndMeasure.run();
+        debugSnapshotOf(view, sizeAndMeasure);
+    }
+
+    /** Atajo para no exponer los campos de la captura. */
+    private void debugSnapshotOf(final javafx.scene.Node node, final Runnable before) {
+        setSnapshotNode(node, before);
+    }
+
     // ---------------------------------------------------------------
 
     static List<CardView> views(final List<PaperCard> cards) {
@@ -1420,14 +1619,86 @@ final class NeoAppDebug {
         watcher.start();
     }
 
+    /**
+     * Capturar un NODO a un tamanyo dado, en vez de la ventana.
+     *
+     * <p>Hace falta porque el tamanyo de la ventana lo decide el monitor
+     * ({@code Screen.getPrimary}), y una maqueta que se evalua por si las
+     * cartas se leen no puede depender de en que pantalla se ejecute: capturada
+     * en un 1024x768 saldria mucho peor de lo que va a salir de verdad, y
+     * decidiriamos sobre una medida falsa.
+     *
+     * <p>Nulo por defecto: sin llamar a esto, {@link #writeSnapshot} captura la
+     * escena como toda la vida.
+     */
+    void setSnapshotNode(final javafx.scene.Node node, final Runnable before) {
+        this.snapshotNode = node;
+        this.beforeSnapshot = before;
+    }
+
+    private javafx.scene.Node snapshotNode;
+    private boolean snapResized;
+    private Runnable beforeSnapshot;
+
     void writeSnapshot(final Scene scene, final String path) {
         // Puede no haber mesa: la pantalla de inicio tambien se captura.
         final TableScreen t = app.table != null && app.table.getScene() != null ? app.table : null;
         if (t != null && Boolean.getBoolean("neo.layout.debug")) {
             t.dumpLayout();
         }
+        if (beforeSnapshot != null) {
+            beforeSnapshot.run();
+        }
+        // -Dneo.snapSize=1920x1080: capturar como se veria en OTRA pantalla.
+        //
+        // El tamanyo de la ventana lo decide el monitor, y una sesion de
+        // verificacion puede no tener uno de verdad (aqui son 1024x768). Sin
+        // esto, cualquier cosa que dependa del ancho — y el reparto de la mesa
+        // depende entero — se comprueba sobre una resolucion que el jugador no
+        // usa, y se decide sobre una medida falsa.
+        final String snapSize = System.getProperty("neo.snapSize");
+        if (snapSize != null && snapshotNode == null
+                && scene.getRoot() instanceof javafx.scene.layout.Region root) {
+            try {
+                final String[] wh = snapSize.split("x");
+                final double sw = Double.parseDouble(wh[0]);
+                final double sh = Double.parseDouble(wh[1]);
+                root.resize(sw, sh);
+                root.setStyle(forge.neo.ui.UiScale.rootStyle(sh));
+                root.applyCss();
+                root.layout();
+
+                // Y una segunda pasada, porque hay decisiones que dependen del
+                // ancho y NO las toma el layout: cuantas mesas de rival caben
+                // lo decide el binder (TableBinder.apply), que corre en su
+                // propio turno. Sin dejarle correr con el tamanyo nuevo, la
+                // captura sale con el reparto que se decidio para la ventana
+                // pequenya — o sea justo con lo que no se queria medir.
+                if (!snapResized) {
+                    snapResized = true;
+                    if (app.binder != null) {
+                        app.binder.requestRefresh();
+                    }
+                    final PauseTransition again = new PauseTransition(Duration.millis(300));
+                    again.setOnFinished(e -> writeSnapshot(scene, path));
+                    again.play();
+                    return;
+                }
+
+                if (t != null && Boolean.getBoolean("neo.layout.debug")) {
+                    t.dumpLayout();
+                }
+                Snapshots.writePng(root.snapshot(null, null), new File(path));
+                System.out.printf("Captura en %s | forzada a %.0fx%.0f%n", path, sw, sh);
+                Platform.exit();
+                return;
+            } catch (final Exception | Error ex) {
+                System.err.println("neo.snapSize no valido, se captura normal: " + ex);
+            }
+        }
         try {
-            Snapshots.writePng(scene.snapshot(null), new File(path));
+            Snapshots.writePng(snapshotNode != null
+                    ? snapshotNode.snapshot(null, null) : scene.snapshot(null), new File(path));
             if (t == null) {
                 System.out.printf("Captura en %s | pantalla de inicio%n", path);
             } else {

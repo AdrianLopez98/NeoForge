@@ -218,7 +218,7 @@ public final class QuestCheck {
                 pack.getName(), first.getCards().size(), first.getNewCount(),
                 creditsBefore, NeoQuest.credits(), collectionBefore, NeoQuest.collectionSize());
         // Informativo, no falla el check: el mismo BoosterGenerator que abre
-        // sobres en draft y sellado los abre aqui (la auditoría del motor D5) — sortea
+        // sobres en draft y sellado los abre aqui (la auditoría del motor, apartado D5) — sortea
         // foil solo, sin que la tienda tenga que pedirlo. Un sobre puede
         // tocar cero foil por pura suerte (~4 de cada 5 sobres), asi que no
         // se puede exigir que salga una.

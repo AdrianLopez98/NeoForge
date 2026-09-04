@@ -27,7 +27,7 @@ import forge.model.FModel;
  * y los siete rivales... pero preguntando por {@code SGuiChoose} y
  * {@code SOptionPane}, o sea levantando cuatro dialogos del motor, incluido un
  * {@code getInteger} que <b>repite la pregunta en bucle</b> (ver la trampa de
- * {@code showInputDialog} en las notas de diseño). Y nosotros ya tenemos, del
+ * {@code showInputDialog} en {@code las notas de diseño}). Y nosotros ya tenemos, del
  * draft, la parte que de verdad importa: montar un mazo jugable con un pool
  * ({@code SealedDeckBuilder}).
  *

@@ -91,7 +91,7 @@ public final class NeoQuestMatch {
     public static Outcome playFully(final QuestEvent duel, final TableBinder binder,
                                     final boolean autoPayMana, final NeoMatchUI.Mode mode) {
         final NeoMatchUI gui = new NeoMatchUI(mode, false);
-        gui.setQuestDuel(true);
+        gui.setEnding(NeoMatchUI.Ending.QUEST);
         gui.setAutoPayMana(autoPayMana);
         if (binder != null) {
             gui.setBinder(binder);

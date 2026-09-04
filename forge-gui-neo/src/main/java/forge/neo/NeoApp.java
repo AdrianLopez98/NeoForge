@@ -61,7 +61,7 @@ public class NeoApp extends Application implements SettingsPanel.Host {
     /**
      * Maquetas, capturas y ayudantes de arrastre sintetico — todo lo que
      * solo alcanzan las banderas de linea de comandos, nunca el juego real.
-     * Ver la auditoría del motor E2 y el javadoc de {@link NeoAppDebug}.
+     * Ver la auditoría del motor, apartado E2 y el javadoc de {@link NeoAppDebug}.
      */
     final NeoAppDebug debug = new NeoAppDebug(this);
     private final NeoAppTournament tournament = new NeoAppTournament(this);
@@ -69,6 +69,16 @@ public class NeoApp extends Application implements SettingsPanel.Host {
     private final NeoAppTutorial tutorial = new NeoAppTutorial(this);
     private final NeoAppDraft draft = new NeoAppDraft(this);
     private final NeoAppQuest questApp = new NeoAppQuest(this);
+    private final NeoAppAscent ascent = new NeoAppAscent(this);
+
+    /**
+     * Si la partida en curso es un nodo de una run de Ascenso.
+     *
+     * <p>Lo unico que cambia es el <b>menu de Escape</b>: ahi salir a medias
+     * cuesta la run, asi que "Reiniciar" no se ofrece y "Salir" lo avisa. Lo
+     * enciende {@code NeoAppAscent} al lanzar el duelo y lo apaga al volver.
+     */
+    boolean runAtStake;
 
     /** Con que se lanzo la ultima partida, para poder reiniciarla igual. */
     private Deck lastDeck;
@@ -94,8 +104,26 @@ public class NeoApp extends Application implements SettingsPanel.Host {
         // Windows (125%, 150%...). Fijar 1600x980 a pelo hace que en una
         // pantalla escalada la ventana se salga y se corten los bordes.
         final var bounds = Screen.getPrimary().getVisualBounds();
-        final double winW = bounds.getWidth();
-        final double winH = bounds.getHeight();
+        double winW = bounds.getWidth();
+        double winH = bounds.getHeight();
+
+        // -Dneo.win=1920x1080: hacer como si la pantalla fuera otra.
+        //
+        // Solo para verificar. Casi todo el reparto de la mesa depende del
+        // ancho, y una sesion de comprobacion puede correr sin monitor de
+        // verdad; sin esto, lo que se mide ahi no es lo que va a ver nadie.
+        // Sin la bandera no hace absolutamente nada, que es lo correcto.
+        final String forced = System.getProperty("neo.win");
+        if (forced != null) {
+            try {
+                final String[] wh = forced.split("x");
+                winW = Double.parseDouble(wh[0]);
+                winH = Double.parseDouble(wh[1]);
+                System.out.printf("[arranque] ventana forzada a %.0fx%.0f%n", winW, winH);
+            } catch (final RuntimeException e) {
+                System.err.println("neo.win no valido (se espera ANCHOxALTO): " + forced);
+            }
+        }
 
         // El tamano de carta sale del ancho disponible, descontando la
         // columna lateral. Asi nunca se desborda, sea cual sea la pantalla.
@@ -374,7 +402,8 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 || args.contains("--mock-command") || optionOf(args, "--mock-command") != null
                 || args.contains("--mock-face") || optionOf(args, "--mock-face") != null
                 || args.contains("--mock-piles") || optionOf(args, "--mock-piles") != null
-                || args.contains("--mock-sideboard")
+                || args.contains("--mock-sideboard") || args.contains("--mock-relics")
+                || args.contains("--mock-boss-relics") || args.contains("--mock-multiboard")
                 || args.contains("--mock-foil") || optionOf(args, "--mock-foil") != null;
 
         if (live || mock) {
@@ -405,6 +434,16 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 NeoGame.setDevExileCommander(args.contains("--exile-commander"));
                 NeoGame.setDevFilterLand(args.contains("--filter-land"));
                 NeoGame.setDevRig(optionOf(args, "--rig"));
+                // Las reliquias del rival en su barra, sin tener que llegar a
+                // un jefe de Ascenso jugando.
+                final String oppRelics = optionOf(args, "--rig-opp-relics");
+                if (oppRelics != null) {
+                    try {
+                        NeoGame.setDevOppRelics(Integer.parseInt(oppRelics.trim()));
+                    } catch (final NumberFormatException e) {
+                        NeoGame.setDevOppRelics(2);
+                    }
+                }
                 final String rigSpeed = optionOf(args, "--speed");
                 if (rigSpeed != null) {
                     NeoGame.setDevSpeed(Integer.parseInt(rigSpeed));
@@ -565,6 +604,18 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 if (args.contains("--mock-sideboard")) {
                     debug.mockSideboard();
                 }
+                if (args.contains("--mock-relics")) {
+                    debug.mockRelics();
+                }
+                if (args.contains("--mock-boss-relics")) {
+                    debug.mockBossRelics();
+                }
+                // Va el ULTIMO de las maquetas de mesa: sustituye la raiz de la
+                // escena entera, asi que cualquier otra maqueta que se pinte
+                // despues estaria pintando sobre una mesa que ya no se ve.
+                if (args.contains("--mock-multiboard")) {
+                    debug.mockMultiBoard(deck);
+                }
                 if (args.contains("--mock-pause")) {
                     togglePauseMenu();
                 }
@@ -681,11 +732,22 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 }
                 if (args.contains("--mock-gameover")) {
                     // -Dneo.over.bo3=true: la pantalla de mitad de un Bo3
-                    // (la auditoría del motor C5) — "seguir" o "rendir el partido" en
+                    // (la auditoría del motor, apartado C5) — "seguir" o "rendir el partido" en
                     // vez de "otra partida"/"volver al menu".
+                    //
+                    // -Dneo.over.ending=ASCENT|QUEST: la de un modo con bucle
+                    // propio, que ofrece UN solo boton. Provocarla jugando
+                    // exige ganar un nodo de una run, o sea una partida entera.
+                    // -Dneo.over.lost=true ademas la pierde: en Ascenso eso
+                    // cambia el boton, porque una run perdida no continua.
                     final boolean bo3 = Boolean.getBoolean("neo.over.bo3");
+                    final boolean lost = Boolean.getBoolean("neo.over.lost");
+                    final forge.neo.match.NeoMatchUI.Ending ending =
+                            forge.neo.match.NeoMatchUI.Ending.valueOf(
+                                    System.getProperty("neo.over.ending", "NORMAL"));
                     table.getOverlay().show(new forge.neo.ui.GameOverScreen(
-                            true, "Wak'dern", 14, true, !bo3, bo3 ? 1 : 0, bo3 ? 3 : 0,
+                            !lost, "Wak'dern", 14, ending,
+                            !bo3, bo3 ? 1 : 0, bo3 ? 3 : 0,
                             d -> table.getOverlay().hide()));
                 }
                 if (args.contains("--mock-foil") || optionOf(args, "--mock-foil") != null) {
@@ -752,10 +814,40 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             if (args.contains("--lobby-auto") && net.lobbyScreen != null) {
                 net.lobbyScreen.autoDriveForTest();
             }
+        } else if (args.contains("--ascent-reward")) {
+            // El premio de un jefe: las tres cartas Y las tres reliquias a
+            // elegir. Provocarlo jugando exige ganarle a un jefe.
+            ascent.showMock("reward");
+        } else if (args.contains("--ascent-shop")) {
+            // La tienda. Provocarla jugando exige que la ruta pase por un nodo
+            // de tienda Y llegar con creditos.
+            ascent.showMock("shop");
+        } else if (args.contains("--ascent-event")) {
+            // Un EVENTO. -Dneo.ascent.event=<id> elige cual (shrine, gambler,
+            // chest, collector, campfire, echo, fountain).
+            ascent.showMock("event");
+        } else if (args.contains("--ascent-over")) {
+            // El resumen del final. Es el unico que NO se puede provocar de
+            // ninguna manera razonable: hay que perder una run entera.
+            ascent.showMock("over");
+        } else if (args.contains("--ascent-deck")) {
+            // El visor del mazo de la run, de solo lectura.
+            ascent.showMock("deck");
+        } else if (args.contains("--ascent-rest")) {
+            // El descanso, a media vida: con la vida llena el boton de curarse
+            // sale deshabilitado y no se ve lo que hay que ver.
+            ascent.showMock("rest");
+        } else if (args.contains("--ascent")) {
+            // Ascenso, igual que la casilla del menu principal. Con una run a
+            // medias entra a AscentPickScreen (continuar o abandonar); sin
+            // ella, a montar una. Salvo -Dneo.ascent.enterAt / hoverAt: esos
+            // ganchos esperan el MAPA de punta a punta, y showAscent() los
+            // salta directo a el (ver su comentario).
+            ascent.showAscent();
         } else if (args.contains("--sealed")) {
             draft.showSealedSetup();
         } else if (args.contains("--tournament")) {
-            // El torneo, sin pasar por el menu (la auditoría del motor C6). Con un
+            // El torneo, sin pasar por el menu (la auditoría del motor, apartado C6). Con un
             // evento a medias entra a su marcador; si no, a montar uno.
             tournament.showTournament();
         } else if (args.contains("--mock-tournament-run")) {
@@ -1295,6 +1387,34 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             t.play();
         }
 
+        if (args.contains("--pick-test")) {
+            // El gemelo de --zoom-test, con el boton IZQUIERDO. Existe porque
+            // la mitad de "click derecho amplia, izquierdo elige" que se rompe
+            // sin avisar es la SEGUNDA: filtrar por PRIMARY para que el
+            // derecho no elija se lleva por delante el click de verdad si se
+            // filtra de mas, y eso no se ve en ninguna captura.
+            final PauseTransition t = new PauseTransition(Duration.millis(
+                    Long.getLong("neo.pick.testAt", 1500L)));
+            t.setOnFinished(e -> {
+                final List<CardNode> all = new ArrayList<>();
+                debug.collectCardNodes(scene.getRoot(), all);
+                if (all.isEmpty()) {
+                    System.out.println("[pick] no hay ninguna carta en pantalla");
+                    return;
+                }
+                final int which = Integer.getInteger("neo.pick.index", 0);
+                final CardNode card = all.get(Math.min(Math.max(0, which), all.size() - 1));
+                System.out.println("[pick] cartas en pantalla: " + all.size());
+                System.out.println("[pick] click IZQUIERDO sobre "
+                        + (card.getCard() == null ? "?" : card.getCard()));
+                debug.fire(card, javafx.scene.input.MouseEvent.MOUSE_PRESSED, debug.centreOf(card),
+                        javafx.scene.input.MouseButton.PRIMARY);
+                debug.fire(card, javafx.scene.input.MouseEvent.MOUSE_CLICKED, debug.centreOf(card),
+                        javafx.scene.input.MouseButton.PRIMARY);
+            });
+            t.play();
+        }
+
         if (snapshotPath != null && (args.contains("--anim-test") || args.contains("--draft")
                 || optionOf(args, "--draft-cube") != null
                 || args.contains("--mock-turn") || args.contains("--shop-auto")
@@ -1333,7 +1453,7 @@ public class NeoApp extends Application implements SettingsPanel.Host {
      */
     private void applyEngineSettings() {
         NeoSettings.applyAudioToEngine();
-        // Politica de arte (la auditoría del motor B4): necesita el catalogo ya leido
+        // Politica de arte (la auditoría del motor, apartado B4): necesita el catalogo ya leido
         // (FModel.getMagicDb()), asi que no puede ir antes de aqui.
         NeoSettings.applyCardArtToEngine();
         // Nuestro conjunto de musica, y la de los menus sonando. Antes no
@@ -1371,7 +1491,7 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 table.getMenuOverlay().hide();
                 leaveMatch(forge.neo.match.NeoMatchUI.Exit.MENU);
             }
-        }, this);
+        }, this, runAtStake);
         // El tutorial tiene un paso para esto, y ni abrir el menu ni entrar en
         // Ajustes llega al motor: se cuenta desde aqui.
         menu.setGestureSpy(table::gesture);
@@ -1632,6 +1752,11 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             }
 
             @Override
+            public void ascent() {
+                ascent.showAscent();
+            }
+
+            @Override
             public void tournament() {
                 tournament.showTournament();
             }
@@ -1675,7 +1800,7 @@ public class NeoApp extends Application implements SettingsPanel.Host {
     }
 
     /**
-     * "Otros formatos": Modern, Pioneer, Pauper... Ver la auditoría del motor §2 y
+     * "Otros formatos": Modern, Pioneer, Pauper... Ver la auditoría del motor y
      * {@link forge.neo.ui.OtherFormatsScreen}. Elegir uno lleva a la MISMA
      * {@link #showHome} de siempre — no hace falta pantalla propia mas alla
      * de la lista.
@@ -1947,7 +2072,7 @@ public class NeoApp extends Application implements SettingsPanel.Host {
      * hayan podido cambiar (importar uno nuevo desde fuera, por ejemplo).
      */
     private void showHome(final NeoFormat format) {
-        // Momir Basic y MoJhoSto se montan el mazo solos (la auditoría del motor C4):
+        // Momir Basic y MoJhoSto se montan el mazo solos (la auditoría del motor, apartado C4):
         // no hay nada que elegir, asi que ni siquiera se abre esta pantalla.
         // Va aqui y no en cada sitio que llama a showHome porque es el punto
         // por el que pasan MainMenu y OtherFormatsScreen los dos (principio 8

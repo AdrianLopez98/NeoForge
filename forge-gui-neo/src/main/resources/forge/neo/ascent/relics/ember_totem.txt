@@ -1,0 +1,6 @@
+Name:Ember Totem
+ManaCost:no cost
+Types:Enchantment
+S:Mode$ Continuous | EffectZone$ Command | Affected$ Creature.YouCtrl | AddPower$ 1 | AddKeyword$ Trample | Description$ Creatures you control get +1/+0 and have trample.
+AI:RemoveDeck:All
+Oracle:Creatures you control get +1/+0 and have trample.

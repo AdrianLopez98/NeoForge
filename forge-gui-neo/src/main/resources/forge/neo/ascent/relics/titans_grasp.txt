@@ -1,0 +1,6 @@
+Name:Titan's Grasp
+ManaCost:no cost
+Types:Enchantment
+S:Mode$ Continuous | EffectZone$ Command | Affected$ Creature.YouCtrl | AddKeyword$ Trample & Haste | Description$ Creatures you control have trample and haste.
+AI:RemoveDeck:All
+Oracle:Creatures you control have trample and haste.

@@ -554,7 +554,7 @@ public class NeoGuiBase implements IGuiBase {
     /**
      * El elegidor que hay puesto ahora, para guardarlo y devolverlo.
      *
-     * <p>Lo usa el draft de cubo (la auditoría del motor C2): el motor sólo sabe
+     * <p>Lo usa el draft de cubo (la auditoría del motor, apartado C2): el motor sólo sabe
      * preguntar "qué cubo" con un {@code SGuiChoose} de toda la vida, y la
      * respuesta ya se eligió en nuestra propia pantalla. Se instala un
      * elegidor de usar-y-tirar que contesta esa única pregunta sin

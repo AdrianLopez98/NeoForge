@@ -1,10 +1,12 @@
 package forge.neo.deck;
 
 import java.util.List;
+import java.util.Set;
 
 import forge.deck.Deck;
 import forge.item.PaperCard;
 import forge.model.FModel;
+import forge.neo.ascent.AscentRelics;
 import forge.neo.match.NeoFormat;
 
 /**
@@ -51,6 +53,7 @@ public final class DeckRulesCheck {
         otherFormatsFilterThePool();
         generatesADeckForTheCommander();
         generatesARandomOpponentDeck();
+        ascentCardsStayOutOfTheCatalogue();
 
         System.out.println();
         System.out.printf("  %d comprobaciones OK, %d fallos%n", passed, failed);
@@ -731,7 +734,7 @@ public final class DeckRulesCheck {
     }
 
     /**
-     * El pozo de "Otros formatos" (la auditoría del motor C1) se aplica de verdad al
+     * El pozo de "Otros formatos" (la auditoría del motor, apartado C1) se aplica de verdad al
      * catalogo, no solo al mazo guardado.
      *
      * <p><b>Pauper es el caso de prueba de §1.6</b>: es el mas estricto y el
@@ -808,7 +811,7 @@ public final class DeckRulesCheck {
     }
 
     /**
-     * "Generar mazo" (la auditoría del motor B6): {@code DeckEditor.generateForCommander}.
+     * "Generar mazo" (la auditoría del motor, apartado B6): {@code DeckEditor.generateForCommander}.
      *
      * <p>No comprueba que el mazo generado sea BUENO — eso es cosa del motor,
      * que ya trae sus propios mazos genéticos de IA — sino que lo que
@@ -842,7 +845,7 @@ public final class DeckRulesCheck {
     }
 
     /**
-     * "Genérame uno" en el selector de rival (la auditoría del motor B6, segunda
+     * "Genérame uno" en el selector de rival (la auditoría del motor, apartado B6, segunda
      * mitad): {@code DeckgenUtil.generateCommanderDeck}, la fachada que
      * elige el comandante Y monta el mazo en la misma llamada.
      *
@@ -871,6 +874,42 @@ public final class DeckRulesCheck {
                 "        (Generar rival: comandante %s, %d cartas en el principal)%n",
                 generated.getCommanders().isEmpty() ? "?" : generated.getCommanders().get(0).getName(),
                 generated.getMain().countAll());
+    }
+
+    /**
+     * Que el catalogo del deck builder NO enseñe las cartas de Ascenso
+     * (las 35 reliquias y el segundo aliento del jefe).
+     *
+     * <p><b>No es paranoia, es un fallo real que se cazo aqui mismo.</b>
+     * {@code AscentRelics} las registra con {@code AI:RemoveDeck:All}, que
+     * solo evita que un mazo ALEATORIO las incluya — no las saca de
+     * {@code getUniqueCards()}, que es de donde tira {@link CardIndex}.
+     * Medido: nada mas registrarlas no aparecen ahi (el motor todavia no ha
+     * reindexado), pero en cuanto se juega una partida de verdad
+     * {@code CardDb} reindexa y <b>si</b> aparecen — asi que un comprobador
+     * que mirara justo despues de registrarlas, sin jugar nada, pasaria en
+     * verde sin que el fallo estuviera arreglado. Por eso aqui se fuerza
+     * {@code AscentRelics.install()} y se construye un {@link CardIndex}
+     * de verdad sobre el catalogo completo, que es exactamente el camino que
+     * sigue la pantalla del jugador.
+     */
+    private static void ascentCardsStayOutOfTheCatalogue() {
+        AscentRelics.install();
+        final Set<String> ours = AscentRelics.allCardNames();
+        if (ours.isEmpty()) {
+            check("hay reliquias de Ascenso que comprobar", false);
+            return;
+        }
+        final CardIndex index = CardIndex.of(FModel.getMagicDb().getCommonCards().getUniqueCards());
+        int intrusas = 0;
+        for (int i = 0; i < index.size(); i++) {
+            if (ours.contains(index.cardAt(i).getName())) {
+                intrusas++;
+            }
+        }
+        check("el catalogo del deck builder no ensenya ninguna de las " + ours.size()
+                + " cartas de Ascenso" + (intrusas > 0 ? " (" + intrusas + " coladas)" : ""),
+                intrusas == 0);
     }
 
     // ---------------------------------------------------------------

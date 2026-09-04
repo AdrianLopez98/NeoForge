@@ -236,18 +236,63 @@ public class TableBinder {
             viewedOpponent = top;
         }
 
+        // ¿Una mesa o todas? Lo decide el ajuste, y se pregunta aqui en cada
+        // repintado para que encenderlo o apagarlo se note SIN salir de la
+        // partida. Apagado — que es como viene de fabrica — pide un solo
+        // asiento, o sea exactamente la mesa de siempre.
+        // Y no se parte mas de lo que cabe: ver TableScreen.maxOpponentSeats.
+        //
+        // TODO o NADA, y esto importa: con tres rivales y sitio para dos, dos
+        // asientos dejarian al tercero sin mesa Y SIN PESTANYA — o sea un
+        // jugador que esta en la partida y no se ve por ninguna parte, que es
+        // mucho peor que verlos de uno en uno. Si no caben todos, pestanyas.
+        final boolean wanted = multiBoard() && !opponents.isEmpty();
+        final int room = table.maxOpponentSeats();
+        final boolean fits = wanted && room >= opponents.size();
+        final int seats = fits ? opponents.size() : 1;
+        table.setOpponentSeats(seats);
+
+        // Y si lo pidio y no cabe, SE DICE.
+        //
+        // Sin esto, el jugador enciende el ajuste, no cambia nada y no hay
+        // forma de saber si esta roto o si es que su pantalla es pequenya.
+        // Reportado tal cual: "lo active en ajustes pero nada cambia". Un
+        // ajuste que se traga su propia respuesta es el principio 1 de
+        // las notas de diseño — un control que no hace lo que parece.
+        if (wanted && !fits && !warnedNoRoom) {
+            warnedNoRoom = true;
+            table.showInfo(
+                    forge.neo.NeoText.get("table.allBoards.tight.title"),
+                    forge.neo.NeoText.get("table.allBoards.tight.body",
+                            opponents.size(), room));
+        }
+        if (fits) {
+            warnedNoRoom = false;
+        }
+
         table.setOpponents(opponents, top, gv.getPlayerTurn());
 
-        // Cambio de rival a la vista: la mesa de arriba se sustituye entera y
-        // no se puede animar como si se hubiera muerto todo.
-        if (top != null && !top.equals(shownOpponent)) {
-            table.skipOpponentRemovalAnimation();
-        }
-        shownOpponent = top;
+        if (seats > 1) {
+            // Viendolos a todos no hay "rival a la vista" que pueda cambiar, y
+            // por tanto tampoco la sustitucion de mesa que habia que dejar sin
+            // animar. Cada asiento tiene su jugador fijo mientras dure.
+            shownOpponent = null;
+            applyPlayer(gv, bottom, -1);
+            for (int i = 0; i < opponents.size(); i++) {
+                applyPlayer(gv, opponents.get(i), i);
+            }
+        } else {
+            // Cambio de rival a la vista: la mesa de arriba se sustituye entera
+            // y no se puede animar como si se hubiera muerto todo.
+            if (top != null && !top.equals(shownOpponent)) {
+                table.skipOpponentRemovalAnimation();
+            }
+            shownOpponent = top;
 
-        applyPlayer(gv, bottom, false);
-        if (top != null) {
-            applyPlayer(gv, top, true);
+            applyPlayer(gv, bottom, -1);
+            if (top != null) {
+                applyPlayer(gv, top, 0);
+            }
         }
 
         table.setPhase(gv.getPhase());
@@ -270,8 +315,26 @@ public class TableBinder {
      * quien y a que apunta cada hechizo del stack. La interfaz no deduce nada,
      * solo dibuja lo que el motor ya sabe.
      */
+    /** Ya se ha avisado de que no caben todas las mesas. Una vez por partida. */
+    private boolean warnedNoRoom;
+
     /** El rival que se esta pintando arriba ahora mismo. */
     private PlayerView shownOpponent;
+
+    /**
+     * Si el jugador ha pedido ver todas las mesas a la vez.
+     *
+     * <p>Se envuelve porque el binder tambien corre en maquetas y pruebas sin
+     * preferencias cargadas; ahi cualquier fallo tiene que significar "como
+     * siempre", nunca "prueba un modo nuevo".
+     */
+    private static boolean multiBoard() {
+        try {
+            return forge.neo.NeoSettings.allBoards();
+        } catch (final RuntimeException e) {
+            return false;
+        }
+    }
 
     private static List<Object[]> links(final GameView gv) {
         final List<Object[]> out = new ArrayList<>();
@@ -377,26 +440,80 @@ public class TableBinder {
      * ensenyarlo se puede perder una partida sin verlo venir.
      */
     private static int worstCommanderDamage(final GameView gv, final PlayerView p) {
-        if (gv == null || p == null || gv.getPlayers() == null) {
-            return 0;
-        }
         int worst = 0;
+        for (final forge.neo.ui.PlayerBar.CommanderHit hit : commanderDamage(gv, p)) {
+            worst = Math.max(worst, hit.damage());
+        }
+        return worst;
+    }
+
+    /**
+     * Cuanto dano de comandante lleva este jugador, <b>de cada comandante</b>.
+     *
+     * <p>Uno por uno y no sumado, porque asi es la regla y asi lo lleva el
+     * motor: {@code Player.commanderDamage} es un {@code Map<Card, Integer>} y
+     * la derrota se comprueba <b>entrada a entrada</b> ({@code Player.java}:
+     * {@code if (entry.getValue() >= 21) loseConditionMet}). Tres rivales
+     * pegandote 10 cada uno no te matan; uno solo pegandote 21, si.
+     *
+     * <p>Se pregunta por CADA comandante de la partida, el tuyo incluido: un
+     * comandante robado o copiado puede pegarte con el tuyo.
+     *
+     * <p>La etiqueta es el nombre del comandante <b>hasta la primera coma</b>
+     * ("Sephiroth", no "Sephiroth, One-Winged Angel"): es como se le llama de
+     * verdad, y el nombre entero no cabe en una pastilla. Se identifica por
+     * comandante y no por jugador porque el limite de 21 es <b>del
+     * comandante</b> — con companyeros (partner), un mismo rival tiene dos y
+     * cada uno lleva su cuenta.
+     */
+    static List<forge.neo.ui.PlayerBar.CommanderHit> commanderDamage(
+            final GameView gv, final PlayerView p) {
+        final List<forge.neo.ui.PlayerBar.CommanderHit> out = new ArrayList<>();
+        if (gv == null || p == null || gv.getPlayers() == null) {
+            return out;
+        }
         try {
+            int commanders = 0;
             for (final PlayerView other : gv.getPlayers()) {
-                final List<CardView> commanders = other.getCommanders();
-                if (commanders == null) {
+                final List<CardView> theirs = other.getCommanders();
+                if (theirs == null) {
                     continue;
                 }
-                for (final CardView commander : commanders) {
-                    if (commander != null) {
-                        worst = Math.max(worst, p.getCommanderDamage(commander));
+                commanders += theirs.size();
+                for (final CardView commander : theirs) {
+                    if (commander == null) {
+                        continue;
+                    }
+                    final int dmg = p.getCommanderDamage(commander);
+                    if (dmg > 0) {
+                        out.add(new forge.neo.ui.PlayerBar.CommanderHit(
+                                shortName(commander), dmg));
                     }
                 }
             }
+            // Con un solo comandante en toda la partida, decir de quien es
+            // sobra: no puede ser de otro. La pastilla se queda como estaba.
+            if (commanders <= 1 && out.size() == 1) {
+                return List.of(new forge.neo.ui.PlayerBar.CommanderHit(
+                        null, out.get(0).damage()));
+            }
         } catch (final RuntimeException e) {
-            return 0;
+            return List.of();
         }
-        return worst;
+        return out;
+    }
+
+    /** "Sephiroth, One-Winged Angel" -> "Sephiroth". */
+    private static String shortName(final CardView commander) {
+        String name = forge.neo.card.CardText.nameOf(commander);
+        if (name == null || name.isBlank()) {
+            name = commander.getName();
+        }
+        if (name == null) {
+            return "?";
+        }
+        final int comma = name.indexOf(',');
+        return comma > 0 ? name.substring(0, comma) : name;
     }
 
     /**
@@ -464,6 +581,35 @@ public class TableBinder {
         }
     }
 
+    /**
+     * Las cartas de su zona de mando que son reliquias NUESTRAS.
+     *
+     * <p>Incluye el "segundo aliento" del jefe del acto 3 (Ascension 10), que
+     * es justo la que mas falta hace ver: dice que al jefe le queda un empujon
+     * cuando baje de vida.
+     */
+    private static List<CardView> relicsOf(final PlayerView p) {
+        final List<CardView> out = new ArrayList<>();
+        if (p == null) {
+            return out;
+        }
+        try {
+            final var command = p.getCards(ZoneType.Command);
+            if (command == null) {
+                return out;
+            }
+            for (final CardView cv : command) {
+                final var st = cv == null ? null : cv.getCurrentState();
+                if (st != null && forge.neo.ascent.AscentRelics.byCardName(st.getName()) != null) {
+                    out.add(cv);
+                }
+            }
+        } catch (final RuntimeException e) {
+            return out;
+        }
+        return out;
+    }
+
     /** Cuanto veneno te mata. Lo dice el motor: en dos cabezas no son diez. */
     private static int poisonToLose(final GameView gv) {
         try {
@@ -473,18 +619,26 @@ public class TableBinder {
         }
     }
 
-    private void applyPlayer(final GameView gv, final PlayerView p, final boolean opponent) {
-        final var bar = opponent ? table.getOpponentBar() : table.getSelfBar();
+    /**
+     * Vuelca un jugador en su asiento.
+     *
+     * @param seat -1 eres tu (la mesa de abajo); 0..N-1, el asiento de rival.
+     *             Con el ajuste apagado solo existe el asiento 0, que es el
+     *             {@code opponentBar}/{@code opponentField} de toda la vida
+     */
+    private void applyPlayer(final GameView gv, final PlayerView p, final int seat) {
+        final boolean opponent = seat >= 0;
+        final var bar = opponent ? table.opponentBar(seat) : table.getSelfBar();
 
         bar.setPlayer(p);
         bar.setAvatarImage(faceOf(p, opponent));
-        (opponent ? table.getOpponentField() : table.getSelfField())
+        (opponent ? table.opponentField(seat) : table.getSelfField())
                 .setSleeveImage(sleeveOf(p, opponent));
         // La pastilla se calcula sobre TODOS los jugadores del GameView.
         // El panel de detalle trae su propio desglose, pero por otra ruta del
         // motor (getPlayerCommanderInfo, que recorre getOpponents()), asi que
         // si alguna vez discrepan, el numero de la pastilla es el de fiar.
-        bar.setCommanderDamage(worstCommanderDamage(gv, p));
+        bar.setCommanderDamage(commanderDamage(gv, p));
         bar.setDetails(detailsOf(p));
         bar.setPlayerName(PlayerName.of(p));
         bar.setLife(p.getLife());
@@ -508,6 +662,20 @@ public class TableBinder {
         bar.setCounters(countersOf(p), shardsOf(p), poisonToLose(gv), controllerOf(p),
                 forge.neo.match.PlayerSpeed.of(p), forge.neo.match.PlayerSpeed.rawText(p));
 
+        // Las reliquias de Ascenso del RIVAL, en su barra.
+        //
+        // Solo del rival: las tuyas ya se ven enteras, como cartas, en tu zona
+        // de mando (CommandZone). Del rival esa zona es un contador que hay que
+        // clicar, y una reliquia no sale nunca de ahi: es una pasiva que esta
+        // actuando todo el rato. Reportado jugando contra el jefe del acto 1.
+        //
+        // Y no hace falta preguntar en que modo estamos: relicsOf solo devuelve
+        // las cartas que AscentRelics reconoce, y esas solo existen si se ha
+        // jugado a Ascenso. En cualquier otro modo la lista sale vacia sola.
+        if (opponent) {
+            bar.setRelics(relicsOf(p));
+        }
+
         // Reserva de mana, por tipo.
         //
         // OJO CON LA CODIFICACION: hay DOS y no coinciden. El motor guarda la
@@ -528,8 +696,8 @@ public class TableBinder {
 
         final List<CardView> battlefield = toList(p.getBattlefield());
         if (opponent) {
-            table.setOpponentBattlefield(battlefield);
-            table.setOpponentZonePiles(p.getZoneSize(ZoneType.Graveyard),
+            table.setOpponentBattlefield(seat, battlefield);
+            table.setOpponentZonePiles(seat, p.getZoneSize(ZoneType.Graveyard),
                     p.getZoneSize(ZoneType.Exile),
                     hasPlayable(p, ZoneType.Graveyard), hasPlayable(p, ZoneType.Exile));
         } else {

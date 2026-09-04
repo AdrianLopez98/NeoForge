@@ -1,0 +1,6 @@
+Name:Smith's Blessing
+ManaCost:no cost
+Types:Enchantment
+S:Mode$ Continuous | EffectZone$ Command | Affected$ Creature.YouCtrl | AddPower$ 1 | AddToughness$ 1 | Description$ Creatures you control get +1/+1.
+AI:RemoveDeck:All
+Oracle:Creatures you control get +1/+1.

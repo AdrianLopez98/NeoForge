@@ -49,6 +49,17 @@ public class ChoiceDialog<T> extends VBox {
     private final int max;
     private final Label counter = new Label();
     private final Button accept = new Button();
+    private final Button selectAll = new Button();
+
+    /**
+     * Las opciones y su nodo, en el orden en que se pintan.
+     *
+     * <p>Hace falta para {@link #selectAllInOrder()}: marcar "todas en orden"
+     * es marcarlas en ESTE orden, y el mapa de seleccionadas va por nodo — no
+     * hay forma de recorrerlo al reves.
+     */
+    private final List<Region> nodesInOrder = new ArrayList<>();
+    private final List<T> optionsInOrder = new ArrayList<>();
 
     private final boolean readOnly;
 
@@ -107,6 +118,8 @@ public class ChoiceDialog<T> extends VBox {
                 node.setOpacity(0.95);
             }
             items.getChildren().add(node);
+            nodesInOrder.add(node);
+            optionsInOrder.add(option);
         }
 
         scroll = new ScrollPane(items);
@@ -139,9 +152,30 @@ public class ChoiceDialog<T> extends VBox {
             onDone.accept(new ArrayList<>(chosen));
         });
 
+        // "Marcar todas, en el orden en que salen".
+        //
+        // Nace de una peticion jugando: el motor pidio ordenar 35 disparos
+        // simultaneos (una criatura muriendo con tres Vengadoras y un Sephiroth
+        // en mesa) y habia que clicar los 35 uno a uno. La mayoria de las veces
+        // el orden da igual — son copias del mismo disparo — y lo unico que
+        // quieres es decir "asi esta bien".
+        //
+        // Marca en el ORDEN EN QUE APARECEN, que es justo lo que significa
+        // aceptar el orden propuesto: `selected` es un LinkedHashMap y el
+        // resultado sale de `values()`, o sea en orden de insercion.
+        //
+        // Solo cuando hay varias que elegir y de verdad ahorra clicks: con dos
+        // o tres opciones es un boton de mas para leer.
+        final boolean worthIt = !readOnly && max > 1 && options.size() > 3;
+        selectAll.getStyleClass().add("btn-secondary");
+        selectAll.setText(NeoText.get("choice.selectAllInOrder"));
+        selectAll.setVisible(worthIt);
+        selectAll.setManaged(worthIt);
+        selectAll.setOnAction(e -> selectAllInOrder());
+
         final Region gap = new Region();
         HBox.setHgrow(gap, Priority.ALWAYS);
-        final HBox footer = new HBox(10, counter, gap, accept);
+        final HBox footer = new HBox(10, counter, gap, selectAll, accept);
         footer.setAlignment(Pos.CENTER_LEFT);
 
         getChildren().addAll(heading, scroll, footer);
@@ -206,6 +240,50 @@ public class ChoiceDialog<T> extends VBox {
         }
         b.setOnAction(e -> toggle(option, b));
         return b;
+    }
+
+    /**
+     * Marca todas las opciones, de arriba abajo, hasta el maximo.
+     *
+     * <p>Si ya estaban todas marcadas, las desmarca: el mismo boton deshace lo
+     * que acaba de hacer, que es lo que se espera de el cuando te has
+     * equivocado — y aqui equivocarse es facil, porque marca 35 cosas de golpe.
+     */
+    private void selectAllInOrder() {
+        final int room = Math.min(max, nodesInOrder.size());
+        final boolean undo = selected.size() >= room;
+
+        // Se limpia siempre antes: marcar "en orden" tiene que dar el orden de
+        // la pantalla, y no el de lo que hubiera clicado antes por su cuenta.
+        for (final Region node : new ArrayList<>(selected.keySet())) {
+            unmark(node);
+        }
+        selected.clear();
+
+        if (!undo) {
+            for (int i = 0; i < nodesInOrder.size() && selected.size() < room; i++) {
+                final Region node = nodesInOrder.get(i);
+                selected.put(node, optionsInOrder.get(i));
+                mark(node);
+            }
+        }
+        updateState();
+    }
+
+    private void mark(final Region node) {
+        if (!node.getStyleClass().contains("chosen")) {
+            node.getStyleClass().add("chosen");
+        }
+        if (node instanceof CardNode cn) {
+            cn.setSelectable(true);
+        }
+    }
+
+    private void unmark(final Region node) {
+        node.getStyleClass().remove("chosen");
+        if (node instanceof CardNode cn) {
+            cn.setSelectable(false);
+        }
     }
 
     private void toggle(final T option, final Region node) {

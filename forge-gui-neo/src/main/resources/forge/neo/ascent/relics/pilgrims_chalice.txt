@@ -1,0 +1,7 @@
+Name:Pilgrim's Chalice
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ Phase | Phase$ Upkeep | ValidPlayer$ You | TriggerZones$ Command | Execute$ TrigGainLife | TriggerDescription$ At the beginning of your upkeep, you gain 1 life.
+SVar:TrigGainLife:DB$ GainLife | LifeAmount$ 1
+AI:RemoveDeck:All
+Oracle:At the beginning of your upkeep, you gain 1 life.

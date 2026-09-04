@@ -1,0 +1,9 @@
+Name:Cornered Fury
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ Phase | Phase$ Upkeep | ValidPlayer$ You | TriggerZones$ Command | ConditionCheckSVar$ MyLife | ConditionSVarCompare$ LE18 | Execute$ TrigPumpAll | TriggerDescription$ At the beginning of your upkeep, if you have 18 or less life, creatures you control get +2/+2 until end of turn, then this card is exiled.
+SVar:MyLife:Count$YourLifeTotal
+SVar:TrigPumpAll:DB$ PumpAll | ValidCards$ Creature.YouCtrl | NumAtt$ +2 | NumDef$ +2 | SubAbility$ DBExile
+SVar:DBExile:DB$ ChangeZone | Defined$ Self | Origin$ Command | Destination$ Exile
+AI:RemoveDeck:All
+Oracle:At the beginning of your upkeep, if you have 18 or less life, creatures you control get +2/+2 until end of turn, then this card is exiled.

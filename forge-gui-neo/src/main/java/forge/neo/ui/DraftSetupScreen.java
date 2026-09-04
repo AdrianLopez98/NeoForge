@@ -56,7 +56,7 @@ public class DraftSetupScreen extends BorderPane {
         void start(CardEdition edition);
 
         /**
-         * Empezar un draft de cubo (la auditoría del motor C2).
+         * Empezar un draft de cubo (la auditoría del motor, apartado C2).
          *
          * @param cubeName el nombre EXACTO de {@code CustomLimited.getName()}
          */

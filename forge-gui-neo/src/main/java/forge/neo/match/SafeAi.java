@@ -237,6 +237,57 @@ public final class SafeAi {
             }
         }
 
+        /**
+         * Resolver un disparo suyo sin pasar por el stack.
+         *
+         * <h2>Por que esta aqui</h2>
+         *
+         * <p>Es el tercer sitio por el que el motor entra en la IA, y el que
+         * mas lejos llega: {@code WrappedAbility.resolve} resuelve el disparo
+         * <b>entero</b> por dentro de esta llamada. O sea que una carta rara
+         * que reviente al resolverse mata el hilo de la partida desde aqui, no
+         * desde una decision de la IA.
+         *
+         * <p>Caso real, reportado jugando el 03-09-2026 y dos veces seguidas:
+         * el jefe de Ascenso se quedaba sin esquemas y un "pon otro esquema en
+         * movimiento" ({@code SetInMotionEffect}) llamaba a
+         * {@code Player.setSchemeInMotion} <b>sin comprobar que quedara
+         * alguno</b>; ese metodo hace {@code getZone(SchemeDeck).get(0)}, que
+         * con el mazo vacio devuelve {@code null}, y {@code GameAction.moveTo}
+         * reventaba con un NPE. La partida se caia a mitad y el jugador
+         * aparecia en el mapa: <i>"en medio de la batalla con el boss me saca
+         * de la partida"</i>.
+         *
+         * <h2>Y por que tragarselo es lo correcto aqui</h2>
+         *
+         * <p>No es solo que sea mejor que perder la partida — que tambien. En
+         * ese caso concreto, lo que el efecto pedia era imposible: <b>no habia
+         * otro esquema que poner en movimiento</b>. Saltarselo es exactamente
+         * lo que tenia que pasar.
+         *
+         * <p>Lo que se pierde es que un disparo puede quedarse a medias, con la
+         * primera mitad aplicada. Es el trato de siempre de esta clase, y sigue
+         * siendo mejor que un hilo de partida muerto.
+         *
+         * <p>Va en {@code SafeAi} y no en Ascenso a proposito: el hueco del
+         * motor no es de ese modo, y {@code SafeAi} lo llevan TODAS las
+         * partidas (principio 8).
+         */
+        @Override
+        public void playSpellAbilityNoStack(final SpellAbility effectSA,
+                                            final boolean canSetupTargets) {
+            try {
+                super.playSpellAbilityNoStack(effectSA, canSetupTargets);
+            } catch (final RuntimeException | StackOverflowError e) {
+                if (!GUARD) {
+                    throw e;
+                }
+                report(getPlayer(), "resolver "
+                        + (effectSA == null || effectSA.getHostCard() == null
+                            ? "un disparo suyo" : effectSA.getHostCard().getName()), e);
+            }
+        }
+
         /** Solo con -Dneo.ai.crashTest=true, y una sola vez por IA. */
         private void boom() {
             if (CRASH_ALWAYS || (CRASH_ONCE && !crashedOnce)) {

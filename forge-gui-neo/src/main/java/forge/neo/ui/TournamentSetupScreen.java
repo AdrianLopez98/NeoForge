@@ -23,7 +23,7 @@ import javafx.scene.layout.VBox;
  *
  * <p>No hay nada más que preguntar: el resto del cuadro lo genera el motor
  * ({@code DeckgenUtil.generateCommanderDeck}, el mismo de "Generame uno" en
- * la auditoría del motor B6), cada uno con SU mazo fijo — nadie cambia de mazo entre
+ * la auditoría del motor, apartado B6), cada uno con SU mazo fijo — nadie cambia de mazo entre
  * rondas — y a partir de ahí es eliminación directa hasta que salga un
  * campeón. Las partidas en las que no juegas se resuelven solas, de verdad.
  */

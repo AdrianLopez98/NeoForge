@@ -5,6 +5,8 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import forge.neo.NeoText;
+import forge.neo.ascent.AscentRelic;
+import forge.neo.ascent.AscentRelics;
 
 import com.google.common.collect.Multiset;
 
@@ -75,12 +77,12 @@ public class CardNode extends StackPane {
     }
 
     /**
-     * Si las cartas foil brillan (la auditoría del motor D5).
+     * Si las cartas foil brillan (la auditoría del motor, apartado D5).
      *
      * <p>Encendido de fabrica: es puro adorno, no cambia nada de como se
      * juega — al reves que el pago automatico o el pase inteligente, que
      * cambian el RITMO de la partida y por eso vienen apagados. Aqui la
-     * regla es la de las animaciones (las notas de diseño 6): apagado se ve
+     * regla es la de las animaciones (las notas de diseño): apagado se ve
      * exactamente la carta de siempre, sin ningun brillo.
      */
     private static volatile boolean foilEffect = true;
@@ -206,6 +208,23 @@ public class CardNode extends StackPane {
     /** Si el reflejo de la foil esta dado de alta en {@link FoilClock}. */
     private boolean foilTicking;
     private final Rectangle border = new Rectangle();
+
+    /**
+     * La cara de una reliquia de Ascenso, para las cartas que nos inventamos
+     * nosotros.
+     *
+     * <p>Va aqui y no en las pantallas de Ascenso por el <b>principio 8</b>:
+     * una reliquia se ve en siete sitios — el premio, la tienda, la barra del
+     * mapa, el visor del mazo, el resumen del final, la carta ampliada y la
+     * zona de mando de la partida — y todos la pintan con un {@code CardNode}.
+     * Puesta aqui sale bien en los siete; puesta en una pantalla, en una.
+     *
+     * <p>Se construye siempre aunque casi nunca se use: son cuatro nodos
+     * vacios por carta, y la alternativa —crearla la primera vez que hace
+     * falta— obliga a tocar el grafo de escena a mitad de un refresco.
+     */
+    private final RelicArt relicFace = new RelicArt();
+
     private final VBox fallback = new VBox(2);
     private final Label fbName = new Label();
     private final Label fbCost = new Label();
@@ -348,7 +367,10 @@ public class CardNode extends StackPane {
         markers.setMouseTransparent(true);
         markers.setVisible(false);
 
-        getChildren().addAll(fallback, art, foilTint, foilShine, border, counters, markers, ptRow, rankBadge);
+        relicFace.setVisible(false);
+
+        getChildren().addAll(fallback, relicFace, art, foilTint, foilShine, border,
+                counters, markers, ptRow, rankBadge);
         setClip(clip);
 
         setCardWidth(width);
@@ -516,6 +538,8 @@ public class CardNode extends StackPane {
         foilShine.setHeight(h * 1.60);
         updateFoilMotion();
 
+        relicFace.setSize(w, h);
+
         // El respaldo tiene que ocupar la carta entera. Sin fijar el tamano, el
         // StackPane lo encoge a su contenido y el texto se parte letra a letra.
         fallback.setPrefSize(w, h);
@@ -654,6 +678,7 @@ public class CardNode extends StackPane {
         if (card == null) {
             art.setImage(null);
             fallback.setVisible(true);
+            relicFace.setVisible(false);
             setFoil(false);
             return;
         }
@@ -683,9 +708,27 @@ public class CardNode extends StackPane {
         }
         final boolean hasArt = art.getImage() != null;
         art.setVisible(hasArt);
-        fallback.setVisible(!hasArt);
 
-        // --- brillo de foil (la auditoría del motor D5) ---
+        // --- si es una carta NUESTRA, su cara dibujada ---
+        //
+        // Las reliquias de Ascenso no existen en Magic: Scryfall no tiene arte
+        // que bajar y nunca lo va a tener, asi que caian en el respaldo
+        // generico de mas abajo y —sin coste y sin P/T— se veian como un
+        // rectangulo oscuro con el nombre arriba. RelicArt les pinta una carta
+        // de verdad, con lo que hacen escrito en su caja de texto.
+        //
+        // La pregunta es barata (un mapa por nombre) y devuelve null mientras
+        // no se haya jugado a Ascenso, que es cuando se registran: fuera del
+        // modo esto no cuesta nada y no cambia nada.
+        final AscentRelic relic = hasArt || st == null
+                ? null : AscentRelics.byCardName(st.getName());
+        if (relic != null) {
+            relicFace.setRelic(relic);
+        }
+        relicFace.setVisible(relic != null);
+        fallback.setVisible(!hasArt && relic == null);
+
+        // --- brillo de foil (la auditoría del motor, apartado D5) ---
         //
         // getFoilIndex() SOLO se rellena dentro de una partida de verdad
         // (Match.preparePlayerZone llama a Card.setRandomFoil() al montar la

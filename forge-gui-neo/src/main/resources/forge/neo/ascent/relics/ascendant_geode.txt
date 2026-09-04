@@ -1,0 +1,7 @@
+Name:Ascendant Geode
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ Phase | Phase$ Main1 | ValidPlayer$ You | TriggerZones$ Command | Execute$ TrigMana | TriggerDescription$ At the beginning of your precombat main phase, add {C}{C}.
+SVar:TrigMana:DB$ Mana | Produced$ C | Amount$ 2
+AI:RemoveDeck:All
+Oracle:At the beginning of your precombat main phase, add {C}{C}.

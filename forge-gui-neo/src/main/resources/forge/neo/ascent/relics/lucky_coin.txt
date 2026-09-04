@@ -1,0 +1,8 @@
+Name:Lucky Coin
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ Phase | Phase$ Upkeep | ValidPlayer$ You | TriggerZones$ Command | ConditionCheckSVar$ TurnCount | ConditionSVarCompare$ EQ1 | Execute$ Trig | TriggerDescription$ At the beginning of your first upkeep, you gain 4 life.
+SVar:Trig:DB$ GainLife | LifeAmount$ 4
+SVar:TurnCount:Count$TurnNumber
+AI:RemoveDeck:All
+Oracle:At the beginning of your first upkeep, you gain 4 life.

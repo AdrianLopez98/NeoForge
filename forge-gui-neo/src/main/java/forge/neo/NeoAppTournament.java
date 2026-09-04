@@ -8,10 +8,10 @@ import forge.neo.match.TableBinder;
 import javafx.application.Platform;
 
 /**
- * El torneo (la auditoría del motor C6): el cuadro de eliminacion directa, montarlo,
+ * El torneo (la auditoría del motor, apartado C6): el cuadro de eliminacion directa, montarlo,
  * enseñarlo y arrancar cada partida (jugada, vista, o al azar).
  *
- * <p>Nace de la auditoría del motor E2, junto con las demas piezas de {@code NeoApp}
+ * <p>Nace de la auditoría del motor, apartado E2, junto con las demas piezas de {@code NeoApp}
  * repartidas por familia. Movido tal cual desde {@code NeoApp}, sin tocar
  * la logica: ver el javadoc de {@link NeoAppDebug} para el porque.
  */
@@ -24,7 +24,7 @@ final class NeoAppTournament {
     }
 
     /**
-     * El torneo (la auditoría del motor C6): con un cuadro guardado se entra a él
+     * El torneo (la auditoría del motor, apartado C6): con un cuadro guardado se entra a él
      * directamente — también si ya ha terminado, para poder MIRARLO — y si
      * no hay ninguno, a montar uno nuevo.
      */

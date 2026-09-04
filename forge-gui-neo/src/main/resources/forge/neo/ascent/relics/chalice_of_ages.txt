@@ -1,0 +1,7 @@
+Name:Chalice of Ages
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ Phase | Phase$ End of Turn | ValidPlayer$ You | TriggerZones$ Command | Execute$ Trig | TriggerDescription$ At the beginning of your end step, you gain 4 life.
+SVar:Trig:DB$ GainLife | LifeAmount$ 4
+AI:RemoveDeck:All
+Oracle:At the beginning of your end step, you gain 4 life.

@@ -1,0 +1,7 @@
+Name:Scout's Map
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ Phase | Phase$ Upkeep | ValidPlayer$ You | TriggerZones$ Command | Execute$ Trig | TriggerDescription$ At the beginning of your upkeep, scry 1.
+SVar:Trig:DB$ Scry | Defined$ You | ScryNum$ 1
+AI:RemoveDeck:All
+Oracle:At the beginning of your upkeep, scry 1.

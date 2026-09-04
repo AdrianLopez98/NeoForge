@@ -20,7 +20,7 @@ import javafx.scene.layout.VBox;
  * (o el mismo Commander, en PreDH) con un pozo de cartas mas estrecho.
  *
  * <p>No son quince casillas nuevas del menu principal. El principio de
- * la auditoría del motor §2 es que <b>una casilla es una PREGUNTA distinta, no una
+ * la auditoría del motor es que <b>una casilla es una PREGUNTA distinta, no una
  * opcion distinta</b>: todos estos responden la misma pregunta que ya hace
  * "Commander" o "Estandar" — "elige un mazo y juega" — asi que van agrupados
  * detras de una sola casilla del menu, y esta pantalla es esa agrupacion.
@@ -47,13 +47,16 @@ public class OtherFormatsScreen extends BorderPane {
      * Los casuales que valen la pena hoy. Commander, Brawl y Oathbreaker
      * tienen su propia casilla y no se duplican aqui; Conspiracy y Un-Sets son
      * {@code Type:Archived} y necesitan {@code FPref.LOAD_ARCHIVED_FORMATS}
-     * (ver la auditoría del motor C1), asi que se quedan fuera de esta primera tanda.
+     * (ver la auditoría del motor, apartado C1), asi que se quedan fuera de esta primera tanda.
      */
     private static final NeoFormat[] CASUALES = {
-        NeoFormat.PREMODERN, NeoFormat.PREDH,
+        // Tiny Leaders baja aqui desde el menu principal (03-09-2026) para
+        // dejarle su sitio a Ascenso. Encaja: es un formato de construido mas
+        // y responde la MISMA pregunta que sus vecinos — elige un mazo y juega.
+        NeoFormat.TINY_LEADERS, NeoFormat.PREMODERN, NeoFormat.PREDH,
     };
 
-    /** Los que se montan el mazo solos (la auditoría del motor C4): tocar y jugar. */
+    /** Los que se montan el mazo solos (la auditoría del motor, apartado C4): tocar y jugar. */
     private static final NeoFormat[] INSTANTANEOS = {
         NeoFormat.MOMIR, NeoFormat.MOJHOSTO,
     };

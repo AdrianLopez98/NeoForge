@@ -48,6 +48,22 @@ public final class NeoMain {
 
         final String cmd = args.length > 0 && !args[0].startsWith("-") ? args[0].toLowerCase(Locale.ROOT) : "list";
 
+        // Y aqui mismo, antes que nada mas: la prueba del propio NeoPortable.
+        //
+        // Va delante del cerrojo, del registro y del motor a proposito. Lo que
+        // comprueba es el fichero que le dejamos a Forge ANTES de que arranque,
+        // asi que necesita mandar ella sobre forge.assetsDir y neo.dataDir; y
+        // no le hacen falta las cartas, que son once segundos. Ver PortableCheck.
+        if ("portablecheck".equals(cmd)) {
+            banner("Perfil portable: que las rutas con acentos vuelvan igual");
+            try {
+                PortableCheck.run();
+            } catch (final java.io.IOException e) {
+                throw new IllegalStateException("no se ha podido montar el banco de pruebas", e);
+            }
+            return;
+        }
+
         // Un solo NeoForge abierto, y lo PRIMERO de todo: si ya hay uno, este
         // proceso no tiene que hacer absolutamente nada, ni siquiera abrir el
         // registro. Rotar el neo.log que el otro tiene abierto no se puede, y
@@ -219,6 +235,30 @@ public final class NeoMain {
                 // terminar. Nada de eso se ve en una captura.
                 banner("Tutorial: posiciones, textos y gestos");
                 forge.neo.tutorial.TutorialCheck.run();
+                break;
+            case "ascentcheck":
+                // La sonda de la fase 0 de Ascenso. Las cinco cosas sobre las
+                // que descansa el modo entero — mazo corto, vida arrastrada,
+                // jefe con esquemas, una reliquia nuestra y que esa reliquia no
+                // se cuele en el catalogo — fallarian en silencio o muy tarde.
+                banner("Ascenso: la sonda de la fase 0");
+                forge.neo.ascent.AscentProbe.run();
+                // Y el bucle del modo: una run entera, sin ventana. Va detras
+                // porque no tiene sentido medir el recorrido si el motor no
+                // deja hacer lo que el modo supone — si la sonda falla, revienta
+                // aqui mismo y esto no llega a correr.
+                banner("Ascenso: una run entera, sin ventana");
+                forge.neo.ascent.AscentCheck.run();
+                break;
+            case "reliccheck":
+                // Las 37 reliquias, JUGADAS: una partida por cada una, mirando
+                // en la mesa que el efecto ocurre de verdad. Va aparte de
+                // ascentcheck porque es lo unico del modo que tarda minutos, y
+                // porque lo que caza es de otra naturaleza: no que el modo se
+                // recorra, sino que un script mal escrito NO hace nada y Forge
+                // no lo dice por ningun sitio.
+                banner("Ascenso: las reliquias, jugadas una a una");
+                forge.neo.ascent.AscentRelicCheck.run(opt(args, "--solo", null));
                 break;
             case "questmake":
                 // Una aventura de pruebas con dinero de sobra. La tienda y los

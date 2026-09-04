@@ -1,0 +1,7 @@
+Name:Copper Ring
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ Phase | Phase$ Main1 | ValidPlayer$ You | TriggerZones$ Command | Execute$ Trig | TriggerDescription$ At the beginning of your precombat main phase, add {C}.
+SVar:Trig:DB$ Mana | Produced$ C | Amount$ 1
+AI:RemoveDeck:All
+Oracle:At the beginning of your precombat main phase, add {C}.

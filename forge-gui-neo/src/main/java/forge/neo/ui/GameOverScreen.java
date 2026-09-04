@@ -4,6 +4,7 @@ import forge.neo.NeoText;
 import java.util.function.Consumer;
 
 import forge.gamemodes.match.NextGameDecision;
+import forge.neo.match.NeoMatchUI;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
@@ -21,8 +22,10 @@ import javafx.scene.layout.VBox;
  * conteste por ella) {@code setOnMatchOver} no dispara nunca y la partida
  * anterior nunca se suelta.
  *
- * <p>Por eso los dos botones no son adornos: son las dos respuestas que el
- * motor admite aqui.
+ * <p>Por eso los botones no son adornos: son las respuestas que el motor
+ * admite aqui. Cuantos hay lo decide {@link NeoMatchUI.Ending}, o sea de donde
+ * venia la partida: una suelta ofrece las dos, y un modo con bucle propio —la
+ * aventura, una run de Ascenso— ofrece la unica que dice la verdad.
  */
 public class GameOverScreen extends VBox {
 
@@ -30,21 +33,21 @@ public class GameOverScreen extends VBox {
      * @param won     si ha ganado el jugador local
      * @param winner  nombre del ganador, para cuando gana un tercero
      * @param turns   turnos que ha durado
-     * @param showAgain si se ensenya el boton de "otra partida". En un duelo de
-     *                  la aventura NO: el motor esta esperando a repartir la
-     *                  recompensa, y ese boton se la saltaba entera para meterte
-     *                  directo en el siguiente duelo (principio 1 de las notas de diseño).
+     * @param ending  a donde se vuelve al acabar. Manda un modo con bucle
+     *                propio (la aventura, una run de Ascenso): ahi "otra
+     *                partida" y "volver al menu" son botones que mienten
+     *                (principio 1 de las notas de diseño), asi que no salen.
      * @param onDecision que contestarle al motor
      */
     public GameOverScreen(final boolean won, final String winner, final int turns,
-                          final boolean showAgain,
+                          final NeoMatchUI.Ending ending,
                           final Consumer<NextGameDecision> onDecision) {
-        this(won, winner, turns, showAgain, true, 0, 0, onDecision);
+        this(won, winner, turns, ending, true, 0, 0, onDecision);
     }
 
     /**
      * Igual, pero sabiendo si esto cierra el PARTIDO entero o si es solo una
-     * partida de un Bo3 (draft/sellado con banquillo — la auditoría del motor C5).
+     * partida de un Bo3 (draft/sellado con banquillo — la auditoría del motor, apartado C5).
      *
      * <p>A mitad de un Bo3 "otra partida" y "volver al menu" mienten: el
      * partido sigue vivo, y esos botones tirarian el resultado a medio hacer.
@@ -57,7 +60,7 @@ public class GameOverScreen extends VBox {
      * @param totalGames cuantas partidas tiene el partido, o 0 si no aplica
      */
     public GameOverScreen(final boolean won, final String winner, final int turns,
-                          final boolean showAgain, final boolean matchOver,
+                          final NeoMatchUI.Ending ending, final boolean matchOver,
                           final int gameNumber, final int totalGames,
                           final Consumer<NextGameDecision> onDecision) {
         getStyleClass().addAll("dialog", "game-over");
@@ -106,14 +109,18 @@ public class GameOverScreen extends VBox {
 
             buttons.getChildren().addAll(concede, next);
         } else {
-            // El unico caso sin "otra partida" es un duelo de la aventura, y
-            // ahi "volver al menu" seria mentira: se vuelve al cuartel general.
-            final Button quit = new Button(NeoText.get(showAgain ? "over.menu" : "over.quest"));
-            quit.getStyleClass().add(showAgain ? "btn-secondary" : "btn-primary");
+            // Un modo con bucle propio no vuelve a ningun menu ni monta otra
+            // partida: sigue POR DONDE IBA, y ese es el unico boton que puede
+            // haber. En la aventura, al cuartel general; en Ascenso, al premio
+            // del nodo y al mapa — salvo que ahi se acabe de perder la run, y
+            // entonces lo honesto es lo que de verdad pasa: al menu.
+            final boolean single = ending != NeoMatchUI.Ending.NORMAL;
+            final Button quit = new Button(NeoText.get(labelFor(ending, won)));
+            quit.getStyleClass().add(single ? "btn-primary" : "btn-secondary");
             quit.setOnAction(e -> onDecision.accept(NextGameDecision.QUIT));
             buttons.getChildren().add(quit);
 
-            if (showAgain) {
+            if (!single) {
                 final Button again = new Button(NeoText.get("over.again"));
                 again.getStyleClass().addAll("btn-primary", "btn-play");
                 again.setOnAction(e -> onDecision.accept(NextGameDecision.NEW));
@@ -122,5 +129,23 @@ public class GameOverScreen extends VBox {
         }
 
         getChildren().addAll(title, sub, buttons);
+    }
+
+    /**
+     * Que pone el boton de salir.
+     *
+     * <p>Una run de Ascenso perdida no "continua": el modo la borra y te deja
+     * en el menu, asi que ahi el boton dice eso mismo. Es el principio 1 otra
+     * vez, y en el sitio donde mas duele — la pantalla que cierra la run.
+     */
+    private static String labelFor(final NeoMatchUI.Ending ending, final boolean won) {
+        switch (ending) {
+            case QUEST:
+                return "over.quest";
+            case ASCENT:
+                return won ? "over.ascent" : "over.menu";
+            default:
+                return "over.menu";
+        }
     }
 }

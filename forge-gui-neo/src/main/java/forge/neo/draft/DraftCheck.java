@@ -82,7 +82,7 @@ public final class DraftCheck {
     }
 
     /**
-     * Draft de cubo (la auditoría del motor C2), de principio a fin.
+     * Draft de cubo (la auditoría del motor, apartado C2), de principio a fin.
      *
      * <p>No hace falta un nombre fijo: cualquier cubo de {@code res/cube}
      * sirve, así que se coge el primero que {@link NeoDraft#cubes()} liste —
@@ -146,7 +146,7 @@ public final class DraftCheck {
     }
 
     /**
-     * El rating de pick del sobre (la auditoría del motor C3): que el numero que se
+     * El rating de pick del sobre (la auditoría del motor, apartado C3): que el numero que se
      * pinta en la esquina de la carta ({@code CardRanker.getRawScore}, la
      * misma llamada que hace {@code DraftScreen}) sea siempre un numero de
      * verdad y quede dentro del 0-99 que la pastilla puede pintar.

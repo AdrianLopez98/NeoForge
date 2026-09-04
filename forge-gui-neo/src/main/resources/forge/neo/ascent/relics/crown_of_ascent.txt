@@ -1,0 +1,6 @@
+Name:Crown of Ascent
+ManaCost:no cost
+Types:Enchantment
+S:Mode$ Continuous | EffectZone$ Command | Affected$ Creature.YouCtrl | AddPower$ 2 | AddToughness$ 2 | Description$ Creatures you control get +2/+2.
+AI:RemoveDeck:All
+Oracle:Creatures you control get +2/+2.

@@ -1,0 +1,7 @@
+Name:Font of Souls
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ ChangesZone | Origin$ Battlefield | Destination$ Graveyard | ValidCard$ Creature.YouCtrl | TriggerZones$ Command | Execute$ Trig | TriggerDescription$ Whenever a creature you control dies, draw a card.
+SVar:Trig:DB$ Draw | NumCards$ 1
+AI:RemoveDeck:All
+Oracle:Whenever a creature you control dies, draw a card.

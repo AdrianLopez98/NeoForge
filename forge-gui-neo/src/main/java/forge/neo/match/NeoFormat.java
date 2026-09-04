@@ -65,7 +65,7 @@ public enum NeoFormat implements forge.neo.deck.DeckContext {
     // "Otros formatos": el mismo Construido de siempre (o el mismo
     // Commander, en PreDH), con un pozo de cartas mas estrecho encima.
     // No salen en el menu principal (isInMainMenu()) — se entra por la
-    // pantalla nueva de la seccion 2 de la auditoría del motor — y comparten carpeta
+    // pantalla nueva de la auditoría del motor — y comparten carpeta
     // de mazos con ESTANDAR o COMMANDER: un mazo legal aqui lo es tambien
     // alli, porque el pozo solo puede RECORTAR, nunca ampliar.
     // -----------------------------------------------------------------
@@ -426,6 +426,18 @@ public enum NeoFormat implements forge.neo.deck.DeckContext {
      * Commander, y estos 64 son copias suyas.
      */
     private static void addPrecons(final List<Deck> out) {
+        out.addAll(precons());
+    }
+
+    /**
+     * Los mismos, sueltos.
+     *
+     * <p>Los pide Ascenso para los rivales de sus nodos: ahi el pozo NO puede
+     * ser {@code decks()}, que mete tambien los mazos del jugador — jugar
+     * contra tu propio mazo no es un rival, es un espejo.
+     */
+    public static List<Deck> precons() {
+        final List<Deck> out = new ArrayList<>();
         try {
             for (final PreconDeck precon : QuestController.getPrecons()) {
                 final Deck deck = precon.getDeck();
@@ -437,6 +449,7 @@ public enum NeoFormat implements forge.neo.deck.DeckContext {
             // Sin preconstruidos se puede jugar con los tuyos; no es fatal.
             System.err.println("[neo] no se han podido leer los mazos preconstruidos: " + e);
         }
+        return out;
     }
 
     /**

@@ -43,6 +43,9 @@ public class MainMenu extends BorderPane {
 
         void tournament();
 
+        /** Ascenso: el roguelike. */
+        void ascent();
+
         void online();
 
         void quest();
@@ -122,7 +125,7 @@ public class MainMenu extends BorderPane {
                 NeoText.get("menu.quest.desc"),
                 questNote(), true, actions::quest));
 
-        // El torneo (la auditoría del motor C6): es una pregunta distinta de las
+        // El torneo (la auditoría del motor, apartado C6): es una pregunta distinta de las
         // demas — "quiero un cuadro de eliminacion directa con MI mazo,
         // contra rivales que el motor se inventa" — y no una opcion de otra
         // casilla.
@@ -130,12 +133,21 @@ public class MainMenu extends BorderPane {
                 NeoText.get("menu.tournament.desc"),
                 tournamentNote(), true, actions::tournament));
 
-        modes.getChildren().add(formatTile(NeoFormat.TINY_LEADERS, actions));
+        // ASCENSO, en el sitio que ocupaba Tiny Leaders (decision del autor,
+        // 03-09-2026). Es una pregunta distinta de todas las de arriba —
+        // "quiero una partida de una hora de la que pueda morir" — y ademas la
+        // mas nueva: tiene que verse de primeras o no la abre nadie. Tiny
+        // Leaders baja a "Otros formatos", que es donde encaja: es un formato
+        // de construido mas, y responde la MISMA pregunta que las casillas de
+        // su alrededor (elige un mazo y juega).
+        modes.getChildren().add(tile(NeoText.get("menu.ascent"),
+                NeoText.get("menu.ascent.desc"),
+                ascentNote(), true, actions::ascent));
 
         // "Otros formatos": Modern, Pioneer, Pauper... Responden la MISMA
         // pregunta que las casillas de arriba ("elige un mazo y juega"), asi
         // que no se meten una por una — quince casillas mas y el menu deja de
-        // ser un menu (la auditoría del motor §2). Una casilla agrupa, y de ahi a la
+        // ser un menu (la auditoría del motor). Una casilla agrupa, y de ahi a la
         // pantalla de mazos de siempre.
         modes.getChildren().add(tile(NeoText.get("menu.otherFormats"),
                 NeoText.get("menu.otherFormats.desc"),
@@ -316,6 +328,24 @@ public class MainMenu extends BorderPane {
     }
 
     /** Si hay una aventura empezada, la casilla dice cuantas tienes. */
+    /**
+     * La casilla de Ascenso dice por donde vas.
+     *
+     * <p>Que el menu sepa que hay una run a medias — y en que acto y con
+     * cuanta vida — es lo que hace que se vuelva a ella. Sin eso, "Ascenso" es
+     * una casilla que no distingue entre empezar y continuar, que son las dos
+     * cosas mas distintas que hay en este modo.
+     */
+    private static String ascentNote() {
+        final forge.neo.ascent.AscentRun run = forge.neo.ascent.AscentRun.current();
+        if (run != null) {
+            return NeoText.get("menu.ascent.running", run.getAct(), run.getLife());
+        }
+        final int max = forge.neo.ascent.AscentUnlocks.maxAscension();
+        return max > 0 ? NeoText.get("menu.ascent.ascension", max)
+                : NeoText.get("menu.ascent.none");
+    }
+
     private static String questNote() {
         final java.util.List<String> saves = forge.neo.quest.NeoQuest.saves();
         if (saves.isEmpty()) {

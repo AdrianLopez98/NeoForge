@@ -74,7 +74,7 @@ public final class SealedCheck {
         ok &= distinct.size() > six.size() / 2;
 
         // Informativo, no falla el check: BoosterGenerator sortea foil sola
-        // (la auditoría del motor D5), sin que NeoForge tenga que pedirlo — el motor lo
+        // (la auditoría del motor, apartado D5), sin que NeoForge tenga que pedirlo — el motor lo
         // hace de fabrica en el ~21% de las cartas de cada sobre, salvo que
         // la edicion diga lo contrario. Con seis sobres puede tocar cero foil
         // por pura suerte (uno de cada cuatro sellados, mas o menos), asi que

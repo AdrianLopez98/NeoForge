@@ -42,7 +42,7 @@ public final class NeoSettings {
     public static final String SOUND_VOLUME = "soundVolume";
     /** Volumen de la musica, 0-100. */
     public static final String MUSIC_VOLUME = "musicVolume";
-    /** Tamano del cuadro (4 u 8 participantes) del proximo torneo (la auditoría del motor C6). */
+    /** Tamano del cuadro (4 u 8 participantes) del proximo torneo (la auditoría del motor, apartado C6). */
     public static final String TOURNAMENT_SIZE = "tournamentSize";
 
     /**
@@ -63,7 +63,7 @@ public final class NeoSettings {
     /** Animaciones de carta encendidas. */
     public static final String ANIMATIONS = "animations";
     /**
-     * El brillo de las cartas foil (la auditoría del motor D5). Encendido de fabrica:
+     * El brillo de las cartas foil (la auditoría del motor, apartado D5). Encendido de fabrica:
      * es puro adorno, no cambia el ritmo de la partida — al contrario que
      * {@link #AUTO_MANA} o {@link #SMART_PASS}, que si lo cambian y por eso
      * vienen apagados.
@@ -121,7 +121,7 @@ public final class NeoSettings {
     public static final String PAUSE_MODE = "pauseMode";
 
     /**
-     * La regla de mulligan (la auditoría del motor B4): {@code MulliganDefs.MulliganRule}
+     * La regla de mulligan (la auditoría del motor, apartado B4): {@code MulliganDefs.MulliganRule}
      * — Original, Paris, Vancouver, London u Houston. El motor la trae entera
      * ({@code MulliganService} la lee de {@code StaticData.instance()} en cada
      * partida) pero el jugador nunca podia elegirla: se aplicaba siempre la de
@@ -139,7 +139,7 @@ public final class NeoSettings {
     public static final String MULLIGAN_RULE_DEFAULT = "London";
 
     /**
-     * Dificultad de la IA (la auditoría del motor B4): dejarle "hacer trampa" al barajar
+     * Dificultad de la IA (la auditoría del motor, apartado B4): dejarle "hacer trampa" al barajar
      * ({@code GameRules.setAllowCheatShuffle}, lo mismo que
      * {@code UI_ENABLE_AI_CHEATS} de Forge). Solo afecta a
      * {@code AiProps.CHEAT_WITH_MANA_ON_SHUFFLE}, un ajuste concreto de la IA
@@ -164,7 +164,7 @@ public final class NeoSettings {
     public static final int AI_TIMEOUT_DEFAULT = 5;
 
     /**
-     * Jugar por apuesta (la auditoría del motor B4): solo afecta a los ~30 scripts
+     * Jugar por apuesta (la auditoría del motor, apartado B4): solo afecta a los ~30 scripts
      * viejos con una habilidad de ante de verdad (Arabian Nights, Antiquities,
      * Legends, The Dark) — para el resto de las 33.696 cartas esto no cambia
      * nada. Apagado de fabrica, como en Forge: es un mecanismo que PIERDE
@@ -178,7 +178,7 @@ public final class NeoSettings {
     public static final String ANTE_INCLUDE_BASIC_LANDS = "anteIncludeBasicLands";
 
     /**
-     * Politica global de arte (la auditoría del motor B4: {@code UI_PREFERRED_ART}).
+     * Politica global de arte (la auditoría del motor, apartado B4: {@code UI_PREFERRED_ART}).
      * Solo decide que impresion se usa cuando NADIE ha elegido una a mano —
      * importar una lista, un mazo que genera el motor, la IA — porque
      * {@code PrintingDialog} sigue mandando carta a carta. Al reves que el
@@ -202,6 +202,46 @@ public final class NeoSettings {
 
     /** No ensenyar el aviso de "la IA no juega bien estas cartas". */
     public static final String HIDE_AI_WARNING = "hideAiWarning";
+
+    /**
+     * Ver la mesa de TODOS los rivales a la vez, en vez de una y pestanyas.
+     *
+     * <p><b>Apagado de fabrica</b>, y no por prudencia: medido a 1920x1080 con
+     * tres rivales, una mesa normal (10-12 permanentes) deja las cartas a
+     * 55-72 px — practicamente lo de hoy, que son 72 — pero una mesa cargada
+     * (18 o mas) las deja en 28, que es el tope duro de {@code BattlefieldPane}
+     * y donde en vez de encoger empiezan a taparse unas a otras.
+     *
+     * <p>Lo que lo hace aceptable igualmente es que las dos salidas ya existen:
+     * el clic derecho amplia cualquier carta, y Ctrl+rueda acerca la mesa hasta
+     * x3 ({@code ZOOM_MAX}), o sea que hasta el caso malo se lee. Aun asi es
+     * una decision de gusto, y por eso se elige y no se impone.
+     *
+     * <p>A dos jugadores no cambia nada: un rival es un asiento.
+     */
+    public static final String ALL_BOARDS = "allBoards";
+
+    /**
+     * Ver todas las mesas a la vez. Apagado de fabrica.
+     *
+     * <p>{@code -Dneo.allBoards=true} lo enciende sin escribir en las
+     * preferencias: hace falta para poder capturarlo desde una sesion de prueba
+     * sin cambiarle el ajuste al jugador, que es justo el fallo que este modo
+     * no se puede permitir (nadie que no lo haya pedido deberia encontrarselo).
+     */
+    public static boolean allBoards() {
+        return Boolean.getBoolean("neo.allBoards") || getBool(ALL_BOARDS, false);
+    }
+
+    /**
+     * Al sortear rival, que salga mas a menudo un mazo moderno.
+     *
+     * <p>Encendido de fabrica, y es lo pedido: no quita ningun mazo, solo
+     * cambia el orden en que salen de la bolsa. Ver {@code forge.neo.deck.DeckAge},
+     * que trae los numeros — en Estandar, ocho de cada diez preconstruidos de
+     * Forge son de antes de 2018, con sus escaneos de la epoca.
+     */
+    public static final String MODERN_RIVALS = "modernRivals";
 
     /**
      * Preguntar antes de salir de tu fase principal.
@@ -370,6 +410,26 @@ public final class NeoSettings {
         return v == null || v.isBlank() ? fallback : v;
     }
 
+    /**
+     * Las claves guardadas que empiezan por ese prefijo.
+     *
+     * <p>Existe para poder <b>salvar y reponer</b> un bloque entero de ajustes:
+     * {@code AscentCheck} recorre veinte runs de mentira escribiendo en
+     * {@code ascent.*}, y sin esto la corrida de pruebas se llevaria por
+     * delante la run de verdad del jugador — que en un modo donde no se puede
+     * volver atras es el peor destrozo posible.
+     */
+    public static synchronized java.util.List<String> keysWithPrefix(final String prefix) {
+        load();
+        final java.util.List<String> out = new java.util.ArrayList<>();
+        for (final String key : PROPS.stringPropertyNames()) {
+            if (key.startsWith(prefix)) {
+                out.add(key);
+            }
+        }
+        return out;
+    }
+
     public static synchronized void set(final String key, final String value) {
         load();
         if (value == null) {
@@ -455,7 +515,7 @@ public final class NeoSettings {
     }
 
     /**
-     * Pasa la politica de arte a las preferencias del motor (la auditoría del motor B4).
+     * Pasa la politica de arte a las preferencias del motor (la auditoría del motor, apartado B4).
      *
      * <p>Se llama una vez al arrancar ({@code NeoApp.applyEngineSettings}, en
      * cuanto el catalogo esta leido) y otra vez cada vez que se toca en

@@ -1,10 +1,11 @@
 package forge.neo;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.Properties;
 
 /**
@@ -73,6 +74,7 @@ public final class NeoPortable {
     public static void apply() {
         final String requested = System.getProperty("neo.dataDir");
         if (requested == null || requested.isBlank()) {
+            dropStrayProfile();
             return;
         }
         try {
@@ -90,6 +92,91 @@ public final class NeoPortable {
     }
 
     /**
+     * La marca con la que se reconoce un perfil escrito por nosotros.
+     *
+     * <p>{@code Properties.store} deja el comentario como primera linea, asi
+     * que basta con mirar las de arriba. Se compara contra una palabra que
+     * <b>nadie escribiria a mano</b>: ver {@link #dropStrayProfile()}.
+     */
+    private static final String OURS = "NeoForge";
+
+    /**
+     * Tira el perfil que dejo una ejecucion portable ANTERIOR en este arbol.
+     *
+     * <h2>El fallo que arregla, y es de los caros</h2>
+     *
+     * <p>{@link #write} deja el {@code forge.profile.properties} en el
+     * directorio de <b>assets</b>, que en el arbol de desarrollo es
+     * {@code forge/forge-gui/} — o sea una carpeta compartida por TODAS las
+     * ejecuciones, no una del modo portable. Cualquier prueba con
+     * {@code -Dneo.dataDir=...} (el {@code portablecheck}, probar el zip a
+     * mano) lo escribe ahi apuntando a su carpeta temporal... <b>y no lo quita
+     * al acabar</b>. A partir de ese momento, y para siempre, el juego normal
+     * arranca leyendo los datos de esa carpeta.
+     *
+     * <p>Y el sintoma no se parece a la causa: no falla nada, no hay
+     * excepcion, el juego abre perfectamente. Simplemente <b>tus mazos, tus
+     * fundas, tu tapete, tu musica y tus ajustes ya no estan</b> — porque se
+     * estan buscando en otro sitio. Reportado jugando el 03-09-2026:
+     * <i>"parece no estar cargando mis preferencias, en personalizacion no
+     * salen mis canciones ni mi tapete ni mis fundas"</i>. La carpeta a la que
+     * apuntaba era el temporal de una sesion que ya no existia, asi que
+     * ademas iba a desaparecer con la limpieza del sistema.
+     *
+     * <h2>Por que este es el sitio y esta es la regla</h2>
+     *
+     * <p>Las dos situaciones se distinguen solas, sin heuristicas: <b>un
+     * paquete de verdad SIEMPRE trae {@code -Dneo.dataDir}</b> (lo pone
+     * {@code jpackage}, ver las notas de diseño), y el arbol de desarrollo <b>nunca
+     * lo trae</b>. Asi que estar aqui —sin bandera— y encontrarse un perfil
+     * nuestro solo puede significar una cosa: lo dejo tirado una prueba.
+     *
+     * <p>⚠️ Se borra <b>solo si lo escribimos nosotros</b>, y por eso existe
+     * {@link #OURS}. Forge admite que el usuario ponga su propio
+     * {@code forge.profile.properties} a mano para llevarse los datos a otro
+     * disco (trae hasta un {@code .example} al lado): borrarle ese seria
+     * cambiarle de sitio los datos sin avisar, o sea el mismo fallo al reves.
+     *
+     * <p>Y se dice por consola en voz alta. Un arreglo silencioso aqui deja al
+     * jugador sin saber por que sus cosas volvieron: lo que hay que poder es
+     * atar el sintoma a la causa.
+     */
+    private static void dropStrayProfile() {
+        try {
+            final File target = new File(assetsDir(), "forge.profile.properties");
+            if (!target.isFile()) {
+                return;
+            }
+            boolean ours = false;
+            try (java.io.BufferedReader r = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(new FileInputStream(target),
+                            java.nio.charset.StandardCharsets.ISO_8859_1))) {
+                String line;
+                // Solo las lineas de cabecera: una ruta que casualmente
+                // contuviera la palabra no puede contar como firma.
+                while ((line = r.readLine()) != null && line.startsWith("#")) {
+                    if (line.contains(OURS)) {
+                        ours = true;
+                        break;
+                    }
+                }
+            }
+            if (!ours) {
+                return;
+            }
+            System.out.println("[portable] habia un perfil de una prueba portable en "
+                    + target + " y estaba mandando TUS datos a otra carpeta."
+                    + " Se quita: los datos vuelven a la carpeta de siempre.");
+            if (!target.delete()) {
+                System.err.println("[portable] no se ha podido borrar " + target
+                        + " — borralo a mano o los datos seguiran yendo a otro sitio.");
+            }
+        } catch (final IOException | RuntimeException e) {
+            System.err.println("[portable] no se ha podido revisar el perfil: " + e);
+        }
+    }
+
+    /**
      * Escribe el {@code forge.profile.properties}.
      *
      * <p>Las cuatro rutas se dan explicitas y no se dejan a que Forge las
@@ -101,6 +188,21 @@ public final class NeoPortable {
      *
      * <p>{@code Properties.store} escapa las barras invertidas de Windows por
      * su cuenta, que es la trampa clasica de escribir esto a mano.
+     *
+     * <p>⚠️ <b>Y se escribe con {@code store(OutputStream)}, NUNCA con un
+     * {@code Writer}.</b> Forge lo lee con {@code Properties.load(InputStream)}
+     * ({@code ForgeProfileProperties:64}), y esa forma decodifica <b>siempre en
+     * ISO-8859-1</b>, diga lo que diga {@code file.encoding}. Su pareja
+     * simetrica es {@code store(OutputStream)}, que escribe lo que no sea
+     * Latin-1 escapado a su codigo Unicode, y por tanto vuelve intacto. Con un
+     * {@code OutputStreamWriter} en UTF-8 se escriben los bytes crudos y Forge
+     * los lee como Latin-1: a quien tenga <b>un solo caracter no ASCII en la
+     * ruta de instalacion</b> —un acento, una enye, la z con punto de un
+     * usuario polaco llamado {@code Uzytkownik}— le sale una carpeta que no
+     * existe y que ademas cuelga de {@code C:\Users\}, donde un usuario
+     * normal no puede crear nada. O sea que <b>el juego no arranca</b>:
+     * {@code cannot create profile directory}. Reportado el 01-09-2026 por
+     * alguien que se bajo el zip.
      */
     private static void write(final File dir) throws IOException {
         final Properties props = new Properties();
@@ -116,9 +218,35 @@ public final class NeoPortable {
             throw new IOException("no existe " + parent);
         }
         try (OutputStream out = new FileOutputStream(target)) {
-            props.store(new java.io.OutputStreamWriter(out, StandardCharsets.UTF_8),
+            props.store(out,
                     "Lo escribe NeoForge en cada arranque. No hace falta tocarlo:"
                     + " si mueves la carpeta, se vuelve a calcular solo.");
+        }
+        verify(target, dir);
+    }
+
+    /**
+     * Relee el fichero <b>por el mismo camino que Forge</b> y comprueba que
+     * dice lo mismo que acabamos de escribir.
+     *
+     * <p>No sobra por ser obvio el arreglo de arriba: esto es un fichero que le
+     * dejamos a OTRO programa, y el sintoma de que la codificacion no cuadre no
+     * es una excepcion nuestra sino <b>que el juego no arranca</b>, en el
+     * ordenador de otro, con un mensaje del motor que no menciona esta clase
+     * para nada. Si no vuelve igual se borra —un perfil envenenado es peor que
+     * ninguno— y nos quedamos sin modo portable: los datos iran a
+     * {@code %APPDATA%\Forge}, que es peor que lo que se pedia pero se juega.
+     */
+    private static void verify(final File target, final File dir) throws IOException {
+        final Properties back = new Properties();
+        try (InputStream in = new FileInputStream(target)) {
+            back.load(in);
+        }
+        final String read = back.getProperty("userDir");
+        if (!dir.getPath().equals(read)) {
+            target.delete();
+            throw new IOException("el perfil no vuelve igual de lo escrito: "
+                    + dir.getPath() + " -> " + read);
         }
     }
 

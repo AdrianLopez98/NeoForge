@@ -9,7 +9,7 @@ import javafx.application.Platform;
  * Partida privada (en red): lobby, conectar y la interfaz de partida que
  * pide la fabrica del motor para el anfitrion y el invitado.
  *
- * <p>Nace de la auditoría del motor E2. Movido tal cual desde {@code NeoApp}, sin
+ * <p>Nace de la auditoría del motor, apartado E2. Movido tal cual desde {@code NeoApp}, sin
  * tocar la logica -- ver el javadoc de {@link NeoAppDebug} para el porque.
  */
 final class NeoAppNet {

@@ -44,6 +44,18 @@ public class BattlefieldPane extends Pane {
 
     private static final int MAX_ROWS = 3;
 
+    /**
+     * Lo mas pequenya que se dibuja una carta, pase lo que pase.
+     *
+     * <p>Publica porque {@link PlayerField} tiene que usar EL MISMO numero: es
+     * quien decide el alto de cada fila, y si lo calcula con un ancho de carta
+     * menor que este, la fila sale mas baja que las cartas que van dentro y el
+     * recorte las siega por abajo — media carta, sin caja de texto ni P/T.
+     * Paso de verdad con tres mesas de rival en fila: la fila de tierras se
+     * dimensionaba a 13 px de carta y aqui se pintaban a 28.
+     */
+    public static final double MIN_CARD_WIDTH = 28;
+
     private final double baseCardWidth;
     private double maxCardWidth;
     private final List<Entry> entries = new ArrayList<>();
@@ -506,7 +518,28 @@ public class BattlefieldPane extends Pane {
         final double maxCardH = (availH - ROW_GAP * (rows - 1)) / rows;
         cardW = Math.min(cardW, maxCardH / CardNode.ASPECT);
 
-        // 3. Si aun asi no caben a lo ancho, se solapan (como Arena con las
+        cardW = Math.max(cardW, MIN_CARD_WIDTH);
+
+        // 3. El suelo de 28 px puede haber DESHECHO el limite de altura del
+        //    paso 2, y entonces las filas ya no caben en el hueco.
+        //
+        //    Sin esto, lo que sobra no se ve: `updateClip` recorta el pane y
+        //    las cartas salen <b>cortadas por abajo</b> — media carta, sin caja
+        //    de texto y sin P/T. Reportado jugando con tres mesas de rival en
+        //    fila, que es donde el hueco se queda bajo de verdad.
+        //
+        //    La salida es la misma que ya usa el paso 4 para el ancho, y por el
+        //    mismo motivo: MENOS filas y mas solape. Una carta apretada se lee
+        //    mal; una carta cortada por la mitad no se lee.
+        final double rowH = cardW * CardNode.ASPECT;
+        final int rowsThatFit = Math.max(1,
+                (int) Math.floor((availH + ROW_GAP) / (rowH + ROW_GAP)));
+        if (rowsThatFit < rows) {
+            rows = rowsThatFit;
+            perRow = (int) Math.ceil(n / (double) rows);
+        }
+
+        // 4. Si aun asi no caben a lo ancho, se solapan (como Arena con las
         //    tierras) en vez de encoger mas y volverse ilegibles.
         double step = cardW + GAP;
         final double neededW = step * (perRow - 1) + cardW;
@@ -521,7 +554,6 @@ public class BattlefieldPane extends Pane {
                 step = exact;
             }
         }
-        cardW = Math.max(cardW, 28);
 
         final double cardH = cardW * CardNode.ASPECT;
         final double usedH = cardH * rows + ROW_GAP * (rows - 1);

@@ -122,7 +122,7 @@ public class DraftRunScreen extends BorderPane {
         } else {
             // Bo3 es un ajuste del PROXIMO partido, no del evento entero — se
             // lee al pulsar "jugar", asi que cambiarlo aqui nunca afecta a un
-            // partido que ya este en curso (la auditoría del motor C5). Por eso vive
+            // partido que ya este en curso (la auditoría del motor, apartado C5). Por eso vive
             // junto al boton que arranca el partido, y no en Ajustes.
             final CheckBox bo3 = new CheckBox(NeoText.get("draft.bo3"));
             bo3.getStyleClass().add("caption");

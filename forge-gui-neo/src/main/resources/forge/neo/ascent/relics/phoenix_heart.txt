@@ -1,0 +1,7 @@
+Name:Phoenix Heart
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ Phase | Phase$ End of Turn | ValidPlayer$ You | TriggerZones$ Command | Execute$ TrigGainLife | TriggerDescription$ At the beginning of your end step, you gain 3 life.
+SVar:TrigGainLife:DB$ GainLife | LifeAmount$ 3
+AI:RemoveDeck:All
+Oracle:At the beginning of your end step, you gain 3 life.

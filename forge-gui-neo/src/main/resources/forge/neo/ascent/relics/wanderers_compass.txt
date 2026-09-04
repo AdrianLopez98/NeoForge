@@ -1,0 +1,8 @@
+Name:Wanderer's Compass
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ Phase | Phase$ Upkeep | ValidPlayer$ You | TriggerZones$ Command | ConditionCheckSVar$ TurnCount | ConditionSVarCompare$ EQ1 | Execute$ TrigDraw | TriggerDescription$ At the beginning of your first upkeep, draw a card.
+SVar:TrigDraw:DB$ Draw | NumCards$ 1
+SVar:TurnCount:Count$TurnNumber
+AI:RemoveDeck:All
+Oracle:At the beginning of your first upkeep, draw a card.

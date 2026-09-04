@@ -1,10 +1,14 @@
 package forge.neo.deck;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import forge.item.PaperCard;
 import forge.model.FModel;
+import forge.neo.ascent.AscentRelics;
 
 /**
  * El catalogo de cartas preparado para buscar deprisa.
@@ -43,7 +47,7 @@ final class CardIndex {
     private final String[] translated;
 
     private CardIndex(final Collection<PaperCard> source) {
-        cards = source.toArray(new PaperCard[0]);
+        cards = withoutOurCustomCards(source);
         names = new String[cards.length];
         types = new String[cards.length];
         final boolean localized =
@@ -57,6 +61,34 @@ final class CardIndex {
                         + forge.neo.card.CardText.typeOf(cards[i])).toLowerCase(Locale.ROOT);
             }
         }
+    }
+
+    /**
+     * Las cartas de {@code getUniqueCards()} sin las nuestras: las reliquias
+     * de Ascenso y el segundo aliento del jefe.
+     *
+     * <p><b>Hace falta de verdad, no es paranoia.</b> {@code AscentRelics}
+     * las registra con {@code AI:RemoveDeck:All}, que solo evita que un mazo
+     * ALEATORIO las incluya — no las saca de {@code getUniqueCards()}, que es
+     * de donde tira este catalogo. Medido: nada mas registrarlas no aparecen
+     * (el motor todavia no ha reindexado), pero en cuanto se juega una
+     * partida de verdad {@code CardDb} reindexa y <b>si</b> aparecen. Sin este
+     * filtro, cualquiera que abriera el deck builder despues de una run de
+     * Ascenso podria buscar "Crown of the Eternal" y metersela en un mazo de
+     * Commander de verdad.
+     */
+    private static PaperCard[] withoutOurCustomCards(final Collection<PaperCard> source) {
+        final Set<String> ours = AscentRelics.allCardNames();
+        if (ours.isEmpty()) {
+            return source.toArray(new PaperCard[0]);
+        }
+        final List<PaperCard> out = new ArrayList<>(source.size());
+        for (final PaperCard c : source) {
+            if (!ours.contains(c.getName())) {
+                out.add(c);
+            }
+        }
+        return out.toArray(new PaperCard[0]);
     }
 
     /**

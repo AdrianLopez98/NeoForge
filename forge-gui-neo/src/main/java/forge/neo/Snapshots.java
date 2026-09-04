@@ -13,8 +13,8 @@ import javafx.scene.image.PixelReader;
  * Guarda una captura de la escena a PNG.
  *
  * <p>Sirve para verificar la interfaz sin tener que mirar la pantalla: util al
- * iterar la estetica, y la unica forma de comprobar el resultado sin abrir
- * la ventana a mano.
+ * iterar la estetica, y la unica forma de comprobar el resultado cuando el
+ * cambio lo hace una sesión asistida.
  *
  * <p>La conversion se hace a mano en vez de con {@code SwingFXUtils} para no
  * arrastrar el modulo {@code javafx-swing} solo por esto.

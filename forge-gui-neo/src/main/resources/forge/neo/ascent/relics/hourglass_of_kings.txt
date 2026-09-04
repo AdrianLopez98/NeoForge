@@ -1,0 +1,8 @@
+Name:Hourglass of Kings
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ Phase | Phase$ Upkeep | ValidPlayer$ You | TriggerZones$ Command | ConditionCheckSVar$ TurnCount | ConditionSVarCompare$ EQ1 | Execute$ TrigDraw | TriggerDescription$ At the beginning of your first upkeep, draw three cards.
+SVar:TrigDraw:DB$ Draw | NumCards$ 3
+SVar:TurnCount:Count$TurnNumber
+AI:RemoveDeck:All
+Oracle:At the beginning of your first upkeep, draw three cards.

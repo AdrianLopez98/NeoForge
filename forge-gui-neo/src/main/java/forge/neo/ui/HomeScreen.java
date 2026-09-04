@@ -633,7 +633,7 @@ et}) y no se tocan.
     }
 
     /**
-     * "Genérame uno" (la auditoría del motor B6): un mazo de verdad para un
+     * "Genérame uno" (la auditoría del motor, apartado B6): un mazo de verdad para un
      * comandante legal al azar, no un reparto entre los que ya tenías.
      *
      * <p>{@code DeckgenUtil.generateCommanderDeck} ya hace las dos cosas —
@@ -679,8 +679,17 @@ et}) y no se tocan.
      */
     private List<Deck> resolvedOpponentDecks() {
         final List<Deck> out = new ArrayList<>();
-        final List<Deck> pool = new ArrayList<>(decks);
-        java.util.Collections.shuffle(pool);
+        // La bolsa lleva TODOS los mazos siempre: lo unico que cambia con el
+        // ajuste es el orden en que salen. Ver forge.neo.deck.DeckAge — de los
+        // 505 preconstruidos de Estandar que trae Forge, 392 son de antes de
+        // 2018, asi que un sorteo plano saca casi siempre un rival de hace
+        // veinte anyos y con escaneos que a tamanyo de mesa no se leen.
+        final List<Deck> pool = NeoSettings.getBool(NeoSettings.MODERN_RIVALS, true)
+                ? forge.neo.deck.DeckAge.shuffleFavouringModern(decks, new java.util.Random())
+                : new ArrayList<>(decks);
+        if (!NeoSettings.getBool(NeoSettings.MODERN_RIVALS, true)) {
+            java.util.Collections.shuffle(pool);
+        }
         final java.util.Set<String> used = new java.util.HashSet<>();
 
         for (int i = 0; i < opponents; i++) {

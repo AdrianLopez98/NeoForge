@@ -1,0 +1,6 @@
+Name:Pilgrim's Ward
+ManaCost:no cost
+Types:Enchantment
+S:Mode$ Continuous | EffectZone$ Command | Affected$ You | AddKeyword$ Hexproof | Description$ You have hexproof.
+AI:RemoveDeck:All
+Oracle:You have hexproof.
