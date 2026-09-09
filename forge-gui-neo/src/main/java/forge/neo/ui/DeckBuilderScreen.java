@@ -1692,15 +1692,27 @@ public class DeckBuilderScreen extends StackPane {
     // ===============================================================
     // Auxiliares
 
-    /** La carta a tamanyo de lectura, igual que en la mesa. */
+    /**
+     * La carta a tamanyo de lectura, por el MISMO camino que el resto de la
+     * aplicacion.
+     *
+     * <p>Antes se levantaba a mano sobre la capa de dialogos de esta pantalla,
+     * y eso la dejaba <b>imposible de cerrar</b>: el contenido era un
+     * {@code StackPane} pelado, que en un {@code StackPane} se estira hasta
+     * llenar la capa entera, asi que el unico click que {@code Overlay} contaba
+     * como "de fondo" era el del borde de 40 px de la ventana. Ni sobre la
+     * carta, ni al lado, ni con Escape — esa capa no escuchaba el teclado.
+     * Reportado jugando el 08-09-2026: <i>"amplio una carta en el deck builder
+     * y no hay forma de volver; he tenido que reiniciar seis o siete veces
+     * montando un solo mazo"</i>.
+     *
+     * <p>{@link CardZoom} es lo que usan las otras doce pantallas y ya cierra
+     * con Escape y con un click en cualquier sitio (principio 7), asi que el
+     * arreglo no es anyadir una salida mas: es dejar de tener un camino propio.
+     * De paso trae las palabras clave explicadas.
+     */
     private void zoom(final PaperCard card) {
-        final CardNode big = new CardNode(cardWidth * 3.2);
-        big.setRotationEnabled(false);
-        big.setBadgesVisible(false);
-        big.setHoverEnabled(false);
-        big.setCard(CardView.getCardForUi(card));
-        overlay.setOnBackgroundClick(overlay::hide);
-        overlay.show(new StackPane(big));
+        CardZoom.show(this, CardView.getCardForUi(card));
     }
 
     // ===============================================================
@@ -1884,6 +1896,26 @@ public class DeckBuilderScreen extends StackPane {
                     editor.cardsInGroup(group.getKey());
             if (!cards.isEmpty()) {
                 cardMenu(cards.get(0).getKey(), this, 0, 0);
+                return;
+            }
+        }
+    }
+
+    /**
+     * Amplia la primera carta del mazo, por el camino de verdad
+     * ({@code --decks --zoom}).
+     *
+     * <p>Existe porque lo que hay que comprobar no es que la carta salga
+     * grande — eso se ve — sino que se pueda <b>cerrar</b>, y para eso hace
+     * falta que la ampliacion la levante el mismo metodo que el click del
+     * jugador. Ver el javadoc de {@link #zoom(PaperCard)}.
+     */
+    public void zoomFirstCardForTest() {
+        for (final Map.Entry<String, Integer> group : editor.typeCounts().entrySet()) {
+            final List<Map.Entry<PaperCard, Integer>> cards =
+                    editor.cardsInGroup(group.getKey());
+            if (!cards.isEmpty()) {
+                zoom(cards.get(0).getKey());
                 return;
             }
         }

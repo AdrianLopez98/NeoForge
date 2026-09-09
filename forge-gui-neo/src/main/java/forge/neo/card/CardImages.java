@@ -255,7 +255,7 @@ public final class CardImages {
      * se vuelve por donde ha venido <b>sin llamar al callback</b> en varios
      * casos, y uno de ellos es el que salta justo despues de importar un mazo:
      * si Scryfall nos ha limitado (429), {@code setupObserver} descarta la
-     * peticion y se queda en un enfriamiento de <b>cinco minutos</b>. La clave
+     * peticion y se queda en un enfriamiento (lo que diga el <b>Retry-After</b>). La clave
      * se quedaba en {@code PENDING} para siempre, y como {@link #get} no vuelve
      * a intentar lo que ya esta pedido, esa carta salia en blanco <b>el resto
      * de la sesion</b> — incluso pasado el enfriamiento, incluso buscandola a
@@ -357,7 +357,7 @@ public final class CardImages {
      * ninguno en marcha.
      *
      * <p>Lo usa {@link forge.neo.ui.ImageCooldownBadge} para avisar en
-     * pantalla: sin esto, un corte real de Scryfall (HTTP 429, cinco minutos
+     * pantalla: sin esto, un corte real de Scryfall (HTTP 429, lo que dure
      * sin descargas — ver {@link #FAILED}) se ve identico a un fallo nuestro,
      * cartas sin arte y ni una pista de por que. Reportado jugando: <i>"nuevo
      * mazo, le doy a jugar, y las cartas no tienen arte"</i>.

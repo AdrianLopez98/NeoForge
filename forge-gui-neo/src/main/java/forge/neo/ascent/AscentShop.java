@@ -91,6 +91,16 @@ public final class AscentShop {
         private final AscentRelic relic;
         private final int price;
         private boolean sold;
+        /**
+         * Cuantas cartas quedan por quitar de las que se han pagado.
+         *
+         * <p>Solo lo usa {@link Kind#REMOVE}, y existe porque en Commander el
+         * servicio quita <b>dos</b> ({@link AscentRun#cardBatch()}): se cobra
+         * <b>una vez</b> y despues se eligen las dos, una detras de otra. Sin
+         * este contador habria que cobrar dos veces o quitar dos de golpe sin
+         * dejar elegir la segunda.
+         */
+        private int removalsLeft;
 
         Item(final Kind kind, final PaperCard card, final AscentRelic relic, final int price) {
             this.kind = kind;
@@ -98,6 +108,21 @@ public final class AscentShop {
             this.relic = relic;
             this.price = price;
         }
+
+        /**
+         * Cuantas cartas quita este servicio en total, o las que le quedan si ya
+         * se ha pagado. Es lo que la pantalla necesita para rotularlo.
+         */
+        public int getRemovals() {
+            return removalsLeft;
+        }
+
+        /** Si ya se pago y solo queda elegir. */
+        public boolean isPaid() {
+            return kind == Kind.REMOVE && paid;
+        }
+
+        private boolean paid;
 
         public Kind getKind() {
             return kind;
@@ -153,7 +178,10 @@ public final class AscentShop {
         final int act = Math.max(1, Math.min(AscentRun.ACTS, run.getAct()));
         final List<Item> out = new ArrayList<>();
 
-        for (final PaperCard c : AscentRewards.offer(run, act, rnd, CARDS)) {
+        // Con la altura del nodo, igual que el premio: una tienda del final del
+        // acto 2 vende lo que se premia ahi, no lo que se premiaba al empezarlo.
+        final double climb = AscentBattle.progress(act, node.getRow());
+        for (final PaperCard c : AscentRewards.offer(run, climb, rnd, CARDS)) {
             out.add(new Item(Kind.CARD, c, null, jitter(cardPrice(c), rnd, run)));
         }
 
@@ -168,8 +196,13 @@ public final class AscentShop {
                             ? RELIC_COMMON : RELIC_RARE, rnd, run)));
         }
 
-        out.add(new Item(Kind.REMOVE, null, null,
-                ascendPrice(REMOVE_PRICE[act - 1], run)));
+        final Item removal = new Item(Kind.REMOVE, null, null,
+                ascendPrice(REMOVE_PRICE[act - 1], run));
+        // En Commander quita DOS por el mismo precio: alli el mazo es de 60 y
+        // los premios meten dos por nodo, asi que un servicio de una sola carta
+        // no movería la aguja. Ver AscentRun.cardBatch().
+        removal.removalsLeft = run.cardBatch();
+        out.add(removal);
         return out;
     }
 
@@ -263,12 +296,24 @@ public final class AscentShop {
         if (deck.getMain().countAll() <= MIN_DECK) {
             return false;
         }
-        if (!run.spend(item.price)) {
-            return false;
+        // ⚠️ Se cobra UNA vez aunque se quiten dos (Commander). Cobrar por
+        // carta convertiria el precio del mostrador en una mentira: lo que se
+        // compra es el servicio, no cada carta.
+        if (!item.paid) {
+            if (!run.spend(item.price)) {
+                return false;
+            }
+            item.paid = true;
         }
         deck.getMain().remove(card);
         AscentDecks.save(deck);
-        item.sold = true;
+        item.removalsLeft--;
+        // Y si el mazo se ha quedado en el suelo, se da por servido aunque
+        // queden quitadas pagadas: antes eso que un mazo que no arranca.
+        if (item.removalsLeft <= 0 || !canRemove(run)) {
+            item.removalsLeft = 0;
+            item.sold = true;
+        }
         return true;
     }
 

@@ -61,6 +61,29 @@ public class SettingsPanel extends VBox {
 
         /** Repinta el rating de las cartas del sobre; puede no haber draft abierto. */
         void setDraftRankingVisible(boolean on);
+
+        /**
+         * Si hay una partida en marcha ahora mismo.
+         *
+         * <p>Es lo que decide si se avisa de que un ajuste no va a cambiar
+         * nada de lo que estas viendo. Fuera de partida no hace falta decir
+         * nada: lo que elijas vale para la que empieces despues, que es lo que
+         * cualquiera espera.
+         */
+        default boolean isInMatch() {
+            return false;
+        }
+
+        /**
+         * Repintar la mesa ya.
+         *
+         * <p>Para los ajustes que la mesa relee en cada repintado: sin esto se
+         * aplican igual, pero <b>cuando el motor mande el siguiente aviso</b>,
+         * que si es tu turno y no ha pasado nada puede tardar. Y ese retraso
+         * se lee como que el ajuste no funciona.
+         */
+        default void refreshTable() {
+        }
     }
 
     /** El titulo, que se queda arriba pase lo que pase. */
@@ -75,7 +98,16 @@ public class SettingsPanel extends VBox {
     /** El pie con el boton de cerrar, que se queda abajo pase lo que pase. */
     private final HBox footer = new HBox();
 
+    /**
+     * Si esto se abrio con una partida en marcha.
+     *
+     * <p>Se pregunta UNA vez, al construir: el panel se monta entero de golpe
+     * y no sobrevive a la partida.
+     */
+    private final boolean inMatch;
+
     public SettingsPanel(final Host host, final Runnable onClose) {
+        this.inMatch = host.isInMatch();
         getStyleClass().addAll("dialog", "settings");
         setSpacing(6);
         setPadding(new Insets(22, 26, 18, 26));
@@ -275,9 +307,12 @@ public class SettingsPanel extends VBox {
                 mulliganCurrent = mulliganLabels[i];
             }
         }
+        // La aplica NeoGame.applyEnginePrefs al MONTAR la partida, asi que
+        // cambiarla a mitad no toca la que estas jugando: se avisa.
+        final Label mulliganNote = nextGameNote();
         getChildren().add(choiceRow(NeoText.get("settings.mulligan"),
                 mulliganLabels, mulliganCurrent,
-                v -> {
+                nextGame(v -> {
                     String rule = NeoSettings.MULLIGAN_RULE_DEFAULT;
                     for (int i = 0; i < mulliganLabels.length; i++) {
                         if (mulliganLabels[i].equals(v)) {
@@ -286,7 +321,8 @@ public class SettingsPanel extends VBox {
                     }
                     NeoSettings.set(NeoSettings.MULLIGAN_RULE, rule);
                     NeoSettings.save();
-                }));
+                }, mulliganNote)));
+        getChildren().add(mulliganNote);
 
         // --- jugar por apuesta (la auditoría del motor, apartado B4) ---
         //
@@ -296,35 +332,40 @@ public class SettingsPanel extends VBox {
         // §10b). Solo afecta a los ~30 scripts viejos con habilidad de ante
         // (Arabian Nights, Antiquities, Legends, The Dark): para el resto de
         // las 33.696 cartas esto no cambia nada.
+        // Las tres van a las GameRules, que se montan al empezar la partida.
+        final Label anteNote = nextGameNote();
         final boolean anteNow = NeoSettings.getBool(NeoSettings.ANTE, false);
         final Region anteRarityRow = toggleRow(NeoText.get("settings.anteMatchRarity"),
                 NeoSettings.getBool(NeoSettings.ANTE_MATCH_RARITY, false),
-                on -> {
+                nextGame(on -> {
                     NeoSettings.setBool(NeoSettings.ANTE_MATCH_RARITY, on);
                     NeoSettings.save();
-                });
+                }, anteNote));
         final Region anteLandsRow = toggleRow(NeoText.get("settings.anteBasicLands"),
                 NeoSettings.getBool(NeoSettings.ANTE_INCLUDE_BASIC_LANDS, false),
-                on -> {
+                nextGame(on -> {
                     NeoSettings.setBool(NeoSettings.ANTE_INCLUDE_BASIC_LANDS, on);
                     NeoSettings.save();
-                });
+                }, anteNote));
         anteRarityRow.setVisible(anteNow);
         anteRarityRow.setManaged(anteNow);
         anteLandsRow.setVisible(anteNow);
         anteLandsRow.setManaged(anteNow);
 
         getChildren().add(toggleRow(NeoText.get("settings.ante"), anteNow,
-                on -> {
+                nextGame(on -> {
                     NeoSettings.setBool(NeoSettings.ANTE, on);
                     NeoSettings.save();
                     anteRarityRow.setVisible(on);
                     anteRarityRow.setManaged(on);
                     anteLandsRow.setVisible(on);
                     anteLandsRow.setManaged(on);
-                }));
+                }, anteNote)));
         getChildren().add(anteRarityRow);
         getChildren().add(anteLandsRow);
+        // La nota, debajo de las tres: hablan de lo mismo, y una por fila
+        // seria decir lo mismo tres veces seguidas.
+        getChildren().add(anteNote);
 
         // --- preguntar antes de salir de la fase principal ---
         //
@@ -456,12 +497,14 @@ public class SettingsPanel extends VBox {
         // CHEAT_WITH_MANA_ON_SHUFFLE — no es "mejorar la IA", es encender un
         // interruptor que Forge ya trae hecho) y cuanto tiempo se puede tomar
         // pensando el combate antes de que el motor le corte la busqueda.
+        // Va a GameRules.setAllowCheatShuffle al montar la partida.
+        final Label aiNote = nextGameNote();
         getChildren().add(toggleRow(NeoText.get("settings.aiCheatShuffle"),
                 NeoSettings.getBool(NeoSettings.AI_CHEAT_SHUFFLE, false),
-                on -> {
+                nextGame(on -> {
                     NeoSettings.setBool(NeoSettings.AI_CHEAT_SHUFFLE, on);
                     NeoSettings.save();
-                }));
+                }, aiNote)));
 
         final String[] timeoutLabels = {"2 s", "5 s", "10 s", "20 s"};
         final int[] timeoutValues = {2, 5, 10, 20};
@@ -472,9 +515,10 @@ public class SettingsPanel extends VBox {
                 timeoutCurrent = timeoutLabels[i];
             }
         }
+        // HostedMatch.startGame lee MATCH_AI_TIMEOUT al empezar cada partida.
         getChildren().add(choiceRow(NeoText.get("settings.aiTimeout"),
                 timeoutLabels, timeoutCurrent,
-                v -> {
+                nextGame(v -> {
                     int value = NeoSettings.AI_TIMEOUT_DEFAULT;
                     for (int i = 0; i < timeoutLabels.length; i++) {
                         if (timeoutLabels[i].equals(v)) {
@@ -483,7 +527,8 @@ public class SettingsPanel extends VBox {
                     }
                     NeoSettings.setInt(NeoSettings.AI_TIMEOUT, value);
                     NeoSettings.save();
-                }));
+                }, aiNote)));
+        getChildren().add(aiNote);
 
         // --- todas las mesas a la vez ---
         //
@@ -495,18 +540,60 @@ public class SettingsPanel extends VBox {
                 on -> {
                     NeoSettings.setBool(NeoSettings.ALL_BOARDS, on);
                     NeoSettings.save();
+                    // Este NO necesita partida nueva: TableBinder lo relee en
+                    // cada repintado. Lo que le faltaba era el empujon -- sin
+                    // el, el cambio espera al siguiente aviso del motor, que
+                    // en tu turno y sin nada pasando puede tardar. De ahi
+                    // salio el reporte de "no se aplica hasta que sales".
+                    host.refreshTable();
+                }));
+
+        // --- las cartas en el stack ---
+        //
+        // Encendido de fabrica, al reves que el resto de lo nuevo: no es una
+        // idea nuestra, es el arreglo de algo que un jugador dijo que le
+        // costaba usar ("el stack es donde se gana y se pierde una partida").
+        // El ajuste esta para volver a la lista compacta, que ocupa un tercio
+        // y sigue siendo la buena con quince disparos encadenados.
+        //
+        // No lleva nota de "partida nueva": TableScreen lo relee en cada
+        // repintado del stack, asi que se nota en cuanto haya algo dentro. Y
+        // se empuja la mesa por lo mismo que "ver todas las mesas": si es tu
+        // turno y no pasa nada, el siguiente aviso del motor puede tardar y
+        // ese retraso se lee como que el ajuste no funciona.
+        getChildren().add(toggleRow(NeoText.get("settings.stackCards"),
+                NeoSettings.stackCards(),
+                on -> {
+                    NeoSettings.setBool(NeoSettings.STACK_CARDS, on);
+                    NeoSettings.save();
+                    host.refreshTable();
+                }));
+
+        // --- el panel de detalle al pasar el raton ---
+        //
+        // Apagado de fabrica. Encendido ocupa SOLO lo que sobra debajo del
+        // stack, asi que no le quita sitio a nada; ver NeoSettings.HOVER_DETAIL.
+        getChildren().add(toggleRow(NeoText.get("settings.hoverDetail"),
+                NeoSettings.getBool(NeoSettings.HOVER_DETAIL, false),
+                on -> {
+                    NeoSettings.setBool(NeoSettings.HOVER_DETAIL, on);
+                    NeoSettings.save();
                 }));
 
         // --- el aviso de la IA ---
         //
         // Forge lo suelta antes de CADA partida y hay que cerrarlo a mano. La
         // primera vez informa; a partir de ahi estorba.
+        // Forge lo suelta ANTES de cada partida, o sea que encenderlo a mitad
+        // no quita ninguno de esta.
+        final Label warnNote = nextGameNote();
         getChildren().add(toggleRow(NeoText.get("settings.hideAiWarning"),
                 NeoSettings.getBool(NeoSettings.HIDE_AI_WARNING, false),
-                on -> {
+                nextGame(on -> {
                     NeoSettings.setBool(NeoSettings.HIDE_AI_WARNING, on);
                     NeoSettings.save();
-                }));
+                }, warnNote)));
+        getChildren().add(warnNote);
 
         // --- rivales mas modernos ---
         //
@@ -514,12 +601,16 @@ public class SettingsPanel extends VBox {
         // al sortear rival. Encendido de fabrica porque el reparto de fabrica
         // esta muy escorado (en Estandar, 392 de 505 preconstruidos son de
         // antes de 2018), pero se puede apagar: quien quiera azar plano manda.
+        // El rival ya esta sorteado cuando empieza la partida: esto decide con
+        // que mazo sale el SIGUIENTE.
+        final Label rivalsNote = nextGameNote();
         getChildren().add(toggleRow(NeoText.get("settings.modernRivals"),
                 NeoSettings.getBool(NeoSettings.MODERN_RIVALS, true),
-                on -> {
+                nextGame(on -> {
                     NeoSettings.setBool(NeoSettings.MODERN_RIVALS, on);
                     NeoSettings.save();
-                }));
+                }, rivalsNote)));
+        getChildren().add(rivalsNote);
 
         // --- vender solas las repetidas (aventura) ---
         //
@@ -658,6 +749,61 @@ public class SettingsPanel extends VBox {
             }
         }
         return justChanged ? cards + "  " + NeoText.get("settings.language.restart") : cards;
+    }
+
+    /**
+     * La nota de "esto no cambia la partida que estas jugando".
+     *
+     * <p>Reportado jugando el 07-09-2026: <i>enciendo algo en Ajustes, vuelvo
+     * a la mesa y no ha cambiado nada, asi que parece roto</i>. Y no lo esta:
+     * hay ajustes que el motor solo lee al <b>montar</b> la partida (la regla
+     * de mulligan, el tope de tiempo de la IA, con que mazo sale el rival...),
+     * asi que cambiarlos a mitad no puede hacer nada. Un ajuste que se traga
+     * su propia respuesta es el principio 1 de {@code las notas de diseño} §10b.
+     *
+     * <p>Tres decisiones:
+     *
+     * <ul>
+     *   <li><b>Solo dentro de una partida.</b> Desde el menu, "la siguiente
+     *       partida" es la que vas a empezar ahora: avisar ahi seria ruido.</li>
+     *   <li><b>Al tocarlo, no siempre.</b> Una nota permanente debajo de siete
+     *       filas es una pantalla llena de avisos que nadie lee; puesta justo
+     *       donde acabas de clicar, se lee.</li>
+     *   <li><b>Nace oculta y sin ocupar</b> ({@code setManaged(false)}): si no,
+     *       deja un hueco entre filas que no se explica.</li>
+     * </ul>
+     */
+    private static Label nextGameNote() {
+        final Label note = new Label(NeoText.get("settings.nextGame"));
+        note.getStyleClass().add("settings-note");
+        note.setWrapText(true);
+        note.setMaxWidth(560);
+        note.setMinHeight(Region.USE_PREF_SIZE);
+        // -Dneo.settings.notes=true las nace visibles TODAS: es la unica
+        // forma de capturar esta pantalla con sus notas puestas, porque de
+        // verdad solo salen al tocar el ajuste y con una partida detras.
+        final boolean forced = Boolean.getBoolean("neo.settings.notes");
+        note.setVisible(forced);
+        note.setManaged(forced);
+        return note;
+    }
+
+    /**
+     * Envuelve el manejador de un ajuste que solo se aplica al empezar partida.
+     *
+     * <p>Lo que hace el ajuste no cambia: se hace lo de siempre y ademas se
+     * ensenya la nota. Asi el aviso no puede desincronizarse de lo que la fila
+     * hace de verdad, que es lo que pasaria con una lista aparte de "estos
+     * avisan".
+     */
+    private <T> Consumer<T> nextGame(final Consumer<T> action, final Label note) {
+        return v -> {
+            action.accept(v);
+            if (inMatch) {
+                note.setVisible(true);
+                note.setManaged(true);
+            }
+        };
     }
 
     private static Label section(final String text) {

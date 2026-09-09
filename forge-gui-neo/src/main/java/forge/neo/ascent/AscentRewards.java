@@ -11,6 +11,7 @@ import java.util.Set;
 import forge.card.CardRarity;
 import forge.card.ColorSet;
 import forge.deck.Deck;
+import forge.deck.DeckFormat;
 import forge.deck.DeckSection;
 import forge.item.PaperCard;
 import forge.model.FModel;
@@ -26,17 +27,35 @@ import forge.model.FModel;
  * ({@link AscentSeedDeck}). Si las cartas ofrecidas no se notaran, no habria
  * modo.
  *
- * <h2>Y por eso suben de rareza acto a acto</h2>
+ * <h2>Y por eso suben de calidad nodo a nodo</h2>
+ *
+ * <p>El suelo son las <b>infrecuentes</b>: las comunes no se ofrecen. Por
+ * encima, la rareza se <b>tira carta a carta</b> contra la altura de la run
+ * ({@link AscentBattle#progress}), no contra el acto:
  *
  * <table>
- *   <tr><th>Acto 1</th><td>comunes e infrecuentes</td></tr>
- *   <tr><th>Acto 2</th><td>infrecuentes y raras</td></tr>
- *   <tr><th>Acto 3</th><td>raras y miticas</td></tr>
+ *   <tr><th></th><th>infrecuente</th><th>rara</th><th>mitica</th>
+ *       <th>gamechanger</th></tr>
+ *   <tr><th>primer nodo</th><td>65%</td><td>30%</td><td>5%</td><td>—</td></tr>
+ *   <tr><th>mitad de la run</th><td>~33%</td><td>~43%</td><td>~20%</td>
+ *       <td>~2%</td></tr>
+ *   <tr><th>el jefe final</th><td>10%</td><td>55%</td><td>35%</td>
+ *       <td>20%</td></tr>
  * </table>
  *
- * <p>Es la misma escala con la que {@link AscentBattle} ordena a los rivales y
- * con la que {@link AscentSeedDeck} hace flojo el mazo de salida. Que las tres
- * cosas usen el mismo criterio es lo que hace que la run <b>se sienta</b> subir.
+ * <p><b>Contra la altura y no contra el acto</b>, y eso es lo que se reporto
+ * jugando (05-09-2026): <i>"practicamente en el piso 1 hasta el boss no he
+ * mejorado apenas"</i>. Con la calidad atada al acto, los doce nodos de un acto
+ * ofrecen lo mismo — mientras el rival, que si va por altura, sube en cada uno.
+ *
+ * <p><b>Y el 5% de mitica ya en el primer nodo no es un descuido</b>: es la
+ * tirada de <i>Binding of Isaac</i>, donde la sala 1 puede darte un objeto que
+ * cambia la partida. Sin ella, los primeros premios no tienen nada en juego.
+ *
+ * <p>Arriba del todo entran los <b>gamechangers</b>, que no son una lista
+ * nuestra: es {@code res/lists/gamechangers.txt}, la que el motor usa para
+ * calcular el bracket de un mazo de Commander — el mismo sistema con el que
+ * {@link AscentSeedDeck} limita el mazo de salida.
  *
  * <h2>Lo que se ofrece se puede jugar</h2>
  *
@@ -63,8 +82,29 @@ public final class AscentRewards {
     private AscentRewards() {
     }
 
-    /** Cuantas cartas se ofrecen para elegir una. */
+    /**
+     * Cuantas cartas se ofrecen <b>por carta que te llevas</b>.
+     *
+     * <p>Tres, y no es un numero al azar: elegir 1 de 3 es el bucle del genero
+     * entero. Lo que cambia entre modos no es esta proporcion sino cuantas
+     * cartas te llevas — ver {@link #choices} y {@link AscentRun#cardBatch()}.
+     */
     public static final int CHOICES = 3;
+
+    /**
+     * Cuantas cartas ensenya un nodo en ese modo: <b>3 en Estandar, 6 en
+     * Commander</b>.
+     *
+     * <p>Es {@link #CHOICES} por lo que se lleva uno ({@link
+     * AscentRun#cardBatch()}), asi que la <b>proporcion se mantiene</b>: sigue
+     * siendo 1 de cada 3, solo que en Commander se hace dos veces. Doblar solo
+     * las que te llevas sin doblar las ofrecidas habria hecho el premio mas
+     * generoso Y menos interesante a la vez — con 2 de 3, elegir es casi
+     * descartar.
+     */
+    public static int choices(final AscentRun.Mode mode) {
+        return CHOICES * AscentRun.cardBatch(mode);
+    }
 
     /** Creditos de un combate normal, por acto. */
     private static final int[] CREDITS_BY_ACT = {25, 40, 60};
@@ -91,13 +131,33 @@ public final class AscentRewards {
         public final List<AscentRelic> relics;
         /** Si hay que elegir una de las de arriba, o se llevan todas. */
         public final boolean chooseOne;
+        /**
+         * Cuantas de las cartas ofrecidas te puedes llevar.
+         *
+         * <p>1 en Estandar y <b>2 en Commander</b> ({@link
+         * AscentRun#cardBatch()}): ahi el mazo es de 60 cartas y una sola no se
+         * notaria. Cambiar por tierras gasta <b>una</b> de estas, asi que en
+         * Commander se puede coger una carta y dos tierras, o cuatro tierras.
+         */
+        public final int picks;
+        /**
+         * Las tierras que se pueden coger <b>en vez de</b> una carta.
+         *
+         * <p>Van en el premio y no se piden aparte por la misma razon que todo
+         * lo demas: sembradas con la clave del nodo, o sea que <b>no se pueden
+         * rerodar</b> saliendo del juego y volviendo. Ver {@link #landsFor}.
+         */
+        public final List<PaperCard> lands;
 
         Reward(final List<PaperCard> cards, final int credits,
-               final List<AscentRelic> relics, final boolean chooseOne) {
+               final List<AscentRelic> relics, final boolean chooseOne, final int picks,
+               final List<PaperCard> lands) {
             this.cards = Collections.unmodifiableList(cards);
             this.credits = credits;
             this.relics = Collections.unmodifiableList(relics);
             this.chooseOne = chooseOne;
+            this.picks = picks;
+            this.lands = Collections.unmodifiableList(lands);
         }
 
         /** La unica reliquia de un nodo que da una sola, o {@code null}. */
@@ -107,7 +167,7 @@ public final class AscentRewards {
 
         @Override
         public String toString() {
-            return cards.size() + " cartas | " + credits + " creditos"
+            return cards.size() + " cartas (eliges " + picks + ") | " + credits + " creditos"
                     + (relics.isEmpty() ? ""
                     : " | " + relics.size() + (chooseOne ? " reliquias a elegir" : " reliquia"));
         }
@@ -124,29 +184,42 @@ public final class AscentRewards {
     public static Reward of(final AscentRun run, final AscentNode node) {
         final Random rnd = rng(run, node);
         final int act = Math.max(1, Math.min(AscentRun.ACTS, run.getAct()));
+        // La MISMA altura con la que AscentBattle calcula al rival: si el
+        // premio subiera solo al cambiar de acto, los doce nodos de un acto
+        // ofrecerian lo mismo mientras enfrente la cosa sube nodo a nodo — que
+        // es justo lo que se reporto ("del piso 1 al jefe no he mejorado apenas").
+        final double climb = AscentBattle.progress(act, node.getRow());
+        // Cuantas te llevas. Las RELIQUIAS no escalan: una reliquia es una
+        // pasiva permanente, no una carta del mazo — dos por jefe convertiria
+        // el acto siguiente en un paseo, que es justo lo que playerEdge existe
+        // para evitar.
+        final int picks = run.cardBatch();
         switch (node.getKind()) {
             case COMBAT:
-                return new Reward(pickCards(run, act, rnd),
-                        credits(run, CREDITS_BY_ACT[act - 1], rnd), List.of(), false);
+                return new Reward(pickCards(run, climb, rnd),
+                        credits(run, CREDITS_BY_ACT[act - 1], rnd), List.of(), false, picks,
+                        landsFor(run, act, rnd));
             case ELITE:
                 // Una elite da carta, mas creditos Y reliquia: es el nodo que
                 // se elige a proposito sabiendo que puede costarte la run.
-                return new Reward(pickCards(run, act, rnd),
+                return new Reward(pickCards(run, climb, rnd),
                         credits(run, CREDITS_BY_ACT[act - 1] * 2, rnd),
-                        one(relic(run, AscentRelic.Rarity.RARE, rnd)), false);
+                        one(relic(run, AscentRelic.Rarity.RARE, rnd)), false, picks,
+                        landsFor(run, act, rnd));
             case BOSS:
                 // TRES reliquias de jefe, y eliges. Es el momento en el que se
                 // decide si el acto siguiente se aguanta.
-                return new Reward(pickCards(run, act, rnd),
+                return new Reward(pickCards(run, climb, rnd),
                         credits(run, CREDITS_BY_ACT[act - 1] * 3, rnd),
-                        relics(run, AscentRelic.Rarity.BOSS, RELIC_CHOICES, rnd), true);
+                        relics(run, AscentRelic.Rarity.BOSS, RELIC_CHOICES, rnd), true, picks,
+                        landsFor(run, act, rnd));
             case TREASURE:
                 return new Reward(new ArrayList<>(), 0,
-                        one(relic(run, AscentRelic.Rarity.COMMON, rnd)), false);
+                        one(relic(run, AscentRelic.Rarity.COMMON, rnd)), false, picks, List.of());
             default:
                 // Descanso, tienda y evento no dan premio: lo suyo lo decide su
                 // propia pantalla.
-                return new Reward(new ArrayList<>(), 0, List.of(), false);
+                return new Reward(new ArrayList<>(), 0, List.of(), false, picks, List.of());
         }
     }
 
@@ -165,6 +238,305 @@ public final class AscentRewards {
         return deck;
     }
 
+    /**
+     * Cuantas copias entran al coger la tierra del premio. <b>Una.</b>
+     *
+     * <p>Eran dos cuando la tierra <b>costaba</b> tu carta: una sola a cambio
+     * de una rara de acto 3 no la habria cogido nadie, y una opcion que nadie
+     * coge no es una opcion. Desde el 05-09-2026 la tierra es <b>gratis</b>
+     * (§24.9), asi que esa razon desaparece — y la de enfrente aparece:
+     * <i>"que puedas llevartela o no, no que te la den siempre, porque entonces
+     * al final de la run acabas con tierras de mas"</i>.
+     *
+     * <p>Una por nodo y opcional: si la coges siempre, el mazo mantiene su
+     * proporcion de tierras mientras crece; si no, no.
+     */
+    public static final int LANDS_INSTEAD = 1;
+
+    /**
+     * Cambia la carta del premio por <b>tierras basicas</b>.
+     *
+     * <h2>Por que existe</h2>
+     *
+     * <p>Reportado jugando (05-09-2026): <i>"tu vas anyadiendo cartas al mazo
+     * pero no tenemos la opcion de anyadir tierras"</i>. Y la cuenta le daba la
+     * razon — empiezas con 30 cartas y 12 tierras, terminas con 40 y <b>las
+     * mismas 12</b>, porque lo que el premio ofrece son siempre hechizos (y
+     * debe serlo: una tierra entre las tres opciones seria una opcion vacia).
+     * O sea que la run entera empeoraba tu base de mana sin que hubiera ni un
+     * sitio donde arreglarla.
+     *
+     * <h2>Por que aqui y no en el descanso</h2>
+     *
+     * <p>Porque es <b>al mismo ritmo al que crece el mazo</b>: se ofrece
+     * exactamente en el momento en el que el mazo gana cartas. En el descanso
+     * habria competido con curarse, que es otra pregunta.
+     *
+     * <h2>Y no cuesta tu carta</h2>
+     *
+     * <p>Al principio si: cambiabas la carta por tierras. Reportado jugando
+     * (05-09-2026): <i>"que no te haga elegir entre tierra o criatura, porque
+     * todo escala muy rapido"</i> — y tenia razon, sobre todo en Estandar,
+     * donde con <b>una</b> sola eleccion arreglar el mana significaba renunciar
+     * al premio entero mientras enfrente la curva seguia subiendo.
+     *
+     * <p>Ahora es un <b>extra opcional</b>: te llevas tus cartas <i>y</i>, si
+     * quieres, una tierra. Una, y hay que cogerla — no se regala — porque
+     * <i>"si te la dan siempre, al final de la run acabas con tierras de
+     * mas"</i>.
+     *
+     * @return el mazo ya con las tierras dentro, o {@code null} si no habia mazo
+     */
+    public static Deck takeLands(final AscentRun run, final PaperCard land) {
+        final Deck deck = AscentDecks.load(run);
+        if (deck == null || land == null) {
+            return deck;
+        }
+        // ⚠️ NO son siempre dos: en Commander una tierra que no sea basica es
+        // de UNA copia. Lo decide el motor, no nosotros. Ver copiesOf().
+        final int copies = copiesOf(run, land);
+        if (copies <= 0) {
+            return deck;
+        }
+        deck.getMain().add(land, copies);
+        AscentDecks.save(deck);
+        return deck;
+    }
+
+    /**
+     * <b>Cuantas copias entran de verdad</b> al cambiar la carta por esa tierra.
+     *
+     * <h2>La trampa del singleton</h2>
+     *
+     * <p>{@link #LANDS_INSTEAD} son <b>dos</b>, y en Commander eso es ilegal
+     * para todo lo que no sea una basica: el formato es de <b>una copia</b>. Dos
+     * Tumbas Cenagosas no son un mazo arriesgado, son un mazo que el motor
+     * rechaza — y aqui eso significaria una run muerta por una opcion que el
+     * propio juego te ofrecio.
+     *
+     * <p>No se codifica la excepcion a mano ("las basicas no cuentan"): la
+     * contesta <b>el motor</b>, con {@code DeckFormat.getMaxCardCopies(card)},
+     * que ya sabe de basicas, de <i>Wastes</i> y de las cartas que dicen "puedes
+     * tener cualquier numero". Es la misma regla que aplica el deck builder.
+     *
+     * @return cuantas caben, entre 0 y {@link #LANDS_INSTEAD}
+     */
+    public static int copiesOf(final AscentRun run, final PaperCard land) {
+        if (land == null) {
+            return 0;
+        }
+        final DeckFormat format = formatOf(run.getMode());
+        final int max = format.getMaxCardCopies(land);
+        int have = 0;
+        final Deck deck = AscentDecks.load(run);
+        if (deck != null) {
+            for (final Map.Entry<PaperCard, Integer> e : deck.getMain()) {
+                // Por NOMBRE, que es como cuenta el motor: dos impresiones
+                // distintas de la misma tierra siguen siendo la misma carta.
+                if (e.getKey().getName().equals(land.getName())) {
+                    have += e.getValue();
+                }
+            }
+        }
+        return Math.max(0, Math.min(LANDS_INSTEAD, max - have));
+    }
+
+    /** Con que reglas se construye el mazo de este modo. Lo dice el motor. */
+    private static DeckFormat formatOf(final AscentRun.Mode mode) {
+        return (mode == AscentRun.Mode.COMMANDER
+                ? forge.game.GameType.Commander
+                : forge.game.GameType.Constructed).getDeckFormat();
+    }
+
+    /**
+     * Cuantas tierras <b>no basicas</b> puede ensenyar un nodo, y con que
+     * probabilidad cada una.
+     *
+     * <p>Sube con el acto a proposito. Pedido asi (05-09-2026): <i>"que no solo
+     * sean basicas, que haya posibilidad de duales o triples, obviamente con
+     * menos chance que las basicas, pero que a raiz que vas avanzando sea mas
+     * comun"</i>. Es la probabilidad de que <b>cada hueco</b> de tierra saque
+     * una buena en vez de una basica.
+     */
+    private static final double[] FANCY_CHANCE = {0.35, 0.60, 0.85};
+
+
+    /**
+     * Las tierras que ofrece un nodo: las basicas <b>siempre</b>, y con suerte
+     * alguna buena.
+     *
+     * <h2>Que cuenta como "buena", sin inventarse un criterio</h2>
+     *
+     * <p>Una tierra no basica entra si esta dentro de tus colores (lo mismo que
+     * exigen las cartas), si su rareza es la del acto —{@link #rarityFits}, la
+     * misma escalera que todo lo demas del modo— <b>y</b> si ademas cumple una
+     * de estas dos:
+     *
+     * <ul>
+     *   <li>produce <b>dos colores o mas</b> de los tuyos: una dual o una
+     *       triple, que es lo que de verdad arregla una base de mana;
+     *   <li>o es <b>rara o mitica</b>: ahi caben las monocolor y las incoloras
+     *       que valen por si solas (una <i>Nykthos</i>, una <i>Ancient Tomb</i>).
+     * </ul>
+     *
+     * <p>Eso es literalmente lo que se pidio — <i>"duales o triples o monocolor
+     * pero muy buenas"</i> — y de regalo hace la progresion sola: en el acto 1
+     * solo hay comunes e infrecuentes, o sea que <b>solo</b> pueden salir
+     * duales; a partir del 2 entran las raras.
+     *
+     * <p>⚠️ En Commander se descarta la que <b>ya lleves</b>: el formato es de
+     * una copia, asi que ofrecerla seria ofrecer un boton que no hace nada.
+     */
+    public static List<PaperCard> landsFor(final AscentRun run, final int act, final Random rnd) {
+        final int slots = run.cardBatch();
+        final double chance = FANCY_CHANCE[Math.max(0, Math.min(2, act - 1))];
+        final List<PaperCard> fancy = fancyLandPool(run, act);
+        final List<PaperCard> basics = basicsByNeed(run);
+        final List<PaperCard> out = new ArrayList<>();
+        final Set<String> seen = new HashSet<>();
+        int next = 0;
+        for (int i = 0; i < slots; i++) {
+            PaperCard pick = null;
+            if (!fancy.isEmpty() && rnd.nextDouble() < chance) {
+                for (int t = 0; t < 60 && pick == null; t++) {
+                    final PaperCard c = fancy.get(rnd.nextInt(fancy.size()));
+                    if (!seen.contains(c.getName())) {
+                        pick = c;
+                    }
+                }
+            }
+            while (pick == null && next < basics.size()) {
+                final PaperCard c = basics.get(next++);
+                if (!seen.contains(c.getName())) {
+                    pick = c;
+                }
+            }
+            if (pick == null) {
+                // Se acabaron las opciones DISTINTAS. Pasa de verdad: un mazo
+                // monocolor en el acto 1 solo tiene una tierra que exista — su
+                // basica, porque una dual necesita dos colores y las raras no
+                // entran hasta el acto 2. Ofrecer una es lo correcto; repetir
+                // la misma Montanya en los dos huecos seria ensenyar dos veces
+                // lo mismo y llamarlo eleccion.
+                break;
+            }
+            seen.add(pick.getName());
+            out.add(pick);
+        }
+        return out;
+    }
+
+    /**
+     * Las basicas <b>ordenadas por la que te falta</b>.
+     *
+     * <h2>Por que no salen todas, y por que en este orden</h2>
+     *
+     * <p>El premio ensenya {@link AscentRun#cardBatch()} tierras, no la lista
+     * entera de tus colores: eliges {@code picks} cosas de las
+     * {@link #choices} cartas <b>mas</b> estas, todo del mismo monton — <i>"seis
+     * conjuros y dos tierras, y eliges dos"</i>, que pueden ser una dual y una
+     * criatura. Ensenyar las cinco basicas de un comandante de cinco colores no
+     * anyadia una sola decision: solo te puedes llevar dos igual.
+     *
+     * <p>Pero con dos huecos, cual sale <b>si</b> importa, y dejarlo al azar
+     * convertiria arreglar la base de mana en una tombola. Sale la del color
+     * del que <b>menos tienes</b>, que es exactamente la que cogerias tu. No es
+     * una ayuda de mas: la decision sigue siendo <i>tierra o carta</i>, que es
+     * la que importa.
+     */
+    private static List<PaperCard> basicsByNeed(final AscentRun run) {
+        final List<PaperCard> basics = new ArrayList<>(basicLandsFor(run));
+        final Deck deck = AscentDecks.load(run);
+        final Map<String, Integer> have = new java.util.HashMap<>();
+        if (deck != null) {
+            for (final Map.Entry<PaperCard, Integer> e : deck.getMain()) {
+                have.merge(e.getKey().getName(), e.getValue(), Integer::sum);
+            }
+        }
+        // Por nombre a igualdad de cuenta: sin desempate, dos runs con el mismo
+        // mazo darian ordenes distintos segun como salga el recorrido del pool.
+        basics.sort(java.util.Comparator
+                .comparingInt((PaperCard c) -> have.getOrDefault(c.getName(), 0))
+                .thenComparing(PaperCard::getName));
+        return basics;
+    }
+
+    /** El pozo de tierras buenas de ese acto. Ver {@link #landsFor}. */
+    private static List<PaperCard> fancyLandPool(final AscentRun run, final int act) {
+        final ColorSet allowed = colorsOf(run);
+        final boolean singleton = run.getMode() == AscentRun.Mode.COMMANDER;
+        final Set<String> owned = new HashSet<>();
+        if (singleton) {
+            final Deck deck = AscentDecks.load(run);
+            if (deck != null) {
+                for (final Map.Entry<PaperCard, Integer> e : deck.getMain()) {
+                    owned.add(e.getKey().getName());
+                }
+            }
+        }
+        final List<PaperCard> out = new ArrayList<>();
+        for (final PaperCard c : FModel.getMagicDb().getCommonCards().getUniqueCards()) {
+            if (c.getRules() == null || !c.getRules().getType().isLand()
+                    || c.getRules().getType().isBasicLand()) {
+                continue;
+            }
+            if (!rarityFits(c.getRarity(), act)) {
+                continue;
+            }
+            final ColorSet id = c.getRules().getColorIdentity();
+            if (!id.hasNoColorsExcept(allowed)) {
+                continue;
+            }
+            // Dual o triple, o buena de verdad. Una tierra infrecuente que solo
+            // produce un color y entra girada no es un premio, es un hueco.
+            if (id.countColors() < 2
+                    && c.getRarity() != CardRarity.Rare
+                    && c.getRarity() != CardRarity.MythicRare) {
+                continue;
+            }
+            if (singleton && owned.contains(c.getName())) {
+                continue;
+            }
+            out.add(c);
+        }
+        return out;
+    }
+
+    /**
+     * Que basicas se pueden coger: las de los colores en los que se premia.
+     *
+     * <p>En Commander eso es la identidad del comandante, o sea que no se puede
+     * ensanchar — meter una Isla en un mazo verde-rojo dejaria el mazo
+     * <b>ilegal</b> y el motor lo rechazaria al empezar la partida siguiente.
+     * En Estandar son los colores del mazo, y ahi <b>si</b> se ensancha: ver
+     * {@link #colorsOf}.
+     *
+     * <p>Un mazo sin un solo simbolo de color (todo artefactos) recibe
+     * {@code Wastes}, que es lo que hace {@code AscentSeedDeck.ensureManaBase}
+     * por lo mismo: las basicas de color no le sirven de nada.
+     */
+    public static List<PaperCard> basicLandsFor(final AscentRun run) {
+        final ColorSet allowed = colorsOf(run);
+        final List<PaperCard> out = new ArrayList<>();
+        for (int i = 0; i < forge.card.MagicColor.WUBRG.length; i++) {
+            if (!allowed.hasAnyColor(forge.card.MagicColor.WUBRG[i])) {
+                continue;
+            }
+            final PaperCard basic = FModel.getMagicDb().getCommonCards()
+                    .getCard(forge.card.MagicColor.Constant.BASIC_LANDS.get(i));
+            if (basic != null) {
+                out.add(basic);
+            }
+        }
+        if (out.isEmpty()) {
+            final PaperCard wastes = FModel.getMagicDb().getCommonCards().getCard("Wastes");
+            if (wastes != null) {
+                out.add(wastes);
+            }
+        }
+        return out;
+    }
+
     // ------------------------------------------------------------------
     //  Las cartas
     // ------------------------------------------------------------------
@@ -176,8 +548,9 @@ public final class AscentRewards {
      * se devuelven las que haya: <b>menos de tres es peor que tres, pero
      * infinitamente mejor que colgarse buscando</b>.
      */
-    private static List<PaperCard> pickCards(final AscentRun run, final int act, final Random rnd) {
-        return offer(run, act, rnd, CHOICES);
+    private static List<PaperCard> pickCards(final AscentRun run, final double climb,
+                                             final Random rnd) {
+        return offer(run, climb, rnd, choices(run.getMode()));
     }
 
     /**
@@ -190,55 +563,246 @@ public final class AscentRewards {
      */
     public static List<PaperCard> offer(final AscentRun run, final int act,
                                         final Random rnd, final int count) {
-        final List<PaperCard> pool = poolFor(run, act);
+        // Sin nodo no hay altura exacta: se toma la mitad del acto, que es el
+        // valor medio de lo que ese acto ofrece. Lo usan el evento del maestro
+        // y cualquier sitio que pida cartas sin estar en un nodo.
+        return offer(run, midClimb(act), rnd, count);
+    }
+
+    /**
+     * El mismo sorteo, pero sabiendo <b>lo alto que estas</b>.
+     *
+     * <p>La altura (0 en el primer nodo del acto 1, 1 en el jefe del acto 3) es
+     * la misma que usa {@link AscentBattle#progress} para la dificultad, y por
+     * eso se pide en vez del acto: el rival crece nodo a nodo, y si el premio
+     * solo crecia al cambiar de mapa, los doce nodos de un acto ofrecian lo
+     * mismo mientras enfrente subia la cosa.
+     */
+    public static List<PaperCard> offer(final AscentRun run, final double climb,
+                                        final Random rnd, final int count) {
+        final Pools pools = poolsFor(run);
         final List<PaperCard> out = new ArrayList<>();
-        if (pool.isEmpty()) {
+        if (pools.isEmpty()) {
             return out;
         }
         final Set<String> seen = new HashSet<>();
         // Se tira un numero acotado de veces en vez de barajar el pozo entero:
         // son miles de cartas y esto se llama al acabar cada combate.
-        for (int tries = 0; tries < 200 && out.size() < count; tries++) {
-            final PaperCard c = pool.get(rnd.nextInt(pool.size()));
-            if (seen.add(c.getName())) {
+        for (int tries = 0; tries < 400 && out.size() < count; tries++) {
+            final PaperCard c = pools.roll(climb, rnd);
+            if (c != null && seen.add(c.getName())) {
                 out.add(c);
             }
         }
         return out;
     }
 
+    /** La altura del punto medio de un acto, para quien no tiene nodo. */
+    private static double midClimb(final int act) {
+        return AscentBattle.progress(act, AscentMap.ROWS / 2);
+    }
+
+    // ------------------------------------------------------------------
+    //  De que calidad es una carta de premio
+    // ------------------------------------------------------------------
+
     /**
-     * El pozo de un acto: rareza del acto y colores del mazo.
+     * La probabilidad de que una carta ofrecida sea <b>mitica</b>, abajo del
+     * todo y arriba del todo.
+     *
+     * <p>Reportado jugando (05-09-2026): <i>"siento que practicamente en el
+     * piso 1 hasta el boss no he mejorado apenas... en Binding of Isaac existe
+     * la chance de que en la sala 1 te den un super item, aqui estamos dando
+     * cartas de mierda"</i>.
+     *
+     * <p>Por eso el suelo <b>no</b> es cero: ya en el primer nodo hay un 5% de
+     * que salga una mitica. Es la tirada de Isaac — lo que hace que abrir el
+     * premio tenga algo en juego aunque estes empezando.
+     */
+    private static final double MYTHIC_LOW = 0.05;
+    private static final double MYTHIC_HIGH = 0.35;
+
+    /** Y de que sea rara. El resto, infrecuente. */
+    private static final double RARE_LOW = 0.30;
+    private static final double RARE_HIGH = 0.55;
+
+    /**
+     * Cuando empiezan a salir <b>gamechangers</b>, y hasta cuanto.
+     *
+     * <p>Nada hasta pasada casi la mitad de la run, y de ahi hacia arriba hasta
+     * una de cada cinco. Es lo que se pidio — <i>"que a medida que avanzas
+     * mejoren aun mas, llegando a que sean staples y gamechangers"</i> — y lo
+     * que hace que el acto 3 no se sienta como el 1 con numeros mas grandes.
+     */
+    private static final double GC_START = 0.45;
+    private static final double GC_TOP = 0.20;
+
+    /** Que parte de las cartas ofrecidas a esa altura son gamechangers. */
+    public static double gameChangerChance(final double climb) {
+        final double c = Math.max(0.0, Math.min(1.0, climb));
+        return c <= GC_START ? 0.0 : GC_TOP * (c - GC_START) / (1.0 - GC_START);
+    }
+
+    /** Y que parte son miticas. */
+    public static double mythicChance(final double climb) {
+        final double c = Math.max(0.0, Math.min(1.0, climb));
+        return MYTHIC_LOW + (MYTHIC_HIGH - MYTHIC_LOW) * c;
+    }
+
+    /**
+     * Los pozos de un premio, <b>en una sola pasada</b>.
+     *
+     * <p>Antes se recorrian las 33.000 cartas una vez por premio para quedarse
+     * con las de la rareza del acto. Ahora la rareza se tira <b>carta a
+     * carta</b>, asi que harian falta tres pasadas — o una, repartiendo en
+     * cubos, que es lo que hace esto.
+     */
+    private static final class Pools {
+        private final List<PaperCard> uncommon = new ArrayList<>();
+        private final List<PaperCard> rare = new ArrayList<>();
+        private final List<PaperCard> mythic = new ArrayList<>();
+        private final List<PaperCard> gameChangers = new ArrayList<>();
+
+        boolean isEmpty() {
+            return uncommon.isEmpty() && rare.isEmpty() && mythic.isEmpty();
+        }
+
+        /**
+         * Una carta de la calidad que toque a esa altura.
+         *
+         * <p>Si el cubo que sale esta vacio se baja al siguiente: un mazo de un
+         * color raro puede no tener ni una mitica jugable, y devolver
+         * {@code null} ahi seria ofrecer dos cartas de tres.
+         */
+        PaperCard roll(final double climb, final Random rnd) {
+            if (!gameChangers.isEmpty() && rnd.nextDouble() < gameChangerChance(climb)) {
+                return gameChangers.get(rnd.nextInt(gameChangers.size()));
+            }
+            final double r = rnd.nextDouble();
+            final double mythicP = mythicChance(climb);
+            final double rareP = RARE_LOW + (RARE_HIGH - RARE_LOW) * Math.max(0, Math.min(1, climb));
+            final List<List<PaperCard>> order = r < mythicP
+                    ? List.of(mythic, rare, uncommon)
+                    : r < mythicP + rareP
+                    ? List.of(rare, mythic, uncommon)
+                    : List.of(uncommon, rare, mythic);
+            for (final List<PaperCard> bucket : order) {
+                if (!bucket.isEmpty()) {
+                    return bucket.get(rnd.nextInt(bucket.size()));
+                }
+            }
+            return null;
+        }
+    }
+
+    /**
+     * Los pozos de un premio: colores del mazo, y repartidos por calidad.
      *
      * <p>Se recalcula en cada nodo a proposito: los colores del mazo cambian
      * dentro de la run (una carta incolora no, pero el comandante puede no ser
-     * el unico que aporte identidad), y cachear un pozo por acto dejaria de
-     * casar en cuanto eso pasara. Recorrer 33.000 cartas una vez por combate no
-     * se nota al lado de la propia partida.
+     * el unico que aporte identidad), y cachear dejaria de casar en cuanto eso
+     * pasara. Recorrer 33.000 cartas una vez por combate no se nota al lado de
+     * la propia partida.
+     *
+     * <p><b>Las comunes ya no entran.</b> Reportado jugando: en el acto 1 se
+     * ofrecian comunes e infrecuentes, o sea que llegar al jefe con el mazo
+     * casi igual que al empezar era lo normal. El suelo es <b>infrecuente</b>,
+     * y por encima manda la altura de la run.
      */
-    private static List<PaperCard> poolFor(final AscentRun run, final int act) {
+    private static Pools poolsFor(final AscentRun run) {
         final ColorSet allowed = colorsOf(run);
-        final List<PaperCard> out = new ArrayList<>();
+        // ⚠️ En Commander no se ofrece lo que ya llevas. El formato es de UNA
+        // copia, asi que la segunda dejaria el mazo ilegal — y el premio ni
+        // siquiera pregunta: mete la carta y guarda. Salio al doblar el premio
+        // a 2 de 6 (§24.6), que multiplica por dos las ocasiones de que pase,
+        // pero el agujero estaba desde el principio.
+        final Set<String> owned = new HashSet<>();
+        if (run.getMode() == AscentRun.Mode.COMMANDER) {
+            final Deck mine = AscentDecks.load(run);
+            if (mine != null) {
+                for (final Map.Entry<PaperCard, Integer> e : mine.getMain()) {
+                    owned.add(e.getKey().getName());
+                }
+            }
+        }
+        final Set<String> changers = gameChangerNames();
+        final Pools out = new Pools();
         for (final PaperCard c : FModel.getMagicDb().getCommonCards().getUniqueCards()) {
-            if (!rarityFits(c.getRarity(), act)) {
+            if (owned.contains(c.getName())) {
                 continue;
             }
             if (c.getRules() == null || c.getRules().getType().isLand()) {
-                // Las tierras no se ofrecen: la base de mana de una run la fija
-                // el mazo de salida, y una tierra mas en el premio es un premio
-                // que no se nota.
+                // Las tierras no se ofrecen ENTRE LOS CONJUROS: una tierra al
+                // lado de dos hechizos es una opcion vacia, o sea ofrecer dos
+                // opciones de tres. Van en su propio hueco del monton — ver
+                // landsFor() y takeLands().
                 continue;
             }
             final ColorSet id = c.getRules().getColorIdentity();
             if (!id.hasNoColorsExcept(allowed)) {
                 continue;
             }
-            out.add(c);
+            // Un gamechanger va a SU cubo y solo a ese: si estuviera ademas en
+            // el de su rareza, saldria por los dos lados y su probabilidad no
+            // seria la que dice gameChangerChance().
+            if (changers.contains(c.getName())) {
+                out.gameChangers.add(c);
+                continue;
+            }
+            switch (c.getRarity()) {
+                case Uncommon:
+                    out.uncommon.add(c);
+                    break;
+                case Rare:
+                    out.rare.add(c);
+                    break;
+                case MythicRare:
+                    out.mythic.add(c);
+                    break;
+                default:
+                    // Comunes, fichas, especiales: fuera. El suelo es
+                    // infrecuente (ver el javadoc de arriba).
+                    break;
+            }
         }
         return out;
     }
 
-    /** Que rarezas se ofrecen en cada acto. */
+    /**
+     * Las cartas que <b>Forge</b> marca como gamechanger.
+     *
+     * <p>No es una lista nuestra: es {@code res/lists/gamechangers.txt}, la que
+     * el propio motor usa para calcular el <i>bracket</i> de un mazo de
+     * Commander ({@code CommanderBracketCalculator}) — el mismo sistema con el
+     * que {@link AscentSeedDeck} limita el mazo de salida. Inventarse una lista
+     * de "cartas buenas" a mano seria mantenerla para siempre y equivocarse; y
+     * al leer el fichero, las que Forge anyada manyana entran solas.
+     *
+     * <p>Se lee una vez: son 53 nombres y no cambian durante la partida.
+     */
+    private static Set<String> gameChangerNames() {
+        Set<String> names = gameChangers;
+        if (names != null) {
+            return names;
+        }
+        names = new HashSet<>();
+        for (final String line : forge.util.FileUtil.readFile(
+                forge.localinstance.properties.ForgeConstants
+                        .COMMANDER_BRACKET_GAMECHANGERS_FILE)) {
+            // El fichero admite comentarios con '#', igual que lo lee Forge.
+            final int hash = line.indexOf('#');
+            final String name = (hash < 0 ? line : line.substring(0, hash)).trim();
+            if (!name.isEmpty()) {
+                names.add(name);
+            }
+        }
+        gameChangers = names;
+        return names;
+    }
+
+    private static volatile Set<String> gameChangers;
+
+    /** Que rarezas de TIERRA se ofrecen en cada acto. Ver {@link #fancyLandPool}. */
     private static boolean rarityFits(final CardRarity rarity, final int act) {
         switch (act) {
             case 1:
@@ -271,11 +835,26 @@ public final class AscentRewards {
         }
         byte mask = 0;
         for (final Map.Entry<PaperCard, Integer> e : deck.getMain()) {
-            // Por el coste, no por la identidad: lo que decide de que colores
-            // es un mazo es lo que hay que PAGAR. Contar la identidad mete el
-            // tercer color de una tierra que solo produce mana (el plan de Ascenso 2b).
-            if (!e.getKey().getRules().getType().isLand()) {
-                mask |= e.getKey().getRules().getManaCost().getColorProfile();
+            final PaperCard c = e.getKey();
+            if (!c.getRules().getType().isLand()) {
+                // Por el coste, no por la identidad: lo que decide de que
+                // colores es un mazo es lo que hay que PAGAR. Contar la
+                // identidad mete el tercer color de una tierra que solo produce
+                // mana (el plan de Ascenso 2b).
+                mask |= c.getRules().getManaCost().getColorProfile();
+            } else if (c.getRules().getType().isBasicLand()) {
+                // ⚠️ Y las BASICAS si, desde el 05-09-2026. Es lo que hace que
+                // {@link #basicLandsFor} sea una decision de verdad y no solo
+                // un parche a la base de mana: reportado jugando — "si te daba
+                // un mono rojo era todo rojo; ahora, si te metes una Isla, ya
+                // tu mazo es azul y rojo y te puede mostrar cartas azules".
+                //
+                // Solo las basicas, no toda tierra: el motivo por el que las
+                // tierras estaban fuera sigue en pie para las demas — una
+                // tri-tierra que solo produce mana no convierte tu mazo en
+                // tricolor. Una basica, en cambio, solo esta en el mazo porque
+                // alguien la puso ahi a proposito.
+                mask |= c.getRules().getColorIdentity().getColor();
             }
         }
         return mask == 0 ? ColorSet.fromMask(forge.card.MagicColor.ALL_COLORS) : ColorSet.fromMask(mask);

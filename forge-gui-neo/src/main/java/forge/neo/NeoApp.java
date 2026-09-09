@@ -622,6 +622,14 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 if (args.contains("--mock-settings")) {
                     table.getMenuOverlay().show(new SettingsPanel(
                             this, () -> table.getMenuOverlay().hide()));
+                    // -Dneo.settings.scroll=0..1 baja el visor: esta pantalla
+                    // es mas larga que la ventana y sin esto la mitad de los
+                    // ajustes no se puede capturar.
+                    final String at = System.getProperty("neo.settings.scroll");
+                    if (at != null) {
+                        Platform.runLater(() -> debug.scrollSettings(
+                                Double.parseDouble(at)));
+                    }
                 }
                 if (args.contains("--mock-abilities") && !table.selfFieldNodes().isEmpty()) {
                     table.getOverlay().show(new forge.neo.ui.AbilityMenu(
@@ -708,6 +716,12 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 }
                 if (args.contains("--mock-zoom") && !table.selfFieldNodes().isEmpty()) {
                     table.showZoom(table.selfFieldNodes().get(0).getCard());
+                    // -Dneo.zoom.keyword=true clica la primera palabra clave,
+                    // que es el gesto entero de esa funcion: sin raton no hay
+                    // otra forma de capturar la explicacion desplegada.
+                    if (Boolean.getBoolean("neo.zoom.keyword")) {
+                        javafx.application.Platform.runLater(debug::clickFirstKeyword);
+                    }
                 }
                 if (args.contains("--mock-prompt") && !table.selfFieldNodes().isEmpty()) {
                     table.getOverlay().show(new forge.neo.ui.CardPromptDialog(
@@ -998,6 +1012,14 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             }
             if (args.contains("--card-menu") && builder != null) {
                 builder.showFirstCardMenu();
+            }
+            // --zoom: la carta ampliada del deck builder. Lo que se comprueba
+            // con esto NO es que salga grande, es que se pueda cerrar: iba por
+            // una capa propia que solo escuchaba el borde de la ventana y
+            // dejaba la pantalla atascada. Con -Dneo.esc.testAt=N se le manda
+            // el Escape y la siguiente captura tiene que ser el mazo otra vez.
+            if (args.contains("--zoom") && builder != null) {
+                builder.zoomFirstCardForTest();
             }
             if (args.contains("--generate") && builder != null) {
                 builder.generateForTest();
@@ -1673,6 +1695,29 @@ public class NeoApp extends Application implements SettingsPanel.Host {
         final forge.neo.match.NeoMatchUI ui = b == null ? null : b.getMatchUi();
         if (ui != null) {
             ui.setPauseMode(mode);
+        }
+    }
+
+    /**
+     * Si hay una partida de verdad en marcha.
+     *
+     * <p>No basta con que haya mesa: las maquetas (`run.cmd ui`) tambien la
+     * tienen, y ahi no hay ninguna partida a la que un ajuste pueda llegar
+     * tarde. Lo que hay o no hay es el {@code NeoMatchUI}, que es el hilo con
+     * el motor.
+     */
+    @Override
+    public boolean isInMatch() {
+        final TableBinder b = binder;
+        return b != null && b.getMatchUi() != null;
+    }
+
+    /** Repintar la mesa ya, sin esperar al siguiente aviso del motor. */
+    @Override
+    public void refreshTable() {
+        final TableBinder b = binder;
+        if (b != null) {
+            b.requestRefresh();
         }
     }
 

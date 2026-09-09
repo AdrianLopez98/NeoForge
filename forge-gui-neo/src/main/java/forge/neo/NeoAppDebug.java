@@ -296,6 +296,56 @@ final class NeoAppDebug {
         }
         app.table.setStack(items, me);
         app.table.requestLayout();
+
+        // -Dneo.stack.open=true despliega las entradas POR EL CAMINO DE VERDAD
+        // (un click en la cabecera, que es el que abre todas). Hace falta
+        // porque el gesto que se viene a comprobar es justo un click, y en una
+        // captura sin ventana no hay raton que lo de.
+        if (Boolean.getBoolean("neo.stack.open")) {
+            javafx.application.Platform.runLater(this::openWholeStack);
+        }
+    }
+
+    /** Baja el visor de los Ajustes, que es mas largo que la ventana. */
+    void scrollSettings(final double v) {
+        app.table.applyCss();
+        app.table.layout();
+        final javafx.scene.Node n = app.table.lookup(".settings .dialog-scroll");
+        if (n instanceof javafx.scene.control.ScrollPane sp) {
+            sp.setVvalue(Math.max(0, Math.min(1, v)));
+        } else {
+            System.out.println("[maqueta] no se encuentra el visor de los ajustes");
+        }
+    }
+
+    /** Click en la primera pastilla de palabra clave de la carta ampliada. */
+    void clickFirstKeyword() {
+        app.table.applyCss();
+        app.table.layout();
+        final javafx.scene.Node chip = app.table.lookup(".keyword-chip");
+        if (chip == null) {
+            System.out.println("[maqueta] esta carta no tiene palabras clave");
+            return;
+        }
+        final javafx.geometry.Bounds b = chip.localToScene(chip.getBoundsInLocal());
+        fire(chip, javafx.scene.input.MouseEvent.MOUSE_CLICKED,
+                new javafx.geometry.Point2D(b.getMinX() + b.getWidth() / 2,
+                        b.getMinY() + b.getHeight() / 2));
+    }
+
+    /** Click en la cabecera del stack: abre o cierra todas las entradas. */
+    private void openWholeStack() {
+        app.table.applyCss();
+        app.table.layout();
+        final javafx.scene.Node header = app.table.lookup(".stack-header");
+        if (header == null) {
+            System.out.println("[maqueta] no hay cabecera de stack que clicar");
+            return;
+        }
+        final javafx.geometry.Bounds b = header.localToScene(header.getBoundsInLocal());
+        final javafx.geometry.Point2D at =
+                new javafx.geometry.Point2D(b.getMinX() + 4, b.getMinY() + b.getHeight() / 2);
+        fire(header, javafx.scene.input.MouseEvent.MOUSE_CLICKED, at);
     }
 
     /**

@@ -246,6 +246,7 @@ public class TableScreen extends Pane {
         // no esta en la escena: no ocupa, no pinta y no decodifica imagenes.
         side = new VBox(10, phaseRail, stackBox, actionBar);
         side.setPadding(new Insets(PAD));
+        applyDetailSetting();
 
         commandZone.setOnCardHover(this::hovered);
 
@@ -1130,15 +1131,65 @@ public class TableScreen extends Pane {
 
     /** Muestra una carta en el panel de detalle sin necesidad de hover. */
     public void showDetail(final CardView card) {
+        applyDetailSetting();
         detail.show(card);
     }
 
     private void hovered(final CardNode n) {
+        applyDetailSetting();
         detail.show(n.getCard());
         if (onCardHover != null) {
             onCardHover.accept(n);
         }
     }
+
+    /**
+     * El panel de detalle en la columna, si el jugador lo ha encendido.
+     *
+     * <p>Se quito de la mesa a proposito y vuelve <b>apagado de fabrica</b>
+     * (ver {@code NeoSettings.HOVER_DETAIL}). Dos cosas hacen que encenderlo no
+     * pueda estropear nada:
+     *
+     * <ul>
+     *   <li><b>Va encima de los botones, nunca debajo.</b> La barra de accion
+     *       no se mueve de sitio pase lo que pase — un boton que cambia de
+     *       posicion se acaba pulsando por inercia (principio 6b).</li>
+     *   <li><b>Se come lo que SOBRA, y nada mas.</b> Pide alto <b>cero</b> y
+     *       crece con lo que quede libre. Asi, cuando la columna va justa,
+     *       desaparece el en vez de encoger el stack — que es exactamente por
+     *       lo que se quito de la mesa.</li>
+     * </ul>
+     *
+     * <p>Se relee al pasar el raton y no solo al construir la mesa: los ajustes
+     * se abren desde el menu de pausa <b>a mitad de partida</b>, y un ajuste que
+     * solo se nota en la partida siguiente parece que no funciona.
+     */
+    private void applyDetailSetting() {
+        final boolean want = forge.neo.NeoSettings.hoverDetail();
+        final boolean has = side.getChildren().contains(detail);
+        if (want == has) {
+            return;
+        }
+        if (!want) {
+            side.getChildren().remove(detail);
+            return;
+        }
+        // Pide CERO y crece con lo que sobre. Es lo que hace que encenderlo no
+        // pueda quitarle sitio a nada: cuando la columna va justa (el rail de
+        // fases es alto y un stack de nueve pide seis filas) un panel que
+        // pidiera su tamanyo se lo comeria al stack — medido, con nueve
+        // entradas el stack se quedaba en linea y media. Pidiendo cero, ahi
+        // simplemente no aparece.
+        detail.setMinHeight(0);
+        detail.setPrefHeight(0);
+        // SOMETIMES y no ALWAYS: con el stack largo (que si es ALWAYS) este se
+        // queda en cero y desaparece entero, en vez de quedarse en una tira de
+        // treinta pixeles ensenyando el borde de una carta.
+        VBox.setVgrow(detail, Priority.SOMETIMES);
+        final int before = side.getChildren().indexOf(actionBar);
+        side.getChildren().add(before < 0 ? side.getChildren().size() : before, detail);
+    }
+
 
     public PlayerBar getOpponentBar() {
         return opponentBar;
@@ -1173,20 +1224,44 @@ public class TableScreen extends Pane {
      * una LISTA ORDENADA, y lo que hace falta leer de ella es cuantos hay, de
      * quien son, en que orden se resuelven y que hacen. Todo eso es texto.
      *
-     * <p>La carta no se pierde: clicar una fila la ensenya en el panel de
-     * detalle, que esta justo debajo y no tapa la mesa — que es importante,
-     * porque muchas respuestas se dan clicando cartas del campo.
+     * <p><b>Y cada entrada se despliega.</b> Reportado por un jugador nuevo:
+     * <i>que deje ver el stack entero y no solo el de arriba</i>. La lista
+     * entera ya estaba aqui y rodaba, asi que no le faltaba ni una — pero se
+     * LEIA asi, porque solo el de arriba decia QUE hace y los de debajo eran
+     * una linea con el nombre. Ahora cualquiera se abre con un click, y lo que
+     * lo hace visible es el <b>galon</b> de la izquierda: sin el, el gesto
+     * existe y no lo descubre nadie, que es como no tenerlo.
+     *
+     * <p>Lo que se abre se <b>recuerda</b> ({@link #stackOpen}). Esta lista se
+     * repinta ENTERA en cada aviso del motor — varios por segundo mientras se
+     * encadenan disparos — asi que sin memoria lo que acabas de abrir se
+     * cerraria solo antes de que te diera tiempo a leerlo.
+     *
+     * <p>El click izquierdo abre y cierra; el derecho sigue siendo el menu del
+     * stack. Antes el izquierdo mandaba la carta al panel de detalle, y ese
+     * panel <b>ya no esta en la mesa</b> desde que se le devolvio la columna al
+     * stack: o sea que clicar una entrada no hacia nada visible.
      */
     public void setStack(final Iterable<StackItemView> items, final PlayerView me) {
         stackBox.getChildren().clear();
 
-        final java.util.List<StackItemView> list = new java.util.ArrayList<>();
+        final List<StackItemView> list = new ArrayList<>();
         if (items != null) {
             for (final StackItemView item : items) {
                 list.add(item);
             }
         }
         stackSize = list.size();
+        lastStack = list;
+        lastStackMe = me;
+
+        // Lo que ya se ha resuelto se olvida. Los ids del motor se reciclan, y
+        // uno guardado como "abierto" de hace tres turnos abriria por su cuenta
+        // una entrada que nadie ha tocado.
+        stackOpen.keySet().retainAll(idsOf(list));
+        // Lo mismo con las cartas: sin esto, una partida larga va
+        // acumulando un CardNode por cada hechizo que se ha lanzado.
+        stackArt.keySet().retainAll(idsOf(list));
 
         // La caja se estira SOLO cuando hay mas filas de las que caben, y
         // entonces se queda con el hueco que dejo el panel de detalle: son unos
@@ -1195,20 +1270,22 @@ public class TableScreen extends Pane {
         // Con una o dos cosas en el stack no se estira: una caja de 285 px con
         // una linea dentro llama la atencion hacia donde no hay nada.
         VBox.setVgrow(stackBox,
-                list.size() > VISIBLE_ROWS ? Priority.ALWAYS : Priority.NEVER);
+                list.size() > visibleRows() ? Priority.ALWAYS : Priority.NEVER);
 
         final Label title = new Label(list.isEmpty()
                 ? NeoText.get("table.stack")
                 : NeoText.get("table.stack.count", list.size()));
         title.getStyleClass().add("caption");
-        stackBox.getChildren().add(title);
 
         if (list.isEmpty()) {
+            stackBox.getChildren().add(title);
             final Label empty = new Label(NeoText.get("table.stack.empty"));
             empty.getStyleClass().add("hud-sub");
             stackBox.getChildren().add(empty);
             return;
         }
+
+        stackBox.getChildren().add(stackHeader(title, list, me));
 
         final VBox rows = new VBox(2);
         rows.getChildren().add(topRow(list.get(0), me));
@@ -1223,9 +1300,99 @@ public class TableScreen extends Pane {
         scroll.getStyleClass().add("stack-scroll");
         scroll.setFitToWidth(true);
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        scroll.setPrefViewportHeight(
-                Math.min(list.size(), VISIBLE_ROWS) * ROW_H + TOP_ROW_EXTRA);
+        scroll.setPrefViewportHeight(viewportHeight(list));
         stackBox.getChildren().add(scroll);
+    }
+
+    /**
+     * El titulo, y con el la llave de todas: abrir o cerrar el stack entero.
+     *
+     * <p>Es lo que se pidio con esas palabras — <i>poder desplegarlo y
+     * plegarlo</i> — y con cinco disparos encadenados abrirlos de uno en uno
+     * son cinco clicks para contestar una sola pregunta: que me va a caer
+     * encima. Si queda alguno cerrado, los abre todos; si ya estan todos
+     * abiertos, los cierra.
+     */
+    private Region stackHeader(final Label title, final List<StackItemView> list,
+                               final PlayerView me) {
+        final boolean allOpen = allStackOpen(list);
+        final HBox header = new HBox(5, chevron(allOpen), title);
+        header.setAlignment(Pos.CENTER_LEFT);
+        header.getStyleClass().add("stack-header");
+        header.setCursor(javafx.scene.Cursor.HAND);
+        header.setOnMouseClicked(e -> {
+            if (e.getButton() == javafx.scene.input.MouseButton.SECONDARY) {
+                return;
+            }
+            for (final StackItemView item : list) {
+                stackOpen.put(item.getId(), !allOpen);
+            }
+            setStack(list, me);
+            e.consume();
+        });
+        return header;
+    }
+
+    /** Si no queda ninguna entrada por abrir. */
+    private boolean allStackOpen(final List<StackItemView> list) {
+        for (int i = 0; i < list.size(); i++) {
+            if (!isStackOpen(list.get(i), i == 0)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Cuanto del stack se ve sin rodar.
+     *
+     * <p>Lo desplegado cuenta. Si no, abrir una de las de abajo la escribiria
+     * fuera del visor y el click no ensenyaria nada — que es exactamente el
+     * fallo que esto viene a arreglar. Con techo, porque la columna tambien
+     * tiene que dejarle sitio a las fases y a los botones.
+     */
+    private double viewportHeight(final List<StackItemView> list) {
+        int open = 0;
+        for (int i = 1; i < list.size(); i++) {
+            if (isStackOpen(list.get(i), false)) {
+                open++;
+            }
+        }
+        return Math.min(list.size(), visibleRows()) * rowHeight() + TOP_ROW_EXTRA
+                + Math.min(open, MAX_OPEN_ROWS) * EXPANDED_EXTRA;
+    }
+
+    /**
+     * Lo que mide una fila, que depende de si lleva carta.
+     *
+     * <p>Los numeros de abajo se midieron con la lista de texto. Con la carta
+     * puesta una fila pasa de 23 px a unos 70, asi que dejarlos fijos pedia un
+     * visor de la altura de tres filas para ensenyar seis: el stack salia
+     * cortado justo cuando mas cosas hay dentro.
+     */
+    private double rowHeight() {
+        return forge.neo.NeoSettings.stackCards()
+                ? stackArtWidth() * CardNode.ASPECT + 8 : ROW_H;
+    }
+
+    /**
+     * Cuantas filas se ven de una vez.
+     *
+     * <p>Menos con carta, y no es una concesion: seis filas de carta son 420
+     * px, o sea la columna entera, y el rail de fases y los botones tambien
+     * viven ahi. Tres se ven de golpe y el resto rueda, que es lo que ya
+     * pasaba antes con quince disparos encadenados.
+     */
+    private int visibleRows() {
+        return forge.neo.NeoSettings.stackCards() ? 3 : VISIBLE_ROWS;
+    }
+
+    private static java.util.Set<Integer> idsOf(final List<StackItemView> list) {
+        final java.util.Set<Integer> ids = new java.util.HashSet<>();
+        for (final StackItemView item : list) {
+            ids.add(item.getId());
+        }
+        return ids;
     }
 
     /** Cuantas filas se ven de una vez; el resto, rodando. */
@@ -1237,12 +1404,105 @@ public class TableScreen extends Pane {
     /** Lo que la primera fila abulta de mas por llevar el texto de la accion. */
     private static final double TOP_ROW_EXTRA = 38;
 
+    /** Lo que crece el visor por cada entrada desplegada. */
+    private static final double EXPANDED_EXTRA = 34;
+
+    /** Cuantas desplegadas caben antes de que toque rodar. */
+    private static final int MAX_OPEN_ROWS = 2;
+
+    /**
+     * Que entradas ha abierto o cerrado el jugador <b>a mano</b>.
+     *
+     * <p>Solo lo que ha tocado: lo que no esta aqui usa el reparto de fabrica
+     * (abierta la de arriba, cerradas las de debajo), que se calcula en cada
+     * repintado. Guardar tambien las que nadie ha tocado obligaria a saber
+     * cual era "la de arriba" la vez anterior, que es justo lo que cambia solo
+     * en cuanto algo se resuelve.
+     */
+    private final Map<Integer, Boolean> stackOpen = new HashMap<>();
+
+    /**
+     * La carta de cada entrada del stack, reutilizada entre repintados.
+     *
+     * <p>Se guarda por <b>id de la entrada</b> y no de la carta: dos copias del
+     * mismo hechizo son dos entradas distintas, y un {@code Node} de JavaFX no
+     * puede estar en dos sitios a la vez.
+     *
+     * <p>Y se guarda, punto. Esta lista se rehace entera en cada aviso del
+     * motor — varias veces por segundo mientras se encadenan disparos — y
+     * construir un {@link CardNode} por fila y por repintado es justo el error
+     * clasico de rendimiento que avisa la seccion 11 de las notas de diseño. La imagen ya
+     * la cachea {@code CardImages}; lo que no se puede repetir es el arbol de
+     * escena.
+     */
+    private final Map<Integer, CardNode> stackArt = new HashMap<>();
+
+    /**
+     * Cuanto mide la carta de una entrada del stack.
+     *
+     * <p>Un solo tamanyo para todas, y eso es una decision: la de arriba ya se
+     * distingue por su marco de acento y ademas sale grande en el cartel
+     * central, asi que darle otro ancho solo serviria para invalidar el cache
+     * en cuanto algo se resuelve y la segunda pasara a ser la primera.
+     *
+     * <p>El numero sale de la columna, no es fijo: la mesa se escala con la
+     * ventana. Con el tope de 44 px una fila cerrada mide unos 60 px, o sea que
+     * nueve disparos encadenados siguen cabiendo en el visor que ya rodaba.
+     */
+    private double stackArtWidth() {
+        return Math.max(38, Math.min(54, sideWidth * 0.18));
+    }
+
+    /**
+     * La carta de una entrada, o null si no hay que pintarla.
+     *
+     * <p>Null en dos casos: con el ajuste apagado, y cuando el motor no publica
+     * carta de origen. Lo segundo pasa de verdad — hay disparos sin carta — y
+     * ahi la fila se queda como estaba en vez de reservar un hueco vacio.
+     */
+    private CardNode stackCardArt(final StackItemView item) {
+        if (!forge.neo.NeoSettings.stackCards()) {
+            return null;
+        }
+        final CardView source = item.getSourceCard();
+        if (source == null) {
+            return null;
+        }
+        CardNode node = stackArt.get(item.getId());
+        if (node == null) {
+            node = new CardNode(stackArtWidth());
+            node.setRotationEnabled(false);
+            node.setHoverEnabled(false);
+            node.setBadgesVisible(false);
+            node.setCountersVisible(false);
+            // Transparente al raton A PROPOSITO: el click de la fila abre y
+            // cierra, y el derecho saca su menu. Si la carta se quedara los
+            // eventos, clicar justo encima de ella — que es lo que hara todo el
+            // mundo en cuanto haya una carta que clicar — no haria nada.
+            node.setMouseTransparent(true);
+            stackArt.put(item.getId(), node);
+        }
+        node.setCard(source);
+        return node;
+    }
+
+    /** Lo ultimo que se pinto, para poder repintar al abrir o cerrar una fila. */
+    private List<StackItemView> lastStack = new ArrayList<>();
+
+    private PlayerView lastStackMe;
+
+    private boolean isStackOpen(final StackItemView item, final boolean top) {
+        final Boolean choice = stackOpen.get(item.getId());
+        return choice == null ? top : choice;
+    }
+
     /**
      * El que se resuelve AHORA.
      *
-     * <p>Es el unico que ademas dice QUE hace. De los que esperan debajo, lo
-     * que necesitas saber es que estan y de quien son; el detalle se pide
-     * clicando, y para entonces ya te has fijado en ellos.
+     * <p>Nace abierto, que es lo que ya hacia: es el que te va a caer encima y
+     * de el se lee todo. Se puede cerrar como cualquier otro — con quince
+     * disparos encadenados, ver la lista de un vistazo vale mas que el detalle
+     * de uno.
      */
     private Region topRow(final StackItemView item, final PlayerView me) {
         final Label header = new Label(headerFor(item, me));
@@ -1254,24 +1514,44 @@ public class TableScreen extends Pane {
         name.setWrapText(true);
         name.setMaxWidth(Double.MAX_VALUE);
         name.setMinHeight(Region.USE_PREF_SIZE);
+        HBox.setHgrow(name, Priority.ALWAYS);
 
-        final VBox box = new VBox(2, header, name);
-        box.getStyleClass().add("stack-top");
+        final Region detailBox = stackDetail(item);
+        final boolean expandable = detailBox != null;
+        final boolean open = expandable && isStackOpen(item, true);
 
-        final String what = effectText(item);
-        if (!what.isEmpty()) {
-            final Label text = new Label(what);
-            text.getStyleClass().add(item.isTrigger() ? "stack-trigger" : "stack-spell");
-            text.setWrapText(true);
-            text.setMaxWidth(Double.MAX_VALUE);
-            text.setMinHeight(Region.USE_PREF_SIZE);
-            box.getChildren().add(text);
+        final HBox line = new HBox(5, name);
+        line.setAlignment(Pos.TOP_LEFT);
+        if (expandable) {
+            line.getChildren().add(0, chevron(open));
         }
-        wireDetail(box, item);
+
+        final VBox texts = new VBox(2, header, line);
+        if (open) {
+            texts.getChildren().add(detailBox);
+        }
+        HBox.setHgrow(texts, Priority.ALWAYS);
+        texts.setMaxWidth(Double.MAX_VALUE);
+
+        // La carta a la izquierda, si el ajuste esta puesto. Se pinta al lado
+        // del bloque entero (cabecera + nombre + detalle) y no dentro de la
+        // linea del nombre: si fuera dentro, abrir la entrada empujaria el
+        // texto por debajo de la carta y la fila se leeria en L.
+        final CardNode art = stackCardArt(item);
+        final Region box;
+        if (art == null) {
+            box = texts;
+        } else {
+            final HBox row = new HBox(8, art, texts);
+            row.setAlignment(Pos.TOP_LEFT);
+            box = row;
+        }
+        box.getStyleClass().add("stack-top");
+        wireRow(box, item, true, expandable);
         return box;
     }
 
-    /** Uno de los que esperan: numero, quien y nombre. Una linea y ya. */
+    /** Uno de los que esperan: numero, quien y nombre. Lo demas, al abrirlo. */
     private Region waitingRow(final StackItemView item, final int order, final PlayerView me) {
         final Label num = new Label(String.valueOf(order));
         num.getStyleClass().add("stack-order");
@@ -1287,28 +1567,155 @@ public class TableScreen extends Pane {
         name.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(name, Priority.ALWAYS);
 
-        final HBox row = new HBox(6, num, who, name);
-        row.getStyleClass().add("stack-strip");
-        row.setAlignment(Pos.CENTER_LEFT);
-        wireDetail(row, item);
-        return row;
+        final Region detailBox = stackDetail(item);
+        final boolean expandable = detailBox != null;
+        final boolean open = expandable && isStackOpen(item, false);
+
+        // Cerrada es una linea y el nombre largo se corta con "..."; abierta se
+        // ha venido justamente a leerla, asi que el nombre se parte entero.
+        if (open) {
+            name.setWrapText(true);
+            name.setMinHeight(Region.USE_PREF_SIZE);
+        }
+
+        final HBox line = new HBox(6, num, who, name);
+        line.setAlignment(Pos.CENTER_LEFT);
+        if (expandable) {
+            line.getChildren().add(1, chevron(open));
+        }
+
+        final VBox texts = new VBox(2, line);
+        if (open) {
+            texts.getChildren().add(detailBox);
+        }
+        HBox.setHgrow(texts, Priority.ALWAYS);
+        texts.setMaxWidth(Double.MAX_VALUE);
+
+        final CardNode art = stackCardArt(item);
+        final Region box;
+        if (art == null) {
+            box = texts;
+        } else {
+            // Cerrada, el texto es una linea y la carta mide sesenta pixeles:
+            // centrado, o el nombre queda pegado al canto de arriba y la fila
+            // parece descuadrada. Abierta manda el texto y crece hacia abajo.
+            final HBox row = new HBox(8, art, texts);
+            row.setAlignment(open ? Pos.TOP_LEFT : Pos.CENTER_LEFT);
+            box = row;
+        }
+        box.getStyleClass().add("stack-strip");
+        wireRow(box, item, false, expandable);
+        return box;
     }
 
     /**
-     * Clicar una entrada ensenya su carta en el panel de detalle.
+     * Lo que la entrada cuenta al abrirse: que hace y a quien apunta.
      *
-     * <p>En el panel y no en la carta ampliada: la ampliada tapa la mesa, y
-     * mientras hay stack la mesa es justo lo que hay que poder clicar para
-     * responder. El detalle esta al lado y no estorba.
+     * @return null si no tiene nada mas que contar — y entonces no lleva
+     *         galon: un desplegable que se abre vacio promete algo que no hay,
+     *         y eso es peor que no tenerlo (principio 1)
      */
-    private void wireDetail(final Region row, final StackItemView item) {
-        final CardView source = item.getSourceCard();
-        if (source == null) {
+    private static Region stackDetail(final StackItemView item) {
+        final VBox box = new VBox(2);
+        box.getStyleClass().add("stack-detail");
+
+        final String what = effectText(item);
+        if (!what.isEmpty()) {
+            final Label text = new Label(what);
+            text.getStyleClass().add(item.isTrigger() ? "stack-trigger" : "stack-spell");
+            text.setWrapText(true);
+            text.setMaxWidth(Double.MAX_VALUE);
+            text.setMinHeight(Region.USE_PREF_SIZE);
+            box.getChildren().add(text);
+        }
+
+        final String targets = targetsOf(item, what);
+        if (!targets.isEmpty()) {
+            final Label line = new Label(NeoText.get("stack.targets", targets));
+            line.getStyleClass().add("stack-targets");
+            line.setWrapText(true);
+            line.setMaxWidth(Double.MAX_VALUE);
+            line.setMinHeight(Region.USE_PREF_SIZE);
+            box.getChildren().add(line);
+        }
+        return box.getChildren().isEmpty() ? null : box;
+    }
+
+    /**
+     * A quien apunta, y solo lo que el texto del motor no diga ya.
+     *
+     * <p>Con varios disparos encadenados, "a que apunta este" es la pregunta
+     * que decide si respondes o lo dejas pasar, y el motor publica los
+     * objetivos aparte ({@code getTargetCards} / {@code getTargetPlayers}).
+     * Casi siempre van tambien dentro de su descripcion, asi que se anyade
+     * solo el que falte: repetir el mismo nombre en dos lineas seguidas fue
+     * justo lo que hizo ilegible el panel del stack la primera vez.
+     *
+     * @param what el texto que ya se esta ensenyando encima
+     */
+    private static String targetsOf(final StackItemView item, final String what) {
+        final StringBuilder sb = new StringBuilder();
+        try {
+            final Iterable<CardView> cards = item.getTargetCards();
+            if (cards != null) {
+                for (final CardView c : cards) {
+                    appendTarget(sb, c == null || c.getCurrentState() == null
+                            ? null : CardText.nameOf(c.getCurrentState()), what);
+                }
+            }
+            final Iterable<PlayerView> players = item.getTargetPlayers();
+            if (players != null) {
+                for (final PlayerView p : players) {
+                    appendTarget(sb, p == null ? null
+                            : forge.neo.match.PlayerName.of(p), what);
+                }
+            }
+        } catch (final RuntimeException e) {
+            // Un objetivo que ya no existe no es motivo para quedarse sin
+            // panel: se ensenya lo que se haya podido leer.
+            return sb.toString();
+        }
+        return sb.toString();
+    }
+
+    private static void appendTarget(final StringBuilder sb, final String name,
+                                     final String what) {
+        if (name == null || name.isBlank() || what.contains(name)
+                || sb.indexOf(name) >= 0) {
             return;
         }
+        if (sb.length() > 0) {
+            sb.append(", ");
+        }
+        sb.append(name);
+    }
+
+    /** El galon: lo unico que dice que una entrada se puede abrir. */
+    private static Label chevron(final boolean open) {
+        final Label c = new Label(open ? "▾" : "▸");
+        c.getStyleClass().add("stack-chevron");
+        c.setMinWidth(Region.USE_PREF_SIZE);
+        return c;
+    }
+
+    /**
+     * Clicar una entrada la abre o la cierra; con el derecho, su menu.
+     *
+     * <p>Antes el izquierdo mandaba la carta al panel de detalle. Ese panel
+     * salio de la mesa cuando se decidio devolverle la columna al stack, y
+     * nadie volvio por aqui: desde entonces clicar una entrada del stack no
+     * hacia absolutamente nada. Es el tipo de fallo que no da ningun error y
+     * que solo se ve cuando alguien lo intenta y te lo cuenta.
+     */
+    private void wireRow(final Region row, final StackItemView item,
+                         final boolean top, final boolean expandable) {
         row.setCursor(javafx.scene.Cursor.HAND);
         row.setOnMouseClicked(e -> {
             if (e.getButton() == javafx.scene.input.MouseButton.SECONDARY) {
+                final CardView source = item.getSourceCard();
+                if (source == null) {
+                    return;
+                }
                 // El menu del stack si hay partida detras; si no, lo de
                 // siempre. La maqueta (run.cmd ui) no tiene controlador al que
                 // preguntarle nada, y ahi el click derecho tiene que seguir
@@ -1319,8 +1726,13 @@ public class TableScreen extends Pane {
                 } else {
                     showZoom(source);
                 }
-            } else {
-                showDetail(source);
+                e.consume();
+                return;
+            }
+            if (expandable) {
+                stackOpen.put(item.getId(), !isStackOpen(item, top));
+                setStack(lastStack, lastStackMe);
+                e.consume();
             }
         });
     }

@@ -72,7 +72,7 @@ public class AscentRestScreen extends StackPane {
         // un ScrollPane: es donde puede romperse el reparto, asi que tiene que
         // poder capturarse sin llegar a ella clicando.
         if (Boolean.getBoolean("neo.ascent.restRemove")) {
-            showDeck();
+            showDeck(run.cardBatch());
         } else {
             showChoice();
         }
@@ -95,17 +95,37 @@ public class AscentRestScreen extends StackPane {
                 + run.getLife() + " / " + run.getMaxLife());
         life.getStyleClass().addAll("ascent-pill-base", "ascent-pill-life");
 
-        final Button heal = new Button(NeoText.get("ascent.rest.heal", run.restHeal()));
+        // ⚠️ CON LA VIDA LLENA SIGUE PULSABLE, y no es un descuido: apagarlo
+        // dejaba una pantalla con UNA sola salida — quitar una carta —, o sea
+        // que llegar sano al descanso te OBLIGABA a tocar el mazo. Reportado
+        // jugando (05-09-2026): "si vas a una hoguera y tienes la vida entera,
+        // que puedas darle a curarte aunque no te cures nada". Es el principio
+        // 7: siempre tiene que haber por donde salir sin pagar nada.
+        //
+        // Lo que cambia es el ROTULO, no el boton: prometer "Curarte 6 vidas"
+        // cuando no va a curar ninguna es justo el principio 1.
+        final boolean full = run.getLife() >= run.getMaxLife();
+        final Button heal = new Button(full
+                ? NeoText.get("ascent.rest.healFull")
+                : NeoText.get("ascent.rest.heal", run.restHeal()));
         heal.getStyleClass().addAll("ascent-button", "btn-primary");
-        heal.setDisable(run.getLife() >= run.getMaxLife());
         heal.setOnAction(e -> {
             run.heal(run.restHeal());
             actions.done();
         });
 
-        final Button remove = new Button(NeoText.get("ascent.rest.remove"));
+        // Cuantas se quitan lo dice el modo: 1 en Estandar y 2 en Commander,
+        // donde el mazo es de 60 (AscentRun.cardBatch). Si se anyaden dos por
+        // premio, quitar solo una dejaria el mazo hinchandose igual.
+        final int batch = run.cardBatch();
+        final Button remove = new Button(batch > 1
+                ? NeoText.get("ascent.rest.removeN", batch)
+                : NeoText.get("ascent.rest.remove"));
         remove.getStyleClass().add("ascent-button");
-        remove.setOnAction(e -> showDeck());
+        // Y si el mazo esta en el suelo, no se puede: un mazo vacio no arranca
+        // partida, y eso seria una run perdida en una pantalla de descanso.
+        remove.setDisable(!forge.neo.ascent.AscentShop.canRemove(run));
+        remove.setOnAction(e -> showDeck(batch));
 
         final Label hint = new Label(NeoText.get("ascent.rest.hint"));
         hint.getStyleClass().add("ascent-hint");
@@ -115,11 +135,19 @@ public class AscentRestScreen extends StackPane {
         body.getChildren().addAll(title, life, buttons, hint);
     }
 
-    /** El mazo entero, para elegir que sobra. */
-    private void showDeck() {
+    /**
+     * El mazo entero, para elegir que sobra.
+     *
+     * @param left cuantas quedan por quitar. Se llama a si misma tras cada
+     *             una: en Commander son dos, y la segunda se elige viendo el
+     *             mazo <b>ya sin la primera</b>
+     */
+    private void showDeck(final int left) {
         body.getChildren().clear();
 
-        final Label title = new Label(NeoText.get("ascent.rest.removeTitle"));
+        final Label title = new Label(left > 1
+                ? NeoText.get("ascent.rest.removeTitleN", left)
+                : NeoText.get("ascent.rest.removeTitle"));
         title.getStyleClass().add("ascent-act");
 
         final Deck deck = AscentDecks.load(run);
@@ -139,6 +167,13 @@ public class AscentRestScreen extends StackPane {
                     }
                     deck.getMain().remove(card);
                     AscentDecks.save(deck);
+                    // ⚠️ El suelo del mazo manda sobre la tanda: antes que
+                    // dejarlo bajo minimos se corta y se sale. Un mazo vacio no
+                    // arranca partida.
+                    if (left > 1 && forge.neo.ascent.AscentShop.canRemove(run)) {
+                        showDeck(left - 1);
+                        return;
+                    }
                     actions.done();
                 });
                 grid.getChildren().add(node);

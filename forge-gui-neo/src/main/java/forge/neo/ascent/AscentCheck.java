@@ -90,6 +90,12 @@ public final class AscentCheck {
             elJefeNoEsArchienemigo();
             recorrerRuns();
             premios();
+            tierrasEnElPremio();
+            elDobleEnCommander();
+            comandanteMulticolor();
+            singletonEnCommander();
+            calidadDelPremio();
+            reliquiasQueLaIaPuedeLlevar();
             descanso();
             tienda();
             eventos();
@@ -445,7 +451,11 @@ public final class AscentCheck {
                 }
                 // Y que lo que SI le hace jefe siga ahi: si esto se cae, el
                 // jefe se ha quedado en un combate con mas vida.
-                if (plan.opponentRelics == null || plan.opponentRelics.size() < 2) {
+                //
+                // Una en el acto 1 y dos despues (AscentBattle.bossRelics): al
+                // jefe del acto 1 le puede tocar una reliquia que multiplique su
+                // salida, y ahi el jugador todavia no tiene con que responder.
+                if (plan.opponentRelics == null || plan.opponentRelics.isEmpty()) {
                     conReliquias = false;
                 }
             } finally {
@@ -458,9 +468,9 @@ public final class AscentCheck {
             fail("el jefe lleva esquemas de archienemigo: en 1c1 eso es imposible de ganar");
         }
         if (conReliquias) {
-            ok("y sigue llevando sus dos reliquias, que es lo que le hace jefe");
+            ok("y sigue llevando sus reliquias, que es lo que le hace jefe");
         } else {
-            fail("el jefe se ha quedado sin sus dos reliquias");
+            fail("el jefe se ha quedado sin reliquias");
         }
     }
 
@@ -817,12 +827,12 @@ public final class AscentCheck {
         } else {
             try {
                 final AscentBattle.Plan jefe1 = AscentBattle.plan(jefe1run, jefe1run.map().boss());
-                if (jefe1.opponentRelics.size() == 2) {
-                    ok("ascension 10: el jefe del acto 1 (no el 3) se queda con sus dos"
-                            + " reliquias de siempre");
+                if (jefe1.opponentRelics.size() == 1) {
+                    ok("ascension 10: el jefe del acto 1 (no el 3) se queda con su reliquia"
+                            + " de siempre, sin segundo aliento");
                 } else {
                     fail("ascension 10: el jefe del acto 1 con Ascension 10 lleva "
-                            + jefe1.opponentRelics.size() + " reliquias (deberian ser 2:"
+                            + jefe1.opponentRelics.size() + " reliquias (deberia ser 1:"
                             + " el segundo aliento es solo del acto 3)");
                 }
             } finally {
@@ -874,17 +884,36 @@ public final class AscentCheck {
             final Deck deckSana = AscentDecks.load(sana);
             final Deck deckMaldita = AscentDecks.load(maldita);
             final boolean laTieneMaldita = hasCard(deckMaldita, "Millstone");
-            final boolean laTieneSana = hasCard(deckSana, "Millstone");
+            // ⚠️ "El mazo sano NO la lleva" no se puede exigir de UN mazo, y
+            // exigirlo hacia que esta sonda saliera en rojo sola de vez en
+            // cuando (visto el 05-09-2026, 1 de cada 4 corridas). El motivo es
+            // que Millstone es una carta REAL del motor —se eligio asi a
+            // proposito, ver AscentSeedDeck.CURSED_CARD— y un generador de
+            // mazos incoloros puede meterla por su cuenta. Una prueba que falla
+            // sola es peor que no tenerla: acostumbra a mirar el rojo y seguir.
+            //
+            // Lo que si es cierto siempre: con la Ascension puesta la lleva
+            // SIEMPRE, y sin ella casi nunca. Se mide sobre una muestra.
+            int sanasConLaCarta = 0;
+            final int MUESTRA = 8;
+            for (int i = 0; i < MUESTRA; i++) {
+                final Deck otra = AscentSeedDeck.generate(
+                        AscentRun.Mode.STANDARD, null, "sonda-maldicion-" + i, 0);
+                if (hasCard(otra, "Millstone")) {
+                    sanasConLaCarta++;
+                }
+            }
+            final boolean laTieneSana = sanasConLaCarta > MUESTRA / 2;
             final int tamSana = size(deckSana);
             final int tamMaldita = size(deckMaldita);
             if (laTieneMaldita && !laTieneSana && tamSana == tamMaldita) {
                 ok("ascension 3: el mazo sale con la carta maldita (Millstone), sin cambiar"
                         + " de tamano (" + tamMaldita + " cartas)");
             } else {
-                fail("ascension 3: maldita en el mazo con Ascension=" + laTieneMaldita
-                        + " (deberia ser true), sin Ascension=" + laTieneSana
-                        + " (deberia ser false), tamanos " + tamSana + "/" + tamMaldita
-                        + " (deberian ser iguales)");
+                fail("ascension 3: con Ascension la lleva=" + laTieneMaldita
+                        + " (deberia ser true); sin Ascension sale en " + sanasConLaCarta
+                        + " de " + MUESTRA + " mazos (deberian ser pocos); tamanos "
+                        + tamSana + "/" + tamMaldita + " (deberian ser iguales)");
             }
         } finally {
             discard(sana);
@@ -1079,10 +1108,26 @@ public final class AscentCheck {
             } else {
                 fail("jefe: no tiene mas vida que un combate normal — seria un rival mas");
             }
-            if (jefe.opponentRelics.size() == 2) {
-                ok("jefe: lleva sus dos reliquias, y en SU asiento");
+            // El jefe del acto 1 lleva UNA; los de los actos 2 y 3, dos. Se
+            // comprueban los tres seguidos: el numero por acto es justo lo que
+            // se cambio el 05-09-2026 ("me destrozo, le toco una reliquia que le
+            // daba 3 manas incoloros"), asi que mirar solo uno dejaria sin
+            // comprobar la mitad de la regla.
+            final int[] esperadas = {1, 2, 2};
+            final List<String> mal = new ArrayList<>();
+            for (int act = 1; act <= AscentRun.ACTS; act++) {
+                final int llevan = AscentBattle.plan(run, run.map().boss()).opponentRelics.size();
+                if (llevan != esperadas[act - 1]) {
+                    mal.add("acto " + act + ": " + llevan + " en vez de " + esperadas[act - 1]);
+                }
+                if (act < AscentRun.ACTS && !run.nextAct()) {
+                    break;
+                }
+            }
+            if (mal.isEmpty()) {
+                ok("jefe: lleva 1 reliquia en el acto 1 y 2 en los siguientes, y en SU asiento");
             } else {
-                fail("jefe: lleva " + jefe.opponentRelics.size() + " reliquias en vez de 2");
+                fail("jefe: reliquias por acto — " + mal);
             }
             if (jefe.yourRelics.isEmpty()) {
                 ok("jefe: las reliquias del rival no se cuelan en tu asiento");
@@ -1262,12 +1307,14 @@ public final class AscentCheck {
                     continue;
                 }
                 final AscentRewards.Reward r = AscentRewards.of(run, node);
-                if (r.cards.size() == AscentRewards.CHOICES) {
-                    ok("premios (" + mode + "): " + AscentRewards.CHOICES
-                            + " cartas para elegir y " + r.credits + " creditos");
+                final int esperadas = AscentRewards.choices(mode);
+                if (r.cards.size() == esperadas && r.picks == AscentRun.cardBatch(mode)) {
+                    ok("premios (" + mode + "): eliges " + r.picks + " de " + esperadas
+                            + " cartas, y " + r.credits + " creditos");
                 } else {
-                    fail("premios (" + mode + "): solo " + r.cards.size()
-                            + " cartas ofrecidas; el pozo del acto se ha quedado corto");
+                    fail("premios (" + mode + "): " + r.cards.size() + " cartas ofrecidas y "
+                            + r.picks + " elecciones; se esperaban " + esperadas + " y "
+                            + AscentRun.cardBatch(mode));
                 }
 
                 // El mismo nodo, otra vez: tiene que dar EXACTAMENTE lo mismo.
@@ -1290,8 +1337,8 @@ public final class AscentCheck {
                     }
                 }
                 if (fuera.isEmpty()) {
-                    ok("premios (" + mode + "): las tres cartas caben en el mazo ("
-                            + colores + ")");
+                    ok("premios (" + mode + "): las " + r.cards.size()
+                            + " cartas caben en el mazo (" + colores + ")");
                 } else {
                     fail("premios (" + mode + "): cartas que no se pueden jugar: " + fuera);
                 }
@@ -1350,6 +1397,716 @@ public final class AscentCheck {
             } finally {
                 run.discard();
             }
+        }
+    }
+
+    /**
+     * Que se puedan meter <b>tierras</b> en el mazo, y que ensanchen tus
+     * colores en Estandar pero no en Commander.
+     *
+     * <h2>Por que hace falta comprobarlo</h2>
+     *
+     * <p>Reportado jugando (05-09-2026): el mazo crece nodo a nodo con hechizos
+     * y la base de mana no crece nunca, asi que se empieza con 12 tierras de 30
+     * y se acaba con 12 de 40. La forma de arreglarlo es cambiar la carta del
+     * premio por tierras ({@code AscentRewards.takeLands}).
+     *
+     * <p>Y lo segundo es lo que <b>no puede fallar en silencio</b>: en Estandar
+     * meter una Isla tiene que abrirte las cartas azules — es la mitad del
+     * valor de la opcion, y decidido con el jugador — pero en <b>Commander no
+     * puede pasar</b>, porque los colores los manda la identidad del comandante
+     * y una carta fuera de ella deja el mazo <b>ilegal</b>: el motor lo
+     * rechazaria al empezar el nodo siguiente, o sea una run perdida por una
+     * eleccion que el juego te ofrecio.
+     */
+    private static void tierrasEnElPremio() {
+        for (final AscentRun.Mode mode : AscentRun.Mode.values()) {
+            final AscentRun run = demoRun(mode);
+            if (run == null) {
+                fail("tierras (" + mode + "): no se ha podido montar la run");
+                continue;
+            }
+            try {
+                final List<PaperCard> basicas = AscentRewards.basicLandsFor(run);
+                final forge.card.ColorSet colores = AscentRewards.colorsOf(run);
+                elMontonDeTierras(run, mode, colores);
+                if (basicas.isEmpty()) {
+                    fail("tierras (" + mode + "): no se ofrece ni una basica, asi que"
+                            + " la base de mana no se puede arreglar en toda la run");
+                    continue;
+                }
+                // Todas tienen que ser jugables: una basica de un color que el
+                // mazo no juega es una carta muerta, y en Commander es ilegal.
+                final List<String> fuera = new ArrayList<>();
+                for (final PaperCard b : basicas) {
+                    if (!b.getRules().getType().isBasicLand()
+                            || !b.getRules().getColorIdentity().hasNoColorsExcept(colores)) {
+                        fuera.add(b.getName());
+                    }
+                }
+                if (fuera.isEmpty()) {
+                    ok("tierras (" + mode + "): se ofrecen " + basicas.size()
+                            + " basicas y todas son de tus colores (" + colores + ")");
+                } else {
+                    fail("tierras (" + mode + "): se ofrecen basicas que no puedes jugar: "
+                            + fuera);
+                }
+
+                // Y que entren en el mazo de verdad, en el disco, de dos en dos.
+                final int antes = AscentDecks.load(run).getMain().countAll();
+                AscentRewards.takeLands(run, basicas.get(0));
+                final int despues = AscentDecks.load(run).getMain().countAll();
+                if (despues == antes + AscentRewards.LANDS_INSTEAD) {
+                    ok("tierras (" + mode + "): coger la tierra del premio mete "
+                            + AscentRewards.LANDS_INSTEAD + " en el mazo guardado ("
+                            + antes + " -> " + despues + "); no cuesta ninguna de tus"
+                            + " elecciones de carta");
+                } else {
+                    fail("tierras (" + mode + "): el mazo ha pasado de " + antes + " a "
+                            + despues + " cartas, y deberian ser "
+                            + AscentRewards.LANDS_INSTEAD + " mas");
+                }
+
+                // Lo que separa los dos modos: meter una basica de OTRO color.
+                final PaperCard ajena = offColourBasic(colores);
+                if (ajena == null) {
+                    fail("tierras (" + mode + "): el mazo ya juega los cinco colores,"
+                            + " asi que no se puede comprobar si ensancha");
+                    continue;
+                }
+                AscentRewards.takeLands(run, ajena);
+                final forge.card.ColorSet ahora = AscentRewards.colorsOf(run);
+                final boolean ensancha = !ahora.hasNoColorsExcept(colores);
+                if (mode == AscentRun.Mode.STANDARD && ensancha) {
+                    ok("tierras (STANDARD): meter " + ajena.getName()
+                            + " ensancha tus colores (" + colores + " -> " + ahora
+                            + "), asi que ya te ofreceran cartas de ese color");
+                } else if (mode == AscentRun.Mode.STANDARD) {
+                    fail("tierras (STANDARD): meter " + ajena.getName() + " NO ensancha"
+                            + " los colores (" + colores + "); el premio seguira dando"
+                            + " solo los de salida y la tierra no sirve de nada");
+                } else if (!ensancha) {
+                    ok("tierras (COMMANDER): meter " + ajena.getName() + " NO cambia tus"
+                            + " colores (" + ahora + "): los manda el comandante, y una"
+                            + " carta fuera de su identidad dejaria el mazo ilegal");
+                } else {
+                    fail("tierras (COMMANDER): meter " + ajena.getName() + " ha ensanchado"
+                            + " los colores a " + ahora + "; el premio ofreceria cartas"
+                            + " fuera de la identidad del comandante y el mazo seria ilegal");
+                }
+            } finally {
+                run.discard();
+            }
+        }
+    }
+
+    /**
+     * Que el premio ensenye <b>tierras de verdad</b>, no solo basicas, y que
+     * sean tantas como cosas te puedes llevar.
+     *
+     * <h2>Que se vigila, y por que no se ve jugando</h2>
+     *
+     * <p>El premio es un solo monton: {@code choices} conjuros <b>mas</b>
+     * {@code cardBatch} tierras, y eliges {@code picks} de todo ello — <i>"seis
+     * conjuros y dos tierras, y eliges dos"</i>, que pueden ser una dual y una
+     * criatura. Tres cosas se pueden romper sin dar ningun error:
+     *
+     * <ul>
+     *   <li><b>Que las tierras buenas no salgan nunca.</b> Un premio con solo
+     *       basicas funciona perfectamente; solo es peor, y hacen falta varias
+     *       runs para sospecharlo.
+     *   <li><b>Que salgan mas segun subes.</b> Es lo que se pidio, y es una
+     *       probabilidad: se mide sobre muchos nodos, no sobre uno.
+     *   <li><b>El singleton de Commander.</b> Dos copias de una dual dejan el
+     *       mazo <b>ilegal</b>: eso si mata la run, y lo decidiria una opcion
+     *       que el propio juego te ofrecio.
+     * </ul>
+     */
+    private static void elMontonDeTierras(final AscentRun run, final AscentRun.Mode mode,
+                                          final forge.card.ColorSet colores) {
+        final int slots = run.cardBatch();
+        // Cuantas opciones distintas puede llegar a haber sin contar las
+        // tierras buenas: una por color del mazo.
+        final int posibles = AscentRewards.basicLandsFor(run).size();
+        int nodos = 0;
+        int conBuena = 0;
+        int malCount = 0;
+        int fuera = 0;
+        int copiasMal = 0;
+        final int[] buenasPorActo = new int[AscentRun.ACTS];
+        final int[] huecosPorActo = new int[AscentRun.ACTS];
+        for (int act = 1; act <= AscentRun.ACTS; act++) {
+            // ⚠️ UN solo Random para los cuarenta nodos, no uno por nodo.
+            //
+            // Con `new Random(act * 1000 + i)` dentro del bucle, lo que se pide
+            // es el PRIMER double de semillas consecutivas — y eso en Java esta
+            // sesgadisimo (es la misma trampa que midio "cara 60 de 60" en la
+            // apuesta del tahur, el plan de Ascenso). La primera version de esta
+            // sonda dio 0 tierras buenas de 120 en Estandar, donde solo hay un
+            // hueco por nodo y por tanto solo se miraba ese primer valor. En la
+            // partida de verdad no pasa: para cuando `of()` llega a las
+            // tierras, el sorteo de las cartas y los creditos ya ha consumido
+            // media docena de tiradas.
+            final Random rnd = new Random(act * 7919L);
+            for (int i = 0; i < 40; i++) {
+                final List<PaperCard> lands = AscentRewards.landsFor(run, act, rnd);
+                nodos++;
+                // ⚠️ NO se exige siempre `slots`. Un mazo MONOCOLOR en el acto 1
+                // tiene una sola opcion de tierra que exista: su basica — una
+                // dual necesita dos colores, y las raras no entran hasta el
+                // acto 2. Ofrecer una ahi es lo correcto; repetir la misma
+                // Montanya en los dos huecos seria ofrecer dos veces lo mismo.
+                //
+                // Lo que si se exige, y es lo que importa: nunca cero, nunca
+                // mas de las que te puedes llevar, y los dos huecos llenos en
+                // cuanto el mazo tenga colores para llenarlos.
+                if (lands.size() < 1 || lands.size() > slots
+                        || (posibles >= slots && lands.size() != slots)) {
+                    malCount++;
+                }
+                huecosPorActo[act - 1] += lands.size();
+                boolean buena = false;
+                final java.util.Set<String> vistas = new HashSet<>();
+                for (final PaperCard l : lands) {
+                    if (!l.getRules().getType().isLand()
+                            || !l.getRules().getColorIdentity().hasNoColorsExcept(colores)
+                            || !vistas.add(l.getName())) {
+                        fuera++;
+                    }
+                    if (!l.getRules().getType().isBasicLand()) {
+                        buena = true;
+                        buenasPorActo[act - 1]++;
+                        // ⚠️ Lo que mata la run: en Commander una no basica es
+                        // de UNA copia. Lo contesta el motor, no nosotros.
+                        if (mode == AscentRun.Mode.COMMANDER
+                                && AscentRewards.copiesOf(run, l) > 1) {
+                            copiasMal++;
+                        }
+                    }
+                }
+                if (buena) {
+                    conBuena++;
+                }
+            }
+        }
+
+        if (malCount == 0) {
+            ok("monton (" + mode + "): cada nodo ofrece hasta " + slots + " tierra(s) — o sea "
+                    + AscentRewards.choices(mode) + " conjuros + " + slots
+                    + " tierras y eliges " + slots + " de todo el monton"
+                    + (posibles >= slots ? ""
+                    : " (este mazo es de " + posibles + " color(es), asi que en el acto 1"
+                    + " puede quedarse en una: no hay mas tierras que existan)"));
+        } else {
+            fail("monton (" + mode + "): " + malCount + " de " + nodos + " nodos han ofrecido"
+                    + " un numero de tierras que no toca (hasta " + slots + ", y "
+                    + slots + " exactas con " + posibles + " colores en el mazo)");
+        }
+        if (fuera == 0) {
+            ok("monton (" + mode + "): ninguna tierra ofrecida se sale de " + colores
+                    + " ni se repite dentro del mismo nodo");
+        } else {
+            fail("monton (" + mode + "): " + fuera + " tierras ofrecidas fuera de " + colores
+                    + " o repetidas");
+        }
+        if (conBuena > 0) {
+            ok(String.format(Locale.ROOT, "monton (%s): salen duales/triples y monocolores buenas"
+                    + " en el %.0f%% de los nodos, no solo basicas", mode,
+                    100.0 * conBuena / nodos));
+        } else {
+            fail("monton (" + mode + "): en " + nodos + " nodos no ha salido ni una tierra que"
+                    + " no fuera basica; una base de mana no se arregla solo con basicas");
+        }
+        // Y que suba: el acto 3 tiene que traer mas que el 1.
+        if (buenasPorActo[2] > buenasPorActo[0]) {
+            ok("monton (" + mode + "): y son mas comunes segun subes — " + buenasPorActo[0]
+                    + " en el acto 1, " + buenasPorActo[1] + " en el 2, " + buenasPorActo[2]
+                    + " en el 3 (de " + huecosPorActo[0] + " huecos por acto)");
+        } else {
+            fail("monton (" + mode + "): las tierras buenas NO se hacen mas comunes al subir ("
+                    + buenasPorActo[0] + " / " + buenasPorActo[1] + " / " + buenasPorActo[2] + ")");
+        }
+        if (mode != AscentRun.Mode.COMMANDER) {
+            return;
+        }
+        if (copiasMal == 0) {
+            ok("monton (COMMANDER): ninguna tierra no basica entraria por duplicado — el"
+                    + " formato es de una copia y dos dejarian el mazo ilegal");
+        } else {
+            fail("monton (COMMANDER): " + copiasMal + " tierras no basicas entrarian con 2"
+                    + " copias; el mazo seria ilegal y la run se perderia por eso");
+        }
+    }
+
+    /** Una basica de un color que el mazo NO juega, para la prueba de arriba. */
+    private static PaperCard offColourBasic(final forge.card.ColorSet colores) {
+        for (int i = 0; i < forge.card.MagicColor.WUBRG.length; i++) {
+            if (colores.hasAnyColor(forge.card.MagicColor.WUBRG[i])) {
+                continue;
+            }
+            final PaperCard b = FModel.getMagicDb().getCommonCards()
+                    .getCard(forge.card.MagicColor.Constant.BASIC_LANDS.get(i));
+            if (b != null) {
+                return b;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Que en Commander <b>todo lo que va de cartas vaya por dos</b>.
+     *
+     * <h2>Por que</h2>
+     *
+     * <p>El mazo de Commander es de 60 (§24.1) y eso, solo, hacia peor el
+     * bucle: una carta de premio dentro de sesenta no se nota como dentro de
+     * veinte. Decision del autor (05-09-2026): si el mazo es el doble, lo que se
+     * mueve tiene que ser el doble — <b>2 de 6</b> en el premio y <b>dos</b> al
+     * quitar, en el descanso y en la tienda.
+     *
+     * <h2>Y lo que se vigila de verdad</h2>
+     *
+     * <p>Que la <b>proporcion</b> siga siendo 1 de 3. Doblar solo lo que te
+     * llevas sin doblar lo ofrecido daria 2 de 3, y eso no es elegir: es
+     * descartar. Y que la tienda <b>cobre una sola vez</b> por las dos: cobrar
+     * por carta dejaria el precio del mostrador mintiendo (principio 1).
+     */
+    private static void elDobleEnCommander() {
+        final int estandar = AscentRun.cardBatch(AscentRun.Mode.STANDARD);
+        final int commander = AscentRun.cardBatch(AscentRun.Mode.COMMANDER);
+        if (estandar == 1 && commander == 2) {
+            ok("doble: en Commander se mueven " + commander + " cartas de golpe, en Estandar "
+                    + estandar);
+        } else {
+            fail("doble: la tanda de cartas es " + estandar + " en Estandar y " + commander
+                    + " en Commander; se esperaba 1 y 2");
+        }
+
+        final int ofreceE = AscentRewards.choices(AscentRun.Mode.STANDARD);
+        final int ofreceC = AscentRewards.choices(AscentRun.Mode.COMMANDER);
+        if (ofreceE == AscentRewards.CHOICES * estandar
+                && ofreceC == AscentRewards.CHOICES * commander
+                && ofreceC / commander == ofreceE / estandar) {
+            ok("doble: se ofrecen " + ofreceE + " y " + ofreceC + " cartas, o sea la MISMA"
+                    + " proporcion (1 de " + AscentRewards.CHOICES + ") hecha dos veces");
+        } else {
+            fail("doble: " + ofreceE + " y " + ofreceC + " cartas ofrecidas — la proporcion"
+                    + " no se mantiene, y con 2 de 3 elegir es casi descartar");
+        }
+
+        // Y la tienda: dos quitadas por UN solo cobro.
+        final AscentRun run = demoRun(AscentRun.Mode.COMMANDER);
+        if (run == null) {
+            fail("doble: no se ha podido montar la run de Commander");
+            return;
+        }
+        try {
+            AscentNode node = firstOfKind(run, AscentNode.Kind.SHOP);
+            if (node == null) {
+                node = run.map().boss();
+            }
+            final AscentShop.Item servicio = AscentShop.stock(run, node).stream()
+                    .filter(i -> i.getKind() == AscentShop.Kind.REMOVE).findFirst().orElse(null);
+            if (servicio == null) {
+                fail("doble: el mostrador de Commander no trae el servicio de quitar carta");
+                return;
+            }
+            if (servicio.getRemovals() != commander) {
+                fail("doble: la tienda de Commander quita " + servicio.getRemovals()
+                        + " cartas y deberian ser " + commander);
+                return;
+            }
+            run.addCredits(servicio.getPrice() * 3);
+            final int bolsa = run.getCredits();
+            final Deck deck = AscentDecks.load(run);
+            final int antes = size(deck);
+            final List<PaperCard> orden = AscentDecks.sortedByCost(deck);
+            final boolean una = AscentShop.removeCard(run, servicio, orden.get(0));
+            final int trasUna = run.getCredits();
+            final boolean dos = AscentShop.removeCard(run, servicio,
+                    AscentDecks.sortedByCost(AscentDecks.load(run)).get(0));
+            final int despues = size(AscentDecks.load(run));
+            if (una && dos && despues == antes - commander
+                    && trasUna == bolsa - servicio.getPrice()
+                    && run.getCredits() == trasUna) {
+                ok("doble: la tienda de Commander quita " + commander + " cartas (" + antes
+                        + " -> " + despues + ") y cobra UNA vez (" + servicio.getPrice() + ")");
+            } else {
+                fail("doble: quitadas " + una + "/" + dos + ", mazo " + antes + " -> " + despues
+                        + ", creditos " + bolsa + " -> " + trasUna + " -> " + run.getCredits());
+            }
+            // Y ya no queda nada que quitar: el servicio esta servido.
+            if (servicio.isSold() && !AscentShop.removeCard(run, servicio,
+                    AscentDecks.sortedByCost(AscentDecks.load(run)).get(0))) {
+                ok("doble: agotadas las dos, el servicio no quita una tercera gratis");
+            } else {
+                fail("doble: el servicio de quitar sigue quitando despues de sus " + commander);
+            }
+        } finally {
+            run.discard();
+        }
+    }
+
+    /**
+     * Que a la IA <b>no</b> le toquen reliquias que le llenan la mano.
+     *
+     * <h2>Por que, y por que no se ve jugando</h2>
+     *
+     * <p>Una reliquia que hace robar es un premio estupendo para ti y un
+     * problema en el asiento de la IA — no por potencia, por <b>tiempo</b>:
+     * Forge evalua cada carta jugable en cada prioridad, asi que tres cartas de
+     * mas en su mano son muchas mas ramas cada turno.
+     *
+     * <p><b>Medido</b> el 05-09-2026 con {@code -Dneo.ai.relics} sobre partidas
+     * de 70 segundos: 17-18 turnos sin reliquias, <b>12-13</b> con
+     * <i>Hourglass of Kings</i>. La mitad de ritmo, que jugando es la espera
+     * larga en el turno del rival que se reporto como <i>"la pelea contra el
+     * boss se lagueaba"</i>.
+     *
+     * <p>Y no se ve: la partida <b>funciona</b>, solo va lenta, y quien juega
+     * lo achaca a la interfaz. (No lo era: la mesa llena va a 63 fps y en 95
+     * segundos de partida solo hay 7 frames por encima de 50 ms.)
+     */
+    private static void reliquiasQueLaIaPuedeLlevar() {
+        final List<AscentRelic> roban = new ArrayList<>();
+        for (final AscentRelic r : AscentRelics.all()) {
+            if (AscentRelics.growsHand(r)) {
+                roban.add(r);
+            }
+        }
+        if (roban.isEmpty()) {
+            fail("ia: ninguna reliquia del catalogo hace robar, asi que growsHand() no"
+                    + " esta reconociendo nada — o ha cambiado el texto de los scripts");
+            return;
+        }
+        ok("ia: " + roban.size() + " reliquias del catalogo llenan la mano y no van al rival "
+                + roban);
+
+        // Y que de verdad no salgan en el asiento de la IA, en muchos nodos.
+        final java.util.Set<String> prohibidas = new HashSet<>();
+        for (final AscentRelic r : roban) {
+            final PaperCard c = AscentRelics.cardOf(r);
+            if (c != null) {
+                prohibidas.add(c.getName());
+            }
+        }
+        final AscentRun run = demoRun(AscentRun.Mode.STANDARD);
+        if (run == null) {
+            fail("ia: no se ha podido montar la run de prueba");
+            return;
+        }
+        try {
+            int miradas = 0;
+            final List<String> coladas = new ArrayList<>();
+            for (int act = 1; act <= AscentRun.ACTS; act++) {
+                for (final AscentNode n : todosLosNodos(run)) {
+                    if (!AscentBattle.isBattle(n.getKind())) {
+                        continue;
+                    }
+                    for (final PaperCard c : AscentBattle.plan(run, n).opponentRelics) {
+                        miradas++;
+                        if (prohibidas.contains(c.getName())) {
+                            coladas.add(c.getName());
+                        }
+                    }
+                }
+                if (act < AscentRun.ACTS) {
+                    run.nextAct();
+                }
+            }
+            if (miradas == 0) {
+                fail("ia: ningun nodo de tres actos ha dado reliquia al rival — o las elites"
+                        + " y los jefes se han quedado sin ellas");
+            } else if (coladas.isEmpty()) {
+                ok("ia: en " + miradas + " reliquias repartidas al rival por tres actos no se"
+                        + " ha colado ninguna de las que llenan la mano");
+            } else {
+                fail("ia: se han colado " + coladas.size() + " reliquias de robar en el asiento"
+                        + " del rival: " + coladas);
+            }
+            // Y que quede pozo de sobra: filtrar no puede dejar al jefe sin nada.
+            if (AscentRelics.all().size() - roban.size() >= 20) {
+                ok("ia: quedan " + (AscentRelics.all().size() - roban.size())
+                        + " reliquias para el rival, de sobra para elites y jefes");
+            } else {
+                fail("ia: filtrar deja solo " + (AscentRelics.all().size() - roban.size())
+                        + " reliquias para el rival; el jefe empezaria a repetir");
+            }
+        } finally {
+            run.discard();
+        }
+    }
+
+    /** Todos los nodos del mapa actual. */
+    private static List<AscentNode> todosLosNodos(final AscentRun run) {
+        final List<AscentNode> out = new ArrayList<>();
+        for (int r = 0; r < AscentMap.ROWS; r++) {
+            out.addAll(run.map().row(r));
+        }
+        return out;
+    }
+
+    /**
+     * Que el premio <b>mejore de verdad</b> segun subes.
+     *
+     * <h2>Por que hace falta</h2>
+     *
+     * <p>Reportado jugando (05-09-2026): <i>"siento que practicamente en el
+     * piso 1 hasta el boss no he mejorado apenas... en Isaac existe la chance de
+     * que en la sala 1 te den un super item, aqui estamos dando cartas de
+     * mierda"</i>. Y es lo mas dificil de ver desde dentro: un premio flojo
+     * <b>funciona</b>. No revienta, no da error, solo hace que la run no se
+     * sienta subir — y para notarlo hay que jugar varias.
+     *
+     * <p>Se mide sobre 300 cartas por altura, que es lo que hace falta para que
+     * un 5% se distinga del ruido.
+     */
+    private static void calidadDelPremio() {
+        final AscentRun run = demoRun(AscentRun.Mode.COMMANDER);
+        if (run == null) {
+            fail("calidad: no se ha podido montar la run");
+            return;
+        }
+        try {
+            final java.util.Set<String> changers = new HashSet<>();
+            for (final String line : forge.util.FileUtil.readFile(
+                    forge.localinstance.properties.ForgeConstants
+                            .COMMANDER_BRACKET_GAMECHANGERS_FILE)) {
+                final int hash = line.indexOf('#');
+                final String name = (hash < 0 ? line : line.substring(0, hash)).trim();
+                if (!name.isEmpty()) {
+                    changers.add(name);
+                }
+            }
+
+            final double[] alturas = {0.0, 0.5, 1.0};
+            final int[] comunes = new int[alturas.length];
+            final int[] miticas = new int[alturas.length];
+            final int[] gordas = new int[alturas.length];
+            final int[] total = new int[alturas.length];
+            for (int a = 0; a < alturas.length; a++) {
+                final Random rnd = new Random(31337L + a);
+                for (int i = 0; i < 60; i++) {
+                    for (final PaperCard c : AscentRewards.offer(run, alturas[a], rnd, 5)) {
+                        total[a]++;
+                        if (c.getRarity() == forge.card.CardRarity.Common) {
+                            comunes[a]++;
+                        }
+                        if (c.getRarity() == forge.card.CardRarity.MythicRare) {
+                            miticas[a]++;
+                        }
+                        if (changers.contains(c.getName())) {
+                            gordas[a]++;
+                        }
+                    }
+                }
+            }
+
+            // 1. El suelo: ni una comun, a ninguna altura.
+            if (comunes[0] + comunes[1] + comunes[2] == 0) {
+                ok("calidad: ni una comun en " + (total[0] + total[1] + total[2])
+                        + " cartas ofrecidas — el suelo es infrecuente");
+            } else {
+                fail("calidad: han salido " + (comunes[0] + comunes[1] + comunes[2])
+                        + " comunes; el suelo tenia que ser infrecuente");
+            }
+
+            // 2. La tirada de Isaac: en el PRIMER nodo ya puede salir una mitica.
+            if (miticas[0] > 0) {
+                ok(String.format(Locale.ROOT, "calidad: ya en el primer nodo sale mitica el"
+                        + " %.1f%% de las veces — es la tirada de Isaac, sin ella los primeros"
+                        + " premios no tienen nada en juego", 100.0 * miticas[0] / total[0]));
+            } else {
+                fail("calidad: en " + total[0] + " cartas del primer nodo no ha salido ni una"
+                        + " mitica; abrir el premio al empezar no tiene nada en juego");
+            }
+
+            // 3. Y sube de verdad, no solo un poco.
+            if (miticas[2] > miticas[0] && miticas[1] > miticas[0]) {
+                ok(String.format(Locale.ROOT, "calidad: las miticas van del %.0f%% al %.0f%%"
+                        + " al %.0f%% segun subes", 100.0 * miticas[0] / total[0],
+                        100.0 * miticas[1] / total[1], 100.0 * miticas[2] / total[2]));
+            } else {
+                fail("calidad: las miticas no suben con la altura (" + miticas[0] + " / "
+                        + miticas[1] + " / " + miticas[2] + " de " + total[0] + ")");
+            }
+
+            // 4. Los gamechangers: nada abajo, y de verdad arriba.
+            if (gordas[0] == 0 && gordas[2] > 0) {
+                ok(String.format(Locale.ROOT, "calidad: los gamechangers de Forge no salen abajo"
+                        + " y son el %.0f%% arriba — el acto 3 no es el 1 con numeros mas"
+                        + " grandes", 100.0 * gordas[2] / total[2]));
+            } else {
+                fail("calidad: gamechangers " + gordas[0] + " abajo y " + gordas[2]
+                        + " arriba; se esperaba ninguno abajo y varios arriba");
+            }
+
+            // 5. Y la lista es la del MOTOR, no una nuestra.
+            if (changers.size() > 20) {
+                ok("calidad: la lista de gamechangers es la de Forge (" + changers.size()
+                        + " cartas de res/lists/gamechangers.txt), asi que las que anyadan"
+                        + " manyana entran solas");
+            } else {
+                fail("calidad: la lista de gamechangers de Forge ha venido con "
+                        + changers.size() + " cartas; o ha cambiado de sitio o de formato");
+            }
+        } finally {
+            run.discard();
+        }
+    }
+
+    /**
+     * Que en Commander <b>no se ofrezca lo que ya llevas</b>.
+     *
+     * <h2>Por que es grave y por que no se ve</h2>
+     *
+     * <p>Commander es de <b>una copia</b>. El premio no pregunta: mete la carta
+     * y guarda. Asi que ofrecer dos veces la misma carta es ofrecer un boton que
+     * deja el mazo <b>ilegal</b> — y el jugador no tiene forma de saberlo, porque
+     * en la pantalla del premio las dos veces se ven igual.
+     *
+     * <p>El agujero estaba desde el principio; doblar el premio a 2 de 6 (§24.6)
+     * solo multiplica por dos las ocasiones de tropezar con el. Se tapa en el
+     * pozo ({@code poolFor} descarta lo que ya tienes) y aqui se mide.
+     */
+    private static void singletonEnCommander() {
+        final AscentRun run = demoRun(AscentRun.Mode.COMMANDER);
+        if (run == null) {
+            fail("singleton: no se ha podido montar la run de Commander");
+            return;
+        }
+        try {
+            final Deck deck = AscentDecks.load(run);
+            if (deck == null) {
+                fail("singleton: la run no tiene mazo");
+                return;
+            }
+            final Set<String> dentro = new HashSet<>();
+            for (final Map.Entry<PaperCard, Integer> e : deck.getMain()) {
+                dentro.add(e.getKey().getName());
+            }
+            // Una muestra grande de los tres actos: el pozo es de miles de
+            // cartas y con tres tiradas no se demuestra nada.
+            int repetidas = 0;
+            int miradas = 0;
+            for (int act = 1; act <= AscentRun.ACTS; act++) {
+                final List<PaperCard> muestra =
+                        AscentRewards.offer(run, act, new Random(act * 77L), 120);
+                for (final PaperCard c : muestra) {
+                    miradas++;
+                    if (dentro.contains(c.getName())) {
+                        repetidas++;
+                    }
+                }
+            }
+            if (repetidas == 0) {
+                ok("singleton: en " + miradas + " cartas ofrecidas no sale ni una de las que"
+                        + " ya llevas — dos copias dejarian el mazo ilegal");
+            } else {
+                fail("singleton: " + repetidas + " de " + miradas + " cartas ofrecidas ya estan"
+                        + " en el mazo; cogerlas lo dejaria ilegal y la run se perderia");
+            }
+
+            // Y lo mismo con las tierras no basicas, que es donde mas duele:
+            // una dual repetida es exactamente la carta que apetece coger.
+            final List<PaperCard> lands = AscentRewards.landsFor(run, 3, new Random(9L));
+            int mal = 0;
+            for (final PaperCard l : lands) {
+                if (!l.getRules().getType().isBasicLand()
+                        && AscentRewards.copiesOf(run, l) != 1) {
+                    mal++;
+                }
+            }
+            if (mal == 0) {
+                ok("singleton: y una tierra no basica entra de UNA en UNA (lo dice"
+                        + " DeckFormat, no nosotros)");
+            } else {
+                fail("singleton: " + mal + " tierras no basicas entrarian con un numero de"
+                        + " copias que Commander no permite");
+            }
+        } finally {
+            run.discard();
+        }
+    }
+
+    /**
+     * Que con un comandante <b>multicolor</b> se ofrezcan cartas multicolor, no
+     * solo monocolor dentro de su identidad.
+     *
+     * <h2>Por que se comprueba y no se supone</h2>
+     *
+     * <p>Preguntado por Ana (05-09-2026): <i>"si el comandante es multicolor,
+     * ¿mete al pool las cartas que compartan color, o solo salen monocolor
+     * dentro de la identidad?"</i>. Leyendo el codigo la respuesta es que si —
+     * el filtro es {@code identidad.hasNoColorsExcept(permitidos)}, o sea
+     * <b>subconjunto</b>, el mismo criterio con el que el motor decide si una
+     * carta es legal en un mazo de Commander— pero eso es leerlo, no medirlo. Y
+     * el fallo contrario no daria ningun error: un pozo lleno de monocolores es
+     * un pozo <b>que funciona</b>, solo que aburrido, y nadie lo notaria hasta
+     * llevar varias runs.
+     *
+     * <p>Se prueba con un comandante de <b>tres colores</b> a proposito: con dos
+     * bastaria una carta hibrida para pasar por casualidad.
+     */
+    private static void comandanteMulticolor() {
+        // Un comandante de tres colores del pozo de verdad.
+        PaperCard tricolor = null;
+        for (final PaperCard c : AscentSeedDeck.commanderPool()) {
+            if (c.getRules() != null
+                    && c.getRules().getColorIdentity().countColors() >= 3) {
+                tricolor = c;
+                break;
+            }
+        }
+        if (tricolor == null) {
+            fail("multicolor: no hay ni un comandante de tres colores en el pozo");
+            return;
+        }
+        AscentRun run = null;
+        try {
+            run = AscentRun.begin(AscentRun.Mode.COMMANDER, 0, 40, tricolor);
+        } catch (final RuntimeException e) {
+            fail("multicolor: no se ha podido montar la run con " + tricolor.getName() + ": " + e);
+            return;
+        }
+        try {
+            final forge.card.ColorSet id = AscentRewards.colorsOf(run);
+            if (id.countColors() < 3) {
+                fail("multicolor: el comandante " + tricolor.getName() + " es de "
+                        + tricolor.getRules().getColorIdentity() + " pero el pozo se calcula sobre "
+                        + id + "; se estarian perdiendo colores de su identidad");
+                return;
+            }
+            // Una muestra grande: las multicolor son minoria en cualquier acto,
+            // asi que con tres cartas podria no salir ninguna por azar y la
+            // comprobacion fallaria sola de vez en cuando.
+            int multi = 0;
+            int fuera = 0;
+            final List<PaperCard> muestra =
+                    AscentRewards.offer(run, 1, new Random(4242L), 60);
+            for (final PaperCard c : muestra) {
+                final forge.card.ColorSet suya = c.getRules().getColorIdentity();
+                if (!suya.hasNoColorsExcept(id)) {
+                    fuera++;
+                }
+                if (suya.countColors() >= 2) {
+                    multi++;
+                }
+            }
+            if (fuera > 0) {
+                fail("multicolor: " + fuera + " de " + muestra.size() + " cartas ofrecidas se"
+                        + " salen de la identidad " + id + "; el mazo seria ilegal");
+            } else if (multi > 0) {
+                ok("multicolor: con un comandante " + id + " (" + tricolor.getName() + "), "
+                        + multi + " de " + muestra.size() + " cartas ofrecidas son multicolor"
+                        + " — no solo monocolores de su identidad");
+            } else {
+                fail("multicolor: con un comandante " + id + " no ha salido ni una carta"
+                        + " multicolor en " + muestra.size() + "; el pozo estaria dando solo"
+                        + " monocolores y las runs de tres colores se parecerian todas");
+            }
+        } finally {
+            run.discard();
         }
     }
 

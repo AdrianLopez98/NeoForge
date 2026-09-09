@@ -474,6 +474,39 @@ public final class AscentRun {
         return mode;
     }
 
+    /**
+     * <b>Cuantas cartas se mueven de golpe en este modo.</b> 1 en Estandar, 2 en
+     * Commander.
+     *
+     * <h2>Por que existe, y por que en UN solo sitio</h2>
+     *
+     * <p>El mazo de Commander pasó a 60 cartas (§24.1) y eso, solo, hacía peor
+     * el bucle: una carta de premio dentro de sesenta no se nota como dentro de
+     * veinte, o sea que la run dejaba de <i>sentirse</i> mejorar — que es de lo
+     * unico que vive el modo. Decision del autor (05-09-2026): <i>"en Commander
+     * todo x2 respecto a cartas, que quitar quites 2 y anyadir anyadas 2"</i>.
+     * Si el mazo es el doble, lo que se mueve tiene que ser el doble.
+     *
+     * <p>Y vive <b>aqui</b>, no repartido: lo consultan los premios
+     * ({@link AscentRewards}), el descanso y la tienda ({@link AscentShop}).
+     * Con el numero escrito en tres sitios, cambiarlo obligaria a acordarse de
+     * los tres — y el que se quedara atras no daria ningun error, solo un modo
+     * que se comporta distinto segun por que puerta entres.
+     *
+     * <p>⚠️ Lo que <b>no</b> escala son los <b>eventos</b>: sus textos dicen el
+     * numero exacto ("quitas una carta de tu mazo"), y doblarlo por detras
+     * dejaria la frase mintiendo — que es justo la regla que separa un evento de
+     * una tragaperras (el plan de Ascenso).
+     */
+    public int cardBatch() {
+        return cardBatch(mode);
+    }
+
+    /** Igual, sin tener una run delante. */
+    public static int cardBatch(final Mode mode) {
+        return mode == Mode.COMMANDER ? 2 : 1;
+    }
+
     public long getSeed() {
         return seed;
     }

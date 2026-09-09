@@ -15,7 +15,7 @@ import javafx.util.Duration;
  * es lo normal — Scryfall raciona a una peticion cada 100 ms, y una rafaga
  * grande (el catalogo del deck builder, o empezar una partida con un mazo
  * nuevo entero por descargar) puede hacer que nos corte de verdad con un 429,
- * que dispara un enfriamiento de <b>cinco minutos</b> — mecanismo que ya trae
+ * que dispara un enfriamiento (lo que diga el <b>Retry-After</b>) — mecanismo que ya trae
  * Forge y no se toca (regla de oro). Mientras dura, toda carta que no
  * tuvieras ya en cache sale con el dibujo de repuesto, y sin este aviso eso
  * es indistinguible de "esto esta roto".

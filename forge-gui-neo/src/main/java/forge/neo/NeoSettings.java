@@ -234,6 +234,71 @@ public final class NeoSettings {
     }
 
     /**
+     * Ensenyar el panel de detalle al pasar el raton por una carta.
+     *
+     * <p>Este panel estuvo en la mesa y se quito a proposito: ocupaba un tercio
+     * de la columna para ensenyar una carta que ya se ve, y se lo quitaba al
+     * stack. Vuelve porque lo pidio un jugador nuevo, con el argumento que
+     * faltaba — <i>abajo a la derecha no hay nada</i>, que es verdad desde que
+     * el stack solo se estira cuando le hace falta.
+     *
+     * <p><b>Apagado de fabrica</b> (la auditoría del motor 1.1): la mesa de hoy funciona
+     * y nadie que no lo haya pedido deberia encontrarse algo nuevo ahi. Y
+     * encendido no le quita sitio a nada: se queda con lo que sobra y se
+     * encoge hasta desaparecer cuando el stack lo necesita.
+     */
+    public static final String HOVER_DETAIL = "hoverDetail";
+
+    /**
+     * Si el panel de detalle esta encendido.
+     *
+     * <p>{@code -Dneo.hoverDetail=true} lo enciende sin escribir en las
+     * preferencias, para poder capturarlo sin cambiarle el ajuste al jugador.
+     */
+    public static boolean hoverDetail() {
+        return Boolean.getBoolean("neo.hoverDetail") || getBool(HOVER_DETAIL, false);
+    }
+
+    /**
+     * Si el stack ensenya la CARTA de cada cosa que espera, y no solo su nombre.
+     *
+     * <p>Lo pidio un jugador el 09-09-2026, y el argumento es el que manda:
+     * <i>"el stack es donde se gana y se pierde una partida de Magic... el
+     * tuyo me cuesta mucho de usar. Seria enorme que se vieran las cartas de
+     * verdad y se pudieran desplegar para ver su orden y leer lo que
+     * hacen"</i>. Ya se desplegaban y ya venian numeradas; lo que faltaba era
+     * la carta, que es como se reconoce un hechizo de un vistazo — leyendo un
+     * nombre hay que recordarlo, mirando la carta no.
+     *
+     * <p>Y ademas es lo que este proyecto tenia escrito desde el principio:
+     * la seccion 6 de las notas de diseño dice <i>"cada StackItemView es una carta
+     * pequenya + su texto"</i>, no una lista de texto. Estaba pendiente.
+     *
+     * <p><b>Encendido de fabrica</b>, al reves que {@link #HOVER_DETAIL}, y a
+     * proposito: aquello era una cosa nueva que nadie habia pedido, y esto es
+     * el arreglo de algo que un jugador dice que le cuesta usar. El ajuste
+     * esta para volver a la lista compacta, que ocupa un tercio y sigue siendo
+     * mejor cuando se encadenan quince disparos.
+     */
+    public static final String STACK_CARDS = "stackCards";
+
+    /**
+     * Si el stack pinta las cartas.
+     *
+     * <p>{@code -Dneo.stackCards=true|false} lo fuerza en los dos sentidos sin
+     * escribir en las preferencias. Hacen falta los dos porque este viene
+     * encendido: con el patron de {@code Boolean.getBoolean} no habria forma de
+     * capturar la lista compacta sin cambiarle el ajuste al jugador.
+     */
+    public static boolean stackCards() {
+        final String forced = System.getProperty("neo.stackCards");
+        if (forced != null && !forced.isBlank()) {
+            return Boolean.parseBoolean(forced);
+        }
+        return getBool(STACK_CARDS, true);
+    }
+
+    /**
      * Al sortear rival, que salga mas a menudo un mazo moderno.
      *
      * <p>Encendido de fabrica, y es lo pedido: no quita ningun mazo, solo

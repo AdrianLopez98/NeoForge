@@ -221,7 +221,12 @@ public class AscentShopScreen extends StackPane {
             case RELIC:
                 return item.getRelic() == null ? "?" : item.getRelic().getCardName();
             default:
-                return NeoText.get("ascent.shop.remove");
+                // En Commander el servicio quita DOS por el mismo precio, y eso
+                // tiene que decirlo la etiqueta: un mostrador que cobra por algo
+                // sin decir cuanto da es el principio 1.
+                return item.getRemovals() > 1
+                        ? NeoText.get("ascent.shop.removeN", item.getRemovals())
+                        : NeoText.get("ascent.shop.remove");
         }
     }
 
@@ -252,16 +257,26 @@ public class AscentShopScreen extends StackPane {
     private void showDeck(final AscentShop.Item item) {
         body.getChildren().clear();
 
-        final Label title = new Label(NeoText.get("ascent.rest.removeTitle"));
+        final int left = item.getRemovals();
+        final Label title = new Label(left > 1
+                ? NeoText.get("ascent.rest.removeTitleN", left)
+                : NeoText.get("ascent.rest.removeTitle"));
         title.getStyleClass().add("ascent-act");
 
         final AscentDeckView grid = new AscentDeckView(
                 AscentDecks.sortedByCost(AscentDecks.load(run)), cardWidth * 0.85,
                 card -> {
                     // Cobra y quita en el mismo paso: es AscentShop quien
-                    // decide si se puede (creditos y suelo del mazo), no la
-                    // pantalla.
+                    // decide si se puede (creditos y suelo del mazo), cuantas
+                    // van en la tanda y si ya se ha pagado — no la pantalla.
                     AscentShop.removeCard(run, item, card);
+                    // En Commander son dos: se vuelve al mazo, ya sin la
+                    // primera. Si el suelo del mazo corto la tanda, isSold()
+                    // lo dice y se sale.
+                    if (item.getRemovals() > 0 && !item.isSold()) {
+                        showDeck(item);
+                        return;
+                    }
                     selected = null;
                     rebuild();
                 });
@@ -269,6 +284,10 @@ public class AscentShopScreen extends StackPane {
 
         // Salida sin coste: entrar a mirar el mazo no puede atraparte en la
         // pantalla que cobra (principio 7).
+        //
+        // ⚠️ Sin coste solo ANTES de pagar. Con la primera ya quitada, ese
+        // boton se lleva la segunda quitada que ya has pagado — asi que ahi
+        // deja de ofrecerse: la unica salida es elegirla.
         final Button back = new Button(NeoText.get("common.back"));
         back.getStyleClass().add("ascent-button");
         back.setOnAction(e -> {
@@ -278,6 +297,10 @@ public class AscentShopScreen extends StackPane {
         final HBox buttons = new HBox(back);
         buttons.setAlignment(Pos.CENTER);
 
-        body.getChildren().addAll(title, grid, buttons);
+        body.getChildren().add(title);
+        body.getChildren().add(grid);
+        if (!item.isPaid()) {
+            body.getChildren().add(buttons);
+        }
     }
 }

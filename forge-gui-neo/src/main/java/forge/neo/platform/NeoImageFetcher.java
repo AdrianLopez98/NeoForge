@@ -23,6 +23,7 @@ import forge.neo.card.CardArt;
 import forge.util.BuildInfo;
 import forge.util.ImageFetcher;
 import forge.util.ImageUtil;
+import forge.util.ScryfallRateLimiter;
 import forge.util.TextUtil;
 import forge.util.ThreadUtil;
 
@@ -33,10 +34,19 @@ import forge.util.ThreadUtil;
  * {@code forge-gui-desktop}. Usa {@code javax.imageio} (que es parte de
  * java.desktop, no de Swing) para decodificar y guardar.
  *
- * <p>Las imagenes vienen de Scryfall. La clase base {@link ImageFetcher} ya
- * gestiona el rate limit y el cooldown: hay que respetarlo llamando a
- * {@code paceScryfall} y {@code noteScryfallRateLimited}, que es justo lo que
- * hace {@link #doFetch}. No descargar por nuestra cuenta saltandonos esto.
+ * <p>Las imagenes vienen de Scryfall, y el rate limit y el enfriamiento los
+ * gestiona el motor: hay que respetarlos llamando a
+ * {@link ScryfallRateLimiter#acquire} y {@link ScryfallRateLimiter#noteIfRateLimited},
+ * que es justo lo que hace {@link #doFetch}. No descargar por nuestra cuenta
+ * saltandonos esto.
+ *
+ * <p><b>09-09-2026</b>: eso vivia como {@code protected} dentro de
+ * {@code ImageFetcher} ({@code paceScryfall}, {@code scryfallCoolingDown},
+ * {@code scryfallCooldownTime}...) y Card-Forge lo saco a la clase
+ * {@link ScryfallRateLimiter}. Es exactamente el caso de la seccion 9 de
+ * las notas de diseño: el rebase compila mal, el compilador dice cual, y el arreglo es
+ * llamar a lo nuevo. Lo unico que no vino con ello es <b>cuanto queda</b> de
+ * enfriamiento — ver {@link #coolingDownSecondsLeft()}.
  */
 public class NeoImageFetcher extends ImageFetcher {
 
@@ -48,24 +58,44 @@ public class NeoImageFetcher extends ImageFetcher {
      *
      * <p>Lo unico que hace es abrir al publico lo que la clase base guarda como
      * {@code protected}. Hace falta fuera porque durante el enfriamiento — que
-     * dura <b>cinco minutos</b> — {@code fetchImage} descarta las peticiones
+     * dura lo que diga el <b>Retry-After</b> — {@code fetchImage} descarta las peticiones
      * <b>sin avisar a nadie</b>: quien esperaba una imagen no se entera de que
      * no va a llegar. Ver {@code CardImages.watch}.
      */
     public boolean isCoolingDown() {
-        return scryfallCoolingDown();
+        return ScryfallRateLimiter.isCoolingDown();
     }
 
     /**
-     * Cuantos segundos quedan de enfriamiento, o 0 si no hay ninguno.
+     * Cuando se acaba el enfriamiento, segun lo que vimos NOSOTROS.
+     *
+     * <p>{@link ScryfallRateLimiter} guarda su fecha en un campo privado y no
+     * publica ningun "cuanto queda": lo unico que ofrece es
+     * {@code awaitCooldownCleared}, que <b>bloquea</b> el hilo, y eso en una
+     * pastilla de la mesa es justo lo que no se puede hacer. Asi que se apunta
+     * aqui la fecha en el mismo momento en que se le cuenta el 429, que es el
+     * unico sitio donde el numero se conoce de verdad.
+     *
+     * <p>No se pierde nada por no ser el suyo: es la MISMA cuenta, hecha a la
+     * vez y con el mismo {@code Retry-After}. Y si el corte lo provoca otro
+     * (el descargador masivo del motor, por ejemplo), {@link #isCoolingDown()}
+     * lo dice igual y esto devuelve 0 — la pastilla avisa sin cuenta atras, que
+     * es preferible a inventarse un numero.
+     */
+    private static volatile Date ourCooldownUntil;
+
+    /**
+     * Cuantos segundos quedan de enfriamiento, o 0 si no se sabe.
      *
      * <p>Lo mismo que {@link #isCoolingDown()} pero con el reloj, para poder
      * decirlo en pantalla ("vuelve en 42s") en vez de solo saber que si hay
-     * corte. {@code scryfallCooldownTime} es {@code protected static} en la
-     * clase base: se lee directo, sin pasar por ningun metodo nuevo alli.
+     * corte.
      */
     public long coolingDownSecondsLeft() {
-        final Date until = scryfallCooldownTime;
+        if (!ScryfallRateLimiter.isCoolingDown()) {
+            return 0;
+        }
+        final Date until = ourCooldownUntil;
         if (until == null) {
             return 0;
         }
@@ -174,7 +204,7 @@ public class NeoImageFetcher extends ImageFetcher {
             } catch (final RuntimeException e) {
                 System.err.println("[neo-img] error pidiendo " + url + ": " + e);
             }
-            if (!ok && !scryfallCoolingDown()) {
+            if (!ok && !ScryfallRateLimiter.isCoolingDown()) {
                 // Que una carta no exista en este idioma es lo normal, no un
                 // error. Se anota para no volver a preguntarlo cada arranque —
                 // pero NO si lo que ha pasado es que nos han cortado, porque
@@ -189,13 +219,26 @@ public class NeoImageFetcher extends ImageFetcher {
         });
     }
 
+    /**
+     * Apunta cuando se acaba el corte, con el mismo numero que usa el motor.
+     *
+     * <p>El respaldo de 30 s es el {@code DEFAULT_COOLDOWN_SECONDS} de
+     * {@link ScryfallRateLimiter}, que es privado. Si algun dia lo cambian, lo
+     * unico que se desajusta es la cuenta atras de la pastilla — nunca el
+     * enfriamiento de verdad, que sigue siendo el suyo.
+     */
+    private static void noteOurCooldown(final long retryAfterSeconds) {
+        final long secs = retryAfterSeconds > 0 ? retryAfterSeconds : 30;
+        ourCooldownUntil = new Date(System.currentTimeMillis() + secs * 1000L);
+    }
+
     private boolean doFetch(final String urlToDownload, final String destPath,
                             final Runnable notifyObservers) throws IOException {
 
         if (disableHostedDownload && urlToDownload.startsWith(ForgeConstants.URL_CARDFORGE)) {
             return false;
         }
-        if (inScryfallCooldown(urlToDownload)) {
+        if (ScryfallRateLimiter.shouldSkip(urlToDownload)) {
             return false;
         }
 
@@ -208,7 +251,7 @@ public class NeoImageFetcher extends ImageFetcher {
         }
 
         final URL url = new URL(urlToDownload);
-        paceScryfall(urlToDownload);
+        ScryfallRateLimiter.acquire(urlToDownload);
 
         final URLConnection connection = url.openConnection();
         connection.setRequestProperty("Accept", "*/*");
@@ -219,9 +262,16 @@ public class NeoImageFetcher extends ImageFetcher {
         if (connection instanceof HttpURLConnection http) {
             final int code = http.getResponseCode();
             if (code != HttpURLConnection.HTTP_OK) {
-                if (code == 429 && isScryfall(urlToDownload)) {
+                if (code == 429 && ScryfallRateLimiter.isApiUrl(urlToDownload)) {
                     System.err.println("[neo] Scryfall nos ha limitado. Pausando descargas.");
-                    noteScryfallRateLimited();
+                    // El Retry-After manda; si no viene, el motor pone su
+                    // propio minimo. Se apunta la MISMA cuenta para la pastilla
+                    // de la mesa -- ver ourCooldownUntil.
+                    final long secs = ScryfallRateLimiter.parseRetryAfterSeconds(
+                            http.getHeaderField("Retry-After"));
+                    noteOurCooldown(secs);
+                    ScryfallRateLimiter.noteIfRateLimited(code, urlToDownload,
+                            http.getHeaderField("Retry-After"));
                 }
                 http.disconnect();
                 return false;

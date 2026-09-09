@@ -949,6 +949,39 @@
     -fx-text-fill: -neo-accent;
 }
 
+/* El galon. Es lo unico que dice que una entrada del stack se abre: sin el,
+   el gesto existe y no lo descubre nadie. Apagado para que no compita con el
+   nombre, que es lo que se lee primero. */
+.stack-chevron {
+    -fx-font-size: 0.72em;
+    -fx-text-fill: -neo-text-dim;
+    -fx-padding: 0 1 0 0;
+}
+
+.stack-strip:hover .stack-chevron,
+.stack-top:hover .stack-chevron,
+.stack-header:hover .stack-chevron {
+    -fx-text-fill: -neo-accent;
+}
+
+/* El titulo tambien se clica: abre o cierra todas de una vez. */
+.stack-header {
+    -fx-padding: 0 0 1 0;
+}
+
+/* Lo que se ve al abrir una entrada, sangrado para que se lea como que
+   pertenece a la fila de encima y no como una entrada mas. */
+.stack-detail {
+    -fx-padding: 2 0 1 14;
+}
+
+/* A quien apunta. En el color de lo interactivo porque es el dato por el que
+   se decide responder, y solo sale cuando el motor no lo ha dicho ya. */
+.stack-targets {
+    -fx-font-size: 0.76em;
+    -fx-text-fill: -neo-accent;
+}
+
 /* El visor rueda si hay mas de los que caben: cortar en cinco sin decirlo era
    mentir sobre lo que hay esperando. */
 .stack-scroll,
@@ -2180,6 +2213,53 @@
 .zoom-badge:hover {
     -fx-text-fill: -neo-text;
     -fx-border-color: -neo-accent;
+}
+
+/* ---------- palabras clave, con su explicacion ---------- */
+
+/* Tienen que PARECER un boton: es lo unico que invita a clicarlas, y quien las
+   necesita es justo quien no sabe todavia que se pueden clicar. */
+/* La nota de "esto se aplica en la siguiente partida". En ambar, que en esta
+   interfaz significa "atencion, decision pendiente", y no en rojo: no ha ido
+   nada mal, solo hace falta saberlo. */
+.settings-note {
+    -fx-font-size: 0.82em;
+    -fx-text-fill: -neo-warn;
+    -fx-padding: 0 0 4 0;
+}
+
+.keyword-chip {
+    -fx-background-color: rgba(74,155,224,0.14);
+    -fx-border-color: rgba(74,155,224,0.55);
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+    -fx-border-width: 1;
+    -fx-padding: 2 7 3 7;
+    -fx-font-size: 0.82em;
+    -fx-text-fill: -neo-text;
+}
+
+.keyword-chip:hover {
+    -fx-background-color: rgba(74,155,224,0.28);
+    -fx-border-color: -neo-accent;
+}
+
+/* La que se esta leyendo ahora. */
+.keyword-chip:on {
+    -fx-background-color: -neo-accent;
+    -fx-border-color: -neo-accent;
+    -fx-text-fill: #0F141A;
+    -fx-font-weight: bold;
+}
+
+/* La explicacion oficial del motor. Sobre fondo propio para que se lea como
+   una nota al pie y no como parte de la ficha de estado. */
+.keyword-text {
+    -fx-font-size: 0.84em;
+    -fx-text-fill: -neo-text;
+    -fx-background-color: rgba(11,14,19,0.55);
+    -fx-background-radius: 5;
+    -fx-padding: 6 8 7 8;
 }
 
 /* "Scryfall nos ha limitado, vuelve en Ns" — puramente informativo, no se

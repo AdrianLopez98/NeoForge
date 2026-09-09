@@ -51,10 +51,11 @@ import forge.util.MyRandom;
  *
  * <h2>El recorte</h2>
  *
- * <p>El motor genera mazos de 60 y de 100; una run empieza con 20-30. Recortar
- * si es nuestro, y no es tonto: se guarda la proporcion de tierras y se
- * prefieren los costes bajos. Un recorte al azar deja mazos de nueve tierras y
- * cuatro bombas de coste siete, que no es "variado": es roto.
+ * <p>El motor genera mazos de 60 y de 100; una run empieza con 30 (Estandar) o
+ * 60 (Commander). Recortar si es nuestro, y no es tonto: se guarda la
+ * proporcion de tierras y se prefieren los costes bajos. Un recorte al azar
+ * deja mazos de nueve tierras y cuatro bombas de coste siete, que no es
+ * "variado": es roto.
  *
  * <p><b>Lo que tiene que variar son las cartas, no si el mazo se puede jugar.</b>
  */
@@ -66,8 +67,25 @@ public final class AscentSeedDeck {
     /** Cuantas cartas tiene el mazo de salida en Estandar. */
     public static final int STANDARD_SIZE = 30;
 
-    /** Y en Commander, sin contar al comandante. */
-    public static final int COMMANDER_SIZE = 20;
+    /**
+     * Y en Commander, sin contar al comandante.
+     *
+     * <p><b>Sesenta, y no veinte como al principio.</b> Reportado jugando
+     * (05-09-2026): <i>"no puede ser que el mazo que se me genere sea de veinte
+     * cartas y el del rival de 99"</i>. Y no es una cuestion de sensacion: en
+     * Commander se sale con 40 vidas y las partidas duran, asi que con veinte
+     * cartas el riesgo real no es perder el duelo — es <b>quedarse sin
+     * biblioteca</b> y perder por decking con vidas de sobra, que es la forma
+     * mas absurda de terminar una run de cuarenta minutos.
+     *
+     * <p>Lo que cuesta: una carta de premio se nota menos dentro de sesenta que
+     * dentro de veinte. Se acepta a proposito — un mazo que no se puede jugar
+     * hasta el final no se mejora, se pierde.
+     *
+     * <p><b>Estandar se queda en {@link #STANDARD_SIZE}</b>: ahi sales con 20
+     * vidas y las partidas se acaban mucho antes de agotar treinta cartas.
+     */
+    public static final int COMMANDER_SIZE = 60;
 
     /** Que parte del mazo son tierras. Doce de treinta es la proporcion de siempre. */
     private static final double LAND_RATIO = 0.40;
@@ -130,7 +148,7 @@ public final class AscentSeedDeck {
      * Ascension 3: una carta maldita en el mazo de salida.
      *
      * <p>No se AÑADE: el tamano del mazo es una invariante que se da por
-     * sentada en el resto del modo (30 en Estandar, 20 + comandante en
+     * sentada en el resto del modo (30 en Estandar, 60 + comandante en
      * Commander), y el suelo de la tienda ({@code AscentShop.MIN_DECK}) cuenta
      * sobre ese numero. Se <b>sustituye</b> un hechizo cualquiera por
      * {@link #CURSED_CARD}.

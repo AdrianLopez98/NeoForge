@@ -190,7 +190,14 @@ final class NeoAppAscent {
         AscentRelics.install();
         AscentRun run = AscentRun.current();
         if (run == null) {
-            run = AscentRun.begin(AscentRun.Mode.STANDARD, 0, 20, null);
+            // -Dneo.ascent.setupMode=commander para la maqueta en Commander,
+            // que NO ensenya lo mismo: alli todo lo que va de cartas va por dos
+            // (2 de 6 en el premio, dos al quitar). Ver AscentRun.cardBatch().
+            final boolean cmd = "commander".equalsIgnoreCase(
+                    System.getProperty("neo.ascent.setupMode", ""));
+            run = cmd
+                    ? AscentRun.begin(AscentRun.Mode.COMMANDER, 0, 40, null)
+                    : AscentRun.begin(AscentRun.Mode.STANDARD, 0, 20, null);
         }
         final AscentRun demo = run;
         if ("shop".equals(which)) {
@@ -275,15 +282,45 @@ final class NeoAppAscent {
             return;
         }
         if ("rest".equals(which)) {
-            // A media vida: con la vida llena el boton de curarse sale
-            // deshabilitado y no se ve lo que hay que ver.
-            demo.recordLife(Math.max(1, demo.getMaxLife() / 2));
+            // A media vida, que es el caso normal.
+            //
+            // -Dneo.ascent.restFull=true para el OTRO caso, el que se reporto
+            // jugando: llegar sano al descanso. Ese boton ya no se apaga (te
+            // obligaba a quitar una carta para poder salir), pero cambia de
+            // rotulo — y un rotulo no se puede comprobar sin verlo.
+            demo.recordLife(Boolean.getBoolean("neo.ascent.restFull")
+                    ? demo.getMaxLife()
+                    : Math.max(1, demo.getMaxLife() / 2));
             app.scene.setRoot(new AscentRestScreen(demo, app.cardWidth, () -> showMap(demo)));
             app.applyScale();
             return;
         }
         // El premio de un JEFE, que es el unico que ofrece reliquias a elegir.
-        reward(demo, demo.map().boss());
+        //
+        // -Dneo.ascent.rewardCombat=true para el premio de un COMBATE, que es
+        // el que ve el jugador veinte veces por run: sin reliquia, o sea el
+        // paso de las tres cartas MAS la fila de tierras y el boton de no coger
+        // ninguna. Es el que hay que mirar para saber si esa fila cabe.
+        AscentNode donde = demo.map().boss();
+        if (Boolean.getBoolean("neo.ascent.rewardCombat")) {
+            final AscentNode combate = firstCombat(demo);
+            if (combate != null) {
+                donde = combate;
+            }
+        }
+        reward(demo, donde);
+    }
+
+    /** El primer combate del mapa, para la maqueta del premio normal. */
+    private static AscentNode firstCombat(final AscentRun run) {
+        for (int r = 0; r < forge.neo.ascent.AscentMap.ROWS; r++) {
+            for (final AscentNode n : run.map().row(r)) {
+                if (n.getKind() == AscentNode.Kind.COMBAT) {
+                    return n;
+                }
+            }
+        }
+        return null;
     }
 
     // ------------------------------------------------------------------

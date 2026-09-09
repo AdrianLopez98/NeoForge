@@ -165,6 +165,15 @@ public final class NeoMain {
                 banner("Criaturas preparadas: donde acaba su hechizo");
                 forge.neo.match.PrepareCheck.run();
                 break;
+            case "actionscheck":
+                // Que el barrido de "que puedes hacer ahora" no mate la
+                // partida. El sintoma no es un fallo visible: el juego se
+                // CIERRA entero, sin ganador y sin una palabra. Hacen falta
+                // tres cosas a la vez (Coram + Henzie + algo que haya entrado
+                // este turno), asi que la mesa se fabrica. Ver SafeActions.
+                banner("Acciones: que el barrido no mate la partida");
+                forge.neo.match.ActionsCheck.run();
+                break;
             case "manacheck":
                 // Que una tierra de dos colores pregunte cual da. La mesa que
                 // lo provoca (dos montanyas + una dual, y un coste de {R}{G})

@@ -200,6 +200,48 @@ public final class NeoGame {
     }
 
     /**
+     * <b>Solo para medir</b>: {@code -Dneo.ai.relics=id1,id2} le pone esas
+     * reliquias de Ascenso a cada IA.
+     *
+     * <h2>Para que existe</h2>
+     *
+     * <p>Reportado jugando (05-09-2026): <i>"la pelea contra el boss se
+     * lagueaba"</i>, y la sospecha del jugador era que fuera por las reliquias
+     * del jefe — una que le daba mana cada turno y otra que le hacia robar. Es
+     * una hipotesis <b>medible</b>, pero para medirla hay que poder reproducir
+     * las condiciones del jefe sin llegar a un jefe: una run entera por
+     * medicion no es una medicion, es una tarde.
+     *
+     * <p>Con esto, {@code run.cmd ui --live --watch -Dneo.ai.relics=...} juega
+     * lo mismo que un nodo de jefe en lo que importa. Sin la bandera no hace
+     * absolutamente nada, que es lo correcto fuera de una medicion.
+     */
+    private static void testRelics(final RegisteredPlayer ai) {
+        final String ids = System.getProperty("neo.ai.relics");
+        if (ids == null || ids.isBlank()) {
+            return;
+        }
+        forge.neo.ascent.AscentRelics.install();
+        final List<forge.item.IPaperCard> cards = new ArrayList<>();
+        for (final String id : ids.split(",")) {
+            final forge.neo.ascent.AscentRelic relic =
+                    forge.neo.ascent.AscentRelics.byId(id.trim());
+            final forge.item.PaperCard card = relic == null ? null
+                    : forge.neo.ascent.AscentRelics.cardOf(relic);
+            if (card != null) {
+                cards.add(card);
+            } else {
+                System.out.println("[medicion] no hay reliquia con id '" + id.trim() + "'");
+            }
+        }
+        if (!cards.isEmpty()) {
+            System.out.println("[medicion] la IA juega con " + cards.size()
+                    + " reliquia(s): " + cards);
+            ai.addExtraCardsInCommandZone(cards);
+        }
+    }
+
+    /**
      * Igual, pero con los asientos puestos por el modo.
      *
      * @param seating quien monta los asientos, o {@code null} para que los
@@ -293,6 +335,7 @@ public final class NeoGame {
             // El perfil vacio significa "el que tenga puesto Forge": es lo que
             // hace la sobrecarga corta, asi que no hay que tratar el null aparte.
             ai.setPlayer(forge.neo.look.NeoPlayers.ai(i, aiProfile));
+            testRelics(ai);
             players.add(ai);
         }
 

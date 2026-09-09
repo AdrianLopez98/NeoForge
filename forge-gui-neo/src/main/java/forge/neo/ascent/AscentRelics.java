@@ -301,6 +301,39 @@ public final class AscentRelics {
         return cardName == null ? null : BY_NAME.get(cardName);
     }
 
+/**
+     * Si esa reliquia le <b>llena la mano</b> a quien la lleve.
+     *
+     * <h2>Por que hace falta saberlo</h2>
+     *
+     * <p>Una reliquia que te hace robar es un premio estupendo <b>para ti</b> y
+     * un problema en el asiento de la IA, y no por potencia: por <b>tiempo</b>.
+     * Forge evalua cada carta jugable en cada prioridad, asi que tres cartas
+     * mas en la mano son muchas mas ramas que recorrer, cada turno, para
+     * siempre.
+     *
+     * <p><b>Medido</b> el 05-09-2026 con {@code -Dneo.ai.relics} sobre partidas
+     * de 70 segundos: la IA jugaba <b>17-18 turnos</b> sin reliquias y
+     * <b>12-13</b> con <i>Hourglass of Kings</i> (robar tres en tu primer
+     * mantenimiento). O sea la mitad de ritmo — y eso, jugando, es una espera
+     * larga en el turno del rival: <i>"la pelea contra el boss se lagueaba"</i>.
+     * La de mana ({@code Heart of the Mountain}) se quedo en el ruido, 14-19.
+     *
+     * <p>Se reconoce por el <b>texto</b> de la carta y no por una lista a mano:
+     * los scripts de las reliquias los escribimos nosotros y van siempre en
+     * ingles, asi que "draw" es fiable aqui — y sobre todo, una reliquia nueva
+     * que haga robar queda cubierta el dia que se escriba, sin acordarse de
+     * nada.
+     */
+    public static boolean growsHand(final AscentRelic relic) {
+        final PaperCard card = cardOf(relic);
+        if (card == null || card.getRules() == null) {
+            return false;
+        }
+        final String oracle = card.getRules().getOracleText();
+        return oracle != null && oracle.toLowerCase(java.util.Locale.ROOT).contains("draw");
+    }
+
     /** La reliquia con ese id, o {@code null} si no existe. */
     public static AscentRelic byId(final String id) {
         for (final AscentRelic r : LOADED) {

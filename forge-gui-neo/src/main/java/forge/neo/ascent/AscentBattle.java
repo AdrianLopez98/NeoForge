@@ -87,14 +87,29 @@ public final class AscentBattle {
      */
     private static final double LIFE_START = 0.35;
 
-    /** Y al llegar arriba. Por encima de la tuya: para entonces tu mazo es otro. */
-    private static final double LIFE_END = 1.60;
+    /**
+     * Y al llegar arriba. Por encima de la tuya: para entonces tu mazo es otro.
+     *
+     * <p><b>1,25 y no 1,60</b> (05-09-2026). El 1,60 salio de una cuenta sobre
+     * el papel, no de jugar: reportado en partida, <i>"es muy complicado"</i>
+     * pasar del acto 1 y quedan diez Ascensiones por encima. La curva sigue
+     * subiendo — el ultimo rival tiene mas del triple de vida que el primero,
+     * y eso lo mide {@code ascentcheck} — pero deja de terminar en un rival con
+     * media vida mas que tu <i>ademas</i> de un mazo de acto 3.
+     */
+    private static final double LIFE_END = 1.25;
 
     /** Ninguno baja de aqui, pase lo que pase. Un rival de 2 vidas no es un duelo. */
     private static final int MIN_LIFE = 5;
 
-    /** Lo que multiplica la vida de una elite sobre la del combate de su altura. */
-    private static final double ELITE_LIFE = 1.4;
+    /**
+     * Lo que multiplica la vida de una elite sobre la del combate de su altura.
+     *
+     * <p>1,25 desde el 05-09-2026 (era 1,4). Lo que hace dura a una elite es su
+     * <b>reliquia</b> y su mazo de mas arriba; el saco de vida solo alarga la
+     * partida.
+     */
+    private static final double ELITE_LIFE = 1.25;
 
     /**
      * Y la de un jefe.
@@ -105,19 +120,29 @@ public final class AscentBattle {
      * esquemas y sus dos reliquias</b>, no el saco de vida — y la vida del
      * archienemigo (CR 904.5) la pisamos igual con {@code setStartingLife},
      * asi que no hay ninguna regla que respetar aqui.
+     *
+     * <p><b>1,5 y no 2,0</b> (05-09-2026), reportado jugando: el jefe del acto
+     * 1 en Commander salia con <b>78</b> de vida contra tus 40, o sea que para
+     * ganarle habia que pegarle el doble de lo que el te tenia que pegar a ti
+     * — con un mazo que a esas alturas de la run todavia no existe. Doblar la
+     * vida era, ademas, la palanca menos interesante de las cinco: alarga la
+     * partida sin que pase nada nuevo dentro.
      */
-    private static final double BOSS_LIFE = 2.0;
+    private static final double BOSS_LIFE = 1.5;
 
     /**
      * Cuanto sube el jefe en la escalera de mazos, por encima de su altura.
      *
-     * <p>0,25 y no 0,15 (lo de una elite): en el acto 1 eso pone al jefe en el
-     * escalon 1 mientras los combates de su piso siguen en el 0, que es
-     * exactamente lo que se pidio — <i>"un mazo un pelin mejor que el del
-     * jugador y el de los enemigos de ese piso"</i>. Ver {@code tierFor}, que
-     * corta en 0,34 y 0,70.
+     * <p><b>0,15 desde el 05-09-2026</b> (era 0,25), y sigue cumpliendo lo que
+     * se pidio — <i>"un mazo un pelin mejor que el del jugador y el de los
+     * enemigos de ese piso"</i>: en el acto 1 el jefe queda en 0,31 + 0,15 =
+     * 0,46, o sea escalon 1, mientras los combates de su piso siguen en el 0.
+     * Ver {@code tierFor}, que corta en 0,34 y 0,70. Lo que se va con la
+     * bajada es el salto de DOS escalones que 0,25 provocaba en algunos
+     * tramos, que era lo que hacia que el mazo del jefe se sintiera <i>"mucho
+     * mejor que el mio"</i> y no un pelin.
      */
-    private static final double BOSS_DECK_EDGE = 0.25;
+    private static final double BOSS_DECK_EDGE = 0.15;
 
     /**
      * Los caracteres de IA, del mas blando al mas agresivo.
@@ -262,7 +287,7 @@ public final class AscentBattle {
             headStartCount++;
         }
 
-        final List<PaperCard> opponentRelics = relicsFor(kind, rnd);
+        final List<PaperCard> opponentRelics = relicsFor(kind, act, rnd);
         if (kind == AscentNode.Kind.BOSS && act == AscentRun.ACTS && run.getAscension() >= 10) {
             // Ascension 10: el jefe del acto 3 tiene una "segunda fase". No es
             // una regla de Magic — hay que inventar que significa — y se hace
@@ -319,14 +344,40 @@ public final class AscentBattle {
         return Math.max(MIN_LIFE, (int) Math.round(yourMaxLife * ratio));
     }
 
-    /** Techo de lo que puede sumar {@link #playerEdge}. */
-    private static final double MAX_EDGE = 0.55;
+    /**
+     * Techo de lo que puede sumar {@link #playerEdge}.
+     *
+     * <p><b>0,40 desde el 05-09-2026</b>, y no por gusto: lo pidio el
+     * comprobador. Al aplanar la curva ({@link #LIFE_END} de 1,60 a 1,25) el
+     * mismo 0,55 de antes pasa a pesar <b>proporcionalmente mas</b> — en mitad
+     * del acto 2 el rival pasaba de 16 vidas a 27 solo por lo que llevabas
+     * encima, o sea que recuperaba mas ventaja de la que tu habias ganado y
+     * mejorar el mazo dejaba de merecer la pena. Lo cazo la sonda
+     * {@code curvaSigueTuPoder} de {@code ascentcheck}, que exige justo eso:
+     * que el rival se estire contigo, <b>pero menos de lo que te ha dado</b>.
+     */
+    private static final double MAX_EDGE = 0.40;
 
     /** Lo que suma cada reliquia que llevas puesta. */
     private static final double RELIC_EDGE = 0.055;
 
-    /** Y lo que suma tener el mazo lleno de cartas buenas. */
-    private static final double DECK_EDGE = 0.90;
+    /**
+     * Y lo que suma tener el mazo lleno de cartas buenas.
+     *
+     * <p><b>0,55 desde el 05-09-2026</b> (era 0,90), y es la palanca correcta
+     * para <i>"no noto que mejoro"</i>. El mismo dia se subio mucho la calidad
+     * del premio (§24.8: suelo en infrecuente, miticas desde el primer nodo,
+     * gamechangers arriba), y con 0,90 el rival se comia buena parte de esa
+     * mejora en cuanto el mazo se llenaba de raras — o sea que mejorar el mazo
+     * se notaba menos <b>justo despues</b> de haber hecho que el premio se
+     * notara mas.
+     *
+     * <p>Sigue reaccionando a lo que llevas, que es la decision del autor del
+     * 02-09-2026 y no se toca: lo que cambia es cuanto. La otra salida —volver
+     * a bajarle vida a los rivales— habria aplanado la curva entera para
+     * arreglar un problema que solo esta en el tramo alto.
+     */
+    private static final double DECK_EDGE = 0.55;
 
     /**
      * Cuanto has crecido TU, y por tanto cuanto se estira el rival.
@@ -691,14 +742,34 @@ public final class AscentBattle {
     }
 
     /** Las reliquias que le tocan al rival de ese nodo. */
-    private static List<PaperCard> relicsFor(final AscentNode.Kind kind, final Random rnd) {
+    private static List<PaperCard> relicsFor(final AscentNode.Kind kind, final int act,
+                                             final Random rnd) {
         final int howMany = kind == AscentNode.Kind.ELITE ? 1
-                : kind == AscentNode.Kind.BOSS ? 2 : 0;
+                : kind == AscentNode.Kind.BOSS ? bossRelics(act) : 0;
         final List<PaperCard> out = new ArrayList<>();
         if (howMany == 0) {
             return out;
         }
-        final List<AscentRelic> pool = new ArrayList<>(AscentRelics.all());
+        final List<AscentRelic> pool = new ArrayList<>();
+        for (final AscentRelic relic : AscentRelics.all()) {
+            // ⚠️ A la IA no se le dan reliquias que le LLENEN LA MANO, y no es
+            // por potencia: es por tiempo. Forge evalua cada carta jugable en
+            // cada prioridad, asi que tres cartas de mas en su mano son muchas
+            // mas ramas que recorrer cada turno.
+            //
+            // Medido el 05-09-2026 con -Dneo.ai.relics sobre partidas de 70 s:
+            // 17-18 turnos sin reliquias, 12-13 con Hourglass of Kings. La
+            // mitad de ritmo — y eso, jugando, es la espera larga en el turno
+            // del rival que se reporto como "la pelea contra el boss se
+            // lagueaba". No era la interfaz: la mesa llena va a 63 fps y en 95
+            // segundos de partida solo hay 7 frames por encima de 50 ms.
+            //
+            // Para TI siguen estando: son de las mejores que hay, y en tu
+            // asiento no cuestan nada porque las decisiones las tomas tu.
+            if (!AscentRelics.growsHand(relic)) {
+                pool.add(relic);
+            }
+        }
         Collections.shuffle(pool, rnd);
         for (final AscentRelic relic : pool) {
             if (out.size() >= howMany) {
@@ -710,6 +781,31 @@ public final class AscentBattle {
             }
         }
         return out;
+    }
+
+    /**
+     * Cuantas reliquias lleva el jefe de ese acto: <b>una en el acto 1</b>, dos
+     * despues.
+     *
+     * <h2>Por que el primero lleva una</h2>
+     *
+     * <p>Reportado jugando (05-09-2026): <i>"me destrozo, le toco una reliquia
+     * que le daba 3 manas incoloros al inicio y me hizo mucho snowball... el
+     * primer boss vamos a dejarle en una reliquia"</i>.
+     *
+     * <p>Y el motivo no es que dos sean muchas, es <b>cuando</b> caen. Las
+     * reliquias se sortean del catalogo entero sin mirar el acto, asi que al
+     * jefe del acto 1 le puede tocar una que multiplica su salida — y en el
+     * acto 1 el jugador todavia no tiene con que responder: lleva un mazo de
+     * once nodos y como mucho una reliquia propia. Dos tiradas son <b>el doble
+     * de probabilidad</b> de que salga justo la que decide la partida en el
+     * turno tres.
+     *
+     * <p>El jefe sigue siendo un jefe por lo demas: vez y media de vida, la
+     * ventaja de salida y un mazo un escalon por encima de su piso.
+     */
+    private static int bossRelics(final int act) {
+        return act <= 1 ? 1 : 2;
     }
 
     /** Las reliquias que lleva el jugador, ya como cartas. */
@@ -774,7 +870,8 @@ public final class AscentBattle {
      * <h2>Que hace jefe a un jefe ahora</h2>
      *
      * <p>Lo que ya tenia y no dependia de Archienemigo: el <b>doble de vida</b>
-     * ({@link #BOSS_LIFE}), <b>dos reliquias</b> en vez de una o ninguna
+     * ({@link #BOSS_LIFE}), <b>dos reliquias</b> —una sola en el acto 1, ver
+     * {@link #bossRelics}— en vez de una o ninguna
      * ({@code relicsFor}), la <b>ventaja de salida</b> y —a partir de la
      * Ascension 10— el <b>segundo aliento</b>. Y a eso se le anyade lo que
      * pidio el jugador: un mazo <b>un escalon por encima</b> del que juegan los

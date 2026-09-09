@@ -259,7 +259,14 @@ public class TableBinder {
         // Reportado tal cual: "lo active en ajustes pero nada cambia". Un
         // ajuste que se traga su propia respuesta es el principio 1 de
         // las notas de diseño — un control que no hace lo que parece.
-        if (wanted && !fits && !warnedNoRoom) {
+        //
+        // Y NO mientras haya algo en la capa de menu: ese aviso vive en la
+        // misma capa que el panel de Ajustes, asi que soltarlo ahi le
+        // sustituiria el panel al jugador en el mismo click con el que acaba
+        // de encender el ajuste. Como `warnedNoRoom` solo se marca cuando de
+        // verdad se ensenya, el aviso sale igual en el siguiente repintado
+        // -- o sea al cerrar los Ajustes, que es cuando se puede leer.
+        if (wanted && !fits && !warnedNoRoom && !table.getMenuOverlay().isShowing()) {
             warnedNoRoom = true;
             table.showInfo(
                     forge.neo.NeoText.get("table.allBoards.tight.title"),

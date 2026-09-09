@@ -9,6 +9,8 @@ import com.google.common.collect.Multiset;
 import forge.game.card.CardView;
 import forge.game.card.CardView.CardStateView;
 import forge.game.card.CounterType;
+import forge.game.keyword.KeywordCollectionView;
+import forge.game.keyword.KeywordView;
 import forge.game.player.PlayerView;
 import forge.game.zone.ZoneType;
 import forge.neo.NeoText;
@@ -121,7 +123,8 @@ public final class CardZoom {
         // el campo de batalla, y "la tiene exiliada" se mira justamente
         // desde el EXILIO. Dentro no se habria visto nunca.
         final boolean side = hasState(card) || otherFace(card) != null
-                || related(card) != null || canReadLiveText(card);
+                || related(card) != null || canReadLiveText(card)
+                || !keywordsOf(card).isEmpty();
         double w = bigWidth;
         if (side) {
             w = Math.min(w, sceneWidth * 0.9 / (1 + SIDE_RATIO));
@@ -205,6 +208,11 @@ public final class CardZoom {
             box.getChildren().add(l);
         }
 
+        final Region keywords = keywordsBlock(card, width);
+        if (keywords != null) {
+            box.getChildren().add(keywords);
+        }
+
         final Region attached = attachedBlock(card, width);
         if (attached != null) {
             box.getChildren().add(attached);
@@ -231,6 +239,222 @@ public final class CardZoom {
         }
         return box;
     }
+
+    /**
+     * Las palabras clave que la carta tiene AHORA, sin repetir.
+     *
+     * <p>Salen del motor, no de leer el texto: {@code CardStateView.getKeywords()}
+     * devuelve las de verdad — las impresas y tambien las que le hayan DADO un
+     * aura, un equipo o un efecto — y cada una viene ya con su titulo montado
+     * ({@code "Ward {2}"}, {@code "Annihilator 2"}) y su explicacion con el
+     * numero o el coste puestos. O sea que no hay nada que interpretar aqui, y
+     * una carta a la que le acaban de regalar el volar lo explica igual que
+     * una que lo trae impreso.
+     *
+     * <p>Se quitan las repetidas por titulo: una criatura puede llevar dos
+     * instancias de la misma palabra clave y explicarla dos veces no anyade
+     * nada.
+     */
+    private static java.util.List<KeywordView> keywordsOf(final CardView card) {
+        final java.util.List<KeywordView> out = new java.util.ArrayList<>();
+        if (card == null) {
+            return out;
+        }
+        try {
+            final CardStateView st = card.getCurrentState();
+            if (st == null) {
+                return out;
+            }
+            final java.util.Set<String> seen = new java.util.HashSet<>();
+            for (final KeywordView k : keywordSource(st)) {
+                if (k == null) {
+                    continue;
+                }
+                final String title = k.title();
+                final String text = k.reminderText();
+                // Sin explicacion no entra: la pastilla prometeria algo que al
+                // clicarla no esta (principio 1). Pasa con las palabras clave
+                // que el motor usa por dentro y no tienen texto de reglas.
+                if (title == null || title.isBlank() || text == null || text.isBlank()) {
+                    continue;
+                }
+                if (seen.add(title)) {
+                    out.add(k);
+                }
+            }
+        } catch (final RuntimeException e) {
+            return out;
+        }
+        return out;
+    }
+
+    /**
+     * De donde salen las palabras clave: del motor, y si no, de la carta.
+     *
+     * <p>Dentro de una partida el motor las publica y son las de VERDAD — las
+     * impresas y las que le hayan dado un aura o un equipo. Fuera de la
+     * partida no publica ninguna: un {@code CardView} de catalogo lo monta
+     * {@code CardView.getCardForUi}, que crea la carta <b>sin juego detras</b>
+     * y por tanto sin nada calculado (se ve facil: ahi {@code getAbilityText()}
+     * tambien sale vacio). Y fuera de la partida es justo donde mas falta hace,
+     * que es montando el mazo.
+     *
+     * <p>El respaldo saca los renglones {@code K:} de la carta en papel y les
+     * pide al motor su instancia ({@code Keyword.getInstance}), que es lo mismo
+     * que hace el propio Forge: asi el titulo sale montado igual
+     * ({@code "Ward {2}"}) y la explicacion con su numero puesto. Lo que no sea
+     * una palabra clave de verdad cae en {@code UNDEFINED}, se queda sin titulo
+     * y lo filtra el mismo control de siempre.
+     *
+     * <p>La carta en papel se busca por la clave de imagen, que es el camino
+     * que ya usa {@code CardNode} para la P/T impresa. Una ficha o un emblema
+     * no tienen, y entonces no hay palabras clave que ensenyar: correcto.
+     */
+    private static Iterable<KeywordView> keywordSource(final CardStateView st) {
+        final KeywordCollectionView live = st.getKeywords();
+        if (live != null && !live.isEmpty()) {
+            return live;
+        }
+        final java.util.List<KeywordView> out = new java.util.ArrayList<>();
+        final String key = st.getImageKey();
+        if (key == null || key.isEmpty()) {
+            return out;
+        }
+        try {
+            final forge.item.PaperCard pc = forge.util.ImageUtil.getPaperCardFromImageKey(key);
+            if (pc == null || pc.getRules() == null) {
+                return out;
+            }
+            // La cara que se esta mirando, no siempre la principal: una carta
+            // de dos caras ampliada por la de atras tiene sus propias palabras.
+            forge.card.ICardFace face = pc.getRules().getMainPart();
+            final forge.card.ICardFace other = pc.getRules().getOtherPart();
+            if (other != null && other.getName() != null
+                    && other.getName().equals(st.getName())) {
+                face = other;
+            }
+            if (face == null || face.getKeywords() == null) {
+                return out;
+            }
+            for (final String raw : face.getKeywords()) {
+                if (raw == null || raw.isBlank()) {
+                    continue;
+                }
+                try {
+                    out.add(forge.game.keyword.Keyword.getInstance(raw).getView());
+                } catch (final RuntimeException ignored) {
+                    // Un renglon K: que no es una palabra clave al uso. Se
+                    // salta: perder una no vale quedarse sin las demas.
+                }
+            }
+        } catch (final RuntimeException ignored) {
+            return out;
+        }
+        return out;
+    }
+
+    /**
+     * Las palabras clave, con su explicacion a un click.
+     *
+     * <p>Pedido por un jugador que empezaba: <i>poder pulsar las palabras clave
+     * de una carta y ver que significan</i>. Es el hueco mas grande que tenia
+     * esta interfaz para alguien nuevo — el texto de la carta dice
+     * "Vigilancia, dana letal" y da por sabido lo que son, y lo unico que
+     * habia para averiguarlo era salir del juego a buscarlo.
+     *
+     * <p>El texto sale del motor ({@code Keyword.getReminderText}), que trae el
+     * <b>oficial</b> de las ~200 palabras clave con su numero o su coste ya
+     * puestos. Escribirlo nosotros habria sido inventarse reglas, que es justo
+     * lo que este proyecto no hace.
+     *
+     * <p>Tres decisiones que no se ven leyendo el codigo:
+     *
+     * <ul>
+     *   <li><b>Una explicacion a la vez.</b> Una criatura puede llevar cinco
+     *       palabras clave, y las cinco desplegadas son un parrafo mas largo
+     *       que la carta: se lee la que se pregunta.</li>
+     *   <li><b>El rotulo dice que se clican.</b> Una pastilla no parece un
+     *       boton, y un gesto que no se descubre es como no tenerlo — la misma
+     *       leccion que el galon del stack.</li>
+     *   <li><b>Con una sola, sale abierta.</b> Ahi no hay nada que elegir, y
+     *       obligar a un click para leer la unica linea que hay es un tramite.</li>
+     * </ul>
+     *
+     * <p>El texto viene <b>en ingles</b> pase lo que pase: esta escrito a mano
+     * en el {@code enum} del motor y Forge no lo traduce en ninguno de sus diez
+     * idiomas. Ensenyarlo asi es mejor que no ensenyarlo, y el dia que el motor
+     * lo traduzca se traduce solo.
+     *
+     * @return null si la carta no tiene ninguna
+     */
+    private static Region keywordsBlock(final CardView card, final double width) {
+        final java.util.List<KeywordView> words = keywordsOf(card);
+        if (words.isEmpty()) {
+            return null;
+        }
+
+        final Label caption = new Label(NeoText.get("zoom.keywords"));
+        caption.getStyleClass().add("zoom-head");
+        caption.setWrapText(true);
+        caption.setMaxWidth(width);
+
+        final Label explain = new Label();
+        explain.getStyleClass().add("keyword-text");
+        explain.setWrapText(true);
+        explain.setMaxWidth(width);
+        explain.setMinHeight(Region.USE_PREF_SIZE);
+        explain.setVisible(false);
+        explain.setManaged(false);
+
+        // El elegido, en una casilla: el manejador de cada pastilla necesita
+        // apagar la anterior, y de la anterior solo se sabe cuando ya se ha
+        // clicado.
+        final Label[] picked = new Label[1];
+
+        final FlowPane chips = new FlowPane(6, 5);
+        chips.setMaxWidth(width);
+        for (final KeywordView k : words) {
+            final Label chip = new Label(k.title());
+            chip.getStyleClass().add("keyword-chip");
+            chip.setCursor(javafx.scene.Cursor.HAND);
+            chip.setOnMouseClicked(e -> {
+                e.consume();
+                if (picked[0] == chip) {
+                    chip.pseudoClassStateChanged(KEYWORD_ON, false);
+                    picked[0] = null;
+                    explain.setVisible(false);
+                    explain.setManaged(false);
+                    return;
+                }
+                if (picked[0] != null) {
+                    picked[0].pseudoClassStateChanged(KEYWORD_ON, false);
+                }
+                chip.pseudoClassStateChanged(KEYWORD_ON, true);
+                picked[0] = chip;
+                explain.setText(k.reminderText());
+                explain.setVisible(true);
+                explain.setManaged(true);
+            });
+            chips.getChildren().add(chip);
+        }
+
+        if (words.size() == 1) {
+            final Label only = (Label) chips.getChildren().get(0);
+            only.pseudoClassStateChanged(KEYWORD_ON, true);
+            picked[0] = only;
+            explain.setText(words.get(0).reminderText());
+            explain.setVisible(true);
+            explain.setManaged(true);
+        }
+
+        final VBox box = new VBox(6, caption, chips, explain);
+        box.setAlignment(Pos.TOP_LEFT);
+        return box;
+    }
+
+    /** La pastilla que se esta leyendo ahora mismo. */
+    private static final javafx.css.PseudoClass KEYWORD_ON =
+            javafx.css.PseudoClass.getPseudoClass("on");
 
     /** Solo en el campo de batalla: es donde el texto puede haber cambiado. */
     private static boolean canReadLiveText(final CardView card) {
