@@ -56,6 +56,25 @@ public class BattlefieldPane extends Pane {
      */
     public static final double MIN_CARD_WIDTH = 28;
 
+    private double scrollX, scrollMax;
+    private final javafx.scene.control.Button previous = scrollButton("‹", -1);
+    private final javafx.scene.control.Button next = scrollButton("›", 1);
+
+    private javafx.scene.control.Button scrollButton(String text, int direction) {
+        var button = new javafx.scene.control.Button(text);
+        button.getStyleClass().add("arena-scroll");
+        button.setAccessibleText(direction < 0 ? "Scroll left" : "Scroll right");
+        button.setManaged(false);
+        button.setVisible(false);
+        button.setViewOrder(-100);
+        button.setOnAction(e -> {
+            scrollX = Math.max(0, Math.min(scrollMax, scrollX + direction * getWidth() * .55));
+            requestLayout();
+        });
+        button.addEventHandler(javafx.scene.input.MouseEvent.MOUSE_CLICKED, e -> e.consume());
+        return button;
+    }
+
     private final double baseCardWidth;
     private double maxCardWidth;
     private final List<Entry> entries = new ArrayList<>();
@@ -89,6 +108,14 @@ public class BattlefieldPane extends Pane {
         clip.widthProperty().bind(widthProperty());
         setClip(clip);
         updateClip();
+        setOnScroll(e -> {
+            if (!e.isControlDown() && scrollMax > .5) {
+                double delta = Math.abs(e.getDeltaX()) > Math.abs(e.getDeltaY()) ? e.getDeltaX() : e.getDeltaY();
+                scrollX = Math.max(0, Math.min(scrollMax, scrollX - delta));
+                requestLayout();
+                e.consume();
+            }
+        });
     }
 
     /**
@@ -103,6 +130,7 @@ public class BattlefieldPane extends Pane {
         this.overflowTop = top;
         this.overflowBottom = bottom;
         updateClip();
+
     }
 
     private void updateClip() {
@@ -171,7 +199,7 @@ public class BattlefieldPane extends Pane {
         if (n == 0) {
             return 0;
         }
-        return Math.min(baseCardWidth, (availW - GAP * (n - 1)) / n);
+        return Math.min(baseCardWidth, Math.max(1, availW));
     }
 
     /** Tope de tamano impuesto desde fuera, para igualar entre filas. */
@@ -267,6 +295,7 @@ public class BattlefieldPane extends Pane {
         nodeCache.keySet().retainAll(groups.keySet());
         lastIds.clear();
         lastIds.addAll(nowIds);
+        getChildren().addAll(previous, next);
         requestLayout();
     }
 
@@ -485,99 +514,32 @@ public class BattlefieldPane extends Pane {
         updateClip();
         final int n = entries.size();
         if (n == 0) {
+            previous.setVisible(false); next.setVisible(false); scrollX = scrollMax = 0;
             return;
         }
-        // El ancho REAL, sin suelos inventados. Un suelo aqui es un fallo
-        // silencioso: el contenido se reparte sobre un ancho que no existe y
-        // el recorte (setClip) se come lo que sobra. Sintoma real jugando: un
-        // encantamiento suelto al lado de diez tierras salia cortado por la
-        // mitad, porque su grupo medi­a 148 px y se maquetaba sobre 200.
         final double availW = Math.max(1, getWidth());
         final double availH = Math.max(1, getHeight());
-
-        // 1. Buscar cuantas filas hacen falta para que la carta no baje del
-        //    tamano minimo legible.
-        int rows = 1;
-        double cardW = maxCardWidth;
-        int perRow = n;
-        final double minW = maxCardWidth * MIN_SCALE;
-
-        while (rows <= MAX_ROWS) {
-            perRow = (int) Math.ceil(n / (double) rows);
-            cardW = (availW - GAP * (perRow - 1)) / perRow;
-            if (cardW >= minW) {
-                break;
-            }
-            rows++;
-        }
-        rows = Math.min(rows, MAX_ROWS);
-        perRow = (int) Math.ceil(n / (double) rows);
-
-        // 2. La altura tambien manda: con varias filas puede que no quepan.
-        cardW = Math.min(cardW, maxCardWidth);
-        final double maxCardH = (availH - ROW_GAP * (rows - 1)) / rows;
-        cardW = Math.min(cardW, maxCardH / CardNode.ASPECT);
-
-        cardW = Math.max(cardW, MIN_CARD_WIDTH);
-
-        // 3. El suelo de 28 px puede haber DESHECHO el limite de altura del
-        //    paso 2, y entonces las filas ya no caben en el hueco.
-        //
-        //    Sin esto, lo que sobra no se ve: `updateClip` recorta el pane y
-        //    las cartas salen <b>cortadas por abajo</b> — media carta, sin caja
-        //    de texto y sin P/T. Reportado jugando con tres mesas de rival en
-        //    fila, que es donde el hueco se queda bajo de verdad.
-        //
-        //    La salida es la misma que ya usa el paso 4 para el ancho, y por el
-        //    mismo motivo: MENOS filas y mas solape. Una carta apretada se lee
-        //    mal; una carta cortada por la mitad no se lee.
-        final double rowH = cardW * CardNode.ASPECT;
-        final int rowsThatFit = Math.max(1,
-                (int) Math.floor((availH + ROW_GAP) / (rowH + ROW_GAP)));
-        if (rowsThatFit < rows) {
-            rows = rowsThatFit;
-            perRow = (int) Math.ceil(n / (double) rows);
-        }
-
-        // 4. Si aun asi no caben a lo ancho, se solapan (como Arena con las
-        //    tierras) en vez de encoger mas y volverse ilegibles.
-        double step = cardW + GAP;
-        final double neededW = step * (perRow - 1) + cardW;
-        if (neededW > availW && perRow > 1) {
-            final double exact = (availW - cardW) / (perRow - 1);
-            step = Math.max(exact, cardW * (1 - MAX_OVERLAP));
-            // MAX_OVERLAP es un tope de LEGIBILIDAD, no una licencia para
-            // desbordar: si respetarlo dejaria la ultima carta fuera del
-            // recorte, se solapa mas. Una carta apretada se lee mal; una carta
-            // cortada por la mitad no se lee.
-            if (step * (perRow - 1) + cardW > availW) {
-                step = exact;
-            }
-        }
-
+        final ArenaRowLayout.Row row = ArenaRowLayout.measure(n, availW, maxCardWidth, availH);
+        scrollMax = row.maxScroll();
+        scrollX = Math.max(0, Math.min(scrollX, scrollMax));
+        final double cardW = row.cardWidth();
         final double cardH = cardW * CardNode.ASPECT;
-        final double usedH = cardH * rows + ROW_GAP * (rows - 1);
-        final double y0 = Math.max(0, (availH - usedH) / 2);
-
-        int i = 0;
-        for (int r = 0; r < rows; r++) {
-            final int countThisRow = Math.min(perRow, n - r * perRow);
-            if (countThisRow <= 0) {
-                break;
-            }
-            final double rowW = step * (countThisRow - 1) + cardW;
-            final double x0 = Math.max(0, (availW - rowW) / 2);
-            for (int c = 0; c < countThisRow; c++, i++) {
-                final CardStackNode node = entries.get(i).node;
-                node.setCardWidth(cardW);
-                node.resize(cardW, cardH);
-                node.setLayoutX(x0 + c * step);
-                node.setLayoutY(y0 + r * (cardH + ROW_GAP));
-                // Las de la derecha por encima, para que el solape se lea bien.
-                node.setViewOrder(-c * 0.001);
-            }
+        final double x0 = Math.max(0, (availW - row.contentWidth()) / 2);
+        for (int i = 0; i < n; i++) {
+            final CardStackNode node = entries.get(i).node;
+            node.setCardWidth(cardW);
+            node.resize(cardW, cardH);
+            node.setLayoutX(x0 + i * row.step() - scrollX);
+            node.setLayoutY(Math.max(0, (availH - cardH) / 2));
+            node.setViewOrder(-i * .001);
         }
 
+        previous.setVisible(scrollMax > .5);
+        next.setVisible(scrollMax > .5);
+        previous.setDisable(scrollX <= .5);
+        next.setDisable(scrollX >= scrollMax - .5);
+        previous.resizeRelocate(2, 2, 24, 24);
+        next.resizeRelocate(Math.max(26, availW - 26), 2, 24, 24);
         // El recorte se abre por debajo lo que asome lo enganchado. Se hace
         // aqui y no al recibir las cartas porque depende del tamano de carta,
         // que solo se sabe una vez repartido el ancho de la fila.
@@ -591,3 +553,5 @@ public class BattlefieldPane extends Pane {
         }
     }
 }
+
+

@@ -74,7 +74,7 @@ public class PhaseRail extends VBox {
     public PhaseRail() {
         getStyleClass().add("phase-rail");
         setSpacing(2);
-        setPadding(new Insets(12, 10, 12, 10));
+        setPadding(new Insets(5, 10, 5, 10));
         setAlignment(Pos.TOP_LEFT);
 
         title.getStyleClass().add("caption");
@@ -85,6 +85,8 @@ public class PhaseRail extends VBox {
         dayNight.setVisible(false);
         dayNight.setManaged(false);
         getChildren().add(dayNight);
+        phases.setHgap(3); phases.setVgap(3);
+        getChildren().add(phases);
 
         for (final PhaseType p : STOPS) {
             final Label l = new Label(nameOf(p));
@@ -97,7 +99,10 @@ public class PhaseRail extends VBox {
                 }
             });
             labels.put(p, l);
-            getChildren().add(l);
+            l.setMinWidth(0);
+            l.setAlignment(Pos.CENTER);
+            l.setTooltip(new javafx.scene.control.Tooltip(nameOf(p)));
+            phases.getChildren().add(l);
         }
     }
 
@@ -115,6 +120,7 @@ public class PhaseRail extends VBox {
         title.pseudoClassStateChanged(YOURS, yours);
     }
 
+    private final javafx.scene.layout.TilePane phases = new javafx.scene.layout.TilePane();
     private final Label title = new Label(NeoText.get("phase.caption"));
 
     /**
@@ -173,4 +179,21 @@ public class PhaseRail extends VBox {
                     isStop != null && isStop.test(e.getKey()));
         }
     }
-}
+    /** Same clickable phase labels, arranged horizontally with a two-row fallback. */
+    public double arenaHeight(double width) {
+        double available = Math.max(1, width - 20);
+        double widest = 70;
+        double tallest = 18;
+        for (Label label : labels.values()) {
+            widest = Math.max(widest, label.prefWidth(-1));
+            tallest = Math.max(tallest, label.prefHeight(-1));
+        }
+        int columns = Math.max(1, Math.min(STOPS.length, (int)((available + 3) / (widest + 3))));
+        phases.setPrefColumns(columns);
+        phases.setPrefTileWidth(Math.max(1, Math.floor((available - 3 * (columns - 1) - 4) / columns)));
+        phases.setPrefTileHeight(tallest);
+        return 14 + title.prefHeight(width) + (dayNight.isManaged() ? dayNight.prefHeight(width) + 2 : 0)
+                + Math.ceil(STOPS.length / (double) columns) * (tallest + 3);
+    }}
+
+

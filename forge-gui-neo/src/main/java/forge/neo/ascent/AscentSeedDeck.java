@@ -337,6 +337,167 @@ public final class AscentSeedDeck {
         }
     }
 
+    /**
+     * Reparte las basicas entre los colores que el mazo <b>de verdad juega</b>.
+     *
+     * <p><b>Esto tapa un fallo reportado jugando (11-09-2026):</b> <i>"me he
+     * jugado un ascenso en estandar y me ha creado un mazo rojo con criaturas
+     * blancas que necesitaban blanco, y no me ha metido tierras blancas.
+     * Entonces seria imposible de jugar"</i>. Y es exactamente lo que pasaba.
+     *
+     * <p>El fallo NO estaba en el numero de tierras — {@link #ensureManaBase}
+     * ya garantiza que haya doce — sino en <b>cuales</b>. {@link #trim} coge las
+     * {@code needLands} primeras tierras <b>en el orden en que salen del
+     * generador</b>, sin mirar el color. En un mazo de dos colores eso es una
+     * loteria: si las doce primeras resultan ser Montanyas, las criaturas
+     * blancas se quedan en la mano toda la partida. Y el mazo pasa todas las
+     * comprobaciones que habia, porque tiene su cuenta de tierras entera.
+     *
+     * <p>Lo que se hace es lo que haria cualquiera montando el mazo a mano:
+     * contar los <b>simbolos de color</b> de los hechizos que han entrado — no
+     * su identidad de color, que cuenta igual un {W} obligatorio que un hibrido
+     * — y repartir las basicas en esa proporcion, con <b>al menos una de cada
+     * color que el mazo necesite</b>.
+     *
+     * <p>Solo se tocan las <b>basicas</b>. Una tierra no basica que trajo el
+     * generador (una dual, una de utilidad) se queda donde esta: casi siempre es
+     * mejor que la basica que la sustituiria, y quitarla para meter un Bosque
+     * seria empeorar el mazo mientras se arregla.
+     *
+     * <p>No cambia el tamanyo del mazo: se quitan N basicas y se ponen N.
+     */
+    private static void ensureColorSources(final Deck deck) {
+        // 1. Que colores PIDEN los hechizos, y cuanto. Los simbolos y no la
+        //    identidad: un mazo con una sola carta blanca de coste {4}{W} no
+        //    necesita la mitad de sus tierras blancas.
+        final int[] pips = new int[forge.card.MagicColor.WUBRG.length];
+        int totalPips = 0;
+        for (final Map.Entry<PaperCard, Integer> e : deck.getMain()) {
+            if (e.getKey().getRules().getType().isLand()) {
+                continue;
+            }
+            final int[] shards = e.getKey().getRules().getManaCost().getColorShardCounts();
+            for (int i = 0; i < pips.length; i++) {
+                pips[i] += shards[i] * e.getValue();
+                totalPips += shards[i] * e.getValue();
+            }
+        }
+        if (totalPips == 0) {
+            return; // mazo sin un solo simbolo de color: no hay nada que repartir
+        }
+
+        // 2. Cuantas basicas hay para repartir. Las no basicas se quedan como
+        //    estan y ademas cuentan como fuente, asi que un mazo con duales
+        //    necesita menos basicas de ese color.
+        int slots = 0;
+        final List<PaperCard> basicsOut = new ArrayList<>();
+        final int[] fromNonBasic = new int[pips.length];
+        for (final Map.Entry<PaperCard, Integer> e : deck.getMain()) {
+            final PaperCard card = e.getKey();
+            if (!card.getRules().getType().isLand()) {
+                continue;
+            }
+            if (card.getRules().getType().isBasicLand()) {
+                slots += e.getValue();
+                for (int i = 0; i < e.getValue(); i++) {
+                    basicsOut.add(card);
+                }
+            } else {
+                for (int i = 0; i < pips.length; i++) {
+                    if (card.getRules().getColorIdentity()
+                            .hasAnyColor(forge.card.MagicColor.WUBRG[i])) {
+                        fromNonBasic[i] += e.getValue();
+                    }
+                }
+            }
+        }
+        if (slots == 0) {
+            return; // solo tierras no basicas: no hay huecos que reasignar
+        }
+
+        // 3. El reparto, por resto mayor. Y con SUELO de una por color que el
+        //    mazo pida: el caso que rompe la run no es "pocas blancas", es
+        //    "ninguna blanca".
+        final int[] want = new int[pips.length];
+        final double[] rest = new double[pips.length];
+        int given = 0;
+        for (int i = 0; i < pips.length; i++) {
+            if (pips[i] == 0) {
+                continue;
+            }
+            final double exact = (double) slots * pips[i] / totalPips;
+            want[i] = Math.max(1, (int) Math.floor(exact));
+            rest[i] = exact - Math.floor(exact);
+            given += want[i];
+        }
+        if (given == 0) {
+            return;
+        }
+        // Si el suelo de "una por color" se ha pasado del presupuesto, se le
+        // quita al color mas servido. Pasa con un mazo de tres colores y pocas
+        // basicas, y sin esto el mazo crece de tamanyo.
+        while (given > slots) {
+            int worst = -1;
+            for (int i = 0; i < want.length; i++) {
+                if (want[i] > 1 && (worst < 0 || want[i] > want[worst])) {
+                    worst = i;
+                }
+            }
+            if (worst < 0) {
+                break; // todos a uno y aun sobran colores: se deja como esta
+            }
+            want[worst]--;
+            given--;
+        }
+        // Y lo que sobre, al color con el resto mas alto. Sin esto un mazo
+        // mono-color con doce huecos se quedaria con once tierras.
+        while (given < slots) {
+            int best = -1;
+            for (int i = 0; i < want.length; i++) {
+                if (pips[i] == 0) {
+                    continue;
+                }
+                // El descuento por las no basicas entra aqui: un color que ya
+                // tiene fuentes de una dual pide menos basicas que otro que no
+                // tiene ninguna.
+                final double score = rest[i] - 0.15 * fromNonBasic[i];
+                if (best < 0 || score > rest[best] - 0.15 * fromNonBasic[best]) {
+                    best = i;
+                }
+            }
+            if (best < 0) {
+                break;
+            }
+            want[best]++;
+            rest[best] -= 1;
+            given++;
+        }
+
+        // 4. Fuera las viejas, dentro las nuevas. Si alguna basica no existe en
+        //    la base de datos (no deberia pasar nunca) se deja el mazo como
+        //    estaba: mejor un mazo desequilibrado que uno corto.
+        final List<PaperCard> basicsIn = new ArrayList<>();
+        for (int i = 0; i < want.length; i++) {
+            if (want[i] <= 0) {
+                continue;
+            }
+            final PaperCard b = FModel.getMagicDb().getCommonCards()
+                    .getCard(forge.card.MagicColor.Constant.BASIC_LANDS.get(i));
+            if (b == null) {
+                return;
+            }
+            for (int n = 0; n < want[i]; n++) {
+                basicsIn.add(b);
+            }
+        }
+        for (final PaperCard old : basicsOut) {
+            deck.getMain().remove(old);
+        }
+        for (final PaperCard neu : basicsIn) {
+            deck.getMain().add(neu);
+        }
+    }
+
     /** Quita el hechizo mas caro del mazo. Devuelve si quito alguno. */
     private static boolean dropCostliestSpell(final Deck deck) {
         PaperCard worst = null;
@@ -413,6 +574,7 @@ public final class AscentSeedDeck {
         }
 
         ensureManaBase(out, needLands, size);
+        ensureColorSources(out);
 
         if (commander != null) {
             out.getOrCreate(DeckSection.Commander).add(commander);

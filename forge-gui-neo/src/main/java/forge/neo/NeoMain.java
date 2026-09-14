@@ -64,6 +64,14 @@ public final class NeoMain {
             return;
         }
 
+        // Los atajos de teclado: tampoco necesitan motor ni cartas, y trabajan
+        // sobre un almacen en memoria. Ver ShortcutCheck.
+        if ("shortcutcheck".equals(cmd)) {
+            banner("Atajos de teclado: teclas de fabrica, estilos y guardado");
+            ShortcutCheck.run();
+            return;
+        }
+
         // Un solo NeoForge abierto, y lo PRIMERO de todo: si ya hay uno, este
         // proceso no tiene que hacer absolutamente nada, ni siquiera abrir el
         // registro. Rotar el neo.log que el otro tiene abierto no se puede, y
@@ -140,6 +148,15 @@ public final class NeoMain {
                 break;
             case "diag":
                 diagnoseImages(deckName);
+                break;
+            case "textcheck":
+                // El aviso de elegir objetivo lo escribe el motor en ingles a
+                // la fuerza y lo traducimos componiendolo (EngineText). Falla
+                // en silencio - se queda en ingles -, asi que sin esta prueba
+                // no hay forma de distinguir "falta traducir" de "lo rompi".
+                // No necesita las cartas, solo res/languages.
+                banner("Avisos de objetivo: que se traduzcan enteros");
+                TextCheck.run();
                 break;
             case "deckcheck":
                 // Las reglas de construccion no se ven en una captura: hay que

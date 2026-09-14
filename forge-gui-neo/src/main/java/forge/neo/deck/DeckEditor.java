@@ -556,7 +556,10 @@ public final class DeckEditor {
         // aventura no se monta con lo que existe, se monta con lo que has
         // ganado y comprado.
         final int have = format.owned(card);
-        if (have != Integer.MAX_VALUE && countOf(card) >= have) {
+        // Por el mismo motivo que en roomFor: en limitado lo colocado es lo que
+        // hay en el PRINCIPAL, porque el pozo ya cuenta la banda.
+        final int placed = format.poolInSideboard() ? countInMain(card) : countOf(card);
+        if (have != Integer.MAX_VALUE && placed >= have) {
             return have == 0
                     ? forge.neo.NeoText.get("reject.notOwned",
                             forge.neo.card.CardText.nameOf(card))
@@ -566,12 +569,45 @@ public final class DeckEditor {
         return null;
     }
 
-    /** Cuantas copias mas de esta carta caben, o {@code Integer.MAX_VALUE}. */
+    /**
+     * Cuantas copias mas de esta carta caben, o {@code Integer.MAX_VALUE}.
+     *
+     * <p><b>Los dos techos no se miden sobre lo mismo, y juntarlos rompia el
+     * limitado.</b>
+     *
+     * <ul>
+     *   <li>El del <b>formato</b> ("cuatro copias de cada carta") lo mide el
+     *       motor sobre <b>todas las zonas</b>: cuatro Rayos en el principal y
+     *       dos en la banda son seis Rayos para
+     *       {@code getDeckConformanceProblem}. Ahi {@link #countOf} es lo
+     *       correcto.</li>
+     *   <li>El de <b>lo que tienes</b> mide cuantas te quedan por colocar. En
+     *       la aventura, las que estan en el mazo ya estan usadas y
+     *       {@code countOf} tambien vale. Pero en <b>limitado</b> el pozo
+     *       {@code owned} <b>YA INCLUYE</b> las que estan en el mazo y en la
+     *       banda - es una sola pila repartida en dos (ver
+     *       {@link DeckContext#poolInSideboard}) -, asi que restarle
+     *       {@code countOf} da <b>cero para todas las cartas, siempre</b>.</li>
+     * </ul>
+     *
+     * <p>Y cero quiere decir que el catalogo de un sellado <b>no dejaba meter
+     * ni una carta</b>: se podia vaciar el mazo y no habia forma de volver a
+     * montarlo. Encontrado probando el sellado en Android (12-09-2026), justo
+     * despues del otro fallo de la misma pila.
+     */
     public int roomFor(final PaperCard card) {
         final int byRules = deckFormat().getMaxCardCopies(card);
-        final int byCollection = format.owned(card);
-        final int cap = Math.min(byRules, byCollection);
-        return cap == Integer.MAX_VALUE ? Integer.MAX_VALUE : Math.max(0, cap - countOf(card));
+        final int roomByRules = byRules == Integer.MAX_VALUE
+                ? Integer.MAX_VALUE : Math.max(0, byRules - countOf(card));
+
+        final int owned = format.owned(card);
+        // En limitado, lo que esta en la banda es JUSTO lo que se puede mover al
+        // mazo: lo colocado es lo que hay en el principal, y nada mas.
+        final int used = format.poolInSideboard() ? countInMain(card) : countOf(card);
+        final int roomByOwned = owned == Integer.MAX_VALUE
+                ? Integer.MAX_VALUE : Math.max(0, owned - used);
+
+        return Math.min(roomByRules, roomByOwned);
     }
 
     /**
@@ -588,6 +624,7 @@ public final class DeckEditor {
             return 0;
         }
         deck.getOrCreate(DeckSection.Main).add(card, fit);
+        takeFromPool(card, fit);
         dirty = true;
         return fit;
     }
@@ -616,6 +653,7 @@ public final class DeckEditor {
             return 0;
         }
         deck.getOrCreate(DeckSection.Main).add(card, amount);
+        takeFromPool(card, amount);
         dirty = true;
         return amount;
     }
@@ -624,8 +662,57 @@ public final class DeckEditor {
         if (card == null || amount <= 0) {
             return;
         }
+        final int had = deck.getMain().count(card);
         deck.getMain().remove(card, amount);
+        backToPool(card, Math.min(amount, had));
         dirty = true;
+    }
+
+    /**
+     * Lo que ENTRA en el mazo sale de la banda, cuando la banda es el pozo.
+     *
+     * <p>Solo en limitado ({@link DeckContext#poolInSideboard}). Ahí el pool es
+     * una sola pila repartida entre las dos zonas, y si el mazo crece sin que
+     * la banda mengue, el pool <b>crece solo</b>: la próxima vez que se abra el
+     * editor habrá más cartas de las que salieron de los sobres.
+     *
+     * <p>Se quita lo que HAYA, nunca más: las tierras básicas del catálogo no
+     * están en la banda (no salieron de ningún sobre) y ahí esto no hace nada,
+     * que es justo lo correcto.
+     */
+    private void takeFromPool(final PaperCard card, final int amount) {
+        if (card == null || amount <= 0 || !format.poolInSideboard()) {
+            return;
+        }
+        final CardPool side = deck.get(DeckSection.Sideboard);
+        if (side == null) {
+            return;
+        }
+        final int there = side.count(card);
+        if (there > 0) {
+            side.remove(card, Math.min(amount, there));
+        }
+    }
+
+    /**
+     * Y lo que SALE del mazo vuelve a la banda, por lo mismo.
+     *
+     * <p>Sin esto, quitar una carta del mazo de un sellado <b>la borra del
+     * evento</b>: no vuelve al catálogo, no se puede volver a meter, y el pool
+     * se queda con una carta menos para siempre. Sin ningún error.
+     *
+     * <p>Las básicas <b>no</b> vuelven: las pone {@code SealedDeckBuilder} al
+     * montar el mazo y nunca estuvieron en el pool. Devolverlas lo iría
+     * inflando con tierras a cada edición.
+     */
+    private void backToPool(final PaperCard card, final int amount) {
+        if (card == null || amount <= 0 || !format.poolInSideboard()) {
+            return;
+        }
+        if (card.getRules() != null && card.getRules().getType().isBasicLand()) {
+            return;
+        }
+        deck.getOrCreate(DeckSection.Sideboard).add(card, amount);
     }
 
     /**
@@ -850,11 +937,29 @@ public final class DeckEditor {
      * <p>Se quita por NOMBRE, porque por nombre es como se ha contado de mas:
      * las copias sobrantes pueden ser de otra impresion.
      */
-    /** Quita N copias de esa carta, por nombre y solo del mazo principal. */
+    /**
+     * Quita N copias de esa carta, por nombre y solo del mazo principal.
+     *
+     * <p>En limitado vuelven a la banda, igual que con {@link #remove}: esto
+     * saca del principal cartas de las que hay más copias de las que tienes, y
+     * esas copias <b>existen</b> - están de más en el mazo, no de más en el
+     * mundo.
+     */
     private int dropFromMain(final PaperCard card, final int amount) {
-        return drop(card, amount, new DeckSection[] {DeckSection.Main});
+        final int gone = drop(card, amount, new DeckSection[] {DeckSection.Main});
+        backToPool(card, gone);
+        return gone;
     }
 
+    /**
+     * Quita N copias de donde sea.
+     *
+     * <p>Estas <b>no</b> vuelven al pozo, y es la diferencia con
+     * {@link #dropFromMain}: aquí se quitan copias que se pasan del límite del
+     * formato o cartas prohibidas, o sea copias que no deberían existir.
+     * Devolverlas a la banda sería deshacer la limpieza que acaba de pedir el
+     * jugador.
+     */
     private int dropCopies(final PaperCard card, final int amount) {
         return drop(card, amount, new DeckSection[] {DeckSection.Sideboard, DeckSection.Main});
     }

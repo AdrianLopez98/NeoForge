@@ -46,6 +46,26 @@ public class HandFan extends Pane {
      */
     private static final double EDGE_PAD = 6;
 
+    private double scrollX, scrollMax;
+    private final javafx.scene.shape.Rectangle clip = new javafx.scene.shape.Rectangle();
+    private final javafx.scene.control.Button previous = scrollButton("‹", -1);
+    private final javafx.scene.control.Button next = scrollButton("›", 1);
+
+    private javafx.scene.control.Button scrollButton(String text, int direction) {
+        var button = new javafx.scene.control.Button(text);
+        button.getStyleClass().add("arena-scroll");
+        button.setAccessibleText(direction < 0 ? "Scroll left" : "Scroll right");
+        button.setManaged(false);
+        button.setVisible(false);
+        button.setViewOrder(-100);
+        button.setOnAction(e -> {
+            scrollX = Math.max(0, Math.min(scrollMax, scrollX + direction * getWidth() * .55));
+            requestLayout();
+        });
+        button.addEventHandler(javafx.scene.input.MouseEvent.MOUSE_CLICKED, e -> e.consume());
+        return button;
+    }
+
     private final double cardWidth;
     private final List<CardNode> cards = new ArrayList<>();
 
@@ -60,6 +80,16 @@ public class HandFan extends Pane {
     public HandFan(final double cardWidth) {
         this.cardWidth = cardWidth;
         setPickOnBounds(false);
+        setClip(clip);
+        getChildren().addAll(previous, next);
+        setOnScroll(e -> {
+            if (!e.isControlDown() && scrollMax > .5) {
+                double delta = Math.abs(e.getDeltaX()) > Math.abs(e.getDeltaY()) ? e.getDeltaX() : e.getDeltaY();
+                scrollX = Math.max(0, Math.min(scrollMax, scrollX - delta));
+                requestLayout();
+                e.consume();
+            }
+        });
         // Altura fija: la carta entera mas holgura para el arco y el hover.
         final double h = cardWidth * CardNode.ASPECT + cardWidth * 0.22;
         setPrefHeight(h);
@@ -78,7 +108,8 @@ public class HandFan extends Pane {
 
     public void clearCards() {
         cards.clear();
-        getChildren().clear();
+        getChildren().setAll(previous, next);
+        scrollX = scrollMax = 0; previous.setVisible(false); next.setVisible(false);
         appliedWidth = 0;
     }
 
@@ -94,35 +125,19 @@ public class HandFan extends Pane {
         }
         final double available = Math.max(MIN_CARD_WIDTH, getWidth() - EDGE_PAD * 2);
 
-        // Tres escalones, y hacen falta los tres. Con una mano sin limite
-        // (Reliquary Tower y compania) se llega facil a 30 cartas, y el reparto
-        // de antes se plantaba en el primero: el suelo de solape ganaba, el
-        // abanico salia MAS ancho que el hueco y x0 se iba a negativo, o sea
-        // que las cartas de los dos extremos se salian de la pantalla.
-        //
-        // Mover la mano no es una opcion: es donde el jugador tiene que poder
-        // clicar. Apelotonadas si, fuera nunca.
-        double w = cardWidth;
-        double step = w * 1.04;
-
-        if (step * (n - 1) + w > available) {
-            // 1) Apretarlas hasta el solape minimo legible.
-            step = Math.max(w * MIN_STEP_RATIO, (available - w) / (n - 1));
-
-            // 2) Y si ni asi caben, ENCOGER la carta. Es lo que hace la mesa
-            //    cuando se llena, y es lo correcto: lo que no cabe, no cabe.
-            if (step * (n - 1) + w > available) {
-                w = Math.max(MIN_CARD_WIDTH, available / (MIN_STEP_RATIO * (n - 1) + 1));
-                step = w * MIN_STEP_RATIO;
-            }
-
-            // 3) Ultimo recurso, ya con el suelo de tamano tocado: solaparse
-            //    mas todavia. Feo, pero dentro de la pantalla.
-            if (step * (n - 1) + w > available) {
-                step = Math.max(1, (available - w) / (n - 1));
-            }
-        }
-
+        // Height determines card size; an unusually large hand scrolls instead of shrinking.
+        double w = Math.min(cardWidth, Math.max(34, (getHeight() - 10) / (CardNode.ASPECT * 1.16)));
+        w = Math.min(w, available);
+        double step = n == 1 ? 0 : Math.max(w * MIN_STEP_RATIO,
+                Math.min(w * 1.04, (available - w) / (n - 1)));
+        scrollMax = Math.max(0, step * (n - 1) + w - available);
+        scrollX = Math.max(0, Math.min(scrollX, scrollMax));
+        clip.setX(0); clip.setY(-Math.max(80, w * .5));
+        clip.setWidth(getWidth()); clip.setHeight(getHeight() + Math.max(80, w * .5));
+        previous.setVisible(scrollMax > .5); next.setVisible(scrollMax > .5);
+        previous.setDisable(scrollX <= .5); next.setDisable(scrollX >= scrollMax - .5);
+        previous.resizeRelocate(2, 4, 28, 26);
+        next.resizeRelocate(Math.max(30, getWidth() - 30), 4, 28, 26);
         if (Math.abs(w - appliedWidth) > 0.5) {
             appliedWidth = w;
             for (final CardNode c : cards) {
@@ -134,7 +149,7 @@ public class HandFan extends Pane {
         final double totalWidth = step * (n - 1) + w;
         final double x0 = EDGE_PAD + Math.max(0, (available - totalWidth) / 2.0);
         final double centre = (n - 1) / 2.0;
-        final double baseY = getHeight() - cardH - 4;
+        final double baseY = Math.max(0, getHeight() - cardH * (1 + ARC_DROP) - w * .07 - 4);
 
         for (int i = 0; i < n; i++) {
             final CardNode c = cards.get(i);
@@ -146,7 +161,7 @@ public class HandFan extends Pane {
             // StackPane coloca la imagen a su tamano natural y solo se ve una
             // esquina del arte. Hay que darle el tamano explicitamente.
             c.resize(w, cardH);
-            c.setLayoutX(x0 + i * step);
+            c.setLayoutX(x0 + i * step - scrollX);
             c.setLayoutY(baseY + Math.abs(t) * cardH * ARC_DROP);
             c.setRotate(c.isTapped() ? 90 : t * MAX_TILT);
             // Las de la derecha por encima: se lee como un abanico de verdad.
@@ -154,3 +169,5 @@ public class HandFan extends Pane {
         }
     }
 }
+
+

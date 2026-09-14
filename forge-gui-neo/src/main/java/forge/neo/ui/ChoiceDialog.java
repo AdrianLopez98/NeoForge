@@ -356,11 +356,39 @@ public class ChoiceDialog<T> extends VBox {
                     }
                 }
             }
-            final double room = Math.max(220, scene.getHeight() * 0.74);
+            // Lo que va encima de las opciones sale de ese mismo alto: sin
+            // restarlo, con la fila de contexto puesta el dialogo se salia de
+            // la ventana por abajo y con el el boton de aceptar.
+            final double above = context == null ? 0 : context.prefHeight(wrap) + getSpacing();
+            final double room = Math.max(220, scene.getHeight() * 0.74 - above);
             final double needed = items.prefHeight(wrap) + 16;
             scroll.setPrefViewportHeight(Math.min(room, needed));
         }
         super.layoutChildren();
+    }
+
+    /** Lo que va entre el titulo y las opciones. Ver {@link #setContext}. */
+    private Region context;
+
+    /**
+     * Algo que hay que ver ANTES de elegir, entre el titulo y las opciones.
+     *
+     * <p>Hoy lo usa el modo de un disparo para ensenyar de que carta habla
+     * ({@code forge.neo.match.TriggerSubject}): con tres disparos iguales, el
+     * titulo y los modos son identicos y lo unico que cambia es esto. Va fuera
+     * del visor con barra a proposito: si hubiera que desplazarse para verlo,
+     * se elegiria sin verlo.
+     */
+    public void setContext(final Region content) {
+        if (context != null) {
+            getChildren().remove(context);
+        }
+        context = content;
+        if (content != null) {
+            getChildren().add(getChildren().indexOf(heading) + 1, content);
+        }
+        sized = false;
+        requestLayout();
     }
 
     private void updateState() {

@@ -79,6 +79,9 @@ public class PlayerField extends Pane {
         this.exile = new ZonePile(NeoText.get("zone.exile"), baseCardWidth * 0.62);
 
         setPickOnBounds(false);
+        landRow.getStyleClass().add("arena-lands");
+        permanentRow.getStyleClass().add("arena-permanents");
+        creatureRow.getStyleClass().add("arena-creatures");
         // Las criaturas avanzan hacia la linea de combate al atacar o bloquear:
         // el campo propio empuja hacia arriba y el del rival hacia abajo, de
         // modo que las dos lineas se acercan como en Arena.
@@ -295,7 +298,7 @@ public class PlayerField extends Pane {
         final double h = getHeight();
 
         final double stripW = pilesOnBoard ? graveyard.getCardWidth() * 2 + 18 : 0;
-        final double rowsW = Math.max(120, w - stripW - 12);
+        final double rowsW = Math.max(1, w - stripW - 20);
 
         final int nCreatures = creatureRow.slotCount();
         final int nPermanents = permanentRow.slotCount();
@@ -304,7 +307,7 @@ public class PlayerField extends Pane {
         // --- ancho de los dos grupos de la fila de atras ---
         // Se reparte a proporcion de cuantas cartas tiene cada uno, con un
         // hueco en medio que es lo que hace que se lean como grupos distintos.
-        final double groupGap = baseCardWidth * 0.55;
+        final double groupGap = Math.max(20, baseCardWidth * 0.24);
         double permW = 0;
         double landW = 0;
         if (nPermanents > 0 && nLands > 0) {
@@ -422,7 +425,7 @@ public class PlayerField extends Pane {
         }
         final double pileW = graveyard.getCardWidth();
         final double pileH = graveyard.prefHeight(pileW);
-        final double x = w - stripW + 6;
+        final double x = w - stripW - 6;
         final double y = Math.max(0, (h - pileH) / 2);
         graveyard.resizeRelocate(x, y, pileW + 6, pileH);
         exile.resizeRelocate(x + pileW + 12, y, pileW + 6, pileH);
@@ -450,3 +453,5 @@ public class PlayerField extends Pane {
         return baseCardWidth;
     }
 }
+
+

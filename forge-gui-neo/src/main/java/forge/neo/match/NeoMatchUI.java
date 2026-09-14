@@ -421,10 +421,42 @@ public class NeoMatchUI extends NetworkGuiGame {
      * game? (Click on the portrait)", objetivos que son jugadores, a quien
      * atacas). Sin esto la partida se queda esperando para siempre.
      */
+    // Explicit opponent choice belongs to this game/turn, not to a visual seat.
+    // InputAttack resets its defender on entry; restore the user's choice with
+    // the normal selectPlayer input immediately before selecting an attacker.
+    private PlayerView chosenAttackPlayer;
+    private int chosenAttackGame = -1;
+    private int chosenAttackTurn = -1;
+
+    private void rememberAttackPlayer(final PlayerView player) {
+        final GameView gv = getGameView();
+        if (gv == null || player == null || isLocalPlayer(player) || payingMana || isSelecting() || getSelectionMax() > 0
+                || !isLocalPlayer(gv.getPlayerTurn()) || !player.isOpponentOf(gv.getPlayerTurn())) return;
+        final PhaseType phase = gv.getPhase();
+        if (phase != PhaseType.MAIN1 && phase != PhaseType.COMBAT_BEGIN
+                && phase != PhaseType.COMBAT_DECLARE_ATTACKERS) return;
+        chosenAttackPlayer = player;
+        chosenAttackGame = gv.getId();
+        chosenAttackTurn = gv.getTurn();
+    }
+
+    private PlayerView attackPlayerFor(final CardView card) {
+        final GameView gv = getGameView();
+        if (!isDeclaringAttackers() || chosenAttackPlayer == null || gv == null
+                || gv.getId() != chosenAttackGame || gv.getTurn() != chosenAttackTurn
+                || card.getZone() != ZoneType.Battlefield || !isLocalPlayer(card.getController())
+                || card.getCurrentState() == null || !card.getCurrentState().isCreature()) return null;
+        for (final PlayerView player : gv.getPlayers()) {
+            if (player.equals(chosenAttackPlayer) && !player.getHasLost()) return player;
+        }
+        return null;
+    }
+
     private void onPlayerClicked(final PlayerView player) {
         if (!interactive() || player == null || finished.get()) {
             return;
         }
+        rememberAttackPlayer(player);
         respondLater(() -> getGameController().selectPlayer(player, null));
     }
 
@@ -445,6 +477,7 @@ public class NeoMatchUI extends NetworkGuiGame {
         if (!interactive() || player == null || finished.get()) {
             return;
         }
+        rememberAttackPlayer(player);
         if (!isDeclaringAttackers() || isHighlighted(player)) {
             return;
         }
@@ -473,11 +506,28 @@ public class NeoMatchUI extends NetworkGuiGame {
         if (gv == null || gv.getPhase() != PhaseType.COMBAT_DECLARE_ATTACKERS) {
             return false;
         }
-        return !payingMana && !isSelecting() && isLocalPlayer(gv.getPlayerTurn());
+        return !payingMana && !isSelecting() && getSelectionMax() <= 0 && isLocalPlayer(gv.getPlayerTurn());
     }
 
     private void onCardClicked(final CardView card) {
         if (!interactive() || card == null || finished.get()) {
+            return;
+        }
+
+        // A planeswalker/battle explicitly selected for attack supersedes a player choice.
+        if (isDeclaringAttackers() && card.getCurrentState() != null
+                && (card.getCurrentState().isBattle() || (card.getCurrentState().isPlaneswalker()
+                && !isLocalPlayer(card.getController())))) chosenAttackPlayer = null;
+        final PlayerView chosen = attackPlayerFor(card);
+        if (chosen != null) {
+            lastClicked = card;
+            respondLater(() -> {
+                // Revalidate when the queued input runs: a phase/turn may have changed.
+                if (!chosen.equals(attackPlayerFor(card))) return;
+                getGameController().selectPlayer(chosen, null);
+                if (!isHighlighted(chosen)) return; // engine rejected this defender
+                getGameController().selectCard(card, null, null);
+            });
             return;
         }
 
@@ -616,7 +666,9 @@ public class NeoMatchUI extends NetworkGuiGame {
      */
     private CardView attackerToSelectFirst(final CardView card) {
         final GameView gv = getGameView();
-        if (gv == null || card == null || !card.isBlocking() || isSelecting() || payingMana) {
+        if (gv == null || gv.getPhase() != PhaseType.COMBAT_DECLARE_BLOCKERS
+                || card == null || !isLocalPlayer(card.getController()) || !card.isBlocking()
+                || isSelecting() || getSelectionMax() > 0 || payingMana) {
             return null;
         }
         final forge.game.combat.CombatView combat = gv.getCombat();
@@ -673,6 +725,151 @@ public class NeoMatchUI extends NetworkGuiGame {
         lastManaSource = null;
         respondLater(() -> getGameController().undoLastAction());
     }
+
+    // ---- lo que piden los atajos de teclado (ver forge.neo.NeoShortcuts) ----
+
+    /**
+     * Pasar hasta el final del turno: el atajo de "pasar turno".
+     *
+     * <p>Es el "End Turn" de la GUI de Forge ({@code CDock}), que no hace otra
+     * cosa que {@code YieldController.endTurn}. Pero eso solo <b>arma</b> el
+     * pase: la prioridad que tienes delante sigue esperando, con OK apagado, y
+     * una tecla que deja la mesa esperando parece que no ha hecho nada. Asi que,
+     * si lo que hay delante es el aviso rutinario de prioridad
+     * ({@link #isRoutinePriorityPrompt}), se pulsa OK tambien — que en
+     * {@code InputPassPriority.onOk} es pasar, sin mas.
+     *
+     * <p>Si lo que hay delante es otra cosa (declarar atacantes, elegir, pagar)
+     * no se toca: un OK ahi confirmaria algo que el jugador no ha decidido. El
+     * pase ya armado se encarga del resto en cuanto conteste.
+     */
+    public boolean passTurn() {
+        if (!interactive() || finished.get()) {
+            return false;
+        }
+        final IGameController gc = getGameController();
+        final PlayerView me = getCurrentPlayer();
+        if (gc == null || me == null) {
+            return false;
+        }
+        final String prompt = lastPrompt;
+        final boolean passNow = !payingMana && !isSelecting() && getSelectionMax() <= 0
+                && prompt != null && isRoutinePriorityPrompt(prompt);
+        respondLater(() -> {
+            YieldController.endTurn(gc, me);
+            if (passNow) {
+                gc.selectButtonOk();
+            }
+        });
+        return true;
+    }
+
+    /**
+     * "Atacar con todo". Lo decide el motor ({@code alphaStrike}), que solo
+     * hace algo mientras se declaran atacantes; el resto del tiempo no pasa nada.
+     */
+    public boolean alphaStrike() {
+        if (!interactive() || finished.get()) {
+            return false;
+        }
+        final IGameController gc = getGameController();
+        if (gc == null) {
+            return false;
+        }
+        respondLater(gc::alphaStrike);
+        return true;
+    }
+
+    /** El menu de click derecho del stack, para lo de arriba. False si esta vacio. */
+    public boolean openTopStackMenu() {
+        final StackItemView top = topOfStack();
+        if (!interactive() || finished.get() || top == null) {
+            return false;
+        }
+        showStackMenu(top);
+        return true;
+    }
+
+    /**
+     * "No me vuelvas a parar por esto", para lo de arriba del stack: la Y y la N
+     * de Forge ({@code KeyboardShortcuts.actAutoYieldAndYes/No}).
+     *
+     * <p>Hace lo mismo que las opciones del menu del stack, con la misma regla:
+     * la respuesta fija solo se pone si es un disparo opcional <b>tuyo</b>; en
+     * cualquier otro caso es solo dejarlo pasar.
+     *
+     * @return lo que hay que decirle al jugador, o null si no hay partida. Nunca
+     *     en silencio: esto se recuerda <b>entre partidas</b>, y una tecla pulsada
+     *     sin querer tiene que verse (y el mensaje dice donde se deshace).
+     */
+    public String autoYieldTop(final boolean yes) {
+        if (!interactive() || finished.get()) {
+            return null;
+        }
+        final IGameController gc = getGameController();
+        final StackItemView top = topOfStack();
+        final String key = top == null ? null : top.getKey();
+        if (gc == null || top == null || !top.isAbility() || key == null || key.isEmpty()) {
+            return NeoText.get("shortcuts.autoYield.none");
+        }
+        final boolean decides = top.isOptionalTrigger() && isLocalPlayer(top.getActivatingPlayer());
+        if (decides) {
+            gc.setTriggerDecision(key, yes ? AutoYieldStore.TriggerDecision.ACCEPT
+                    : AutoYieldStore.TriggerDecision.DECLINE, abilityScope(gc));
+        }
+        gc.setShouldAutoYield(key, true, abilityScope(gc));
+        refreshYieldUi(getCurrentPlayer());
+        final String name = top.getSourceCard() == null ? ""
+                : forge.neo.card.CardText.nameOf(top.getSourceCard());
+        if (!decides) {
+            return NeoText.get("shortcuts.autoYield.pass", name);
+        }
+        return NeoText.get(yes ? "shortcuts.autoYield.yes" : "shortcuts.autoYield.no", name);
+    }
+
+    /**
+     * Control total: que la prioridad NO se pase sola.
+     *
+     * <p>El pase automatico lo enciende {@code NeoGame.applyEnginePrefs} en cada
+     * partida ({@code YIELD_AUTO_PASS_NO_ACTIONS}). Aqui se apaga y se enciende
+     * <b>solo para esta partida y en memoria</b>, con el override del
+     * {@code YieldController} de este controlador — el mismo sitio que usa
+     * {@code SafeActions}. No se usa {@code YieldController.toggleAutoPassOrStopAll},
+     * que es lo que hace la P de Forge, porque ese llama a {@code prefs.save()}
+     * y escribiria en el {@code %APPDATA%\Forge} que compartimos con la
+     * instalacion vieja.
+     *
+     * <p>{@code setYieldPref} va detras: en local solo reintenta pasar cuando se
+     * vuelve a encender (es lo que hace que no te quedes con la prioridad en la
+     * mano), y en red es lo que se lo cuenta al anfitrion.
+     *
+     * @return como ha quedado (true = control total), o null si no hay partida
+     */
+    public Boolean toggleFullControl() {
+        if (!interactive() || finished.get()) {
+            return null;
+        }
+        final IGameController gc = getGameController();
+        if (gc == null || gc.getYieldController() == null) {
+            return null;
+        }
+        final boolean on = !fullControl;
+        fullControl = on;
+        final String autoPass = String.valueOf(!on);
+        final forge.localinstance.properties.ForgePreferences.FPref pref =
+                forge.localinstance.properties.ForgePreferences.FPref.YIELD_AUTO_PASS_NO_ACTIONS;
+        respondLater(() -> {
+            gc.getYieldController().setPref(pref, autoPass);
+            if (on) {
+                gc.getYieldController().clearActiveYieldAndDispatch();
+            }
+            gc.setYieldPref(pref, autoPass);
+        });
+        return on;
+    }
+
+    /** Si el jugador ha puesto el control total en esta partida. */
+    private volatile boolean fullControl;
 
     /** Ultima carta que ha clicado el jugador. */
     private volatile CardView lastClicked;
@@ -779,16 +976,55 @@ public class NeoMatchUI extends NetworkGuiGame {
         if (!interactive() || source == null || finished.get()) {
             return;
         }
-        if (fromHand || target == null) {
+        if (fromHand) {
             respondLater(() -> getGameController().selectCard(source, null, null));
             return;
         }
-        if (target instanceof PlayerView player) {
-            respondLater(() -> getGameController().selectPlayer(player, null));
-        } else if (target instanceof CardView card && card.getId() != source.getId()) {
-            respondLater(() -> getGameController().selectCard(card, null, null));
+        if (target == null) {
+            onCardClicked(source);
+            return;
         }
-        respondLater(() -> getGameController().selectCard(source, null, null));
+        final GameView gv = getGameView();
+        final boolean ownCreature = source.getZone() == ZoneType.Battlefield
+                && isLocalPlayer(source.getController()) && source.getCurrentState() != null
+                && source.getCurrentState().isCreature();
+        final boolean attacking = ownCreature && isDeclaringAttackers();
+        final boolean blocking = ownCreature && gv != null
+                && gv.getPhase() == PhaseType.COMBAT_DECLARE_BLOCKERS
+                && !payingMana && !isSelecting() && getSelectionMax() <= 0;
+        // Two inputs mean target-then-creature only during combat. Elsewhere
+        // the first could resolve a prompt and send the second to a new input.
+        if (!attacking && !blocking) {
+            onCardClicked(source);
+            return;
+        }
+        if (attacking) {
+            final boolean playerTarget = target instanceof PlayerView p && !p.getHasLost()
+                    && p.isOpponentOf(source.getController());
+            final boolean cardTarget = target instanceof CardView c && c.getZone() == ZoneType.Battlefield
+                    && c.getCurrentState() != null && (c.getCurrentState().isBattle()
+                    || (c.getCurrentState().isPlaneswalker() && c.getController() != null
+                    && c.getController().isOpponentOf(source.getController())));
+            if (!playerTarget && !cardTarget) return;
+        } else if (!(target instanceof CardView c) || gv.getCombat() == null
+                || !contains(gv.getCombat().getAttackers(), c)) {
+            return;
+        }
+        if (target instanceof PlayerView player) {
+            rememberAttackPlayer(player);
+            respondLater(() -> {
+                getGameController().selectPlayer(player, null);
+                if (attacking && !isHighlighted(player)) return;
+                getGameController().selectCard(source, null, null);
+            });
+        } else if (target instanceof CardView card && card.getId() != source.getId()) {
+            if (isDeclaringAttackers()) chosenAttackPlayer = null;
+            respondLater(() -> {
+                getGameController().selectCard(card, null, null);
+                if (attacking && !isHighlighted(card)) return;
+                getGameController().selectCard(source, null, null);
+            });
+        }
     }
 
     /**
@@ -1645,6 +1881,9 @@ public class NeoMatchUI extends NetworkGuiGame {
         // no se limpiara la marca de terminada, los clicks se seguirian
         // descartando y la segunda partida naceria muerta.
         finished.set(false);
+        // El control total es de la partida: su override vive en el controlador
+        // de la anterior, asi que la nueva empieza con el pase de siempre.
+        fullControl = false;
         closeNotified.set(false);
         // El aviso de "el motor se ha muerto" es de un solo uso: si no se
         // rearma aqui, la segunda partida se rompe en silencio.
@@ -2011,8 +2250,16 @@ public class NeoMatchUI extends NetworkGuiGame {
             // precombat / Stack: Empty") tiene la respuesta escondida entre
             // cuatro renglones en ingles, y era la unica forma de saber de quien
             // era el turno.
-            final String shown = (isRoutinePriorityPrompt(message)
-                    ? routinePrompt() : frontLoadInstruction(message))
+            // Y lo ultimo: traducir lo que el motor escribio en ingles a la
+            // fuerza (el "Select target creature you control" del TgtPrompt$ de
+            // la carta). Va AQUI, al final, y no antes: todo lo de arriba
+            // RECONOCE el mensaje del motor - el aviso roto de ataque, la
+            // pregunta del comandante, el prompt rutinario -, y reconocer sobre
+            // un texto que ya hemos reescrito seria reconocer lo nuestro. Ver
+            // EngineText, que no es EnginePhrase.
+            final String shown = forge.neo.EngineText.prompt(
+                    (isRoutinePriorityPrompt(message)
+                            ? routinePrompt() : frontLoadInstruction(message)))
                     + pickedSuffix();
             if (!shown.equals(message)) {
                 trace("prompt reordenado: %s", shown.replace(System.lineSeparator(), " | "));
@@ -3443,6 +3690,18 @@ public class NeoMatchUI extends NetworkGuiGame {
     private <T> List<T> askChoice(final String title, final List<T> options,
                                   final int min, final int max,
                                   final FSerializableFunction<T, String> display) {
+        return askChoice(title, options, min, max, display, List.of());
+    }
+
+    /**
+     * El mismo, ensenyando ademas de que carta habla el disparo que pregunta.
+     *
+     * @param about vacio casi siempre; ver {@link TriggerSubject}
+     */
+    private <T> List<T> askChoice(final String title, final List<T> options,
+                                  final int min, final int max,
+                                  final FSerializableFunction<T, String> display,
+                                  final List<TriggerSubject.Subject> about) {
         if (options == null || options.isEmpty()) {
             return new ArrayList<>();
         }
@@ -3458,6 +3717,9 @@ public class NeoMatchUI extends NetworkGuiGame {
                     title, options, lo, hi,
                     display == null ? String::valueOf : display::apply,
                     handCardWidth(), reply::accept);
+            if (about != null && !about.isEmpty()) {
+                dialog.setContext(subjectRow(about));
+            }
             table.getOverlay().show(dialog);
         }, null);
 
@@ -3470,6 +3732,23 @@ public class NeoMatchUI extends NetworkGuiGame {
             safe.add(options.get(i));
         }
         return safe;
+    }
+
+    /**
+     * Las cartas de las que habla un disparo, con los nombres ya en el idioma
+     * de la partida. Se monta en el hilo de interfaz, como el resto del dialogo.
+     */
+    private forge.neo.ui.TriggerSubjectRow subjectRow(final List<TriggerSubject.Subject> about) {
+        final List<forge.neo.ui.TriggerSubjectRow.Entry> entries = new ArrayList<>();
+        for (final TriggerSubject.Subject s : about) {
+            final GameEntityView who = s.attacking();
+            final String attacking = who instanceof PlayerView p ? PlayerName.of(p)
+                    : who instanceof CardView c ? forge.neo.card.CardText.nameOf(c)
+                    : null;
+            entries.add(new forge.neo.ui.TriggerSubjectRow.Entry(
+                    s.card(), forge.neo.card.CardText.nameOf(s.card()), attacking));
+        }
+        return new forge.neo.ui.TriggerSubjectRow(entries, handCardWidth() * 0.7);
     }
 
     /**
@@ -3752,7 +4031,12 @@ public class NeoMatchUI extends NetworkGuiGame {
                     return one;
                 }
             }
-            return askChoice(message, choices, min, max, display);
+            // Si es el modo de un disparo, de QUE carta habla: con tres
+            // disparos de Jin Sakai, uno por atacante, las tres preguntas eran
+            // identicas. Se lee aqui, en el hilo que pregunta, porque es donde
+            // lo apunto el controlador. Ver TriggerSubject.
+            return askChoice(message, choices, min, max, display,
+                    TriggerSubject.forChoices(choices));
         }
         // Coger los primeros 'min'.
         final List<T> out = new ArrayList<>();
@@ -4639,3 +4923,4 @@ public class NeoMatchUI extends NetworkGuiGame {
     @Override
     public void hideZones(final PlayerView playerView, final Iterable<PlayerZoneUpdate> zones) { }
 }
+

@@ -1144,12 +1144,12 @@ public class QuestShopScreen extends StackPane {
      * nada.
      */
     private Region openedPanel(final NeoQuestShop.Opened opened) {
-        return CardHaul.panel(
+        return new PackOpening(
                 NeoText.get("shop.opened", pack.getName()),
                 NeoText.get("shop.openedDetail", opened.getCards().size(),
                         opened.getNewCount(), opened.getPaid()),
-                opened.getCards(), opened::isNew, null,
-                cardWidth, getWidth(), getHeight(),
+                opened.getCards(), opened::isNew,
+                getWidth(), getHeight(),
                 this::closeOpened);
     }
 
@@ -1571,6 +1571,7 @@ public class QuestShopScreen extends StackPane {
             if (picked == null || opening) {
                 return;
             }
+            final String productName = naming.apply(picked);
             final NeoQuestShop.Opened bought = purchase.apply(picked);
             if (bought == null) {
                 return;
@@ -1580,7 +1581,12 @@ public class QuestShopScreen extends StackPane {
             refresh();
             refreshMoney();
             overlay.setOnBackgroundClick(QuestShopScreen.this::closeOpened);
-            overlay.show(CardHaul.panel(
+            if (tab == Tab.BOXES || tab == Tab.COLLECTOR) {
+                overlay.show(new PackOpening(haulTitle + " · " + productName,
+                        NeoText.get("shop.openedDetail", bought.getCards().size(), bought.getNewCount(), bought.getPaid()),
+                        bought.getCards(), bought::isNew, QuestShopScreen.this.getWidth(), QuestShopScreen.this.getHeight(),
+                        QuestShopScreen.this::closeOpened));
+            } else overlay.show(CardHaul.panel(
                     haulTitle,
                     NeoText.get("shop.openedDetail", bought.getCards().size(),
                             bought.getNewCount(), bought.getPaid()),

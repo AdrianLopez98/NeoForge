@@ -29,6 +29,25 @@ línea de reglas es nuestra.**
 - **Deck builder** con catálogo buscable, curva de maná, cambio de arte e importación de
   decklists de Moxfield y Archidekt.
 - **Diez idiomas**, los mismos que Forge, y en ocho de ellos también los nombres de las cartas.
+- **Atajos de teclado configurables**, con tres estilos de partida para empezar: el de
+  NeoForge, el de Forge y el de Arena (ver más abajo).
+
+### Atajos de teclado
+
+Ajustes → *Teclado* → *Ver y cambiar* (o **H** durante una partida) abre la lista de atajos.
+Se consultan y se cambian ahí mismo: clic en el hueco y se pulsa la tecla nueva; Retroceso la
+quita y Esc cancela. Cada acción admite dos teclas.
+
+- **NeoForge**, el de fábrica: Espacio pasa prioridad, Ctrl+E pasa hasta el final del turno,
+  Ctrl+A ataca con todo, Ctrl+Z deshace, Z amplía la carta bajo el ratón, L abre el registro,
+  S despliega el stack, Ctrl+Q se rinde (preguntando antes) y H enseña los atajos.
+- **Forge**: lo mismo, más Y / N (siempre sí / siempre no al disparo de arriba del stack) y
+  P (pasar la prioridad sola o no).
+- **Arena**: Espacio pasa, Enter y Mayús+Enter pasan el turno, Z deshace y Ctrl+Mayús es el
+  control total.
+
+Esc no se puede reasignar: abre siempre la pausa y los ajustes, que es por donde se llega a
+cambiar el resto.
 
 ### Ver todas las mesas a la vez
 

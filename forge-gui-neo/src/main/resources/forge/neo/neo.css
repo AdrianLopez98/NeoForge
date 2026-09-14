@@ -1599,6 +1599,21 @@
     -fx-alignment: center;
 }
 
+/* "Disparado por": de que carta habla el disparo cuyo modo eliges (ver
+   TriggerSubjectRow). El rival va en el color de "a quien apunta" del stack
+   pero del tamanyo del nombre: con dos fichas iguales atacando es lo UNICO que
+   las distingue, y en letra de pie de pagina no se lee. */
+.trigger-subject-name {
+    -fx-font-size: 1.05em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -neo-text;
+}
+
+.trigger-subject-attacking {
+    -fx-font-size: 1.05em;
+    -fx-text-fill: -neo-accent;
+}
+
 
 /* ---------- visor de zonas (cementerio, exilio, mando, biblioteca) ---------- */
 
@@ -2867,4 +2882,188 @@
     -fx-font-size: 0.95em;
     -fx-font-weight: 700;
     -fx-padding: 4 0 0 0;
+}
+
+/* Arena desktop: presentation layer, original engraved stone and bronze. */
+.table-root {
+    -neo-text: #f0e9dc;
+    -neo-text-dim: #b0b3b8;
+    -neo-line: #4c4439;
+    -neo-accent: #66bde8;
+    -fx-background-color: #0c1015;
+}
+.arena-backdrop {
+    -fx-background-color: radial-gradient(center 50% 44%, radius 73%, #34383a 0%, #20292e 43%, #111820 78%, #0b1017 100%);
+}
+.table-root .arena-sidebar {
+    -fx-background-color: linear-gradient(to right, rgba(8,12,17,.72), rgba(8,12,17,.97));
+    -fx-border-color: transparent transparent transparent #66513b;
+    -fx-border-width: 0 0 0 1;
+}
+.table-root .player-bar {
+    -fx-background-color: linear-gradient(to right, rgba(7,12,18,.94), rgba(17,25,32,.72), rgba(10,16,22,.4));
+    -fx-border-color: transparent transparent rgba(181,150,97,.32) transparent;
+    -fx-border-width: 0 0 1 0;
+}
+.table-root .player-bar-self {
+    -fx-border-color: rgba(181,150,97,.4) transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+}
+.table-root .player-bar-self:active {
+    -fx-background-color: linear-gradient(to right, rgba(30,63,79,.92), rgba(15,29,39,.82), rgba(9,16,23,.7));
+    -fx-border-color: #66bde8 transparent transparent transparent;
+    -fx-border-width: 2 0 0 0;
+}
+.table-root .player-bar:active .avatar {
+    -fx-stroke: #ebc482;
+    -fx-effect: dropshadow(gaussian, rgba(236,187,107,.4), 15, .2, 0, 0);
+}
+.table-root .avatar { -fx-stroke: #a48558; -fx-stroke-width: 2; }
+.table-root .life { -fx-font-size: 2.4em; }
+.table-root .phase-rail {
+    -fx-background-color: linear-gradient(to bottom, #111820, #182129);
+    -fx-border-color: transparent transparent #66513b transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-background-radius: 0; -fx-border-radius: 0;
+}
+.table-root .phase-stop { -fx-padding: 3 5; -fx-font-size: .84em; -fx-background-radius: 2; }
+.table-root .phase-stop:current {
+    -fx-background-color: linear-gradient(to bottom, #e9c68a, #a67c46);
+    -fx-text-fill: #171b20;
+}
+.table-root .phase-stop:stop { -fx-border-color: #8acbe9; }
+.table-root .combat-line {
+    -fx-stroke: #b3976a; -fx-stroke-dash-array: 10000 1; -fx-opacity: .3;
+}
+.table-root .arena-lands {
+    -fx-background-color: linear-gradient(to top, rgba(80,92,78,.18), transparent);
+    -fx-border-color: transparent transparent rgba(176,167,115,.28) transparent;
+}
+.table-root .arena-permanents {
+    -fx-background-color: linear-gradient(to top, rgba(96,76,104,.18), transparent);
+    -fx-border-color: transparent transparent rgba(173,143,179,.32) transparent;
+}
+.table-root .stack-box {
+    -fx-background-color: rgba(16,23,30,.86); -fx-border-color: #68533c;
+    -fx-background-radius: 3; -fx-border-radius: 3;
+}
+.table-root .action-bar {
+    -fx-background-color: linear-gradient(to bottom, #222c34, #121a22);
+    -fx-border-color: #9c7a48; -fx-border-width: 1;
+    -fx-background-radius: 4; -fx-border-radius: 4;
+}
+.table-root .action-bar .btn-primary {
+    -fx-background-color: linear-gradient(to bottom, #e4ac5c, #a96129);
+    -fx-text-fill: #171615; -fx-border-color: #f0c67a;
+    -fx-border-width: 1; -fx-font-weight: bold;
+    -fx-effect: dropshadow(gaussian, rgba(220,137,57,.25), 14, .15, 0, 0);
+}
+.table-root .action-bar .btn-primary:hover { -fx-background-color: #f2c77c; }
+.table-root .action-bar .btn-primary:disabled { -fx-opacity: .4; -fx-effect: null; }
+.table-root .hand-area {
+    -fx-background-color: linear-gradient(to top, rgba(5,9,14,.98), rgba(12,22,30,.55), transparent);
+}
+.table-root .zone-pile-face {
+    -fx-fill: linear-gradient(to bottom, #39404b, #181f2b); -fx-stroke: #ac8a56;
+}
+.table-root .card-border { -fx-stroke: rgba(228,207,160,.4); }
+.table-root .arena-scroll {
+    -fx-background-color: rgba(12,20,29,.95); -fx-text-fill: #f0d5a4;
+    -fx-border-color: #a98751; -fx-border-radius: 3; -fx-background-radius: 3;
+    -fx-padding: 0; -fx-font-size: 18px; -fx-cursor: hand;
+}
+.table-root .arena-scroll:disabled { -fx-opacity: .3; }
+
+/* Interaction states override every decorative HUD treatment. */
+.table-root .player-bar:selectable {
+    -fx-border-color: -neo-accent; -fx-border-width: 2;
+}
+.table-root .player-bar:highlighted {
+    -fx-background-color: linear-gradient(to right, rgba(224,166,60,.32), rgba(11,14,19,.8));
+    -fx-border-color: -neo-warn; -fx-border-width: 2;
+}
+
+/* Editor de mazos: catálogo amplio y lista ilustrada, acento bronce. */
+.deck-builder {
+    -neo-accent: #d4a466;
+    -fx-font-size: 13px;
+    -fx-background-color: radial-gradient(center 35% 0%, radius 100%, #242b35 0%, #10151c 55%, #090e14 100%);
+}
+.deck-builder .builder-header { -fx-border-color: transparent transparent #4a3c2c transparent; -fx-border-width: 0 0 1 0; }
+.deck-builder .builder-title { -fx-font-size: 25px; -fx-font-weight: bold; -fx-text-fill: #f2eadb; }
+.deck-builder .builder-format { -fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #d4a466; }
+.deck-builder .home-summary { -fx-font-size: 12px; -fx-text-fill: #b7c2cf; }
+.deck-builder .home-summary:invalid { -fx-text-fill: #e2b775; }
+.deck-builder .builder-columns { -fx-padding: 16 24 0 24; }
+.deck-builder .builder-catalogue { -fx-background-color: rgba(10,15,22,.48); -fx-background-radius: 8; -fx-border-color: #343943; -fx-border-radius: 8; }
+.deck-builder .caption { -fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #cbb992; }
+.deck-builder .text-input { -fx-font-size: 13px; -fx-padding: 9 12; -fx-background-color: #090f17; -fx-border-color: #55606e; -fx-border-radius: 4; }
+.deck-builder .text-input:focused { -fx-border-color: #d4a466; }
+.deck-builder .segment { -fx-font-size: 11px; -fx-padding: 7 9; -fx-background-color: #202832; -fx-text-fill: #c3cbd6; -fx-border-color: #404a56; -fx-border-radius: 4; }
+.deck-builder .segment:selected { -fx-background-color: #705532; -fx-text-fill: #fff2da; -fx-border-color: #d4a466; }
+.deck-builder .colour-filter { -fx-min-width: 28; -fx-min-height: 30; -fx-padding: 5 6; -fx-background-radius: 20; -fx-border-radius: 20; }
+.deck-builder .colour-filter:selected { -fx-border-width: 2; }
+.deck-builder .builder-advanced { -fx-padding: 12; -fx-background-color: #141e2a; -fx-background-radius: 6; -fx-border-color: #394653; -fx-border-radius: 6; }
+.deck-builder .builder-pagebar { -fx-padding: 7 0 2 0; -fx-border-color: #303a46 transparent transparent transparent; }
+.deck-builder .dialog-counter { -fx-font-size: 10px; -fx-text-fill: #b4bfca; }
+.deck-builder .catalogue-tile { -fx-background-color: transparent; -fx-background-radius: 8; -fx-padding: 3; }
+.deck-builder .catalogue-tile:hover { -fx-background-color: #d2a262; -fx-effect: dropshadow(gaussian, rgba(218,166,93,.45), 16, .14, 0, 2); }
+.deck-builder .catalogue-count { -fx-font-size: 14px; -fx-font-weight: bold; -fx-padding: 4 9; -fx-background-color: #d4a466; -fx-text-fill: #10151c; -fx-background-radius: 12; }
+.deck-builder .deck-panel { -fx-background-color: linear-gradient(to bottom, #202b38, #101721); -fx-border-color: #746044; -fx-border-radius: 8; -fx-background-radius: 8; }
+.deck-builder .builder-deck-count { -fx-text-fill: #f3d5a4; -fx-font-size: 14px; -fx-font-weight: bold; }
+.deck-builder .deck-group { -fx-font-size: 11px; -fx-font-weight: bold; -fx-padding: 12 4 5 4; -fx-text-fill: #cab792; }
+.deck-builder .deck-row { -fx-background-color: #202a35; -fx-background-radius: 4; -fx-border-color: transparent; -fx-border-radius: 4; -fx-border-width: 1; }
+.deck-builder .deck-row:hover { -fx-border-color: #d4a466; }
+.deck-builder .deck-row:invalid { -fx-border-color: #db695b; }
+.deck-builder .deck-row-name { -fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #f5f0e6; }
+.deck-builder .deck-row-qty { -fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #f0ca8f; }
+.deck-builder .deck-row-cost { -fx-font-size: 10px; -fx-text-fill: #eee5d6; }
+.deck-builder .stepper { -fx-font-size: 14px; -fx-padding: 2 0; -fx-min-width: 24; -fx-pref-width: 24; -fx-max-width: 24; -fx-background-color: rgba(8,12,18,.82); -fx-border-color: #6b6355; -fx-text-fill: #f4e6cc; }
+.deck-builder .stepper:hover { -fx-background-color: #9c773f; }
+.deck-art-strip { -fx-background-color: #263746; }
+.deck-art-shade { -fx-background-color: linear-gradient(to right, rgba(8,14,21,.92) 0%, rgba(8,14,21,.72) 55%, rgba(8,14,21,.28) 100%); }
+.deck-builder .builder-commander { -fx-border-color: #aa844f; -fx-border-radius: 4; -fx-padding: 1; }
+.deck-builder .builder-commander-name { -fx-text-fill: #f1d6a6; -fx-font-size: 13px; -fx-font-weight: bold; -fx-padding: 8 12; }
+.deck-builder .builder-statistics > .title { -fx-background-color: #202c39; -fx-padding: 8; }
+.deck-builder .builder-statistics > .title > .text { -fx-fill: #d6c7ad; -fx-font-size: 10px; }
+.deck-builder .builder-statistics > .content { -fx-background-color: #101721; -fx-border-color: #384555; }
+.deck-builder .deck-stats { -fx-background-color: transparent; }
+.deck-builder .deck-stats .home-subtitle { -fx-font-size: 11px; }
+.deck-builder .mana-curve { -fx-background-color: #0c131d; -fx-background-radius: 5; }
+.deck-builder .curve-bar { -fx-background-color: linear-gradient(to top, #886238, #e3bb77); }
+.deck-builder .home-footer { -fx-background-color: #0b1119; -fx-border-color: #4a3c2c transparent transparent transparent; }
+.deck-builder .btn-secondary { -fx-font-size: 11px; -fx-padding: 8 12; -fx-border-color: #716149; -fx-text-fill: #e0d6c4; }
+.deck-builder .btn-primary { -fx-background-color: linear-gradient(to bottom, #edc68a, #be8a45); -fx-text-fill: #16140f; -fx-font-size: 13px; -fx-font-weight: bold; -fx-padding: 10 24; -fx-border-color: #f5d69f; -fx-border-width: 1; }
+.deck-builder .btn-primary:hover { -fx-background-color: #f1ce93; }
+
+.deck-builder .home-subtitle { -fx-font-size: 12px; -fx-text-fill: #abb8c8; }
+.deck-builder .curve-label, .deck-builder .curve-value { -fx-font-size: 10px; }
+.deck-builder .builder-mana-pip { -fx-font-size: 9px; -fx-font-weight: bold; -fx-text-fill: #18202a; -fx-background-color: #c0c6cd; -fx-background-radius: 20; -fx-padding: 1 2; -fx-alignment: center; }
+.deck-builder .builder-mana-w { -fx-background-color: #f0e9c6; }
+.deck-builder .builder-mana-u { -fx-background-color: #88c4e7; }
+.deck-builder .builder-mana-b { -fx-background-color: #b4a6bc; }
+.deck-builder .builder-mana-r { -fx-background-color: #e6987e; }
+.deck-builder .builder-mana-g { -fx-background-color: #98c7a1; }
+
+/* Adventure pack opening: presentation only, scoped to this overlay. */
+.pack-opening { -fx-background-color: radial-gradient(center 50% 42%, radius 75%, #243948, #090e18 70%); -fx-border-color: #a08048; -fx-border-width: 1; -fx-background-radius: 12; -fx-border-radius: 12; }
+.pack-opening .opening-title { -fx-font-size: 24px; -fx-font-weight: bold; -fx-text-fill: #f4d596; -fx-effect: dropshadow(gaussian, #bb7a3744, 14, 0.3, 0, 0); }
+.pack-opening .opening-detail { -fx-font-size: 12px; -fx-text-fill: #c6c5bc; }
+.pack-opening .opening-seal { -fx-background-color: linear-gradient(to bottom right, #233f50, #101d2d 45%, #394657 49%, #111c2a 53%, #263447); -fx-border-color: #e7bd70; -fx-border-width: 3 1 3 1; -fx-border-radius: 7; -fx-background-radius: 7; -fx-effect: dropshadow(gaussian, #e4a74388, 40, 0.2, 0, 0); -fx-cursor: hand; }
+.pack-opening .opening-seal:hover { -fx-effect: dropshadow(gaussian, #f9bc59bb, 60, 0.3, 0, 0); }
+.pack-opening .opening-crest { -fx-font-size: 90px; -fx-text-fill: #f6d596; }
+.pack-opening .opening-pack-label { -fx-font-size: 11px; -fx-text-fill: #efd7ab; -fx-font-weight: bold; }
+.pack-opening .opening-card-back { -fx-background-color: radial-gradient(center 50% 50%, radius 65%, #324b63, #111b2b 65%); -fx-border-color: #af925d; -fx-border-width: 2; -fx-background-radius: 9; -fx-border-radius: 9; -fx-cursor: hand; }
+.pack-opening .opening-rune { -fx-font-size: 66px; -fx-text-fill: #d1ae75; }
+.pack-opening .opening-card:hover, .pack-opening .opening-card:focused { -fx-effect: dropshadow(gaussian, #f6d797, 18, 0.35, 0, 0); }
+.pack-opening .opening-rare { -fx-effect: dropshadow(gaussian, #eec466, 22, 0.45, 0, 0); }
+.pack-opening .opening-mythic { -fx-effect: dropshadow(gaussian, #ff763c, 28, 0.5, 0, 0); }
+.pack-opening .opening-foil { -fx-border-color: #a2e9e5; -fx-border-radius: 8; }
+.pack-opening .btn-primary { -fx-background-color: linear-gradient(to bottom, #ecc986, #a77c40); -fx-text-fill: #17120b; -fx-font-weight: bold; -fx-padding: 10 24; }
+
+/* ---------- atajos de teclado ---------- */
+/* El hueco de una tecla. Centrado, para que las dos columnas de huecos se lean
+   como una tabla y no como botones sueltos. */
+.shortcut-key {
+    -fx-alignment: center;
 }

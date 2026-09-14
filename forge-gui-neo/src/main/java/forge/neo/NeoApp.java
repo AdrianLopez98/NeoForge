@@ -162,70 +162,35 @@ public class NeoApp extends Application implements SettingsPanel.Host {
 
         scene.setOnKeyPressed(ev -> {
             final boolean inGame = table != null && table.getScene() != null;
-            switch (ev.getCode()) {
-                case SPACE:
-                    // Pasar prioridad. Es lo que acaba usando todo el mundo.
-                    if (inGame && !table.isModalShowing() && table.getActionBar().pressPrimary()) {
-                        ev.consume();
-                    }
-                    break;
-                case ESCAPE:
-                    if (inGame) {
-                        // La carta ampliada se cierra primero: es lo que el
-                        // jugador tiene delante y lo que espera cerrar.
-                        if (table.isZoomShowing()) {
-                            table.hideZoom();
-                        } else {
-                            togglePauseMenu();
-                        }
+            if (ev.getCode() == javafx.scene.input.KeyCode.ESCAPE) {
+                // Escape NO es un atajo configurable: es la valvula de escape
+                // (principio 7), y es por donde se llega a cambiar los atajos.
+                if (inGame) {
+                    // La carta ampliada se cierra primero: es lo que el
+                    // jugador tiene delante y lo que espera cerrar.
+                    if (table.isZoomShowing()) {
+                        table.hideZoom();
                     } else {
-                        // Fuera de partida, Escape es lo que es en cualquier
-                        // juego: los ajustes. Escala de interfaz, idioma,
-                        // pantalla completa y volumen, sin tener que buscar el
-                        // boton de la esquina. Y vuelve a cerrarlos.
-                        showMenuSettings();
+                        togglePauseMenu();
                     }
-                    ev.consume();
-                    break;
-                case Z:
-                    if (inGame && ev.isControlDown()) {
-                        // Ctrl+Z deshace lo ultimo (tapear una tierra por error).
-                        undoLast();
-                        ev.consume();
-                    } else if (inGame) {
-                        // Z sola: amplia la carta que tenga el raton encima,
-                        // sin soltarlo. El click derecho ya hace lo mismo; esto
-                        // es para quien tiene la mano en el teclado.
-                        //
-                        // OJO: en la mesa la ampliacion es table.showZoom(card),
-                        // NO CardZoom.show(...) — ese es el mecanismo generico
-                        // de las demas pantallas (cambia la raiz de la escena) y
-                        // aqui haria dos cosas mal: se veria distinto del click
-                        // derecho de siempre, y sobre todo NO dispara
-                        // Gesture.ZOOM_CARD, que es lo que el tutorial espera
-                        // para cerrar su paso de "click derecho para leer".
-                        final forge.neo.card.CardNode hovered =
-                                forge.neo.ui.CardZoom.hoveredCardNode(table);
-                        if (hovered != null && hovered.getCard() != null) {
-                            table.showZoom(hovered.getCard());
-                            ev.consume();
-                        }
-                    }
-                    break;
-                case L:
-                    // El registro de la partida. Fuera del texto para no
-                    // robarle la letra a un buscador; en la mesa no hay
-                    // ninguno, asi que solo hace falta comprobar que se esta
-                    // jugando.
-                    if (inGame) {
-                        table.getLogButton().fire();
-                        ev.consume();
-                    }
-                    break;
-                default:
-                    break;
+                } else {
+                    // Fuera de partida, Escape es lo que es en cualquier
+                    // juego: los ajustes. Escala de interfaz, idioma,
+                    // pantalla completa y volumen, sin tener que buscar el
+                    // boton de la esquina. Y vuelve a cerrarlos.
+                    showMenuSettings();
+                }
+                ev.consume();
+                return;
+            }
+            // Lo demas son los atajos de partida, que se pueden cambiar en
+            // Ajustes. Ver NeoShortcuts y runShortcut.
+            if (inGame && runShortcut(ev)) {
+                ev.consume();
             }
         });
+        // Soltar una tecla rearma los atajos que no se repiten.
+        scene.addEventHandler(javafx.scene.input.KeyEvent.KEY_RELEASED, ev -> heldShortcuts.clear());
 
         // Cuando llegan imagenes de Scryfall, refrescar lo que se este viendo.
         // Llega UN aviso por tanda, no uno por imagen: esto de aqui abajo
@@ -393,7 +358,7 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 || args.contains("--mock-banner") || args.contains("--mock-alert")
                 || args.contains("--mock-error")
                 || args.contains("--mock-prompt") || args.contains("--mock-phase-ask")
-                || args.contains("--mock-prompt-nocard")
+                || args.contains("--mock-prompt-nocard") || args.contains("--mock-trigger-subject")
                 || args.contains("--anim-test") || args.contains("--mock-turn")
                 || args.contains("--mock-picked") || args.contains("--mock-crowded") || args.contains("--mock-stack")
                 || args.contains("--mock-aura") || args.contains("--mock-zone-pick")
@@ -620,8 +585,14 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                     togglePauseMenu();
                 }
                 if (args.contains("--mock-settings")) {
-                    table.getMenuOverlay().show(new SettingsPanel(
-                            this, () -> table.getMenuOverlay().hide()));
+                    final SettingsPanel mockSettings = new SettingsPanel(
+                            this, () -> table.getMenuOverlay().hide());
+                    table.getMenuOverlay().show(mockSettings);
+                    // -Dneo.settings.shortcuts=true entra en la pantalla de
+                    // atajos, por el mismo boton que tiene Ajustes.
+                    if (Boolean.getBoolean("neo.settings.shortcuts")) {
+                        mockSettings.showShortcuts();
+                    }
                     // -Dneo.settings.scroll=0..1 baja el visor: esta pantalla
                     // es mas larga que la ventana y sin esto la mitad de los
                     // ajustes no se puede capturar.
@@ -742,6 +713,29 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                             List.of("OK", "Cancelar"), 0,
                             table.zoomCardWidth() * 0.62,
                             i -> table.getOverlay().hide()));
+                    table.requestLayout();
+                }
+                if (args.contains("--mock-trigger-subject") && !table.selfFieldNodes().isEmpty()) {
+                    // El modo de un disparo con la carta de la que habla debajo
+                    // del titulo (ver forge.neo.match.TriggerSubject). Jugando
+                    // hace falta declarar un ataque, una criatura a cada rival,
+                    // y eso no se da sin raton. -Dneo.subject.count=N pone N
+                    // cartas en la fila, para ver como reparte el ancho.
+                    final int count = Math.max(1, Integer.getInteger("neo.subject.count", 1));
+                    final List<forge.neo.ui.TriggerSubjectRow.Entry> entries = new ArrayList<>();
+                    final String[] rivals = {"Paige", "Ellen", "Lily", "Paige"};
+                    for (int i = 0; i < count && i < table.selfFieldNodes().size(); i++) {
+                        final forge.game.card.CardView cv = table.selfFieldNodes().get(i).getCard();
+                        entries.add(new forge.neo.ui.TriggerSubjectRow.Entry(cv,
+                                forge.neo.card.CardText.nameOf(cv), rivals[i % rivals.length]));
+                    }
+                    final forge.neo.ui.ChoiceDialog<String> dialog = new forge.neo.ui.ChoiceDialog<>(
+                            "Ana activated Jin Sakai, Ghost of Tsushima - Choose a mode",
+                            List.of("Standoff — It gains double strike until end of turn.",
+                                    "Ghost — It can't be blocked this turn."),
+                            1, 1, s -> s, 132, picked -> table.getOverlay().hide());
+                    dialog.setContext(new forge.neo.ui.TriggerSubjectRow(entries, 132 * 0.7));
+                    table.getOverlay().show(dialog);
                     table.requestLayout();
                 }
                 if (args.contains("--mock-gameover")) {
@@ -1122,6 +1116,33 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 go.play();
             }
         }
+        // -Dneo.shortcut.testAt=N -Dneo.shortcut.key=Ctrl+E pulsa ese atajo a los
+        // N ms, por el mismo camino que el teclado (y lo suelta). Es la forma de
+        // comprobar un atajo con --snapshot sin nadie delante. Varios, separados
+        // por comas, van medio segundo uno detras de otro.
+        final long shortcutAt = Long.getLong("neo.shortcut.testAt", -1L);
+        final String shortcutKeys = System.getProperty("neo.shortcut.key");
+        if (shortcutAt >= 0 && shortcutKeys != null) {
+            final String[] wanted = shortcutKeys.split(",");
+            for (int i = 0; i < wanted.length; i++) {
+                final forge.neo.NeoShortcuts.Chord chord = forge.neo.NeoShortcuts.Chord.of(wanted[i]);
+                if (chord == null || chord.key() == null) {
+                    System.out.println("[neo] atajo de prueba no valido: " + wanted[i]);
+                    continue;
+                }
+                final PauseTransition hit = new PauseTransition(Duration.millis(shortcutAt + i * 500L));
+                hit.setOnFinished(x -> {
+                    System.out.println("[neo] atajo de prueba: " + chord);
+                    scene.getRoot().fireEvent(new javafx.scene.input.KeyEvent(
+                            javafx.scene.input.KeyEvent.KEY_PRESSED, "", "", chord.key(),
+                            chord.shift(), chord.ctrl(), chord.alt(), false));
+                    scene.getRoot().fireEvent(new javafx.scene.input.KeyEvent(
+                            javafx.scene.input.KeyEvent.KEY_RELEASED, "", "", chord.key(),
+                            chord.shift(), chord.ctrl(), chord.alt(), false));
+                });
+                hit.play();
+            }
+        }
 
         if (args.contains("--nested-test")) {
             debug.nestedDialogTest();
@@ -1496,6 +1517,17 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             table.getMenuOverlay().hide();
             return;
         }
+        openPauseMenu(true);
+    }
+
+    /**
+     * Pone el menu de pausa.
+     *
+     * @param countGesture si cuenta como "he abierto la pausa" para el tutorial.
+     *     El atajo de rendirse lo abre directamente en la pregunta de salir, y
+     *     eso no es el gesto que ese paso esta esperando.
+     */
+    private PauseMenu openPauseMenu(final boolean countGesture) {
         final PauseMenu menu = new PauseMenu(new PauseMenu.Actions() {
             @Override
             public void resume() {
@@ -1518,7 +1550,10 @@ public class NeoApp extends Application implements SettingsPanel.Host {
         // Ajustes llega al motor: se cuenta desde aqui.
         menu.setGestureSpy(table::gesture);
         table.getMenuOverlay().show(menu);
-        table.gesture(forge.neo.tutorial.Gesture.PAUSE_OPEN);
+        if (countGesture) {
+            table.gesture(forge.neo.tutorial.Gesture.PAUSE_OPEN);
+        }
+        return menu;
     }
 
     /** El hilo donde corre la partida, si lo hay. Solo para {@code --kill-engine}. */
@@ -1575,6 +1610,120 @@ public class NeoApp extends Application implements SettingsPanel.Host {
         final forge.neo.match.NeoMatchUI ui = b == null ? null : b.getMatchUi();
         if (ui != null) {
             ui.undoLast();
+        }
+    }
+
+    /** Los atajos que no se repiten y ya han saltado con la tecla todavia pulsada. */
+    private final java.util.EnumSet<forge.neo.NeoShortcuts.Action> heldShortcuts =
+            java.util.EnumSet.noneOf(forge.neo.NeoShortcuts.Action.class);
+
+    /**
+     * Un atajo de teclado durante la partida.
+     *
+     * <p>Las cuatro teclas que habia antes (Espacio, Ctrl+Z, Z, L) hacen aqui
+     * exactamente lo mismo y con las mismas condiciones; lo nuevo sale de
+     * {@code NeoShortcuts}. Las acciones que tocan el motor y no se deshacen
+     * piden que no haya un dialogo delante ({@code free}), igual que Espacio:
+     * pulsadas con una pregunta abierta contestarian otra cosa.
+     *
+     * @return true si la pulsacion ha hecho algo y hay que quedarsela
+     */
+    private boolean runShortcut(final javafx.scene.input.KeyEvent ev) {
+        // Escribiendo, las letras son letras.
+        if (ev.getTarget() instanceof javafx.scene.control.TextInputControl
+                || scene.getFocusOwner() instanceof javafx.scene.control.TextInputControl) {
+            return false;
+        }
+        final forge.neo.NeoShortcuts.Action action = forge.neo.NeoShortcuts.actionFor(ev);
+        if (action == null) {
+            return false;
+        }
+        if (!action.repeats() && !heldShortcuts.add(action)) {
+            // La repeticion de una tecla mantenida: ya hizo lo suyo al pulsarla.
+            return true;
+        }
+        final TableBinder b = binder;
+        final forge.neo.match.NeoMatchUI ui = b == null ? null : b.getMatchUi();
+        final boolean free = !table.isModalShowing();
+        switch (action) {
+            case PASS_PRIORITY:
+                // Pasar prioridad. Es lo que acaba usando todo el mundo.
+                return free && table.getActionBar().pressPrimary();
+            case PASS_TURN:
+                return free && ui != null && ui.passTurn();
+            case ALPHA_STRIKE:
+                return free && ui != null && ui.alphaStrike();
+            case UNDO:
+                // Deshace lo ultimo (tapear una tierra por error).
+                undoLast();
+                return true;
+            case ZOOM_CARD: {
+                // Amplia la carta que tenga el raton encima, sin soltarlo. El
+                // click derecho ya hace lo mismo; esto es para quien tiene la
+                // mano en el teclado.
+                //
+                // OJO: en la mesa la ampliacion es table.showZoom(card), NO
+                // CardZoom.show(...) — ese es el mecanismo generico de las demas
+                // pantallas (cambia la raiz de la escena) y aqui haria dos cosas
+                // mal: se veria distinto del click derecho de siempre, y sobre
+                // todo NO dispara Gesture.ZOOM_CARD, que es lo que el tutorial
+                // espera para cerrar su paso de "click derecho para leer".
+                final forge.neo.card.CardNode hovered = forge.neo.ui.CardZoom.hoveredCardNode(table);
+                if (hovered != null && hovered.getCard() != null) {
+                    table.showZoom(hovered.getCard());
+                    return true;
+                }
+                return false;
+            }
+            case GAME_LOG:
+                // El registro de la partida: el mismo boton, para que el gesto
+                // del tutorial salte igual.
+                table.getLogButton().fire();
+                return true;
+            case EXPAND_STACK:
+                return table.toggleAllStackEntries();
+            case STACK_MENU:
+                return free && ui != null && ui.openTopStackMenu();
+            case AUTO_YIELD_YES:
+            case AUTO_YIELD_NO: {
+                if (!free || ui == null) {
+                    return false;
+                }
+                final String said = ui.autoYieldTop(action == forge.neo.NeoShortcuts.Action.AUTO_YIELD_YES);
+                if (said == null) {
+                    return false;
+                }
+                table.getActionBar().setWarning(said, false);
+                return true;
+            }
+            case FULL_CONTROL: {
+                if (ui == null) {
+                    return false;
+                }
+                final Boolean on = ui.toggleFullControl();
+                if (on == null) {
+                    return false;
+                }
+                table.getActionBar().setWarning(forge.neo.NeoText.get(on
+                        ? "shortcuts.fullControl.on" : "shortcuts.fullControl.off"), false);
+                return true;
+            }
+            case CONCEDE:
+                // Rendirse no se deshace: abre la MISMA pregunta que el menu.
+                if (table.getMenuOverlay().isShowing()) {
+                    return false;
+                }
+                openPauseMenu(false).askQuit();
+                return true;
+            case SHOW_SHORTCUTS:
+                if (table.getMenuOverlay().isShowing()) {
+                    return false;
+                }
+                table.getMenuOverlay().show(new forge.neo.ui.ShortcutsPanel(true,
+                        forge.neo.NeoText.get("common.close"), () -> table.getMenuOverlay().hide()));
+                return true;
+            default:
+                return false;
         }
     }
 

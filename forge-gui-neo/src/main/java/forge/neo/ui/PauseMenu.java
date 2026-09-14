@@ -116,13 +116,23 @@ public class PauseMenu extends StackPane {
                             NeoText.get("pause.restart.yes"), actions::restart)));
         }
 
-        root.getChildren().add(item(NeoText.get("pause.quit"), "btn-secondary",
-                () -> confirm(NeoText.get(runAtStake ? "pause.quit.run.ask" : "pause.quit.ask"),
-                        NeoText.get(runAtStake ? "pause.quit.run.detail" : "pause.quit.detail"),
-                        NeoText.get(runAtStake ? "pause.quit.run.yes" : "pause.quit.yes"),
-                        actions::quitToMenu)));
+        root.getChildren().add(item(NeoText.get("pause.quit"), "btn-secondary", this::askQuit));
 
         getChildren().setAll(root);
+    }
+
+    /**
+     * La pregunta de salir, directamente.
+     *
+     * <p>Es tambien lo que abre el atajo de rendirse (Ctrl+Q en Forge): rendirse
+     * no se deshace, asi que por teclado pregunta igual que por el menu — y con
+     * las mismas palabras, incluido el aviso de que en Ascenso cuesta la run.
+     */
+    public void askQuit() {
+        confirm(NeoText.get(runAtStake ? "pause.quit.run.ask" : "pause.quit.ask"),
+                NeoText.get(runAtStake ? "pause.quit.run.detail" : "pause.quit.detail"),
+                NeoText.get(runAtStake ? "pause.quit.run.yes" : "pause.quit.yes"),
+                actions::quitToMenu);
     }
 
     /** Quien se entera de los gestos de este menu. Lo usa el tutorial. */

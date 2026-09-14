@@ -658,6 +658,18 @@ public class SettingsPanel extends VBox {
                 },
                 v -> String.format(java.util.Locale.ROOT, "%.0f", v)));
 
+        // --- atajos de teclado ---
+        //
+        // Una fila con un boton y no trece filas aqui: los atajos son una
+        // pantalla aparte (ShortcutsPanel), que se viene a consultar tanto como a
+        // cambiar, y metidos en este scroll lo alargarian el doble.
+        getChildren().add(section(NeoText.get("settings.keyboard")));
+        final Button shortcuts = new Button(NeoText.get("settings.shortcuts.open"));
+        shortcuts.getStyleClass().add("segment");
+        shortcuts.setMinWidth(Region.USE_PREF_SIZE);
+        shortcuts.setOnAction(e -> showShortcuts());
+        getChildren().add(row(NeoText.get("settings.shortcuts"), shortcuts));
+
         final Button close = new Button(NeoText.get("common.close"));
         close.getStyleClass().add("btn-primary");
         close.setOnAction(e -> onClose.run());
@@ -717,6 +729,28 @@ public class SettingsPanel extends VBox {
         }
         super.layoutChildren();
     }
+
+    /**
+     * Cambia el contenido por la pantalla de atajos, con "Volver" para regresar.
+     *
+     * <p>Se hace aqui dentro y no abriendo otra capa: este panel vive en dos
+     * sitios distintos (el menu principal y la pausa) y cada uno lo cierra a su
+     * manera. Sustituyendo lo de dentro, "Volver" funciona igual en los dos sin
+     * que ninguno tenga que saber que existe esta pantalla.
+     */
+    public void showShortcuts() {
+        if (shortcutsOpen) {
+            return;
+        }
+        shortcutsOpen = true;
+        final List<javafx.scene.Node> main = new ArrayList<>(getChildren());
+        getChildren().setAll(new ShortcutsPanel(false, NeoText.get("common.back"), () -> {
+            shortcutsOpen = false;
+            getChildren().setAll(main);
+        }));
+    }
+
+    private boolean shortcutsOpen;
 
     // ---------------------------------------------------------------
 

@@ -44,6 +44,30 @@ public interface DeckContext {
      * restringidas). La aventura hace exactamente lo mismo a mano, porque ahi
      * el segundo reglamento es el de Quest y no uno de {@code res/formats/}.
      */
+    /**
+     * Si el pozo de cartas de este contexto <b>vive en la banda del propio
+     * mazo</b>.
+     *
+     * <p>Es falso para todo lo normal: montando un mazo de Commander el
+     * catálogo son las 33.000 cartas de Magic, y quitar una del mazo no la
+     * devuelve a ningún sitio porque no salió de ninguno. Y es falso también
+     * en la aventura, donde el pozo es tu colección y vive aparte.
+     *
+     * <p>Es <b>cierto en limitado</b>, y ahí cambia todo: el pool de un sellado
+     * o de un draft es <em>una sola pila de cartas</em> repartida entre el mazo
+     * principal y la banda, y las dos mitades son <b>disjuntas</b> (lo deja así
+     * {@code NeoSealed.buildMainDeck}). Sacar una carta del mazo sin devolverla
+     * a la banda <b>la destruye</b>: desaparece del catálogo, no se puede
+     * volver a meter, y el evento se queda con una carta menos para siempre.
+     *
+     * <p>Encontrado probando el sellado en Android (12-09-2026): mazo de 40 y
+     * pool de 60; quitas una carta, guardas, y quedan 39 y 60. Noventa y nueve
+     * donde había cien, sin ningún error.
+     */
+    default boolean poolInSideboard() {
+        return false;
+    }
+
     default String conformanceProblem(Deck deck) {
         final String base = deckFormat().getDeckConformanceProblem(deck);
         if (base != null) {

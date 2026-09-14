@@ -135,17 +135,18 @@ public final class ManaColor {
      * <p>Se sobrescribe <b>un</b> metodo. Todo lo demas —- prioridad, objetivos,
      * bloqueos, conceder— es el de Forge sin tocar.
      *
-     * <p><b>Hereda de {@link SafeActions.Guarded} y eso no es casualidad: la
-     * silla del controlador es UNA.</b> {@code dangerouslySetController} pone un
+     * <p><b>Hereda de {@link TriggerSubject.Telling} — que hereda de
+     * {@link SafeActions.Guarded} — y eso no es casualidad: la silla del
+     * controlador es UNA.</b> {@code dangerouslySetController} pone un
      * controlador, no dos, asi que todo arreglo que necesite sentarse se apila
-     * en esta misma cadena. Hoy son dos — preguntar el color de una dual, y que
-     * el barrido de acciones del motor no mate la partida — y si manyana hace
-     * falta un tercero, va debajo de este por el mismo motivo. Instalarlos por
-     * separado no es una opcion: el segundo desalojaria al primero <b>sin que
-     * nada fallara</b>, y el arreglo desalojado dejaria de aplicarse en
-     * silencio.
+     * en esta misma cadena. Hoy son tres — preguntar el color de una dual, que
+     * el barrido de acciones del motor no mate la partida, y decir de que carta
+     * habla el disparo cuyo modo eliges — y si manyana hace falta un cuarto, va
+     * debajo de este por el mismo motivo. Instalarlos por separado no es una
+     * opcion: el segundo desalojaria al primero <b>sin que nada fallara</b>, y
+     * el arreglo desalojado dejaria de aplicarse en silencio.
      */
-    private static final class Asking extends SafeActions.Guarded {
+    private static final class Asking extends TriggerSubject.Telling {
 
         Asking(final Player player, final LobbyPlayer lobby, final PlayerControllerHuman owner) {
             super(player, lobby, owner);

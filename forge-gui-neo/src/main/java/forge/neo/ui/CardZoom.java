@@ -9,7 +9,6 @@ import com.google.common.collect.Multiset;
 import forge.game.card.CardView;
 import forge.game.card.CardView.CardStateView;
 import forge.game.card.CounterType;
-import forge.game.keyword.KeywordCollectionView;
 import forge.game.keyword.KeywordView;
 import forge.game.player.PlayerView;
 import forge.game.zone.ZoneType;
@@ -243,114 +242,13 @@ public final class CardZoom {
     /**
      * Las palabras clave que la carta tiene AHORA, sin repetir.
      *
-     * <p>Salen del motor, no de leer el texto: {@code CardStateView.getKeywords()}
-     * devuelve las de verdad — las impresas y tambien las que le hayan DADO un
-     * aura, un equipo o un efecto — y cada una viene ya con su titulo montado
-     * ({@code "Ward {2}"}, {@code "Annihilator 2"}) y su explicacion con el
-     * numero o el coste puestos. O sea que no hay nada que interpretar aqui, y
-     * una carta a la que le acaban de regalar el volar lo explica igual que
-     * una que lo trae impreso.
-     *
-     * <p>Se quitan las repetidas por titulo: una criatura puede llevar dos
-     * instancias de la misma palabra clave y explicarla dos veces no anyade
-     * nada.
+     * <p>La logica vive en {@link forge.neo.card.CardKeywords}, que es Java
+     * puro: estaba aqui dentro y Android no podia usarla porque esta clase es
+     * JavaFX. Ver el javadoc de alli, que es donde esta explicado de donde
+     * salen y por que.
      */
     private static java.util.List<KeywordView> keywordsOf(final CardView card) {
-        final java.util.List<KeywordView> out = new java.util.ArrayList<>();
-        if (card == null) {
-            return out;
-        }
-        try {
-            final CardStateView st = card.getCurrentState();
-            if (st == null) {
-                return out;
-            }
-            final java.util.Set<String> seen = new java.util.HashSet<>();
-            for (final KeywordView k : keywordSource(st)) {
-                if (k == null) {
-                    continue;
-                }
-                final String title = k.title();
-                final String text = k.reminderText();
-                // Sin explicacion no entra: la pastilla prometeria algo que al
-                // clicarla no esta (principio 1). Pasa con las palabras clave
-                // que el motor usa por dentro y no tienen texto de reglas.
-                if (title == null || title.isBlank() || text == null || text.isBlank()) {
-                    continue;
-                }
-                if (seen.add(title)) {
-                    out.add(k);
-                }
-            }
-        } catch (final RuntimeException e) {
-            return out;
-        }
-        return out;
-    }
-
-    /**
-     * De donde salen las palabras clave: del motor, y si no, de la carta.
-     *
-     * <p>Dentro de una partida el motor las publica y son las de VERDAD — las
-     * impresas y las que le hayan dado un aura o un equipo. Fuera de la
-     * partida no publica ninguna: un {@code CardView} de catalogo lo monta
-     * {@code CardView.getCardForUi}, que crea la carta <b>sin juego detras</b>
-     * y por tanto sin nada calculado (se ve facil: ahi {@code getAbilityText()}
-     * tambien sale vacio). Y fuera de la partida es justo donde mas falta hace,
-     * que es montando el mazo.
-     *
-     * <p>El respaldo saca los renglones {@code K:} de la carta en papel y les
-     * pide al motor su instancia ({@code Keyword.getInstance}), que es lo mismo
-     * que hace el propio Forge: asi el titulo sale montado igual
-     * ({@code "Ward {2}"}) y la explicacion con su numero puesto. Lo que no sea
-     * una palabra clave de verdad cae en {@code UNDEFINED}, se queda sin titulo
-     * y lo filtra el mismo control de siempre.
-     *
-     * <p>La carta en papel se busca por la clave de imagen, que es el camino
-     * que ya usa {@code CardNode} para la P/T impresa. Una ficha o un emblema
-     * no tienen, y entonces no hay palabras clave que ensenyar: correcto.
-     */
-    private static Iterable<KeywordView> keywordSource(final CardStateView st) {
-        final KeywordCollectionView live = st.getKeywords();
-        if (live != null && !live.isEmpty()) {
-            return live;
-        }
-        final java.util.List<KeywordView> out = new java.util.ArrayList<>();
-        final String key = st.getImageKey();
-        if (key == null || key.isEmpty()) {
-            return out;
-        }
-        try {
-            final forge.item.PaperCard pc = forge.util.ImageUtil.getPaperCardFromImageKey(key);
-            if (pc == null || pc.getRules() == null) {
-                return out;
-            }
-            // La cara que se esta mirando, no siempre la principal: una carta
-            // de dos caras ampliada por la de atras tiene sus propias palabras.
-            forge.card.ICardFace face = pc.getRules().getMainPart();
-            final forge.card.ICardFace other = pc.getRules().getOtherPart();
-            if (other != null && other.getName() != null
-                    && other.getName().equals(st.getName())) {
-                face = other;
-            }
-            if (face == null || face.getKeywords() == null) {
-                return out;
-            }
-            for (final String raw : face.getKeywords()) {
-                if (raw == null || raw.isBlank()) {
-                    continue;
-                }
-                try {
-                    out.add(forge.game.keyword.Keyword.getInstance(raw).getView());
-                } catch (final RuntimeException ignored) {
-                    // Un renglon K: que no es una palabra clave al uso. Se
-                    // salta: perder una no vale quedarse sin las demas.
-                }
-            }
-        } catch (final RuntimeException ignored) {
-            return out;
-        }
-        return out;
+        return forge.neo.card.CardKeywords.of(card);
     }
 
     /**

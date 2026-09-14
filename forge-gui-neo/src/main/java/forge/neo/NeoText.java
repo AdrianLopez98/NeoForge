@@ -74,6 +74,22 @@ public final class NeoText {
         fallback = null;
     }
 
+    /**
+     * El texto de esa clave <b>en el idioma elegido y solo en ese</b>, o
+     * {@code null} si ese idioma no lo trae.
+     *
+     * <p>Existe para {@link EngineText}, que <b>compone</b> una frase juntando
+     * piezas sueltas. Ahi el respaldo al ingles de {@link #get(String)} no vale:
+     * si falta una pieza saldria media frase en cada idioma
+     * (<i>"Elige una criatura you control"</i>), que es peor que dejarla entera
+     * en ingles. Con esto, quien compone puede ver que falta y rendirse limpio.
+     */
+    public static synchronized String own(final String key) {
+        load();
+        final String mine = chosen.getProperty(key);
+        return mine == null || mine.isEmpty() ? null : mine;
+    }
+
     /** El texto de esa clave. Si no esta, en ingles; si tampoco, la clave. */
     public static String get(final String key) {
         load();

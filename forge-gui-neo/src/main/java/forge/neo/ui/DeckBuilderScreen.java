@@ -82,6 +82,9 @@ public class DeckBuilderScreen extends StackPane {
     private final ManaCurvePane curve = new ManaCurvePane();
     private final Label title = new Label();
     private final Label status = new Label();
+    private final Label deckCount = new Label();
+    private final List<Button> filterButtons = new ArrayList<>();
+    private final Button filterToggle = new Button();
     private final Overlay overlay = new Overlay();
 
     /** "Scryfall nos ha limitado, vuelve en Ns." El catalogo es donde mas se pide arte. */
@@ -167,7 +170,7 @@ public class DeckBuilderScreen extends StackPane {
     public DeckBuilderScreen(final DeckEditor editor, final double cardWidth,
                              final Runnable onBack) {
         this.editor = editor;
-        this.cardWidth = cardWidth;
+        this.cardWidth = Math.max(144, cardWidth * 1.3);
         this.onBack = onBack;
 
         getStyleClass().addAll("table-root", "deck-builder");
@@ -192,8 +195,9 @@ public class DeckBuilderScreen extends StackPane {
     // Cabecera
 
     private Region header() {
-        title.getStyleClass().add("home-title");
-        title.setStyle("-fx-font-size: 1.6em;");
+        title.getStyleClass().add("builder-title");
+        title.setMinWidth(0);
+        title.setMaxWidth(Double.MAX_VALUE);
 
         final Button rename = new Button(NeoText.get("deck.rename"));
         rename.getStyleClass().add("btn-secondary");
@@ -238,11 +242,17 @@ public class DeckBuilderScreen extends StackPane {
         sleeveButton.setOnAction(e -> askSleeve());
         refreshSleeveButton();
 
-        final HBox row = new HBox(14, title, rename, sleeveButton, gap, views);
+        final Label format = new Label(editor.getFormat().getLabel());
+        format.getStyleClass().add("builder-format");
+        final VBox identity = new VBox(4, format, title);
+        identity.setMinWidth(0);
+        HBox.setHgrow(identity, Priority.ALWAYS);
+        final HBox row = new HBox(14, identity, rename, sleeveButton, views);
         row.setAlignment(Pos.CENTER_LEFT);
 
         final VBox box = new VBox(4, row, status);
-        box.setPadding(new Insets(18, 26, 12, 26));
+        box.setPadding(new Insets(18, 24, 14, 24));
+        box.getStyleClass().add("builder-header");
         return box;
     }
 
@@ -253,13 +263,16 @@ public class DeckBuilderScreen extends StackPane {
         final Region left = catalogue();
         final Region right = deckPanel();
 
-        final HBox row = new HBox(18, left, right);
-        row.setPadding(new Insets(0, 26, 0, 26));
+        final HBox row = new HBox(16, left, right);
+        row.setPadding(new Insets(0, 24, 0, 24));
+        row.getStyleClass().add("builder-columns");
+        left.setMinWidth(0);
         HBox.setHgrow(left, Priority.ALWAYS);
         // El mazo tiene ancho fijo: es una lista de texto y no gana nada con mas
         // sitio, mientras que el catalogo siempre agradece una columna mas.
-        right.setPrefWidth(360);
-        right.setMinWidth(320);
+        right.prefWidthProperty().bind(widthProperty().multiply(.28).add(18));
+        right.setMinWidth(310);
+        right.setMaxWidth(430);
         return row;
     }
 
@@ -279,6 +292,7 @@ public class DeckBuilderScreen extends StackPane {
 
         final Button legal = new Button(NeoText.get("deck.onlyFits"));
         legal.getStyleClass().add("segment");
+        filterButtons.add(legal);
         legal.pseudoClassStateChanged(SELECTED, onlyLegal);
         legal.setOnAction(e -> {
             onlyLegal = !onlyLegal;
@@ -290,7 +304,17 @@ public class DeckBuilderScreen extends StackPane {
         HBox.setHgrow(gap, Priority.ALWAYS);
         resultCount.getStyleClass().add("dialog-counter");
 
-        final HBox bar = new HBox(10, search, filters, legal);
+        search.setMinWidth(130);
+        filterToggle.setId("builder-filters");
+        filterToggle.getStyleClass().add("segment");
+        filterToggle.setMinWidth(Region.USE_PREF_SIZE);
+        filterToggle.setOnAction(e -> {
+            final boolean show = !filterRow.isVisible();
+            filterRow.setVisible(show);
+            filterRow.setManaged(show);
+            updateFilterToggle();
+        });
+        final HBox bar = new HBox(8, search, filters, filterToggle);
         bar.setAlignment(Pos.CENTER_LEFT);
 
         // ---- segunda fila: los filtros finos ----
@@ -314,7 +338,7 @@ public class DeckBuilderScreen extends StackPane {
 
         // Ocho botones, no una lista desplegable: son pocos, se usan a
         // menudo y asi se ven encendidos de un vistazo, igual que la rareza.
-        final HBox typeRow = new HBox(4);
+        final FlowPane typeRow = new FlowPane(5, 5);
         typeRow.setAlignment(Pos.CENTER_LEFT);
         typeRow.getChildren().addAll(
                 typeFilter(forge.card.CardType.CoreType.Creature),
@@ -328,6 +352,7 @@ public class DeckBuilderScreen extends StackPane {
 
         final Button rules = new Button(NeoText.get("deck.rulesText"));
         rules.getStyleClass().add("segment");
+        filterButtons.add(rules);
         rules.setMinWidth(Region.USE_PREF_SIZE);
         rules.setOnAction(e -> {
             searchRules = !searchRules;
@@ -345,21 +370,28 @@ public class DeckBuilderScreen extends StackPane {
 
         final Region gap2 = new Region();
         HBox.setHgrow(gap2, Priority.ALWAYS);
-        final HBox fine = new HBox(10, label(NeoText.get("deck.rarity")), rarityRow,
-                label(NeoText.get("deck.cmc")), cmcRow, rules, gap2, clear);
+        final FlowPane fine = new FlowPane(10, 8,
+                new HBox(6, label(NeoText.get("deck.rarity")), rarityRow),
+                new HBox(6, label(NeoText.get("deck.cmc")), cmcRow), rules, clear);
         fine.setAlignment(Pos.CENTER_LEFT);
 
         // El tipo va en SU PROPIA fila, antes que rareza y coste: es lo
         // primero que se mira al montar un mazo ("cuantas criaturas llevo")
         // y con ocho botones mas los de rareza y coste, todo junto no cabia
         // en 1280 de ancho sin recortar.
-        final HBox typeRowLabeled = new HBox(10, label(NeoText.get("deck.type")), typeRow);
+        final VBox typeRowLabeled = new VBox(6, label(NeoText.get("deck.type")), typeRow);
         typeRowLabeled.setAlignment(Pos.CENTER_LEFT);
 
-        filterRow = new VBox(6, typeRowLabeled, fine);
+        filterRow = new VBox(10, typeRowLabeled, fine);
+        filterRow.setId("builder-advanced");
+        filterRow.getStyleClass().add("builder-advanced");
+        filterRow.setVisible(false);
+        filterRow.setManaged(false);
 
         results.setAlignment(Pos.TOP_LEFT);
-        results.setPadding(new Insets(12, 4, 12, 0));
+        results.setPadding(new Insets(16, 4, 16, 0));
+        results.setHgap(10);
+        results.setVgap(16);
 
         basics.setAlignment(Pos.TOP_LEFT);
         basicsCaption.getStyleClass().add("caption");
@@ -375,7 +407,7 @@ public class DeckBuilderScreen extends StackPane {
         // es TU COLECCION. Decirlo cambia lo que el jugador espera encontrar.
         final HBox caption = new HBox(10,
                 label(editor.getFormat().catalogueLabel()),
-                gap, pager, resultCount);
+                gap, legal);
         caption.setAlignment(Pos.CENTER_LEFT);
 
         // Las basicas van FUERA del scroll, en una franja al pie de la columna.
@@ -385,9 +417,16 @@ public class DeckBuilderScreen extends StackPane {
         // pool para llegar a ellas. Fuera no pueden pisarse con nada y estan
         // siempre a mano, que es lo que se quiere de una fila de cinco cartas
         // que no cambia nunca.
-        final VBox box = new VBox(8, caption, bar, filterRow, scroll,
-                basicsCaption, basics);
-        box.setPadding(new Insets(0, 0, 10, 0));
+        final Region pageGap = new Region();
+        HBox.setHgrow(pageGap, Priority.ALWAYS);
+        final HBox pageBar = new HBox(12, resultCount, pageGap, pager);
+        pageBar.setAlignment(Pos.CENTER_LEFT);
+        pageBar.getStyleClass().add("builder-pagebar");
+        resultCount.setMinWidth(0);
+        final VBox box = new VBox(10, caption, bar, filterRow, scroll,
+                basicsCaption, basics, pageBar);
+        box.getStyleClass().add("builder-catalogue");
+        box.setPadding(new Insets(14, 16, 8, 16));
         return box;
     }
 
@@ -411,6 +450,7 @@ public class DeckBuilderScreen extends StackPane {
             b.pseudoClassStateChanged(SELECTED, rarities.contains(rarity));
             refreshCatalogue();
         });
+        filterButtons.add(b);
         return b;
     }
 
@@ -426,6 +466,7 @@ public class DeckBuilderScreen extends StackPane {
             b.pseudoClassStateChanged(SELECTED, cmcs.contains(cmc));
             refreshCatalogue();
         });
+        filterButtons.add(b);
         return b;
     }
 
@@ -445,6 +486,7 @@ public class DeckBuilderScreen extends StackPane {
             b.pseudoClassStateChanged(SELECTED, types.contains(type));
             refreshCatalogue();
         });
+        filterButtons.add(b);
         return b;
     }
 
@@ -462,7 +504,7 @@ public class DeckBuilderScreen extends StackPane {
         types.clear();
         searchRules = false;
         onlyLegal = false;
-        for (final javafx.scene.Node n : lookupAll(".segment")) {
+        for (final Button n : filterButtons) {
             n.pseudoClassStateChanged(SELECTED, false);
         }
         search.setPromptText(NeoText.get("deck.search"));
@@ -489,6 +531,7 @@ public class DeckBuilderScreen extends StackPane {
             b.pseudoClassStateChanged(SELECTED, colours.contains(colour));
             refreshCatalogue();
         });
+        filterButtons.add(b);
         return b;
     }
 
@@ -506,7 +549,18 @@ public class DeckBuilderScreen extends StackPane {
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         VBox.setVgrow(scroll, Priority.ALWAYS);
 
-        final VBox box = new VBox(8, label(NeoText.get("deck.theDeck")), commanderRow, scroll, curve, stats);
+        deckCount.getStyleClass().add("builder-deck-count");
+        final Region gap = new Region();
+        HBox.setHgrow(gap, Priority.ALWAYS);
+        final HBox heading = new HBox(8, label(NeoText.get("deck.theDeck")), gap, deckCount);
+        heading.setAlignment(Pos.CENTER_LEFT);
+        final javafx.scene.control.TitledPane details = new javafx.scene.control.TitledPane(NeoText.get("stats.caption"), stats);
+        details.setExpanded(false);
+        details.setAnimated(false);
+        details.getStyleClass().add("builder-statistics");
+        final VBox box = new VBox(8, heading, commanderRow, scroll, curve, details);
+        scroll.setMinHeight(60);
+        box.setId("builder-deck-panel");
         box.getStyleClass().add("deck-panel");
         box.setPadding(new Insets(12, 14, 12, 14));
         return box;
@@ -569,7 +623,13 @@ public class DeckBuilderScreen extends StackPane {
             b.setMinWidth(Region.USE_PREF_SIZE);
         }
 
-        final HBox row = new HBox(10, back, gap, cleanup, commander, generate, importer, export, save);
+        final FlowPane actions = new FlowPane(8, 8, cleanup, commander, generate, importer, export);
+        actions.setAlignment(Pos.CENTER_RIGHT);
+        actions.setMinWidth(0);
+        HBox.setHgrow(actions, Priority.ALWAYS);
+        save.setId("builder-save");
+        back.setId("builder-back");
+        final HBox row = new HBox(14, back, actions, save);
         row.setAlignment(Pos.CENTER_LEFT);
         row.getStyleClass().add("home-footer");
         row.setPadding(new Insets(14, 26, 18, 26));
@@ -595,7 +655,15 @@ public class DeckBuilderScreen extends StackPane {
     // ===============================================================
     // Catalogo
 
+    private void updateFilterToggle() {
+        final int active = colours.size() + rarities.size() + cmcs.size() + types.size() + (searchRules ? 1 : 0);
+        filterToggle.setText(NeoText.get("deck.filters") + (active == 0 ? "" : " · " + active)
+                + (filterRow != null && filterRow.isVisible() ? "  −" : "  +"));
+        filterToggle.pseudoClassStateChanged(SELECTED, active > 0 || (filterRow != null && filterRow.isVisible()));
+    }
+
     private void refreshCatalogue() {
+        updateFilterToggle();
         final Predicate<PaperCard> colourFilter = colours.isEmpty() ? null : card -> {
             final ColorSet id = card.getRules().getColorIdentity();
             for (final byte c : colours) {
@@ -683,7 +751,7 @@ public class DeckBuilderScreen extends StackPane {
         // titulo con nada debajo.
         basics.getChildren().clear();
         for (final PaperCard c : basicHits) {
-            basics.getChildren().add(catalogueTile(c));
+            basics.getChildren().add(catalogueTile(c, Math.min(92, cardWidth)));
         }
         showBasics(!basicHits.isEmpty());
 
@@ -731,7 +799,12 @@ public class DeckBuilderScreen extends StackPane {
      * derecha a comprobarlo.
      */
     private Region catalogueTile(final PaperCard card) {
-        final CardNode node = new CardNode(cardWidth);
+        return catalogueTile(card, cardWidth);
+    }
+
+    private Region catalogueTile(final PaperCard card, final double displayWidth) {
+        final CardNode node = new CardNode(displayWidth);
+        node.setHoverEnabled(false);
         node.setRotationEnabled(false);
         node.setBadgesVisible(false);
         node.setCard(CardView.getCardForUi(card));
@@ -900,6 +973,7 @@ public class DeckBuilderScreen extends StackPane {
         // recortamos, ver oneLine().
         final String problem = editor.problem();
         final int main = editor.mainCount();
+        deckCount.setText(NeoText.get("count.cards", main));
         status.setText(NeoText.get("deck.status",
                 editor.getFormat().getLabel(), main,
                 editor.commanders().isEmpty() ? "" : NeoText.get("deck.plusCommander"),
@@ -966,8 +1040,7 @@ public class DeckBuilderScreen extends StackPane {
         name.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(name, Priority.ALWAYS);
 
-        final Label cost = new Label(card.getRules().getManaCost().toString());
-        cost.getStyleClass().add("deck-row-cost");
+        final Region cost = manaCost(card);
 
         final Button less = stepper("-", () -> {
             editor.remove(card, 1);
@@ -987,21 +1060,20 @@ public class DeckBuilderScreen extends StackPane {
 
         final HBox steps = new HBox(2, less, more);
         steps.setAlignment(Pos.CENTER_RIGHT);
-        steps.setVisible(false);
+        steps.setVisible(true);
 
-        final HBox row = new HBox(8, qty, name, cost, steps);
+        final HBox content = new HBox(7, qty, name, cost, steps);
+        content.setAlignment(Pos.CENTER_LEFT);
+        content.setPadding(new Insets(7, 8, 7, 8));
+        final StackPane row = new StackPane(new DeckArtStrip(card), content);
+        name.setMinWidth(0);
+        name.setTooltip(new javafx.scene.control.Tooltip(CardText.nameOf(card)));
+        row.setMinHeight(44);
+        row.setPrefHeight(44);
         row.getStyleClass().add("deck-row");
         row.setAlignment(Pos.CENTER_LEFT);
-        row.setPadding(new Insets(3, 6, 3, 6));
+        row.setPadding(Insets.EMPTY);
 
-        row.setOnMouseEntered(e -> {
-            steps.setVisible(true);
-            cost.setVisible(false);
-        });
-        row.setOnMouseExited(e -> {
-            steps.setVisible(false);
-            cost.setVisible(true);
-        });
 
         // Izquierdo lee la carta; derecho abre el menu de la carta.
         row.setOnMouseClicked(e -> {
@@ -1012,6 +1084,27 @@ public class DeckBuilderScreen extends StackPane {
             }
         });
         return row;
+    }
+
+    /** Coste de mana compacto para la lista de cartas. */
+    private Region manaCost(final PaperCard card) {
+        final HBox pips = new HBox(2);
+        pips.setAlignment(Pos.CENTER_RIGHT);
+        pips.setMinWidth(Region.USE_PREF_SIZE);
+        final String value = card.getRules().getManaCost().toString();
+        final java.util.regex.Matcher symbols = java.util.regex.Pattern.compile("\\{([^}]+)\\}").matcher(value);
+        while (symbols.find()) {
+            final String symbol = symbols.group(1);
+            final Label pip = new Label(symbol);
+            pip.getStyleClass().add("builder-mana-pip");
+            if (!symbol.isEmpty() && "WUBRG".contains(symbol.substring(0, 1))) {
+                pip.getStyleClass().add("builder-mana-" + symbol.substring(0, 1).toLowerCase(java.util.Locale.ROOT));
+            }
+            pip.setMinWidth(symbol.length() > 1 ? 23 : 15);
+            pips.getChildren().add(pip);
+        }
+        javafx.scene.control.Tooltip.install(pips, new javafx.scene.control.Tooltip(value));
+        return pips;
     }
 
     /**
@@ -1190,11 +1283,15 @@ public class DeckBuilderScreen extends StackPane {
             return;
         }
         for (final PaperCard card : cmd) {
-            final CardNode node = new CardNode(cardWidth * 0.8);
-            node.setRotationEnabled(false);
-            node.setBadgesVisible(false);
-            node.setCard(CardView.getCardForUi(card));
-            node.setCommanderStyle(true);
+            final Label name = new Label(CardText.nameOf(card));
+            name.setWrapText(true);
+            name.getStyleClass().add("builder-commander-name");
+            final StackPane node = new StackPane(new DeckArtStrip(card), name);
+            node.getStyleClass().add("builder-commander");
+            node.setMinHeight(58);
+            node.setPrefHeight(58);
+            node.setMaxWidth(Double.MAX_VALUE);
+            HBox.setHgrow(node, Priority.ALWAYS);
             node.setOnMouseClicked(e -> {
                 if (e.getButton() == MouseButton.SECONDARY) {
                     commanderMenu(card, node, e.getScreenX(), e.getScreenY());
@@ -1867,6 +1964,9 @@ public class DeckBuilderScreen extends StackPane {
         // de cartas dejaba fuera lo que hubiera en el overlay: el selector de
         // ediciones salia con marcadores la primera vez y bien la segunda.
         CardNode.refreshAllIn(this);
+        for (final javafx.scene.Node node : lookupAll(".deck-art-strip")) {
+            if (node instanceof DeckArtStrip strip) strip.refresh();
+        }
     }
 
     /** Pulsa "Generar mazo" (para la captura de prueba). */

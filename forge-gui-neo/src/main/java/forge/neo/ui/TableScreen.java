@@ -171,6 +171,7 @@ public class TableScreen extends Pane {
     private final javafx.scene.image.ImageView playmat = new javafx.scene.image.ImageView();
     private final javafx.scene.shape.Rectangle playmatVeil = new javafx.scene.shape.Rectangle();
 
+    private final ArenaBackdrop arenaBackdrop = new ArenaBackdrop();
     private final VBox side;
     private final Line combatLine = new Line();
 
@@ -244,7 +245,10 @@ public class TableScreen extends Pane {
         //
         // El objeto sigue existiendo (lo usan showDetail y las maquetas), pero
         // no esta en la escena: no ocupa, no pinta y no decodifica imagenes.
-        side = new VBox(10, phaseRail, stackBox, actionBar);
+        final Region sideSpace = new Region();
+        VBox.setVgrow(sideSpace, Priority.ALWAYS);
+        side = new VBox(10, stackBox, sideSpace, actionBar);
+        side.getStyleClass().add("arena-sidebar");
         side.setPadding(new Insets(PAD));
         applyDetailSetting();
 
@@ -268,7 +272,7 @@ public class TableScreen extends Pane {
         playmat.setMouseTransparent(true);
         playmatVeil.setMouseTransparent(true);
         playmatVeil.setFill(javafx.scene.paint.Color.web("#0B0E13", 0.62));
-        getChildren().addAll(playmat, playmatVeil);
+        getChildren().addAll(arenaBackdrop, playmat, playmatVeil);
         applyPlaymat();
 
         // El area de juego va dentro de un visor que se puede acercar y
@@ -291,7 +295,7 @@ public class TableScreen extends Pane {
         spotlight.setFill(javafx.scene.paint.Color.TRANSPARENT);
 
         getChildren().addAll(opponentTabs, opponentBar, viewport,
-                selfBar, hand, commandZone, side, combatOverlay, logButton, cooldownBadge,
+                selfBar, hand, commandZone, phaseRail, side, combatOverlay, logButton, cooldownBadge,
                 promptBanner, turnBanner, playerDetails, zoomBadge, spotlight,
                 overlay, menuOverlay, zoomOverlay);
 
@@ -338,9 +342,11 @@ public class TableScreen extends Pane {
     protected void layoutChildren() {
         final double w = getWidth();
         final double h = getHeight();
-        final double contentW = Math.max(200, w - sideWidth);
+        final double railW = Math.max(230, Math.min(sideWidth, w * 0.145));
+        final double contentW = Math.max(200, w - railW);
+        arenaBackdrop.resizeRelocate(0, 0, contentW, h);
 
-        side.resizeRelocate(contentW, 0, sideWidth, h);
+        side.resizeRelocate(contentW, 0, railW, h);
 
         // El estado del jugador, pegado a su barra y hacia el centro de la
         // mesa: fuera de la pantalla no sirve, y sobre la mano taparia cartas.
@@ -410,12 +416,12 @@ public class TableScreen extends Pane {
             oppBarH = Math.max(oppBarH, b.prefHeight(seatW));
         }
         final double selfBarH = selfBar.prefHeight(contentW);
-        double handH = hand.prefHeight(contentW);
+        double handH = Math.min(hand.prefHeight(contentW), h * 0.205);
 
         // Si la ventana es baja, la mano cede altura antes que los campos:
         // es mejor ver la mesa entera con la mano un poco recortada que al
         // reves.
-        final double fixed = coachH + tabsH + oppBarH + selfBarH + LINE_H;
+        final double fixed = coachH + phaseRail.arenaHeight(contentW) + tabsH + oppBarH + selfBarH + LINE_H;
         final double minFields = cardWidth * 1.2;
         if (fixed + handH + minFields > h) {
             handH = Math.max(cardWidth * 0.7, h - fixed - minFields);
@@ -427,7 +433,9 @@ public class TableScreen extends Pane {
         final double oppH = multi ? fieldsH * MULTI_OPP_SHARE : fieldsH / 2.0;
         final double selfH = fieldsH - oppH;
 
-        double y = coachH;
+        final double phaseH = phaseRail.arenaHeight(contentW);
+        phaseRail.resizeRelocate(0, coachH, contentW, phaseH);
+        double y = coachH + phaseH;
         if (tabsH > 0) {
             opponentTabs.resizeRelocate(0, y, contentW, tabsH);
             y += tabsH;
@@ -983,8 +991,15 @@ public class TableScreen extends Pane {
         }
 
         // Un separador menos que asientos.
+        //
+        // Se quitan de board, que es donde se meten (mas abajo). Quitarlos de
+        // getChildren() — donde vivian en la primera version — no hacia nada:
+        // la linea salia de la lista pero se quedaba en la mesa, congelada en
+        // su ultima posicion, porque ya nadie la recolocaba. Reportado jugando:
+        // apagar "ver todas las mesas" a mitad de partida volvia bien a las
+        // pestanyas, pero los separadores seguian cruzando la mesa del rival.
         while (seatDividers.size() > want - 1) {
-            getChildren().remove(seatDividers.remove(seatDividers.size() - 1));
+            board.getChildren().remove(seatDividers.remove(seatDividers.size() - 1));
         }
         while (seatDividers.size() < want - 1) {
             final Line d = new Line();
@@ -1065,7 +1080,9 @@ public class TableScreen extends Pane {
         if (w <= 0) {
             return 1;
         }
-        final double contentW = Math.max(200, w - sideWidth);
+        final double railW = Math.max(230, Math.min(sideWidth, w * 0.145));
+        final double contentW = Math.max(200, w - railW);
+
 
         // Lo que la barra pide para ella sola, sin recortar nada, EN SU VERSION
         // DE DOS FILAS, que es la que se usa cuando hay varias. Se mide de
@@ -1331,6 +1348,26 @@ public class TableScreen extends Pane {
             e.consume();
         });
         return header;
+    }
+
+    /**
+     * Abrir o cerrar el stack entero, como el click en su titulo. Lo usa el
+     * atajo de teclado ("Show stack" en Forge: aqui el stack siempre se ve, asi
+     * que lo que le queda por hacer es desplegarse).
+     *
+     * @return false si no hay nada en el stack
+     */
+    public boolean toggleAllStackEntries() {
+        if (lastStack.isEmpty()) {
+            return false;
+        }
+        final boolean allOpen = allStackOpen(lastStack);
+        for (final StackItemView item : lastStack) {
+            stackOpen.put(item.getId(), !allOpen);
+        }
+        // Copia: setStack se queda la lista que le pasan como la nueva lastStack.
+        setStack(new ArrayList<>(lastStack), lastStackMe);
+        return true;
     }
 
     /** Si no queda ninguna entrada por abrir. */
@@ -2409,7 +2446,20 @@ public class TableScreen extends Pane {
         if (node == null || node.getScene() == null) {
             return null;
         }
-        return sceneToLocal(node.localToScene(node.getBoundsInLocal()));
+        final Bounds bounds = sceneToLocal(node.localToScene(node.getBoundsInLocal()));
+        // A scrolled card still owns its combat link. Anchor an off-screen end
+        // at the row edge instead of drawing across another player's board/HUD.
+        for (Node parent = node.getParent(); parent != null; parent = parent.getParent()) {
+            if (parent instanceof BattlefieldPane || parent instanceof HandFan) {
+                final Region row = (Region) parent;
+                final Bounds visible = sceneToLocal(row.localToScene(
+                        new javafx.geometry.BoundingBox(0, 0, row.getWidth(), row.getHeight())));
+                final double left = Math.max(visible.getMinX(), Math.min(visible.getMaxX(), bounds.getMinX()));
+                final double right = Math.max(left, Math.min(visible.getMaxX(), bounds.getMaxX()));
+                return new javafx.geometry.BoundingBox(left, bounds.getMinY(), right - left, bounds.getHeight());
+            }
+        }
+        return bounds;
     }
 
     // ---------------------------------------------------------------
@@ -2698,7 +2748,7 @@ public class TableScreen extends Pane {
             if (n == dragNode || n.getCard() == null || n.getScene() == null) {
                 continue;
             }
-            if (n.localToScene(n.getBoundsInLocal()).contains(sceneX, sceneY)) {
+            if (visibleHit(n, sceneX, sceneY)) {
                 // La ultima gana: es la que esta pintada mas arriba.
                 best = n;
             }
@@ -2712,11 +2762,28 @@ public class TableScreen extends Pane {
         // primero (que es de donde salia el fallo de atacar a quien no era).
         for (final PlayerBar b : allBars()) {
             if (b.getPlayer() != null
-                    && b.localToScene(b.getBoundsInLocal()).contains(sceneX, sceneY)) {
+                    && visibleHit(b, sceneX, sceneY)) {
                 return b.getPlayer();
             }
         }
         return null;
+    }
+
+    /** Geometry picking must respect the same visibility and clips as rendering. */
+    private static boolean visibleHit(final Node node, final double sceneX, final double sceneY) {
+        if (node.getScene() == null || node.isDisabled()) return false;
+        final Point2D point = node.sceneToLocal(sceneX, sceneY);
+        if (point == null || !node.contains(point)) return false;
+        for (Node current = node; current != null; current = current.getParent()) {
+            if (!current.isVisible() || current.getOpacity() <= 0 || current.isMouseTransparent()) return false;
+            final Node clip = current.getClip();
+            if (clip != null) {
+                final Point2D local = current.sceneToLocal(sceneX, sceneY);
+                final Point2D clipped = local == null ? null : clip.parentToLocal(local);
+                if (clipped == null || !clip.contains(clipped)) return false;
+            }
+        }
+        return true;
     }
 
     /** Marca la carta bajo el raton para que se vea donde va a caer. */
@@ -2842,3 +2909,7 @@ public class TableScreen extends Pane {
                 label, r.getLayoutY(), r.getHeight());
     }
 }
+
+
+
+

@@ -110,7 +110,7 @@ public class PlayerBar extends HBox {
         getStyleClass().addAll("player-bar", opponent ? "player-bar-opponent" : "player-bar-self");
         setAlignment(Pos.CENTER_LEFT);
         setSpacing(18);
-        setPadding(new Insets(8, 16, 8, 16));
+        setPadding(new Insets(5, 18, 5, 18));
 
         avatar.getStyleClass().add("avatar");
 
@@ -174,7 +174,7 @@ public class PlayerBar extends HBox {
         relics.setVisible(false);
         relics.setManaged(false);
 
-        getChildren().addAll(avatar, info, gap, relics, manaBox, lifeBox);
+        getChildren().addAll(avatar, lifeBox, info, gap, relics, manaBox);
 
         // Toda la barra es zona de click, no solo el circulo: es un objetivo
         // mucho mas facil de acertar.
@@ -224,8 +224,8 @@ public class PlayerBar extends HBox {
             info.getChildren().setAll(nameRow, zones, playerCounters);
             zones.setSpacing(14);
             setSpacing(18);
-            setPadding(new Insets(8, 16, 8, 16));
-            getChildren().setAll(avatar, info, spacer, relics, manaBox, lifeBox);
+            setPadding(new Insets(5, 18, 5, 18));
+            getChildren().setAll(avatar, lifeBox, info, spacer, relics, manaBox);
         }
         requestLayout();
     }
@@ -795,3 +795,4 @@ public class PlayerBar extends HBox {
         manaPips.getChildren().add(sp);
     }
 }
+

@@ -226,9 +226,9 @@ public final class SafeActions {
      * El controlador humano de siempre, con el barrido blindado.
      *
      * <p>No se instala solo: la silla del controlador es <b>una</b> y la ocupa
-     * {@link ManaColor}, cuyo controlador hereda de este. Si algun dia hace
-     * falta un tercer arreglo con asiento, se apila igual — no se puede sentar
-     * a dos.
+     * {@link ManaColor}, cuyo controlador hereda de este a traves de
+     * {@link TriggerSubject.Telling}. Cada arreglo con asiento se apila igual —
+     * no se puede sentar a dos.
      */
     public static class Guarded extends PlayerControllerHuman {
 

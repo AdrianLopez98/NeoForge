@@ -253,6 +253,18 @@ public final class DraftDeckContext implements DeckContext {
     }
 
     /** Esa columna no es un catalogo ni una coleccion: es lo que draftaste. */
+    /**
+     * Sí: en limitado el pool ES el mazo más la banda.
+     *
+     * <p>Lo dice el javadoc de arriba y lo garantiza quien escribe cada mazo.
+     * Con esto, el editor mueve las cartas entre las dos mitades en vez de
+     * crearlas y destruirlas.
+     */
+    @Override
+    public boolean poolInSideboard() {
+        return true;
+    }
+
     @Override
     public String catalogueLabel() {
         return forge.neo.NeoText.get(sealed() ? "deck.poolSealed" : "deck.poolDraft");
