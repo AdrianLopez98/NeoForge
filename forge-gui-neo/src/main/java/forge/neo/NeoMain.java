@@ -198,6 +198,13 @@ public final class NeoMain {
                 banner("Acciones: que el barrido no mate la partida");
                 forge.neo.match.ActionsCheck.run();
                 break;
+            case "attackcheck":
+                // Que el piloto automatico no se quede dando OK para siempre a
+                // un ataque obligado (Juggernaut). Colgo questcheck 90 minutos
+                // el 14-09-2026, y solo con mazos al azar. Ver autoPressOk.
+                banner("Piloto automatico: el ataque obligado");
+                forge.neo.match.AttackCheck.run();
+                break;
             case "manacheck":
                 // Que una tierra de dos colores pregunte cual da. La mesa que
                 // lo provoca (dos montanyas + una dual, y un coste de {R}{G})

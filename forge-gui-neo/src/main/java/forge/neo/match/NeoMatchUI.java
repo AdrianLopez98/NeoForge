@@ -329,6 +329,96 @@ public class NeoMatchUI extends NetworkGuiGame {
     private PhaseType lastPhase;
     private int lastTurn = -1;
 
+    /**
+     * Cuantas veces seguidas, en este turno, el piloto automatico se ha
+     * encontrado un ataque que el motor no va a aceptar. Ver autoPressOk().
+     */
+    private final AtomicInteger attackRetries = new AtomicInteger();
+    private volatile int attackRetryTurn = -1;
+    private final AtomicBoolean attackGaveUp = new AtomicBoolean(false);
+    private static final int MAX_ATTACK_RETRIES = 6;
+    /** {@code -Dneo.autoplay.attackGuard=false}: apagarlo, para ver attackcheck en rojo. */
+    private static final boolean ATTACK_GUARD =
+            !"false".equals(System.getProperty("neo.autoplay.attackGuard"));
+
+    /**
+     * El OK del piloto automatico, decidido <b>al pulsarlo</b> y no al pedirlo.
+     *
+     * <p>Fuera del ataque es el {@code selectButtonOk} de siempre. En el ataque
+     * no puede serlo, y fue un cuelgue real: {@code questcheck} se paso 90
+     * minutos al 100% de CPU el 14-09-2026. {@code InputAttack.onOk} solo hace
+     * {@code stop()}; quien decide si el ataque vale es
+     * {@code PhaseHandler.declareAttackersTurnBasedAction}, que con
+     * {@code CombatUtil.validateAttackers} en falso <b>vuelve a preguntar</b>
+     * en un {@code do/while}. Con una criatura obligada a atacar (provocar,
+     * "ataca cada combate si puede") el ataque vacio nunca vale, el piloto
+     * contestaba OK otra vez, y asi hasta el infinito. Como los mazos del
+     * comprobador salen al azar, pasaba unas veces si y otras no.
+     *
+     * <p>Un humano nunca lo ve: lee el aviso y declara la criatura. Esto hace
+     * lo mismo por el camino mas corto — {@code alphaStrike}, que solo
+     * <b>anyade</b> atacantes y ya coloca a los obligados contra su defensor.
+     * No el boton Cancelar, que tambien ataca con todo pero con atacantes ya
+     * puestos los <b>retira</b>: con dos pulsaciones en cola (cada aviso llega
+     * al menos dos veces) una atacaria y la otra deshacia.
+     *
+     * <p>Y si ni asi vale (restricciones que se contradicen con atacar con
+     * todo), no hay nada mas que el piloto sepa probar: se dice FALLO en
+     * mayusculas — que es lo que busca {@code comprobar-todo.py} — y se
+     * termina la partida, en vez de dejar la bateria colgada horas.
+     */
+    private void autoPressOk() {
+        final IGameController controller = getGameController();
+        if (ATTACK_GUARD && controller instanceof forge.player.PlayerControllerHuman human
+                && human.getInputQueue().getInput()
+                        instanceof forge.gamemodes.match.input.InputAttack) {
+            final Game game = human.getGame();
+            final forge.game.combat.Combat combat = game == null ? null : game.getCombat();
+            if (combat != null && !forge.game.combat.CombatUtil.validateAttackers(combat)) {
+                answerInvalidAttack(human, combat);
+                return;
+            }
+            attackRetries.set(0);
+        }
+        controller.selectButtonOk();
+    }
+
+    private void answerInvalidAttack(final forge.player.PlayerControllerHuman human,
+                                     final forge.game.combat.Combat combat) {
+        if (attackGaveUp.get()) {
+            return;
+        }
+        final GameView gv = getGameView();
+        final int turn = gv == null ? -1 : gv.getTurn();
+        if (attackRetryTurn != turn) {
+            attackRetryTurn = turn;
+            attackRetries.set(0);
+        }
+        final int tries = attackRetries.incrementAndGet();
+        if (tries <= MAX_ATTACK_RETRIES && combat.getAttackers().isEmpty()) {
+            trace("ataque obligado: el vacio no vale, atacando con todo");
+            // alphaStrike vuelve a llamar a updateButtons, y de ahi sale el OK.
+            human.alphaStrike();
+            return;
+        }
+        // Con atacantes puestos y aun invalido no se espera a otra pulsacion:
+        // alphaStrike ya ha hecho lo que podia, y el motor vuelve a preguntar
+        // con el MISMO combate (conserva los atacantes). Otra pulsacion no
+        // llegaria nunca, y la partida se quedaria aparcada en silencio.
+        if (!attackGaveUp.compareAndSet(false, true)) {
+            return;
+        }
+        System.out.println("  FALLO - piloto automatico: el motor rechaza el ataque "
+                + tries + " veces seguidas (atacantes: " + combat.getAttackers()
+                + "); se termina la partida para no colgar la bateria");
+        try {
+            human.concede();
+        } catch (final RuntimeException e) {
+            System.out.println("[neo] el motor ha fallado al conceder: " + e);
+        }
+        endTheGameForReal();
+    }
+
     public NeoMatchUI(final Mode mode, final boolean verbose) {
         this.mode = mode;
         this.verbose = verbose;
@@ -2831,7 +2921,9 @@ public class NeoMatchUI extends NetworkGuiGame {
         // hilo que esta bloqueado. En la fase 4 este disparo lo hara el click
         // del usuario en vez de este executor.
         if (okEnabled) {
-            respondLater(() -> getGameController().selectButtonOk());
+            // No un selectButtonOk a ciegas: el ataque obligado lo rechaza el
+            // motor y vuelve a preguntar para siempre. Ver autoPressOk().
+            respondLater(this::autoPressOk);
             return;
         }
 
