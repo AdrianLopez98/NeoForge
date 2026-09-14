@@ -69,6 +69,13 @@ public final class NeoSettings {
      * vienen apagados.
      */
     public static final String FOIL_EFFECT = "foilEffect";
+    /**
+     * Pintar las cartas con su copia reducida por area en vez de encogerlas al
+     * pintar (ver {@code forge.neo.card.Resample}). Encendido de fabrica: es
+     * el arreglo de un fallo reportado, no una preferencia. Se deja apagable
+     * por si en algun equipo se nota lento o raro.
+     */
+    public static final String SHARP_ART = "sharpArt";
     /** Ventana a pantalla completa. */
     public static final String FULLSCREEN = "fullscreen";
     /** Pagar el mana automaticamente al lanzar, en vez de clicar tierras. */

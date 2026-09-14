@@ -136,9 +136,41 @@ public class PromptBanner extends VBox {
             return;
         }
         onOk = onContinue;
-        ok.setText(okLabel == null || okLabel.isBlank()
-                ? NeoText.get("banner.understood") : okLabel);
+        ok.setText(withKey(okLabel == null || okLabel.isBlank()
+                ? NeoText.get("banner.understood") : okLabel));
         layoutContent(null, message, true);
+    }
+
+    /**
+     * "Entendido (Space)": el boton dice con que tecla se cierra.
+     *
+     * <p>Reportado en r/forgeMTG el 14-09-2026: <i>that "Got it" message is really
+     * annoying and I have to click on it (again, no shortcut)</i>. Ahora la tecla
+     * de pasar prioridad lo cierra ({@link #acknowledge}), y se escribe aqui
+     * porque un atajo que nadie sabe que existe no le quita el click a nadie.
+     */
+    private static String withKey(final String label) {
+        final java.util.List<forge.neo.NeoShortcuts.Chord> keys =
+                forge.neo.NeoShortcuts.bindings(forge.neo.NeoShortcuts.Action.PASS_PRIORITY);
+        return keys.isEmpty() ? label : label + " (" + keys.get(0) + ")";
+    }
+
+    /**
+     * Pulsa el boton del aviso, si hay uno puesto.
+     *
+     * <p>Lo usa la tecla de pasar prioridad: mientras el aviso esta puesto el
+     * motor esta parado esperando SOLO este boton (ver {@link #isAlerting}), asi
+     * que es lo unico que esa tecla puede querer decir. Se dispara el boton y no
+     * {@code onOk} a secas, para que haga exactamente lo mismo que el click.
+     *
+     * @return false si no habia aviso que cerrar
+     */
+    public boolean acknowledge() {
+        if (onOk == null || !isVisible()) {
+            return false;
+        }
+        ok.fire();
+        return true;
     }
 
     /**

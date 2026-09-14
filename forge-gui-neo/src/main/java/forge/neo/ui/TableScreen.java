@@ -801,6 +801,11 @@ public class TableScreen extends Pane {
         board.setTranslateX(panX);
         board.setTranslateY(panY);
 
+        // El arte se pide al tamano en pixeles al que se ve (CardNode.sharpenArt):
+        // al acercar, ese tamano cambia. Se vuelve a pedir cuando la rueda para,
+        // no en cada muesca, que serian decenas de repintados de la mesa entera.
+        sharpenAfterZoom.playFromStart();
+
         final boolean on = zoom > 1.001;
         zoomBadge.setText(NeoText.get("table.zoom", String.format("%.1f", zoom)));
         if (zoomBadge.isVisible() != on) {
@@ -810,6 +815,16 @@ public class TableScreen extends Pane {
         if (!on) {
             setCursor(null);
         }
+    }
+
+    /** Ver applyBoardTransform: repedir el arte cuando el zoom se queda quieto. */
+    private final javafx.animation.PauseTransition sharpenAfterZoom = createSharpenAfterZoom();
+
+    private javafx.animation.PauseTransition createSharpenAfterZoom() {
+        final javafx.animation.PauseTransition p =
+                new javafx.animation.PauseTransition(javafx.util.Duration.millis(180));
+        p.setOnFinished(e -> CardNode.refreshAllIn(board));
+        return p;
     }
 
     /** Cuanto esta acercada la mesa. Solo para comprobar con capturas. */

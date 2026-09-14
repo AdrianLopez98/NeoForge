@@ -192,6 +192,22 @@ public class SettingsPanel extends VBox {
                     }
                 }));
 
+        // --- cartas nitidas ---
+        //
+        // Reducir la imagen UNA vez y con un buen filtro, en vez de dejar que
+        // JavaFX la encoja al pintar. Encendido de fabrica; apagable por si en
+        // algun equipo se nota. Ver forge.neo.card.Resample.
+        getChildren().add(toggleRow(NeoText.get("settings.sharpArt"),
+                forge.neo.card.CardImages.isSharp(),
+                on -> {
+                    NeoSettings.setBool(NeoSettings.SHARP_ART, on);
+                    NeoSettings.save();
+                    forge.neo.card.CardImages.setSharp(on);
+                    if (getScene() != null && getScene().getRoot() != null) {
+                        forge.neo.card.CardNode.refreshAllIn(getScene().getRoot());
+                    }
+                }));
+
         // --- arte de las cartas en tu idioma ---
         //
         // Scryfall sirve las impresiones traducidas y son otra carta distinta,

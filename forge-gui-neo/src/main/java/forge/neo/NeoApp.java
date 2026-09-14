@@ -1647,6 +1647,13 @@ public class NeoApp extends Application implements SettingsPanel.Host {
         final boolean free = !table.isModalShowing();
         switch (action) {
             case PASS_PRIORITY:
+                // El aviso de "esto te acaba de pasar" va primero: mientras esta
+                // puesto el motor espera SOLO su boton, asi que es lo unico que
+                // esta tecla puede querer decir (reportado: "I have to click on
+                // it, again no shortcut"). Ver PromptBanner.acknowledge.
+                if (free && table.getPromptBanner().acknowledge()) {
+                    return true;
+                }
                 // Pasar prioridad. Es lo que acaba usando todo el mundo.
                 return free && table.getActionBar().pressPrimary();
             case PASS_TURN:

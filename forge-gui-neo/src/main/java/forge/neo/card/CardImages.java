@@ -409,6 +409,8 @@ public final class CardImages {
      */
     public static void clear() {
         CACHE.invalidateAll();
+        // Y las copias nitidas, que son de las originales que se acaban de tirar.
+        SCALED.invalidateAll();
         FAILED.clear();
         NO_IMAGE.clear();
         LOCALIZED_ASKED.clear();
@@ -638,6 +640,116 @@ public final class CardImages {
         } finally {
             PENDING.remove(imageKey);
         }
+    }
+
+    // ---------------------------------------------------------------
+    // La copia nitida: la carta ya reducida a los pixeles a los que se ve
+    // ---------------------------------------------------------------
+
+    /**
+     * Las copias reducidas. Pequenas (una carta de 150 px son ~130 KB), asi que
+     * caben muchas mas que originales, pero con techo igual: una partida larga
+     * pasa por muchos tamanos distintos al encoger la mesa.
+     */
+    private static final com.google.common.cache.Cache<String, Image> SCALED =
+            com.google.common.cache.CacheBuilder.newBuilder()
+                    .maximumSize(600)
+                    .expireAfterAccess(15, java.util.concurrent.TimeUnit.MINUTES)
+                    .softValues()
+                    .build();
+
+    /** Las que se estan reduciendo ahora mismo, para no encargar dos veces la misma. */
+    private static final Set<String> SCALING = ConcurrentHashMap.newKeySet();
+
+    /** Ajuste "Cartas mas nitidas"; null hasta que alguien lo pregunta. */
+    private static volatile Boolean sharp;
+
+    /**
+     * Si se usan las copias nitidas.
+     *
+     * <p>{@code -Dneo.images.hq=false|true} manda sobre el ajuste: es lo que
+     * permite capturar el antes y el despues sin tocarle los ajustes a nadie.
+     */
+    public static boolean isSharp() {
+        Boolean s = sharp;
+        if (s == null) {
+            final String forced = System.getProperty("neo.images.hq");
+            s = forced != null ? Boolean.valueOf(forced)
+                    : forge.neo.NeoSettings.getBool(forge.neo.NeoSettings.SHARP_ART, true);
+            sharp = s;
+        }
+        return s;
+    }
+
+    /** Lo cambia Ajustes. Apagado, todas las cartas vuelven a pintar la original. */
+    public static void setSharp(final boolean on) {
+        sharp = on;
+        SCALED.invalidateAll();
+    }
+
+    /**
+     * La carta reducida a exactamente {@code width x height} pixeles, o null si
+     * todavia no esta (y entonces se encarga en segundo plano) o si no hace falta.
+     *
+     * <p>"No hace falta" es reducir menos de un 10%, o agrandar: ahi la original
+     * se ve igual o mejor, y quien pinta debe usar la original. Lo mismo mientras
+     * se hace la copia: <b>nunca se ensenya una imagen mas pequena de lo que toca</b>,
+     * que se veria borrosa — como mucho se ve un momento como antes.
+     *
+     * <p>La clave lleva la identidad de la original: si esa carta se vuelve a
+     * leer (otro idioma de arte, la descarga buena), la copia vieja no se puede
+     * confundir con la nueva.
+     *
+     * @param full la imagen que ya se esta pintando (la de {@link #get})
+     */
+    public static Image scaled(final String imageKey, final Image full, final int width, final int height) {
+        if (imageKey == null || full == null || width <= 0 || height <= 0 || !isSharp()) {
+            return null;
+        }
+        final int sw = (int) full.getWidth();
+        final int sh = (int) full.getHeight();
+        if (sw <= 0 || sh <= 0 || full.isError() || width >= sw * 0.9 || height >= sh * 0.9) {
+            return null;
+        }
+        final String key = imageKey + '@' + width + 'x' + height + '#' + System.identityHashCode(full);
+        final Image hit = SCALED.getIfPresent(key);
+        if (hit != null) {
+            return hit;
+        }
+        if (!SCALING.add(key)) {
+            return null;
+        }
+        try {
+            LOADERS.submit(() -> {
+                try {
+                    final javafx.scene.image.PixelReader reader = full.getPixelReader();
+                    if (reader == null) {
+                        return;
+                    }
+                    final int[] src = new int[sw * sh];
+                    reader.getPixels(0, 0, sw, sh,
+                            javafx.scene.image.PixelFormat.getIntArgbInstance(), src, 0, sw);
+                    final int[] dst = Resample.downscale(src, sw, sh, width, height);
+                    final javafx.scene.image.WritableImage out =
+                            new javafx.scene.image.WritableImage(width, height);
+                    out.getPixelWriter().setPixels(0, 0, width, height,
+                            javafx.scene.image.PixelFormat.getIntArgbInstance(), dst, 0, width);
+                    SCALED.put(key, out);
+                    notifyReady(imageKey);
+                } catch (final Exception e) {
+                    // Sin copia nitida se sigue viendo la original: no es motivo
+                    // para nada mas que dejarlo dicho.
+                    if (DEBUG) {
+                        System.out.println("[neo-img] no se ha podido reducir " + imageKey + ": " + e);
+                    }
+                } finally {
+                    SCALING.remove(key);
+                }
+            });
+        } catch (final java.util.concurrent.RejectedExecutionException e) {
+            SCALING.remove(key);
+        }
+        return null;
     }
 
     /**

@@ -72,6 +72,13 @@ public final class NeoMain {
             return;
         }
 
+        // El reescalado de las cartas: Java puro, sin ventana. Ver ImageScaleCheck.
+        if ("imagecheck".equals(cmd)) {
+            banner("Cartas nitidas: el reescalado Lanczos");
+            ImageScaleCheck.run();
+            return;
+        }
+
         // Un solo NeoForge abierto, y lo PRIMERO de todo: si ya hay uno, este
         // proceso no tiene que hacer absolutamente nada, ni siquiera abrir el
         // registro. Rotar el neo.log que el otro tiene abierto no se puede, y

@@ -674,6 +674,74 @@ public class CardNode extends StackPane {
         this.blankWhileLoading = on;
     }
 
+    /**
+     * La imagen original (488x680) de la carta que se ve, la que dio
+     * {@code CardImages.get}. El {@code ImageView} puede estar pintando esta o
+     * su copia nitida; hace falta tenerla para volver a ella.
+     */
+    private Image fullArt;
+
+    /**
+     * Cambia el arte por su copia ya reducida a los pixeles a los que se ve.
+     *
+     * <p>Ver {@code Resample}: reducir 488 px a 120 al pintar, con el filtro de
+     * JavaFX, deja la carta ilegible. La copia se hace una vez, en segundo plano,
+     * y mientras no esta se sigue pintando la original — asi que esto no puede
+     * dejar una carta sin arte ni hacerla parpadear. Y si el tamano cambia
+     * (se acerca la mesa) y la copia de ese tamano aun no esta, se vuelve a la
+     * original antes que agrandar una pequena, que se veria borrosa.
+     */
+    private void sharpenArt() {
+        final Image full = fullArt;
+        if (full == null || shownImageKey == null || art.getImage() == null) {
+            return;
+        }
+        final int[] px = wantedPixels();
+        final Image sharp = px == null ? null : CardImages.scaled(shownImageKey, full, px[0], px[1]);
+        final Image want = sharp != null ? sharp : full;
+        if (art.getImage() != want) {
+            art.setImage(want);
+        }
+    }
+
+    /**
+     * A cuantos pixeles de PANTALLA se ve el arte de esta carta.
+     *
+     * <p>Cuenta todo lo que la escala por fuera — la escala de interfaz, el zoom
+     * de la mesa y la del monitor (125%, 150%...) — y no lo que la gira: la
+     * escala sale del modulo de la transformacion, asi que una carta girada en la
+     * mano o tapada pide lo mismo que derecha. La escala de ESTE nodo (el
+     * levantado al pasar el raton, las animaciones) se descuenta: se pide el
+     * tamano EN REPOSO, que es cuando se lee la carta. Se probo a pedirla ya al
+     * tamano de levantada (+8%) y medido en pantalla dejaba el texto mas blando:
+     * esa reduccion del 8% al pintar la vuelve a hacer el bilineal.
+     *
+     * <p>El ancho se redondea al multiplo de 4 de arriba: sin eso cada pixel de
+     * diferencia al encoger la mesa seria una copia nueva.
+     */
+    private int[] wantedPixels() {
+        final javafx.scene.Scene sc = getScene();
+        if (sc == null || sc.getWindow() == null) {
+            return null;
+        }
+        final double fw = art.getFitWidth();
+        final double fh = art.getFitHeight();
+        if (fw <= 0 || fh <= 0) {
+            return null;
+        }
+        final javafx.scene.transform.Transform t = getLocalToSceneTransform();
+        double s = Math.hypot(t.getMxx(), t.getMyx());
+        final double own = Math.hypot(getScaleX(), 0);
+        if (own > 1e-6) {
+            s /= own;
+        }
+        s *= sc.getWindow().getOutputScaleX();
+        int w = (int) Math.ceil(fw * s);
+        w = ((w + 3) / 4) * 4;
+        final int h = (int) Math.round(w * fh / fw);
+        return w < 8 || h < 8 ? null : new int[] {w, h};
+    }
+
     public void refresh() {
         if (card == null) {
             art.setImage(null);
@@ -696,16 +764,19 @@ public class CardNode extends StackPane {
             if (blankWhileLoading) {
                 art.setImage(null);
                 shownImageKey = null;
+                fullArt = null;
             }
         } else if (!key.equals(shownImageKey)) {
             final Image img = CardImages.get(key);
             if (img != null) {
                 art.setImage(img);
                 shownImageKey = key;
+                fullArt = img;
             } else if (blankWhileLoading) {
                 art.setImage(null);
             }
         }
+        sharpenArt();
         final boolean hasArt = art.getImage() != null;
         art.setVisible(hasArt);
 
