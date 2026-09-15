@@ -148,6 +148,24 @@ public class DeckBuilderScreen extends StackPane {
     private boolean commanderMode;
 
     /**
+     * "ELIGIENDO COMANDANTE", al lado del titulo del catalogo.
+     *
+     * <p>Pedido el 15-09-2026: el boton marcado esta abajo, entre otros, y
+     * mirando el catalogo no se sabia si estabas eligiendo comandante o
+     * buscando cartas. Se ve donde se mira, y solo mientras dura el modo.
+     */
+    private final Label pickingBadge = pickingBadge();
+
+    private static Label pickingBadge() {
+        final Label l = new Label(NeoText.get("deck.pickingCommander"));
+        l.getStyleClass().add("picking-commander-badge");
+        l.setMinWidth(Region.USE_PREF_SIZE);
+        l.setVisible(false);
+        l.setManaged(false);
+        return l;
+    }
+
+    /**
      * El boton que enciende y apaga ese modo.
      *
      * <p>Es un campo, y no una variable de {@code footer()}, porque el modo
@@ -406,7 +424,7 @@ public class DeckBuilderScreen extends StackPane {
         // Con catalogo limitado esta columna ya no es "el catalogo de Magic":
         // es TU COLECCION. Decirlo cambia lo que el jugador espera encontrar.
         final HBox caption = new HBox(10,
-                label(editor.getFormat().catalogueLabel()),
+                label(editor.getFormat().catalogueLabel()), pickingBadge,
                 gap, legal);
         caption.setAlignment(Pos.CENTER_LEFT);
 
@@ -649,7 +667,28 @@ public class DeckBuilderScreen extends StackPane {
         commanderMode = on;
         commanderButton.setText(NeoText.get(on ? "deck.backToCatalogue" : "deck.pickCommander"));
         commanderButton.pseudoClassStateChanged(SELECTED, on);
+        pickingBadge.setVisible(on);
+        pickingBadge.setManaged(on);
         refreshCatalogue();
+    }
+
+    /**
+     * Empieza el mazo por su comandante: abre ya en "elegir comandante".
+     *
+     * <p>Pedido el 15-09-2026: en Commander y Brawl lo primero que se decide es
+     * el comandante (de el sale la identidad de color, o sea que cartas caben),
+     * y el boton que lo elige esta abajo, entre otros cinco — quien no lo ve
+     * empieza a meter cartas que luego no le caben. Asi que el catalogo sale ya
+     * ensenyando comandantes y el boton ya marcado; al elegir uno se vuelve
+     * solo al catalogo normal (ver el click de la tesela).
+     *
+     * <p>Solo si el mazo usa comandante y aun no tiene ninguno. En que formatos
+     * se llama lo decide quien abre el editor ({@code NeoApp.showDeckBuilder}).
+     */
+    public void startByPickingCommander() {
+        if (editor.usesCommander() && editor.commanders().isEmpty() && !commanderMode) {
+            setCommanderMode(true);
+        }
     }
 
     // ===============================================================
@@ -1777,13 +1816,37 @@ public class DeckBuilderScreen extends StackPane {
                     can, () -> {
                         editor.setCommander(card);
                         refreshDeck();
-                        refreshCatalogue();
+                        // Igual que el click en la tesela: elegido el
+                        // comandante, se sale del modo (y eso ya refresca).
+                        if (commanderMode) {
+                            setCommanderMode(false);
+                        } else {
+                            refreshCatalogue();
+                        }
                     }));
         }
 
         overlay.setOnBackgroundClick(overlay::hide);
-        overlay.show(new CardActionMenu(card, actions, cardWidth * 2.2,
+        overlay.show(new CardActionMenu(card, actions, menuCardWidth(cardWidth * 2.2),
                 a -> overlay.hide(), overlay::hide));
+    }
+
+    /**
+     * El ancho que se le pasa al menu de una carta, con techo por el ALTO.
+     *
+     * <p>El menu pinta la carta a 1,9 veces lo que recibe, y el del catalogo
+     * recibe 2,2 cartas: 4,2 veces el ancho de una tesela. En una pantalla
+     * ancha eso pasaba del alto de la ventana y la carta se salia por arriba y
+     * por abajo (reportado jugando el 15-09-2026). Donde cabe, se queda como
+     * estaba; donde no, la carta ocupa como mucho el 72% del alto.
+     */
+    private double menuCardWidth(final double wanted) {
+        final double h = getHeight() > 0 ? getHeight()
+                : getScene() != null ? getScene().getHeight() : 0;
+        if (h <= 0) {
+            return wanted;
+        }
+        return Math.min(wanted, h * 0.72 / (1.9 * forge.neo.card.CardNode.ASPECT));
     }
 
     // ===============================================================

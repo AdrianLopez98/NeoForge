@@ -1919,6 +1919,16 @@
     -fx-text-fill: -neo-text-dim;
 }
 
+/* "ELIGIENDO COMANDANTE", al lado del titulo del catalogo mientras dura el modo */
+.picking-commander-badge {
+    -fx-font-size: 0.8em;
+    -fx-font-weight: bold;
+    -fx-text-fill: #171b20;
+    -fx-background-color: -neo-warn;
+    -fx-background-radius: 4;
+    -fx-padding: 2 9;
+}
+
 /* "3 / 60 · rueda para pasar de carta", debajo de la carta ampliada */
 .zoom-browse-hint {
     -fx-font-size: 0.9em;

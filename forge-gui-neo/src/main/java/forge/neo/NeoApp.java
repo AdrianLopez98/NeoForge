@@ -2359,6 +2359,12 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             builder = null;
             showHome(format);
         });
+        // Un mazo NUEVO de Commander o Brawl empieza eligiendo comandante, con
+        // el catalogo de comandantes ya puesto. Solo esos dos formatos, a
+        // proposito: pedido asi el 15-09-2026.
+        if (deck == null && (format == NeoFormat.COMMANDER || format == NeoFormat.BRAWL)) {
+            builder.startByPickingCommander();
+        }
         scene.setRoot(builder);
         applyScale();
     }

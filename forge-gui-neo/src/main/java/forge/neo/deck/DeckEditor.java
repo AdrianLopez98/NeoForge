@@ -1254,8 +1254,16 @@ public final class DeckEditor {
         final DeckFormat df = deckFormat();
         final List<PaperCard> hits = new ArrayList<>();
         for (int i = 0; i < index.size(); i++) {
-            if (index.matches(i, q) && df.isLegalCommander(index.cardAt(i).getRules())) {
-                hits.add(index.cardAt(i));
+            final PaperCard c = index.cardAt(i);
+            // Sin las rebalanceadas de Arena ("A-..."): no son las que nadie
+            // busca al elegir comandante y, ordenadas por nombre, se ponian
+            // delante. Las dos condiciones, como en AscentSeedDeck.commanderPool:
+            // isRebalanced() sola casi no casa, porque el nombre ya lleva el prefijo.
+            if (c.isRebalanced() || c.getName().startsWith("A-")) {
+                continue;
+            }
+            if (index.matches(i, q) && df.isLegalCommander(c.getRules())) {
+                hits.add(c);
             }
         }
         hits.sort(Comparator

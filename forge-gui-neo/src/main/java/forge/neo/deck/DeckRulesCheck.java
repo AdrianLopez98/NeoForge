@@ -152,6 +152,10 @@ public final class DeckRulesCheck {
         if (!mine.isEmpty() && mine != english) {
             final java.util.Set<Object> onlyMine = new java.util.TreeSet<>(mine.keySet());
             onlyMine.removeAll(english.keySet());
+            // Las tgt.* son el vocabulario de EngineText y en ingles no existen
+            // a proposito: su lado ingles es el texto del propio motor. Ver
+            // tambien tools/comprobar-idiomas.py.
+            onlyMine.removeIf(k -> String.valueOf(k).startsWith("tgt."));
             final java.util.Set<Object> onlyEnglish = new java.util.TreeSet<>(english.keySet());
             onlyEnglish.removeAll(mine.keySet());
             if (!onlyMine.isEmpty() || !onlyEnglish.isEmpty()) {
@@ -549,6 +553,13 @@ public final class DeckRulesCheck {
                 "SIDEBOARD:",
                 "1 Yarok, the Desecrated");
         final DeckImporter.Result fromSide = DeckImporter.importCommander(moxfield, "prueba");
+        System.out.printf(java.util.Locale.ROOT,
+                "        (SIDEBOARD: mazo=%s comandantes=%s principal=%d banquillo=%d aceptadas=%d desconocidas=%d %s)%n",
+                fromSide.deck != null,
+                fromSide.deck == null ? "-" : fromSide.deck.getCommanders(),
+                fromSide.deck == null ? -1 : DeckImporter.sectionSize(fromSide.deck, forge.deck.DeckSection.Main),
+                fromSide.deck == null ? -1 : DeckImporter.sectionSize(fromSide.deck, forge.deck.DeckSection.Sideboard),
+                fromSide.accepted, fromSide.unknown, fromSide.problems);
         check("Importar: el comandante del SIDEBOARD se reconoce",
                 fromSide.deck != null && fromSide.deck.getCommanders().size() == 1
                         && fromSide.deck.getCommanders().get(0).getName()

@@ -61,6 +61,18 @@ public final class DeckImporter {
                 false);
 
         controller.setGameFormat(GameType.Commander);
+        // Las secciones, SIEMPRE explicitas. Sin ellas la lista queda vacia, que
+        // para Forge es "todas permitidas"... hasta Card-Forge 3ca40a1955
+        // (#10517, 12-09-2026): parseInput ahora ANYADE Commander a esa lista
+        // cuando el texto trae una linea "Commander" — y withSectionHeaders la
+        // escribe siempre. La lista pasaba a ser SOLO Commander, el resto de
+        // cartas salia como "no soportada" y la importacion se rompia entera
+        // (medido: Sol Ring e Island fuera, Counterspell de comandante). Con
+        // Commander ya dentro, parseInput no anyade nada.
+        controller.setAllowedSections(java.util.List.of(
+                forge.deck.DeckSection.Main,
+                forge.deck.DeckSection.Sideboard,
+                forge.deck.DeckSection.Commander));
 
         final List<DeckRecognizer.Token> tokens = controller.parseInput(withSectionHeaders(text));
 
