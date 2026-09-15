@@ -296,7 +296,7 @@ public class TableScreen extends Pane {
 
         getChildren().addAll(opponentTabs, opponentBar, viewport,
                 selfBar, hand, commandZone, phaseRail, side, combatOverlay, logButton, cooldownBadge,
-                promptBanner, turnBanner, playerDetails, zoomBadge, spotlight,
+                promptBanner, notices, turnBanner, playerDetails, zoomBadge, spotlight,
                 overlay, menuOverlay, zoomOverlay);
 
         // Se cierra con un click en cualquier sitio, como en Arena.
@@ -498,6 +498,14 @@ public class TableScreen extends Pane {
             zoomBadge.resizeRelocate(PAD, boardTop + PAD, bw, bh);
         }
 
+        // "Esto te acaba de pasar", arriba a la derecha de la mesa, como en el
+        // Forge de siempre. Ver NoticeStack.
+        if (notices.hasNotices()) {
+            final double nw = Math.min(380, Math.max(220, contentW * 0.34));
+            final double nh = Math.min(boardH - PAD * 2, notices.prefHeight(nw));
+            notices.resizeRelocate(contentW - PAD - nw, boardTop + PAD, nw, nh);
+        }
+
         selfBar.resizeRelocate(0, y, contentW, selfBarH);
         y += selfBarH;
 
@@ -673,6 +681,19 @@ public class TableScreen extends Pane {
     private double panFromY;
 
     private final javafx.scene.control.Label zoomBadge = new javafx.scene.control.Label();
+
+    /** Los avisos de la esquina. Ver {@link NoticeStack}. */
+    private final NoticeStack notices = new NoticeStack();
+
+    /** "Esto te acaba de pasar", sin parar la partida. */
+    public void showNotice(final String text) {
+        notices.push(text);
+        requestLayout();
+    }
+
+    public NoticeStack getNotices() {
+        return notices;
+    }
 
     private void installBoardZoom() {
         zoomBadge.getStyleClass().add("zoom-badge");
@@ -2865,20 +2886,21 @@ public class TableScreen extends Pane {
     }
 
     /** Click en una fase del rail: poner o quitar la parada. */
-    public void setOnPhaseToggled(final Consumer<PhaseType> handler) {
+    public void setOnPhaseToggled(final java.util.function.BiConsumer<Boolean, PhaseType> handler) {
         // Se envuelve en vez de enganchar el rail por su cuenta: asi el aviso
         // sale exactamente cuando la parada se pone de verdad, y quien monta el
         // tutorial no tiene que acordarse de nada.
-        phaseRail.setOnToggle(phase -> {
+        phaseRail.setOnToggle((mine, phase) -> {
             gesture(Gesture.PHASE_STOP);
             if (handler != null) {
-                handler.accept(phase);
+                handler.accept(mine, phase);
             }
         });
     }
 
-    public void setPhaseStops(final Predicate<PhaseType> isStop) {
-        phaseRail.setStops(isStop);
+    /** Paradas de tus turnos y de los del rival. */
+    public void setPhaseStops(final Predicate<PhaseType> mine, final Predicate<PhaseType> theirs) {
+        phaseRail.setStops(mine, theirs);
     }
 
     /** Criaturas pintadas en el campo propio. Solo lo usa el modo maqueta. */

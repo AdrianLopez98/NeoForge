@@ -50,15 +50,19 @@ import forge.neo.tutorial.TutorialState;
  * una preferencia, porque la posicion no arranca, porque el controlador no se
  * sento — la partida <b>tambien</b> terminaria bien, y la prueba pasaria en
  * verde sin haber tocado ni una vez el codigo que revienta. Es el mismo fallo
- * que tuvo la sonda vieja de Ascenso (ver las trampas conocidas). Asi que se exige lo
- * contrario: <b>que el fallo del motor se haya producido de verdad</b>
- * ({@code SafeActions.rescues() > 0}) <b>y ademas</b> que la partida siguiera
- * viva despues.
+ * que tuvo la sonda vieja de Ascenso (ver las trampas conocidas). Asi que se exige
+ * <b>que el barrido haya corrido de verdad</b> ({@code SafeActions.scans() > 0})
+ * <b>y ademas</b> que la partida llegue al final.
  *
- * <p>De ahi sale gratis el otro aviso que interesa: si algun dia Card-Forge
- * pone el {@code getLastKnownZone()} que falta, esta prueba se pone en rojo
- * diciendo <i>"ya no hace falta el apanyo"</i>, en vez de dejarnos cargando
- * codigo muerto para siempre.
+ * <p><b>Los rescates ya no se exigen.</b> Hasta el 14-09-2026 se pedia
+ * {@code rescues() > 0} (salian 25). El 15-09-2026 el rebase trajo el arreglo
+ * de Card-Forge ({@code aeedc51351}, #11917: {@code getLastKnownZone()} y la
+ * zona nula como "no coincide"), la misma mesa pasa a dar <b>cero</b> y la
+ * prueba se puso en rojo tal y como estaba previsto. Leido el diff, cubre
+ * exactamente esta linea, asi que cero rescates con el barrido encendido y la
+ * partida terminada es ahora el resultado <b>bueno</b>, y se dice con una nota.
+ * Si vuelven a salir rescates (otra propiedad del motor tropezando con una
+ * copia LKI) tambien es verde: para eso sigue de guardia {@link SafeActions}.
  *
  * <p><b>La contraprueba</b> no se automatiza porque exige otro proceso (la
  * bandera se lee una vez, al cargar la clase). A mano:
@@ -146,15 +150,28 @@ public final class ActionsCheck {
                 lesson, state, NeoMatchUI.Mode.AUTO_PLAY, 40, null, false, null);
 
         final int rescues = SafeActions.rescues();
-        System.out.printf(Locale.ROOT, "  Turnos jugados: %d | rescates del barrido: %d%n",
-                result.turns, rescues);
+        final int scans = SafeActions.scans();
+        System.out.printf(Locale.ROOT,
+                "  Turnos jugados: %d | prioridades con barrido: %d | rescates del barrido: %d%n",
+                result.turns, scans, rescues);
 
-        // 1. El fallo del motor se ha producido DE VERDAD.
-        check(rescues > 0,
-                "el barrido revento y se rescato (" + rescues + " vez/veces)",
-                "el barrido NUNCA fallo: o la posicion no monto la mesa, o el barrido "
-                        + "esta apagado, o Card-Forge ya lo ha arreglado y este apanyo "
-                        + "sobra. Mirar las tres antes de tocar nada");
+        // 1. El barrido ha corrido DE VERDAD con nuestro controlador sentado.
+        //    Sin esto, cero rescates no distinguiria "el motor ya no falla" de
+        //    "no se llego a ejecutar la linea que fallaba".
+        check(scans > 0,
+                "el barrido corrio con el controlador blindado (" + scans + " prioridades)",
+                "el barrido NUNCA corrio: o la posicion no monto la mesa, o el barrido "
+                        + "esta apagado, o SafeActions.Guarded no se sento. La prueba no "
+                        + "demuestra nada hasta arreglar eso");
+
+        if (rescues > 0) {
+            System.out.println("  NOTA el barrido revento y se rescato (" + rescues
+                    + " vez/veces): el motor vuelve a tropezar con una copia LKI y "
+                    + "SafeActions lo esta tapando. Mirar el registro");
+        } else {
+            System.out.println("  NOTA cero rescates: el arreglo de Card-Forge (aeedc51351, "
+                    + "#11917) ya esta en el motor. SafeActions queda de guardia, dormido");
+        }
 
         // 2. Y aun asi la partida LLEGO AL FINAL. Se mira `completed` y no los
         //    turnos: sin blindaje el hilo del motor muere y la partida se

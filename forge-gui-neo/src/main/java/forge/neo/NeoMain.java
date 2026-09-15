@@ -205,6 +205,14 @@ public final class NeoMain {
                 banner("Piloto automatico: el ataque obligado");
                 forge.neo.match.AttackCheck.run();
                 break;
+            case "blockcheck":
+                // El gemelo: el piloto pulsaba OK sin bloquear a una criatura
+                // obligada (Lure, Watchdog), InputBlock lo rechazaba y se
+                // quedaba esperando para siempre. Corto questcheck a los 300 s
+                // el 15-09-2026. Ver NeoMatchUI.answerInvalidBlock.
+                banner("Piloto automatico: el bloqueo obligado");
+                forge.neo.match.BlockCheck.run();
+                break;
             case "manacheck":
                 // Que una tierra de dos colores pregunte cual da. La mesa que
                 // lo provoca (dos montanyas + una dual, y un coste de {R}{G})

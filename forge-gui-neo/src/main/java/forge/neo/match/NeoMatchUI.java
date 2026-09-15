@@ -341,6 +341,12 @@ public class NeoMatchUI extends NetworkGuiGame {
     private static final boolean ATTACK_GUARD =
             !"false".equals(System.getProperty("neo.autoplay.attackGuard"));
 
+    /** El piloto automatico ya se ha rendido con un bloqueo. Ver answerInvalidBlock(). */
+    private final AtomicBoolean blockGaveUp = new AtomicBoolean(false);
+    /** {@code -Dneo.autoplay.blockGuard=false}: apagarlo, para ver blockcheck en rojo. */
+    private static final boolean BLOCK_GUARD =
+            !"false".equals(System.getProperty("neo.autoplay.blockGuard"));
+
     /**
      * El OK del piloto automatico, decidido <b>al pulsarlo</b> y no al pedirlo.
      *
@@ -380,7 +386,138 @@ public class NeoMatchUI extends NetworkGuiGame {
             }
             attackRetries.set(0);
         }
+        if (BLOCK_GUARD && controller instanceof forge.player.PlayerControllerHuman human
+                && human.getInputQueue().getInput()
+                        instanceof forge.gamemodes.match.input.InputBlock
+                && !answerInvalidBlock(human)) {
+            return;
+        }
         controller.selectButtonOk();
+    }
+
+    /**
+     * El gemelo del ataque, en la declaracion de <b>bloqueadores</b>. Devuelve
+     * si ya se puede pulsar OK.
+     *
+     * <p>Otro cuelgue real: {@code comprobar-todo.py} corto {@code questcheck}
+     * a los 300 s el 15-09-2026, con <i>"Spirit Token (124) must block an
+     * attacker, but has not been assigned to block any."</i> como ultima linea.
+     * Aqui el motor no repregunta: {@code InputBlock.onOk} valida con
+     * {@code CombatUtil.validateBlocks} y, si no vale, solo ensenya el aviso y
+     * sigue esperando. Al piloto no le llega otra pulsacion, y el hilo de la
+     * partida se queda en {@code showAndWait} para siempre, sin gastar CPU.
+     *
+     * <p>Lo que haria un humano: poner a bloquear a quien esta obligado (Lure,
+     * "bloquea cada combate si puede"). Primero solo eso, cambiando lo minimo
+     * lo que hace el piloto; si el motor aun no lo acepta (bloqueos de varias
+     * criaturas, "no puede bloquear sola"...), se le pide el bloqueo entero a
+     * la IA de Forge, que ya sabe de todas esas restricciones. Y si ni asi,
+     * FALLO y se termina la partida, como con el ataque.
+     */
+    private boolean answerInvalidBlock(final forge.player.PlayerControllerHuman human) {
+        final Game game = human.getGame();
+        final forge.game.combat.Combat combat = game == null ? null : game.getCombat();
+        if (combat == null) {
+            return true;
+        }
+        final forge.game.player.Player defender = blockingDefender(human, combat);
+        if (defender == null) {
+            return true;
+        }
+        final String problem = forge.game.combat.CombatUtil.validateBlocks(combat, defender);
+        if (problem == null) {
+            return true;
+        }
+        if (blockGaveUp.get()) {
+            return false;
+        }
+        trace("bloqueo obligado: %s | poniendo a bloquear a los obligados", problem);
+        assignRequiredBlocks(combat, defender);
+        String left = forge.game.combat.CombatUtil.validateBlocks(combat, defender);
+        if (left != null) {
+            trace("bloqueo obligado: %s | pidiendo el bloqueo a la IA", left);
+            try {
+                new forge.ai.AiBlockController(defender, false).assignBlockersForCombat(combat);
+            } catch (final RuntimeException e) {
+                trace("bloqueo obligado: la IA ha fallado al bloquear: %s", e);
+            }
+            left = forge.game.combat.CombatUtil.validateBlocks(combat, defender);
+        }
+        if (left == null) {
+            game.fireEvent(new forge.game.event.GameEventCombatChanged());
+            return true;
+        }
+        if (!blockGaveUp.compareAndSet(false, true)) {
+            return false;
+        }
+        System.out.println("  FALLO - piloto automatico: el motor rechaza el bloqueo (" + left
+                + "); se termina la partida para no colgar la bateria");
+        try {
+            human.concede();
+        } catch (final RuntimeException e) {
+            System.out.println("[neo] el motor ha fallado al conceder: " + e);
+        }
+        endTheGameForReal();
+        return false;
+    }
+
+    /**
+     * A quien le estamos declarando bloqueadores: a nosotros, o a quien nos
+     * haya cedido la declaracion (Odric, Lunarch Marshal y compania).
+     * {@code InputBlock} no publica su defensor, asi que se deduce como lo hace
+     * {@code PhaseHandler.declareBlockersTurnBasedAction}.
+     */
+    private static forge.game.player.Player blockingDefender(
+            final forge.player.PlayerControllerHuman human, final forge.game.combat.Combat combat) {
+        final forge.game.player.Player me = human.getPlayer();
+        forge.game.player.Player other = null;
+        for (final forge.game.player.Player p : combat.getDefendingPlayers()) {
+            final forge.game.player.Player declares =
+                    java.util.Objects.requireNonNullElse(p.getDeclaresBlockers(), p);
+            if (declares != me || !combat.isPlayerAttacked(p)) {
+                continue;
+            }
+            if (p == me) {
+                return p;
+            }
+            if (other == null) {
+                other = p;
+            }
+        }
+        return other;
+    }
+
+    /**
+     * Pone a bloquear a cada criatura que <b>debe</b> hacerlo, contra el primer
+     * atacante con el que la obligacion queda cumplida. Con Lure no vale uno
+     * cualquiera: bloquear a otro atacante no satisface a la criatura con
+     * Lure, por eso se prueba y se deshace.
+     */
+    private static void assignRequiredBlocks(final forge.game.combat.Combat combat,
+                                             final forge.game.player.Player defender) {
+        for (final forge.game.card.Card blocker : defender.getCreaturesInPlay()) {
+            if (!owesABlock(blocker, combat)) {
+                continue;
+            }
+            for (final forge.game.card.Card attacker : combat.getAttackers()) {
+                if (combat.isBlocking(blocker, attacker)
+                        || !forge.game.combat.CombatUtil.canBlock(attacker, blocker, combat)) {
+                    continue;
+                }
+                combat.addBlocker(attacker, blocker);
+                if (!owesABlock(blocker, combat)) {
+                    break;
+                }
+                combat.removeBlockAssignment(attacker, blocker);
+            }
+        }
+    }
+
+    private static boolean owesABlock(final forge.game.card.Card blocker,
+                                      final forge.game.combat.Combat combat) {
+        return forge.game.combat.CombatUtil.mustBlockAnAttacker(blocker, combat, null)
+                || (forge.game.staticability.StaticAbilityMustBlock.blocksEachCombatIfAble(blocker)
+                        && !combat.isBlocking(blocker));
     }
 
     private void answerInvalidAttack(final forge.player.PlayerControllerHuman human,
@@ -478,10 +615,10 @@ public class NeoMatchUI extends NetworkGuiGame {
             table.setOnStackMenu(this::showStackMenu);
 
             // Paradas de fase: el control del auto-pass, como los stops de Arena.
-            table.setPhaseStops(this::hasStop);
-            table.setOnPhaseToggled(phase -> {
-                toggleStop(phase);
-                table.setPhaseStops(this::hasStop);
+            table.setPhaseStops(p -> hasStop(true, p), p -> hasStop(false, p));
+            table.setOnPhaseToggled((mine, phase) -> {
+                toggleStop(mine, phase);
+                table.setPhaseStops(p -> hasStop(true, p), p -> hasStop(false, p));
             });
         };
         if (ui != null) {
@@ -943,11 +1080,13 @@ public class NeoMatchUI extends NetworkGuiGame {
         if (gc == null || gc.getYieldController() == null) {
             return null;
         }
-        final boolean on = !fullControl;
-        fullControl = on;
-        final String autoPass = String.valueOf(!on);
         final forge.localinstance.properties.ForgePreferences.FPref pref =
                 forge.localinstance.properties.ForgePreferences.FPref.YIELD_AUTO_PASS_NO_ACTIONS;
+        // Se pregunta al controlador y no a una marca nuestra: el pase puede
+        // venir apagado desde Ajustes (NeoSettings.AUTO_PASS), y entonces el
+        // primer toque tiene que ENCENDERLO, no volver a apagarlo.
+        final boolean on = gc.getYieldController().getBoolPref(pref);
+        final String autoPass = String.valueOf(!on);
         respondLater(() -> {
             gc.getYieldController().setPref(pref, autoPass);
             if (on) {
@@ -957,9 +1096,6 @@ public class NeoMatchUI extends NetworkGuiGame {
         });
         return on;
     }
-
-    /** Si el jugador ha puesto el control total en esta partida. */
-    private volatile boolean fullControl;
 
     /** Ultima carta que ha clicado el jugador. */
     private volatile CardView lastClicked;
@@ -1551,6 +1687,15 @@ public class NeoMatchUI extends NetworkGuiGame {
         }
 
         final String text = String.join(System.lineSeparator(), news);
+        // De fabrica, en la esquina y sin parar (pedido en r/forgeMTG el
+        // 15-09-2026: un click por cada cosa del rival cansa). Se devuelve
+        // false para que la pausa entre carta y carta de la IA siga dando el
+        // tiempo de leerlo.
+        if (forge.neo.NeoSettings.getInt(forge.neo.NeoSettings.NEWS_STYLE, 0) == 0) {
+            final forge.neo.ui.TableScreen t = table;
+            uiRunLater(() -> t.showNotice(text));
+            return false;
+        }
         // askUser bloquea el hilo del MOTOR hasta que se pulsa OK, que es
         // justamente lo que se quiere: la partida se detiene de verdad.
         askUser(done -> {
@@ -1971,9 +2116,6 @@ public class NeoMatchUI extends NetworkGuiGame {
         // no se limpiara la marca de terminada, los clicks se seguirian
         // descartando y la segunda partida naceria muerta.
         finished.set(false);
-        // El control total es de la partida: su override vive en el controlador
-        // de la anterior, asi que la nueva empieza con el pase de siempre.
-        fullControl = false;
         closeNotified.set(false);
         // El aviso de "el motor se ha muerto" es de un solo uso: si no se
         // rearma aqui, la segunda partida se rompe en silencio.
@@ -4877,23 +5019,63 @@ public class NeoMatchUI extends NetworkGuiGame {
      *
      * <p>En todas las demas se pasa solo. Es la clave de que jugar no sea
      * pesado: sin esto hay que dar OK en cada paso del turno del rival.
+     *
+     * <p><b>Dos listas</b>, la de tus turnos y la de los del rival, como el
+     * Forge de siempre (pedido en r/forgeMTG el 15-09-2026). De fabrica las dos
+     * son las cuatro de antes, asi que quien no toque nada juega igual. Y se
+     * <b>guardan</b> ({@code NeoSettings.PHASE_STOPS_*}): antes volvian a las de
+     * fabrica en cada arranque, y marcar tus paradas cada vez es justo lo que
+     * no quiere quien las usa. Salvo en el tutorial, que pide poner una para
+     * probar y no tiene por que cambiarte las partidas de verdad.
      */
-    private final java.util.Set<PhaseType> stops = java.util.Collections.synchronizedSet(
-            java.util.EnumSet.of(
-                    PhaseType.MAIN1,
-                    PhaseType.MAIN2,
-                    PhaseType.COMBAT_DECLARE_ATTACKERS,
-                    PhaseType.COMBAT_DECLARE_BLOCKERS));
+    private final java.util.Set<PhaseType> stops = loadStops(forge.neo.NeoSettings.PHASE_STOPS_MINE);
+    private final java.util.Set<PhaseType> theirStops = loadStops(forge.neo.NeoSettings.PHASE_STOPS_THEIRS);
 
-    /** Marca o desmarca una parada, como los "stops" de Arena. */
-    public void toggleStop(final PhaseType phase) {
-        if (!stops.remove(phase)) {
-            stops.add(phase);
+    private static final java.util.Set<PhaseType> DEFAULT_STOPS = java.util.EnumSet.of(
+            PhaseType.MAIN1,
+            PhaseType.MAIN2,
+            PhaseType.COMBAT_DECLARE_ATTACKERS,
+            PhaseType.COMBAT_DECLARE_BLOCKERS);
+
+    /** {@code "MAIN1,MAIN2"}; {@code "-"} es ninguna; sin valor, las de fabrica. */
+    private static java.util.Set<PhaseType> loadStops(final String key) {
+        final java.util.Set<PhaseType> set = java.util.EnumSet.noneOf(PhaseType.class);
+        final String raw = forge.neo.NeoSettings.get(key, null);
+        if (raw == null || raw.isBlank()) {
+            set.addAll(DEFAULT_STOPS);
+        } else {
+            for (final String name : raw.split(",")) {
+                try {
+                    set.add(PhaseType.valueOf(name.trim()));
+                } catch (final IllegalArgumentException ignored) {
+                    // "-" o una fase que ya no existe: se ignora
+                }
+            }
+        }
+        return java.util.Collections.synchronizedSet(set);
+    }
+
+    /** Marca o desmarca una parada de tus turnos ({@code mine}) o de los del rival. */
+    public void toggleStop(final boolean mine, final PhaseType phase) {
+        final java.util.Set<PhaseType> set = mine ? stops : theirStops;
+        if (!set.remove(phase)) {
+            set.add(phase);
+        }
+        if (eventSpy == null) {
+            final StringBuilder sb = new StringBuilder();
+            synchronized (set) {
+                for (final PhaseType p : set) {
+                    sb.append(sb.length() == 0 ? "" : ",").append(p.name());
+                }
+            }
+            forge.neo.NeoSettings.set(mine ? forge.neo.NeoSettings.PHASE_STOPS_MINE
+                    : forge.neo.NeoSettings.PHASE_STOPS_THEIRS, sb.length() == 0 ? "-" : sb.toString());
+            forge.neo.NeoSettings.save();
         }
     }
 
-    public boolean hasStop(final PhaseType phase) {
-        return stops.contains(phase);
+    public boolean hasStop(final boolean mine, final PhaseType phase) {
+        return (mine ? stops : theirStops).contains(phase);
     }
 
     /**
@@ -4910,7 +5092,13 @@ public class NeoMatchUI extends NetworkGuiGame {
      */
     @Override
     public boolean isUiSetToSkipPhase(final PlayerView player, final PhaseType phase) {
-        return phase != null && !stops.contains(phase);
+        if (phase == null) {
+            return false;
+        }
+        // El motor pasa el jugador del TURNO (PlayerControllerHuman), no a quien
+        // pregunta: con eso se elige la lista.
+        final boolean mine = player == null || isLocalPlayer(player);
+        return !(mine ? stops : theirStops).contains(phase);
     }
 
     @Override

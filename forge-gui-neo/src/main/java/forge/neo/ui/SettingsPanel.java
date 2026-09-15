@@ -433,18 +433,39 @@ public class SettingsPanel extends VBox {
                     NeoSettings.save();
                     forge.neo.match.NeoGame.refreshSmartPass();
                 });
-        final boolean smartNow = NeoSettings.getBool(NeoSettings.SMART_PASS, false);
-        smartLevelRow.setVisible(smartNow);
-        smartLevelRow.setManaged(smartNow);
+        final boolean autoPassNow = NeoSettings.getBool(NeoSettings.AUTO_PASS, true);
+        final boolean[] smartState = {NeoSettings.getBool(NeoSettings.SMART_PASS, false)};
+        smartLevelRow.setVisible(autoPassNow && smartState[0]);
+        smartLevelRow.setManaged(autoPassNow && smartState[0]);
 
-        getChildren().add(toggleRow(NeoText.get("settings.smartPass"), smartNow,
+        final Region smartRow = toggleRow(NeoText.get("settings.smartPass"), smartState[0],
                 on -> {
+                    smartState[0] = on;
                     NeoSettings.setBool(NeoSettings.SMART_PASS, on);
                     NeoSettings.save();
                     forge.neo.match.NeoGame.refreshSmartPass();
                     smartLevelRow.setVisible(on);
                     smartLevelRow.setManaged(on);
+                });
+        smartRow.setVisible(autoPassNow);
+        smartRow.setManaged(autoPassNow);
+
+        // --- pasar la prioridad sola ---
+        //
+        // Pedido en r/forgeMTG: "let me do it myself". Encendido es lo de
+        // siempre. Las dos filas de "pararse" solo tienen sentido con el pase
+        // encendido (son interrupciones DEL pase), asi que se esconden con el.
+        getChildren().add(toggleRow(NeoText.get("settings.autoPass"), autoPassNow,
+                on -> {
+                    NeoSettings.setBool(NeoSettings.AUTO_PASS, on);
+                    NeoSettings.save();
+                    forge.neo.match.NeoGame.refreshAutoPass();
+                    smartRow.setVisible(on);
+                    smartRow.setManaged(on);
+                    smartLevelRow.setVisible(on && smartState[0]);
+                    smartLevelRow.setManaged(on && smartState[0]);
                 }));
+        getChildren().add(smartRow);
         getChildren().add(smartLevelRow);
 
         // --- ritmo del turno del rival ---
@@ -461,6 +482,20 @@ public class SettingsPanel extends VBox {
                 NeoText.get("settings.pause.always")};
         final int pauseNow = Math.max(0, Math.min(3,
                 NeoSettings.getInt(NeoSettings.PAUSE_MODE, 2)));
+        // Donde sale: en la esquina sin parar (de fabrica) o en el centro
+        // esperando a que pulses. Solo tiene sentido si se para en algo.
+        final String[] newsLabels = {
+                NeoText.get("settings.news.corner"),
+                NeoText.get("settings.news.center")};
+        final Region newsRow = choiceRow(NeoText.get("settings.news"),
+                newsLabels, newsLabels[Math.max(0, Math.min(1,
+                        NeoSettings.getInt(NeoSettings.NEWS_STYLE, 0)))],
+                v -> {
+                    NeoSettings.setInt(NeoSettings.NEWS_STYLE, newsLabels[1].equals(v) ? 1 : 0);
+                    NeoSettings.save();
+                });
+        newsRow.setVisible(pauseNow > 0);
+        newsRow.setManaged(pauseNow > 0);
         getChildren().add(choiceRow(NeoText.get("settings.pause"),
                 pauseLabels, pauseLabels[pauseNow],
                 v -> {
@@ -473,7 +508,10 @@ public class SettingsPanel extends VBox {
                     host.setPauseMode(mode);
                     NeoSettings.setInt(NeoSettings.PAUSE_MODE, mode);
                     NeoSettings.save();
+                    newsRow.setVisible(mode > 0);
+                    newsRow.setManaged(mode > 0);
                 }));
+        getChildren().add(newsRow);
 
         // --- ritmo de la IA ---
         //

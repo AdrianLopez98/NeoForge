@@ -356,6 +356,7 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 || args.contains("--mock-settings") || args.contains("--mock-zoom")
                 || args.contains("--nested-test") || args.contains("--mock-abilities")
                 || args.contains("--mock-banner") || args.contains("--mock-alert")
+                || args.contains("--mock-notice")
                 || args.contains("--mock-error")
                 || args.contains("--mock-prompt") || args.contains("--mock-phase-ask")
                 || args.contains("--mock-prompt-nocard") || args.contains("--mock-trigger-subject")
@@ -684,6 +685,12 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                             + "Te han hecho 4 de daño con Blightning.",
                             "Entendido", () -> table.getPromptBanner().hide());
                     table.requestLayout();
+                }
+                if (args.contains("--mock-notice")) {
+                    // El mismo aviso, en la esquina y sin parar (NoticeStack).
+                    table.showNotice("Has perdido Gravecrawler." + System.lineSeparator()
+                            + "Te han hecho 4 de daño con Blightning.");
+                    table.showNotice("IA-1 lanza Counterspell.");
                 }
                 if (args.contains("--mock-zoom") && !table.selfFieldNodes().isEmpty()) {
                     table.showZoom(table.selfFieldNodes().get(0).getCard());

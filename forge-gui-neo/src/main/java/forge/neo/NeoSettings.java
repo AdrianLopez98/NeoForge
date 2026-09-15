@@ -128,6 +128,13 @@ public final class NeoSettings {
     public static final String PAUSE_MODE = "pauseMode";
 
     /**
+     * Donde sale lo que te pasa en el turno del rival.
+     * {@code 0} en la esquina, sin parar ({@code NoticeStack}, de fabrica) ·
+     * {@code 1} en el centro, esperando a que pulses ({@code PromptBanner.showAlert}).
+     */
+    public static final String NEWS_STYLE = "newsStyle";
+
+    /**
      * La regla de mulligan (la auditoría del motor, apartado B4): {@code MulliganDefs.MulliganRule}
      * — Original, Paris, Vancouver, London u Houston. El motor la trae entera
      * ({@code MulliganService} la lee de {@code StaticData.instance()} en cada
@@ -352,6 +359,28 @@ public final class NeoSettings {
      * la pausa base deje los ajustes viejos apuntando a otra cosa.
      */
     public static final String AI_SPEED = "aiSpeed";
+
+    /**
+     * Que la prioridad se pase SOLA cuando no puedes hacer nada.
+     *
+     * <p>Es {@code YIELD_AUTO_PASS_NO_ACTIONS} del motor. Viene <b>encendido</b>,
+     * que es como se ha jugado siempre aqui, pero ya no a la fuerza: pedido en
+     * r/forgeMTG el 15-09-2026 (<i>"add an option to turn off auto passing when
+     * I have nothing to do, let me do it myself"</i>). Apagado, el juego te para
+     * en cada fase con parada del rail aunque no tengas nada que jugar, que es
+     * como va el Forge de siempre. Lo aplica {@code NeoGame.applyEnginePrefs},
+     * y en vivo {@code NeoGame.refreshAutoPass}.
+     */
+    public static final String AUTO_PASS = "autoPass";
+
+    /**
+     * Las paradas del rail de fases, en tus turnos y en los del rival:
+     * nombres de {@code PhaseType} separados por comas, {@code "-"} para
+     * ninguna y sin valor para las de fabrica. Las lee y escribe
+     * {@code NeoMatchUI}.
+     */
+    public static final String PHASE_STOPS_MINE = "phaseStops.mine";
+    public static final String PHASE_STOPS_THEIRS = "phaseStops.theirs";
 
     /**
      * Que el pase automatico se PARE cuando pasa algo que te importa.

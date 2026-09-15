@@ -1809,7 +1809,35 @@ public class DeckBuilderScreen extends StackPane {
      * De paso trae las palabras clave explicadas.
      */
     private void zoom(final PaperCard card) {
-        CardZoom.show(this, CardView.getCardForUi(card));
+        // Con la rueda se pasa a la carta de al lado (pedido en r/forgeMTG el
+        // 15-09-2026, como en el Forge de siempre): la del mazo si la carta
+        // esta en el mazo, en el orden en que se ve; si no, la pagina del
+        // catalogo que tienes delante.
+        List<PaperCard> ring = deckOrder();
+        int index = ring.indexOf(card);
+        if (index < 0) {
+            ring = new ArrayList<>(catalogueHits.subList(
+                    Math.max(0, Math.min(pager.from(), catalogueHits.size())),
+                    Math.max(0, Math.min(pager.to(), catalogueHits.size()))));
+            index = ring.indexOf(card);
+        }
+        if (index < 0) {
+            CardZoom.show(this, CardView.getCardForUi(card));
+            return;
+        }
+        final List<PaperCard> list = ring;
+        CardZoom.show(this, list.size(), index, i -> CardView.getCardForUi(list.get(i)));
+    }
+
+    /** El mazo en el orden en que se ve: comandante y luego grupo a grupo. */
+    private List<PaperCard> deckOrder() {
+        final List<PaperCard> out = new ArrayList<>(editor.commanders());
+        for (final String group : editor.typeCounts().keySet()) {
+            for (final Map.Entry<PaperCard, Integer> e : editor.cardsInGroup(group)) {
+                out.add(e.getKey());
+            }
+        }
+        return out;
     }
 
     // ===============================================================

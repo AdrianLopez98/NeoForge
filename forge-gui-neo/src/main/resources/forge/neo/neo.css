@@ -1257,6 +1257,27 @@
     -fx-text-fill: -neo-text;
 }
 
+/* De quien son las paradas que se ven: "Tu" / "Rivales", encima del rail. */
+.phase-owner {
+    -fx-font-size: 0.75em;
+    -fx-text-fill: -neo-text-dim;
+    -fx-padding: 1 7;
+    -fx-background-radius: 3;
+    -fx-border-color: -neo-line;
+    -fx-border-radius: 3;
+    -fx-border-width: 1;
+}
+
+.phase-owner:hover {
+    -fx-text-fill: -neo-text;
+}
+
+.phase-owner:selected {
+    -fx-text-fill: -neo-text;
+    -fx-border-color: -neo-accent;
+    -fx-background-color: rgba(74,155,224,0.18);
+}
+
 /* ---------- pips de mana clicables ---------- */
 
 /* La reserva de mana solo se destaca mientras hay un pago en curso. */
@@ -1872,6 +1893,39 @@
 .prompt-banner-btn {
     -fx-font-size: 1.05em;
     -fx-padding: 9 26 9 26;
+}
+
+/* Lo que te pasa en el turno del rival, arriba a la derecha y sin parar */
+.notice-card {
+    -fx-background-color: rgba(27, 33, 42, 0.94);
+    -fx-background-radius: 6;
+    -fx-border-color: transparent transparent transparent -neo-warn;
+    -fx-border-width: 0 0 0 3;
+    -fx-padding: 8 10 8 12;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.6), 14, 0.15, 0, 3);
+}
+
+.notice-card:hover {
+    -fx-background-color: rgba(36, 44, 56, 0.97);
+}
+
+.notice-text {
+    -fx-font-size: 0.95em;
+    -fx-text-fill: -neo-text;
+}
+
+.notice-close {
+    -fx-font-size: 1.1em;
+    -fx-text-fill: -neo-text-dim;
+}
+
+/* "3 / 60 · rueda para pasar de carta", debajo de la carta ampliada */
+.zoom-browse-hint {
+    -fx-font-size: 0.9em;
+    -fx-text-fill: -neo-text-dim;
+    -fx-background-color: rgba(18, 22, 28, 0.8);
+    -fx-background-radius: 10;
+    -fx-padding: 3 12;
 }
 
 /* El registro de partida: que ha pasado */
@@ -2932,6 +2986,7 @@
     -fx-text-fill: #171b20;
 }
 .table-root .phase-stop:stop { -fx-border-color: #8acbe9; }
+.table-root .phase-owner:selected { -fx-border-color: #8acbe9; -fx-background-color: rgba(138,203,233,.16); }
 .table-root .combat-line {
     -fx-stroke: #b3976a; -fx-stroke-dash-array: 10000 1; -fx-opacity: .3;
 }

@@ -903,7 +903,7 @@ public final class NeoGame {
      */
     public static void applyEnginePrefs() {
         final ForgePreferences prefs = FModel.getPreferences();
-        prefs.setPref(FPref.YIELD_AUTO_PASS_NO_ACTIONS, true);
+        prefs.setPref(FPref.YIELD_AUTO_PASS_NO_ACTIONS, NeoSettings.getBool(NeoSettings.AUTO_PASS, true));
         prefs.setPref(FPref.UI_SHOW_ACTIONABLE_HIGHLIGHTS, true);
         // Y que ademas nos diga CUALES taparia el boton "Auto": el motor las
         // manda por el mismo camino, con el peso a 2. Sin esta preferencia
@@ -1010,6 +1010,17 @@ public final class NeoGame {
      */
     public static void refreshSmartPass() {
         applySmartPass(FModel.getPreferences());
+    }
+
+    /**
+     * Vuelca "pasar la prioridad sola" al motor sin esperar a la proxima
+     * partida. En memoria, como todo lo de aqui: nada de {@code prefs.save()}.
+     * Si en esta partida se ha usado el atajo de control total, su override
+     * del {@code YieldController} sigue mandando hasta que se vuelva a pulsar.
+     */
+    public static void refreshAutoPass() {
+        FModel.getPreferences().setPref(FPref.YIELD_AUTO_PASS_NO_ACTIONS,
+                NeoSettings.getBool(NeoSettings.AUTO_PASS, true));
     }
 
     /** Devuelve el primer mazo de Commander del usuario, o null si no hay. */

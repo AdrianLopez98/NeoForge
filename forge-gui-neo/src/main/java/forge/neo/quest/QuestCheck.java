@@ -82,8 +82,12 @@ public final class QuestCheck {
         // Al reves de como tienen que quedar, para que el OK signifique algo.
         prefs.setPref(forge.localinstance.properties.ForgePreferences.FPref
                 .UI_SELECT_FROM_CARD_DISPLAYS, true);
+        // El pase automatico ya no se enciende a la fuerza: sigue al ajuste del
+        // jugador (NeoSettings.AUTO_PASS, 15-09-2026). Se pone al reves de lo
+        // que diga ese ajuste, y abajo se exige que openView lo deje igual que el.
+        final boolean autoPassWanted = forge.neo.NeoSettings.getBool(forge.neo.NeoSettings.AUTO_PASS, true);
         prefs.setPref(forge.localinstance.properties.ForgePreferences.FPref
-                .YIELD_AUTO_PASS_NO_ACTIONS, false);
+                .YIELD_AUTO_PASS_NO_ACTIONS, !autoPassWanted);
         // Y las del pase inteligente, tambien al reves de lo que toca con el
         // ajuste apagado. Ver mas abajo por que esto merece su propia
         // comprobacion.
@@ -130,7 +134,7 @@ public final class QuestCheck {
         System.out.printf(Locale.ROOT,
                 "  Pase inteligente apagado: maestro %s, ataques %s (de fabrica), disparos %s%n",
                 maestro, ataques, disparos);
-        final boolean ok = !displays && autoPass && pase;
+        final boolean ok = !displays && autoPass == autoPassWanted && pase;
         System.out.println(ok
                 ? "  OK - abrir una partida deja los ajustes que hace falta"
                 : "  FALLO: openView no aplica los ajustes del motor");

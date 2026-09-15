@@ -69,7 +69,33 @@ public class PhaseRail extends VBox {
     private static final javafx.css.PseudoClass STOP =
             javafx.css.PseudoClass.getPseudoClass("stop");
 
-    private java.util.function.Consumer<PhaseType> onToggle;
+    private static final javafx.css.PseudoClass SELECTED =
+            javafx.css.PseudoClass.getPseudoClass("selected");
+
+    /** Recibe (paradas de MIS turnos?, fase). */
+    private java.util.function.BiConsumer<Boolean, PhaseType> onToggle;
+
+    /**
+     * De quien son las paradas que se ven y se tocan: de tus turnos o de los
+     * del rival.
+     *
+     * <p>Pedido en r/forgeMTG el 15-09-2026: el Forge de siempre deja marcar las
+     * paradas de cada jugador por separado, y aqui habia una sola lista para
+     * los dos turnos — no se podia parar en el mantenimiento del rival sin
+     * pararte tambien en el tuyo. Dos pestanyas encima del rail y no un segundo
+     * rail: la mesa no tiene alto que regalar.
+     *
+     * <p>Sigue sola al turno ({@link #setTurnOwner}): lo normal es querer ver
+     * las paradas que aplican a lo que se esta jugando. Si se elige la otra a
+     * mano, se respeta hasta el siguiente cambio de turno.
+     */
+    private boolean editingMine = true;
+    private Boolean lastOwner;
+    private java.util.function.Predicate<PhaseType> mineStops;
+    private java.util.function.Predicate<PhaseType> theirStops;
+    private final Label mineTab = new Label(NeoText.get("phase.stops.mine"));
+    private final Label theirTab = new Label(NeoText.get("phase.stops.theirs"));
+    private final javafx.scene.layout.HBox header = new javafx.scene.layout.HBox(4);
 
     public PhaseRail() {
         getStyleClass().add("phase-rail");
@@ -78,7 +104,24 @@ public class PhaseRail extends VBox {
         setAlignment(Pos.TOP_LEFT);
 
         title.getStyleClass().add("caption");
-        getChildren().add(title);
+        final javafx.scene.layout.Region spacer = new javafx.scene.layout.Region();
+        javafx.scene.layout.HBox.setHgrow(spacer, javafx.scene.layout.Priority.ALWAYS);
+        for (final Label tab : new Label[] {mineTab, theirTab}) {
+            final boolean mine = tab == mineTab;
+            tab.getStyleClass().add("phase-owner");
+            tab.setCursor(javafx.scene.Cursor.HAND);
+            tab.setMinWidth(Label.USE_PREF_SIZE);
+            tab.setTooltip(new javafx.scene.control.Tooltip(
+                    NeoText.get(mine ? "phase.stops.mine.tip" : "phase.stops.theirs.tip")));
+            tab.setOnMouseClicked(e -> {
+                setEditingMine(mine);
+                e.consume();
+            });
+        }
+        header.setAlignment(Pos.CENTER_LEFT);
+        header.getChildren().addAll(title, spacer, mineTab, theirTab);
+        getChildren().add(header);
+        setEditingMine(true);
 
         dayNight.getStyleClass().add("day-night");
         dayNight.setMaxWidth(Double.MAX_VALUE);
@@ -95,7 +138,7 @@ public class PhaseRail extends VBox {
             l.setCursor(javafx.scene.Cursor.HAND);
             l.setOnMouseClicked(e -> {
                 if (onToggle != null) {
-                    onToggle.accept(p);
+                    onToggle.accept(editingMine, p);
                 }
             });
             labels.put(p, l);
@@ -118,6 +161,24 @@ public class PhaseRail extends VBox {
                 : NeoText.get("turn.theirs",
                         who == null ? "?" : who.toUpperCase(java.util.Locale.ROOT)));
         title.pseudoClassStateChanged(YOURS, yours);
+        // Solo al CAMBIAR de turno: esto se llama en cada repintado, y si no
+        // se miraba, elegir la otra pestanya a mano duraba un instante.
+        if (lastOwner == null || lastOwner != yours) {
+            lastOwner = yours;
+            setEditingMine(yours);
+        }
+    }
+
+    /** Elige de quien son las paradas que se ven y se conmutan. */
+    public void setEditingMine(final boolean mine) {
+        editingMine = mine;
+        mineTab.pseudoClassStateChanged(SELECTED, mine);
+        theirTab.pseudoClassStateChanged(SELECTED, !mine);
+        paintStops();
+    }
+
+    public boolean isEditingMine() {
+        return editingMine;
     }
 
     private final javafx.scene.layout.TilePane phases = new javafx.scene.layout.TilePane();
@@ -168,12 +229,20 @@ public class PhaseRail extends VBox {
      * Poder cambiarlo en mitad de la partida es lo que hace usable el auto-pass:
      * en un turno quieres parar en tu Principal 2 y en el siguiente no.
      */
-    public void setOnToggle(final java.util.function.Consumer<PhaseType> handler) {
+    public void setOnToggle(final java.util.function.BiConsumer<Boolean, PhaseType> handler) {
         this.onToggle = handler;
     }
 
-    /** Marca las fases en las que el juego te va a dar la prioridad. */
-    public void setStops(final java.util.function.Predicate<PhaseType> isStop) {
+    /** Marca las fases en las que el juego te va a dar la prioridad, en tus turnos y en los del rival. */
+    public void setStops(final java.util.function.Predicate<PhaseType> mine,
+                         final java.util.function.Predicate<PhaseType> theirs) {
+        this.mineStops = mine;
+        this.theirStops = theirs;
+        paintStops();
+    }
+
+    private void paintStops() {
+        final java.util.function.Predicate<PhaseType> isStop = editingMine ? mineStops : theirStops;
         for (final Map.Entry<PhaseType, Label> e : labels.entrySet()) {
             e.getValue().pseudoClassStateChanged(STOP,
                     isStop != null && isStop.test(e.getKey()));
@@ -192,7 +261,7 @@ public class PhaseRail extends VBox {
         phases.setPrefColumns(columns);
         phases.setPrefTileWidth(Math.max(1, Math.floor((available - 3 * (columns - 1) - 4) / columns)));
         phases.setPrefTileHeight(tallest);
-        return 14 + title.prefHeight(width) + (dayNight.isManaged() ? dayNight.prefHeight(width) + 2 : 0)
+        return 14 + header.prefHeight(width) + (dayNight.isManaged() ? dayNight.prefHeight(width) + 2 : 0)
                 + Math.ceil(STOPS.length / (double) columns) * (tallest + 3);
     }}
 

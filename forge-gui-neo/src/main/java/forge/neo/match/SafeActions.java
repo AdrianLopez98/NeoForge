@@ -98,9 +98,18 @@ import forge.player.PlayerControllerHuman;
  * <p><b>Lo que NO hace:</b> no arregla el fallo de Forge — eso seria tocar
  * {@code forge-game}, que es la regla de oro — ni tapa cualquier excepcion que
  * pase por ahi: solo las que traen un marco de {@code forge.ai.AvailableActions}
- * en la traza. Lo demas sube tal cual. Si algun dia Card-Forge pone el
- * {@code getLastKnownZone()} que falta, esto deja de saltar y
- * {@code run.cmd actionscheck} se pone en rojo diciendo que ya sobra.
+ * en la traza. Lo demas sube tal cual.
+ *
+ * <p><b>Card-Forge lo arreglo el 15-09-2026</b> (commit {@code aeedc51351},
+ * <i>"Fix NPE in ThisTurnEnteredFrom on an LKI copy"</i>, #11917): esa rama de
+ * {@code CardProperty} ya lee {@code getLastKnownZone()} y trata la zona nula
+ * como "no coincide". Desde el rebase de ese dia esto <b>no salta nunca</b>, y
+ * se queda a proposito <b>de guardia, dormido</b>: solo se traga lo que viene
+ * de {@code AvailableActions}, asi que no cuesta nada, y el dia que otra
+ * propiedad del motor tropiece con una copia LKI por el mismo barrido la
+ * partida sigue viva en vez de cerrarse. {@code run.cmd actionscheck} da por
+ * bueno cero rescates siempre que el barrido haya corrido de verdad
+ * ({@link #scans()}).
  *
  * @see SafeAi el mismo problema con la IA, y el mismo remedio
  * @see ManaColor la otra cosa que se sienta en esta silla
@@ -133,6 +142,20 @@ public final class SafeActions {
 
     public static void resetRescues() {
         RESCUES.set(0);
+        SCANS.set(0);
+    }
+
+    /**
+     * Cuantas prioridades han pasado por aqui con el barrido encendido.
+     *
+     * <p>Existe para que cero rescates signifique algo: sin esto, "el motor ya
+     * no falla" y "el barrido no llego a correr" dan el mismo cero, y la prueba
+     * pasaria en verde sin haber ejecutado la linea que se vigila.
+     */
+    private static final AtomicInteger SCANS = new AtomicInteger();
+
+    public static int scans() {
+        return SCANS.get();
     }
 
     /** La clase del motor que hace el barrido. Es la firma que se reconoce. */
@@ -246,11 +269,15 @@ public final class SafeActions {
          */
         @Override
         public List<SpellAbility> chooseSpellAbilityToPlay() {
+            final YieldController y = getYieldController();
+            final String highlights = y.getStringPref(FPref.UI_SHOW_ACTIONABLE_HIGHLIGHTS);
+            final String autoPass = y.getStringPref(FPref.YIELD_AUTO_PASS_NO_ACTIONS);
+            if ("true".equalsIgnoreCase(highlights) || "true".equalsIgnoreCase(autoPass)) {
+                SCANS.incrementAndGet();
+            }
             if (DEBUG) {
-                final YieldController y = getYieldController();
                 System.out.printf("[acciones] prioridad: resaltados=%s autopass=%s%n",
-                        y.getStringPref(FPref.UI_SHOW_ACTIONABLE_HIGHLIGHTS),
-                        y.getStringPref(FPref.YIELD_AUTO_PASS_NO_ACTIONS));
+                        highlights, autoPass);
             }
             try {
                 return super.chooseSpellAbilityToPlay();

@@ -70,7 +70,13 @@ public final class CardZoom {
             }
             final CardNode node = cardNodeAt(e.getTarget());
             if (node != null && node.getCard() != null) {
-                show(node, node.getCard());
+                final List<CardNode> ring = siblingsOf(node);
+                final int at = ring.indexOf(node);
+                if (at >= 0 && ring.size() > 1) {
+                    show(node, ring.size(), at, i -> ring.get(i).getCard());
+                } else {
+                    show(node, node.getCard());
+                }
                 e.consume();
             }
         });
@@ -78,7 +84,31 @@ public final class CardZoom {
 
     /** La carta grande, ya. */
     public static void show(final Node anchor, final CardView card) {
-        if (anchor == null || card == null) {
+        if (card == null) {
+            return;
+        }
+        show(anchor, 1, 0, i -> card);
+    }
+
+    /**
+     * La carta grande, <b>dentro de una lista que se recorre con la rueda</b>
+     * (y con las flechas).
+     *
+     * <p>Pedido en r/forgeMTG el 15-09-2026: en el Forge de siempre, con una
+     * carta ampliada, la rueda pasa a la siguiente de tu mazo — <i>"almost like
+     * sorting your own cards irl"</i>. Aqui habia que cerrar y ampliar la otra.
+     *
+     * <p>La carta se pide por posicion ({@code at}) y no en una lista ya hecha:
+     * en el deck builder cada {@code CardView} se fabrica desde la carta en
+     * papel, y fabricar sesenta para ensenyar una seria pagar sesenta.
+     *
+     * @param size  cuantas cartas hay en la lista
+     * @param index cual se ensenya primero
+     * @param at    la carta de cada posicion
+     */
+    public static void show(final Node anchor, final int size, final int index,
+                            final java.util.function.IntFunction<CardView> at) {
+        if (anchor == null || at == null || size <= 0 || index < 0 || index >= size) {
             return;
         }
         final Scene scene = anchor.getScene();
@@ -87,7 +117,47 @@ public final class CardZoom {
         }
         final Parent root = scene.getRoot();
         final Layer layer = root instanceof Layer ? (Layer) root : new Layer(scene, root);
-        layer.show(card, scene.getHeight(), scene.getWidth());
+        layer.browse(size, index, at);
+    }
+
+    /**
+     * Las cartas "de al lado" de una carta: las de su misma lista.
+     *
+     * <p>La lista es el {@code ScrollPane} que la contiene — el catalogo, la
+     * coleccion, el mazo — y si no hay ninguno, la pantalla entera. En el orden
+     * del arbol, que es el orden en que se ven. Solo las visibles y con carta.
+     */
+    static List<CardNode> siblingsOf(final CardNode node) {
+        Node container = null;
+        for (Node n = node.getParent(); n != null; n = n.getParent()) {
+            if (n instanceof javafx.scene.control.ScrollPane sp && sp.getContent() != null) {
+                container = sp.getContent();
+                break;
+            }
+            if (n.getParent() == null) {
+                container = n;
+            }
+        }
+        final List<CardNode> out = new ArrayList<>();
+        collectCardNodes(container, out);
+        return out;
+    }
+
+    private static void collectCardNodes(final Node n, final List<CardNode> out) {
+        if (n == null || !n.isVisible()) {
+            return;
+        }
+        if (n instanceof CardNode cn) {
+            if (cn.getCard() != null) {
+                out.add(cn);
+            }
+            return;
+        }
+        if (n instanceof Parent p) {
+            for (final Node child : p.getChildrenUnmodifiable()) {
+                collectCardNodes(child, out);
+            }
+        }
     }
 
     /** La carta a tamanyo de lectura: el alto de la ventana manda, no un fijo. */
@@ -849,6 +919,16 @@ public final class CardZoom {
      * durante una partida) con el mismo filtro de "cerrar con cualquier
      * click", y por tanto el mismo fallo.
      */
+    /** Si la rueda cae dentro de un texto que rueda (el "texto actual"): ahi rueda el texto. */
+    private static boolean isInsideScrollPane(final Object target) {
+        for (Node n = target instanceof Node ? (Node) target : null; n != null; n = n.getParent()) {
+            if (n instanceof javafx.scene.control.ScrollPane) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static boolean isInteractiveTarget(final Object target) {
         Node n = target instanceof Node ? (Node) target : null;
         while (n != null) {
@@ -902,18 +982,80 @@ public final class CardZoom {
             scene.setRoot(this);
         }
 
-        void show(final CardView card, final double sceneHeight, final double sceneWidth) {
-            overlay.show(compose(card, widthFor(sceneHeight), sceneWidth, null));
+        private int size;
+        private int index;
+        private java.util.function.IntFunction<CardView> at;
+        /** Ultimo paso de rueda: un trackpad manda decenas de eventos por gesto. */
+        private long lastStep;
+
+        void browse(final int size, final int index,
+                    final java.util.function.IntFunction<CardView> at) {
+            this.size = size;
+            this.index = index;
+            this.at = at;
+            // Prueba sin raton: -Dneo.zoom.step=N avanza N cartas, como N
+            // pasos de rueda (ver la guía de pruebas).
+            final int steps = Integer.getInteger("neo.zoom.step", 0);
+            this.index = Math.max(0, Math.min(size - 1, index + steps));
+            showCurrent();
             // Escape cierra, igual que en la mesa. Se quita antes de poner
             // para no acumular uno por ampliacion, y al cerrar del todo.
             scene.removeEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, escape);
             scene.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, escape);
         }
 
+        private void showCurrent() {
+            final CardView card = at.apply(index);
+            final Region big = compose(card, widthFor(scene.getHeight() * (size > 1 ? 0.95 : 1)),
+                    scene.getWidth(), null);
+            if (size <= 1) {
+                overlay.show(big);
+                return;
+            }
+            final Label hint = new Label(NeoText.get("zoom.browse", index + 1, size));
+            hint.getStyleClass().add("zoom-browse-hint");
+            hint.setMouseTransparent(true);
+            final VBox box = new VBox(8, big, hint);
+            box.setAlignment(Pos.CENTER);
+            box.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+            overlay.show(box);
+        }
+
+        /** Pasa a la siguiente (+1) o la anterior (-1). Sin dar la vuelta: al final se queda. */
+        private void step(final int delta) {
+            final int next = index + delta;
+            if (next < 0 || next >= size) {
+                return;
+            }
+            index = next;
+            showCurrent();
+        }
+
+        {
+            addEventFilter(javafx.scene.input.ScrollEvent.SCROLL, e -> {
+                if (size <= 1 || e.getDeltaY() == 0 || isInsideScrollPane(e.getTarget())) {
+                    return;
+                }
+                e.consume();
+                final long now = System.currentTimeMillis();
+                if (now - lastStep < 90) {
+                    return;
+                }
+                lastStep = now;
+                step(e.getDeltaY() < 0 ? 1 : -1);
+            });
+        }
+
         private final javafx.event.EventHandler<javafx.scene.input.KeyEvent> escape = e -> {
             if (e.getCode() == KeyCode.ESCAPE) {
                 e.consume();
                 close();
+            } else if (size > 1 && (e.getCode() == KeyCode.RIGHT || e.getCode() == KeyCode.DOWN)) {
+                e.consume();
+                step(1);
+            } else if (size > 1 && (e.getCode() == KeyCode.LEFT || e.getCode() == KeyCode.UP)) {
+                e.consume();
+                step(-1);
             }
         };
 
