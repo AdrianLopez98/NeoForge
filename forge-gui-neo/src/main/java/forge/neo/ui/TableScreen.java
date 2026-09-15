@@ -103,6 +103,8 @@ public class TableScreen extends Pane {
     private final CommandZone commandZone;
     private final PhaseRail phaseRail = new PhaseRail();
     private final CardDetailPanel detail;
+    /** El hueco que empuja los botones al fondo de la columna. El panel de detalle ocupa su sitio. */
+    private final Region sideSpace = new Region();
     private final VBox stackBox = new VBox(6);
     private final ActionBar actionBar = new ActionBar();
     private final CombatOverlay combatOverlay = new CombatOverlay();
@@ -245,7 +247,6 @@ public class TableScreen extends Pane {
         //
         // El objeto sigue existiendo (lo usan showDetail y las maquetas), pero
         // no esta en la escena: no ocupa, no pinta y no decodifica imagenes.
-        final Region sideSpace = new Region();
         VBox.setVgrow(sideSpace, Priority.ALWAYS);
         side = new VBox(10, stackBox, sideSpace, actionBar);
         side.getStyleClass().add("arena-sidebar");
@@ -1225,8 +1226,20 @@ public class TableScreen extends Pane {
         }
         if (!want) {
             side.getChildren().remove(detail);
+            if (!side.getChildren().contains(sideSpace)) {
+                final int at = side.getChildren().indexOf(actionBar);
+                side.getChildren().add(at < 0 ? side.getChildren().size() : at, sideSpace);
+            }
             return;
         }
+        // El panel OCUPA EL SITIO del hueco de la columna, no se pone a su lado.
+        // Ese hueco crece ALWAYS, y un VBox le da todo lo que sobra a los ALWAYS
+        // antes que a los SOMETIMES: con los dos puestos, el panel se quedaba a
+        // alto cero para siempre y el ajuste encendido no ensenyaba nada
+        // (reportado jugando el 15-09-2026). Sin el hueco, el panel se lleva lo
+        // libre, los botones siguen abajo del todo, y con el stack largo (que si
+        // es ALWAYS) sigue siendo el panel el que desaparece.
+        side.getChildren().remove(sideSpace);
         // Pide CERO y crece con lo que sobre. Es lo que hace que encenderlo no
         // pueda quitarle sitio a nada: cuando la columna va justa (el rail de
         // fases es alto y un stack de nueve pide seis filas) un panel que
