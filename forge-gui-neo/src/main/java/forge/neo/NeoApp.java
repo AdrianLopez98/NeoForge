@@ -1729,6 +1729,27 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 }
                 openPauseMenu(false).askQuit();
                 return true;
+            case MACRO_RECORD: {
+                if (!free || ui == null) {
+                    return false;
+                }
+                final Boolean recording = ui.toggleMacroRecording();
+                if (recording == null) {
+                    return false;
+                }
+                table.setMacroRecording(recording);
+                table.getActionBar().setWarning(forge.neo.NeoText.get(recording
+                        ? "macro.recording" : "macro.stopped"), false);
+                return true;
+            }
+            case MACRO_PLAY:
+                if (!free || ui == null || !ui.playMacro()) {
+                    return false;
+                }
+                table.setMacroRecording(false);
+                return true;
+            case MACRO_NEXT:
+                return free && ui != null && ui.nextMacroAction();
             case SHOW_SHORTCUTS:
                 if (table.getMenuOverlay().isShowing()) {
                     return false;

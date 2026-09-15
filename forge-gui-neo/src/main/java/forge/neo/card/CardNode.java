@@ -698,7 +698,20 @@ public class CardNode extends StackPane {
         }
         final int[] px = wantedPixels();
         final Image sharp = px == null ? null : CardImages.scaled(shownImageKey, full, px[0], px[1]);
-        final Image want = sharp != null ? sharp : full;
+        Image want = sharp != null ? sharp : full;
+        // Mientras llega la copia del tamano nuevo, si el tamano apenas ha
+        // cambiado se deja la copia nitida que ya habia. Reportado en r/forgeMTG
+        // el 15-09-2026 con video: al aparecer o quitarse el aviso de un disparo
+        // la mesa se recoloca, las cartas cambian un par de pixeles, y durante
+        // medio segundo TODA la mesa se veia borrosa (la original, reducida por
+        // el bilineal) hasta que llegaban las copias nuevas. Un 15% arriba o abajo
+        // no se nota; agrandar mas una copia pequena si, y ahi sigue mandando la
+        // original (acercar la mesa).
+        final Image current = art.getImage();
+        if (sharp == null && px != null && current != null && current != full
+                && current.getWidth() >= px[0] * 0.85 && current.getWidth() <= px[0] * 1.15) {
+            want = current;
+        }
         if (art.getImage() != want) {
             art.setImage(want);
         }
@@ -1102,7 +1115,11 @@ public class CardNode extends StackPane {
                 .thenComparing(CounterType::getName));
 
         counters.getChildren().clear();
-        final boolean wide = cardWidth >= 108;
+        // El nombre ("1 Bounty") solo si caben TODAS en una fila. Con dos o tres
+        // pastillas con nombre no cabian y JavaFX las cortaba con puntos:
+        // "1 BOUNT", "1 Dea...", "..." (reportado en r/forgeMTG el 15-09-2026).
+        // Mejor el numero entero con su color que medio nombre.
+        final boolean wide = cardWidth >= 108 && namesFit(types, all);
         int shown = 0;
         for (final CounterType t : types) {
             if (shown == MAX_COUNTER_PILLS && types.size() > MAX_COUNTER_PILLS) {
@@ -1290,6 +1307,32 @@ public class CardNode extends StackPane {
         return wide ? n + " " + t.getCounterOnCardDisplayName() : String.valueOf(n);
     }
 
+    /**
+     * Si las pastillas con nombre caben en una fila del ancho de la carta.
+     * Es una estimacion (letra en negrita ~0,6 em por caracter mas el relleno
+     * de {@code .card-counter}): se mide antes de crearlas para no pintar dos
+     * veces.
+     */
+    private boolean namesFit(final List<CounterType> types, final Multiset<CounterType> all) {
+        final double em = counterFontPx > 0 ? counterFontPx : Math.max(7, cardWidth * 0.085) * 0.95;
+        double total = 0;
+        int shown = 0;
+        for (final CounterType t : types) {
+            if (shown == MAX_COUNTER_PILLS && types.size() > MAX_COUNTER_PILLS) {
+                total += pillWidth("+" + (types.size() - shown), em) + 3;
+                break;
+            }
+            final double loyal = t.is(CounterEnumType.LOYALTY) || t.is(CounterEnumType.DEFENSE) ? 1.28 : 1;
+            total += pillWidth(counterText(t, all.count(t), true), em * loyal) + (shown > 0 ? 3 : 0);
+            shown++;
+        }
+        return total <= cardWidth * 0.9;
+    }
+
+    private static double pillWidth(final String text, final double em) {
+        return text.length() * em * 0.6 + 10;
+    }
+
     private Label pill(final String text, final Color bg) {
         final Label l = new Label(text);
         l.getStyleClass().add("card-counter");
@@ -1359,6 +1402,9 @@ public class CardNode extends StackPane {
             return;
         }
         this.tapped = tapped;
+        // Tumbada ocupa mas ancho: la fila (BattlefieldPane) le reserva hueco,
+        // asi que tiene que recolocarse cuando cambia.
+        requestParentLayout();
         if (!rotationEnabled) {
             // Vista de lectura: la carta se queda derecha aunque este girada.
             setRotate(0);

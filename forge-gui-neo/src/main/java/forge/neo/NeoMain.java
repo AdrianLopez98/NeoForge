@@ -213,6 +213,12 @@ public final class NeoMain {
                 banner("Piloto automatico: el bloqueo obligado");
                 forge.neo.match.BlockCheck.run();
                 break;
+            case "macrocheck":
+                // Las macros de Forge (grabar / repetir), jugadas: un click en
+                // un Bosque grabado en un turno y repetido en el siguiente.
+                banner("Macros: grabar y repetir como el Forge de escritorio");
+                forge.neo.match.MacroCheck.run();
+                break;
             case "manacheck":
                 // Que una tierra de dos colores pregunte cual da. La mesa que
                 // lo provoca (dos montanyas + una dual, y un coste de {R}{G})

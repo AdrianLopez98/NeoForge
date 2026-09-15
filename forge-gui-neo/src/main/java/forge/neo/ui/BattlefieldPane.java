@@ -520,16 +520,37 @@ public class BattlefieldPane extends Pane {
         final double availW = Math.max(1, getWidth());
         final double availH = Math.max(1, getHeight());
         final ArenaRowLayout.Row row = ArenaRowLayout.measure(n, availW, maxCardWidth, availH);
-        scrollMax = row.maxScroll();
-        scrollX = Math.max(0, Math.min(scrollX, scrollMax));
         final double cardW = row.cardWidth();
         final double cardH = cardW * CardNode.ASPECT;
-        final double x0 = Math.max(0, (availW - row.contentWidth()) / 2);
+
+        // Las tapadas giran 90 grados y tumbadas miden lo que mide de alto una
+        // derecha: con el mismo hueco que las demas se montaban encima de sus
+        // vecinas (reportado en r/forgeMTG el 15-09-2026). Cada una se lleva el
+        // ancho que le falta, centrada en su hueco, y el paso del resto se
+        // calcula con lo que queda. Si no hay sitio, se aprieta igual que antes.
+        int tappedCount = 0;
+        for (final Entry e : entries) {
+            if (e.node.getFront().isTapped()) {
+                tappedCount++;
+            }
+        }
+        final double extra = cardW * (CardNode.ASPECT - 1);
+        final double step = n == 1 ? 0 : Math.max(cardW * .48,
+                Math.min(cardW + 10, (availW - tappedCount * extra - cardW) / (n - 1)));
+        final double content = cardW + step * (n - 1) + tappedCount * extra;
+        scrollMax = Math.max(0, content - availW);
+        scrollX = Math.max(0, Math.min(scrollX, scrollMax));
+        final double x0 = Math.max(0, (availW - content) / 2);
+        double shift = 0;
         for (int i = 0; i < n; i++) {
             final CardStackNode node = entries.get(i).node;
+            final boolean tapped = node.getFront().isTapped();
             node.setCardWidth(cardW);
             node.resize(cardW, cardH);
-            node.setLayoutX(x0 + i * row.step() - scrollX);
+            node.setLayoutX(x0 + i * step + shift + (tapped ? extra / 2 : 0) - scrollX);
+            if (tapped) {
+                shift += extra;
+            }
             node.setLayoutY(Math.max(0, (availH - cardH) / 2));
             node.setViewOrder(-i * .001);
         }

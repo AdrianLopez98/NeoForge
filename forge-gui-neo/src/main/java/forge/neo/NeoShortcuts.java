@@ -75,7 +75,18 @@ public final class NeoShortcuts {
         /** "Concede" de Forge (Ctrl+Q). Pregunta antes, como el menu de pausa. */
         CONCEDE("concede"),
         /** "Show hotkeys" de Forge (H). */
-        SHOW_SHORTCUTS("showShortcuts");
+        SHOW_SHORTCUTS("showShortcuts"),
+        /**
+         * Grabar una macro, y pararla (Forge: Mayus+R). Pedido en r/forgeMTG el
+         * 15-09-2026. La graba y la reproduce el motor
+         * ({@code RecordActionsMacroSystem}); al pararla pregunta cuantas veces
+         * repetirla, como el Forge de escritorio.
+         */
+        MACRO_RECORD("macroRecord"),
+        /** Repetir la macro grabada (Forge: Mayus+3). */
+        MACRO_PLAY("macroPlay"),
+        /** Solo la siguiente accion de la macro (Forge: Mayus+2). */
+        MACRO_NEXT("macroNext");
 
         private final String id;
 
@@ -156,6 +167,9 @@ public final class NeoShortcuts {
         neo.bind(Action.FULL_CONTROL);
         neo.bind(Action.CONCEDE, "Ctrl+Q");
         neo.bind(Action.SHOW_SHORTCUTS, "H");
+        neo.bind(Action.MACRO_RECORD, "Shift+R");
+        neo.bind(Action.MACRO_PLAY, "Shift+P");
+        neo.bind(Action.MACRO_NEXT, "Shift+N");
 
         // --- Forge: los de KeyboardShortcuts.java con sus teclas de fabrica
         // (ForgePreferences SHORTCUT_*). Los que no tienen equivalente aqui
@@ -174,6 +188,9 @@ public final class NeoShortcuts {
         forge.bind(Action.FULL_CONTROL, "P");
         forge.bind(Action.CONCEDE, "Ctrl+Q");
         forge.bind(Action.SHOW_SHORTCUTS, "H");
+        forge.bind(Action.MACRO_RECORD, "Shift+R");
+        forge.bind(Action.MACRO_PLAY, "Shift+3");
+        forge.bind(Action.MACRO_NEXT, "Shift+2");
 
         // --- Arena (PC): Espacio pasa, Enter y Mayus+Enter pasan el turno,
         // Z deshace y Ctrl+Mayus es el control total. Arena tiene ademas
@@ -195,6 +212,10 @@ public final class NeoShortcuts {
         arena.bind(Action.FULL_CONTROL, "Ctrl+Shift");
         arena.bind(Action.CONCEDE);
         arena.bind(Action.SHOW_SHORTCUTS, "H");
+        // Arena no tiene macros: sin tecla.
+        arena.bind(Action.MACRO_RECORD);
+        arena.bind(Action.MACRO_PLAY);
+        arena.bind(Action.MACRO_NEXT);
     }
 
     /**

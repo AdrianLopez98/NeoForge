@@ -242,7 +242,8 @@ public class SettingsPanel extends VBox {
         final boolean[][] artValues = {{true, false}, {true, true}, {false, false}, {false, true}};
         final boolean artLatestNow =
                 NeoSettings.getBool(NeoSettings.CARD_ART_LATEST, NeoSettings.CARD_ART_LATEST_DEFAULT);
-        final boolean artCoreNow = NeoSettings.getBool(NeoSettings.CARD_ART_CORE_ONLY, false);
+        final boolean artCoreNow = NeoSettings.getBool(NeoSettings.CARD_ART_CORE_ONLY,
+                NeoSettings.CARD_ART_CORE_ONLY_DEFAULT);
         String artCurrent = artLabels[0];
         for (int i = 0; i < artValues.length; i++) {
             if (artValues[i][0] == artLatestNow && artValues[i][1] == artCoreNow) {

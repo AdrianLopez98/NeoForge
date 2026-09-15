@@ -205,6 +205,13 @@ public final class NeoSettings {
     public static final boolean CARD_ART_LATEST_DEFAULT = true;
     /** Si ademas se descartan las ediciones fuera de nucleo/expansion (promos, un-sets...). */
     public static final String CARD_ART_CORE_ONLY = "cardArtCoreOnly";
+    /**
+     * De fabrica SI: solo ediciones normales. Hasta el 15-09-2026 era no, igual
+     * que Forge, y la "mas reciente de todas" traia Secret Lair, bocetos y marcos
+     * raros — reportado en r/forgeMTG: en un mismo cementerio cada carta parecia
+     * de un juego distinto. Solo cambia a quien nunca ha tocado el ajuste.
+     */
+    public static final boolean CARD_ART_CORE_ONLY_DEFAULT = true;
 
     /**
      * Arte variado en pools generados al azar (aventura, sellado del motor):
@@ -626,7 +633,7 @@ public final class NeoSettings {
      */
     public static void applyCardArtToEngine() {
         final boolean latest = getBool(CARD_ART_LATEST, CARD_ART_LATEST_DEFAULT);
-        final boolean coreOnly = getBool(CARD_ART_CORE_ONLY, false);
+        final boolean coreOnly = getBool(CARD_ART_CORE_ONLY, CARD_ART_CORE_ONLY_DEFAULT);
         FModel.getMagicDb().setCardArtPreference(latest, coreOnly);
         // UI_RANDOM_ART_IN_POOLS si es una preferencia de Forge de verdad
         // (Quest y el generador de pools sellados la leen sola de

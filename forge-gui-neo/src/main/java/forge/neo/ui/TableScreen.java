@@ -297,7 +297,7 @@ public class TableScreen extends Pane {
 
         getChildren().addAll(opponentTabs, opponentBar, viewport,
                 selfBar, hand, commandZone, phaseRail, side, combatOverlay, logButton, cooldownBadge,
-                promptBanner, notices, turnBanner, playerDetails, zoomBadge, spotlight,
+                promptBanner, notices, turnBanner, playerDetails, zoomBadge, macroBadge, spotlight,
                 overlay, menuOverlay, zoomOverlay);
 
         // Se cierra con un click en cualquier sitio, como en Arena.
@@ -499,6 +499,14 @@ public class TableScreen extends Pane {
             zoomBadge.resizeRelocate(PAD, boardTop + PAD, bw, bh);
         }
 
+        if (macroBadge.isVisible()) {
+            final double mw = macroBadge.prefWidth(-1);
+            final double mh = macroBadge.prefHeight(mw);
+            final double my = boardTop + PAD
+                    + (zoomBadge.isVisible() ? zoomBadge.prefHeight(-1) + 6 : 0);
+            macroBadge.resizeRelocate(PAD, my, mw, mh);
+        }
+
         // "Esto te acaba de pasar", arriba a la derecha de la mesa, como en el
         // Forge de siempre. Ver NoticeStack.
         if (notices.hasNotices()) {
@@ -685,6 +693,26 @@ public class TableScreen extends Pane {
 
     /** Los avisos de la esquina. Ver {@link NoticeStack}. */
     private final NoticeStack notices = new NoticeStack();
+
+    /**
+     * "● REC" mientras se graba una macro. Grabar sin saberlo es la forma de
+     * repetir luego algo que no querias, asi que se ve mientras dura.
+     */
+    private final javafx.scene.control.Label macroBadge = macroBadge();
+
+    private static javafx.scene.control.Label macroBadge() {
+        final javafx.scene.control.Label l = new javafx.scene.control.Label(NeoText.get("macro.badge"));
+        l.getStyleClass().add("macro-badge");
+        l.setMouseTransparent(true);
+        l.setVisible(false);
+        l.setManaged(false);
+        return l;
+    }
+
+    public void setMacroRecording(final boolean on) {
+        macroBadge.setVisible(on);
+        requestLayout();
+    }
 
     /** "Esto te acaba de pasar", sin parar la partida. */
     public void showNotice(final String text) {

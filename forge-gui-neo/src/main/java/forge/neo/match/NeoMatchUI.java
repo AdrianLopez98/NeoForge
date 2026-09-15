@@ -992,6 +992,81 @@ public class NeoMatchUI extends NetworkGuiGame {
     }
 
     /**
+     * Empezar a grabar una macro, o pararla.
+     *
+     * <p>Todo lo hace el motor ({@code IGameController.macros()}, que en una
+     * partida local es {@code RecordActionsMacroSystem}): graba lo que el
+     * jugador hace y, al pararla, pregunta cuantas veces repetirla — igual que
+     * el boton del Forge de escritorio. Se llama por {@code respondLater}, el
+     * mismo camino que un click, porque la reproduccion tira del input vivo.
+     *
+     * @return true si queda grabando, false si se ha parado, null si no hay partida
+     */
+    public Boolean toggleMacroRecording() {
+        if (!interactive() || finished.get()) {
+            return null;
+        }
+        final IGameController gc = getGameController();
+        if (gc == null || gc.macros() == null) {
+            return null;
+        }
+        final boolean willRecord = !gc.macros().isRecording();
+        respondLater(() -> gc.macros().setRememberedActions());
+        return willRecord;
+    }
+
+    /** Repetir la macro grabada. El motor pregunta cuantas veces, o avisa si no hay. */
+    public boolean playMacro() {
+        if (!interactive() || finished.get()) {
+            return false;
+        }
+        final IGameController gc = getGameController();
+        if (gc == null || gc.macros() == null) {
+            return false;
+        }
+        respondLater(() -> gc.macros().repeatRememberedActions());
+        return true;
+    }
+
+    /** La siguiente accion de la macro, una sola (Forge: Mayus+2). */
+    public boolean nextMacroAction() {
+        if (!interactive() || finished.get()) {
+            return false;
+        }
+        final IGameController gc = getGameController();
+        if (gc == null || gc.macros() == null) {
+            return false;
+        }
+        respondLater(() -> gc.macros().nextRememberedAction());
+        return true;
+    }
+
+    /** Si el motor esta grabando una macro ahora mismo. */
+    public boolean isMacroRecording() {
+        final IGameController gc = getGameController();
+        return gc != null && gc.macros() != null && gc.macros().isRecording();
+    }
+
+    /** Para no volver a entrar en updateButtons mientras se pintan los de la reproduccion. */
+    private boolean macroButtonsOverride;
+
+    /**
+     * Solo para pruebas sin ventana: mientras devuelva true, el piloto
+     * automatico no pulsa nada y la prueba puede hacer de jugador (MacroCheck
+     * graba y reproduce una macro con clics de verdad). Null lo quita.
+     */
+    private volatile java.util.function.BooleanSupplier autoPlayHold;
+
+    public void setAutoPlayHold(final java.util.function.BooleanSupplier hold) {
+        this.autoPlayHold = hold;
+    }
+
+    /** Solo pruebas: que el piloto conteste lo que este esperando al soltarlo. */
+    public void nudgeAutoPlay() {
+        respondLater(this::autoPressOk);
+    }
+
+    /**
      * "Atacar con todo". Lo decide el motor ({@code alphaStrike}), que solo
      * hace algo mientras se declaran atacantes; el resto del tiempo no pasa nada.
      */
@@ -2975,6 +3050,22 @@ public class NeoMatchUI extends NetworkGuiGame {
     @Override
     public void updateButtons(final PlayerView owner, final String okLabel, final String cancelLabel,
                               final boolean okEnabled, final boolean cancelEnabled, final boolean focusOk) {
+        // Mientras se REPRODUCE una macro, los botones como en el Forge de
+        // escritorio (CMatchUI.updateButtons): OK apagado y sin texto, y
+        // Cancelar encendido, que es lo que para la reproduccion
+        // (PlayerControllerHuman.selectButtonCancel).
+        final IGameController macroGc = getGameController();
+        if (!macroButtonsOverride && macroGc != null && macroGc.macros() != null
+                && macroGc.macros().isReplaying()) {
+            macroButtonsOverride = true;
+            try {
+                updateButtons(owner, "", forge.util.Localizer.getInstance().getMessage("lblCancel"),
+                        false, true, false);
+            } finally {
+                macroButtonsOverride = false;
+            }
+            return;
+        }
         // Lo PRIMERO: saber si hay un pago de mana en curso, y saberlo por lo
         // que dice el motor. Ver setPayingMana.
         setPayingMana(isAutoPayLabel(okLabel));
@@ -3048,12 +3139,22 @@ public class NeoMatchUI extends NetworkGuiGame {
                     // puede que lo que se pida sea un jugador. Dejarlos clicables
                     // siempre es inofensivo: el motor ignora lo que no toca.
                     table.setPlayersSelectable(true);
+                    // "● REC" segun el motor, no segun la tecla: el motor
+                    // cancela la macro solo (fin de partida), y el aviso no puede
+                    // quedarse encendido.
+                    table.setMacroRecording(isMacroRecording());
                 });
             }
             return;
         }
 
         if (mode != Mode.AUTO_PLAY || finished.get()) {
+            return;
+        }
+        // Solo pruebas (MacroCheck): retener el piloto mientras la prueba hace
+        // de jugador. Ver setAutoPlayHold.
+        final java.util.function.BooleanSupplier hold = autoPlayHold;
+        if (hold != null && hold.getAsBoolean()) {
             return;
         }
         // AQUI ESTA EL MODELO BLOQUEANTE.
