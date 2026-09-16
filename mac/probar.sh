@@ -35,7 +35,12 @@ con_limite() {
 fallos=0
 
 echo "== 1. deckcheck con el paquete"
-con_limite 900 "$BIN" deckcheck > "$OUT/deckcheck.log" 2>&1
+# En espanyol: varias comprobaciones miran que el motivo de un mazo ilegal
+# salga TRADUCIDO ("identidad de color"), y sin idioma guardado el juego coge
+# el del sistema, que en las maquinas de GitHub es ingles. JAVA_TOOL_OPTIONS lo
+# lee la propia maquina virtual, asi que llega a traves del lanzador del .app.
+con_limite 900 env JAVA_TOOL_OPTIONS="-Duser.language=es -Duser.country=ES" \
+    "$BIN" deckcheck > "$OUT/deckcheck.log" 2>&1
 tail -15 "$OUT/deckcheck.log"
 if grep -Eq '\bFALLO\b|\[MAL\]' "$OUT/deckcheck.log" \
         || ! grep -Eq 'comprobaciones OK|TODO BIEN|OK - ' "$OUT/deckcheck.log"; then
