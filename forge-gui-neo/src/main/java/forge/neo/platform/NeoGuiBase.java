@@ -284,6 +284,9 @@ public class NeoGuiBase implements IGuiBase {
     /** Abrir una direccion en el navegador del sistema. */
     @Override
     public void browseToUrl(final String url) {
+        if (NeoOs.openOnMac(url)) {
+            return;
+        }
         try {
             if (java.awt.Desktop.isDesktopSupported()) {
                 java.awt.Desktop.getDesktop().browse(new java.net.URI(url));

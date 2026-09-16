@@ -1,0 +1,103 @@
+NeoForge para macOS
+===================
+
+Magic: the Gathering contra la IA, en Commander y en otros formatos.
+Interfaz nueva sobre el motor de reglas de Forge.
+
+(English below.)
+
+
+INSTALAR
+--------
+
+1. Arrastra NeoForge.app a la carpeta Aplicaciones.
+
+2. La primera vez, macOS NO te va a dejar abrirlo: NeoForge es un proyecto de
+   aficionado y no esta firmado con una cuenta de desarrollador de Apple.
+   Para abrirlo:
+
+     - Haz doble clic en NeoForge. Saldra un aviso; dale a "Aceptar".
+     - Abre Ajustes del Sistema -> Privacidad y seguridad.
+     - Abajo del todo aparece "Se ha bloqueado NeoForge". Dale a
+       "Abrir igualmente" y confirma.
+
+   Solo hace falta la primera vez.
+
+   Si aun asi dice que la aplicacion "esta danyada", abre la app Terminal y
+   pega esto:
+
+     xattr -dr com.apple.quarantine /Applications/NeoForge.app
+
+La primera vez tarda en abrir (unos 45 segundos): esta leyendo las 33.000
+cartas. Las siguientes va mas rapido.
+
+Lo primero que sale es el TUTORIAL: son tres lecciones cortas sobre los
+controles de esta interfaz. Merece la pena aunque sepas jugar a Magic.
+
+
+CONTROLES EN UN MAC
+-------------------
+
+  - Leer una carta en grande: clic derecho (clic con dos dedos) o Ctrl+clic.
+  - Acercar la mesa: pellizcar en el trackpad, o Cmd+rueda.
+  - Mover la mesa acercada: Cmd+arrastrar.
+  - Los atajos que en el juego dicen "Ctrl" valen con Cmd (Cmd+Z deshace).
+  - Cmd+Q cierra el juego.
+
+
+DONDE GUARDA LAS COSAS
+----------------------
+
+Mazos, partidas guardadas y preferencias:
+  ~/Library/Application Support/Forge
+Imagenes de las cartas descargadas:
+  ~/Library/Caches/Forge
+
+Son las mismas carpetas que usa Forge en un Mac: si ya tenias Forge, NeoForge
+vera tus mazos.
+
+Las imagenes de las cartas no vienen dentro: se bajan de Scryfall segun juegas.
+Sin internet se juega igual, con las cartas dibujadas sin ilustracion.
+
+
+----------------------------------------------------------------------------
+
+NeoForge for macOS
+==================
+
+INSTALL
+
+1. Drag NeoForge.app into your Applications folder.
+
+2. The first time, macOS will NOT let you open it: NeoForge is a fan project
+   and is not signed with an Apple developer account. To open it:
+
+     - Double-click NeoForge. A warning appears; click "Done" / "OK".
+     - Open System Settings -> Privacy & Security.
+     - At the bottom you will see "NeoForge was blocked". Click
+       "Open Anyway" and confirm.
+
+   You only need to do this once.
+
+   If it still says the app "is damaged", open Terminal and paste:
+
+     xattr -dr com.apple.quarantine /Applications/NeoForge.app
+
+The first launch takes a while (about 45 seconds) while it reads 33,000 cards.
+
+CONTROLS ON A MAC
+
+  - Read a card up close: right-click (two-finger click) or Ctrl+click.
+  - Zoom the table: pinch on the trackpad, or Cmd+scroll.
+  - Move the zoomed table: Cmd+drag.
+  - Shortcuts shown as "Ctrl" in the game work with Cmd (Cmd+Z undoes).
+
+DATA
+
+Decks, saves and settings: ~/Library/Application Support/Forge
+Downloaded card images:    ~/Library/Caches/Forge
+
+Card images are not bundled: they are downloaded from Scryfall as you play.
+
+NeoForge is unofficial Fan Content, not approved/endorsed by Wizards of the
+Coast. See AVISOS.txt. Licensed under the GNU GPL v3 (LICENSE-GPL3.txt).

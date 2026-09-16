@@ -734,7 +734,15 @@ public class TableScreen extends Pane {
         });
 
         addEventFilter(javafx.scene.input.ScrollEvent.SCROLL, e -> {
-            if (!e.isControlDown() || isModalShowing()) {
+            if (!forge.neo.platform.NeoOs.ctrl(e) || isModalShowing()) {
+                return;
+            }
+            // Un trackpad de Mac manda decenas de eventos por gesto, y encima
+            // la inercia sigue mandando al soltar: a una muesca por evento la
+            // mesa saltaria al tope. La inercia y lo que no se mueve en vertical
+            // se ignoran; el gesto de verdad en un Mac es pellizcar (abajo).
+            if (forge.neo.platform.NeoOs.MAC && (e.isInertia() || e.getDeltaY() == 0)) {
+                e.consume();
                 return;
             }
             final Point2D m = viewport.sceneToLocal(e.getSceneX(), e.getSceneY());
@@ -742,6 +750,19 @@ public class TableScreen extends Pane {
                     m.getX(), m.getY());
             e.consume();
         });
+
+        // Pellizcar en el trackpad acerca y aleja, en un Mac. En Windows no se
+        // engancha: alli el pellizco ya llega convertido en Ctrl+rueda.
+        if (forge.neo.platform.NeoOs.MAC) {
+            addEventFilter(javafx.scene.input.ZoomEvent.ZOOM, e -> {
+                if (isModalShowing()) {
+                    return;
+                }
+                final Point2D m = viewport.sceneToLocal(e.getSceneX(), e.getSceneY());
+                zoomAt(zoom * e.getZoomFactor(), m.getX(), m.getY());
+                e.consume();
+            });
+        }
 
         addEventFilter(MouseEvent.MOUSE_PRESSED, e -> {
             if (isModalShowing() || !isPanGesture(e)) {
@@ -798,13 +819,14 @@ public class TableScreen extends Pane {
      * <p>El boton izquierdo a secas ya significa otra cosa — arrastrar una
      * carta para jugarla o para atacar — asi que mover la mesa pide el boton
      * central, o Ctrl con el izquierdo, que es el mismo Ctrl con el que se
-     * acerca. Y solo cuando hay algo que mover: sin acercar, no.
+     * acerca (Cmd en un Mac, donde Ctrl+clic es el clic derecho). Y solo
+     * cuando hay algo que mover: sin acercar, no.
      */
     private boolean isPanGesture(final MouseEvent e) {
         return zoom > 1.001
                 && (e.getButton() == javafx.scene.input.MouseButton.MIDDLE
                     || (e.getButton() == javafx.scene.input.MouseButton.PRIMARY
-                        && e.isControlDown()));
+                        && forge.neo.platform.NeoOs.panModifier(e)));
     }
 
     /**

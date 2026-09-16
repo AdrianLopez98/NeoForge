@@ -114,6 +114,13 @@ public final class NeoLog {
         if (portable != null) {
             return portable;
         }
+        // En un Mac, donde Forge guarda sus datos (ForgeProfileProperties
+        // .getDefaultDirs): sin esto el registro y el cerrojo caerian en
+        // ~/.forge, lejos de todo lo demas.
+        if (forge.neo.platform.NeoOs.MAC) {
+            return new File(System.getProperty("user.home", "."),
+                    "Library/Application Support/Forge");
+        }
         final String appData = System.getenv("APPDATA");
         if (appData != null && !appData.isBlank()) {
             return new File(appData, "Forge");

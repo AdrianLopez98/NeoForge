@@ -83,7 +83,7 @@ public class HandFan extends Pane {
         setClip(clip);
         getChildren().addAll(previous, next);
         setOnScroll(e -> {
-            if (!e.isControlDown() && scrollMax > .5) {
+            if (!forge.neo.platform.NeoOs.ctrl(e) && scrollMax > .5) {
                 double delta = Math.abs(e.getDeltaX()) > Math.abs(e.getDeltaY()) ? e.getDeltaX() : e.getDeltaY();
                 scrollX = Math.max(0, Math.min(scrollMax, scrollX - delta));
                 requestLayout();

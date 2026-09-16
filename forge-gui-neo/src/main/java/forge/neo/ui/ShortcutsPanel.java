@@ -173,7 +173,7 @@ public class ShortcutsPanel extends VBox {
             final List<Chord> chords = NeoShortcuts.bindings(e.getKey());
             final Button[] slots = e.getValue();
             for (int i = 0; i < slots.length; i++) {
-                slots[i].setText(i < chords.size() ? chords.get(i).toString() : NeoText.get("shortcuts.none"));
+                slots[i].setText(i < chords.size() ? chords.get(i).label() : NeoText.get("shortcuts.none"));
                 slots[i].pseudoClassStateChanged(SELECTED, false);
             }
         }
@@ -228,7 +228,7 @@ public class ShortcutsPanel extends VBox {
         // Solo modificadores: se ensenya lo que va y se espera a la tecla, o a
         // que se suelten (ahi se asigna "Ctrl+Shift" si son al menos dos).
         pendingModifiers = pressed;
-        capturing.setText(pressed + "+...");
+        capturing.setText(pressed.label() + "+...");
     }
 
     private void onKeyReleased(final KeyEvent e) {
@@ -256,7 +256,7 @@ public class ShortcutsPanel extends VBox {
         }
         final Action displaced = NeoShortcuts.set(action, slot, chord);
         note.setText(displaced == null || chord == null ? ""
-                : NeoText.get("shortcuts.moved", chord.toString(), NeoText.get(displaced.textKey())));
+                : NeoText.get("shortcuts.moved", chord.label(), NeoText.get(displaced.textKey())));
         refresh();
     }
 

@@ -73,6 +73,27 @@ Para leer una carta pequeña: **clic derecho** la amplía, y **Ctrl + rueda** ac
 
 ---
 
+## Jugar en un Mac
+
+En [Releases](https://github.com/AdrianLopez98/NeoForge/releases) hay un `.dmg` para
+**Apple Silicon** (`arm64`) y otro para **Intel** (`x64`). Trae su propio Java: se abre,
+se arrastra NeoForge a Aplicaciones y listo.
+
+La primera vez macOS lo bloquea, porque no está firmado con una cuenta de desarrollador
+de Apple: doble clic, se acepta el aviso, y **Ajustes del Sistema → Privacidad y
+seguridad → Abrir igualmente**. Las instrucciones completas van dentro del `.dmg`
+(`LEEME-MAC.txt`).
+
+En un Mac, **Cmd hace de Ctrl** (Cmd+Z deshace), **Ctrl+clic es clic derecho** (amplía la
+carta), **pellizcar** acerca la mesa y **Cmd+arrastrar** la mueve. Los datos van donde
+los pone Forge en un Mac: `~/Library/Application Support/Forge`.
+
+Los `.dmg` los compila [el flujo `macos`](.github/workflows/macos.yml) en las máquinas
+Mac de GitHub, que además arranca la aplicación ya empaquetada y juega una partida antes
+de dar el paquete por bueno. Para compilarlo en un Mac propio: `mac/empaquetar.sh`.
+
+---
+
 ## Cómo está construido
 
 Forge separa motor y presentación con un contrato formal, y ya hay **dos** interfaces
@@ -108,7 +129,7 @@ Hace falta **JDK 17** (Forge lo exige con maven-enforcer) y Maven 3.9.
 # 1. el motor
 git clone https://github.com/Card-Forge/forge.git
 cd forge
-git checkout 9547c6cb27db93ce744f27bb81eec7cb7ecbbaa8   # la base probada; master suele valer
+git checkout 746455d75515daabec62971e0544cf19c66356b3   # la base probada; master suele valer
 
 # 2. este módulo, dentro
 git clone https://github.com/AdrianLopez98/NeoForge.git /tmp/neoforge

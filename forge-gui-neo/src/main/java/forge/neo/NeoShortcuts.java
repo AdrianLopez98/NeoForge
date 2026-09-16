@@ -285,10 +285,15 @@ public final class NeoShortcuts {
          * <p>Al pulsar el propio Ctrl el evento ya dice {@code isControlDown},
          * pero se fuerza igualmente: no se puede depender de que cada sistema
          * lo marque igual.
+         *
+         * <p>En un Mac, Cmd cuenta como Ctrl: asi Cmd+Z deshace y los atajos
+         * guardados como "Ctrl+..." valen sin traducir nada. Ver NeoOs.
          */
         public static Chord fromEvent(final KeyEvent e) {
             final KeyCode code = e.getCode();
-            final boolean c = e.isControlDown() || code == KeyCode.CONTROL;
+            final boolean c = forge.neo.platform.NeoOs.ctrl(e) || code == KeyCode.CONTROL
+                    || (forge.neo.platform.NeoOs.MAC
+                        && (code == KeyCode.COMMAND || code == KeyCode.META));
             final boolean s = e.isShiftDown() || code == KeyCode.SHIFT;
             final boolean a = e.isAltDown() || code == KeyCode.ALT;
             final KeyCode k = code == null || code.isModifierKey() || code == KeyCode.UNDEFINED
@@ -336,6 +341,18 @@ public final class NeoShortcuts {
 
         public boolean matches(final KeyEvent e) {
             return equals(fromEvent(e));
+        }
+
+        /**
+         * Para ensenyarlo en pantalla: igual que {@link #toString()}, salvo
+         * que en un Mac pone "Cmd" donde dice "Ctrl". El {@code toString} no se
+         * toca porque es tambien lo que se guarda en neo.properties.
+         */
+        public String label() {
+            final String s = toString();
+            return forge.neo.platform.NeoOs.MAC && ctrl
+                    ? forge.neo.platform.NeoOs.ctrlLabel() + s.substring("Ctrl".length())
+                    : s;
         }
 
         @Override
@@ -542,7 +559,7 @@ public final class NeoShortcuts {
     public static String describe(final Action action) {
         final StringBuilder b = new StringBuilder();
         for (final Chord c : bindings(action)) {
-            b.append(b.length() > 0 ? " / " : "").append(c);
+            b.append(b.length() > 0 ? " / " : "").append(c.label());
         }
         return b.toString();
     }

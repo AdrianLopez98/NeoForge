@@ -257,6 +257,8 @@ public class NeoApp extends Application implements SettingsPanel.Host {
         // tamanyos: Windows elige el que necesita en cada sitio. Ver NeoLogo.
         forge.neo.NeoLogo.applyTo(stage);
         stage.setScene(scene);
+        // En un Mac, Ctrl+clic es el clic derecho. Fuera de un Mac no hace nada.
+        forge.neo.platform.NeoOs.installMacMouse(scene);
         // Sin esto JavaFX se queda con Escape para salir de pantalla completa y
         // el menu de pausa no llegaria a abrirse nunca.
         stage.setFullScreenExitKeyCombination(javafx.scene.input.KeyCombination.NO_MATCH);

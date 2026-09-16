@@ -125,7 +125,7 @@ public class CardDetailPanel extends ScrollPane {
         // parrafos; poder agrandarlos sin tocar el resto de la interfaz es mas
         // comodo que forzar la vista.
         addEventFilter(javafx.scene.input.ScrollEvent.SCROLL, e -> {
-            if (e.isControlDown()) {
+            if (forge.neo.platform.NeoOs.ctrl(e)) {
                 setTextZoom(textZoom + (e.getDeltaY() > 0 ? 0.1 : -0.1));
                 e.consume();
             }
