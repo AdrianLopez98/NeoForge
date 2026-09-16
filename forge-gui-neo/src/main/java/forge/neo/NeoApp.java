@@ -189,6 +189,35 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 ev.consume();
             }
         });
+        // Espacio (y Enter) sobre un boton de la mesa que se ha quedado con el
+        // foco. Un boton de JavaFX se "pulsa" con Espacio y se queda la tecla
+        // antes de que llegue a los atajos: tras clicar una vez el boton del
+        // registro, cada Espacio para cerrar un aviso abria el registro
+        // (reportado: "every time I press space to close the pop ups it opens
+        // the Log"). En la mesa, sin nada modal encima, esas teclas son atajos
+        // de partida, nunca "pulsar lo que tenga el foco". Los dialogos se
+        // quedan como estan: ahi Espacio sobre su boton si es lo que se quiere.
+        final javafx.event.EventHandler<javafx.scene.input.KeyEvent> focusedButtonGuard = ev -> {
+            final javafx.scene.input.KeyCode code = ev.getCode();
+            if (code != javafx.scene.input.KeyCode.SPACE && code != javafx.scene.input.KeyCode.ENTER) {
+                return;
+            }
+            if (table == null || table.getScene() == null || table.isModalShowing()) {
+                return;
+            }
+            final javafx.scene.Node owner = scene.getFocusOwner();
+            if (!(owner instanceof javafx.scene.control.ButtonBase) || !isInside(owner, table)) {
+                return;
+            }
+            ev.consume();
+            if (ev.getEventType() == javafx.scene.input.KeyEvent.KEY_PRESSED) {
+                runShortcut(ev);
+            } else {
+                heldShortcuts.clear();
+            }
+        };
+        scene.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, focusedButtonGuard);
+        scene.addEventFilter(javafx.scene.input.KeyEvent.KEY_RELEASED, focusedButtonGuard);
         // Soltar una tecla rearma los atajos que no se repiten.
         scene.addEventHandler(javafx.scene.input.KeyEvent.KEY_RELEASED, ev -> heldShortcuts.clear());
 
@@ -1637,6 +1666,15 @@ public class NeoApp extends Application implements SettingsPanel.Host {
      *
      * @return true si la pulsacion ha hecho algo y hay que quedarsela
      */
+    private static boolean isInside(final javafx.scene.Node node, final javafx.scene.Node ancestor) {
+        for (javafx.scene.Node n = node; n != null; n = n.getParent()) {
+            if (n == ancestor) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private boolean runShortcut(final javafx.scene.input.KeyEvent ev) {
         // Escribiendo, las letras son letras.
         if (ev.getTarget() instanceof javafx.scene.control.TextInputControl
