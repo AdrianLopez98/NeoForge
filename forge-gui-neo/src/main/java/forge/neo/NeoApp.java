@@ -170,6 +170,10 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                     // jugador tiene delante y lo que espera cerrar.
                     if (table.isZoomShowing()) {
                         table.hideZoom();
+                    } else if (table.getOverlay().isPeeking()) {
+                        // Mirando la mesa con un dialogo apartado: Escape
+                        // vuelve a el, que es lo que esta pendiente.
+                        table.getOverlay().setPeeking(false);
                     } else {
                         togglePauseMenu();
                     }
@@ -1468,6 +1472,20 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             t.play();
         }
 
+        // -Dneo.overlay.peekAt=N aparta el dialogo de la mesa ("Ver la mesa") a
+        // los N ms, por el mismo metodo que la pastilla. Para capturarlo.
+        final long peekAt = Long.getLong("neo.overlay.peekAt", -1L);
+        if (peekAt >= 0) {
+            final PauseTransition t = new PauseTransition(Duration.millis(peekAt));
+            t.setOnFinished(e -> {
+                if (table != null) {
+                    table.getOverlay().setPeeking(true);
+                    System.out.println("[peek] mirando la mesa: " + table.getOverlay().isPeeking());
+                }
+            });
+            t.play();
+        }
+
         if (args.contains("--pick-test")) {
             // El gemelo de --zoom-test, con el boton IZQUIERDO. Existe porque
             // la mitad de "click derecho amplia, izquierdo elige" que se rompe
@@ -1769,25 +1787,10 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 }
                 openPauseMenu(false).askQuit();
                 return true;
-            case MACRO_RECORD: {
-                if (!free || ui == null) {
-                    return false;
-                }
-                final Boolean recording = ui.toggleMacroRecording();
-                if (recording == null) {
-                    return false;
-                }
-                table.setMacroRecording(recording);
-                table.getActionBar().setWarning(forge.neo.NeoText.get(recording
-                        ? "macro.recording" : "macro.stopped"), false);
-                return true;
-            }
+            case MACRO_RECORD:
+                return free && ui != null && ui.pressMacroRecord();
             case MACRO_PLAY:
-                if (!free || ui == null || !ui.playMacro()) {
-                    return false;
-                }
-                table.setMacroRecording(false);
-                return true;
+                return free && ui != null && ui.pressMacroPlay();
             case MACRO_NEXT:
                 return free && ui != null && ui.nextMacroAction();
             case SHOW_SHORTCUTS:

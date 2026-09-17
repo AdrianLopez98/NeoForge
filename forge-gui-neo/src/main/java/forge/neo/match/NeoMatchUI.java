@@ -2052,6 +2052,45 @@ public class NeoMatchUI extends NetworkGuiGame {
                 table.showGameLog(gv.getGameLog(), localPlayer());
             }
         });
+        // Las macros, tambien con el raton. Mismo camino que su tecla.
+        table.getMacroRecordButton().setOnAction(e -> pressMacroRecord());
+        table.getMacroRecordButton().setVisible(true);
+        table.getMacroPlayButton().setOnAction(e -> pressMacroPlay());
+    }
+
+    /**
+     * Grabar o parar la macro, desde la tecla o desde el boton de la mesa.
+     * En el hilo de interfaz. Devuelve false si ahora no se puede.
+     */
+    public boolean pressMacroRecord() {
+        if (table == null || table.isModalShowing()) {
+            return false;
+        }
+        final Boolean recording = toggleMacroRecording();
+        if (recording == null) {
+            return false;
+        }
+        // Al parar, "Repetir" sale ya: el motor apunta la macro por detras
+        // (respondLater) y el siguiente repintado lo corrige si no habia nada.
+        table.setMacroState(recording, !recording || hasMacro());
+        table.getActionBar().setWarning(forge.neo.NeoText.get(recording
+                ? "macro.recording" : "macro.stopped"), false);
+        return true;
+    }
+
+    /** Repetir la macro, desde la tecla o desde el boton. */
+    public boolean pressMacroPlay() {
+        if (table == null || table.isModalShowing() || !playMacro()) {
+            return false;
+        }
+        table.setMacroRecording(false);
+        return true;
+    }
+
+    /** Si hay una macro grabada que repetir. */
+    public boolean hasMacro() {
+        final IGameController gc = getGameController();
+        return gc != null && gc.macros() != null && gc.macros().hasRememberedActions();
     }
 
     /**
@@ -3130,11 +3169,13 @@ public class NeoMatchUI extends NetworkGuiGame {
                     // arriba, en la barra de la derecha.
                     showCentralPrompt(okLabel, cancelLabel, okEnabled, cancelEnabled);
                     table.requestLayout();
-                    table.setSelectable(this::isSelectable);
                     // Con una seleccion en curso, cada ficha tiene que poder
                     // clicarse por separado: apiladas, siempre se elige la
                     // primera y no hay forma de senyalar la segunda.
+                    // ANTES de marcar las elegibles: desapilar fabrica nodos
+                    // nuevos, y marcadas primero se quedarian sin marcar.
                     table.setGroupingEnabled(!isSelecting());
+                    table.setSelectable(this::isSelectable);
                     // Si no hay cartas elegibles pero si hay que contestar algo,
                     // puede que lo que se pida sea un jugador. Dejarlos clicables
                     // siempre es inofensivo: el motor ignora lo que no toca.
@@ -3142,7 +3183,7 @@ public class NeoMatchUI extends NetworkGuiGame {
                     // "● REC" segun el motor, no segun la tecla: el motor
                     // cancela la macro solo (fin de partida), y el aviso no puede
                     // quedarse encendido.
-                    table.setMacroRecording(isMacroRecording());
+                    table.setMacroState(isMacroRecording(), hasMacro());
                 });
             }
             return;

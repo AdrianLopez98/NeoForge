@@ -114,7 +114,12 @@ public class ChoiceDialog<T> extends VBox {
             final Region node = optionNode(option, display, cardWidth, items);
             if (readOnly) {
                 node.setOnMouseClicked(null);
-                node.setDisable(true);
+                // Una carta NO se deshabilita: tiene que seguir ampliandose con
+                // el click derecho, que es la unica forma de leer lo revelado.
+                // Un boton de texto si, que conserva su accion.
+                if (!(node instanceof CardNode)) {
+                    node.setDisable(true);
+                }
                 node.setOpacity(0.95);
             }
             items.getChildren().add(node);
@@ -212,7 +217,12 @@ public class ChoiceDialog<T> extends VBox {
         if (option instanceof CardView cv) {
             final CardNode node = new CardNode(cardWidth);
             node.setCard(cv);
-            node.setOnMouseClicked(e -> toggle(option, node));
+            node.setOnMouseClicked(e -> {
+                // El derecho amplia la carta (CardZoom / la mesa): no elige.
+                if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY) {
+                    toggle(option, node);
+                }
+            });
             return node;
         }
         // Y una carta en papel tambien es una carta. Llega asi desde IGuiBase
@@ -222,7 +232,12 @@ public class ChoiceDialog<T> extends VBox {
             final CardNode node = new CardNode(cardWidth);
             node.setRotationEnabled(false);
             node.setCard(CardView.getCardForUi(pc));
-            node.setOnMouseClicked(e -> toggle(option, node));
+            node.setOnMouseClicked(e -> {
+                // El derecho amplia la carta (CardZoom / la mesa): no elige.
+                if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY) {
+                    toggle(option, node);
+                }
+            });
             return node;
         }
         final Button b = new Button(display == null ? String.valueOf(option) : display.apply(option));

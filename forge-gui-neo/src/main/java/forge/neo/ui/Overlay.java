@@ -55,17 +55,88 @@ public class Overlay extends StackPane {
 
     /** Muestra un dialogo centrado. */
     public void show(final Region content) {
+        setPeeking(false);
         getChildren().setAll(content);
+        if (peekable) {
+            getChildren().add(peekPill);
+        }
         setVisible(true);
         setManaged(true);
         toFront();
     }
 
     public void hide() {
+        setPeeking(false);
         getChildren().clear();
         setVisible(false);
         setManaged(false);
     }
+
+    // ---------- mirar la mesa sin contestar ----------
+
+    /**
+     * Si esta capa ofrece "Ver la mesa".
+     *
+     * <p>Pedido jugando: con un tutor, lo que buscas depende de lo que hay en la
+     * mesa, y el dialogo la tapa entera. Solo la capa de los dialogos de la
+     * partida lo activa; la carta ampliada y los menus no.
+     */
+    private boolean peekable;
+    private boolean peeking;
+    private final javafx.scene.control.Label peekPill = new javafx.scene.control.Label();
+    private String peekText = "";
+    private String backText = "";
+
+    public void setPeekable(final String peek, final String back) {
+        this.peekable = true;
+        this.peekText = peek;
+        this.backText = back;
+        // Una etiqueta y no un boton: un boton se queda el foco y el siguiente
+        // Espacio lo "pulsaria" en vez de ir al dialogo.
+        peekPill.getStyleClass().add("peek-pill");
+        peekPill.setText(peek);
+        StackPane.setAlignment(peekPill, Pos.TOP_CENTER);
+        // En la franja del margen, por encima del dialogo y sin taparlo.
+        peekPill.setTranslateY(-30);
+        peekPill.setOnMouseClicked(e -> {
+            e.consume();
+            setPeeking(!peeking);
+        });
+    }
+
+    /**
+     * El dialogo se esconde pero SIGUE ahi, con lo que llevaras marcado: la
+     * capa deja de oscurecer y de tragarse el raton (menos la pastilla de
+     * volver), y la mesa se puede mirar, ampliar y abrir sus zonas. Nada de
+     * eso contesta al motor, que sigue esperando este dialogo.
+     *
+     * <p>{@link #isShowing()} sigue diciendo que si a proposito: los atajos de
+     * partida (Espacio pasa la prioridad) no pueden despertarse mientras hay
+     * una pregunta sin contestar.
+     */
+    public void setPeeking(final boolean on) {
+        if (!peekable || peeking == on) {
+            return;
+        }
+        peeking = on;
+        for (final javafx.scene.Node n : getChildren()) {
+            if (n != peekPill) {
+                n.setVisible(!on);
+            }
+        }
+        // Sin fondo NI recogida por limites: el raton atraviesa la capa.
+        setStyle(on ? "-fx-background-color: null;" : "");
+        setPickOnBounds(!on);
+        peekPill.setText(on ? backText : peekText);
+        peekPill.pseudoClassStateChanged(PEEKING, on);
+    }
+
+    public boolean isPeeking() {
+        return peeking;
+    }
+
+    private static final javafx.css.PseudoClass PEEKING =
+            javafx.css.PseudoClass.getPseudoClass("peeking");
 
     public boolean isShowing() {
         return isVisible();

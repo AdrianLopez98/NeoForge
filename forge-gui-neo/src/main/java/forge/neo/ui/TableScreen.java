@@ -121,6 +121,14 @@ public class TableScreen extends Pane {
      */
     private final Button logButton = new Button(NeoText.get("table.log"));
 
+    /**
+     * Grabar y repetir una macro con el raton, como en el Forge de siempre.
+     * Pedido por quien pidio las macros: con solo teclas no llego a usarlas.
+     * Encima del registro, en la misma esquina muerta.
+     */
+    private final Button macroRecordButton = new Button(NeoText.get("macro.record"));
+    private final Button macroPlayButton = new Button(NeoText.get("macro.play"));
+
     /** "Scryfall nos ha limitado, vuelve en Ns." Ver {@link ImageCooldownBadge}. */
     private final ImageCooldownBadge cooldownBadge = new ImageCooldownBadge();
 
@@ -258,6 +266,15 @@ public class TableScreen extends Pane {
         promptBanner = new PromptBanner(cardWidth * 1.55);
         turnBanner = new TurnBanner();
         logButton.getStyleClass().add("log-button");
+        for (final Button b : List.of(macroRecordButton, macroPlayButton)) {
+            b.getStyleClass().addAll("log-button", "macro-button");
+            // Sin foco: el Espacio siguiente es un atajo de partida, no "pulsar esto".
+            b.setFocusTraversable(false);
+        }
+        // Solo sale cuando hay una persona jugando (lo enciende NeoMatchUI al
+        // conectarlo): en una partida vista o una maqueta no haria nada.
+        macroRecordButton.setVisible(false);
+        macroPlayButton.setVisible(false);
 
         playerDetails.getStyleClass().add("player-details");
         playerDetails.setWrapText(true);
@@ -296,7 +313,7 @@ public class TableScreen extends Pane {
         spotlight.setFill(javafx.scene.paint.Color.TRANSPARENT);
 
         getChildren().addAll(opponentTabs, opponentBar, viewport,
-                selfBar, hand, commandZone, phaseRail, side, combatOverlay, logButton, cooldownBadge,
+                selfBar, hand, commandZone, phaseRail, side, combatOverlay, logButton, macroRecordButton, macroPlayButton, cooldownBadge,
                 promptBanner, notices, turnBanner, playerDetails, zoomBadge, macroBadge, spotlight,
                 overlay, menuOverlay, zoomOverlay);
 
@@ -309,6 +326,30 @@ public class TableScreen extends Pane {
         // clicando la carta. Un filtro en la capa entera lo caza pase lo que
         // pase, y no hace falta acertar con la geometria.
         zoomOverlay.setOnBackgroundClick(this::hideZoom);
+        // Los dialogos de la partida se pueden apartar para mirar la mesa: lo
+        // que eliges con un tutor depende de lo que hay en ella. Ver Overlay.
+        overlay.setPeekable(forge.neo.NeoText.get("overlay.peek"),
+                forge.neo.NeoText.get("overlay.back"));
+        // Mirar, no jugar: mientras el dialogo esta apartado, el click
+        // izquierdo sobre una carta, un jugador o el boton de OK le llegaria
+        // al motor como respuesta, y el motor espera la del dialogo. Solo
+        // pasa lo que ensenya: abrir zonas, el registro, las pestanyas de
+        // rival y la pastilla de volver. El derecho (ampliar) no se toca.
+        final javafx.event.EventHandler<MouseEvent> peekGuard = e -> {
+            if (!overlay.isPeeking() || e.getButton() == javafx.scene.input.MouseButton.SECONDARY) {
+                return;
+            }
+            final Object t = e.getTarget();
+            if (isInside(t, overlay) || isInside(t, menuOverlay) || isInside(t, zoomOverlay)
+                    || isInside(t, logButton) || isInside(t, opponentTabs)
+                    || isZoneOpener(t)) {
+                return;
+            }
+            e.consume();
+        };
+        addEventFilter(MouseEvent.MOUSE_PRESSED, peekGuard);
+        addEventFilter(MouseEvent.MOUSE_RELEASED, peekGuard);
+        addEventFilter(MouseEvent.MOUSE_CLICKED, peekGuard);
         // EXCEPTO sobre un control de verdad: el "Ver el texto actual" de
         // Deadpool (y el resto del panel de estado que compone CardZoom) vive
         // DENTRO de esta capa, y un filtro que se traga todo se adelanta a su
@@ -372,6 +413,18 @@ public class TableScreen extends Pane {
         final double lbW = logButton.prefWidth(-1);
         final double lbH = logButton.prefHeight(lbW);
         logButton.resizeRelocate(PAD, h - lbH - PAD, lbW, lbH);
+        // Las macros, apiladas encima y del mismo ancho: una columna se lee
+        // como un grupo, y a lo ancho se meterian en la mano.
+        double cornerTop = h - lbH - PAD;
+        final double mbW = Math.max(lbW, Math.max(macroRecordButton.prefWidth(-1),
+                macroPlayButton.prefWidth(-1)));
+        for (final Button b : List.of(macroRecordButton, macroPlayButton)) {
+            if (b.isVisible()) {
+                final double bh = b.prefHeight(mbW);
+                cornerTop -= bh + 4;
+                b.resizeRelocate(PAD, cornerTop, mbW, bh);
+            }
+        }
         combatOverlay.resizeRelocate(0, 0, w, h);
 
         // Encima del boton del registro: la misma esquina muerta, y solo
@@ -379,7 +432,7 @@ public class TableScreen extends Pane {
         if (cooldownBadge.isVisible()) {
             final double cbW = cooldownBadge.prefWidth(-1);
             final double cbH = cooldownBadge.prefHeight(cbW);
-            cooldownBadge.resizeRelocate(PAD, h - lbH - PAD - cbH - 6, cbW, cbH);
+            cooldownBadge.resizeRelocate(PAD, cornerTop - cbH - 6, cbW, cbH);
         }
 
         // El cartel de turno, centrado y ARRIBA del todo del area de juego: en
@@ -710,9 +763,32 @@ public class TableScreen extends Pane {
     }
 
     public void setMacroRecording(final boolean on) {
-        macroBadge.setVisible(on);
+        setMacroState(on, macroPlayButton.isVisible() || on);
+    }
+
+    /**
+     * Grabando o no, y si hay una macro que repetir. El boton de grabar cambia
+     * de nombre ("Parar") mientras graba, y el de repetir solo esta cuando hay
+     * algo que repetir y no se esta grabando.
+     */
+    public void setMacroState(final boolean recording, final boolean hasMacro) {
+        macroBadge.setVisible(recording);
+        macroRecordButton.setText(NeoText.get(recording ? "macro.stop" : "macro.record"));
+        macroRecordButton.pseudoClassStateChanged(RECORDING, recording);
+        macroPlayButton.setVisible(hasMacro && !recording);
         requestLayout();
     }
+
+    public Button getMacroRecordButton() {
+        return macroRecordButton;
+    }
+
+    public Button getMacroPlayButton() {
+        return macroPlayButton;
+    }
+
+    private static final javafx.css.PseudoClass RECORDING =
+            javafx.css.PseudoClass.getPseudoClass("recording");
 
     /** "Esto te acaba de pasar", sin parar la partida. */
     public void showNotice(final String text) {
@@ -734,7 +810,7 @@ public class TableScreen extends Pane {
         });
 
         addEventFilter(javafx.scene.input.ScrollEvent.SCROLL, e -> {
-            if (!forge.neo.platform.NeoOs.ctrl(e) || isModalShowing()) {
+            if (!forge.neo.platform.NeoOs.ctrl(e) || isViewBlocked()) {
                 return;
             }
             // Un trackpad de Mac manda decenas de eventos por gesto, y encima
@@ -755,7 +831,7 @@ public class TableScreen extends Pane {
         // engancha: alli el pellizco ya llega convertido en Ctrl+rueda.
         if (forge.neo.platform.NeoOs.MAC) {
             addEventFilter(javafx.scene.input.ZoomEvent.ZOOM, e -> {
-                if (isModalShowing()) {
+                if (isViewBlocked()) {
                     return;
                 }
                 final Point2D m = viewport.sceneToLocal(e.getSceneX(), e.getSceneY());
@@ -765,7 +841,7 @@ public class TableScreen extends Pane {
         }
 
         addEventFilter(MouseEvent.MOUSE_PRESSED, e -> {
-            if (isModalShowing() || !isPanGesture(e)) {
+            if (isViewBlocked() || !isPanGesture(e)) {
                 return;
             }
             panning = true;
@@ -2206,6 +2282,18 @@ public class TableScreen extends Pane {
     }
 
     /**
+     * true si hay algo delante que impide MIRAR la mesa (acercarla, moverla).
+     *
+     * <p>Un dialogo apartado con "Ver la mesa" no cuenta: para eso se aparta.
+     * Sigue contando como modal para todo lo demas — los atajos y el arrastre
+     * contestarian al motor, y el motor espera ese dialogo.
+     */
+    private boolean isViewBlocked() {
+        return (overlay.isShowing() && !overlay.isPeeking())
+                || menuOverlay.isShowing() || zoomOverlay.isShowing();
+    }
+
+    /**
      * Ampliar una carta a pantalla casi completa, como el click derecho de Arena.
      *
      * <p>El tamano sale del alto de la mesa, no de un numero fijo: en 4K la
@@ -2801,6 +2889,18 @@ public class TableScreen extends Pane {
         Node n = target instanceof Node ? (Node) target : null;
         while (n != null) {
             if (n == ancestor) {
+                return true;
+            }
+            n = n.getParent();
+        }
+        return false;
+    }
+
+    /** Un contador de zona de la barra o una pila de la mesa. */
+    private static boolean isZoneOpener(final Object target) {
+        Node n = target instanceof Node ? (Node) target : null;
+        while (n != null) {
+            if (n instanceof ZonePile || n.getStyleClass().contains("zone-button")) {
                 return true;
             }
             n = n.getParent();

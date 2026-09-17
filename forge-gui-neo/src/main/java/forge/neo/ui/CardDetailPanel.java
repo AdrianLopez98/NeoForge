@@ -65,7 +65,13 @@ public class CardDetailPanel extends ScrollPane {
         setPannable(true);
         setHbarPolicy(ScrollBarPolicy.NEVER);
         setVbarPolicy(ScrollBarPolicy.AS_NEEDED);
-        setMinWidth(width + 28);
+        // Minimo CERO, no el ancho nominal. La columna de la mesa no mide
+        // sideWidth: TableScreen la reparte con min(sideWidth, 14,5% de la
+        // ventana), y sideWidth sale del 19%. Con un minimo fijo el VBox de la
+        // columna respetaba el minimo y el panel se salia por la derecha — a
+        // 1920 px, 63 px de carta cortada (reportado el 16-09-2026). El ancho de
+        // la imagen ya lo corrige el visor, mas abajo.
+        setMinWidth(0);
         setPrefWidth(width + 28);
 
         content.setPadding(new Insets(CONTENT_PADDING));
@@ -170,7 +176,10 @@ public class CardDetailPanel extends ScrollPane {
         hint.setVisible(false);
         hint.setManaged(false);
 
-        final String cost = st.getManaCost() == null ? "" : st.getManaCost().toString();
+        // Sin coste, nada: ManaCost.toString() escribe "no cost" literal y en
+        // ingles, que junto al nombre de una tierra parecia parte del nombre.
+        final String cost = st.getManaCost() == null || st.getManaCost().isNoCost()
+                ? "" : st.getManaCost().toString();
         // En el idioma elegido: Forge trae los nombres y el texto de las cartas
         // traducidos y hay que PEDIRLOS. Ver CardText. Este panel es donde mas
         // se nota, porque es donde se lee de verdad.

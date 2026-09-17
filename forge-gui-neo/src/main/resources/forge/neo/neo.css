@@ -1988,6 +1988,15 @@
     -fx-border-color: -neo-warn;
 }
 
+/* Grabar / repetir macro, encima del registro. Grabando, en rojo: como el
+   "● REC", tiene que verse que todo lo que haces se esta apuntando. */
+.macro-button:recording {
+    -fx-opacity: 1;
+    -fx-text-fill: #FFFFFF;
+    -fx-background-color: rgba(217, 83, 79, 0.92);
+    -fx-border-color: transparent;
+}
+
 /* El registro completo */
 .game-log .log-line {
     -fx-font-size: 0.82em;
@@ -2302,6 +2311,33 @@
 .zoom-badge:hover {
     -fx-text-fill: -neo-text;
     -fx-border-color: -neo-accent;
+}
+
+/* "Ver la mesa" encima de un dialogo de la partida, y "Volver a la eleccion"
+   mientras se mira. Mirando tiene que destacar: es lo unico que dice que hay
+   una pregunta pendiente. */
+.peek-pill {
+    -fx-background-color: rgba(16,20,27,0.92);
+    -fx-text-fill: -neo-text;
+    -fx-font-size: 13px;
+    -fx-padding: 5 14 5 14;
+    -fx-background-radius: 14;
+    -fx-border-color: -neo-line;
+    -fx-border-radius: 14;
+    -fx-border-width: 1;
+    -fx-cursor: hand;
+}
+
+.peek-pill:hover {
+    -fx-border-color: -neo-accent;
+}
+
+.peek-pill:peeking {
+    -fx-background-color: -neo-accent;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-border-color: transparent;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.8), 14, 0.3, 0, 3);
 }
 
 /* ---------- palabras clave, con su explicacion ---------- */

@@ -176,8 +176,11 @@ public class PileDialog extends VBox {
                 node.setRotationEnabled(false);
                 node.setHoverEnabled(false);
                 node.setCard(cv);
-                // El click tiene que elegir la PILA, no la carta.
-                node.setMouseTransparent(true);
+                // El click tiene que elegir la PILA, no la carta: la carta no
+                // se queda el click y este sube hasta la pila. Pero NO
+                // transparente al raton, que es lo que habia: asi el click
+                // derecho no encontraba carta que ampliar, y aqui se decide
+                // leyendo las cartas (Fact or Fiction, reportado).
                 flow.getChildren().add(node);
             }
             box.getChildren().add(flow);
@@ -185,7 +188,12 @@ public class PileDialog extends VBox {
         }
 
         box.setCursor(javafx.scene.Cursor.HAND);
-        box.setOnMouseClicked(e -> pick(index));
+        box.setOnMouseClicked(e -> {
+            // El derecho es para ampliar la carta, no para elegir.
+            if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY) {
+                pick(index);
+            }
+        });
         panels.add(box);
         return box;
     }

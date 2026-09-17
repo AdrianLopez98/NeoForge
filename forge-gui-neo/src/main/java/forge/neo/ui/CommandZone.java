@@ -96,6 +96,8 @@ public class CommandZone extends Pane {
      * @param owner     su duenyo, para leer el impuesto de comandante
      */
     public void setCards(final List<CardView> command, final PlayerView owner) {
+        lastCommand = command;
+        lastOwner = owner;
         for (final CardStackNode p : piles) {
             getChildren().remove(p);
         }
@@ -204,9 +206,15 @@ public class CommandZone extends Pane {
     public void setGroupingEnabled(final boolean on) {
         if (this.grouping != on) {
             this.grouping = on;
-            requestLayout();
+            // Ya, no en el siguiente aviso del motor: mientras espera tu
+            // eleccion no manda ninguno. Ver BattlefieldPane.setGroupingEnabled.
+            setCards(lastCommand, lastOwner);
         }
     }
+
+    /** Lo ultimo que se pinto, para repartirlo de nuevo sin esperar al motor. */
+    private List<CardView> lastCommand;
+    private PlayerView lastOwner;
 
     /**
      * Una carta de EFECTO que no dice nada.

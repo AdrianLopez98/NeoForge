@@ -234,6 +234,8 @@ public class BattlefieldPane extends Pane {
 
     public void setCards(final List<CardView> cards,
                          final Map<Integer, List<CardView>> attachedTo) {
+        lastCards = cards;
+        lastAttachedTo = attachedTo;
         final Map<String, List<CardView>> groups = groupCards(cards);
 
         // Lo que ESTABA y ya no esta: se muere en pantalla en vez de
@@ -429,9 +431,27 @@ public class BattlefieldPane extends Pane {
     public void setGroupingEnabled(final boolean on) {
         if (this.grouping != on) {
             this.grouping = on;
-            requestLayout();
+            // Y se reparte YA, con las cartas de la ultima vez. Las pilas se
+            // forman en setCards, no al colocar: con solo pedir layout el
+            // cambio esperaba al siguiente aviso del motor, y mientras el
+            // motor espera tu eleccion no manda ninguno. Reportado con
+            // Strefan: sacrificar dos fichas de Sangre de una pila x3 elegia
+            // la primera y la segunda no habia forma de senyalarla.
+            if (lastCards != null) {
+                final boolean pending = skipRemovals;
+                // No ha entrado ni salido nada: solo cambia el dibujo.
+                skipRemovals = true;
+                setCards(lastCards, lastAttachedTo);
+                skipRemovals = pending;
+            } else {
+                requestLayout();
+            }
         }
     }
+
+    /** Lo ultimo que se pinto, para poder repartirlo de nuevo sin el motor. */
+    private List<CardView> lastCards;
+    private Map<Integer, List<CardView>> lastAttachedTo = java.util.Collections.emptyMap();
 
     public boolean isGroupingEnabled() {
         return grouping;
