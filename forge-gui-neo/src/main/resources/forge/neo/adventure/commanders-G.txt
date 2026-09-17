@@ -1,0 +1,102 @@
+# Los 100 comandantes mono-green mas jugados en EDHREC, por numero de mazos.
+# Generado por tools/bajar-comandantes.py. Un nombre por linea.
+Fynn, the Fangbearer
+Tifa Lockhart
+Shroofus Sproutsire
+Kona, Rescue Beastie
+Omnath, Locus of Mana
+Gargos, Vicious Watcher
+Ghalta, Primal Hunger
+Lumra, Bellow of the Woods
+Marwyn, the Nurturer
+Bristly Bill, Spine Sower
+The Unbeatable Squirrel Girl
+Ayula, Queen Among Bears
+Azusa, Lost but Seeking
+Selvala, Heart of the Wilds
+Aeve, Progenitor Ooze
+Loot, Exuberant Explorer
+Beorn the Fierce
+Goreclaw, Terror of Qal Sisma
+Baru, Wurmspeaker
+Toph, Earthbending Master
+Dionus, Elvish Archdruid
+Vorinclex, Monstrous Raider
+The Cabbage Merchant
+Oviya, Automech Artisan
+Radagast of Rhosgobel
+Ashaya, Soul of the Wild
+Thrun, Breaker of Silence
+Ruxa, Patient Professor
+Six
+Legolas, Master Archer
+Yedora, Grave Gardener
+Freyalise, Llanowar's Fury
+Ezuri, Renegade Leader
+Kosei, Penitent Warlord
+Titania, Protector of Argoth
+Eladamri, Korvecdal
+Greensleeves, Maro-Sorcerer
+Toski, Bearer of Secrets
+Yisan, the Wanderer Bard
+Nissa, Worldsoul Speaker
+Fangorn, Tree Shepherd
+Titania, Nature's Force
+Grothama, All-Devouring
+Yeva, Nature's Herald
+The Earth King
+Titania, Voice of Gaea
+Kodama of the West Tree
+The Notary Hobbits
+Sasaya, Orochi Ascendant
+Shigeki, Jukai Visionary
+Wilson, Refined Grizzly // Raised by Giants
+Ojer Kaslem, Deepest Growth
+Vorinclex
+Nissa, Resurgent Animist
+Runadi, Behemoth Caller
+Blor the Impervious
+Radagast the Brown
+Ghalta, Stampede Tyrant
+Maular, the Next Evolution
+Seton, Krosan Protector
+Torgal, A Fine Hound
+Questing Beast
+Mowu, Loyal Companion
+Strong, the Brutish Thespian
+Quina, Qu Gourmet
+Avatar Kyoshi, Earthbender
+Yorvo, Lord of Garenbrig
+Reki, the History of Kamigawa
+Gilanra, Caller of Wirewood // Kodama of the East Tree
+Casal, Lurkwood Pathfinder
+Vorinclex, Voice of Hunger
+Tyvar, the Pummeler
+Eladamri, Lord of Leaves
+Zopandrel, Hunger Dominus
+Arwen, Weaver of Hope
+Kura, the Boundless Sky
+Nissa, Vastwood Seer
+Gwenna, Eyes of Gaea
+Thrun, the Last Troll
+Grunn, the Lonely King
+Hit-Monkey
+Sauron, Dino Devotee
+Rhonas the Indomitable
+Esika's Chariot
+Seshiro the Anointed
+Diamond Weapon
+Bugenhagen, Wise Elder
+Oviya Pashiri, Sage Lifecrafter
+Multani, Maro-Sorcerer
+Mole Man, Moloid Master
+Lily Bowen, Raging Grandma
+Varis, Silverymoon Ranger
+Renata, Called to the Hunt
+Thrasta, Tempest's Roar
+Lucky the Pizza Dog
+The Tarrasque
+Nylea, Keen-Eyed
+Kamahl, Fist of Krosa
+Old Gnawbone
+Patron of the Orochi

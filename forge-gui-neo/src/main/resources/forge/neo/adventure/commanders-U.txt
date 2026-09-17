@@ -1,0 +1,102 @@
+# Los 100 comandantes mono-blue mas jugados en EDHREC, por numero de mazos.
+# Generado por tools/bajar-comandantes.py. Un nombre por linea.
+Urza, Lord High Artificer
+Eluge, the Shoreless Sea
+The Mindskinner
+Orvar, the All-Form
+Vnwxt, Verbose Host
+Bruvac the Grandiloquent
+Talrand, Sky Summoner
+Emry, Lurker of the Loch
+Minn, Wily Illusionist
+Baral, Chief of Compliance
+Braids, Conjurer Adept
+Azami, Lady of Scrolls
+Lady Octopus, Inspired Inventor
+Leonardo da Vinci
+Namor the Sub-Mariner
+The Watcher in the Water
+Kami of the Crescent Moon
+Jin-Gitaxias
+Octavia, Living Thesis
+Mm'menon, the Right Hand
+Sai, Master Thopterist
+Charix, the Raging Isle
+Katara, Waterbending Master
+Gogo, Master of Mimicry
+Arcum Dagsson
+Neerdiv, Devious Diver
+Cynette, Jelly Drover
+Fblthp, Lost on the Range
+Alandra, Sky Dreamer
+Y'shtola Rhul
+Tekuthal, Inquiry Dominus
+Memnarch
+Wan Shi Tong, All-Knowing
+Geralf, the Fleshwright
+Taigam, Master Opportunist
+Unesh, Criosphinx Sovereign
+Tetsuko Umezawa, Fugitive
+Wan Shi Tong, Librarian
+Jin-Gitaxias, Progress Tyrant
+Arcanis the Omnipotent
+Jace, Vryn's Prodigy
+Princess Yue
+Jalira, Master Polymorphist
+Malcolm, Alluring Scoundrel
+The Reality Chip
+Sun Quan, Lord of Wu
+Svyelun of Sea and Sky
+Patron of the Moon
+Hermes, Overseer of Elpis
+Eligeth, Crossroads Augur // Siani, Eye of the Storm
+Atemsis, All-Seeing
+Ojer Pakpatiq, Deepest Epoch
+Yue, the Moon Spirit
+Thassa, Deep-Dwelling
+Naban, Dean of Iteration
+Mu Yanling, Wind Rider
+Matoya, Archon Elder
+Nezahal, Primal Tide
+Jacob Hauken, Inspector
+Lier, Disciple of the Drowned
+Cosima, God of the Voyage
+Teferi, Temporal Archmage
+Geralf, Visionary Stitcher
+Drafna, Founder of Lat-Nam
+Donal, Herald of Wings
+Piper Wright, Publick Reporter
+Thada Adel, Acquisitor
+Lulu, Stern Guardian
+Unctus, Grand Metatect
+Council of Reeds
+Jin-Gitaxias, Core Augur
+Emperor Mihail II
+Bilbo, Thief in the Night
+Empress Galina
+Jill, Shiva's Dominant
+Blind Seer
+Grazilaxx, Illithid Scholar
+Thassa, God of the Sea
+Donatello, Mutant Mechanic
+Fblthp, the Lost
+Gran-Gran
+Ms. Marvel, Kamala Khan
+Gandalf, Friend of the Shire
+Kitsa, Otterball Elite
+Syr Elenora, the Discerning
+The Indomitable
+Kairi, the Swirling Sky
+Sakashima the Impostor
+Tui and La, Moon and Ocean
+Urza, Powerstone Prodigy
+Mathise, Surge Channeler
+Loki, Lord of Misrule
+Alrund, God of the Cosmos
+The Blue Spirit
+Callaphe, Beloved of the Sea
+Muzzio, Visionary Architect
+The Lord of the Eagles
+Krang, Master Mind
+Kiora, the Rising Tide
+Kaho, Minamo Historian

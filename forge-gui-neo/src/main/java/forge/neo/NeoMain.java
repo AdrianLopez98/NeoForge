@@ -79,6 +79,16 @@ public final class NeoMain {
             return;
         }
 
+        // La Aventura (el Adventure de Forge) en su propio proceso, lanzado desde
+        // el menu. Va ANTES del cerrojo de instancia unica: el NeoForge que la
+        // abre sigue vivo, y con el cerrojo este proceso se cerraria solo. En el
+        // .exe es la unica forma de lanzarla: su Java no trae java.exe. Ver
+        // forge.neo.adventure.AdventureLauncher.
+        if ("adventure".equals(cmd)) {
+            forge.neo.adventure.AdventureNeoMain.main(new String[0]);
+            return;
+        }
+
         // Un solo NeoForge abierto, y lo PRIMERO de todo: si ya hay uno, este
         // proceso no tiene que hacer absolutamente nada, ni siquiera abrir el
         // registro. Rotar el neo.log que el otro tiene abierto no se puede, y
@@ -155,6 +165,14 @@ public final class NeoMain {
                 break;
             case "diag":
                 diagnoseImages(deckName);
+                break;
+            case "artecheck":
+                // El arte sin conexion (OfflineArt) se encuentra por NOMBRE, y
+                // el nombre lo calculan igual dos sitios: este codigo y el
+                // script que lo baja. Si se desalinean no hay error, solo
+                // cartas dibujadas donde deberia haber foto.
+                banner("Arte sin conexion: cuantas cartas lo encuentran");
+                checkOfflineArt();
                 break;
             case "textcheck":
                 // El aviso de elegir objetivo lo escribe el motor en ingles a
@@ -559,6 +577,41 @@ public final class NeoMain {
             }
         }
         return def;
+    }
+
+    /**
+     * Recorre todas las cartas del motor con su clave de imagen de verdad -
+     * delantera y, si la tiene, trasera - y cuenta cuantas encuentra
+     * {@link forge.neo.card.OfflineArt}. Sin red y sin tocar la cache normal.
+     */
+    private static void checkOfflineArt() {
+        final java.io.File dir = forge.neo.card.OfflineArt.dir();
+        System.out.println("  carpeta: " + dir.getAbsolutePath() + (dir.isDirectory() ? "" : "  (NO EXISTE)"));
+        int caras = 0;
+        int conArte = 0;
+        int conRecorte = 0;
+        final java.util.List<String> faltan = new java.util.ArrayList<>();
+        for (final PaperCard pc : forge.StaticData.instance().getCommonCards().getUniqueCards()) {
+            for (final boolean atras : new boolean[] {false, true}) {
+                if (atras && !pc.hasBackFace()) {
+                    continue;
+                }
+                final String key = pc.getImageKey(atras);
+                caras++;
+                if (forge.neo.card.OfflineArt.find(key, false) != null) {
+                    conArte++;
+                } else if (!pc.getName().startsWith("A-")) {
+                    faltan.add(key);
+                }
+                if (forge.neo.card.OfflineArt.find(key, true) != null) {
+                    conRecorte++;
+                }
+            }
+        }
+        System.out.printf("  caras: %d   con arte: %d (%.1f%%)   con recorte: %d%n",
+                caras, conArte, 100.0 * conArte / Math.max(1, caras), conRecorte);
+        System.out.println("  sin arte (sin contar Alchemy): " + faltan.size());
+        faltan.stream().limit(25).forEach(k -> System.out.println("     " + k));
     }
 
     private static void banner(final String text) {

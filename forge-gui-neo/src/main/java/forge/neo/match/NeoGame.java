@@ -904,6 +904,10 @@ public final class NeoGame {
     public static void applyEnginePrefs() {
         final ForgePreferences prefs = FModel.getPreferences();
         prefs.setPref(FPref.YIELD_AUTO_PASS_NO_ACTIONS, NeoSettings.getBool(NeoSettings.AUTO_PASS, true));
+        // El volumen, aqui tambien: es el punto por el que pasan TODAS las
+        // partidas (principio 8). En la ventana normal ya lo aplico NeoApp al
+        // arrancar, pero el proceso de la Aventura no pasa por ahi.
+        NeoSettings.applyAudioToEngine();
         prefs.setPref(FPref.UI_SHOW_ACTIONABLE_HIGHLIGHTS, true);
         // Y que ademas nos diga CUALES taparia el boton "Auto": el motor las
         // manda por el mismo camino, con el peso a 2. Sin esta preferencia

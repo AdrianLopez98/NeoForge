@@ -104,7 +104,7 @@ public class QuestScreen extends BorderPane {
         nueva.setMinWidth(Region.USE_PREF_SIZE);
         nueva.setOnAction(e -> actions.newAdventure());
 
-        final Button back = new Button(NeoText.get("quest.menu"));
+        final Button back = new Button(NeoText.get("common.back"));
         back.getStyleClass().add("btn-secondary");
         back.setMinWidth(Region.USE_PREF_SIZE);
         back.setOnAction(e -> actions.back());

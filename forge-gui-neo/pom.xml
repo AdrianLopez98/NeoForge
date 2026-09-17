@@ -39,6 +39,15 @@
             <artifactId>forge-gui</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!-- La Aventura (el Adventure de Forge): su motor de mapa en libGDX y
+             su lanzador de escritorio. Se abre en un proceso aparte y sus
+             combates y su editor de mazos son los nuestros. Ver
+             forge.neo.adventure.AdventureNeoMain. -->
+        <dependency>
+            <groupId>forge</groupId>
+            <artifactId>forge-gui-mobile-dev</artifactId>
+            <version>${project.version}</version>
+        </dependency>
 
         <!-- NOTA: NO dependemos de forge-gui-desktop. Si algún día aparece esa
              dependencia aquí, es que nos hemos acoplado a la GUI vieja. -->

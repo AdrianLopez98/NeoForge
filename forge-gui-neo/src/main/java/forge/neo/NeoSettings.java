@@ -271,6 +271,17 @@ public final class NeoSettings {
     public static final String HOVER_DETAIL = "hoverDetail";
 
     /**
+     * Si una Aventura nueva en Commander empieza eligiendo entre tres comandantes
+     * y con el mazo generado, o con el mazo fijo de Forge. Encendido de fabrica.
+     * Lo lee el proceso de la Aventura (ver {@code forge.neo.adventure.StarterDeck}).
+     */
+    public static final String ADVENTURE_STARTER = "adventure.randomStarter";
+
+    public static boolean adventureStarter() {
+        return getBool(ADVENTURE_STARTER, true);
+    }
+
+    /**
      * Si el panel de detalle esta encendido.
      *
      * <p>{@code -Dneo.hoverDetail=true} lo enciende sin escribir en las
@@ -606,9 +617,16 @@ public final class NeoSettings {
      * ajustes al usuario por detras. Nuestro valor de verdad vive en
      * {@code neo.properties} y se vuelve a aplicar en cada arranque.
      */
+    /** Propiedad que pone {@code AdventureNeoMain}: este proceso es el de la Aventura. */
+    public static final String ADVENTURE_PROCESS = "neo.adventure.process";
+
     public static void applyAudioToEngine() {
         final int sound = getInt(SOUND_VOLUME, SOUND_VOLUME_DEFAULT);
-        final int music = getInt(MUSIC_VOLUME, MUSIC_VOLUME_DEFAULT);
+        // En el proceso de la Aventura la musica es la de NeoForge, que suena en
+        // el otro proceso: aqui se queda callada aunque se toque el volumen
+        // desde la pausa de un duelo (ver AdventureSettings).
+        final int music = Boolean.getBoolean(ADVENTURE_PROCESS)
+                ? 0 : getInt(MUSIC_VOLUME, MUSIC_VOLUME_DEFAULT);
         final ForgePreferences prefs = FModel.getPreferences();
         prefs.setPref(FPref.UI_ENABLE_SOUNDS, sound > 0);
         prefs.setPref(FPref.UI_ENABLE_MUSIC, music > 0);

@@ -2029,6 +2029,11 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             }
 
             @Override
+            public void adventure() {
+                forge.neo.adventure.AdventureLauncher.open(stage, NeoApp.this::showMainMenu);
+            }
+
+            @Override
             public void tournament() {
                 tournament.showTournament();
             }
