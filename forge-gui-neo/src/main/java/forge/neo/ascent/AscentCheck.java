@@ -89,6 +89,8 @@ public final class AscentCheck {
             reliquiasDeJefe();
             elJefeNoEsArchienemigo();
             recorrerRuns();
+            elActoPasaSolo();
+            elRouterLoLlama();
             premios();
             tierrasEnElPremio();
             elDobleEnCommander();
@@ -1222,6 +1224,11 @@ public final class AscentCheck {
             try {
                 final Random rnd = new Random(i * 7919L);
                 for (int act = 1; act <= AscentRun.ACTS; act++) {
+                    if (run.getAct() != act) {
+                        porQue = "run " + i + ": deberia ir por el acto " + act
+                                + " y va por el " + run.getAct();
+                        break;
+                    }
                     while (!run.actCleared()) {
                         final List<AscentNode> opciones = run.available();
                         if (opciones.isEmpty()) {
@@ -1249,8 +1256,18 @@ public final class AscentCheck {
                     if (porQue != null) {
                         break;
                     }
-                    if (act < AscentRun.ACTS && !run.nextAct()) {
-                        porQue = "run " + i + ": no se ha podido pasar al acto " + (act + 1);
+                    // ⚠️ Aqui NO se llama a nextAct(). Se llama a lo MISMO que
+                    // llama el juego al volver de un nodo, que es lo unico que
+                    // demuestra algo: mientras esto hacia el cambio de acto por
+                    // su cuenta, el comprobador pasaba en verde con el modo sin
+                    // final, porque ejecutaba a mano el paso que en el juego
+                    // faltaba. Ver AscentRun.advance().
+                    final AscentRun.Step paso = run.advance();
+                    final AscentRun.Step toca = act < AscentRun.ACTS
+                            ? AscentRun.Step.NEXT_ACT : AscentRun.Step.RUN_COMPLETED;
+                    if (paso != toca) {
+                        porQue = "run " + i + ": al caer el jefe del acto " + act
+                                + " la run dice " + paso + " y tendria que decir " + toca;
                         break;
                     }
                 }
@@ -1283,6 +1300,148 @@ public final class AscentCheck {
         } else {
             fail("recorrido: no ha salido ni un nodo de " + faltan + " en " + RUNS + " runs");
         }
+    }
+
+    /**
+     * <b>Que ganar el jefe te lleve al acto siguiente, sin que nadie empuje.</b>
+     *
+     * <p>Este es el fallo que estuvo vivo desde que existe el modo y que nada
+     * cazaba: {@code nextAct()} <b>no lo llamaba el juego</b>, solo el
+     * comprobador, que lo usaba para plantarse en un acto y montar su
+     * escenario. O sea que los actos 2 y 3 se verificaban ejecutando a mano el
+     * paso que en la partida faltaba. Jugando, ganabas el jefe del acto 1 y el
+     * mapa se quedaba en un callejon sin salida — el jefe esta en la ultima
+     * fila y no sale un solo camino de el — y como {@code act} no pasaba de 1,
+     * {@link AscentRun#isCompleted()} no podia ser cierto jamas: <b>ninguna run
+     * era ganable</b>.
+     *
+     * <p>Por eso aqui no se toca {@code nextAct()} ni una vez. Se hace lo unico
+     * que demuestra algo: ganar el jefe y mirar si desde el mapa se puede
+     * seguir jugando, que es exactamente lo que el jugador reporto que no
+     * pasaba.
+     */
+    private static void elActoPasaSolo() {
+        final AscentRun run = demoRun(AscentRun.Mode.STANDARD);
+        if (run == null) {
+            fail("cambio de acto: no se ha podido montar la run");
+            return;
+        }
+        try {
+            final Random rnd = new Random(20260917L);
+            for (int act = 1; act <= AscentRun.ACTS; act++) {
+                if (!walkToBoss(run, rnd)) {
+                    fail("cambio de acto: no se ha llegado al jefe del acto " + act);
+                    return;
+                }
+                final AscentRun.Step paso = run.advance();
+                if (act < AscentRun.ACTS) {
+                    if (paso != AscentRun.Step.NEXT_ACT) {
+                        fail("cambio de acto: ganado el jefe del acto " + act
+                                + ", la run dice " + paso + " en vez de NEXT_ACT");
+                        return;
+                    }
+                    if (run.getAct() != act + 1) {
+                        fail("cambio de acto: se sigue en el acto " + run.getAct()
+                                + " despues de pasar del " + act);
+                        return;
+                    }
+                    // Lo que el jugador ve: que haya a donde ir. Sin esto, el
+                    // contador podria subir y el mapa seguir siendo el
+                    // callejon sin salida de antes.
+                    if (run.available().isEmpty()) {
+                        fail("cambio de acto: el mapa del acto " + run.getAct()
+                                + " no tiene ni un nodo al que entrar");
+                        return;
+                    }
+                    if (run.getCleared() != 0) {
+                        fail("cambio de acto: el acto " + run.getAct() + " empieza con "
+                                + run.getCleared() + " nodos ya resueltos");
+                        return;
+                    }
+                } else {
+                    if (paso != AscentRun.Step.RUN_COMPLETED) {
+                        fail("cambio de acto: ganado el jefe del ultimo acto, la run dice "
+                                + paso + " en vez de RUN_COMPLETED");
+                        return;
+                    }
+                    if (!run.isCompleted()) {
+                        fail("cambio de acto: el jefe del acto " + AscentRun.ACTS
+                                + " ha caido y la run no se da por ganada");
+                        return;
+                    }
+                }
+            }
+            ok("cambio de acto: ganar el jefe lleva al acto siguiente y el ultimo gana la run,"
+                    + " sin llamar a nextAct()");
+        } finally {
+            run.discard();
+        }
+    }
+
+    /**
+     * <b>Que el router SIGA llamando a {@code advance()}.</b>
+     *
+     * <p>Esto no comprueba un comportamiento: comprueba un <b>cable</b>, y hace
+     * falta justo por como se colo el fallo. {@link #elActoPasaSolo()} demuestra
+     * que la run sabe pasar de acto, pero eso ya era cierto ANTES del arreglo —
+     * {@code nextAct()} funcionaba perfectamente. Lo que no habia era quien lo
+     * llamara. O sea que un comprobador que solo mire la logica del modo vuelve
+     * a pasar en verde el dia que alguien quite la llamada de
+     * {@code NeoAppAscent.showMap}, que es exactamente el fallo que se acaba de
+     * arreglar.
+     *
+     * <p>Y no se puede comprobar jugando: {@code showMap} pinta una pantalla de
+     * JavaFX, y esta bateria corre sin ventana. Asi que se mira el
+     * <b>bytecode</b>, que es donde el nombre del metodo llamado queda escrito
+     * en el pozo de constantes. Mismo espiritu que {@code adventurecheck}, que
+     * vigila con un hash que las copias de clases de Forge no se queden atras.
+     *
+     * <p>Es una red basta —dice que se nombra, no que se llame en el sitio
+     * bueno— pero caza lo unico que hay que cazar aqui: que el router se quede
+     * <b>sin</b> el cambio de acto y nadie se entere hasta que un jugador gane
+     * un acto 1 y se quede encerrado en el mapa.
+     */
+    private static void elRouterLoLlama() {
+        final String clase = "/forge/neo/NeoAppAscent.class";
+        final byte[] bytes;
+        try (java.io.InputStream in = AscentCheck.class.getResourceAsStream(clase)) {
+            if (in == null) {
+                fail("cableado: no se encuentra " + clase + " en el classpath");
+                return;
+            }
+            bytes = in.readAllBytes();
+        } catch (final java.io.IOException e) {
+            fail("cableado: no se ha podido leer " + clase + ": " + e);
+            return;
+        }
+        // El pozo de constantes guarda en texto plano el nombre de cada metodo
+        // llamado y el de la clase donde vive.
+        final String pool = new String(bytes, java.nio.charset.StandardCharsets.ISO_8859_1);
+        if (!pool.contains("forge/neo/ascent/AscentRun")) {
+            fail("cableado: NeoAppAscent ni siquiera nombra a AscentRun");
+            return;
+        }
+        if (!pool.contains("advance")) {
+            fail("cableado: NeoAppAscent NO llama a AscentRun.advance() —"
+                    + " ganar un jefe deja el mapa sin salida y la run no se puede ganar");
+            return;
+        }
+        ok("cableado: el router llama a advance() al volver de un nodo");
+    }
+
+    /** Camina el mapa hasta tumbar al jefe del acto en curso. */
+    private static boolean walkToBoss(final AscentRun run, final Random rnd) {
+        int vueltas = 0;
+        while (!run.actCleared()) {
+            if (++vueltas > AscentMap.ROWS * AscentMap.COLS) {
+                return false;
+            }
+            final List<AscentNode> opciones = run.available();
+            if (opciones.isEmpty() || !run.clear(opciones.get(rnd.nextInt(opciones.size())))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     // ------------------------------------------------------------------

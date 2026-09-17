@@ -286,12 +286,51 @@ public final class AscentRun {
         return clearedNodes.contains(map().boss().key());
     }
 
+    /** Que toca despues de resolver un nodo. Lo contesta {@link #advance()}. */
+    public enum Step {
+        /** Nada: el acto sigue y se vuelve al mapa de siempre. */
+        CONTINUE,
+        /** El jefe ha caido y quedan actos: el mapa de al lado es OTRO. */
+        NEXT_ACT,
+        /** No quedan actos. La run esta ganada y hay que cerrarla. */
+        RUN_COMPLETED
+    }
+
+    /**
+     * <b>Lo que el bucle de juego llama al volver de un nodo.</b>
+     *
+     * <p>Existe porque no existia, y eso dejaba el modo sin final: el jefe esta
+     * en la ultima fila y <b>no sale ni un camino de el</b>, asi que al ganarlo
+     * {@link #available()} devuelve la lista vacia y el mapa se queda en un
+     * callejon sin salida. Y como {@code act} no pasaba nunca de 1,
+     * {@link #isCompleted()} — que pide {@code act >= ACTS} — <b>no podia ser
+     * cierto jamas</b>: ninguna run era ganable. Reportado jugando el
+     * 17-09-2026 ("beat act 1, but it just goes back to the completed map").
+     *
+     * <p>⚠️ Esto es lo que se llama desde el juego. {@link #nextAct()} sigue
+     * siendo publico porque los comprobadores necesitan plantarse en un acto
+     * para montar su escenario, pero <b>el bucle no lo llama</b>: si lo hiciera
+     * volveria a haber dos sitios que deciden cuando cambia el acto, y el fallo
+     * de origen fue exactamente ese — el unico que lo llamaba era el
+     * comprobador, o sea que verificaba los actos 2 y 3 ejecutando a mano el
+     * paso que en el juego faltaba.
+     */
+    public Step advance() {
+        if (!actCleared()) {
+            return Step.CONTINUE;
+        }
+        return nextAct() ? Step.NEXT_ACT : Step.RUN_COMPLETED;
+    }
+
     /**
      * Pasa al acto siguiente, o dice que la run esta ganada.
      *
      * <p>El progreso de nodos se vacia: cada acto es un mapa nuevo. La vida,
      * los creditos, las reliquias y el mazo se quedan — eso es lo que hace que
      * sea una run y no tres partidas seguidas.
+     *
+     * <p>⚠️ <b>Desde el juego se llama a {@link #advance()}</b>, no a esto.
+     * Ver ahi por que.
      *
      * @return {@code false} si ya no hay mas actos (o sea, run completada)
      */

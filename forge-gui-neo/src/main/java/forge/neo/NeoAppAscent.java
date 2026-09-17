@@ -84,6 +84,15 @@ final class NeoAppAscent {
             showMap(run);
             return;
         }
+        // El cambio de acto, tambien ANTES de la pantalla de continuar: a quien
+        // tenga una run atascada del fallo del 17-09-2026 (jefe del acto 1
+        // ganado y sin salida), esa pantalla le diria "acto 1" y al continuar
+        // apareceria en el 2 — que se lee como otro fallo. advance() es
+        // idempotente, asi que volver a llamarlo desde showMap no hace nada.
+        if (run.advance() == AscentRun.Step.RUN_COMPLETED) {
+            gameOver(run, true);
+            return;
+        }
         // Con una run a medias, primero se pregunta: continuar la lleva a SU
         // mapa; abandonar pasa por su propio confirm (principio 6b).
         showPick(run);
@@ -150,8 +159,34 @@ final class NeoAppAscent {
         app.applyScale();
     }
 
-    /** El mapa del acto en curso. */
+    /**
+     * El mapa del acto en curso.
+     *
+     * <p><b>Y el sitio donde se cambia de acto</b>, que es el punto por el que
+     * pasan TODOS los caminos de vuelta de un nodo (principio 8 de las notas de diseño
+     * 10b): el premio del jefe, el visor del mazo, la pantalla de continuar y
+     * la partida que revienta. Ponerlo solo detras del premio del jefe habria
+     * arreglado la run siguiente y dejado <b>atascadas para siempre las que ya
+     * lo estan</b>, que es lo que tiene ahora mismo todo el que haya ganado un
+     * acto 1.
+     *
+     * <p>Ver {@link AscentRun#advance()} para por que hacia falta.
+     */
     void showMap(final AscentRun run) {
+        // Si el jefe ya cayo, aqui no se pinta el mapa de este acto: o se pasa
+        // al siguiente (y entonces lo que se pinta abajo ya es OTRO mapa, con
+        // sus nodos sin resolver) o se acabo la run, y esta ganada.
+        final AscentRun.Step paso = run.advance();
+        if (paso == AscentRun.Step.RUN_COMPLETED) {
+            gameOver(run, true);
+            return;
+        }
+        if (paso == AscentRun.Step.NEXT_ACT) {
+            // Al registro, como "run terminada": cuando alguien reporte algo
+            // raro de su run, el fichero tiene que decir por donde iba.
+            System.out.println("[ascenso] acto " + run.getAct() + " de " + AscentRun.ACTS
+                    + " — " + run.getLife() + " vidas, " + run.relics().size() + " reliquias");
+        }
         app.scene.setRoot(new AscentMapScreen(run, new AscentMapScreen.Actions() {
             @Override
             public void enter(final AscentNode node) {

@@ -13,6 +13,7 @@ import forge.neo.ascent.AscentNode;
 import forge.neo.ascent.AscentRelic;
 import forge.neo.ascent.AscentPlanes;
 import forge.neo.ascent.AscentRelics;
+import forge.neo.ascent.AscentRewards;
 import forge.neo.ascent.AscentRun;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -462,7 +463,12 @@ public class AscentMapScreen extends StackPane {
         info.getChildren().clear();
         final Label name = new Label(NeoText.get("ascent.node." + key(dot.node.getKind())));
         name.getStyleClass().add("ascent-info-title");
-        final Label what = new Label(NeoText.get("ascent.node." + key(dot.node.getKind()) + ".desc"));
+        // El combate dice cuantas cartas eliges, y en Commander van por dos
+        // (2 de 6). Los numeros salen de donde los saca el premio: escritos en
+        // el texto, decia "1 de 3" tambien en Commander. Las demas fichas no
+        // tienen huecos y los ignoran.
+        final Label what = new Label(NeoText.get("ascent.node." + key(dot.node.getKind()) + ".desc",
+                run.cardBatch(), AscentRewards.choices(run.getMode())));
         what.getStyleClass().add("ascent-info-text");
         what.setWrapText(true);
         what.setMaxWidth(300);

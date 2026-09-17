@@ -446,7 +446,12 @@ public final class CardImages {
                 final boolean askLocalized = CardArt.isLocalized()
                         && LOCALIZED_ASKED.add(imageKey);
 
-                final File file = findOnDisk(imageKey);
+                File file = findOnDisk(imageKey);
+                if (file == null || !file.exists()) {
+                    // Sin la impresion exacta: el arte bajado de antemano para
+                    // jugar sin internet, si esta. Ver OfflineArt.
+                    file = OfflineArt.find(imageKey, false);
+                }
                 if (file != null && file.exists()) {
                     decode(imageKey, file);
                     if (askLocalized) {
@@ -467,6 +472,9 @@ public final class CardImages {
                     requestDownload(imageKey);
                 }
             } catch (final Exception e) {
+                if (DEBUG) {
+                    System.out.println("[neo-img] fallo buscando " + imageKey + ": " + e);
+                }
                 PENDING.remove(imageKey);
                 giveUpForNow(imageKey);
             }
@@ -629,6 +637,9 @@ public final class CardImages {
         try {
             final Image img = new Image(file.toURI().toString(), false);
             if (img.isError()) {
+                if (DEBUG) {
+                    System.out.println("[neo-img] no se pudo leer " + file + ": " + img.getException());
+                }
                 giveUpForNow(imageKey);
             } else {
                 CACHE.put(imageKey, img);

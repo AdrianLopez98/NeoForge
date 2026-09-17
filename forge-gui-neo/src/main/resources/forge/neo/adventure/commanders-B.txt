@@ -1,0 +1,102 @@
+# Los 100 comandantes mono-black mas jugados en EDHREC, por numero de mazos.
+# Generado por tools/bajar-comandantes.py. Un nombre por linea.
+Sephiroth, Fabled SOLDIER
+K'rrik, Son of Yawgmoth
+Marrow-Gnawer
+Tergrid, God of Fright
+Sheoldred, the Apocalypse
+Tinybones, Bauble Burglar
+Braids, Arisen Nightmare
+Imotekh the Stormlord
+Shirei, Shizo's Caretaker
+Ayara, First of Locthwain
+Yawgmoth, Thran Physician
+Karumonix, the Rat King
+Maha, Its Feathers Night
+Syr Konrad, the Grim
+Massacre Girl, Known Killer
+Gisa, the Hellraiser
+Gonti, Night Minister
+Liliana, Heretical Healer
+Vincent Valentine
+Tinybones, Trinket Thief
+Rat King, Verminister
+Vito, Thorn of the Dusk Rose
+Xu-Ifit, Osteoharmonist
+Gwenom, Remorseless
+Ghoulcaller Gisa
+Zenos yae Galvus
+Rev, Tithe Extractor
+Valgavoth, Terror Eater
+Ardyn, the Usurper
+Gix, Yawgmoth Praetor
+Ashcoat of the Shadow Swarm
+Super Shredder
+Phage the Untouchable
+Skithiryx, the Blight Dragon
+Zul Ashur, Lich Lord
+Horobi, Death's Wail
+Maralen of the Mornsong
+Ashnod, Flesh Mechanist
+Fumulus, the Infestation
+Trazyn the Infinite
+The Ghoul, Gunslinger
+Acererak the Archlich
+Baron Helmut Zemo
+Varragoth, Bloodsky Sire
+Toshiro Umezawa
+Massacre Girl
+Tinybones, the Pickpocket
+Taborax, Hope's Demise
+Mikaeus, the Unhallowed
+Endrek Sahr, Master Breeder
+Aclazotz, Deepest Betrayal
+Gollum, Obsessed Stalker
+Chainer, Dementia Master
+Mortarion, Daemon Primarch
+Moseo, Vein's New Dean
+Braids, Cabal Minion
+Starscream, Power Hungry
+The Speed Demon
+Zodiark, Umbral God
+Fandaniel, Telophoroi Ascian
+Szarekh, the Silent King
+Gisa, Glorious Resurrector
+Sheoldred
+Erebos, God of the Dead
+Black Cat, Cunning Thief
+Kokusho, the Evening Star
+Yahenni, Undying Partisan
+Korlash, Heir to Blackblade
+Doctor Doom
+King Macar, the Gold-Cursed
+Alpharael, Stonechosen
+Doctor Doom, Unrivaled
+Seizan, Perverter of Truth
+The Raven Man
+Ozox, the Clattering King
+Vilis, Broker of Blood
+Gonti, Lord of Luxury
+Kain, Traitorous Dragoon
+Drivnod, Carnage Dominus
+Sheoldred, Whispering One
+Arvinox, the Mind Flail
+The Meep
+Koh, the Face Stealer
+Whiplash, Vengeful Engineer
+Kaervek, the Punisher
+Shadowheart, Dark Justiciar // Haunted One
+Ultron the Annihilator
+Witch-king of Angmar
+Sauron, the Necromancer
+Rankle, Master of Pranks
+Iname, Death Aspect
+Mari, the Killing Quill
+Anrakyr the Traveller
+Jerren, Corrupted Bishop
+Madame Null, Power Broker
+Balthor the Defiled
+Ob Nixilis, the Fallen
+Ob Nixilis, Unshackled
+Olinda the Oblivious
+Mai, Scornful Striker

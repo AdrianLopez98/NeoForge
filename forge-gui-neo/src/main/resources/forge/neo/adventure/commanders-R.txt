@@ -1,0 +1,102 @@
+# Los 100 comandantes mono-red mas jugados en EDHREC, por numero de mazos.
+# Generado por tools/bajar-comandantes.py. Un nombre por linea.
+Krenko, Mob Boss
+Magda, Brazen Outlaw
+Zada, Hedron Grinder
+Ojer Axonil, Deepest Might
+Tannuk, Steadfast Second
+Kratos, God of War
+Norin the Wary
+Alexios, Deimos of Kosmos
+Clive, Ifrit's Dominant
+Imodane, the Pyrohammer
+Jaws, Relentless Predator
+Slicer, Hired Muscle
+Solphim, Mayhem Dominus
+Herigast, Erupting Nullkite
+Ashling, Flame Dancer
+Purphoros, God of the Forge
+Gornog, the Red Reaper
+Torbran, Thane of Red Fell
+Chiss-Goria, Forge Tyrant
+Neheb, the Eternal
+Urabrask
+Knuckles the Echidna
+Lathliss, Dragon Queen
+Smaug the Magnificent
+Zurzoth, Chaos Rider
+Chandra, Fire of Kaladesh
+Rionya, Fire Dancer
+Daretti, Scrap Savant
+Electro, Assaulting Battery
+Gilgamesh, Master-at-Arms
+Ragavan, Nimble Pilferer
+Zo-Zu the Punisher
+General Kreat, the Boltbringer
+Delina, Wild Mage
+Dragonhawk, Fate's Tempest
+Valduk, Keeper of the Flame
+Ashling the Pilgrim
+Etali, Primal Storm
+Muxus, Goblin Grandee
+Feldon of the Third Path
+Laelia, the Blade Reforged
+Avatar Roku, Firebender
+Khârn the Betrayer
+Heartless Hidetsugu
+The Scarlet Witch
+Auntie Blyte, Bad Influence
+Themberchaud
+Godo, Bandit Warlord
+Krenko, Tin Street Kingpin
+Calamity, Galloping Inferno
+Zuko, Firebending Master
+Norin, Swift Survivalist
+Vincent, Vengeful Atoner
+Inferno of the Star Mounts
+Orthion, Hero of Lavabrink
+Thor, God of Thunder
+Longshot, Rebel Bowman
+Birgi, God of Storytelling
+Daredevil, Fearless Fighter
+Mica, Reader of Ruins
+Plargg and Nassari
+Sarkhan, Dragon Ascendant
+Purphoros, Bronze-Blooded
+Toralf, God of Fury
+Kediss, Emberclaw Familiar // Rograkh, Son of Rohgahh
+Magda, the Hoardmaster
+J. Jonah Jameson
+Jaxis, the Troublemaker
+Vaan, Street Thief
+RMS Titanic
+Ilharg, the Raze-Boar
+Zell Dincht
+Ib Halfheart, Goblin Tactician
+Kiki-Jiki, Mirror Breaker
+Rosnakht, Heir of Rohgahh
+Varchild, Betrayer of Kjeldor
+Rose, Cutthroat Raider
+Inti, Seneschal of the Sun
+Gogo, Mysterious Mime
+Ivora, Insatiable Heir
+Squee, the Immortal
+Grenzo, Havoc Raiser
+Zirilan of the Claw
+Kazuul, Tyrant of the Cliffs
+Farid, Enterprising Salvager
+Dargo, the Shipwrecker // Jeska, Thrice Reborn
+Lovisa Coldeyes
+Combustion Man
+Firion, Wild Rose Warrior
+Bosh, Iron Golem
+Tesak, Judith's Hellhound
+Daretti, Rocketeer Engineer
+Loki, God of Lies
+The Unluckiest Planeswalker
+Fin Fang Foom
+Krenko, Baron of Tin Street
+Moraug, Fury of Akoum
+Freya Crescent
+Spider-Punk
+Adamaro, First to Desire

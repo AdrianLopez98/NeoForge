@@ -1,0 +1,102 @@
+# Los 100 comandantes mono-white mas jugados en EDHREC, por numero de mazos.
+# Generado por tools/bajar-comandantes.py. Un nombre por linea.
+Giada, Font of Hope
+Light-Paws, Emperor's Voice
+Anti-Venom, Horrifying Healer
+Myrel, Shield of Argive
+Cloud, Midgar Mercenary
+Elesh Norn, Mother of Machines
+Delney, Streetwise Lookout
+Heliod, Sun-Crowned
+Odric, Lunarch Marshal
+Darien, King of Kjeldor
+Phelia, Exuberant Shepherd
+Avacyn, Angel of Hope
+Elesh Norn
+Balan, Wandering Knight
+Adeline, Resplendent Cathar
+Arahbo, the First Fang
+Thurid, Mare of Destiny
+Aerith Gainsborough
+Preston, the Vanisher
+Mondrak, Glory Dominus
+Ekthi, Contaminator Priest
+Gandalf the White
+Greymond, Avacyn's Stalwart
+God-Eternal Oketra
+Dion, Bahamut's Dominant
+Lucy MacLean, Positively Armed
+Sephara, Sky's Blade
+Monk Gyatso
+Pearl-Ear, Imperial Advisor
+Oswald Fiddlebender
+Minwu, White Mage
+Momo, Friendly Flier
+Skrelv, Defector Mite
+Stiltzkin, Moogle Merchant
+Celestine, the Living Saint
+Ojer Taq, Deepest Foundation
+Sram, Senior Edificer
+Elesh Norn, Grand Cenobite
+Teshar, Ancestor's Apostle
+Keleth, Sunmane Familiar // Yoshimaru, Ever Faithful
+Brigone, Soldier of Meletis
+Kemba, Kha Regent
+The Sentry, Golden Guardian
+Rune-Tail, Kitsune Ascendant
+Zeriam, Golden Wind
+Eight-and-a-Half-Tails
+Lyra Dawnbringer
+Bruna, the Fading Light
+Tataru Taru
+Appa, Steadfast Guardian
+Venat, Heart of Hydaelyn
+Beza, the Bounding Spring
+Haliya, Guided by Light
+Yes Man, Personal Securitron
+Evra, Halcyon Witness
+Soraya the Falconer
+Abdel Adrian, Gorion's Ward // Far Traveler
+The Seriema
+Hokori, Dust Drinker
+Aang, Airbending Master
+The Queen of Dale
+Toby, Beastie Befriender
+Mangara, the Diplomat
+Odric, Master Tactician
+Gisela, the Broken Blade
+Apothecary White
+Daxos, Blessed by the Sun
+Kytheon, Hero of Akros
+Nahiri, the Lithomancer
+Rashel, Fist of Torm
+Baldin, Century Herdmaster
+The Wandering Rescuer
+Ratchet, Field Medic
+Seluma, Light of Aysen
+Lin Sivvi, Defiant Hero
+Bill the Pony
+Linden, the Steadfast Queen
+The Gaffer
+Brimaz, King of Oreskos
+Ao, the Dawn Sky
+Qala, Ajani's Pridemate
+Nadaar, Selfless Paladin
+Heliod, God of the Sun
+Michiko Konda, Truth Seeker
+Isamaru, Hound of Konda
+Spider-Man, Peter Parker
+The Prydwen, Steel Flagship
+Belladonna Took
+Thalia, Guardian of Thraben
+Sierra, Nuka's Biggest Fan
+Zetalpa, Primal Dawn
+Masako the Humorless
+Kwende, Pride of Femeref
+Adelbert Steiner
+Danitha Capashen, Paragon
+Losheel, Clockwork Scholar
+Mikaeus, the Lunarch
+Mageta the Lion
+Patron of the Kitsune
+Takeno, Samurai General

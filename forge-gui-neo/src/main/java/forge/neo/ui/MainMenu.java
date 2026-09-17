@@ -46,6 +46,14 @@ public class MainMenu extends BorderPane {
         /** Ascenso: el roguelike. */
         void ascent();
 
+        /**
+         * La Aventura: el Adventure de Forge (mapa, pueblos, mazmorras) con los
+         * combates y el editor de mazos de NeoForge. Se abre en su propio
+         * proceso; ver {@code forge.neo.adventure.AdventureLauncher}.
+         */
+        default void adventure() {
+        }
+
         void online();
 
         void quest();
@@ -143,6 +151,26 @@ public class MainMenu extends BorderPane {
         modes.getChildren().add(tile(NeoText.get("menu.ascent"),
                 NeoText.get("menu.ascent.desc"),
                 ascentNote(), true, actions::ascent));
+
+        // LA AVENTURA, justo despues de Ascenso: el Adventure de Forge, que es
+        // una pregunta distinta de todas ("quiero recorrer un mundo"), con los
+        // combates y el editor de mazos nuestros. En espanyol el modo de siempre
+        // pasa a llamarse "Quest", como en ingles, para no confundirlos.
+        //
+        // NO en Mac: el Adventure (libGDX) y JavaFX quieren los dos el hilo
+        // principal, y eso en macOS no se ha probado. Mejor sin casilla que con
+        // una que no abre.
+        if (!forge.neo.platform.NeoOs.MAC) {
+            modes.getChildren().add(tile(NeoText.get("menu.adventure"),
+                    NeoText.get("menu.adventure.desc"),
+                    NeoText.get(forge.neo.adventure.AdventureLauncher.isRunning()
+                            ? "menu.adventure.open" : "menu.adventure.note"),
+                    true, actions::adventure));
+            // Solo pruebas: -Dneo.adventure.autoLaunch=true la abre sola, una vez.
+            if (forge.neo.adventure.AdventureLauncher.takeAutoLaunch()) {
+                javafx.application.Platform.runLater(actions::adventure);
+            }
+        }
 
         // "Otros formatos": Modern, Pioneer, Pauper... Responden la MISMA
         // pregunta que las casillas de arriba ("elige un mazo y juega"), asi

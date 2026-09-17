@@ -74,7 +74,7 @@ public class DeckBuilderScreen extends StackPane {
      * ordenadas por nombre, no habia forma de saber cuales elegiste tu. Van
      * abajo, en su propia fila y con su titulo.
      */
-    private final FlowPane basics = new FlowPane(10, 10);
+    private final FlowPane basics = new FlowPane(8, 6);
     private final Label basicsCaption = new Label(NeoText.get("deck.basics"));
     private List<PaperCard> basicHits = new ArrayList<>();
     private final VBox deckList = new VBox(2);
@@ -411,8 +411,9 @@ public class DeckBuilderScreen extends StackPane {
         results.setHgap(10);
         results.setVgap(16);
 
-        basics.setAlignment(Pos.TOP_LEFT);
+        basics.setAlignment(Pos.CENTER_LEFT);
         basicsCaption.getStyleClass().add("caption");
+        basicsCaption.setMinWidth(Region.USE_PREF_SIZE);
         showBasics(false);
 
         final ScrollPane scroll = new ScrollPane(results);
@@ -435,14 +436,25 @@ public class DeckBuilderScreen extends StackPane {
         // pool para llegar a ellas. Fuera no pueden pisarse con nada y estan
         // siempre a mano, que es lo que se quiere de una fila de cinco cartas
         // que no cambia nunca.
+        //
+        // Y son BOTONES, no cartas: con cartas enteras la franja pedia ~230 px
+        // y le dejaba a la rejilla una sola fila, cortada por abajo — el editor
+        // de la Aventura parecia tener cinco cartas (reportado el 17-09-2026).
+        // Una basica no hay que mirarla para elegirla.
         final Region pageGap = new Region();
         HBox.setHgrow(pageGap, Priority.ALWAYS);
         final HBox pageBar = new HBox(12, resultCount, pageGap, pager);
         pageBar.setAlignment(Pos.CENTER_LEFT);
         pageBar.getStyleClass().add("builder-pagebar");
         resultCount.setMinWidth(0);
+        final HBox basicsRow = new HBox(12, basicsCaption, basics);
+        basicsRow.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(basics, Priority.ALWAYS);
+        basicsCaption.managedProperty().bind(basics.managedProperty());
+        basicsRow.visibleProperty().bind(basics.visibleProperty());
+        basicsRow.managedProperty().bind(basics.managedProperty());
         final VBox box = new VBox(10, caption, bar, filterRow, scroll,
-                basicsCaption, basics, pageBar);
+                basicsRow, pageBar);
         box.getStyleClass().add("builder-catalogue");
         box.setPadding(new Insets(14, 16, 8, 16));
         return box;
@@ -790,7 +802,7 @@ public class DeckBuilderScreen extends StackPane {
         // titulo con nada debajo.
         basics.getChildren().clear();
         for (final PaperCard c : basicHits) {
-            basics.getChildren().add(catalogueTile(c, Math.min(92, cardWidth)));
+            basics.getChildren().add(basicChip(c));
         }
         showBasics(!basicHits.isEmpty());
 
@@ -812,10 +824,9 @@ public class DeckBuilderScreen extends StackPane {
 
     /** Enciende o apaga la fila de las basicas, rotulo incluido. */
     private void showBasics(final boolean on) {
-        for (final javafx.scene.Node n : new javafx.scene.Node[] {basicsCaption, basics}) {
-            n.setVisible(on);
-            n.setManaged(on);
-        }
+        basicsCaption.setVisible(on);
+        basics.setVisible(on);
+        basics.setManaged(on);
     }
 
     /**
@@ -910,6 +921,41 @@ public class DeckBuilderScreen extends StackPane {
             refreshDeck();
         });
         return box;
+    }
+
+    /**
+     * Una tierra basica de la franja: un boton con su nombre y cuantas llevas.
+     *
+     * <p>Click izquierdo mete una, igual que la tesela; el derecho abre el
+     * mismo menu (ver la carta, quitar una...).
+     */
+    private Region basicChip(final PaperCard card) {
+        final Button chip = new Button();
+        chip.getStyleClass().add("segment");
+        chip.setMinWidth(Region.USE_PREF_SIZE);
+        final Runnable label = () -> {
+            final int have = editor.countOf(card);
+            chip.setText(CardText.nameOf(card) + (have > 0 ? "   ×" + have : "") + "   +");
+        };
+        label.run();
+        chip.setOnMouseClicked(e -> {
+            if (e.getButton() == MouseButton.SECONDARY) {
+                catalogueMenu(card, chip, e.getScreenX(), e.getScreenY());
+                return;
+            }
+            if (e.getButton() != MouseButton.PRIMARY) {
+                return;
+            }
+            final String no = editor.rejectionReason(card);
+            if (no != null) {
+                message(NeoText.get("deck.doesNotFit"), no);
+                return;
+            }
+            editor.add(card, 1);
+            label.run();
+            refreshDeck();
+        });
+        return chip;
     }
 
     /**

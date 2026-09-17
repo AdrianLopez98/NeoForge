@@ -692,6 +692,19 @@ public class SettingsPanel extends VBox {
                     host.setDraftRankingVisible(on);
                 }));
 
+        // --- la Aventura (el Adventure de Forge) ---
+        //
+        // Solo lo que es NUESTRO de ese modo. En Mac no hay Aventura.
+        if (!forge.neo.platform.NeoOs.MAC) {
+            getChildren().add(section(NeoText.get("settings.adventure")));
+            getChildren().add(toggleRow(NeoText.get("settings.adventureStarter"),
+                    NeoSettings.adventureStarter(),
+                    on -> {
+                        NeoSettings.setBool(NeoSettings.ADVENTURE_STARTER, on);
+                        NeoSettings.save();
+                    }));
+        }
+
         getChildren().add(section(NeoText.get("settings.sound")));
 
         // --- volumen ---

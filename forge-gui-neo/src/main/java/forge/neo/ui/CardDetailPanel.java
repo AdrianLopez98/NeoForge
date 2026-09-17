@@ -89,12 +89,21 @@ public class CardDetailPanel extends ScrollPane {
         // el visor encoge cuando aparece la barra de scroll vertical. Fijando la
         // imagen al ancho nominal, esos pocos pixeles de barra hacian que la
         // carta se saliera y se viera CORTADA por la derecha, justo por donde
-        // van los costes de mana. Se mide el visor y se ajusta.
-        viewportBoundsProperty().addListener((o, was, is) -> {
-            if (is != null) {
-                setImageWidth(is.getWidth() - CONTENT_PADDING * 2);
-            }
-        });
+        // van los costes de mana.
+        //
+        // Pero NO se mide el visor: su ancho depende de si hay barra, y la barra
+        // depende del alto de la carta, que depende de su ancho. Sin barra la
+        // carta crece, deja de caber y sale la barra; con barra encoge, cabe y
+        // la barra se va — y asi a cada fotograma: el PARPADEO del panel al
+        // pasar el raton (grabado jugando el 17-09-2026). Se mide el panel
+        // entero y se descuenta SIEMPRE el hueco de la barra, este o no: la
+        // carta ya no cambia de tamano con ella y el bucle no tiene de donde
+        // salir.
+        final javafx.beans.InvalidationListener fit = o -> setImageWidth(getWidth()
+                - snappedLeftInset() - snappedRightInset()
+                - SCROLLBAR_RESERVE - CONTENT_PADDING * 2);
+        widthProperty().addListener(fit);
+        insetsProperty().addListener(fit);
         big.setVisible(false);
         big.setManaged(false);
 
@@ -225,6 +234,9 @@ public class CardDetailPanel extends ScrollPane {
 
     /** Margen interior del contenido, a cada lado. */
     private static final double CONTENT_PADDING = 14;
+
+    /** Lo que ocupa la barra vertical ({@code .dialog-scroll}, 8 px) y un poco de aire. */
+    private static final double SCROLLBAR_RESERVE = 10;
 
     /** Ajusta la imagen al ancho que de verdad hay disponible. */
     private void setImageWidth(final double w) {
