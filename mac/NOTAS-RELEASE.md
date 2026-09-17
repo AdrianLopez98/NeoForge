@@ -1,4 +1,11 @@
-**NeoForge para macOS, primera versión (beta).**
+**NeoForge para macOS 1.0.2 (beta).**
+
+Novedades:
+- Elegir varias fichas iguales (por ejemplo sacrificar dos fichas de Sangre) ya funciona: la pila se separa al empezar la elección.
+- Clic derecho amplía las cartas en las ventanas de cartas reveladas y de elegir pila (*Fact or Fiction*).
+- **Ver la mesa**: aparta una ventana de elección sin cerrarla para mirar la mesa, y vuelve con lo que llevabas marcado.
+- Botones para **grabar, parar y repetir macros**, encima de *Registro*.
+- El panel de detalle ya no se sale por la derecha, y las tierras no muestran "no cost".
 
 Descarga el `.dmg` de tu Mac:
 
@@ -21,7 +28,7 @@ La primera vez tarda en abrir (~45 s): está leyendo las 33.000 cartas. Trae su 
 
 ---
 
-**NeoForge for macOS, first build (beta).** Download the `.dmg` for your Mac: `arm64` for Apple Silicon (M1–M4), `x64` for Intel.
+**NeoForge for macOS 1.0.2 (beta).** What's new: picking several identical tokens from a stack works (e.g. sacrificing two Blood tokens); right-click zooms cards in reveal and pile windows (Fact or Fiction); **View battlefield** hides a pending choice window so you can check the board and come back with your picks intact; **Record / Stop / Replay macro** buttons above *Log*; the card detail panel no longer overflows and lands no longer show "no cost". Download the `.dmg` for your Mac: `arm64` for Apple Silicon (M1–M4), `x64` for Intel.
 
 1. Open the `.dmg` and drag **NeoForge** into **Applications**.
 2. macOS blocks it the first time because it isn't signed with an Apple developer account: double-click it, dismiss the warning, then **System Settings → Privacy & Security → Open Anyway**.
