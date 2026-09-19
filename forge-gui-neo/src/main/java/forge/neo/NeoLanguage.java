@@ -182,6 +182,16 @@ public final class NeoLanguage {
 
     /** El idioma elegido, o el de fabrica. */
     public static String current() {
+        // -Dneo.language=en-US: otro idioma SIN escribir el ajuste. Para grabar
+        // (el trailer en ingles) sin cambiarle el idioma al jugador.
+        final String forced = System.getProperty("neo.language");
+        if (forced != null) {
+            for (final Option o : available()) {
+                if (o.getId().equals(forced)) {
+                    return forced;
+                }
+            }
+        }
         final String saved = NeoSettings.get(SETTING, null);
         if (saved == null) {
             // Todavia no se ha elegido nunca: manda el idioma del ordenador.

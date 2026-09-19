@@ -497,7 +497,7 @@ final class NeoAppQuest {
                 "Alternate win condition: <u>Milled</u>! Bonus: 40 credits.",
                 "You have not lost once! Bonus: 25 credits.",
                 "You've earned 99 credits in total.",
-                "SOBRE DE PREMIO: 15 cartas, 14 nuevas"), cards);
+                forge.neo.NeoText.get("quest.prizePack", 15, 14)), cards);
     }
 
     /**
