@@ -9,6 +9,9 @@ línea de reglas es nuestra.**
 
 ![La mesa, en combate](imagenes/mesa-combate.png)
 
+💬 **Discord:** [discord.gg/fF5Tn7Z2pv](https://discord.gg/fF5Tn7Z2pv) — fallos, ideas y gente con
+la que jugar en red.
+
 ---
 
 ## Qué hace

@@ -166,7 +166,7 @@ public final class LobbyGuest {
 
             // Su mazo y su "listo" viajan al anfitrion. Es exactamente lo que
             // hara la pantalla cuando la haya.
-            guest.send(UpdateLobbyPlayerEvent.deckUpdate(deck));
+            NeoLobby.deckEvents(deck).forEach(guest::send);
             guest.send(UpdateLobbyPlayerEvent.isReadyUpdate(true));
             System.out.println("[invitado] mazo enviado y listo");
 

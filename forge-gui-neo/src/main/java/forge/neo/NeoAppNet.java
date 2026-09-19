@@ -1,7 +1,9 @@
 package forge.neo;
 
+import forge.localinstance.properties.ForgeConstants;
 import forge.neo.match.NeoMatchUI;
 import forge.neo.match.TableBinder;
+import forge.neo.net.NetPhrases;
 import forge.neo.ui.TableScreen;
 import javafx.application.Platform;
 
@@ -27,6 +29,20 @@ final class NeoAppNet {
     forge.neo.ui.LobbyScreen lobbyScreen;
     forge.neo.net.NeoOnline online;
 
+    /** A donde nos unimos la ultima vez, para "Volver a unirme". */
+    private volatile String lastAddress;
+
+    /**
+     * Hay una partida en red en la mesa. Lo que llega por la red en ese rato
+     * va a la mesa, porque la sala no se ve.
+     */
+    private volatile boolean inMatch;
+
+    /** Si esta partida es en red. Lo pregunta el menu de pausa. */
+    boolean isNetMatch() {
+        return inMatch && online != null;
+    }
+
     /**
      * Crear o unirse.
      *
@@ -44,7 +60,9 @@ final class NeoAppNet {
 
             @Override
             public void join(final String address) {
-                startLobby(false, address, false);
+                // Una IPv6 pegada sin corchetes la rechaza el motor, y es la
+                // forma en la que se copia en todas partes. Ver NetReach.
+                startLobby(false, forge.neo.net.NetReach.normaliseAddress(address), false);
             }
 
             @Override
@@ -93,30 +111,82 @@ final class NeoAppNet {
                 });
         lobbyScreen = screen;
         online = new forge.neo.net.NeoOnline(screen);
+        inMatch = false;
+        if (!asHost) {
+            lastAddress = address;
+        }
         screen.setOnline(online);
+        screen.setNetListener(new forge.neo.ui.LobbyScreen.NetListener() {
+            @Override
+            public void chat(final NetPhrases.Phrase phrase) {
+                Platform.runLater(() -> onNetChat(screen, phrase));
+            }
+
+            @Override
+            public void lost(final String message) {
+                Platform.runLater(() -> onLost(screen));
+            }
+        });
         app.scene.setRoot(screen.getRoot());
         app.applyScale();
 
         forge.neo.platform.NeoGuiBase.setGuiGameFactory(this::newNetMatchUi);
         forge.neo.platform.NeoGuiBase.clearEngineCrash();
 
+        final forge.neo.net.NeoOnline o = online;
         final Thread t = new Thread(() -> {
             try {
-                final forge.gamemodes.net.ChatMessage msg = asHost
-                        ? online.host(upnp)
-                        : online.join(address);
+                final forge.gamemodes.net.ChatMessage msg = asHost ? o.host(upnp) : o.join(address);
                 if (msg != null) {
-                    screen.setNotice(msg.getMessage());
+                    reportConnect(screen, msg.getMessage());
                 }
             } catch (final Exception e) {
                 System.out.println("[lobby] fallo al " + (asHost ? "hospedar" : "conectar")
                         + ": " + e);
                 e.printStackTrace();
-                screen.setNotice(forge.neo.NeoText.get("lobby.failed", String.valueOf(e)));
+                if (asHost) {
+                    // NetConnectUtil ya habia atado la sala a la pantalla antes
+                    // de abrir el puerto: sin esto se quedaba pintada una sala
+                    // de anfitrion sin servidor detras.
+                    forge.neo.net.NeoLobby.stopHosting();
+                    screen.setNotice(String.valueOf(e));
+                    screen.failed(NeoText.get("lobby.hostFailed",
+                            String.valueOf(forge.neo.net.NeoLobby.port())));
+                } else {
+                    screen.failed(NeoText.get("lobby.failed", String.valueOf(e)));
+                }
             }
         }, "neo-lobby-connect");
         t.setDaemon(true);
         t.start();
+    }
+
+    /**
+     * Lo que contesta Forge al conectar, dicho como toca.
+     *
+     * <p>Forge no lanza cuando falla una conexion: devuelve un mensaje de
+     * chat con un <b>prefijo interno</b> ({@code CONN_ERROR_PREFIX}), o una
+     * cadena centinela si la direccion no vale ({@code INVALID_HOST_COMMAND}).
+     * Sus dos GUIs los reconocen; nosotros los pintabamos tal cual, asi que
+     * una direccion mal escrita salia como {@code <<_TSOH_DILAVNI_<<} en el
+     * chat, y la cabecera seguia en "Conectando..." para siempre.
+     */
+    private static void reportConnect(final forge.neo.ui.LobbyScreen screen, final String text) {
+        if (text == null || text.isBlank()) {
+            return;
+        }
+        if (ForgeConstants.INVALID_HOST_COMMAND.equals(text)) {
+            screen.failed(NeoText.get("lobby.badAddress"));
+            return;
+        }
+        if (text.startsWith(ForgeConstants.CONN_ERROR_PREFIX)) {
+            final String detail = text.substring(ForgeConstants.CONN_ERROR_PREFIX.length()).trim();
+            screen.setNotice(detail);
+            final int nl = detail.indexOf('\n');
+            screen.failed(NeoText.get("lobby.failed", nl < 0 ? detail : detail.substring(0, nl)));
+            return;
+        }
+        screen.setNotice(text);
     }
 
     /**
@@ -135,10 +205,25 @@ final class NeoAppNet {
         gui.setAutoPayMana(NeoSettings.autoPayMana());
         gui.setBinder(b);
         gui.setTable(app.table);
+        // La pantalla del final no puede ofrecer "otra partida" ni "volver al
+        // menu": en red las dos vuelven a la sala. Ver NeoMatchUI.Ending.NET.
+        gui.setEnding(NeoMatchUI.Ending.NET);
         b.setMatchUi(gui);
+
+        // El chat, tambien en la mesa: es por donde el servidor cuenta que
+        // alguien se ha caido, y por donde el anfitrion le contesta.
+        final forge.neo.ui.LobbyScreen screen = lobbyScreen;
+        final forge.neo.net.NeoOnline o = online;
+        if (screen != null && o != null) {
+            app.table.enableChat(screen::history, o::say);
+        }
+
         // openView llega desde el hilo del motor (anfitrion) o desde el de
         // netty (invitado): la mesa hay que enseñarla en el de JavaFX.
-        gui.setOnOpened(() -> Platform.runLater(app::showTable));
+        gui.setOnOpened(() -> {
+            inMatch = true;
+            Platform.runLater(app::showTable);
+        });
         // Y lo simetrico: quitarla cuando la partida se acaba.
         //
         // Solo se engancha AQUI, en las partidas en red, y a proposito: en una
@@ -159,6 +244,7 @@ final class NeoAppNet {
      * estuviera (te fuiste tu, o se cayo la conexion), al menu.
      */
     void backToLobby() {
+        inMatch = false;
         final forge.neo.ui.LobbyScreen screen = lobbyScreen;
         if (screen == null || online == null) {
             app.showMainMenu();
@@ -171,6 +257,7 @@ final class NeoAppNet {
 
     /** Cerrar la sala y volver al menu. */
     void leaveLobby() {
+        inMatch = false;
         final forge.neo.net.NeoOnline o = online;
         if (o != null) {
             final Thread t = new Thread(o::leave, "neo-lobby-leave");
@@ -182,4 +269,129 @@ final class NeoAppNet {
         app.showMainMenu();
     }
 
+    // ------------------------------------------------------------------
+    // Lo que pasa en la red mientras se juega
+    // ------------------------------------------------------------------
+
+    /** El dialogo de "X se ha desconectado" que hay puesto, y de quien. */
+    private String waitingFor;
+
+    /**
+     * Llega algo por el chat. Hilo de JavaFX.
+     *
+     * <p>En la sala ya esta apuntado (lo hace la propia sala). Aqui solo se
+     * le lleva a la mesa si hay partida, que es cuando la sala no se ve.
+     */
+    private void onNetChat(final forge.neo.ui.LobbyScreen from, final NetPhrases.Phrase phrase) {
+        final TableScreen table = app.table;
+        if (from != lobbyScreen || !inMatch || table == null) {
+            return;
+        }
+        switch (phrase.kind()) {
+            case HOST_HINT:
+                // En la mesa los comandos son botones del dialogo de abajo.
+                return;
+            case DISCONNECTED:
+                table.chatLine(phrase.text());
+                final forge.neo.net.NeoOnline o = online;
+                if (o != null && o.isHost() && phrase.who() != null) {
+                    askAboutDisconnected(table, o, phrase.who());
+                }
+                return;
+            case RECONNECTED:
+            case REPLACED_BY_AI:
+                table.chatLine(phrase.text());
+                if (phrase.who() != null && phrase.who().equals(waitingFor)) {
+                    waitingFor = null;
+                    table.getMenuOverlay().hide();
+                }
+                return;
+            default:
+                table.chatLine(phrase.text());
+        }
+    }
+
+    /**
+     * Un invitado se ha caido a mitad de partida: el anfitrion decide.
+     *
+     * <p>El servidor lo resuelve solo — espera 5 minutos y luego pone a la IA
+     * — pero mientras tanto la partida esta parada esperando a esa persona, y
+     * sin este dialogo el anfitrion solo veia que nada se movia. Los dos
+     * atajos son los comandos de chat de Forge ({@code /skipreconnect},
+     * {@code /skiptimeout}), con el nombre puesto para que valga tambien con
+     * dos desconectados a la vez.
+     */
+    private void askAboutDisconnected(final TableScreen table, final forge.neo.net.NeoOnline o,
+                                      final String who) {
+        waitingFor = who;
+        table.getMenuOverlay().setOnBackgroundClick(null);
+        table.getMenuOverlay().show(new forge.neo.ui.ConfirmDialog(
+                NeoText.get("net.disconnect.title", who),
+                NeoText.get("net.disconnect.text", who),
+                java.util.List.of(NeoText.get("net.disconnect.wait"),
+                        NeoText.get("net.disconnect.ai"),
+                        NeoText.get("net.disconnect.forever")),
+                0,
+                choice -> {
+                    waitingFor = null;
+                    table.getMenuOverlay().hide();
+                    if (choice != null && choice == 1) {
+                        o.say("/skipreconnect " + who);
+                    } else if (choice != null && choice == 2) {
+                        o.say("/skiptimeout " + who);
+                    }
+                }));
+    }
+
+    /**
+     * El invitado ha perdido al anfitrion. Hilo de JavaFX.
+     *
+     * <p>Antes el aviso iba a la sala, que no se ve durante la partida: la
+     * mesa se quedaba congelada sin decir nada. Y hay arreglo, que era lo peor
+     * de no decirlo: el servidor guarda el asiento 5 minutos, y quien vuelve a
+     * entrar con el mismo nombre sigue la partida donde estaba.
+     */
+    private void onLost(final forge.neo.ui.LobbyScreen from) {
+        final TableScreen table = app.table;
+        if (from != lobbyScreen || !inMatch || table == null) {
+            return;
+        }
+        final forge.neo.net.NeoOnline o = online;
+        if (o == null || o.isHost()) {
+            return;
+        }
+        final String address = lastAddress;
+        final java.util.List<String> options = address == null
+                ? java.util.List.of(NeoText.get("over.menu"))
+                : java.util.List.of(NeoText.get("net.lost.rejoin"), NeoText.get("over.menu"));
+        table.getMenuOverlay().setOnBackgroundClick(null);
+        table.getMenuOverlay().show(new forge.neo.ui.ConfirmDialog(
+                NeoText.get("net.lost.title"),
+                NeoText.get("net.lost.text"),
+                options,
+                0,
+                choice -> {
+                    table.getMenuOverlay().hide();
+                    app.binder = null;
+                    if (address != null && choice != null && choice == 0) {
+                        rejoin(address);
+                    } else {
+                        leaveLobby();
+                    }
+                }));
+    }
+
+    /** Volver a entrar en la misma partida: el servidor nos reconoce por el nombre. */
+    private void rejoin(final String address) {
+        final forge.neo.net.NeoOnline o = online;
+        online = null;
+        lobbyScreen = null;
+        inMatch = false;
+        if (o != null) {
+            final Thread t = new Thread(o::leave, "neo-lobby-leave");
+            t.setDaemon(true);
+            t.start();
+        }
+        startLobby(false, address, false);
+    }
 }

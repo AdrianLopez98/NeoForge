@@ -55,8 +55,20 @@ public class PauseMenu extends StackPane {
      */
     private final boolean runAtStake;
 
+    /**
+     * Si es una partida en red. Ahi "Reiniciar" no existe — la partida no es
+     * nuestra, es de la sala, y lo unico que hacia era volver a ella igual que
+     * "Salir" — y salir no lleva al menu sino a la sala, rindiendote.
+     */
+    private final boolean netGame;
+
     public PauseMenu(final Actions actions, final SettingsPanel.Host settingsHost) {
         this(actions, settingsHost, false);
+    }
+
+    public PauseMenu(final Actions actions, final SettingsPanel.Host settingsHost,
+                     final boolean runAtStake) {
+        this(actions, settingsHost, runAtStake, false);
     }
 
     /**
@@ -83,10 +95,11 @@ public class PauseMenu extends StackPane {
      * rebobinar, asi que la run se guarda y se continua cuando se quiera.
      */
     public PauseMenu(final Actions actions, final SettingsPanel.Host settingsHost,
-                     final boolean runAtStake) {
+                     final boolean runAtStake, final boolean netGame) {
         this.actions = actions;
         this.settingsHost = settingsHost;
         this.runAtStake = runAtStake;
+        this.netGame = netGame;
         setAlignment(Pos.CENTER);
         showMain();
     }
@@ -109,14 +122,15 @@ public class PauseMenu extends StackPane {
 
         // Reiniciar NO se ofrece en una run: reiniciar el duelo es volver a
         // barajar tu mano, o sea la trampa que el modo entero tiene que impedir.
-        if (!runAtStake) {
+        if (!runAtStake && !netGame) {
             root.getChildren().add(item(NeoText.get("pause.restart"), "btn-secondary",
                     () -> confirm(NeoText.get("pause.restart.ask"),
                             NeoText.get("pause.restart.detail"),
                             NeoText.get("pause.restart.yes"), actions::restart)));
         }
 
-        root.getChildren().add(item(NeoText.get("pause.quit"), "btn-secondary", this::askQuit));
+        root.getChildren().add(item(NeoText.get(netGame ? "pause.quit.net" : "pause.quit"),
+                "btn-secondary", this::askQuit));
 
         getChildren().setAll(root);
     }
@@ -129,6 +143,11 @@ public class PauseMenu extends StackPane {
      * las mismas palabras, incluido el aviso de que en Ascenso cuesta la run.
      */
     public void askQuit() {
+        if (netGame) {
+            confirm(NeoText.get("pause.quit.net.ask"), NeoText.get("pause.quit.net.detail"),
+                    NeoText.get("pause.quit.net.yes"), actions::quitToMenu);
+            return;
+        }
         confirm(NeoText.get(runAtStake ? "pause.quit.run.ask" : "pause.quit.ask"),
                 NeoText.get(runAtStake ? "pause.quit.run.detail" : "pause.quit.detail"),
                 NeoText.get(runAtStake ? "pause.quit.run.yes" : "pause.quit.yes"),

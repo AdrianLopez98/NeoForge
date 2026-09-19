@@ -156,7 +156,14 @@ public class NeoMatchUI extends NetworkGuiGame {
          * ningun menu — el bucle del modo seguia igual hacia el premio. Aqui
          * solo hay una continuacion posible, asi que solo hay un boton.
          */
-        ASCENT
+        ASCENT,
+        /**
+         * Partida en red. Un solo boton, "volver a la sala": la sala sigue
+         * abierta y es desde donde el anfitrion monta la siguiente. "Otra
+         * partida" y "volver al menu" hacian los dos eso mismo, o sea que
+         * mentian los dos.
+         */
+        NET
     }
 
     private volatile Ending ending = Ending.NORMAL;
@@ -1520,10 +1527,10 @@ public class NeoMatchUI extends NetworkGuiGame {
         if (speed <= 0 || !interactive()) {
             return;
         }
-        if (isNetGame()) {
-            // En red al otro lado hay una persona, no una IA: no hay nada que
-            // frenar. Y ademas los eventos llegan por el cable, asi que dormir
-            // aqui seria dormir la CONEXION y acumular retraso.
+        if (isNetGame() && !runsTheEngine()) {
+            // El invitado: los eventos le llegan por el cable, y dormir aqui
+            // seria dormir la CONEXION y acumular retraso. Quien frena es el
+            // anfitrion, que es donde corre el motor.
             return;
         }
         // Seguro de vida: dormir el hilo de interfaz congela la ventana.
@@ -1547,15 +1554,27 @@ public class NeoMatchUI extends NetworkGuiGame {
         if (me == null) {
             return false;
         }
+        PlayerView who = null;
         if (event instanceof GameEventSpellAbilityCast e) {
             final StackItemView si = e.si();
-            return si != null && si.getActivatingPlayer() != null
-                    && !me.equals(si.getActivatingPlayer());
+            who = si == null ? null : si.getActivatingPlayer();
+        } else if (event instanceof GameEventLandPlayed e) {
+            who = e.player();
         }
-        if (event instanceof GameEventLandPlayed e) {
-            return e.player() != null && !me.equals(e.player());
+        if (who == null || me.equals(who)) {
+            return false;
         }
-        return false;
+        // En red, solo las IAs de la sala: un amigo ya ha tardado lo suyo en
+        // decidirse, y frenarle encima seria hacer esperar a todos dos veces.
+        // Antes no se frenaba nada en red — y en la sala se pueden sentar
+        // IAs, que resolvian su turno en un parpadeo (principio 9).
+        return !isNetGame() || who.isAI();
+    }
+
+    /** Si el motor de esta partida corre en ESTE proceso (local, o anfitrion en red). */
+    private boolean runsTheEngine() {
+        final GameView gv = getGameView();
+        return gv != null && gv.getGame() != null;
     }
 
     /**
@@ -2231,6 +2250,8 @@ public class NeoMatchUI extends NetworkGuiGame {
         // descartando y la segunda partida naceria muerta.
         finished.set(false);
         closeNotified.set(false);
+        gameOverShowing = false;
+        closeDeferred = false;
         // El aviso de "el motor se ha muerto" es de un solo uso: si no se
         // rearma aqui, la segunda partida se rompe en silencio.
         forge.neo.platform.NeoGuiBase.clearEngineCrash();
@@ -2258,6 +2279,14 @@ public class NeoMatchUI extends NetworkGuiGame {
                             PlayerName.of(seat));
                 }
             }
+        }
+        // Y los asientos de los INVITADOS, desde el anfitrion. Su controlador
+        // vive aqui (un PlayerControllerHuman con la interfaz remota), no en
+        // su ordenador: instalandolo solo para los asientos locales, al
+        // invitado su dual le elegia el color sola — justo el fallo que esto
+        // arregla. La pregunta viaja por el protocolo como cualquier otra.
+        if (isNetGame()) {
+            installForRemoteSeats();
         }
 
         // Y a partir de aqui, enterarnos de lo que pasa. Ver listenToTheEngine:
@@ -2336,6 +2365,21 @@ public class NeoMatchUI extends NetworkGuiGame {
      * y esa vista viaja serializada. La condicion no es un apanyo: es
      * exactamente "¿tengo la partida delante o me la estan contando?".
      */
+    private void installForRemoteSeats() {
+        final GameView gv = getGameView();
+        final Game game = gv == null ? null : gv.getGame();
+        if (game == null) {
+            return;
+        }
+        for (final forge.game.player.Player p : game.getPlayers()) {
+            if (p.getController() instanceof forge.player.PlayerControllerHuman pch
+                    && pch.getGui() instanceof forge.gamemodes.net.server.RemoteClientGuiGame
+                    && ManaColor.install(pch)) {
+                log("Tierras de dos colores: preguntaran el color (%s, en red)", p.getName());
+            }
+        }
+    }
+
     private void listenToTheEngine() {
         final GameView view = getGameView();
         final Game game = view == null ? null : view.getGame();
@@ -2428,11 +2472,27 @@ public class NeoMatchUI extends NetworkGuiGame {
         // mira el vigilante de "salir" para saber si la partida se cerro de
         // verdad.
         final boolean first = closeNotified.compareAndSet(false, true);
+        if (first && ending == Ending.NET && gameOverShowing) {
+            // En red la partida la cierra el PRIMERO que contesta: si el
+            // anfitrion pulsa "volver a la sala" al momento, al invitado se le
+            // iba la pantalla de victoria o derrota antes de leerla. Se espera
+            // a su click. Y ese click ya NO se manda al anfitrion: la partida
+            // esta cerrada, y si el anfitrion hubiera empezado otra, un QUIT
+            // atrasado le llegaria a la nueva y la cerraria.
+            closeDeferred = true;
+            return;
+        }
         final Runnable closed = onClosed;
         if (closed != null && first) {
             closed.run();
         }
     }
+
+    /** La pantalla de victoria/derrota esta puesta y sin contestar. */
+    private volatile boolean gameOverShowing;
+
+    /** Llego el cierre mientras se leia esa pantalla: se cierra al contestarla. */
+    private volatile boolean closeDeferred;
 
     /** Para no avisar dos veces de que la partida se acabo. */
     private final AtomicBoolean closeNotified = new AtomicBoolean(false);
@@ -2514,16 +2574,33 @@ public class NeoMatchUI extends NetworkGuiGame {
         final GameView gv = getGameView();
         final String winner = gv == null ? null : gv.getWinningPlayerName();
         final int turns = gv == null ? 0 : gv.getTurn();
-        final boolean matchOver = gv == null || gv.isMatchOver();
+        // En red siempre es la ultima: NetHostedMatch juega partidas sueltas.
+        // Y en el invitado isMatchOver() es una copia por deltas que puede
+        // llegar DESPUES del final (ver finishGame): fiarse de ella ofreceria
+        // "siguiente partida" en una partida que ya no tiene siguiente.
+        final boolean matchOver = ending == Ending.NET || gv == null || gv.isMatchOver();
         final int totalGames = gv == null ? 0 : gv.getNumGamesInMatch();
         // NumPlayedGamesInMatch se congela al construir esta GameView (antes
         // de que ESTA partida empezara), asi que +1 es la que se acaba de
         // jugar — nunca la que viene.
         final int gameNumber = gv == null ? 0 : gv.getNumPlayedGamesInMatch() + 1;
+        gameOverShowing = true;
         ui.runLater(() -> table.getOverlay().show(new GameOverScreen(
                 won, winner, turns, ending, matchOver, gameNumber, totalGames,
                 decision -> {
                     table.getOverlay().hide();
+                    gameOverShowing = false;
+                    if (closeDeferred) {
+                        // El anfitrion ya cerro la partida mientras leiamos
+                        // esto: no se contesta nada (ver afterGameEnd) y se
+                        // vuelve a la sala ahora, que es cuando se ha pedido.
+                        closeDeferred = false;
+                        final Runnable closed = onClosed;
+                        if (closed != null) {
+                            closed.run();
+                        }
+                        return;
+                    }
                     if (decision == NextGameDecision.CONTINUE) {
                         // Sigue el MISMO partido: NO se toca exitAction (eso
                         // es solo para "salir de verdad"), y el motor llama a

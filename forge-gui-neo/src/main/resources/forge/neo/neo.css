@@ -1353,6 +1353,17 @@
 }
 
 /* Franja inferior: separa los ajustes de la rejilla de mazos. */
+/* El boton de Discord de la esquina del menu: el logo sobre su azul de marca. */
+.discord-button {
+    -fx-background-color: #5865F2;
+    -fx-background-radius: 8;
+    -fx-padding: 7 10;
+    -fx-cursor: hand;
+}
+.discord-button:hover { -fx-background-color: #6d78f5; }
+.discord-button:pressed { -fx-background-color: #4752c4; }
+.discord-button .discord-logo { -fx-fill: white; }
+
 .home-footer {
     -fx-background-color: rgba(11,14,19,0.75);
     -fx-border-color: -neo-line transparent transparent transparent;
@@ -1583,6 +1594,29 @@
 .mode-tile-note {
     -fx-font-size: 0.78em;
     -fx-text-fill: -neo-accent;
+}
+
+/* La mala noticia de la sala: tu operador no te deja hospedar (CGNAT). Va en
+   ambar y NO en rojo: no es un fallo ni algo que hayas roto, es una condicion
+   de tu linea. En acento se leeria como una direccion mas, que es justo lo que
+   no es. */
+.lobby-warn {
+    -fx-font-size: 0.82em;
+    -fx-text-fill: -neo-warn;
+    -fx-font-weight: bold;
+}
+
+.lobby-warn-why {
+    -fx-font-size: 0.78em;
+    -fx-text-fill: -neo-text-dim;
+}
+
+/* LA direccion que hay que pasar. En verde ("esto vale") y no en acento: en
+   acento van las otras direcciones, y entonces la buena seria una mas. */
+.lobby-best {
+    -fx-font-size: 0.85em;
+    -fx-text-fill: -neo-valid;
+    -fx-font-weight: bold;
 }
 
 /* ---------- lista de puzzles ---------- */

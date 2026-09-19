@@ -16,6 +16,7 @@ import forge.neo.NeoText;
 import forge.neo.match.NeoFormat;
 import forge.neo.net.NeoLobby;
 import forge.neo.net.NeoOnline;
+import forge.neo.net.NetReach;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -48,6 +49,38 @@ import javafx.scene.layout.VBox;
  */
 public class LobbyScreen extends BorderPane implements NeoOnline.View {
 
+    /**
+     * Quien mas quiere enterarse de lo que pasa en la red: la mesa.
+     *
+     * <p>Mientras se juega, esta pantalla no se ve — y hasta ahora el chat y
+     * los avisos del servidor SOLO vivian aqui. Asi que "Pepe se ha
+     * desconectado, se le espera 5 minutos" llegaba a una pantalla escondida y
+     * la partida se quedaba congelada sin explicacion. Todo lo que llega se
+     * sigue apuntando aqui y ademas se le pasa a quien escuche.
+     */
+    public interface NetListener {
+        /** Un mensaje del chat, ya leido y traducido. Llega en un hilo cualquiera. */
+        void chat(forge.neo.net.NetPhrases.Phrase phrase);
+
+        /** Se ha perdido la conexion. Llega en un hilo cualquiera. */
+        void lost(String message);
+    }
+
+    private volatile NetListener netListener;
+
+    public void setNetListener(final NetListener listener) {
+        this.netListener = listener;
+    }
+
+    /** Lo dicho hasta ahora, para abrir el chat en la mesa con la conversacion entera. */
+    private final List<String> history = java.util.Collections.synchronizedList(new ArrayList<>());
+
+    public List<String> history() {
+        synchronized (history) {
+            return new ArrayList<>(history);
+        }
+    }
+
     /** Que hacer cuando el jugador se va o cuando arranca la partida. */
     public interface Actions {
         /** Volver al menu. */
@@ -69,7 +102,6 @@ public class LobbyScreen extends BorderPane implements NeoOnline.View {
     private final ScrollPane chatScroll = new ScrollPane(chatLines);
     private final TextField chatInput = new TextField();
     private final Label status = new Label();
-    private final Label addressLabel = new Label();
     private final Button startButton = new Button(NeoText.get("lobby.start"));
     private final Overlay overlay = new Overlay();
     private final StackPane rootStack;
@@ -133,20 +165,230 @@ public class LobbyScreen extends BorderPane implements NeoOnline.View {
      * casa) y la externa <b>cuando llegue</b>, porque averiguarla es consultar a
      * internet y puede tardar o fallar. Un hueco que se rellena solo es mejor
      * que una pantalla que se queda esperando.
+     *
+     * <p><b>Y si hay una red virtual puesta, esa va la primera y marcada.</b>
+     * Antes salian cuatro renglones iguales y el jugador tenia que adivinar
+     * cual: la de casa no le vale a nadie de fuera, la de internet puede no
+     * existir (CGNAT) y la de Radmin/ZeroTier/Tailscale funciona siempre. Son
+     * tres cosas distintas presentadas como una lista, o sea una pregunta
+     * disfrazada de informacion.
      */
     private Region addressRow() {
-        addressLabel.getStyleClass().add("mode-tile-note");
-        addressLabel.setText(NeoText.get("lobby.address", NeoOnline.shareAddress()));
+        final VBox rows = new VBox(4);
+        final List<String[]> local = NeoOnline.localAddresses();
+        if (local.isEmpty()) {
+            rows.getChildren().add(addressLine(
+                    NeoText.get("lobby.address", NeoOnline.shareAddress()), NeoOnline.shareAddress()));
+        }
+
+        // La IPv6 antes que nada: con IPv6 no hay NAT de ningun tipo, asi que
+        // el CGNAT deja de existir y no hay que instalar ni pagar nada. Va sin
+        // marcar en verde a proposito — tener la direccion no demuestra que se
+        // pueda entrar por ella: hacen falta DOS cosas mas que no podemos
+        // comprobar desde aqui (que el amigo tambien tenga IPv6 y que el
+        // cortafuegos del router la deje entrar, que muchos la cierran de
+        // fabrica). Se enseña con lo que hay que saber y se deja decidir.
+        final String[] v6 = NeoOnline.globalIpv6();
+        if (v6 != null) {
+            final Label note = new Label(NeoText.get("lobby.address.ipv6.note"));
+            note.getStyleClass().add("lobby-warn-why");
+            note.setWrapText(true);
+            note.setMaxWidth(560);
+            note.setMinHeight(Region.USE_PREF_SIZE);
+            rows.getChildren().addAll(
+                    addressLine(NeoText.get("lobby.address.ipv6", v6[1]), v6[1]), note);
+        }
+
+        // La red virtual primero y con su nombre: es la unica que funciona
+        // pase lo que pase con el router, asi que es LA respuesta a "y que le
+        // paso a mi amigo".
+        final String[] virtual = NeoOnline.virtualLan();
+        if (virtual != null) {
+            final Label note = new Label(NeoText.get("lobby.address.virtual.note"));
+            note.getStyleClass().add("lobby-warn-why");
+            note.setWrapText(true);
+            note.setMaxWidth(560);
+            note.setMinHeight(Region.USE_PREF_SIZE);
+            rows.getChildren().addAll(
+                    addressLine(NeoText.get("lobby.address.virtual", virtual[0], virtual[1]),
+                            virtual[1], true),
+                    note);
+        }
+
+        // Todas, no solo una: con una VPN de jugar (Radmin, Hamachi...) la
+        // buena es la de la VPN, y el sistema no la elegiria. Como mucho
+        // cuatro: un portatil con redes virtuales tiene para dar y tomar.
+        int shown = 0;
+        for (int i = 0; i < local.size() && shown < 4; i++) {
+            final String[] a = local.get(i);
+            if (virtual != null && virtual[1].equals(a[1])) {
+                continue;   // ya esta arriba, y dos veces se lee como dos redes
+            }
+            rows.getChildren().add(addressLine(NeoText.get("lobby.address.lan", a[0], a[1]), a[1]));
+            shown++;
+        }
+
+        // La de internet, cuando llegue: hay que preguntar a un servicio de
+        // fuera Y al router, y puede tardar o no contestar (sin conexion,
+        // nunca). El hueco que se rellena solo sigue siendo mejor que una
+        // pantalla esperando — pero se rellena UNA vez y ya sabiendo si la
+        // direccion sirve: enseñarla antes y corregirla despues seria darle
+        // unos segundos a alguien para copiar una direccion que no lleva a
+        // ninguna parte.
+        final VBox internet = new VBox(2);
+        rows.getChildren().add(internet);
+        NetReach.check(reach -> Platform.runLater(() -> fillInternetRow(internet, reach)));
+        return rows;
+    }
+
+    /**
+     * El renglon de "por internet", ya sabiendo si alguien puede llegar.
+     *
+     * <p><b>Bajo CGNAT no sale la direccion, y no es un olvido.</b> Existe, se
+     * puede copiar y no lleva a ninguna parte: el operador reparte esa IP entre
+     * muchos clientes y el router de casa no tiene direccion propia. Un boton
+     * de "Copiar" al lado seria exactamente el principio 1 — un control que no
+     * hace lo que parece es peor que no tenerlo —, y aqui ademas es el control
+     * que manda a un amigo a esperar delante de una puerta que no existe.
+     *
+     * <p>Se dice tambien <b>por el chat</b>, que es donde el motor suelta su
+     * {@code lblUPnPSuccess} diciendo lo contrario ("deberian poder conectarse
+     * usando tu IP externa") cuando el router acepta el mapeo. Las dos frases
+     * tienen que caer en el mismo sitio o gana la optimista.
+     *
+     * <p>Si no se sabe ({@code UNKNOWN}), la sala se queda <b>igual que
+     * siempre</b>: el aviso solo sale cuando el router ha dicho el mismo que
+     * por fuera tiene una direccion que no se ve desde internet.
+     */
+    private void fillInternetRow(final VBox internet, final NetReach.Result reach) {
+        if (reach.isCgnat()) {
+            // El CGNAT es un problema de IPv4 y de nadie mas. Con una IPv6
+            // global en la lista, decir "por internet no va a entrar nadie"
+            // seria MENTIR justo encima de la direccion por la que si podrian
+            // entrar — y ese es el fallo que esta pantalla existe para no
+            // repetir, solo que al reves.
+            final boolean hasIpv6 = NeoOnline.globalIpv6() != null;
+            final Label warn = new Label(NeoText.get(
+                    hasIpv6 ? "lobby.address.cgnat.v4only" : "lobby.address.cgnat"));
+            warn.getStyleClass().add("lobby-warn");
+            warn.setWrapText(true);
+            warn.setMaxWidth(560);
+            warn.setMinHeight(Region.USE_PREF_SIZE);
+
+            // Y ahora lo unico que le importa a quien esta leyendo esto: que
+            // hago para jugar. Tres situaciones distintas y tres respuestas
+            // distintas — la del medio es la que faltaba y la que mas rabia
+            // daba: TIENES Radmin, solo que cerrado, y la sala te mandaba a
+            // descargar lo que ya tenias instalado.
+            final boolean hasVirtual = NeoOnline.virtualLan() != null;
+            final String dormant = hasVirtual ? null : NeoOnline.dormantVirtualLan();
+            final String fixKey;
+            if (hasVirtual) {
+                fixKey = "lobby.address.cgnat.useVirtual";
+            } else if (dormant != null) {
+                fixKey = "lobby.address.cgnat.wakeUp";
+            } else if (hasIpv6) {
+                // Con IPv6 delante, mandar a instalar Radmin es el consejo
+                // equivocado: primero se prueba lo que ya tienes y es gratis.
+                fixKey = "lobby.address.cgnat.tryIpv6";
+            } else {
+                fixKey = "lobby.address.cgnat.fix";
+            }
+            final Label fix = new Label(dormant != null
+                    ? NeoText.get(fixKey, dormant) : NeoText.get(fixKey));
+            fix.getStyleClass().add(dormant != null ? "lobby-warn" : "lobby-warn-why");
+            fix.setWrapText(true);
+            fix.setMaxWidth(560);
+            fix.setMinHeight(Region.USE_PREF_SIZE);
+
+            final Label why = new Label(NeoText.get("lobby.address.cgnat.what"));
+            why.getStyleClass().add("lobby-warn-why");
+            why.setWrapText(true);
+            why.setMaxWidth(560);
+            why.setMinHeight(Region.USE_PREF_SIZE);
+
+            internet.getChildren().setAll(warn, fix, why);
+            // Sin nada instalado, el siguiente paso es una descarga: ponerla a
+            // un click. Con Radmin ya puesto NO sale — mandar a descargar lo
+            // que ya tienes es el consejo equivocado.
+            if (!hasVirtual && dormant == null && !hasIpv6) {
+                final Button get = new Button(NeoText.get("lobby.address.cgnat.getIt"));
+                get.getStyleClass().add("btn-secondary");
+                // La interfaz lo declara con excepciones comprobadas aunque la
+                // nuestra ya se las coma por dentro. Que no se abra el
+                // navegador no puede tirar la sala: el jugador tiene la sala
+                // abierta y una partida esperando.
+                get.setOnAction(e -> {
+                    try {
+                        GuiBase.getInterface().browseToUrl("https://www.radmin-vpn.com/");
+                    } catch (final Exception ex) {
+                        System.out.println("[lobby] no se ha podido abrir la descarga: " + ex);
+                    }
+                });
+                final HBox line = new HBox(10, get);
+                line.setAlignment(Pos.CENTER_LEFT);
+                internet.getChildren().add(line);
+            }
+            addChatLine(NeoText.get("lobby.address.cgnat"));
+            return;
+        }
+        if (reach.publicIp() == null) {
+            // Sin linea. El hueco se queda vacio, como ha hecho siempre.
+            return;
+        }
+        final String ext = String.format(java.util.Locale.ROOT, "%s:%d",
+                reach.publicIp(), NeoLobby.port());
+        final Label hint = new Label(NeoText.get("lobby.address.internetHint",
+                String.valueOf(NeoLobby.port())));
+        hint.getStyleClass().add("mode-tile-note");
+        hint.setWrapText(true);
+        hint.setMaxWidth(560);
+        hint.setMinHeight(Region.USE_PREF_SIZE);
+        internet.getChildren().setAll(
+                addressLine(NeoText.get("lobby.address.internet", ext), ext), hint);
+
+        // Y si el router no ha contestado, decirlo. Callarse era lo correcto
+        // para NO acusar en falso de CGNAT, pero deja al jugador con una
+        // direccion que puede valer o no y sin forma de saberlo — y si ademas
+        // el UPnP ha fallado (mismo motivo: no aparece ningun router), se queda
+        // mirando un "ha fallado" sin nada que hacer con el. Se dice lo que se
+        // sabe, que es nada, y se da la comprobacion a mano: comparar la IP que
+        // dice el router con la de aqui. Es lo MISMO que hace NetReach cuando
+        // puede, y cualquiera puede hacerlo sin UPnP.
+        if (reach.verdict() == NetReach.Verdict.UNKNOWN && reach.routerWan() == null) {
+            final Label dunno = new Label(NeoText.get("lobby.address.noRouter"));
+            dunno.getStyleClass().add("lobby-warn-why");
+            dunno.setWrapText(true);
+            dunno.setMaxWidth(560);
+            dunno.setMinHeight(Region.USE_PREF_SIZE);
+            internet.getChildren().add(dunno);
+        }
+    }
+
+    private Region addressLine(final String text, final String address) {
+        return addressLine(text, address, false);
+    }
+
+    /**
+     * Un renglon de direccion con su boton de copiar.
+     *
+     * <p>{@code best} es la que hay que pasar. Se marca con <b>color y
+     * negrita</b>, no con un icono ni un orden: el orden ya se usa (la primera
+     * es la de casa) y un icono hay que aprenderselo.
+     */
+    private Region addressLine(final String text, final String address, final boolean best) {
+        final Label label = new Label(text);
+        label.getStyleClass().add(best ? "lobby-best" : "mode-tile-note");
 
         final Button copy = new Button(NeoText.get("lobby.copy"));
         copy.getStyleClass().add("btn-secondary");
         copy.setMinWidth(Region.USE_PREF_SIZE);
         copy.setOnAction(e -> {
-            GuiBase.getInterface().copyToClipboard(NeoOnline.shareAddress());
+            GuiBase.getInterface().copyToClipboard(address);
             addChatLine(NeoText.get("lobby.copied"));
         });
 
-        final HBox row = new HBox(10, addressLabel, copy);
+        final HBox row = new HBox(10, label, copy);
         row.setAlignment(Pos.CENTER_LEFT);
         return row;
     }
@@ -297,7 +539,8 @@ public class LobbyScreen extends BorderPane implements NeoOnline.View {
             row.getChildren().add(gap);
         }
 
-        if (l.mayRemove(index)) {
+        // La regla NO es mayRemove a secas: ver NeoLobby.mayRemoveSeat.
+        if (host && NeoLobby.mayRemoveSeat(l, index)) {
             final Button remove = new Button("✕");
             remove.getStyleClass().add("btn-secondary");
             remove.setMinWidth(Region.USE_PREF_SIZE);
@@ -396,7 +639,12 @@ public class LobbyScreen extends BorderPane implements NeoOnline.View {
                 chosen -> {
                     overlay.hide();
                     if (chosen != null) {
-                        send(index, UpdateLobbyPlayerEvent.deckUpdate(chosen));
+                        sendDeck(index, chosen);
+                        // Una IA no tiene nada mas que decidir: con mazo, lista.
+                        final LobbySlot s = lobby == null ? null : lobby.getSlot(index);
+                        if (s != null && s.getType() == LobbySlotType.AI && !s.isReady()) {
+                            send(index, UpdateLobbyPlayerEvent.isReadyUpdate(true));
+                        }
                     }
                 },
                 overlay::hide);
@@ -420,6 +668,13 @@ public class LobbyScreen extends BorderPane implements NeoOnline.View {
         refresh();
     }
 
+    /** Cambiar el mazo de un asiento, de forma que se entere todo el mundo. Ver NeoLobby.deckEvents. */
+    private void sendDeck(final int index, final Deck deck) {
+        for (final UpdateLobbyPlayerEvent e : NeoLobby.deckEvents(deck)) {
+            send(index, e);
+        }
+    }
+
     private void addSeat(final LobbySlotType type) {
         final GameLobby l = lobby;
         if (l == null || l.getNumberOfSlots() >= NeoLobby.MAX_SEATS) {
@@ -431,6 +686,14 @@ public class LobbyScreen extends BorderPane implements NeoOnline.View {
             // El evento lo compone NeoLobby: ahi vive la regla del nombre, y
             // ahi la puede probar el comprobador sin ventana.
             send(index, NeoLobby.aiSeatEvent(l));
+            // Y se sienta ya con un preconstruido y lista: sentar una IA y
+            // tener que elegirle mazo Y marcarla lista era lo que mas pasos
+            // costaba de la sala. El mazo se le cambia igual con su boton.
+            final Deck deck = NeoLobby.randomAiDeck();
+            if (deck != null) {
+                sendDeck(index, deck);
+                send(index, UpdateLobbyPlayerEvent.isReadyUpdate(true));
+            }
         }
         refresh();
     }
@@ -501,6 +764,20 @@ public class LobbyScreen extends BorderPane implements NeoOnline.View {
 
     @Override
     public void update(final boolean fullUpdate) {
+        final GameLobby l = lobby;
+        if (l != null && host) {
+            // En el anfitrion esto corre ANTES de que el servidor reparta el
+            // estado (NetConnectUtil avisa primero a la pantalla), asi que lo
+            // que se limpie aqui ya viaja limpio.
+            NeoLobby.clearOpenSeats(l);
+        }
+        if (l != null && !host && l.getNumberOfSlots() > 0) {
+            // Ya estamos sentados: se dice que version tenemos. Ver NetBuild.
+            final NeoOnline o = online;
+            if (o != null) {
+                o.announceBuild();
+            }
+        }
         refresh();
     }
 
@@ -523,10 +800,23 @@ public class LobbyScreen extends BorderPane implements NeoOnline.View {
             if (l == null) {
                 return;
             }
+            // Al registro cada vez que cambia algo: es lo unico que queda
+            // cuando un amigo dice "no me deja empezar" y no estas delante.
+            // (NeoLobby.describe existia para esto, y no lo llamaba nadie.)
+            final String now = NeoLobby.describe(l);
+            if (!now.equals(lastDescribed)) {
+                lastDescribed = now;
+                System.out.println("[lobby] " + now);
+            }
             rebuildSeats();
             status.setText(statusText(l));
             if (host) {
-                startButton.setDisable(l.findFirstUnreadySlot() != null
+                // Con la partida anterior todavia en marcha, NO: se vuelve a la
+                // sala antes de que acabe cuando te rindes en una partida a
+                // tres (los otros dos siguen), y empezar otra encima seria
+                // montar dos partidas sobre el mismo lobby.
+                startButton.setDisable(failed || l.isMatchActive()
+                        || l.findFirstUnreadySlot() != null
                         || NeoLobby.activeSlots(l).size() < NeoLobby.MIN_SEATS);
             }
             if (l.isMatchActive() && started.compareAndSet(false, true)) {
@@ -535,7 +825,16 @@ public class LobbyScreen extends BorderPane implements NeoOnline.View {
         });
     }
 
+    /** Lo ultimo que se apunto en el registro, para no repetirlo. */
+    private String lastDescribed = "";
+
     private String statusText(final GameLobby l) {
+        if (failed) {
+            return failedText;
+        }
+        if (l.isMatchActive()) {
+            return NeoText.get("lobby.matchRunning");
+        }
         final int seated = NeoLobby.activeSlots(l).size();
         final LobbySlot unready = l.findFirstUnreadySlot();
         if (seated < NeoLobby.MIN_SEATS) {
@@ -553,13 +852,24 @@ public class LobbyScreen extends BorderPane implements NeoOnline.View {
         if (message == null) {
             return;
         }
-        final String src = message.getSource();
-        addChatLine(src == null || src.isBlank()
-                ? message.getMessage()
-                : src + ": " + message.getMessage());
+        // Los avisos del servidor llegan en ingles: se leen aqui, una vez,
+        // para la sala y para la mesa. Ver NetPhrases.
+        final forge.neo.net.NetPhrases.Phrase phrase =
+                forge.neo.net.NetPhrases.read(message.getSource(), message.getMessage());
+        addChatLine(phrase.text());
+        final NetListener nl = netListener;
+        if (nl != null) {
+            nl.chat(phrase);
+        }
     }
 
     private void addChatLine(final String text) {
+        synchronized (history) {
+            history.add(text);
+            while (history.size() > 200) {
+                history.remove(0);
+            }
+        }
         Platform.runLater(() -> {
             final Label l = new Label(text);
             l.getStyleClass().add("mode-tile-note");
@@ -577,8 +887,30 @@ public class LobbyScreen extends BorderPane implements NeoOnline.View {
     @Override
     public void connectionLost(final String message) {
         addChatLine(message == null ? NeoText.get("lobby.lost") : message);
+        failed(NeoText.get("lobby.lost"));
+        final NetListener nl = netListener;
+        if (nl != null) {
+            nl.lost(message);
+        }
+    }
+
+    /** No se pudo hospedar o conectar, o se cayo: la sala ya no sirve. */
+    private volatile boolean failed;
+    private volatile String failedText = "";
+
+    /**
+     * La sala deja de ser una sala: se dice por que en la cabecera y se apaga
+     * EMPEZAR.
+     *
+     * <p>Antes, si el puerto estaba cogido o el invitado escribia mal la
+     * direccion, el motivo salia en el chat y la cabecera se quedaba en
+     * "Conectando..." para siempre, con los asientos pintados como si nada.
+     */
+    public void failed(final String why) {
+        failed = true;
+        failedText = why == null || why.isBlank() ? NeoText.get("lobby.lost") : why;
         Platform.runLater(() -> {
-            status.setText(NeoText.get("lobby.lost"));
+            status.setText(failedText);
             startButton.setDisable(true);
         });
     }
@@ -611,7 +943,7 @@ public class LobbyScreen extends BorderPane implements NeoOnline.View {
                             forge.model.FModel.getDecks().getCommander().forEach(mine::add);
                             if (!mine.isEmpty()) {
                                 System.out.println("[lobby-auto] mi mazo: " + mine.get(0).getName());
-                                send(i, UpdateLobbyPlayerEvent.deckUpdate(mine.get(0)));
+                                sendDeck(i, mine.get(0));
                             }
                             return;
                         }
@@ -640,7 +972,8 @@ public class LobbyScreen extends BorderPane implements NeoOnline.View {
      */
     public void matchEnded() {
         started.set(false);
-        Platform.runLater(() -> startButton.setDisable(false));
+        // EMPEZAR lo decide refresh(), que mira si la partida sigue viva: se
+        // puede volver aqui antes de que acabe (rendirse en una a tres).
         refresh();
     }
 
