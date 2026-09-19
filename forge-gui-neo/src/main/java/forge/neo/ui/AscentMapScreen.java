@@ -480,7 +480,9 @@ public class AscentMapScreen extends StackPane {
         if (AscentBattle.isBattle(dot.node.getKind())) {
             final int life = AscentBattle.lifeAt(run.getMaxLife(),
                     AscentBattle.progress(run.getAct(), dot.node.getRow()), edge);
-            final Label duel = new Label(NeoText.get("ascent.node.duel", run.getLife(), life));
+            // fightLife(): con la vida por debajo de la mitad, el duelo empieza
+            // en la mitad — y la ficha tiene que decir el duelo que se juega.
+            final Label duel = new Label(NeoText.get("ascent.node.duel", run.fightLife(), life));
             duel.getStyleClass().add("ascent-info-duel");
             info.getChildren().add(duel);
         }

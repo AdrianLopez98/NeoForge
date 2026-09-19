@@ -4,8 +4,12 @@
 
 A full run in 45–60 minutes, played against the AI on a branching node map.
 
-- **Your life carries over between fights.** There is no healing between nodes unless you
-  choose to rest, so every combat costs you something.
+- **Your life carries over between fights**, so every combat costs you something — but never
+  more than you can recover from. **No fight starts below half your maximum life**, and beating an
+  act boss **heals you to full** before the next act. Resting at a campfire also heals you
+  completely, so the choice there is a clean one: full life, or one card fewer in your deck.
+  Paying life is part of Magic (fetchlands, Phyrexian mana, *Necropotence*), and it shouldn't cost
+  you the rest of the run.
 - **Your deck is built during the run.** You start with a deliberately weak seed deck and
   improve it node by node — winning a fight lets you add one of three cards, and shops let
   you buy cards or remove a bad one. In a 30-card deck, cutting a card you can never cast is

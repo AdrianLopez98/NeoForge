@@ -2886,6 +2886,34 @@
     -fx-text-fill: #23496B;
 }
 
+/*
+ * El trofeo de una run ganada: la chapa que se ensenya en una captura.
+ *
+ * Dorado y con borde, no una pastilla mas: el resumen ya tiene cinco pastillas
+ * (vida, creditos, nodos, reliquias, Ascension) y una sexta del mismo color se
+ * leeria como un dato mas. Esto tiene que verse como lo que es, un premio.
+ */
+.ascent-trophy {
+    -fx-background-color: rgba(198,160,74,0.22);
+    -fx-border-color: rgba(140,104,30,0.55);
+    -fx-border-width: 2;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-padding: 12 30 12 30;
+}
+
+.ascent-trophy-level {
+    -fx-text-fill: #6B4E12;
+    -fx-font-size: 2.0em;
+    -fx-font-weight: 900;
+}
+
+.ascent-trophy-line {
+    -fx-text-fill: #6B5A3E;
+    -fx-font-size: 1.05em;
+    -fx-font-weight: 700;
+}
+
 .ascent-button {
     -fx-background-color: rgba(59,46,28,0.14);
     -fx-text-fill: #3B2E1C;

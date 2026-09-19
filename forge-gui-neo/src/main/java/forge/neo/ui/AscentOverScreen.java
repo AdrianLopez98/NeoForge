@@ -91,15 +91,32 @@ public class AscentOverScreen extends StackPane {
         final Label sub = new Label(subtitle());
         sub.getStyleClass().add("ascent-hint");
 
-        body.getChildren().addAll(title, sub, stats());
+        body.getChildren().add(title);
+        // Solo con Ascension: la chapa existe para ensenyar EL NIVEL, y a nivel
+        // 0 repetiria palabra por palabra el titulo que tiene justo encima
+        // ("Ascenso completado" dos veces, una debajo de otra — se vio en la
+        // primera captura). Ganar sin Ascension ya tiene su titulo.
+        if (summary.isWon() && summary.getAscension() > 0) {
+            body.getChildren().add(trophy());
+        }
+        body.getChildren().addAll(sub, stats());
 
         if (summary.isUnlocked()) {
             // Lo UNICO que sobrevive a la run, asi que se dice aqui y con
             // claridad: es la respuesta a "¿y todo esto para que?".
-            final Label unlocked = new Label(
-                    NeoText.get("ascent.over.unlocked", summary.getAscension() + 1));
+            final int nivel = summary.getAscension() + 1;
+            final Label unlocked = new Label(NeoText.get("ascent.over.unlocked", nivel));
             unlocked.getStyleClass().addAll("ascent-pill-base", "ascent-pill-relic");
             body.getChildren().add(unlocked);
+            // Y QUE trae. Sin esto el desbloqueo es un numero: no hay forma de
+            // saber si lo que te acaban de dar es un escalon o un muro, y el
+            // premio de haber ganado una run entera se queda en una pastilla.
+            final Label adds = new Label(NeoText.get("ascent.over.unlocked.adds",
+                    NeoText.get(forge.neo.ascent.AscentUnlocks.effectKey(nivel))));
+            adds.getStyleClass().add("ascent-info-text");
+            adds.setWrapText(true);
+            adds.setMaxWidth(560);
+            body.getChildren().add(adds);
         }
 
         body.getChildren().addAll(feats());
@@ -153,6 +170,43 @@ public class AscentOverScreen extends StackPane {
         return NeoText.get("ascent.over.fell", summary.getAct());
     }
 
+    /**
+     * <b>La chapa de una run ganada: lo que se ensenya en una captura.</b>
+     *
+     * <p>Pedido por Ana tal cual — <i>"que la gente pueda fardar haciendo
+     * captura"</i> — y resuelve ademas la otra mitad de su pregunta: hasta
+     * ahora subir de Ascension no daba mas que dificultad, asi que ganar a
+     * nivel 6 se veia <b>exactamente igual</b> que ganar sin Ascension. Una
+     * escalera que no se nota que has subido no es una escalera.
+     *
+     * <p>Va <b>debajo del titulo y encima de todo lo demas</b>, que es donde
+     * mira la gente y donde entra en un recorte de pantalla. Y solo al ganar:
+     * un trofeo por haber perdido seria el principio 1.
+     *
+     * <p>Las victorias se leen de {@code AscentUnlocks} y no de la foto a
+     * proposito: no son de esta run, son de todas. La foto guarda lo que la
+     * derrota se lleva; esto es justo lo que sobrevive.
+     */
+    private Region trophy() {
+        final VBox box = new VBox(2);
+        box.setAlignment(Pos.CENTER);
+        box.setMaxWidth(Region.USE_PREF_SIZE);
+        box.getStyleClass().add("ascent-trophy");
+
+        final Label level = new Label(
+                NeoText.get("ascent.over.trophy.level", summary.getAscension()));
+        level.getStyleClass().add("ascent-trophy-level");
+
+        final Label line = new Label(NeoText.get("ascent.over.trophy.line",
+                NeoText.get(summary.getMode() == forge.neo.ascent.AscentRun.Mode.COMMANDER
+                        ? "ascent.setup.mode.commander" : "ascent.setup.mode.standard"),
+                forge.neo.ascent.AscentUnlocks.wins()));
+        line.getStyleClass().add("ascent-trophy-line");
+
+        box.getChildren().addAll(level, line);
+        return box;
+    }
+
     /** Los cuatro numeros de la run. */
     private Region stats() {
         final HBox row = new HBox(10);
@@ -163,7 +217,11 @@ public class AscentOverScreen extends StackPane {
                 + summary.getLife() + " / " + summary.getMaxLife(), "ascent-pill-life"));
         row.getChildren().add(pill(NeoText.get("ascent.credits") + "  "
                 + summary.getCredits(), "ascent-pill"));
-        if (summary.getAscension() > 0) {
+        // La pastilla solo cuando NO hay chapa: ganando, el trofeo de arriba ya
+        // dice el nivel con letra grande, y repetirlo aqui es el mismo dato dos
+        // veces en la misma pantalla. Perdiendo no hay chapa, y entonces esta
+        // pastilla es lo unico que lo cuenta.
+        if (summary.getAscension() > 0 && !summary.isWon()) {
             row.getChildren().add(pill(NeoText.get("ascent.setup.ascension")
                     + "  " + summary.getAscension(), "ascent-pill-relic"));
         }

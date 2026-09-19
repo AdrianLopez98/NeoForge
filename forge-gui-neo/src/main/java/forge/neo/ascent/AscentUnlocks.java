@@ -85,6 +85,48 @@ public final class AscentUnlocks {
         return Math.max(0, Math.min(MAX, NeoSettings.getInt(MAX_ASCENSION, 0)));
     }
 
+    /**
+     * <b>Que endurece un nivel de Ascension, escrito para el jugador.</b>
+     *
+     * <p>Hasta el 19-09-2026 no se decia en ningun sitio: la pantalla de montar
+     * la run ofrecia un <b>numero</b> y el resumen anunciaba "Ascension N
+     * desbloqueada" sin decir que traia. Y como los niveles se ACUMULAN
+     * ({@code ascension >= N} en cada sitio que los mira), elegir el 5 metia
+     * cinco cambios de reglas de los que no se habia dicho ni uno — o sea que
+     * la run te salia peor sin que pudieras saber por que (principio 6).
+     *
+     * <p>El texto es una clave por nivel, {@code ascent.ascension.N}. Vive en
+     * los ficheros de idioma y no aqui, como todo lo que lee el jugador.
+     *
+     * <p>⚠️ Esto es <b>documentacion, y puede mentir</b>: el efecto de verdad
+     * esta repartido por {@code AscentMap}, {@code AscentBattle},
+     * {@code AscentRewards}, {@code AscentSeedDeck}, {@code AscentShop} y
+     * {@link AscentRun}, y nada obliga a que la frase y el codigo digan lo
+     * mismo. Ya paso una vez en pequenyo: el nivel 2 cambio de formula el mismo
+     * dia que se escribieron estas frases. Lo unico que se puede comprobar sin
+     * ventana es que <b>no falte ninguna y no sobre ninguna</b>, y eso lo hace
+     * {@code ascentcheck}. Si se toca un nivel, se toca su frase.
+     */
+    public static String effectKey(final int level) {
+        return "ascent.ascension." + Math.max(1, Math.min(MAX, level));
+    }
+
+    /**
+     * Todo lo que estara activo jugando a ese nivel, de menor a mayor.
+     *
+     * <p>Acumulado y no solo el ultimo, porque es lo que se va a jugar: la
+     * pregunta que contesta la pantalla de montar es "con que reglas empiezo",
+     * no "que anyade este escalon". Para lo segundo esta {@link #effectKey}, que
+     * es lo que ensenya el resumen al desbloquear.
+     */
+    public static List<String> effectKeysUpTo(final int level) {
+        final List<String> out = new ArrayList<>();
+        for (int i = 1; i <= Math.min(MAX, level); i++) {
+            out.add(effectKey(i));
+        }
+        return out;
+    }
+
     /** Cuantas runs se han completado. */
     public static int wins() {
         return Math.max(0, NeoSettings.getInt(WINS, 0));

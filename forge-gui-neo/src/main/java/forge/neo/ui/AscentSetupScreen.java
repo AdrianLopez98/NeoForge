@@ -76,7 +76,17 @@ public class AscentSetupScreen extends StackPane {
     private final VBox body = new VBox(14);
     private AscentRun.Mode mode = AscentRun.Mode.STANDARD;
     private PaperCard commander;
-    private int ascension;
+    /**
+     * A que nivel esta puesta la ruleta.
+     *
+     * <p>{@code -Dneo.ascent.setupLevel=N} la deja puesta en N al abrir: la
+     * lista de "con lo que vas a jugar" solo sale con un nivel elegido, y sin
+     * esto no hay forma de capturarla con {@code --snapshot} — habria que
+     * pulsar un boton a mano, que es justo lo que no se puede hacer desde una
+     * prueba. Se recorta a lo desbloqueado, como los botones.
+     */
+    private int ascension = Math.max(0,
+            Math.min(AscentUnlocks.maxAscension(), Integer.getInteger("neo.ascent.setupLevel", 0)));
     private String search = "";
     private int page;
 
@@ -127,6 +137,11 @@ public class AscentSetupScreen extends StackPane {
             // Solo se ensenya si hay algo que elegir: una fila con un unico
             // boton pulsado no es una pregunta, es ruido.
             body.getChildren().addAll(label("ascent.setup.ascension"), ascensionRow());
+            // Y QUE trae ese nivel. rebuild() se llama al pulsar un numero, asi
+            // que la lista se rehace sola con la eleccion nueva.
+            if (ascension > 0) {
+                body.getChildren().add(ascensionEffects());
+            }
         }
 
         body.getChildren().add(footer());
@@ -307,6 +322,35 @@ public class AscentSetupScreen extends StackPane {
             row.getChildren().add(b);
         }
         return row;
+    }
+
+    /**
+     * <b>Con que reglas vas a jugar</b>, en cristiano y antes de empezar.
+     *
+     * <p>Se ensenya TODO lo que estara activo y no solo lo que anyade el nivel
+     * elegido, porque los niveles se acumulan: eligiendo el 5 se juega con
+     * cinco cambios de reglas. Ensenyar solo el ultimo seria contestar una
+     * pregunta que nadie ha hecho y dejar los otros cuatro escondidos, que es
+     * exactamente como estaba antes del 19-09-2026.
+     *
+     * <p>Va aqui y no detras de un boton de "ver detalles": es la unica
+     * pantalla donde esta decision se toma, y de una run no se vuelve atras.
+     */
+    private Region ascensionEffects() {
+        final VBox box = new VBox(3);
+        box.setAlignment(Pos.CENTER_LEFT);
+        box.setMaxWidth(560);
+        final Label head = new Label(NeoText.get("ascent.setup.ascension.active"));
+        head.getStyleClass().add("ascent-hint");
+        box.getChildren().add(head);
+        for (final String key : AscentUnlocks.effectKeysUpTo(ascension)) {
+            final Label line = new Label("·  " + NeoText.get(key));
+            line.getStyleClass().add("ascent-info-text");
+            line.setWrapText(true);
+            line.setMaxWidth(560);
+            box.getChildren().add(line);
+        }
+        return box;
     }
 
     /** Empezar, y avisar si eso se lleva por delante una run. */

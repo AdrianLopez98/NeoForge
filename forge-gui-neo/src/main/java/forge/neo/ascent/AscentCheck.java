@@ -91,6 +91,9 @@ public final class AscentCheck {
             recorrerRuns();
             elActoPasaSolo();
             elRouterLoLlama();
+            sueloDeCombate();
+            nivelesExplicados();
+            laVeta();
             premios();
             tierrasEnElPremio();
             elDobleEnCommander();
@@ -528,15 +531,20 @@ public final class AscentCheck {
             return;
         }
         try {
-            // A media vida: es donde se cura de verdad.
+            // A media vida: es donde se cura de verdad. Y sin Ascension la
+            // hoguera cura ENTERO (19-09-2026) — no "algo": si volviera a ser
+            // un porcentaje, con el suelo de fightLife() curarse por debajo de
+            // la mitad no valdria casi nada y el nodo seria un tramite.
             run.recordLife(run.getMaxLife() / 2);
+            final int falta = run.getMaxLife() - run.getLife();
             final int cura = run.restHeal();
-            if (cura > 0 && cura <= run.getMaxLife() - run.getLife()) {
-                ok("descanso: cura " + cura + " con " + run.getLife() + "/"
+            if (cura == falta) {
+                ok("descanso: cura entero — " + cura + " con " + run.getLife() + "/"
                         + run.getMaxLife() + ", sin pasarse del maximo");
             } else {
                 fail("descanso: cura " + cura + " con " + run.getLife() + "/"
-                        + run.getMaxLife() + ", que no tiene sentido");
+                        + run.getMaxLife() + ", y tendria que curar los " + falta
+                        + " que faltan");
             }
 
             // Curar de verdad no puede pasar del maximo.
@@ -582,10 +590,18 @@ public final class AscentCheck {
         } finally {
             facil.discard();
         }
-        if (curaDuro < curaFacil) {
-            ok("descanso: la Ascension 2 recorta la cura (" + curaFacil + " -> " + curaDuro + ")");
+        // Con la cura entera, "recorta" ya no basta: lo que hay que exigir es
+        // que la Ascension 2 NO te deje a tope, que es en lo que consiste ese
+        // nivel. Con 1 vida de 20 le faltan 19: cura 10 y se queda en 11.
+        final boolean recorta = curaDuro < curaFacil;
+        final boolean noLlena = curaDuro < 19;
+        if (recorta && noLlena) {
+            ok("descanso: la Ascension 2 recorta la cura (" + curaFacil + " -> " + curaDuro
+                    + ") y no deja la vida a tope");
         } else {
-            fail("descanso: la Ascension 2 cura lo mismo (" + curaFacil + " y " + curaDuro + ")");
+            fail("descanso: la Ascension 2 " + (recorta ? "" : "cura lo mismo ")
+                    + (noLlena ? "" : "deja la vida a tope ")
+                    + "(" + curaFacil + " y " + curaDuro + ")");
         }
     }
 
@@ -1427,6 +1443,218 @@ public final class AscentCheck {
             return;
         }
         ok("cableado: el router llama a advance() al volver de un nodo");
+    }
+
+    /**
+     * <b>El suelo: ningun combate empieza por debajo de la mitad del maximo.</b>
+     *
+     * <p>Se mira donde importa, no solo en {@code fightLife()}: en el
+     * {@code Plan} que monta la partida, que es lo que acaba en
+     * {@code setStartingLife}. Y se exigen las dos mitades del contrato — que
+     * el duelo EMPIECE en el suelo y que la vida de la run NO se toque hasta
+     * que el duelo acabe. Un suelo que se escribiera en la run se veria
+     * igual en el duelo, pero haria que el mapa mintiera sobre lo que te han
+     * hecho y que curarse en el descanso por debajo de la mitad fuera magia.
+     */
+    private static void sueloDeCombate() {
+        for (final AscentRun.Mode mode : AscentRun.Mode.values()) {
+            final AscentRun run = demoRun(mode);
+            if (run == null) {
+                fail("suelo (" + mode + "): no se ha podido montar la run");
+                continue;
+            }
+            try {
+                final int max = run.getMaxLife();
+                final int suelo = (max + 1) / 2;
+                final AscentNode combate = firstOfKind(run, AscentNode.Kind.COMBAT);
+                if (combate == null) {
+                    fail("suelo (" + mode + "): el mapa no tiene ni un combate");
+                    continue;
+                }
+
+                run.recordLife(1);
+                final int planBajo = AscentBattle.plan(run, combate).yourLife;
+                final boolean runIntacta = run.getLife() == 1;
+
+                final int alto = max - 1;
+                run.recordLife(alto);
+                final int planAlto = AscentBattle.plan(run, combate).yourLife;
+
+                if (planBajo == suelo && runIntacta && planAlto == alto) {
+                    ok("suelo (" + mode + "): con 1 vida el duelo empieza con " + suelo + " de "
+                            + max + ", con " + alto + " empieza con " + alto
+                            + ", y la vida de la run no se toca");
+                } else {
+                    fail("suelo (" + mode + "): con 1 vida el duelo empieza con " + planBajo
+                            + " (deberia " + suelo + "), la run " + (runIntacta ? "intacta" : "TOCADA")
+                            + ", con " + alto + " empieza con " + planAlto);
+                }
+            } finally {
+                run.discard();
+            }
+        }
+    }
+
+    /**
+     * <b>Que cada nivel de Ascension diga lo que hace.</b>
+     *
+     * <p>Desde el 19-09-2026 la pantalla de montar la run lista lo que estara
+     * activo y el resumen dice que trae el nivel recien desbloqueado. Si falta
+     * la frase de uno, {@code NeoText} devuelve <b>la clave pelada</b>: en
+     * pantalla sale "ascent.ascension.7" y queda como un fallo del juego.
+     *
+     * <p>Se miran las dos direcciones. Que no falte ninguna de las diez, y que
+     * no sobre una once: una frase de mas no se ve en ningun sitio —nadie la
+     * pinta— pero significa que alguien quito un nivel y se dejo el texto, o
+     * que creyo anyadir uno y no lo hizo.
+     *
+     * <p>⚠️ Lo que esto <b>no</b> puede comprobar es que la frase diga la
+     * verdad: el efecto vive repartido por seis clases y nada lo ata al texto.
+     * Ver {@link AscentUnlocks#effectKey(int)}.
+     */
+    private static void nivelesExplicados() {
+        final List<Integer> mudos = new ArrayList<>();
+        for (int i = 1; i <= AscentUnlocks.MAX; i++) {
+            final String key = AscentUnlocks.effectKey(i);
+            final String text = NeoText.get(key);
+            if (text == null || text.isBlank() || text.equals(key)) {
+                mudos.add(i);
+            }
+        }
+        final String sobrante = "ascent.ascension." + (AscentUnlocks.MAX + 1);
+        final boolean sobra = !sobrante.equals(NeoText.get(sobrante));
+
+        if (mudos.isEmpty() && !sobra) {
+            ok("ascension: los " + AscentUnlocks.MAX + " niveles dicen que endurecen");
+        } else if (!mudos.isEmpty()) {
+            fail("ascension: sin texto los niveles " + mudos
+                    + " — en pantalla saldria la clave pelada");
+        } else {
+            fail("ascension: hay texto para el nivel " + (AscentUnlocks.MAX + 1)
+                    + ", que no existe: o falta el nivel o sobra la frase");
+        }
+
+        // Y que lo acumulado sea acumulado de verdad: el nivel N trae N cosas.
+        // Si esto deja de cumplirse es que los niveles han dejado de apilarse,
+        // y entonces la pantalla de montar esta mintiendo sobre lo que ofrece.
+        final int cuantas = AscentUnlocks.effectKeysUpTo(AscentUnlocks.MAX).size();
+        if (cuantas == AscentUnlocks.MAX) {
+            ok("ascension: al nivel " + AscentUnlocks.MAX + " se listan las "
+                    + cuantas + " reglas que estaran activas");
+        } else {
+            fail("ascension: al nivel " + AscentUnlocks.MAX + " se listan " + cuantas
+                    + " reglas y tendrian que ser " + AscentUnlocks.MAX);
+        }
+    }
+
+    /**
+     * <b>La veta cambia basicas por tierras buenas, y no toca el tamanyo del
+     * mazo.</b>
+     *
+     * <p>Que el evento exista, tenga textos y este detras de su hito ya lo
+     * miran las pruebas de arriba — y eso pasaria en verde con un efecto que no
+     * hiciera nada, que es el fallo clasico de este modo. Aqui se mira lo
+     * unico que importa: que despues de excavar haya <b>menos basicas</b>,
+     * <b>mas tierras buenas</b> y <b>las mismas cartas</b>. Lo ultimo no es un
+     * detalle: el tamanyo del mazo es una invariante que da por sentada el
+     * resto del modo, y un evento que lo engorde se nota tres nodos despues
+     * sin que nada falle.
+     */
+    private static void laVeta() {
+        final List<String> bloqueados = new ArrayList<>();
+        int funciona = 0;
+        for (final AscentRun.Mode mode : AscentRun.Mode.values()) {
+            final AscentRun run = demoRun(mode);
+            if (run == null) {
+                fail("veta (" + mode + "): no se ha podido montar la run");
+                continue;
+            }
+            try {
+                final AscentEvent veta = AscentEvent.byId("vein");
+                if (veta == null) {
+                    fail("veta: el evento no esta en el catalogo");
+                    return;
+                }
+                final AscentEvent.Choice excavar = veta.getChoices().get(0);
+                // Un mazo MONOCOLOR en el acto 1 no tiene ninguna tierra buena
+                // que ofrecer: una dual pide dos colores tuyos y las raras no
+                // entran hasta el acto 2. Eso no es un fallo — el evento lo
+                // dice y deja salir — pero significa que la prueba tiene que
+                // buscar el acto donde el evento SI hace algo, en vez de dar
+                // por hecho el primero.
+                int acto = 1;
+                while (!excavar.isAvailable(run) && acto < AscentRun.ACTS) {
+                    run.nextAct();
+                    acto++;
+                }
+                if (!excavar.isAvailable(run)) {
+                    bloqueados.add(mode.toString());
+                    continue;
+                }
+
+                final Deck antes = AscentDecks.load(run);
+                if (antes == null) {
+                    fail("veta (" + mode + "): la run no tiene mazo");
+                    continue;
+                }
+                final int cartasAntes = antes.getMain().countAll();
+                final int basicasAntes = basicas(antes);
+                final int buenasAntes = tierrasBuenas(antes);
+
+                excavar.apply(run, new Random(11));
+
+                final Deck luego = AscentDecks.load(run);
+                final int cartasLuego = luego == null ? -1 : luego.getMain().countAll();
+                final int basicasLuego = luego == null ? -1 : basicas(luego);
+                final int buenasLuego = luego == null ? -1 : tierrasBuenas(luego);
+
+                if (basicasLuego < basicasAntes && buenasLuego > buenasAntes
+                        && cartasLuego == cartasAntes) {
+                    funciona++;
+                    ok("veta (" + mode + ", acto " + acto + "): cambia basicas por tierras buenas ("
+                            + basicasAntes + " -> " + basicasLuego + " basicas, " + buenasAntes
+                            + " -> " + buenasLuego + " buenas) sin cambiar el tamanyo del mazo ("
+                            + cartasAntes + ")");
+                } else {
+                    fail("veta (" + mode + "): basicas " + basicasAntes + " -> " + basicasLuego
+                            + ", buenas " + buenasAntes + " -> " + buenasLuego
+                            + ", cartas " + cartasAntes + " -> " + cartasLuego);
+                }
+            } finally {
+                run.discard();
+            }
+        }
+        if (funciona == 0) {
+            fail("veta: no hace nada en ningun modo ni en ningun acto — el desbloqueo de"
+                    + " Ascension 6 abriria un nodo vacio");
+        } else if (!bloqueados.isEmpty()) {
+            ok("veta: bloqueada en " + bloqueados + " (mazo sin dos colores y sin raras),"
+                    + " y lo dice en vez de hacer nada");
+        }
+    }
+
+    /** Cuantas basicas hay en el mazo, contando copias. */
+    private static int basicas(final Deck deck) {
+        int n = 0;
+        for (final Map.Entry<PaperCard, Integer> e : deck.getMain()) {
+            if (e.getKey().getRules() != null && e.getKey().getRules().getType().isBasicLand()) {
+                n += e.getValue();
+            }
+        }
+        return n;
+    }
+
+    /** Y cuantas tierras que NO son basicas, que es lo que la veta mete. */
+    private static int tierrasBuenas(final Deck deck) {
+        int n = 0;
+        for (final Map.Entry<PaperCard, Integer> e : deck.getMain()) {
+            final PaperCard c = e.getKey();
+            if (c.getRules() != null && c.getRules().getType().isLand()
+                    && !c.getRules().getType().isBasicLand()) {
+                n += e.getValue();
+            }
+        }
+        return n;
     }
 
     /** Camina el mapa hasta tumbar al jefe del acto en curso. */
@@ -2335,19 +2563,30 @@ public final class AscentCheck {
                     + (mismasReliquias ? "" : " [otras reliquias]"));
         }
 
-        // La vida se arrastra hacia arriba y NO se cura sola al pasar de acto:
-        // es lo que sostiene la tension del modo entero.
+        // Al pasar de acto la vida se cura ENTERA (decidido el 19-09-2026; hasta
+        // entonces se arrastraba y esta misma linea exigia lo contrario). Se
+        // pasa por advance(), que es lo que llama el juego, y se relee de
+        // neo.properties: una cura que solo viviera en memoria se perderia al
+        // cerrar el juego justo despues del jefe.
         final int antesDelActo = recargada.getLife();
         while (!recargada.actCleared() && !recargada.available().isEmpty()) {
             recargada.clear(recargada.available().get(0));
         }
-        recargada.nextAct();
-        if (recargada.getLife() == antesDelActo && recargada.getAct() == 2) {
-            ok("guardado: al pasar de acto la vida se arrastra (" + antesDelActo
-                    + ") y el mapa se renueva");
+        final AscentRun.Step paso = recargada.advance();
+        final AscentRun releida = AscentRun.current();
+        final int maxima = recargada.getMaxLife();
+        if (antesDelActo >= maxima) {
+            fail("guardado: la prueba de la cura entre actos no prueba nada — se llega al jefe"
+                    + " con la vida llena (" + antesDelActo + ")");
+        } else if (paso == AscentRun.Step.NEXT_ACT && recargada.getAct() == 2
+                && recargada.getLife() == maxima
+                && releida != null && releida.getLife() == maxima) {
+            ok("guardado: al pasar de acto la vida se cura entera (" + antesDelActo + " -> "
+                    + maxima + "), se guarda y el mapa se renueva");
         } else {
-            fail("guardado: al pasar de acto la vida ha cambiado sola: " + antesDelActo
-                    + " -> " + recargada.getLife());
+            fail("guardado: al pasar de acto la vida no se ha curado entera: " + antesDelActo
+                    + " -> " + recargada.getLife() + " de " + maxima
+                    + (releida == null ? " [no se relee]" : " [releida: " + releida.getLife() + "]"));
         }
         recargada.discard();
     }

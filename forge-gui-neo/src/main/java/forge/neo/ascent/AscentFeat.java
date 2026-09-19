@@ -59,7 +59,24 @@ public enum AscentFeat {
     HOARDER("hoarder", s -> s.getRelics().size() >= Limits.HOARD),
 
     /** Completar una run jugando a Ascension 3 o mas. */
-    CHAMPION("champion", s -> s.isWon() && s.getAscension() >= Limits.CHAMPION_ASCENSION);
+    CHAMPION("champion", s -> s.isWon() && s.getAscension() >= Limits.CHAMPION_ASCENSION),
+
+    /**
+     * Completar una run a Ascension 6 o mas.
+     *
+     * <p>El segundo escalon de la escalera que <b>abre contenido</b>, y existe
+     * por una pregunta del autor que no tenia buena respuesta: <i>"empezar con
+     * ese debufo, que aporta? o es solo mas dificultad porque si?"</i>. Lo era:
+     * de los diez niveles, el unico que daba algo era el 3, por
+     * {@link #CHAMPION}. Con esto la Ascension deja de ser solo un numero mas
+     * alto y pasa a abrir cosas en dos sitios, 3 y 6.
+     *
+     * <p>Seis y no diez a proposito: un desbloqueo en el tope de la escalera lo
+     * veria una persona en el mundo. A media escalera lo alcanza quien ya ha
+     * ganado un par de veces, que es justo a quien hay que darle un motivo para
+     * volver a subir.
+     */
+    MASTER("master", s -> s.isWon() && s.getAscension() >= Limits.MASTER_ASCENSION);
 
     /**
      * Los numeros de las condiciones.
@@ -75,6 +92,9 @@ public enum AscentFeat {
 
         /** A partir de que Ascension cuenta la victoria del campeon. */
         private static final int CHAMPION_ASCENSION = 3;
+
+        /** Y la del maestro, el segundo escalon que abre contenido. */
+        private static final int MASTER_ASCENSION = 6;
 
         private Limits() {
         }

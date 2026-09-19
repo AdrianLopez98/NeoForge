@@ -306,8 +306,11 @@ public final class AscentBattle {
             }
         }
 
+        // fightLife() y no getLife(): el suelo de la mitad del maximo
+        // (AscentRun.FIGHT_FLOOR). Lo que se APUNTA al salir sigue siendo la
+        // vida con la que acabas, en fight() mas abajo.
         return new Plan(kind, act, deck, DuelFace.bestCardOf(deck),
-                run.getLife(), life, ai,
+                run.fightLife(), life, ai,
                 headStart(deck, headStartCount),
                 opponentRelics, relicCards(run), schemes, variants);
     }

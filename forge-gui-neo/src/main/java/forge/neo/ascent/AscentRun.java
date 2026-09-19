@@ -325,9 +325,10 @@ public final class AscentRun {
     /**
      * Pasa al acto siguiente, o dice que la run esta ganada.
      *
-     * <p>El progreso de nodos se vacia: cada acto es un mapa nuevo. La vida,
-     * los creditos, las reliquias y el mazo se quedan — eso es lo que hace que
-     * sea una run y no tres partidas seguidas.
+     * <p>El progreso de nodos se vacia: cada acto es un mapa nuevo. Los
+     * creditos, las reliquias y el mazo se quedan — eso es lo que hace que sea
+     * una run y no tres partidas seguidas. La vida, desde el 19-09-2026,
+     * <b>se cura entera</b>: ver el comentario de dentro.
      *
      * <p>⚠️ <b>Desde el juego se llama a {@link #advance()}</b>, no a esto.
      * Ver ahi por que.
@@ -341,6 +342,13 @@ public final class AscentRun {
         act++;
         clearedNodes.clear();
         currentNode = null;
+        // Cura completa entre actos (19-09-2026). Es el unico momento en que
+        // se regala la vida entera: acabas de tumbar al jefe, el mapa es otro
+        // y el suelo de FIGHT_FLOOR ya cubre los combates de dentro del acto.
+        // Va AQUI y no en advance(): los comprobadores usan nextAct() para
+        // plantarse en un acto, y si solo curara uno de los dos caminos
+        // volveriamos a tener dos cambios de acto que no hacen lo mismo.
+        life = maxLife;
         save();
         return true;
     }
@@ -361,11 +369,62 @@ public final class AscentRun {
         return life > 0;
     }
 
-    /** Que parte de tu vida maxima cura un descanso. */
-    private static final double REST_HEAL = 0.30;
+    /**
+     * <b>Con cuanta vida empiezas un combate como poco</b>: la mitad de tu
+     * maximo.
+     *
+     * <p>Decidido el 19-09-2026. Con la vida arrastrandose sin suelo, el modo
+     * castigaba justo lo que Magic trata como un COSTE: fetchlands,
+     * choquelands, mana pirexiano, <i>Necropotence</i>, <i>Toxic Deluge</i>.
+     * Pagabas ocho vidas para ganar un duelo y las volvias a pagar en el
+     * siguiente — y en Commander esas cartas son lo normal, no la excepcion.
+     *
+     * <p>Es un suelo y no una cura completa a proposito: con la cura completa
+     * el descanso se queda sin decision, las reliquias de vida no sirven, los
+     * eventos que cuestan vida salen gratis y las Ascensiones 2 y 8 dejan de
+     * hacer nada. Por encima de la mitad todo eso sigue valiendo igual.
+     *
+     * <p>No toca {@link #life}: el suelo vale para EMPEZAR el duelo, y la vida
+     * con la que se sale es la que se apunta. O sea que la vida de la run
+     * sigue diciendo la verdad sobre lo que te han hecho.
+     */
+    private static final double FIGHT_FLOOR = 0.50;
 
-    /** Y con Ascension 2 en adelante, menos: es lo que endurece ese nivel. */
-    private static final double REST_HEAL_HARD = 0.20;
+    /**
+     * La vida con la que empiezas el proximo combate: la tuya, o la mitad del
+     * maximo si tienes menos.
+     *
+     * <p>Lo usan la partida ({@code AscentBattle}) y la ficha del mapa que dice
+     * "tus N vidas contra sus M" — si la ficha leyera {@link #getLife()} a
+     * secas, prometeria un duelo que no es el que se juega.
+     */
+    public int fightLife() {
+        return Math.max(life, (int) Math.ceil(maxLife * FIGHT_FLOOR));
+    }
+
+    /**
+     * Que parte de <b>lo que te falta</b> cura un descanso con Ascension 2 en
+     * adelante. Sin Ascension se cura entero.
+     *
+     * <p>Antes era un 30% del maximo (20% con Ascension 2), y el suelo de
+     * {@link #FIGHT_FLOOR} lo dejo sin sentido: con 10 de 40, curar 12 te
+     * dejaba en 22 cuando el duelo iba a empezar en 20 de todas formas — la
+     * cura real eran 2 vidas. Un nodo entero de la run reducido a eso.
+     *
+     * <p>Asi que la hoguera cura <b>entero</b> (decidido el 19-09-2026), y con
+     * eso la decision vuelve a ser la que tenia que ser: <i>vida llena</i>
+     * contra <i>una carta menos en el mazo</i>, que son dos cosas que de verdad
+     * se comparan.
+     *
+     * <p>⚠️ Y por eso la Ascension 2 pasa a ser una <b>fraccion de lo que
+     * falta</b> en vez de un porcentaje del maximo: su unico efecto es
+     * "descansar cura menos", asi que con la cura entera se habria quedado en
+     * un escalon de la escalera que no hace nada — y eso no da ningun error,
+     * solo hace que subir de Ascension no signifique lo que dice. Sobre lo que
+     * falta nunca deja a tope y siempre cura algo, que son las dos cosas que
+     * hacian falta.
+     */
+    private static final double REST_HEAL_HARD = 0.50;
 
     /**
      * Cuanto cura un descanso ahora mismo.
@@ -382,9 +441,11 @@ public final class AscentRun {
      * {@link #getLife()}.
      */
     public int restHeal() {
-        final double rate = ascension >= 2 ? REST_HEAL_HARD : REST_HEAL;
-        final int amount = (int) Math.round(maxLife * rate);
-        return Math.max(1, Math.min(amount, Math.max(1, maxLife - life)));
+        final int missing = Math.max(0, maxLife - life);
+        final int amount = ascension >= 2
+                ? (int) Math.ceil(missing * REST_HEAL_HARD)
+                : missing;
+        return Math.max(1, amount);
     }
 
     /** Cura, sin pasar del maximo. */

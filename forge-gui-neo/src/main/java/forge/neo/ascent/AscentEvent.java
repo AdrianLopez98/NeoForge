@@ -2,8 +2,12 @@ package forge.neo.ascent;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Random;
+
+import forge.deck.Deck;
+import forge.item.PaperCard;
 
 /**
  * Un evento: un texto, dos o tres opciones y lo que pasa con cada una.
@@ -838,7 +842,72 @@ public final class AscentEvent {
                         }),
                 leave())));
 
+        // LA VETA (Ascension 6). Cambia basicas por tierras buenas, que es lo
+        // unico que ninguno de los otros 24 hace: todos van de CARTAS -- meter
+        // una, quitar una, mejorar una reliquia -- y la base de mana no la toca
+        // ninguno. Y es justo lo que mas duele en este modo, porque el mazo de
+        // salida se monta con basicas y el premio de tierras es opcional.
+        //
+        // Sin precio y sin tirada: es un desbloqueo de Ascension 6, o sea que
+        // ya se ha ganado una run dura para llegar aqui. Cobrarlo ademas seria
+        // cobrar dos veces por lo mismo.
+        out.add(new AscentEvent("vein", AscentFeat.MASTER, List.of(
+                new Choice("ascent.event.opt.dig", new Object[0],
+                        run -> !basicsIn(run).isEmpty()
+                                && !AscentRewards.fancyLandsFor(run, run.getAct()).isEmpty(),
+                        "ascent.event.vein.blocked",
+                        (run, rnd) -> {
+                            final Deck deck = AscentDecks.load(run);
+                            final List<PaperCard> basics = basicsIn(run);
+                            final List<PaperCard> good =
+                                    new ArrayList<>(AscentRewards.fancyLandsFor(run, run.getAct()));
+                            if (deck == null || basics.isEmpty() || good.isEmpty()) {
+                                return new Outcome("ascent.event.res.noVein", Extra.NONE);
+                            }
+                            Collections.shuffle(good, rnd);
+                            // cardBatch(): una en Estandar y dos en Commander,
+                            // como todo lo que va de cartas en este modo. Un
+                            // mazo de 60 no nota una sola tierra.
+                            final int cuantas = Math.min(run.cardBatch(),
+                                    Math.min(basics.size(), good.size()));
+                            final StringBuilder metidas = new StringBuilder();
+                            for (int i = 0; i < cuantas; i++) {
+                                deck.getMain().remove(basics.get(i), 1);
+                                deck.getMain().add(good.get(i), 1);
+                                if (metidas.length() > 0) {
+                                    metidas.append(", ");
+                                }
+                                metidas.append(good.get(i).getName());
+                            }
+                            AscentDecks.save(deck);
+                            return new Outcome("ascent.event.res.dug", Extra.NONE,
+                                    cuantas, metidas.toString());
+                        }),
+                leave())));
+
         return List.copyOf(out);
+    }
+
+    /**
+     * Las basicas que hay en el mazo, una entrada por copia.
+     *
+     * <p>Por copia y no por nombre: la veta cambia <b>copias</b>, y con dos
+     * Bosques y una Isla hay que poder llevarse los dos Bosques.
+     */
+    private static List<PaperCard> basicsIn(final AscentRun run) {
+        final Deck deck = AscentDecks.load(run);
+        final List<PaperCard> out = new ArrayList<>();
+        if (deck == null) {
+            return out;
+        }
+        for (final java.util.Map.Entry<PaperCard, Integer> e : deck.getMain()) {
+            if (e.getKey().getRules() != null && e.getKey().getRules().getType().isBasicLand()) {
+                for (int i = 0; i < e.getValue(); i++) {
+                    out.add(e.getKey());
+                }
+            }
+        }
+        return out;
     }
 
     /**

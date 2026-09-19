@@ -387,6 +387,19 @@ public final class AscentRewards {
      * <p>⚠️ En Commander se descarta la que <b>ya lleves</b>: el formato es de
      * una copia, asi que ofrecerla seria ofrecer un boton que no hace nada.
      */
+    /**
+     * Solo las tierras <b>buenas</b> de ese acto: duales, triples y las
+     * monocolor que valen por si solas. Sin basicas.
+     *
+     * <p>{@link #landsFor} mezcla basicas y buenas con su tirada, que es lo que
+     * quiere el monton de premio. Quien necesita <b>arreglar</b> una base de
+     * mana —el evento de la veta— necesita las buenas y solo esas: cambiar una
+     * basica por otra basica no es arreglar nada.
+     */
+    public static List<PaperCard> fancyLandsFor(final AscentRun run, final int act) {
+        return fancyLandPool(run, act);
+    }
+
     public static List<PaperCard> landsFor(final AscentRun run, final int act, final Random rnd) {
         final int slots = run.cardBatch();
         final double chance = FANCY_CHANCE[Math.max(0, Math.min(2, act - 1))];
