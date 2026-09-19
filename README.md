@@ -22,8 +22,11 @@ la que jugar en red.
 - **Ascenso**, un modo roguelike propio: una run por un mapa de nodos ramificado, con la
   vida arrastrándose entre combates, un mazo que se forma dentro de la run, 37 reliquias,
   24 eventos, tienda, descansos y diez niveles de Ascensión con desbloqueos por hitos.
-- **Aventura** (el modo Quest de Forge): duelos, 37 desafíos, 93 mundos, tienda de sobres,
-  bazar y colección.
+- **Aventura** — el Adventure de Forge **tal cual** (mapa del mundo, pueblos y mazmorras),
+  con los combates y el editor de mazos de NeoForge dentro. Se abre en su propia ventana.
+  Sólo en Windows por ahora.
+- **Quest** (el modo de campaña clásico de Forge): duelos, 37 desafíos, 93 mundos, tienda
+  de sobres, bazar y colección.
 - **Draft** y **Sellado**, con elección de expansión y el mazo editable con tu pool.
 - **Torneo** por eliminación directa, de 4 u 8.
 - **Puzzles**: los 372 que trae Forge.
@@ -72,7 +75,7 @@ Para leer una carta pequeña: **clic derecho** la amplía, y **Ctrl + rueda** ac
 | | |
 |---|---|
 | ![Pantalla de inicio](imagenes/inicio.png) | ![Deck builder](imagenes/deck-builder.png) |
-| ![Aventura](imagenes/aventura-cuartel.png) | ![Torneo](imagenes/torneo.png) |
+| ![Quest](imagenes/aventura-cuartel.png) | ![Torneo](imagenes/torneo.png) |
 
 ---
 
@@ -80,7 +83,8 @@ Para leer una carta pequeña: **clic derecho** la amplía, y **Ctrl + rueda** ac
 
 En [Releases](https://github.com/AdrianLopez98/NeoForge/releases) hay un `.dmg` para
 **Apple Silicon** (`arm64`) y otro para **Intel** (`x64`). Trae su propio Java: se abre,
-se arrastra NeoForge a Aplicaciones y listo.
+se arrastra NeoForge a Aplicaciones y listo. Todo funciona igual que en Windows **salvo la
+Aventura** (el Adventure de Forge), que en Mac todavía no está.
 
 La primera vez macOS lo bloquea, porque no está firmado con una cuenta de desarrollador
 de Apple: doble clic, se acepta el aviso, y **Ajustes del Sistema → Privacidad y
