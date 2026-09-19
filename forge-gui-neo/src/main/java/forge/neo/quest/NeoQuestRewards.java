@@ -109,8 +109,8 @@ public final class NeoQuestRewards implements IWinLoseView<IButton> {
             if (prizeDue) {
                 final NeoQuestShop.Opened prize = NeoQuestPrize.award();
                 if (prize != null) {
-                    view.messages.add("SOBRE DE PREMIO: " + prize.getCards().size()
-                            + " cartas, " + prize.getNewCount() + " nuevas");
+                    view.messages.add(forge.neo.NeoText.get("quest.prizePack",
+                            prize.getCards().size(), prize.getNewCount()));
                     view.cards.addAll(prize.getCards());
                 }
             }

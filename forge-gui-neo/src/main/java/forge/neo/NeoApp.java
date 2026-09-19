@@ -317,8 +317,18 @@ public class NeoApp extends Application implements SettingsPanel.Host {
         scene.setRoot(loading);
         applyScale();
         stage.show();
-        if (NeoSettings.getBool(NeoSettings.FULLSCREEN, false)) {
+        // -Dneo.fullscreen=true: pantalla completa SIN escribir el ajuste. Para
+        // grabar (el trailer) sin barra de titulo ni de tareas en la imagen.
+        if (NeoSettings.getBool(NeoSettings.FULLSCREEN, false)
+                || Boolean.getBoolean("neo.fullscreen")) {
             stage.setFullScreen(true);
+        }
+        // -Dneo.onTop=true: siempre encima. Lanzado desde un proceso de fondo,
+        // Windows no deja que la ventana se ponga delante (se quedaba detras de
+        // la que tuviera el foco) y la grabacion salia con otra cosa.
+        if (Boolean.getBoolean("neo.onTop")) {
+            stage.setAlwaysOnTop(true);
+            stage.toFront();
         }
         // Lo que tardo en verse ALGO, que es el numero que importa de todo
         // esto. Queda en el registro para poder comprobarlo en el ordenador de
@@ -455,6 +465,37 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 // la mitad de aventura), pero es el mismo camino del motor.
                 NeoGame.setDevPlayFromGraveyard(orDefault(optionOf(args, "--flashback"),
                         args.contains("--flashback") ? "Faithless Looting" : null));
+                // --opp-decks=A;B;C: un mazo por rival, por nombre (tuyos o
+                // preconstruidos de Commander). Sin esto los rivales llevan TU
+                // mazo, que para grabar una partida (el trailer) es un espejo.
+                final String oppDecks = optionOf(args, "--opp-decks");
+                if ("random".equalsIgnoreCase(oppDecks)) {
+                    // --opp-decks=random: mazos distintos al azar del formato de
+                    // la partida (Estandar incluido, que no tiene comandante).
+                    final List<Deck> pool = new ArrayList<>(lastFormat.decks());
+                    pool.removeIf(d -> d == null || d.getName().equals(deck.getName()));
+                    java.util.Collections.shuffle(pool);
+                    lastOpponentDecks = new ArrayList<>(pool.subList(0, Math.min(opponents, pool.size())));
+                } else if (oppDecks != null) {
+                    final List<Deck> chosen = new ArrayList<>();
+                    for (final String raw : oppDecks.split(";")) {
+                        final String name = raw.trim();
+                        Deck d = NeoGame.commanderDeck(name);
+                        if (d == null) {
+                            for (final Deck p : forge.model.FModel.getDecks().getCommanderPrecons()) {
+                                if (p.getName().equalsIgnoreCase(name)) {
+                                    d = p;
+                                    break;
+                                }
+                            }
+                        }
+                        if (d == null) {
+                            System.err.println("[opp-decks] no existe el mazo: " + name);
+                        }
+                        chosen.add(d);
+                    }
+                    lastOpponentDecks = chosen;
+                }
                 startLiveGame(deck, opponents, mode, timeout, args.contains("-v"),
                         optionOf(args, "--ai"), false);
 

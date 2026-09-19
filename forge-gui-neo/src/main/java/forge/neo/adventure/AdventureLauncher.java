@@ -221,6 +221,12 @@ public final class AdventureLauncher {
         for (final String p : l.props) {
             l.cmd.add("-D" + p);
         }
+        // El idioma forzado para grabar (-Dneo.language) tambien vale dentro:
+        // la Aventura lee NeoLanguage en su propio proceso.
+        final String forcedLanguage = System.getProperty("neo.language");
+        if (forcedLanguage != null) {
+            l.cmd.add("-Dneo.language=" + forcedLanguage);
+        }
         l.cmd.add("-cp");
         l.cmd.add(absoluteClasspath());
         l.cmd.add(AdventureNeoMain.class.getName());
