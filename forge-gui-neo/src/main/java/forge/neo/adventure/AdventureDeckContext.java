@@ -28,8 +28,8 @@ import java.util.stream.Stream;
  * nuestro deck builder montando mazos del Adventure.
  *
  * <p>Lo mismo que {@code QuestDeckContext} pero leyendo del jugador del
- * Adventure: el catalogo es su coleccion (sin lo marcado para autovender, como
- * en su editor), el techo de copias lo que tiene, los artes los que tiene, y
+ * Adventure: el catalogo es su coleccion, el techo de copias lo que tiene
+ * <b>menos lo marcado para autovender</b>, los artes los que tiene, y
  * las <b>basicas son ilimitadas</b> (la franja de basicas la pone el propio editor) — como en su editor, que fabrica copias "no
  * vendibles" cuando pides mas de las que tienes. Eso se hace al guardar.
  *
@@ -37,6 +37,14 @@ import java.util.stream.Stream;
  * sustituye el contenido del mismo objeto {@code Deck}, asi que todo lo que el
  * Adventure tenga apuntando a el (la ranura, el equipo atado al mazo) sigue
  * valiendo.
+ *
+ * <p><b>Autovender</b> (19-09-2026): su editor tiene una pagina aparte para lo
+ * que se vende solo en la siguiente tienda; el nuestro no tenia nada. Va en el
+ * menu de click derecho del catalogo ({@link #catalogueActions}), y por eso lo
+ * marcado para vender <b>sigue en el catalogo</b> — con cero disponibles — en
+ * vez de desaparecer como en el suyo: sin su pagina, desaparecer seria no poder
+ * sacarlo nunca. Nunca se marca una copia que este en un mazo, ni en el que se
+ * esta editando aunque no este guardado.
  */
 final class AdventureDeckContext implements DeckContext {
 
@@ -49,9 +57,8 @@ final class AdventureDeckContext implements DeckContext {
     AdventureDeckContext(final AdventurePlayer player) {
         this.player = player;
         final Map<String, PaperCard> unique = new HashMap<>();
-        for (final Map.Entry<PaperCard, Integer> e : player.getCollectionCards(false)) {
+        for (final Map.Entry<PaperCard, Integer> e : player.getCollectionCards(true)) {
             final String key = key(e.getKey());
-            owned.merge(key, e.getValue(), Integer::sum);
             unique.putIfAbsent(key, e.getKey());
             final List<PaperCard> arts = printings.computeIfAbsent(key, k -> new ArrayList<>());
             if (!arts.contains(e.getKey())) {
@@ -60,6 +67,15 @@ final class AdventureDeckContext implements DeckContext {
         }
         pool.addAll(unique.values());
         pool.sort(Comparator.comparing(PaperCard::getName));
+        countOwned();
+    }
+
+    /** Las que puedes meter en un mazo: todas menos las marcadas para autovender. */
+    private void countOwned() {
+        owned.clear();
+        for (final Map.Entry<PaperCard, Integer> e : player.getCollectionCards(false)) {
+            owned.merge(key(e.getKey()), e.getValue(), Integer::sum);
+        }
     }
 
     private static String key(final PaperCard card) {
@@ -109,6 +125,143 @@ final class AdventureDeckContext implements DeckContext {
         }
         final List<PaperCard> mine = printings.get(key(card));
         return mine == null ? List.of() : new ArrayList<>(mine);
+    }
+
+    @Override
+    public boolean onlyFitsByDefault() {
+        return false;
+    }
+
+    @Override
+    public List<Action> catalogueActions(final PaperCard card, final int copiesInThisDeck) {
+        // Las basicas salen gratis y lo "no vendible" no tiene precio: como en su editor.
+        if (card == null || isBasic(card) || card.hasNoSellValue()) {
+            return List.of();
+        }
+        final String k = key(card);
+        int total = 0;
+        int used = 0;
+        for (final Map.Entry<PaperCard, Integer> e : player.getCards()) {
+            if (key(e.getKey()).equals(k)) {
+                total += e.getValue();
+                used += player.getCopiesUsedInDecks(e.getKey());
+            }
+        }
+        if (total <= 0) {
+            return List.of();
+        }
+        final int inAutoSell = countIn(player.getAutoSellCards(), k);
+        // Lo que se puede vender sin dejar cojo ningun mazo: los guardados y
+        // el que se esta editando ahora.
+        final int spare = Math.max(0, total - Math.max(used, copiesInThisDeck) - inAutoSell);
+        final List<Action> out = new ArrayList<>();
+        final String none = spare > 0 ? null : forge.neo.NeoText.get("adventure.autosell.noSpare");
+        out.add(new Action(forge.neo.NeoText.get("adventure.autosell.one"), none, spare > 0,
+                () -> moveToAutoSell(card, 1)));
+        if (spare > 1) {
+            out.add(new Action(forge.neo.NeoText.get("adventure.autosell.many", spare), null, true,
+                    () -> moveToAutoSell(card, spare)));
+        }
+        if (inAutoSell > 0) {
+            out.add(new Action(forge.neo.NeoText.get("adventure.autosell.back"), null, true,
+                    () -> takeBack(card, 1)));
+            if (inAutoSell > 1) {
+                out.add(new Action(forge.neo.NeoText.get("adventure.autosell.backAll", inAutoSell), null,
+                        true, () -> takeBack(card, inAutoSell)));
+            }
+        }
+        return out;
+    }
+
+    private static int countIn(final Iterable<Map.Entry<PaperCard, Integer>> pool, final String k) {
+        int n = 0;
+        for (final Map.Entry<PaperCard, Integer> e : pool) {
+            if (key(e.getKey()).equals(k)) {
+                n += e.getValue();
+            }
+        }
+        return n;
+    }
+
+    /**
+     * Marca {@code amount} copias para autovender, repartidas entre las
+     * impresiones que tienes de esa carta: primero las que mas sobran. De una
+     * impresion que esta en un mazo solo se marca lo que sobra.
+     */
+    private void moveToAutoSell(final PaperCard card, final int amount) {
+        final String k = key(card);
+        onGdx(() -> {
+            int left = amount;
+            final List<PaperCard> mine = new ArrayList<>();
+            for (final Map.Entry<PaperCard, Integer> e : player.getCards()) {
+                if (key(e.getKey()).equals(k)) {
+                    mine.add(e.getKey());
+                }
+            }
+            mine.sort(Comparator.comparingInt((PaperCard c) -> -spareOf(c)));
+            for (final PaperCard c : mine) {
+                if (left <= 0) {
+                    break;
+                }
+                final int take = Math.min(left, spareOf(c));
+                if (take > 0) {
+                    player.getAutoSellCards().add(c, take);
+                    left -= take;
+                }
+            }
+            NeoDuelBridge.log("autovender: +" + (amount - left) + " " + card.getName());
+        });
+        countOwned();
+    }
+
+    /** Copias de esa impresion que no estan en ningun mazo ni ya en autovender. */
+    private int spareOf(final PaperCard c) {
+        return player.getCards().count(c) - player.getCopiesUsedInDecks(c)
+                - player.getAutoSellCards().count(c);
+    }
+
+    /** Devuelve {@code amount} copias de autovender a la coleccion. */
+    private void takeBack(final PaperCard card, final int amount) {
+        final String k = key(card);
+        onGdx(() -> {
+            int left = amount;
+            final List<Map.Entry<PaperCard, Integer>> marked = new ArrayList<>();
+            for (final Map.Entry<PaperCard, Integer> e : player.getAutoSellCards()) {
+                if (key(e.getKey()).equals(k)) {
+                    marked.add(Map.entry(e.getKey(), e.getValue()));
+                }
+            }
+            for (final Map.Entry<PaperCard, Integer> e : marked) {
+                if (left <= 0) {
+                    break;
+                }
+                final int take = Math.min(left, e.getValue());
+                player.getAutoSellCards().remove(e.getKey(), take);
+                left -= take;
+            }
+            NeoDuelBridge.log("autovender: -" + (amount - left) + " " + card.getName());
+        });
+        countOwned();
+    }
+
+    /** Lo que toca al jugador del Adventure, en su hilo (como el guardado). */
+    private static void onGdx(final Runnable task) {
+        final CountDownLatch done = new CountDownLatch(1);
+        Gdx.app.postRunnable(() -> {
+            try {
+                task.run();
+            } catch (final Throwable e) {
+                NeoDuelBridge.log("autovender ha fallado: " + e);
+                e.printStackTrace();
+            } finally {
+                done.countDown();
+            }
+        });
+        try {
+            done.await(10, TimeUnit.SECONDS);
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     Deck currentDeck() {

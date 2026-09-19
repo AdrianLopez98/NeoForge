@@ -215,6 +215,16 @@ public final class DeckEditor {
         return card == null ? 0 : countByName(card.getName());
     }
 
+    /** Si "Solo lo que cabe" sale encendido al abrir (ver DeckContext). */
+    public boolean onlyFitsByDefault() {
+        return format.onlyFitsByDefault();
+    }
+
+    /** Lo que el contexto anyade al menu de una carta del catalogo (ver DeckContext). */
+    public List<DeckContext.Action> contextActions(final PaperCard card) {
+        return format.catalogueActions(card, countOf(card));
+    }
+
     /** Todas las copias de ese nombre en el mazo, mire donde mire el motor. */
     private int countByName(final String name) {
         final String key = normalized(name);

@@ -95,6 +95,7 @@ public final class AdventureLauncher {
                 prefsDir = new File(root, "Forge" + File.separator + "preferences");
             }
             AdventureSettings.prepare(prefsDir, !profile);
+            AdventureSettings.syncFullscreen(prefsDir, stage.isFullScreen());
 
             final LoadingScreen loading = new LoadingScreen();
             loading.setDescription(NeoText.get("adventure.opening"));
@@ -179,6 +180,9 @@ public final class AdventureLauncher {
                 + Math.round((stage.getY() + sc.getY()) * sy) + ","
                 + Math.round(sc.getWidth() * sx) + "," + Math.round(sc.getHeight() * sy));
         l.props.add("neo.adventure.maximized=" + stage.isMaximized());
+        // Una sola ventana a la vista: si NeoForge esta en pantalla completa, el
+        // Adventure que la sustituye tambien (ver WindowPlacement).
+        l.props.add("neo.adventure.fullscreen=" + stage.isFullScreen());
         // Lo que hace portable a la copia de D: (user.home, temporales y cache
         // de JavaFX dentro del disco) tiene que valer tambien aqui: si no,
         // libGDX y JavaFX escribirian en C: del ordenador donde se enchufe.

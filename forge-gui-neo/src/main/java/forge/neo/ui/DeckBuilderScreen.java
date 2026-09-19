@@ -190,6 +190,9 @@ public class DeckBuilderScreen extends StackPane {
         this.editor = editor;
         this.cardWidth = Math.max(144, cardWidth * 1.3);
         this.onBack = onBack;
+        // "Solo lo que cabe" encendido o no de salida lo decide el contexto
+        // (apagado en la Aventura, pedido jugando el 19-09-2026).
+        this.onlyLegal = editor.onlyFitsByDefault();
 
         getStyleClass().addAll("table-root", "deck-builder");
 
@@ -1871,10 +1874,25 @@ public class DeckBuilderScreen extends StackPane {
                         }
                     }));
         }
+        // Lo propio del contexto: en la Aventura, mandar a autovender y sacar.
+        for (final forge.neo.deck.DeckContext.Action extra : editor.contextActions(card)) {
+            actions.add(new CardActionMenu.Action(extra.label(), extra.note(), extra.enabled(), () -> {
+                extra.run().run();
+                refreshDeck();
+                refreshCatalogue();
+            }));
+        }
 
         overlay.setOnBackgroundClick(overlay::hide);
+        // Elegir una opcion la EJECUTA, ademas de cerrar el menu. Solo se cerraba:
+        // ninguna opcion del catalogo hacia nada (ni anyadir ni el autovender de
+        // la Aventura), reportado el 19-09-2026. El menu de las cartas del mazo
+        // (showCardMenu) ya lo hacia bien.
         overlay.show(new CardActionMenu(card, actions, menuCardWidth(cardWidth * 2.2),
-                a -> overlay.hide(), overlay::hide));
+                a -> {
+                    overlay.hide();
+                    a.run.run();
+                }, overlay::hide));
     }
 
     /**

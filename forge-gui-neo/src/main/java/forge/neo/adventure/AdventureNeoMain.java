@@ -37,9 +37,19 @@ public final class AdventureNeoMain {
         SelfTest.arm();
         StarterDeck.arm();
         WindowPlacement.arm();
-        forge.app.Main.main(WindowPlacement.launcherArgs(args));
-        // Al cerrar la ventana del Adventure, se cierra todo.
-        Platform.exit();
-        System.exit(0);
+        // Al cerrar la ventana del Adventure, se cierra todo. Y pase lo que
+        // pase: si su bucle revienta (el libro de misiones en espanyol,
+        // 19-09-2026), la excepcion sale por aqui, y sin el finally el proceso
+        // se quedaba vivo, sin ventana y con la musica sonando — y NeoForge no
+        // dejaba volver a abrir la Aventura porque la creia abierta.
+        try {
+            forge.app.Main.main(WindowPlacement.launcherArgs(args));
+        } catch (final Throwable e) {
+            NeoDuelBridge.log("el Adventure se ha cerrado por un error: " + e);
+            e.printStackTrace();
+        } finally {
+            Platform.exit();
+            System.exit(0);
+        }
     }
 }

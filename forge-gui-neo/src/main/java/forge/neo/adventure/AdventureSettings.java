@@ -72,6 +72,61 @@ final class AdventureSettings {
         }
     }
 
+    /** Clave de NeoSettings: el fullScreen del Adventure lo puso NeoForge, no el jugador. */
+    private static final String FULLSCREEN_BY_NEO = "adventure.fullscreenByNeo";
+
+    /**
+     * Que el Adventure NAZCA a pantalla completa si NeoForge lo esta.
+     *
+     * <p>Si nace en ventana, Windows la deja mas baja que el monitor (la barra
+     * de titulo: 3840x2097 en un 4K) y Forge fija la escala de TODA su interfaz
+     * con ese alto, una sola vez ({@code forge.util.Utils}, constantes). Al
+     * estirarla luego a pantalla completa los textos no caben y se cortan por
+     * arriba (reportado el 19-09-2026, medido: "escala calculada para 2097").
+     * La unica forma de que nazca al tamanyo del monitor es su propio ajuste
+     * {@code fullScreen}, que su lanzador lee al crear la ventana; despues
+     * {@link WindowPlacement} la pasa a sin bordes al mismo tamanyo.
+     *
+     * <p>Solo se toca si lo pide NeoForge, y se deshace igual: si NeoForge ya
+     * no esta en pantalla completa y el ajuste lo habiamos puesto nosotros, se
+     * quita. El que el jugador puso en el Adventure no se toca nunca.
+     */
+    static void syncFullscreen(final File prefsDir, final boolean neoFullscreen) {
+        final File file = new File(prefsDir.getParentFile(), "adventure" + File.separator + "settings.json");
+        try {
+            final com.badlogic.gdx.utils.JsonValue root = file.isFile()
+                    ? new com.badlogic.gdx.utils.JsonReader().parse(
+                            new String(java.nio.file.Files.readAllBytes(file.toPath()),
+                                    java.nio.charset.StandardCharsets.UTF_8))
+                    : new com.badlogic.gdx.utils.JsonValue(com.badlogic.gdx.utils.JsonValue.ValueType.object);
+            final boolean theirs = root.getBoolean("fullScreen", false);
+            final boolean byNeo = forge.neo.NeoSettings.getBool(FULLSCREEN_BY_NEO, false);
+            final boolean want;
+            if (neoFullscreen && !theirs) {
+                want = true;
+                forge.neo.NeoSettings.set(FULLSCREEN_BY_NEO, "true");
+            } else if (!neoFullscreen && theirs && byNeo) {
+                want = false;
+                forge.neo.NeoSettings.set(FULLSCREEN_BY_NEO, null);
+            } else {
+                return;
+            }
+            forge.neo.NeoSettings.save();
+            if (root.has("fullScreen")) {
+                root.get("fullScreen").set(want);
+            } else {
+                root.addChild("fullScreen", new com.badlogic.gdx.utils.JsonValue(want));
+            }
+            file.getParentFile().mkdirs();
+            java.nio.file.Files.write(file.toPath(),
+                    root.prettyPrint(com.badlogic.gdx.utils.JsonWriter.OutputType.json, 0)
+                            .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            System.out.println("[aventura] pantalla completa del Adventure: " + want);
+        } catch (final Throwable e) {
+            System.out.println("[aventura] no se pudo ajustar su pantalla completa: " + e);
+        }
+    }
+
     /** El idioma de NeoForge si Forge lo trae; si no, ingles. */
     static String engineLanguage() {
         final String wanted = NeoLanguage.current();

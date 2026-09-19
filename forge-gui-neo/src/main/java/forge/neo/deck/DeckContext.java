@@ -161,4 +161,40 @@ public interface DeckContext {
     default List<PaperCard> printingsOf(PaperCard card) {
         return null;
     }
+
+    /**
+     * Si el filtro "Solo lo que cabe" (solo cartas legales en el mazo) sale
+     * encendido al abrir el editor. Por defecto si.
+     *
+     * <p>En la Aventura no: el catalogo es tu coleccion, y ahi lo que se busca
+     * casi siempre es ver TODO lo que tienes — para vender, para ver que te ha
+     * tocado — no solo lo que entra en el mazo de ahora (pedido jugando el
+     * 19-09-2026).
+     */
+    default boolean onlyFitsByDefault() {
+        return true;
+    }
+
+    /**
+     * Acciones propias de este contexto en el menu de click derecho de una
+     * carta del catalogo. Por defecto, ninguna.
+     *
+     * <p>Existe por la Aventura: su editor deja mandar cartas a <b>autovender</b>
+     * (se venden solas en la siguiente tienda), y el nuestro no tenia forma de
+     * hacerlo (reportado el 19-09-2026). Es algo de SU coleccion, no una regla
+     * de construccion, asi que vive en el contexto y no en el editor.
+     *
+     * @param copiesInThisDeck las copias que lleva ahora el mazo que se edita,
+     *                         guardadas o no: esas tampoco se pueden vender
+     */
+    default List<Action> catalogueActions(PaperCard card, int copiesInThisDeck) {
+        return List.of();
+    }
+
+    /**
+     * Una accion del menu: el texto, por que no se puede (o null), si se puede
+     * y lo que hace. La pantalla refresca catalogo y mazo despues.
+     */
+    record Action(String label, String note, boolean enabled, Runnable run) {
+    }
 }

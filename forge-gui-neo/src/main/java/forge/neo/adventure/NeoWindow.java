@@ -45,6 +45,8 @@ final class NeoWindow {
     /** Area util de la ventana del Adventure, en pixeles de pantalla. */
     private static volatile int[] adventureClient;
     private static volatile boolean adventureMaximized;
+    /** El Adventure estaba en pantalla completa: la nuestra sale igual, y al volver el suyo tambien. */
+    private static volatile boolean adventureFullscreen;
 
     /**
      * Desde el hilo de libGDX: apunta donde esta su ventana y pone la plataforma
@@ -60,6 +62,7 @@ final class NeoWindow {
                     Gdx.graphics.getWidth(), Gdx.graphics.getHeight()};
             adventureMaximized = GLFW.glfwGetWindowAttrib(adventureWindow.getWindowHandle(),
                     GLFW.GLFW_MAXIMIZED) == GLFW.GLFW_TRUE;
+            adventureFullscreen = WindowPlacement.borderless || Gdx.graphics.isFullscreen();
         }
         GuiBase.setInterface(RoutingGuiBase.create(adventureGui, Thread.currentThread()));
     }
@@ -76,11 +79,26 @@ final class NeoWindow {
         Platform.runLater(() -> {
             final int[] client = stage == null ? adventureClient : stageClient();
             final boolean maximized = stage == null ? adventureMaximized : stage.isMaximized();
+            // Si en el duelo se cambio la pantalla completa (Ajustes del menu de
+            // pausa), el Adventure vuelve como quedo la nuestra.
+            final boolean full = stage == null ? adventureFullscreen : stage.isFullScreen();
             final Lwjgl3Window window = adventureWindow;
             Gdx.app.postRunnable(() -> {
                 if (window != null) {
                     try {
-                        if (maximized) {
+                        final Lwjgl3Graphics g = (Lwjgl3Graphics) Gdx.graphics;
+                        if (full) {
+                            // Sin bordes, nunca exclusiva: ver
+                            // WindowPlacement.enterBorderless.
+                            window.setVisible(true);
+                            window.restoreWindow();
+                            WindowPlacement.enterBorderless(g, window);
+                        } else if ((WindowPlacement.borderless || g.isFullscreen()) && client != null) {
+                            // Estaba en pantalla completa y en el duelo se quito.
+                            WindowPlacement.leaveBorderless(g);
+                            g.setWindowedMode(client[2], client[3]);
+                            window.setPosition(client[0], client[1]);
+                        } else if (maximized) {
                             window.maximizeWindow();
                         } else if (client != null) {
                             window.restoreWindow();
@@ -177,6 +195,18 @@ final class NeoWindow {
     /** Nuestra ventana, encima de donde estaba la del Adventure. */
     private static void placeOverAdventure() {
         final int[] c = adventureClient;
+        if (adventureFullscreen) {
+            // Escape es del menu de pausa, como en la ventana normal (NeoApp):
+            // con la combinacion de fabrica, Escape sacaria de pantalla completa.
+            stage.setFullScreenExitKeyCombination(javafx.scene.input.KeyCombination.NO_MATCH);
+            stage.setFullScreenExitHint("");
+            stage.setFullScreen(true);
+            stage.show();
+            return;
+        }
+        if (stage.isFullScreen()) {
+            stage.setFullScreen(false);
+        }
         if (adventureMaximized || c == null) {
             stage.setMaximized(true);
             stage.show();

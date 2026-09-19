@@ -58,7 +58,8 @@ final class SelfTest {
             }
             NeoDuelBridge.log("autoprueba (" + mode + "): lanzando desde el hilo de libGDX");
             Gdx.app.postRunnable("editor".equals(mode) ? SelfTest::editor
-                    : "starter".equals(mode) ? SelfTest::starter : SelfTest::duel);
+                    : "starter".equals(mode) ? SelfTest::starter
+                    : "questlog".equals(mode) ? SelfTest::questLog : SelfTest::duel);
         }, "neo-adventure-selftest");
         t.setDaemon(true);
         t.start();
@@ -69,6 +70,22 @@ final class SelfTest {
      * un mazo de 20 Bosques (sin tener ninguno: tienen que salir copias "no
      * vendibles", como en su editor) y se vuelve.
      */
+    /**
+     * {@code -Dneo.adventure.selftest=questlog}: construye el libro de misiones
+     * (la tecla Q) y dice si ha podido. En espanyol reventaba al leer su diseno
+     * (ver UiFileClash); lo que se comprueba es que carga el diseno y no las
+     * misiones traducidas.
+     */
+    private static void questLog() {
+        try {
+            forge.adventure.scene.QuestLogScene.instance(null);
+            NeoDuelBridge.log("autoprueba questlog: libro de misiones OK (idioma "
+                    + forge.adventure.util.Config.instance().getLang() + ")");
+        } catch (final Throwable e) {
+            NeoDuelBridge.log("autoprueba questlog: FALLA: " + e);
+        }
+    }
+
     private static void editor() {
         final forge.deck.CardPool some = new forge.deck.CardPool();
         for (final String n : new String[] {"Lightning Bolt", "Llanowar Elves", "Counterspell",
