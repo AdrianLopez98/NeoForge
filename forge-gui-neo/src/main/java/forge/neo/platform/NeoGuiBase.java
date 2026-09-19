@@ -160,7 +160,11 @@ public class NeoGuiBase implements IGuiBase {
 
     @Override
     public HostedMatch hostMatch() {
-        final HostedMatch match = new HostedMatch();
+        // Si la partida sale de nuestra sala de red, con nuestras reglas: el
+        // lobby de Forge las sacaria de SUS preferencias (al mejor de tres,
+        // entre otras). Ver NetHostedMatch.
+        final HostedMatch match = forge.neo.net.NeoLobby.isHostingLobby()
+                ? new forge.neo.net.NetHostedMatch() : new HostedMatch();
         // Un fallo de la IA mata el bucle de la partida y deja a todo el mundo
         // encerrado en una mesa muerta. Se blinda AQUI porque este es el unico
         // sitio por el que pasan todas las partidas: el match lo pide el motor

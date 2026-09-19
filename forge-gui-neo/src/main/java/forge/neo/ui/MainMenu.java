@@ -313,10 +313,55 @@ public class MainMenu extends BorderPane {
 
         final Region gap = new Region();
         HBox.setHgrow(gap, Priority.ALWAYS);
-        final HBox bar = new HBox(12, globe, row, gap, note);
+        final HBox bar = new HBox(12, globe, row, gap, note, discordButton());
         bar.setAlignment(Pos.CENTER_LEFT);
         bar.setPadding(new Insets(14, 30, 6, 30));
         return bar;
+    }
+
+    /** La invitacion permanente al servidor de Discord de Neo Forge. */
+    static final String DISCORD_URL = "https://discord.gg/fF5Tn7Z2pv";
+
+    /**
+     * El logo de Discord, arriba a la derecha: abre la invitacion en el
+     * navegador.
+     *
+     * <p>Solo el logo, sin texto: es un simbolo que se reconoce solo, y en la
+     * fila de idiomas un boton con letras competiria con ellos. El tooltip dice
+     * lo que hace para quien no lo reconozca.
+     */
+    private static Button discordButton() {
+        // El logo oficial (brand assets de Discord), en su caja de 127x96.
+        final javafx.scene.shape.SVGPath logo = new javafx.scene.shape.SVGPath();
+        logo.setContent("M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83"
+                + "A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09"
+                + "C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25"
+                + "a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0"
+                + "c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1"
+                + "A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07Z"
+                + "M42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Z"
+                + "m42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z");
+        logo.getStyleClass().add("discord-logo");
+        // A 22 px de ancho. Se escala el nodo y se envuelve en un Group para
+        // que el layout mida lo que se ve, no la caja original de 127 px.
+        final double scale = 22 / 127.14;
+        logo.setScaleX(scale);
+        logo.setScaleY(scale);
+
+        final Button b = new Button();
+        b.setGraphic(new javafx.scene.Group(logo));
+        b.getStyleClass().add("discord-button");
+        b.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("menu.discord")));
+        b.setAccessibleText(NeoText.get("menu.discord"));
+        b.setMinWidth(Region.USE_PREF_SIZE);
+        b.setOnAction(e -> {
+            try {
+                forge.gui.GuiBase.getInterface().browseToUrl(DISCORD_URL);
+            } catch (final Exception ex) {
+                System.err.println("[neo] no se ha podido abrir Discord: " + ex);
+            }
+        });
+        return b;
     }
 
     private static final javafx.css.PseudoClass SELECTED =

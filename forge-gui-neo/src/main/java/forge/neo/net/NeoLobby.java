@@ -100,6 +100,7 @@ public final class NeoLobby {
      */
     public static ServerGameLobby host(final java.util.function.Supplier<IGuiGame> guiFactory) {
         NeoGuiBase.setGuiGameFactory(guiFactory);
+        markHosting();
 
         final FServerManager server = FServerManager.getInstance();
         final ServerGameLobby lobby = new ServerGameLobby();
@@ -109,8 +110,30 @@ public final class NeoLobby {
         return lobby;
     }
 
+    /**
+     * Estamos hospedando una sala: la partida que monte el lobby es nuestra.
+     *
+     * <p>Una bandera propia y no {@code FServerManager.getInstance().isHosting()}
+     * porque quien la lee es {@code NeoGuiBase.hostMatch}, por el que pasan
+     * TODAS las partidas, y {@code getInstance()} crea el singleton con sus dos
+     * grupos de hilos de netty: pagarlo en cada partida suelta seria arrancar
+     * un servidor a medias para nada.
+     */
+    private static volatile boolean hostingLobby;
+
+    /** Lo llaman los dos caminos que hospedan: este y {@code NeoOnline.host}. */
+    public static void markHosting() {
+        hostingLobby = true;
+    }
+
+    /** Si la partida que se va a montar sale de NUESTRA sala. Ver {@link NetHostedMatch}. */
+    public static boolean isHostingLobby() {
+        return hostingLobby;
+    }
+
     /** Cierra el servidor. Idempotente: se puede llamar sin estar hospedando. */
     public static void stopHosting() {
+        hostingLobby = false;
         final FServerManager server = FServerManager.getInstance();
         if (server.isHosting()) {
             server.stopServer();
@@ -284,6 +307,92 @@ public final class NeoLobby {
         }
         // Con todos cogidos da igual cual salga, pero NUNCA null.
         return "IA-" + lobby.getNumberOfSlots();
+    }
+
+    /**
+     * Si el anfitrion puede quitar este asiento con la cruz.
+     *
+     * <p>{@code ServerGameLobby.mayRemove} solo dice "a partir del tercero", y
+     * eso no basta: el servidor apunta a cada invitado <b>por su posicion</b>
+     * en la lista ({@code RemoteClient.getIndex()}) y {@code removeSlot}
+     * desplaza la lista sin avisarle. Quitar el asiento de un amigo lo deja
+     * conectado y sin sitio; quitar uno que tenga un amigo DETRAS le cambia la
+     * posicion a ese amigo, y a partir de ahi lo que el cambie en su asiento
+     * revienta en el servidor y al empezar se queda sin interfaz. Asi que solo
+     * se quitan IAs y huecos libres, y solo si ningun invitado viene detras.
+     */
+    public static boolean mayRemoveSeat(final GameLobby lobby, final int index) {
+        if (!lobby.mayRemove(index)) {
+            return false;
+        }
+        final LobbySlot slot = lobby.getSlot(index);
+        if (slot == null || slot.getType() == LobbySlotType.REMOTE
+                || slot.getType() == LobbySlotType.LOCAL) {
+            return false;
+        }
+        for (int i = index + 1; i < lobby.getNumberOfSlots(); i++) {
+            final LobbySlot after = lobby.getSlot(i);
+            if (after != null && after.getType() == LobbySlotType.REMOTE) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Lo que hay que mandar para cambiar el mazo de un asiento: DOS eventos.
+     *
+     * <p><b>Con el mazo solo no basta, y era el fallo mas gordo de la sala.</b>
+     * {@code LobbySlot.apply} guarda el mazo pero no lo cuenta como cambio (su
+     * {@code changed} solo mira los campos de arriba), asi que
+     * {@code applyToSlot} no avisa y el servidor <b>no reparte el estado</b>. El
+     * invitado elegia mazo y no le constaba a nadie: ni a el — su "Listo" pide
+     * mazo y se quedaba apagado — ni al anfitrion, hasta que alguien tocara
+     * otra cosa en la sala. La GUI Swing no lo nota porque no ata "Listo" al
+     * mazo; la de movil lo resuelve igual que aqui: detras del mazo manda su
+     * NOMBRE ({@code setDeckSchemePlaneVanguard}), que si cuenta como cambio.
+     * El orden importa y lo garantiza el canal: cuando llega el nombre, el
+     * mazo ya esta puesto, y el reparto que provoca ya lo lleva.
+     */
+    public static List<UpdateLobbyPlayerEvent> deckEvents(final Deck deck) {
+        return List.of(UpdateLobbyPlayerEvent.deckUpdate(deck),
+                UpdateLobbyPlayerEvent.setDeckSchemePlaneVanguard(
+                        deck == null ? null : deck.getName(), null, null, null));
+    }
+
+    /**
+     * Un preconstruido de Commander al azar, para la IA que se acaba de sentar.
+     * Null si no hay ninguno (la IA se queda sin mazo y se le elige a mano).
+     */
+    public static Deck randomAiDeck() {
+        final List<Deck> precons = new ArrayList<>();
+        FModel.getDecks().getCommanderPrecons().forEach(precons::add);
+        if (precons.isEmpty()) {
+            return null;
+        }
+        return precons.get(java.util.concurrent.ThreadLocalRandom.current().nextInt(precons.size()));
+    }
+
+    /**
+     * Quita el mazo de los huecos libres.
+     *
+     * <p>Cuando un amigo se va, el servidor deja su asiento en OPEN
+     * ({@code ServerGameLobby.disconnectPlayer}) pero no le quita el mazo, y el
+     * siguiente en entrar se lo encontraba puesto: se sentaba con el mazo de
+     * otro, y podia darle a "Listo" sin haber elegido nada.
+     *
+     * @return si ha cambiado algo
+     */
+    public static boolean clearOpenSeats(final GameLobby lobby) {
+        boolean changed = false;
+        for (int i = 0; i < lobby.getNumberOfSlots(); i++) {
+            final LobbySlot s = lobby.getSlot(i);
+            if (s != null && s.getType() == LobbySlotType.OPEN && s.getDeck() != null) {
+                s.setDeck(null);
+                changed = true;
+            }
+        }
+        return changed;
     }
 
     /** Los asientos ocupados, o sea los que van a jugar. */

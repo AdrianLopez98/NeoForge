@@ -211,7 +211,17 @@ public final class LobbyCheck {
             }
 
             // ---- 4. el anfitrion se prepara ----
-            lobby.applyToSlot(hostSeat, UpdateLobbyPlayerEvent.deckUpdate(hostDeck));
+            //
+            // Y cambiar de mazo tiene que AVISAR (es lo que hace que el
+            // servidor reparta el estado a los demas). El mazo solo no avisa
+            // (LobbySlot.apply no lo cuenta como cambio), y en la sala de
+            // verdad eso dejaba al invitado sin poder ponerse "Listo".
+            final int updatesBefore = lobbyUpdates.get();
+            for (final UpdateLobbyPlayerEvent e : NeoLobby.deckEvents(hostDeck)) {
+                lobby.applyToSlot(hostSeat, e);
+            }
+            ok &= check("cambiar de mazo avisa (si no, nadie mas se entera)",
+                    lobbyUpdates.get() > updatesBefore);
             lobby.applyToSlot(hostSeat, UpdateLobbyPlayerEvent.isReadyUpdate(true));
 
             // ---- 4-bis. y sienta una IA ----
@@ -258,6 +268,7 @@ public final class LobbyCheck {
             // controladores, asi que preguntando despues de la partida la
             // respuesta depende de quien llegue primero.
             ok &= checkGuestSettingsReachedHost(lobby, guestSeat);
+            ok &= checkNetMatch(lobby, hostUi);
 
             // ---- 6. la partida termina ----
             final boolean finished = waitUntil(
@@ -325,6 +336,13 @@ public final class LobbyCheck {
             // ---- 8. las frases del motor, en cualquier idioma ----
             ok &= checkPhrasesAreLanguageProof();
 
+            // ---- 9. la sala, sin red ----
+            ok &= checkSeatRemoval();
+            ok &= checkServerPhrases();
+            ok &= checkBuildStamp();
+            ok &= checkHostChatHasAName();
+            ok &= checkCarrierNatVerdict();
+
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
             System.out.println("  FALLO: interrumpido");
@@ -375,6 +393,156 @@ public final class LobbyCheck {
      * false, invitado true — asi que no puede salir bien por casualidad: si el
      * anfitrion dice true, es que la foto del invitado llego.
      */
+    /**
+     * La partida en red se juega con NUESTRAS reglas, y los arreglos de
+     * controlador llegan tambien al asiento del invitado.
+     *
+     * <p>Sin {@link NetHostedMatch}, el lobby de Forge saca las reglas de sus
+     * preferencias, donde {@code UI_MATCHES_PER_GAME} vale 3: en red se jugaba
+     * al mejor de tres. Este comprobador no lo veia porque su invitado contesta
+     * siempre "salir" al acabar, y eso cierra el partido tras la primera.
+     */
+    private static boolean checkNetMatch(final GameLobby lobby, final NeoMatchUI hostUi) {
+        boolean ok = check("la partida en red la monta NetHostedMatch (nuestras reglas)",
+                lobby.getHostedMatch() instanceof NetHostedMatch);
+        final forge.game.Game game = hostUi.getGameView() == null ? null
+                : hostUi.getGameView().getGame();
+        ok &= check("y es a UNA partida, no al mejor de tres",
+                game != null && game.getRules().getGamesPerMatch() == 1);
+        boolean remoteSeat = false;
+        boolean installed = false;
+        if (game != null) {
+            for (final forge.game.player.Player p : game.getPlayers()) {
+                if (p.getController() instanceof forge.player.PlayerControllerHuman pch
+                        && pch.getGui() instanceof forge.gamemodes.net.server.RemoteClientGuiGame) {
+                    remoteSeat = true;
+                    installed = forge.neo.match.ManaColor.isInstalled(p);
+                }
+            }
+        }
+        ok &= check("se encuentra el asiento del invitado en el anfitrion", remoteSeat);
+        ok &= check("al invitado su dual tambien le pregunta el color (ManaColor en su asiento)",
+                installed);
+        return ok;
+    }
+
+    /** La cruz de la sala no puede descolocar a un invitado. Ver NeoLobby.mayRemoveSeat. */
+    private static boolean checkSeatRemoval() {
+        final ServerGameLobby l = new ServerGameLobby();
+        // [0 LOCAL, 1 OPEN] de fabrica; se completa a [LOCAL, REMOTE, AI, REMOTE].
+        l.getSlot(1).setType(LobbySlotType.REMOTE);
+        l.addSlot();
+        l.getSlot(2).setType(LobbySlotType.AI);
+        l.addSlot();
+        l.getSlot(3).setType(LobbySlotType.REMOTE);
+        boolean ok = check("no se puede quitar el asiento de un amigo conectado",
+                !NeoLobby.mayRemoveSeat(l, 3) && !NeoLobby.mayRemoveSeat(l, 1));
+        ok &= check("ni uno que tenga un amigo DETRAS (le cambiaria la posicion)",
+                !NeoLobby.mayRemoveSeat(l, 2));
+        l.getSlot(3).setType(LobbySlotType.OPEN);
+        ok &= check("una IA sin nadie detras si se puede quitar", NeoLobby.mayRemoveSeat(l, 2));
+        ok &= check("y un hueco libre tambien", NeoLobby.mayRemoveSeat(l, 3));
+
+        // El mazo del que se fue no se queda en su hueco.
+        l.getSlot(3).setDeck(new Deck("de otro"));
+        NeoLobby.clearOpenSeats(l);
+        ok &= check("un hueco libre no se queda con el mazo del que se fue",
+                l.getSlot(3).getDeck() == null);
+        return ok;
+    }
+
+    /** Cada aviso en ingles del servidor se sigue reconociendo. Ver NetPhrases. */
+    private static boolean checkServerPhrases() {
+        final String[][] samples = {
+                {"Pepe Luis joined the lobby.", "PLAIN"},
+                {"Pepe Luis left the lobby.", "PLAIN"},
+                {"Pepe Luis is ready (1/2 players ready)", "PLAIN"},
+                {"Pepe Luis is not ready (1/2 players ready)", "PLAIN"},
+                {"Pepe Luis disconnected. Waiting 5:00 for reconnect...", "DISCONNECTED"},
+                {"Pepe Luis: 4:30 remaining to reconnect.", "PLAIN"},
+                {"Pepe Luis has reconnected.", "RECONNECTED"},
+                {"Host forced AI takeover for Pepe Luis.", "REPLACED_BY_AI"},
+                {"Pepe Luis did not reconnect in time. AI has taken over.", "REPLACED_BY_AI"},
+                {"Timeout disabled for Pepe Luis. Waiting indefinitely for reconnect.", "PLAIN"},
+                {"(Host can use /skipreconnect to replace disconnected player with AI, or "
+                        + "/skiptimeout to wait indefinitely.)", "HOST_HINT"},
+                {"Pepe Luis changed their name to Luis", "PLAIN"},
+        };
+        boolean read = true;
+        for (final String[] sample : samples) {
+            final NetPhrases.Phrase p = NetPhrases.read(null, sample[0]);
+            final boolean one = p.kind().name().equals(sample[1]) && !p.text().equals(sample[0])
+                    && (sample[1].equals("HOST_HINT") || p.text().contains("Pepe Luis"));
+            if (!one) {
+                System.out.printf(Locale.ROOT, "        no se lee: [%s] -> %s [%s]%n",
+                        sample[0], p.kind(), p.text());
+            }
+            read &= one;
+        }
+        boolean ok = check("los avisos del servidor se reconocen (y no pierden el nombre)", read);
+        final NetPhrases.Phrase who = NetPhrases.read(null,
+                "Pepe Luis disconnected. Waiting 5:00 for reconnect...");
+        ok &= check("y se sabe DE QUIEN hablan", "Pepe Luis".equals(who.who()));
+        ok &= check("lo que escribe una persona no se toca",
+                NetPhrases.read("Ana", "Pepe joined the lobby.").text()
+                        .equals("Ana: Pepe joined the lobby."));
+        boolean keys = true;
+        for (final String k : NetPhrases.keys()) {
+            if (forge.neo.NeoText.get(k).equals(k)) {
+                System.out.println("        falta el texto " + k);
+                keys = false;
+            }
+        }
+        ok &= check("cada aviso tiene su texto", keys);
+        return ok;
+    }
+
+    /** La huella de la version viaja y se entiende. Ver NetBuild. */
+    private static boolean checkBuildStamp() {
+        final String id = NetBuild.id();
+        System.out.printf(Locale.ROOT, "  Huella de esta version: %s%n", id);
+        boolean ok = check("la huella se lee de vuelta de su linea de chat",
+                id.equals(NetBuild.parse(NetBuild.message())));
+        ok &= check("una linea normal no es una huella", NetBuild.parse("hola [neo]") == null);
+        ok &= check("dos huellas distintas avisan", NetBuild.differs("aaaa", "bbbb"));
+        ok &= check("con una en desarrollo no se avisa", !NetBuild.differs(NetBuild.DEV, "bbbb"));
+        return ok;
+    }
+
+    /**
+     * Lo que escribe el anfitrion lleva su nombre.
+     *
+     * <p>Se mandaba {@code new MessageEvent(texto)}, sin autor: el servidor
+     * firma lo de los invitados, pero lo del anfitrion llegaba a todos como un
+     * aviso del sistema.
+     */
+    private static boolean checkHostChatHasAName() {
+        final NeoOnline.View view = (NeoOnline.View) java.lang.reflect.Proxy.newProxyInstance(
+                NeoOnline.View.class.getClassLoader(), new Class<?>[] {NeoOnline.View.class},
+                (proxy, method, args) -> method.isDefault()
+                        ? java.lang.reflect.InvocationHandler.invokeDefault(proxy, method, args)
+                        : null);
+        final NeoOnline online = new NeoOnline(view);
+        final AtomicReference<forge.gamemodes.net.event.MessageEvent> sent = new AtomicReference<>();
+        online.setGameClient(new forge.gamemodes.net.IRemote() {
+            @Override
+            public void send(final forge.gamemodes.net.event.NetEvent event) {
+                if (event instanceof forge.gamemodes.net.event.MessageEvent m) {
+                    sent.set(m);
+                }
+            }
+
+            @Override
+            public Object sendAndWait(final forge.gamemodes.net.event.IdentifiableNetEvent event) {
+                return null;
+            }
+        });
+        online.say("hola");
+        final forge.gamemodes.net.event.MessageEvent m = sent.get();
+        return check("lo que escribe el anfitrion en el chat lleva su nombre",
+                m != null && m.getSource() != null && !m.getSource().isBlank());
+    }
+
     private static boolean checkGuestSettingsReachedHost(final GameLobby lobby, final int guestSeat) {
         final Object controller = lobby.getController(guestSeat);
         if (!(controller instanceof forge.player.PlayerControllerHuman pch)) {
@@ -637,6 +805,181 @@ public final class LobbyCheck {
         }
         System.out.println("  --------------------------------------------");
         System.out.println();
+    }
+
+    /**
+     * El veredicto de {@link NetReach}, sin tocar la red.
+     *
+     * <p>Lo que se prueba es la <b>regla</b>, que es lo unico que se puede
+     * comprobar aqui: preguntarle de verdad al router necesita un router, y el
+     * resultado dependeria de en que casa se ejecute la bateria. La consulta en
+     * si (jupnp, descubrimiento, {@code GetExternalIPAddress}) se traga todo lo
+     * que salga mal y devuelve "no lo se", asi que lo que puede estropear una
+     * sala no es la consulta: es clasificar mal lo que conteste.
+     *
+     * <p><b>La mitad de las comprobaciones son de NO avisar</b>, y esas son las
+     * que importan. Un falso positivo aqui le esconde a alguien la direccion
+     * con la que podia hospedar perfectamente, y encima le dice que la culpa es
+     * de su operador: se equivoca y ademas manda a buscar en el sitio
+     * equivocado. Por eso todo lo dudoso sale {@code UNKNOWN}.
+     */
+    private static boolean checkCarrierNatVerdict() {
+        System.out.println();
+        System.out.println("  -- el aviso de CGNAT (la regla, sin red) --");
+
+        // Lo que se ve desde fuera es una del operador: CGNAT seguro.
+        boolean ok = check("100.73.0.1 por fuera es CGNAT (el caso real del 18-09-2026)",
+                NetReach.verdictFor("100.73.0.1", "81.0.42.39") == NetReach.Verdict.CGNAT);
+        ok &= check("y los dos bordes del rango tambien (100.64 y 100.127)",
+                NetReach.verdictFor("100.64.0.1", null) == NetReach.Verdict.CGNAT
+                        && NetReach.verdictFor("100.127.255.254", null) == NetReach.Verdict.CGNAT);
+        ok &= check("un router con la WAN en 10.x tambien (doble router en casa)",
+                NetReach.verdictFor("10.0.0.1", "81.0.42.39") == NetReach.Verdict.CGNAT);
+        ok &= check("y en 192.168.x y 172.16.x",
+                NetReach.verdictFor("192.168.2.1", null) == NetReach.Verdict.CGNAT
+                        && NetReach.verdictFor("172.20.0.1", null) == NetReach.Verdict.CGNAT);
+
+        // Y ahora lo contrario, que es lo que no puede fallar.
+        ok &= check("la misma IP a los dos lados es alcanzable (se puede abrir el puerto)",
+                NetReach.verdictFor("79.146.248.201", "79.146.248.201")
+                        == NetReach.Verdict.REACHABLE);
+        ok &= check("100.63 y 100.128 quedan FUERA del rango del operador",
+                NetReach.verdictFor("100.63.0.1", "100.63.0.1") == NetReach.Verdict.REACHABLE
+                        && NetReach.verdictFor("100.128.0.1", "100.128.0.1")
+                                == NetReach.Verdict.REACHABLE);
+        ok &= check("172.32 tampoco es privada (el rango acaba en 172.31)",
+                NetReach.verdictFor("172.32.0.1", "172.32.0.1") == NetReach.Verdict.REACHABLE);
+        ok &= check("router callado: no se sabe, y NO se avisa",
+                NetReach.verdictFor(null, "81.0.42.39") == NetReach.Verdict.UNKNOWN);
+        ok &= check("dos publicas distintas: no se sabe (suele ser una VPN puesta aqui)",
+                NetReach.verdictFor("79.146.248.201", "81.0.42.39") == NetReach.Verdict.UNKNOWN);
+        ok &= check("una respuesta que no es una IP no se toma por CGNAT",
+                NetReach.verdictFor("0.0.0.0.0", null) == NetReach.Verdict.UNKNOWN
+                        && NetReach.verdictFor("300.1.1.1", null) == NetReach.Verdict.UNKNOWN
+                        && NetReach.verdictFor("", null) == NetReach.Verdict.UNKNOWN);
+
+        // El 100.64/10 significa dos cosas segun donde este, y confundirlas
+        // convertiria a todo el que use Tailscale en un falso CGNAT.
+        ok &= check("100.64/10 en una interfaz LOCAL es Tailscale, no CGNAT",
+                NetReach.isCarrierNat("100.73.0.1") && !NetReach.isPrivate("100.73.0.1"));
+
+        // Y la otra mitad del aviso: cual es la IP que SI sirve. Los nombres
+        // son los que pone FServerManager.getFriendlyInterfaceName, no unos
+        // nuestros: si aqui se escribe otra cosa, la red virtual sale como una
+        // tarjeta de red mas y el jugador vuelve a tener que adivinar.
+        ok &= check("se reconocen las redes virtuales con el nombre del motor",
+                NetReach.isVirtualLan("Radmin VPN") && NetReach.isVirtualLan("ZeroTier")
+                        && NetReach.isVirtualLan("Tailscale") && NetReach.isVirtualLan("Hamachi")
+                        && NetReach.isVirtualLan("WireGuard")
+                        && NetReach.isVirtualLan("VPN (tun0)")
+                        && NetReach.isVirtualLan("VPN Tunnel")
+                        && NetReach.isVirtualLan("Virtual Network"));
+        ok &= check("y la tarjeta de casa NO se toma por una red virtual",
+                !NetReach.isVirtualLan("Ethernet") && !NetReach.isVirtualLan("Wi-Fi")
+                        && !NetReach.isVirtualLan("LAN (en0)") && !NetReach.isVirtualLan(null));
+
+        // Los adaptadores fantasma de Windows. Medidos en una maquina normal:
+        // 27, casi todos caidos. Si alguno colara como "red virtual dormida",
+        // la sala mandaria a abrir la VPN del trabajo para jugar a Magic.
+        // Que no se pierda ninguna direccion. El motor si las pierde: mete las
+        // suyas en un mapa con el nombre bonito de clave, y en Windows la
+        // tarjeta de verdad y el conmutador de Hyper-V/WSL se llaman los dos
+        // ethN, o sea "Ethernet" los dos, o sea uno pisa al otro. Caso real:
+        // la sala ensenyaba 172.24.192.1 (WSL) y la 192.168.x.x no salia.
+        final List<String[]> mine = NeoOnline.localAddresses();
+        int usableV4 = 0;
+        try {
+            for (final java.net.NetworkInterface i : java.util.Collections
+                    .list(java.net.NetworkInterface.getNetworkInterfaces())) {
+                if (!i.isUp() || i.isLoopback()) {
+                    continue;
+                }
+                for (final java.net.InetAddress a : java.util.Collections.list(i.getInetAddresses())) {
+                    if (a instanceof java.net.Inet4Address && !a.isLoopbackAddress()
+                            && !a.getHostAddress().startsWith("169.254.")) {
+                        usableV4++;
+                    }
+                }
+            }
+        } catch (final java.net.SocketException e) {
+            usableV4 = -1;
+        }
+        ok &= check("se enseñan TODAS las direcciones de esta maquina (" + usableV4 + ")",
+                usableV4 < 0 || mine.size() == usableV4);
+        final java.util.Set<String> labels = new java.util.HashSet<>();
+        boolean dup = false;
+        for (final String[] row : mine) {
+            dup |= !labels.add(row[0]);
+        }
+        ok &= check("y ningun nombre se repite (dos 'Ethernet' serian una perdida)", !dup);
+        ok &= check("los conmutadores virtuales de Windows van al final",
+                virtualSwitchesLast(mine));
+
+        ok &= check("los adaptadores fantasma de Windows NO cuelan como red de jugar",
+                NeoOnline.dormantVirtualLan() == null
+                        || !NeoOnline.dormantVirtualLan().toLowerCase(Locale.ROOT)
+                                .contains("miniport"));
+
+        // IPv6: la salida gratis del CGNAT. Lo que se comprueba es lo unico
+        // que se rompe en silencio — la FORMA de la direccion. Medido sobre
+        // URLValidator: con corchetes pasa, sin ellos devuelve null, o sea que
+        // la sala contesta "esa direccion no vale" a una direccion correcta.
+        ok &= check("una IPv6 pegada sin corchetes se arregla sola",
+                "[2001:db8::1]".equals(NetReach.normaliseAddress("2001:db8::1")));
+        ok &= check("y la que ya viene con corchetes no se toca",
+                "[2001:db8::1]:36743"
+                        .equals(NetReach.normaliseAddress("[2001:db8::1]:36743")));
+        ok &= check("una IPv4 con puerto NO se toca (un solo ':')",
+                "79.146.248.201:36743"
+                        .equals(NetReach.normaliseAddress("79.146.248.201:36743")));
+        ok &= check("ni un nombre de maquina, ni el hueco vacio",
+                "midominio.com:36743"
+                        .equals(NetReach.normaliseAddress(" midominio.com:36743 "))
+                        && "".equals(NetReach.normaliseAddress("  "))
+                        && NetReach.normaliseAddress(null) == null);
+        ok &= check("lo arreglado lo entiende el motor de verdad",
+                forge.util.URLValidator.parseURL(
+                        NetReach.normaliseAddress("2001:db8::1")) != null
+                        && forge.util.URLValidator.parseURL("2001:db8::1") == null);
+
+        for (final String key : new String[] {"lobby.address.cgnat", "lobby.address.cgnat.what",
+                "lobby.address.cgnat.fix", "lobby.address.cgnat.useVirtual",
+                "lobby.address.cgnat.wakeUp", "lobby.address.cgnat.getIt",
+                "lobby.address.ipv6", "lobby.address.ipv6.note",
+                "lobby.address.cgnat.v4only", "lobby.address.cgnat.tryIpv6",
+                "lobby.address.virtual", "lobby.address.virtual.note",
+                "lobby.address.noRouter"}) {
+            ok &= check("el texto " + key + " existe",
+                    !forge.neo.NeoText.get(key).startsWith("lobby."));
+        }
+        ok &= check("y el de la direccion buena lleva sus dos huecos",
+                forge.neo.NeoText.get("lobby.address.virtual", "Radmin VPN", "26.1.2.3:36743")
+                        .contains("Radmin VPN")
+                        && forge.neo.NeoText
+                                .get("lobby.address.virtual", "Radmin VPN", "26.1.2.3:36743")
+                                .contains("26.1.2.3:36743"));
+        return ok;
+    }
+
+    /**
+     * Que ninguna direccion de verdad quede detras de un conmutador virtual.
+     *
+     * <p>Se mira por el <b>rango</b> y no por el nombre: aqui ya solo hay la
+     * cadena que se le ensenya al jugador. Es una aproximacion suficiente —
+     * 172.16/12 es donde Windows monta los suyos (Hyper-V, WSL).
+     */
+    private static boolean virtualSwitchesLast(final List<String[]> rows) {
+        boolean seenSwitch = false;
+        for (final String[] row : rows) {
+            final boolean isSwitch = row[1].startsWith("172.")
+                    && NetReach.isPrivate(row[1].split(":")[0]);
+            if (isSwitch) {
+                seenSwitch = true;
+            } else if (seenSwitch) {
+                return false;   // una de verdad DESPUES de una virtual
+            }
+        }
+        return true;
     }
 
     private static boolean check(final String what, final boolean ok) {

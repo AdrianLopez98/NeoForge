@@ -110,12 +110,21 @@ public class OnlineMenu extends BorderPane {
         upnpNote.setMaxWidth(300);
         upnpNote.setMinHeight(Region.USE_PREF_SIZE);
 
+        // El cortafuegos de Windows pregunta la primera vez que se abre el
+        // puerto, y si se cancela (o solo se permite en redes publicas) nadie
+        // puede entrar y nada lo explica. Mejor decirlo antes de que salga.
+        final Label firewall = new Label(NeoText.get("lobby.firewall"));
+        firewall.getStyleClass().add("mode-tile-note");
+        firewall.setWrapText(true);
+        firewall.setMaxWidth(300);
+        firewall.setMinHeight(Region.USE_PREF_SIZE);
+
         final Button go = new Button(NeoText.get("lobby.host"));
         go.getStyleClass().add("btn-primary");
         go.setMinWidth(Region.USE_PREF_SIZE);
         go.setOnAction(e -> actions.host(upnp.isSelected()));
 
-        final VBox box = new VBox(10, name, desc, addr, upnp, upnpNote, go);
+        final VBox box = new VBox(10, name, desc, addr, upnp, upnpNote, firewall, go);
         box.getStyleClass().add("mode-tile");
         box.setAlignment(Pos.TOP_LEFT);
         box.setPadding(new Insets(20, 22, 18, 22));

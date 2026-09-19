@@ -144,6 +144,8 @@ public class GameOverScreen extends VBox {
                 return "over.quest";
             case ASCENT:
                 return won ? "over.ascent" : "over.menu";
+            case NET:
+                return "over.lobby";
             default:
                 return "over.menu";
         }

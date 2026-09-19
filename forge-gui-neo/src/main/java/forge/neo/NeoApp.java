@@ -1601,7 +1601,7 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 table.getMenuOverlay().hide();
                 leaveMatch(forge.neo.match.NeoMatchUI.Exit.MENU);
             }
-        }, this, runAtStake);
+        }, this, runAtStake, net.isNetMatch());
         // El tutorial tiene un paso para esto, y ni abrir el menu ni entrar en
         // Ajustes llega al motor: se cuenta desde aqui.
         menu.setGestureSpy(table::gesture);
@@ -1872,16 +1872,23 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             // El aviso esta delante con su propio boton: que salga el jugador.
             return;
         }
+        final forge.neo.ui.LobbyScreen sala = net.lobbyScreen;
+        if (sala != null && net.online != null) {
+            // En red NO se pone la marca de abajo: la consume solo el hilo que
+            // lanza una partida LOCAL, y en red ese hilo no existe. Puesta
+            // aqui se quedaba para siempre, y se la llevaba la siguiente
+            // partida local: al acabarla, en vez de volver al menu te dejaba
+            // mirando la mesa terminada. Y una segunda salida forzada en red
+            // ya no salia.
+            binder = null;
+            net.backToLobby();
+            return;
+        }
         if (!abandoned.compareAndSet(false, true)) {
             return;
         }
         binder = null;
-        final forge.neo.ui.LobbyScreen sala = net.lobbyScreen;
-        if (sala != null && net.online != null) {
-            net.backToLobby();
-        } else {
-            showHome();
-        }
+        showHome();
     }
 
     /**

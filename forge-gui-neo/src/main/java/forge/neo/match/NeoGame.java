@@ -403,10 +403,7 @@ public final class NeoGame {
         // sin estas dos lineas, encender el ante o el "cheat shuffle" de la IA
         // en Ajustes no habria hecho NADA — la preferencia se habria escrito en
         // FModel.getPreferences() y nadie la habria vuelto a mirar.
-        rules.setAllowCheatShuffle(NeoSettings.getBool(NeoSettings.AI_CHEAT_SHUFFLE, false));
-        rules.setPlayForAnte(NeoSettings.getBool(NeoSettings.ANTE, false));
-        rules.setMatchAnteRarity(NeoSettings.getBool(NeoSettings.ANTE_MATCH_RARITY, false));
-        rules.setAnteIncludeBasicLands(NeoSettings.getBool(NeoSettings.ANTE_INCLUDE_BASIC_LANDS, false));
+        applyNeoRules(rules);
 
         if (mode == NeoMatchUI.Mode.OBSERVE) {
             // Sin jugadores humanos, HostedMatch.startGame() registra el
@@ -884,6 +881,22 @@ public final class NeoGame {
                         forge.game.ability.AbilityKey.newMap());
             }
         }
+    }
+
+    /**
+     * Las reglas de la partida que salen de NUESTROS Ajustes y no de las
+     * preferencias de Forge: el barajado con trampa de la IA y la apuesta.
+     *
+     * <p>En un sitio porque hay dos caminos que montan {@code GameRules}: el
+     * de siempre (arriba, en {@code play}) y la partida en red, que la monta
+     * el lobby de Forge y se corrige en {@code forge.neo.net.NetHostedMatch}.
+     * Con las lineas repetidas en los dos, un ajuste nuevo llegaria solo a uno.
+     */
+    public static void applyNeoRules(final GameRules rules) {
+        rules.setAllowCheatShuffle(NeoSettings.getBool(NeoSettings.AI_CHEAT_SHUFFLE, false));
+        rules.setPlayForAnte(NeoSettings.getBool(NeoSettings.ANTE, false));
+        rules.setMatchAnteRarity(NeoSettings.getBool(NeoSettings.ANTE_MATCH_RARITY, false));
+        rules.setAnteIncludeBasicLands(NeoSettings.getBool(NeoSettings.ANTE_INCLUDE_BASIC_LANDS, false));
     }
 
     /**

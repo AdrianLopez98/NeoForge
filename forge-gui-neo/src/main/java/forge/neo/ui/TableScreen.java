@@ -275,6 +275,11 @@ public class TableScreen extends Pane {
         // conectarlo): en una partida vista o una maqueta no haria nada.
         macroRecordButton.setVisible(false);
         macroPlayButton.setVisible(false);
+        // El chat, solo en red: lo enciende enableChat.
+        chatButton.getStyleClass().add("log-button");
+        chatButton.setFocusTraversable(false);
+        chatButton.setVisible(false);
+        chatButton.setOnAction(e -> openChat());
 
         playerDetails.getStyleClass().add("player-details");
         playerDetails.setWrapText(true);
@@ -313,7 +318,7 @@ public class TableScreen extends Pane {
         spotlight.setFill(javafx.scene.paint.Color.TRANSPARENT);
 
         getChildren().addAll(opponentTabs, opponentBar, viewport,
-                selfBar, hand, commandZone, phaseRail, side, combatOverlay, logButton, macroRecordButton, macroPlayButton, cooldownBadge,
+                selfBar, hand, commandZone, phaseRail, side, combatOverlay, logButton, chatButton, macroRecordButton, macroPlayButton, cooldownBadge,
                 promptBanner, notices, turnBanner, playerDetails, zoomBadge, macroBadge, spotlight,
                 overlay, menuOverlay, zoomOverlay);
 
@@ -341,7 +346,7 @@ public class TableScreen extends Pane {
             }
             final Object t = e.getTarget();
             if (isInside(t, overlay) || isInside(t, menuOverlay) || isInside(t, zoomOverlay)
-                    || isInside(t, logButton) || isInside(t, opponentTabs)
+                    || isInside(t, logButton) || isInside(t, chatButton) || isInside(t, opponentTabs)
                     || isZoneOpener(t)) {
                 return;
             }
@@ -416,9 +421,9 @@ public class TableScreen extends Pane {
         // Las macros, apiladas encima y del mismo ancho: una columna se lee
         // como un grupo, y a lo ancho se meterian en la mano.
         double cornerTop = h - lbH - PAD;
-        final double mbW = Math.max(lbW, Math.max(macroRecordButton.prefWidth(-1),
-                macroPlayButton.prefWidth(-1)));
-        for (final Button b : List.of(macroRecordButton, macroPlayButton)) {
+        final double mbW = Math.max(Math.max(lbW, chatButton.prefWidth(-1)),
+                Math.max(macroRecordButton.prefWidth(-1), macroPlayButton.prefWidth(-1)));
+        for (final Button b : List.of(chatButton, macroRecordButton, macroPlayButton)) {
             if (b.isVisible()) {
                 final double bh = b.prefHeight(mbW);
                 cornerTop -= bh + 4;
@@ -2114,6 +2119,67 @@ public class TableScreen extends Pane {
         menuOverlay.setOnBackgroundClick(menuOverlay::hide);
         menuOverlay.show(view);
         gesture(Gesture.LOG_OPEN);
+    }
+
+    // ------------------------------------------------------------------
+    // El chat de una partida en red
+    // ------------------------------------------------------------------
+
+    private final Button chatButton = new Button(NeoText.get("lobby.chat"));
+    private java.util.function.Supplier<List<String>> chatHistory;
+    private java.util.function.Consumer<String> chatSend;
+    private NetChatView chatView;
+
+    /**
+     * Enciende el boton del chat. Solo en red: en local no hay con quien hablar.
+     *
+     * @param history lo dicho hasta ahora (la sala lo guarda)
+     * @param send    manda una linea
+     */
+    public void enableChat(final java.util.function.Supplier<List<String>> history,
+                           final java.util.function.Consumer<String> send) {
+        this.chatHistory = history;
+        this.chatSend = send;
+        chatButton.setVisible(true);
+        requestLayout();
+    }
+
+    private void openChat() {
+        if (chatHistory == null) {
+            return;
+        }
+        chatButton.pseudoClassStateChanged(UNREAD, false);
+        final NetChatView view = new NetChatView(chatHistory.get(), chatSend, () -> {
+            chatView = null;
+            menuOverlay.hide();
+        });
+        chatView = view;
+        menuOverlay.setOnBackgroundClick(() -> {
+            chatView = null;
+            menuOverlay.hide();
+        });
+        menuOverlay.show(view);
+    }
+
+    /**
+     * Llega una linea de chat. Hilo de JavaFX.
+     *
+     * <p>Con el chat abierto va dentro; cerrado, sale en la esquina sin parar
+     * la partida (como el resto de avisos) y el boton se marca como no leido.
+     */
+    public void chatLine(final String text) {
+        final NetChatView open = chatView;
+        // Que siga EN pantalla: Escape cierra la capa sin pasar por aqui, y el
+        // menu de pausa la reutiliza con otra cosa dentro.
+        if (open != null && menuOverlay.isShowing() && open.getScene() != null) {
+            open.addLine(text);
+            return;
+        }
+        chatView = null;
+        if (chatButton.isVisible()) {
+            chatButton.pseudoClassStateChanged(UNREAD, true);
+        }
+        showNotice(text);
     }
 
     /** Marca que hay novedades sin leer en el registro. */
