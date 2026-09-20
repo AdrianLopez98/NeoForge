@@ -1,11 +1,11 @@
-**NeoForge para macOS 1.0.2 (beta).**
+**NeoForge para macOS 1.0.4 (beta).**
 
-Novedades:
-- Elegir varias fichas iguales (por ejemplo sacrificar dos fichas de Sangre) ya funciona: la pila se separa al empezar la elección.
-- Clic derecho amplía las cartas en las ventanas de cartas reveladas y de elegir pila (*Fact or Fiction*).
-- **Ver la mesa**: aparta una ventana de elección sin cerrarla para mirar la mesa, y vuelve con lo que llevabas marcado.
-- Botones para **grabar, parar y repetir macros**, encima de *Registro*.
-- El panel de detalle ya no se sale por la derecha, y las tierras no muestran "no cost".
+Novedades, todas salidas de lo que ha reportado la gente:
+- **Descargar el arte de las cartas** para jugar sin internet (Ajustes → Arte de las cartas): todas (33.647 cartas, ~2,5 GB) o solo las de tus mazos (unos cientos de MB y un minuto). Dice cuánto ocupa antes de empezar, se puede parar y sigue por donde iba.
+- **Pausar la partida mientras lees una carta** (Ajustes, encendido de fábrica): ampliar una carta para el motor de verdad, no solo la pantalla. También con el menú de Escape.
+- Arreglado: una ventana de elección **se podía perder para siempre** si abrías el menú del stack encima, y la partida se quedaba esperando una respuesta imposible.
+- Arreglado: de **dos fichas iguales apiladas solo se podía elegir una** (convocar, o sacrificar dos fichas de Sangre). La pila se parte en cuanto eliges la primera.
+- **Equipos y auras** ya no se pintan encima de la fila de atrás, y hay un ajuste nuevo para apilarlos detrás de la carta con un contador que los abre en grande.
 
 Descarga el `.dmg` de tu Mac:
 
@@ -28,7 +28,7 @@ La primera vez tarda en abrir (~45 s): está leyendo las 33.000 cartas. Trae su 
 
 ---
 
-**NeoForge for macOS 1.0.2 (beta).** What's new: picking several identical tokens from a stack works (e.g. sacrificing two Blood tokens); right-click zooms cards in reveal and pile windows (Fact or Fiction); **View battlefield** hides a pending choice window so you can check the board and come back with your picks intact; **Record / Stop / Replay macro** buttons above *Log*; the card detail panel no longer overflows and lands no longer show "no cost". Download the `.dmg` for your Mac: `arm64` for Apple Silicon (M1–M4), `x64` for Intel.
+**NeoForge for macOS 1.0.4 (beta).** What's new, all of it from player reports: **download the card art** for offline play (Settings → Card art) — everything (33,647 cards, ~2.5 GB) or just your decks (a few hundred MB, one minute), with the size shown before you start, stoppable, and it resumes where it left off; **pause the game while you read a card** (Settings, on by default) — zooming a card stops the engine, not just the screen, and the Escape menu too; fixed a choice window that **could be lost for good** if you opened the stack menu on top of it, leaving the game waiting forever; fixed **two identical stacked tokens only letting you pick one** (convoke, sacrificing two Blood tokens) — the stack now splits as soon as one is chosen; **equipment and auras** no longer overlap the row behind them, plus a new option to stack them behind the card with a counter that opens them full size. Download the `.dmg` for your Mac: `arm64` for Apple Silicon (M1–M4), `x64` for Intel.
 
 1. Open the `.dmg` and drag **NeoForge** into **Applications**.
 2. macOS blocks it the first time because it isn't signed with an Apple developer account: double-click it, dismiss the warning, then **System Settings → Privacy & Security → Open Anyway**.
