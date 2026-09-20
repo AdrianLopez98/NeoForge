@@ -761,6 +761,30 @@ public class SettingsPanel extends VBox {
         // Una fila con un boton y no trece filas aqui: los atajos son una
         // pantalla aparte (ShortcutsPanel), que se viene a consultar tanto como a
         // cambiar, y metidos en este scroll lo alargarian el doble.
+        // --- el arte de las cartas, bajado de antemano ---
+        //
+        // Pedido por dos jugadores el 20-09-2026: que las cartas salgan
+        // SIEMPRE con foto, tambien sin internet. En el zip no cabe (2 GB, y
+        // casi todo son cartas que ese jugador no vera nunca), asi que se baja
+        // desde aqui. Dos botones porque son dos necesidades: irse sin linea, o
+        // simplemente que TUS mazos salgan con foto — que es lo que quiere casi
+        // todo el mundo y son unos cientos de MB.
+        //
+        // Aqui, y no en el menu: una casilla del menu es una PREGUNTA distinta
+        // (la auditoría del motor 2), y esto es mantenimiento.
+        getChildren().add(section(NeoText.get("settings.art")));
+        final Button artAll = new Button(NeoText.get("settings.art.all"));
+        artAll.getStyleClass().add("segment");
+        artAll.setMinWidth(Region.USE_PREF_SIZE);
+        artAll.setOnAction(e -> showArtDownload(forge.neo.card.ArtDownload.Scope.ALL));
+        getChildren().add(row(NeoText.get("settings.art.allRow"), artAll));
+
+        final Button artDecks = new Button(NeoText.get("settings.art.decks"));
+        artDecks.getStyleClass().add("segment");
+        artDecks.setMinWidth(Region.USE_PREF_SIZE);
+        artDecks.setOnAction(e -> showArtDownload(forge.neo.card.ArtDownload.Scope.MY_DECKS));
+        getChildren().add(row(NeoText.get("settings.art.decksRow"), artDecks));
+
         getChildren().add(section(NeoText.get("settings.keyboard")));
         final Button shortcuts = new Button(NeoText.get("settings.shortcuts.open"));
         shortcuts.getStyleClass().add("segment");
@@ -849,6 +873,25 @@ public class SettingsPanel extends VBox {
     }
 
     private boolean shortcutsOpen;
+
+    /**
+     * La descarga del arte, dentro de estos mismos Ajustes.
+     *
+     * <p>Mismo apanyo que {@link #showShortcuts()}: se cambia el contenido y se
+     * vuelve. Asi vale igual desde el menu que desde la pausa a mitad de
+     * partida, sin una capa nueva ni un camino nuevo.
+     */
+    public void showArtDownload(final forge.neo.card.ArtDownload.Scope scope) {
+        if (shortcutsOpen) {
+            return;
+        }
+        shortcutsOpen = true;
+        final List<javafx.scene.Node> main = new ArrayList<>(getChildren());
+        getChildren().setAll(new ArtDownloadPanel(scope, () -> {
+            shortcutsOpen = false;
+            getChildren().setAll(main);
+        }));
+    }
 
     // ---------------------------------------------------------------
 

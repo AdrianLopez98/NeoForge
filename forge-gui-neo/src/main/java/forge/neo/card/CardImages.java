@@ -783,6 +783,16 @@ public final class CardImages {
     private static final java.util.concurrent.atomic.AtomicInteger BATCH =
             new java.util.concurrent.atomic.AtomicInteger();
 
+    /**
+     * Pide un repintado sin que haya llegado ninguna imagen concreta.
+     *
+     * <p>Lo usa la descarga de arte: ahi aparecen miles de ficheros de golpe y
+     * ninguno pasa por {@code notifyReady}, asi que la mesa no se enteraria.
+     */
+    public static void repaint() {
+        scheduleRepaint();
+    }
+
     private static void notifyReady(final String key) {
         BATCH.incrementAndGet();
         scheduleRepaint();

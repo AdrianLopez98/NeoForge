@@ -1228,6 +1228,51 @@ final class NeoAppDebug {
                 + field.size() + " elegibles, 2 ya elegidas");
     }
 
+    /**
+     * <b>Tres fichas iguales y una eleccion a medias</b>
+     * ({@code --mock-token-pick}).
+     *
+     * <p>Reproduce el fallo reportado en itch.io el 20-09-2026: convocando con
+     * Clever Concealment, dos fichas iguales apiladas y <b>solo se podia elegir
+     * una</b> — al clicar la pila se manda siempre la de delante, y la segunda
+     * no habia forma de senyalarla.
+     *
+     * <p>La mesa ya desapilaba al elegir, pero solo cuando el motor publica
+     * cartas elegibles ({@code isSelecting()}), y <b>convocar no pasa por
+     * ahi</b>: de los inputs del motor solo {@code InputSelectEntitiesFromList}
+     * e {@code InputSelectTargets} llaman a {@code setSelectables}. Lo que si
+     * hace convocar es <b>resaltar</b> lo ya elegido, y eso es lo que ahora
+     * parte la pila.
+     *
+     * <p>Dice BIEN o MAL por consola contando los huecos de la fila: tres
+     * fichas iguales son <b>un</b> hueco; en cuanto una se elige, tienen que
+     * ser <b>dos</b>.
+     */
+    void mockTokenPick() {
+        final forge.trackable.Tracker t = new forge.trackable.Tracker();
+        final List<CardView> tokens = new ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            final CardView tok = mockCard(t, 9100 + i, "Soldier", "Creature Soldier", 1, 1);
+            tok.set(forge.trackable.TrackableProperty.Token, true);
+            tokens.add(tok);
+        }
+        app.table.setSelfBattlefield(tokens);
+        app.table.setPrompt("Maqueta: tres fichas iguales (--mock-token-pick)");
+
+        after(1200, () -> {
+            final int apiladas = app.table.selfFieldNodes().size();
+            System.out.println("[fichas] huecos con las tres sin elegir: " + apiladas);
+            // Lo que hace el motor al elegir la primera: resaltarla. Por el
+            // mismo camino que NeoMatchUI.refreshHighlights, no tocando nodos.
+            app.table.setHighlighted(cv -> cv == tokens.get(0));
+            final int sueltas = app.table.selfFieldNodes().size();
+            System.out.println("[fichas] huecos con una ya elegida: " + sueltas);
+            System.out.println(apiladas == 1 && sueltas == 2
+                    ? "  [BIEN] la pila se parte: la elegida por un lado y las otras por otro"
+                    : "  [MAL] la pila no se ha partido: la segunda ficha no se puede elegir");
+        });
+    }
+
     void mockMechanics() {
         // --- contadores del jugador ---
         final com.google.common.collect.Multiset<forge.game.card.CounterType> mine =

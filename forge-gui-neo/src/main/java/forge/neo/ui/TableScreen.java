@@ -3279,6 +3279,22 @@ public class TableScreen extends Pane {
      * mientras declaras bloqueadores.
      */
     public void setHighlighted(final Predicate<Object> test) {
+        // PRIMERO se parten las pilas: una ficha ya elegida deja de ser
+        // indistinguible de su gemela, y sin esto la segunda no se puede
+        // clicar (itch.io, 20-09-2026: convocar con dos fichas iguales).
+        // Ver BattlefieldPane.setPickedTest.
+        //
+        // Y el orden NO es indiferente, que es la misma trampa que ya tenia
+        // apuntada el desapilado de "elegibles": reagrupar fabrica nodos
+        // NUEVOS, asi que marcar antes seria marcar los que se van a tirar —
+        // la ficha elegida se quedaria sin su resaltado justo cuando mas
+        // falta hace, que es lo que dice cual has cogido ya.
+        final Predicate<CardView> picked =
+                cv -> cv != null && test != null && test.test(cv);
+        selfField.setPickedTest(picked);
+        for (final PlayerField f : oppFields) {
+            f.setPickedTest(picked);
+        }
         for (final CardNode n : everyNode()) {
             final CardView cv = n.getCard();
             n.setHighlighted(cv != null && test != null && test.test(cv));

@@ -385,6 +385,7 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 || args.contains("--mock-prompt-nocard") || args.contains("--mock-trigger-subject")
                 || args.contains("--anim-test") || args.contains("--mock-turn")
                 || args.contains("--mock-picked") || args.contains("--mock-crowded") || args.contains("--mock-stack")
+                || args.contains("--mock-token-pick")
                 || args.contains("--mock-aura") || args.contains("--mock-zone-pick")
                 || args.contains("--mock-amount") || optionOf(args, "--mock-amount") != null
                 || args.contains("--mock-mechanics")
@@ -572,6 +573,9 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 if (args.contains("--mock-picked")) {
                     debug.mockPicked();
                 }
+                if (args.contains("--mock-token-pick")) {
+                    debug.mockTokenPick();
+                }
                 if (args.contains("--mock-command") || optionOf(args, "--mock-command") != null) {
                     final String howMany = optionOf(args, "--mock-command");
                     debug.mockCommandZone(deck, howMany == null ? 11 : Integer.parseInt(howMany));
@@ -651,6 +655,14 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                     // atajos, por el mismo boton que tiene Ajustes.
                     if (Boolean.getBoolean("neo.settings.shortcuts")) {
                         mockSettings.showShortcuts();
+                    }
+                    // -Dneo.settings.art=all|decks entra en la descarga de
+                    // arte, por el mismo boton que la abre jugando.
+                    final String art = System.getProperty("neo.settings.art");
+                    if (art != null && !art.isBlank()) {
+                        mockSettings.showArtDownload("decks".equalsIgnoreCase(art)
+                                ? forge.neo.card.ArtDownload.Scope.MY_DECKS
+                                : forge.neo.card.ArtDownload.Scope.ALL);
                     }
                     // -Dneo.settings.scroll=0..1 baja el visor: esta pantalla
                     // es mas larga que la ventana y sin esto la mitad de los

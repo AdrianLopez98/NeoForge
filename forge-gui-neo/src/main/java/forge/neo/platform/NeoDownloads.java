@@ -104,6 +104,197 @@ public final class NeoDownloads {
     }
 
     // ---------------------------------------------------------------
+    // La misma descarga, pero MIRANDOLA
+    // ---------------------------------------------------------------
+
+    /**
+     * Lo que una pantalla necesita saber de una descarga que si se ve.
+     *
+     * <p>Existe para que quien pinta no toque ni una interfaz del motor: la
+     * pantalla recibe numeros y ya. Lo usa el arte sin conexion
+     * ({@code forge.neo.ui.ArtDownloadPanel}).
+     */
+    public interface Watch {
+        /** La lista ya esta hecha: esto es lo que falta por bajar. */
+        void ready(int total);
+
+        /** Una mas. Llega en el hilo de interfaz. */
+        void progress(int done, int total);
+
+        /** Se acabo (o se cancelo). */
+        void finished();
+    }
+
+    /** El mando de una descarga que se esta mirando. */
+    public interface Control {
+        /** Empezar. Antes de {@code ready} no hace nada. */
+        void start();
+
+        /** Parar. Lo que ya esta bajado se queda. */
+        void cancel();
+    }
+
+    /**
+     * Prepara la descarga y devuelve su mando, <b>sin empezarla</b>.
+     *
+     * <p>Al reves que {@link #run}, aqui el boton NO se pulsa solo: lo pulsa
+     * el jugador, porque esto son dos gigas y eso se pregunta. La lista se
+     * monta en un hilo de fondo (lo hace el propio servicio) y cuando esta
+     * lista llega {@code ready}.
+     */
+    public static Control watch(final GuiDownloadService service, final Watch watch) {
+        final WatchedButton button = new WatchedButton(watch);
+        final WatchedBar bar = new WatchedBar(watch, button);
+        service.initialize(new Text("neo.jpg"), new Text(""), bar, button, null,
+                () -> { }, null);
+        return new Control() {
+            @Override
+            public void start() {
+                button.press();
+            }
+
+            @Override
+            public void cancel() {
+                service.setCancel(true);
+            }
+        };
+    }
+
+    /**
+     * El boton del servicio, esperando a que lo pulsen.
+     *
+     * <p>El servicio deja dentro dos ordenes distintas a lo largo de la
+     * descarga: primero "empezar" y al final "cerrar". La primera vez que
+     * habilita una orden es que la lista esta hecha, y eso es lo que se
+     * cuenta como {@code ready}; la segunda es el final.
+     */
+    private static final class WatchedButton extends Base implements IButton {
+        private final Watch watch;
+        private UiCommand command;
+        private String text = "";
+        private boolean selected;
+        private boolean announced;
+        private boolean started;
+
+        WatchedButton(final Watch watch) {
+            this.watch = watch;
+        }
+
+        void press() {
+            final UiCommand c = command;
+            if (c == null || started) {
+                return;
+            }
+            started = true;
+            c.run();
+        }
+
+        @Override
+        public void setCommand(final UiCommand c) {
+            this.command = c;
+            if (!announced) {
+                announced = true;
+                // El total lo pone el servicio justo antes de esta orden.
+                watch.ready(pending);
+            } else if (started) {
+                // La segunda orden es la de cerrar: se acabo.
+                watch.finished();
+            }
+        }
+
+        /** El total que anuncio la barra, para poder darlo en {@code ready}. */
+        private int pending;
+
+        void setPending(final int total) {
+            this.pending = total;
+        }
+
+        @Override
+        public String getText() {
+            return text;
+        }
+
+        @Override
+        public void setText(final String t) {
+            this.text = t == null ? "" : t;
+        }
+
+        @Override
+        public boolean isSelected() {
+            return selected;
+        }
+
+        @Override
+        public void setSelected(final boolean b) {
+            this.selected = b;
+        }
+
+        @Override
+        public boolean requestFocusInWindow() {
+            return false;
+        }
+
+        @Override
+        public void setImage(final FSkinProp p) {
+        }
+
+        @Override
+        public void setTextColor(final int r, final int g, final int b) {
+        }
+    }
+
+    /** La barra de verdad: cada numero va a la pantalla. */
+    private static final class WatchedBar implements IProgressBar {
+        private final Watch watch;
+        private final WatchedButton button;
+        private int maximum;
+
+        WatchedBar(final Watch watch, final WatchedButton button) {
+            this.watch = watch;
+            this.button = button;
+        }
+
+        @Override
+        public void setDescription(final String s) {
+            // A proposito: el servicio la escribe en ingles y con el formato de
+            // su dialogo de Swing ("12/345 - 00:07 remaining."). La pantalla
+            // escribe la suya con los numeros, que si estan traducidos.
+        }
+
+        @Override
+        public void setValue(final int progress) {
+            watch.progress(progress, maximum);
+        }
+
+        @Override
+        public void reset() {
+        }
+
+        @Override
+        public void setShowETA(final boolean b) {
+        }
+
+        @Override
+        public void setShowCount(final boolean b) {
+        }
+
+        @Override
+        public void setPercentMode(final boolean b) {
+        }
+
+        @Override
+        public int getMaximum() {
+            return maximum;
+        }
+
+        @Override
+        public void setMaximum(final int m) {
+            this.maximum = m;
+            button.setPending(m);
+        }
+    }
+
+    // ---------------------------------------------------------------
     // Los widgets que no se pintan
     // ---------------------------------------------------------------
 

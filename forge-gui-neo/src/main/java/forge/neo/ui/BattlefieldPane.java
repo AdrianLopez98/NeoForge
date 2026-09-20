@@ -488,6 +488,56 @@ public class BattlefieldPane extends Pane {
     private boolean grouping = true;
 
     /**
+     * Si esta carta ya esta ELEGIDA en la seleccion que el motor esta pidiendo.
+     *
+     * <p>Lo pone la mesa desde {@code NeoMatchUI.refreshHighlights}, que es
+     * justo cuando el motor marca o desmarca algo.
+     */
+    private java.util.function.Predicate<CardView> pickedTest;
+
+    /**
+     * <b>Que una ficha ya elegida deje de ser indistinguible de sus gemelas.</b>
+     *
+     * <p>Reportado en itch.io el 20-09-2026 con Clever Concealment: dos fichas
+     * iguales apiladas, convocar pide girar dos, clicas la pila y solo entra
+     * <b>una</b> — la de delante. La segunda no habia forma de elegirla,
+     * porque al clicar la pila se manda siempre la primera y el motor ya la
+     * tenia. El mismo caso con dos fichas de Sangre que hay que sacrificar.
+     *
+     * <p>La clave de agrupacion ya separaba lo que el jugador distingue
+     * (girada, atacando, con danyo). "Ya elegida" es exactamente eso y
+     * faltaba: en cuanto una entra, la pila <b>se parte</b> — la elegida a un
+     * lado y la que queda al otro — y la segunda se clica como cualquier otra
+     * carta. Que es, ademas, lo que el jugador esperaba ver.
+     */
+    public void setPickedTest(final java.util.function.Predicate<CardView> test) {
+        this.pickedTest = test;
+        regroupIfNeeded();
+    }
+
+    /**
+     * Vuelve a repartir SOLO si la agrupacion cambia.
+     *
+     * <p>El motor marca y desmarca constantemente durante el combate; rehacer
+     * la fila en cada aviso seria pagar un reparto entero por nada. Comparar
+     * las claves es contar cadenas de una veintena de cartas.
+     */
+    private void regroupIfNeeded() {
+        if (lastCards == null || lastCards.isEmpty()) {
+            return;
+        }
+        if (groupCards(lastCards).keySet().equals(nodeCache.keySet())) {
+            return;
+        }
+        setCards(lastCards, lastAttachedTo);
+    }
+
+    private boolean picked(final CardView cv) {
+        final java.util.function.Predicate<CardView> test = pickedTest;
+        return test != null && test.test(cv);
+    }
+
+    /**
      * Clave de agrupacion. Solo las fichas se agrupan, y solo si son
      * indistinguibles: si una esta girada y otra no, van por separado, porque
      * para el jugador son cosas distintas.
@@ -505,7 +555,9 @@ public class BattlefieldPane extends Pane {
                         + "|" + cv.isSick()
                         + "|" + cv.isAttacking()
                         + "|" + cv.isBlocking()
-                        + "|" + cv.getDamage();
+                        + "|" + cv.getDamage()
+                        // Y si ya esta elegida: ver setPickedTest.
+                        + "|" + picked(cv);
             } else if (cv != null && cv.getId() >= 0) {
                 // El id de la vista es estable mientras la carta siga ahi, y es
                 // lo que permite reutilizar su nodo entre refrescos.

@@ -619,6 +619,105 @@ public final class NeoMain {
                 caras, conArte, 100.0 * conArte / Math.max(1, caras), conRecorte);
         System.out.println("  sin arte (sin contar Alchemy): " + faltan.size());
         faltan.stream().limit(25).forEach(k -> System.out.println("     " + k));
+        checkArtDownloadTargets();
+        if (Integer.getInteger("neo.art.testLimit", 0) > 0) {
+            checkArtDownloadRuns();
+        }
+    }
+
+    /**
+     * La descarga de verdad, con red y en pequenyo
+     * ({@code run.cmd artecheck -Dneo.art.testLimit=3}).
+     *
+     * <p>Lo de arriba comprueba que los dos apuntan al mismo sitio; esto
+     * comprueba lo otro que puede romperse y no depende de nosotros: que la
+     * URL de Scryfall siga sirviendo esa imagen. Baja tres y pregunta luego
+     * por el <b>camino del jugador</b> ({@code OfflineArt.find}), que es la
+     * unica respuesta que vale.
+     *
+     * <p>Fuera de la bateria a proposito: quiere linea, como {@code netcheck}.
+     */
+    private static void checkArtDownloadRuns() {
+        final forge.neo.card.ArtDownload service =
+                new forge.neo.card.ArtDownload(forge.neo.card.ArtDownload.Scope.ALL);
+        System.out.println("  bajando de verdad " + Integer.getInteger("neo.art.testLimit", 0)
+                + " cartas de Scryfall...");
+        final boolean ok = forge.neo.platform.NeoDownloads.runAndWait(service, 120);
+        System.out.println("  descarga terminada: " + ok + " (" + service.getCount() + " pedidas)");
+        // Por el MISMO camino que la pantalla: si esto no estuviera, el
+        // comprobador diria que todo va bien y el jugador no veria una foto.
+        forge.neo.card.ArtDownload.afterDownload();
+        // Se miran LAS QUE SE PIDIERON, no las primeras del catalogo: la lista
+        // se salta lo que ya estaba en disco, asi que no son las mismas.
+        final java.util.List<PaperCard> pedidas = service.getQueued();
+        int encontradas = 0;
+        final java.util.List<String> sin = new java.util.ArrayList<>();
+        for (final PaperCard pc : pedidas) {
+            if (forge.neo.card.OfflineArt.find(pc.getImageKey(false), false) != null) {
+                encontradas++;
+            } else {
+                sin.add(pc.getName());
+            }
+        }
+        System.out.println("  y el lector las encuentra: " + encontradas + " de " + pedidas.size());
+        sin.stream().limit(10).forEach(n -> System.out.println("     sin foto: " + n));
+        // No se exige el 100%: Scryfall no tiene imagen para todo lo que trae
+        // el motor (cartas de prueba, rebalanceadas de Arena, alguna promo), y
+        // esas el servicio las cuenta como saltadas y sigue. Lo que se vigila
+        // es que la inmensa mayoria llegue y se encuentre; si eso se cae, es
+        // que se ha roto la URL o el nombre del fichero.
+        // Dos fallos, o el 10% si son muchas: Scryfall no tiene imagen para
+        // todo lo que trae el motor, y con ocho cartas de muestra una sola
+        // laguna suya pondria esto en rojo sin que hubieramos roto nada.
+        final int permitidos = Math.max(2, pedidas.size() / 10);
+        if (pedidas.isEmpty() || pedidas.size() - encontradas > permitidos) {
+            throw new IllegalStateException("se pidieron " + pedidas.size()
+                    + " artes y OfflineArt solo encuentra " + encontradas);
+        }
+    }
+
+    /**
+     * <b>Que el que baja y el que lee apunten al mismo fichero.</b>
+     *
+     * <p>Es lo unico de la descarga de arte que puede romperse <b>en
+     * silencio</b>: si {@code ArtDownload} escribiera en un sitio y
+     * {@code OfflineArt} mirara en otro, se bajarian dos gigas que nadie
+     * encuentra, sin un solo error, y el jugador diria que el boton no hace
+     * nada. Por eso los dos calculan el nombre con los MISMOS dos metodos, y
+     * por eso esto lo comprueba carta a carta.
+     *
+     * <p>Sin red: solo se compara a donde apuntaria cada uno.
+     */
+    private static void checkArtDownloadTargets() {
+        int mirados = 0;
+        int mal = 0;
+        for (final PaperCard pc : forge.neo.card.ArtDownload.sample(400)) {
+            final String nombre = pc.getRules().getMainPart().getName();
+            final java.io.File destino = forge.neo.card.ArtDownload.destination(nombre);
+            if (destino == null) {
+                continue;
+            }
+            mirados++;
+            // Lo que leeria OfflineArt para esa misma carta: su nombre limpio y
+            // su carpeta. Si el destino no termina ahi, estan desalineados.
+            final String limpio = forge.neo.card.OfflineArt.fileName(nombre);
+            final java.io.File esperado = new java.io.File(
+                    new java.io.File(forge.neo.card.OfflineArt.dir(),
+                            forge.neo.card.OfflineArt.folder(limpio)), limpio + ".jpg");
+            if (!destino.getAbsolutePath().equals(esperado.getAbsolutePath())) {
+                mal++;
+                if (mal <= 5) {
+                    System.out.println("     DESALINEADO: " + nombre);
+                    System.out.println("       baja a: " + destino.getAbsolutePath());
+                    System.out.println("       lee de: " + esperado.getAbsolutePath());
+                }
+            }
+        }
+        System.out.printf("  destino de la descarga: %d cartas miradas, %d desalineadas%n",
+                mirados, mal);
+        if (mal > 0) {
+            throw new IllegalStateException(mal + " carta(s) se bajarian donde nadie las lee");
+        }
     }
 
     private static void banner(final String text) {

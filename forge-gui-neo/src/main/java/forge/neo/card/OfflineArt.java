@@ -46,6 +46,23 @@ public final class OfflineArt {
      */
     private static final Map<String, String> SEEN = new ConcurrentHashMap<>();
 
+    /**
+     * Olvida lo mirado.
+     *
+     * <p><b>Por que hace falta.</b> Esta clase recuerda los "no esta" durante
+     * toda la sesion, y eso era gratis mientras el arte solo se podia copiar
+     * con el programa cerrado. Desde que se baja DESDE DENTRO
+     * ({@code ArtDownload}) deja de serlo: sin esto, el jugador se baja dos
+     * gigas, se queda mirando la mesa y las cartas siguen dibujadas — porque
+     * cada una de ellas ya esta apuntada como que no estaba.
+     *
+     * <p>Lo caza {@code run.cmd artecheck -Dneo.art.testLimit=3}: bajaba tres
+     * y el lector encontraba cero.
+     */
+    public static void forget() {
+        SEEN.clear();
+    }
+
     /** La carpeta del arte: hermana de {@code pics/cards}. */
     public static File dir() {
         return new File(ForgeConstants.CACHE_DIR, "pics" + File.separator + "arte");

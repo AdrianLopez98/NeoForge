@@ -101,6 +101,13 @@ public class PlayerField extends Pane {
         landRow.setOnCardHover(handler);
     }
 
+    /** Que fichas estan ya elegidas: parte las pilas. Ver BattlefieldPane. */
+    public void setPickedTest(final java.util.function.Predicate<CardView> test) {
+        creatureRow.setPickedTest(test);
+        permanentRow.setPickedTest(test);
+        landRow.setPickedTest(test);
+    }
+
     public void setOnAttachPeek(
             final java.util.function.BiConsumer<CardView, java.util.List<CardView>> handler) {
         creatureRow.setOnAttachPeek(handler);
