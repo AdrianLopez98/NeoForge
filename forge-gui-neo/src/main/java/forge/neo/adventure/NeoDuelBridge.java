@@ -5,6 +5,7 @@ import forge.game.GameType;
 import forge.game.player.RegisteredPlayer;
 import forge.gamemodes.match.HostedMatch;
 import forge.neo.NeoSettings;
+import forge.neo.NeoShortcuts;
 import forge.neo.match.NeoGame;
 import forge.neo.match.NeoMatchUI;
 import forge.neo.match.SafeAi;
@@ -65,6 +66,16 @@ public final class NeoDuelBridge {
             gui.setTable(table);
             binder.setMatchUi(gui);
             DuelControls.install(NeoWindow.scene(), table, gui);
+            // Que teclas manda aqui, dicho en el registro. Una linea por duelo,
+            // y esta a proposito: al reportar "los atajos no me funcionan en la
+            // Aventura" (20-09-2026) la primera pregunta era si este proceso
+            // lee TUS teclas o las de fabrica, y no habia forma de saberlo sin
+            // recompilar. Son los mismos ajustes: este proceso hereda el
+            // entorno del que lo lanza, asi que lee el mismo neo.properties.
+            log("atajos: prioridad=" + NeoShortcuts.describe(NeoShortcuts.Action.PASS_PRIORITY)
+                    + " registro=" + NeoShortcuts.describe(NeoShortcuts.Action.GAME_LOG)
+                    + " | ajustes en " + NeoSettings.path());
+            spaceProbeLater(table);
 
             final Thread engine = new Thread(() -> {
                 try {
@@ -88,6 +99,44 @@ public final class NeoDuelBridge {
             engine.setDaemon(true);
             engine.start();
         });
+    }
+
+    /**
+     * Solo pruebas ({@code -Dneo.adventure.spaceTest=true}): reproduce el fallo
+     * reportado el 20-09-2026 — <i>"cada vez que pulso Espacio se abre el
+     * registro, y en Ascenso o en NeoForge normal no pasa"</i>.
+     *
+     * <p>Se le da el foco al boton del registro (basta con haberlo clicado una
+     * vez) y se pulsa Espacio SOBRE EL, que es como llega de verdad: un boton
+     * de JavaFX se dispara con Espacio antes de que la tecla llegue a los
+     * atajos. Si la guardia esta puesta, no se abre nada y Espacio hace lo
+     * suyo; si no, sale el registro. Dice BIEN o MAL por el registro de la
+     * Aventura, asi que no hay que mirar la pantalla.
+     */
+    private static void spaceProbeLater(final TableScreen table) {
+        if (!Boolean.getBoolean("neo.adventure.spaceTest")) {
+            return;
+        }
+        final Thread t = new Thread(() -> {
+            try {
+                Thread.sleep(Long.getLong("neo.adventure.spaceTestMs", 8000));
+            } catch (final InterruptedException e) {
+                return;
+            }
+            Platform.runLater(() -> {
+                table.getLogButton().requestFocus();
+                final boolean before = table.isModalShowing();
+                table.getLogButton().fireEvent(new javafx.scene.input.KeyEvent(
+                        javafx.scene.input.KeyEvent.KEY_PRESSED, " ", " ",
+                        javafx.scene.input.KeyCode.SPACE, false, false, false, false));
+                final boolean after = table.isModalShowing();
+                log(after && !before
+                        ? "  [MAL] Espacio con el foco en el boton del registro lo ha ABIERTO"
+                        : "  [BIEN] Espacio no abre el registro: la tecla es de la partida");
+            });
+        }, "neo-adventure-space-probe");
+        t.setDaemon(true);
+        t.start();
     }
 
     /** Solo con -Dneo.adventure.snapshot=fichero.png: captura la mesa a los 4 s. */

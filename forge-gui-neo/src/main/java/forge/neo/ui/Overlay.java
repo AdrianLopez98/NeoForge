@@ -141,4 +141,20 @@ public class Overlay extends StackPane {
     public boolean isShowing() {
         return isVisible();
     }
+
+    /**
+     * Lo que esta ensenyando ahora mismo, o {@code null}.
+     *
+     * <p>La pastilla de "ver la mesa" no cuenta: es cromo de la capa, no el
+     * contenido. Lo pregunta {@code TableScreen} para saber si el dialogo que
+     * el motor espera sigue puesto o se lo ha llevado algo por delante.
+     */
+    public Region getContent() {
+        for (final javafx.scene.Node n : getChildren()) {
+            if (n != peekPill && n instanceof Region r) {
+                return r;
+            }
+        }
+        return null;
+    }
 }

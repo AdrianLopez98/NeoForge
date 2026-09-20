@@ -165,18 +165,70 @@ public class CardStackNode extends Pane {
 
     /** Cuanto asoma lo enganchado por debajo del anfitrion, en pixeles. */
     public double attachOverhang() {
-        if (attachments.isEmpty()) {
+        if (attachments.isEmpty() || stacked()) {
             return 0;
         }
+        return overhangFor(cardWidth);
+    }
+
+    /**
+     * Lo mismo, sabiendo solo el ancho de carta.
+     *
+     * <p>Existe para que <b>el reparto de la mesa</b> pueda dejar ese hueco
+     * ANTES de pintar nada ({@code PlayerField}): si no, el aura se dibuja
+     * encima de la fila de atras, que es donde estan tus tierras. Y la cuenta
+     * tiene que salir de un solo sitio, o el hueco reservado y el que se usa
+     * acaban siendo distintos.
+     */
+    public static double overhangFor(final double cardWidth) {
         return cardWidth * ATTACH_SCALE * CardNode.ASPECT * (1 - ATTACH_TUCK);
     }
+
+    /** ¿Lo enganchado va apilado detras (ajuste) en vez de en abanico? */
+    private static boolean stacked() {
+        return forge.neo.NeoSettings.attachmentsStacked();
+    }
+
+    /**
+     * Que hacer al clicar el contador de lo enganchado (modo apilado): lo
+     * abre la mesa en el visor de zonas, en grande y clicable.
+     */
+    private java.util.function.BiConsumer<CardView, List<CardView>> onAttachPeek;
+
+    public void setOnAttachPeek(
+            final java.util.function.BiConsumer<CardView, List<CardView>> handler) {
+        this.onAttachPeek = handler;
+    }
+
+    /** El contador de lo enganchado, solo en modo apilado. */
+    private final Label attachCount = new Label();
+
+    private final Rectangle[] attachShadows = new Rectangle[MAX_SHADOWS];
 
     private void layoutAttachments() {
         final int n = attachments.size();
         if (n == 0) {
             front.setBottomInset(0);
+            showAttachPile(0);
             return;
         }
+        if (stacked()) {
+            // Apilado: lo enganchado no se ve y no ocupa NADA fuera de la
+            // carta. Se dibuja detras (los bordes asomando) y se dice cuanto
+            // hay. Para verlo o elegirlo, el contador.
+            for (final CardNode a : attachments) {
+                a.setVisible(false);
+                a.setManaged(false);
+            }
+            front.setBottomInset(0);
+            showAttachPile(n);
+            return;
+        }
+        for (final CardNode a : attachments) {
+            a.setVisible(true);
+            a.setManaged(true);
+        }
+        showAttachPile(0);
         final double w = cardWidth * ATTACH_SCALE;
         final double h = w * CardNode.ASPECT;
         final double hostH = cardWidth * CardNode.ASPECT;
@@ -203,6 +255,101 @@ public class CardStackNode extends Pane {
 
         // La P/T se queda donde va impresa: ahora no hay nada tapandola.
         front.setBottomInset(0);
+    }
+
+    /**
+     * La pila de lo enganchado: los bordes que asoman por detras y el contador.
+     *
+     * <p>Se monta la primera vez que hace falta y no en el constructor: la
+     * inmensa mayoria de las cartas de la mesa no llevan nada encima, y son
+     * tres nodos por carta en una pantalla que se repinta constantemente.
+     *
+     * @param n cuantas cosas lleva encima; 0 la apaga
+     */
+    private void showAttachPile(final int n) {
+        if (n == 0) {
+            if (attachCount.getParent() != null) {
+                attachCount.setVisible(false);
+                for (final Rectangle r : attachShadows) {
+                    if (r != null) {
+                        r.setVisible(false);
+                    }
+                }
+            }
+            return;
+        }
+        if (attachCount.getParent() == null) {
+            for (int i = 0; i < MAX_SHADOWS; i++) {
+                final Rectangle r = new Rectangle();
+                r.setFill(Color.rgb(28, 34, 44));
+                r.setStroke(Color.rgb(0, 0, 0, 0.8));
+                r.setStrokeWidth(1);
+                // Por DETRAS de la carta: en JavaFX se pinta antes lo que
+                // tiene el viewOrder mas alto.
+                r.setViewOrder(1.5);
+                r.setMouseTransparent(true);
+                attachShadows[i] = r;
+                getChildren().add(r);
+            }
+            attachCount.getStyleClass().addAll("stack-count", "attach-count");
+            attachCount.setAlignment(Pos.CENTER);
+            attachCount.setCursor(javafx.scene.Cursor.HAND);
+            // Y ESTE si se clica: es la unica forma de llegar a lo que lleva
+            // encima cuando esta apilado. El izquierdo solo — el derecho es de
+            // la mesa, que amplia la carta.
+            attachCount.setOnMouseClicked(e -> {
+                if (e.getButton() != javafx.scene.input.MouseButton.PRIMARY) {
+                    return;
+                }
+                e.consume();
+                if (onAttachPeek != null && front.getCard() != null) {
+                    final List<CardView> cards = new ArrayList<>();
+                    for (final CardNode a : attachments) {
+                        if (a.getCard() != null) {
+                            cards.add(a.getCard());
+                        }
+                    }
+                    onAttachPeek.accept(front.getCard(), cards);
+                }
+            });
+            getChildren().add(attachCount);
+        }
+        for (int i = 0; i < MAX_SHADOWS; i++) {
+            attachShadows[i].setVisible(n > i);
+        }
+        attachCount.setText("+" + n);
+        attachCount.setVisible(true);
+        layoutAttachPile();
+    }
+
+    /** Coloca esa pila. Depende del ancho de carta, asi que se rehace con el. */
+    private void layoutAttachPile() {
+        if (attachCount.getParent() == null || !attachCount.isVisible()) {
+            return;
+        }
+        final double w = cardWidth;
+        final double h = w * CardNode.ASPECT;
+        final double off = Math.max(2, w * 0.035);
+        for (int i = 0; i < MAX_SHADOWS; i++) {
+            final Rectangle r = attachShadows[i];
+            final double d = off * (i + 1);
+            // Hacia ABAJO y a la izquierda, al reves que la pila de fichas:
+            // son dos cosas distintas (varias copias de la misma carta, o
+            // cosas pegadas a esta) y tienen que distinguirse de un vistazo.
+            r.setX(-d);
+            r.setY(d);
+            r.setWidth(w);
+            r.setHeight(h);
+            r.setArcWidth(w * 0.1);
+            r.setArcHeight(w * 0.1);
+        }
+        final double badge = Math.max(16, w * 0.26);
+        final double badgeW = badge * Math.max(1, 0.46 * attachCount.getText().length());
+        attachCount.setStyle("-fx-font-size:" + (badge * 0.58) + "px;");
+        attachCount.setMinSize(badgeW, badge * 0.72);
+        attachCount.setPrefSize(badgeW, badge * 0.72);
+        attachCount.setLayoutX(-badgeW * 0.1);
+        attachCount.setLayoutY(h - badge * 0.62);
     }
 
     public CardNode getFront() {
@@ -252,5 +399,6 @@ public class CardStackNode extends Pane {
         front.resize(w, h);
         resize(w, h);
         layoutAttachments();
+        layoutAttachPile();
     }
 }

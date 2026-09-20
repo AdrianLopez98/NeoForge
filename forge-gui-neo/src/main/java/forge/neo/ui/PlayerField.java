@@ -101,6 +101,13 @@ public class PlayerField extends Pane {
         landRow.setOnCardHover(handler);
     }
 
+    public void setOnAttachPeek(
+            final java.util.function.BiConsumer<CardView, java.util.List<CardView>> handler) {
+        creatureRow.setOnAttachPeek(handler);
+        permanentRow.setOnAttachPeek(handler);
+        landRow.setOnAttachPeek(handler);
+    }
+
     public void setOnCardClick(final Consumer<CardNode> handler) {
         creatureRow.setOnCardClick(handler);
         permanentRow.setOnCardClick(handler);
@@ -368,14 +375,41 @@ public class PlayerField extends Pane {
         // BattlefieldPane — pero solo puede si la fila tiene el alto correcto.
         cardW = Math.max(cardW, BattlefieldPane.MIN_CARD_WIDTH);
 
+        // --- el hueco de lo enganchado ---
+        //
+        // Un equipo o un aura cuelgan por debajo de su criatura. El recorte de
+        // la fila se abre para dejarlos asomar (si no, ni se ven ni se pueden
+        // clicar), pero eso solo permite DIBUJAR fuera: el sitio no se lo
+        // quitaba a nadie, asi que caian encima de la fila de atras — o sea,
+        // encima de tus tierras. Y como el recorte tambien deja pasar el
+        // raton, ahi se peleaban por el click dos cartas de filas distintas.
+        //
+        // Reportado en itch.io el 20-09-2026 (<i>"cuesta seleccionar el equipo
+        // o el aura con la mesa llena"</i>), y es la mitad de ese problema que
+        // NO depende de ningun ajuste: lo que cuelga tiene que tener su sitio.
+        // Lo que no cabe, encoge — que es lo que hace toda esta mesa.
+        //
+        // Apilado (NeoSettings.ATTACHMENTS_STACKED) no cuelga nada, y entonces
+        // este hueco no existe: la cuenta sale de attachOverhang().
+        final boolean attachedUp = forge.neo.NeoSettings.attachmentsStacked() ? false
+                : (opponent ? (permanentRow.hasAttachments() || landRow.hasAttachments())
+                            : creatureRow.hasAttachments());
+        // El alto que pide lo enganchado, en proporcion al de la carta: sale
+        // de la misma cuenta que lo pinta, no de un numero copiado.
+        final double attachRatio = attachedUp && visible > 1
+                ? CardStackNode.overhangFor(1) / CardNode.ASPECT : 0;
+
         final double gaps = ROW_GAP * (visible - 1);
-        if (cardW * CardNode.ASPECT * visible + gaps > h) {
+        if (cardW * CardNode.ASPECT * (visible + attachRatio) + gaps > h) {
             cardW = Math.max(BattlefieldPane.MIN_CARD_WIDTH,
-                    (h - gaps) / visible / CardNode.ASPECT);
+                    (h - gaps) / (visible + attachRatio) / CardNode.ASPECT);
         }
 
         final double cardH = cardW * CardNode.ASPECT;
-        final double usedH = cardH * visible + gaps;
+        // El hueco de lo enganchado va DENTRO de lo que ocupa la mesa, o al
+        // centrarla se quedaria colgando por debajo.
+        final double attachH = cardH * attachRatio;
+        final double usedH = cardH * visible + gaps + attachH;
         double y = Math.max(0, (h - usedH) / 2);
 
         // El oponente lleva la fila de atras arriba; tu, abajo. En ambos casos
@@ -384,10 +418,10 @@ public class PlayerField extends Pane {
         final double creatureY;
         if (opponent) {
             backY = y;
-            creatureY = hasBack ? y + cardH + ROW_GAP : y;
+            creatureY = hasBack ? y + cardH + ROW_GAP + attachH : y;
         } else {
             creatureY = y;
-            backY = nCreatures > 0 ? y + cardH + ROW_GAP : y;
+            backY = nCreatures > 0 ? y + cardH + ROW_GAP + attachH : y;
         }
 
         if (nCreatures > 0) {

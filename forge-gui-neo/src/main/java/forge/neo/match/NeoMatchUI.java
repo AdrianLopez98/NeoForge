@@ -246,6 +246,9 @@ public class NeoMatchUI extends NetworkGuiGame {
 
     public void leaveMatch(final Exit action) {
         this.exitAction = action;
+        // Igual que en finishGame: se abandona, asi que nada de reponer la
+        // pregunta a medias por la que se estaba saliendo.
+        uiRunLater(() -> table.forgetEngineDialogs());
         watchdogForLeaving();
         respondLater(() -> {
             // Sin esto, concede() levantaria SU dialogo de confirmacion en
@@ -1471,6 +1474,10 @@ public class NeoMatchUI extends NetworkGuiGame {
         // no se cierra NUNCA: no falla, se queda ahi. Avisar cuesta un
         // Platform.runLater; ser el ultimo de la cola costaba una leccion.
         tellTheSpy(event);
+        // Y aqui se para, si el jugador esta leyendo una carta o tiene el menu
+        // puesto: ANTES de tocar la mesa, para que lo que venga detras se vea
+        // entrar cuando vuelva a mirar. Ver holdWhileReading.
+        holdWhileReading();
         // Cada evento del motor (carta jugada, criatura muerta, dano...) puede
         // cambiar lo que se ve. El binder agrupa, asi que esto es barato.
         pushToTable();
@@ -1545,6 +1552,111 @@ public class NeoMatchUI extends NetworkGuiGame {
             Thread.sleep(AI_STEP_MS * 100 / speed);
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
+        }
+    }
+
+    /**
+     * Tope duro de la pausa por lectura, en milisegundos.
+     *
+     * <p>No es un temporizador de lectura: es el seguro de que un fallo
+     * nuestro no pueda dejar la partida congelada para siempre. Cinco minutos
+     * mirando una carta no los hace nadie; un espejo que se quedara encendido
+     * si. Si salta, se dice por consola y la partida sigue, que es exactamente
+     * lo que hacia antes de existir este ajuste.
+     */
+    private static final long READING_CAP_DEFAULT_MS = 5 * 60 * 1000L;
+
+    /** El tope, con {@code -Dneo.readingCapMs=N} para poder probarlo (la guía de pruebas). */
+    private static long readingCapMs() {
+        return Long.getLong("neo.readingCapMs", READING_CAP_DEFAULT_MS);
+    }
+
+    /**
+     * Quien sabe si el jugador ha parado la partida para leer.
+     *
+     * <p>Normalmente es la mesa (carta ampliada o menu de pausa). Se puede
+     * sustituir para probar la pausa <b>sin ventana</b>, que es lo que hace
+     * {@code run.cmd readingcheck}: montar un JavaFX entero para comprobar que
+     * el motor se para seria pagar una ventana por una espera.
+     */
+    private volatile java.util.function.BooleanSupplier readingProbe;
+
+    public void setReadingProbe(final java.util.function.BooleanSupplier probe) {
+        this.readingProbe = probe;
+    }
+
+    private boolean playerIsReading() {
+        final java.util.function.BooleanSupplier probe = readingProbe;
+        if (probe != null) {
+            return probe.getAsBoolean();
+        }
+        final forge.neo.ui.TableScreen t = table;
+        return t != null && t.isPlayerReading();
+    }
+
+    /**
+     * <b>Para la partida mientras el jugador esta leyendo.</b>
+     *
+     * <p>Pedido el 20-09-2026 en itch.io: <i>"un ajuste para pausar la partida
+     * al ampliar una carta dejaria leerla a los jugadores nuevos o lentos sin
+     * perderse nada de lo que pasa"</i>. Ampliar una carta es justo lo que
+     * hace quien no va sobrado, y era el unico gesto de la mesa que no paraba
+     * nada: la IA seguia jugando detras de la carta. El menu de pausa tampoco
+     * paraba, que es peor porque se llama asi.
+     *
+     * <p><b>Duerme el hilo del MOTOR</b>, como {@link #slowTheAiDown}: la
+     * partida se detiene de verdad, no solo la pantalla. Y va <b>antes</b> de
+     * {@code pushToTable}, que es lo que hace que sirva de algo — asi la mesa
+     * de debajo ni se entera, y al cerrar la carta ves la jugada ENTRAR, con
+     * su animacion, en vez de encontrartela ya hecha.
+     *
+     * <p>No mira el modo de la partida: lo que la enciende es que alguien
+     * diga que esta leyendo, y eso solo lo dice una mesa de verdad — sin
+     * ventana no hay quien amplie una carta, asi que los comprobadores ni se
+     * enteran. Las guardias son las de {@code slowTheAiDown} y una mas:
+     * <ul>
+     *   <li>en <b>red</b>, nada: el invitado no tiene motor que parar, y el
+     *       anfitrion parandolo congelaria a los demas;</li>
+     *   <li>nunca desde el <b>hilo de interfaz</b> — ahi entra cuando el
+     *       propio jugador toca una carta y el motor vuelve por el mismo hilo
+     *       (las notas de diseño seccion 5), y dormirlo seria congelar la ventana y no
+     *       poder ni cerrar la carta: un cuelgue del que no se sale;</li>
+     *   <li>y se suelta si se esta <b>saliendo</b> de la partida. "Salir" y
+     *       "Reiniciar" ocultan el menu antes de pedirselo al motor, asi que
+     *       ya se soltaria sola; esto es el tirante del cinturon, porque lo
+     *       que hay al otro lado es una partida que no se puede abandonar.</li>
+     * </ul>
+     */
+    private void holdWhileReading() {
+        if (isNetGame() || !playerIsReading()) {
+            return;
+        }
+        if (!forge.neo.NeoSettings.pauseWhileReading()) {
+            return;
+        }
+        // Seguro de vida: dormir el hilo de interfaz congela la ventana.
+        final UiDispatcher ui = uiDispatcher();
+        if (ui != null && ui.isUiThread()) {
+            return;
+        }
+        final long cap = readingCapMs();
+        final long until = System.currentTimeMillis() + cap;
+        while (playerIsReading() && exitAction == null && !finished.get()) {
+            if (System.currentTimeMillis() > until) {
+                System.out.println("[neo] la pausa por lectura lleva " + cap
+                        + " ms: se sigue igual");
+                return;
+            }
+            try {
+                // Se pregunta en vez de esperar un aviso: quien cierra la
+                // carta es el hilo de interfaz y un aviso perdido aqui seria
+                // la partida parada para siempre. Dos decimas de retraso al
+                // reanudar no las nota nadie; 50 ms tampoco cuestan nada.
+                Thread.sleep(50L);
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
         }
     }
 
@@ -2250,6 +2362,9 @@ public class NeoMatchUI extends NetworkGuiGame {
         // descartando y la segunda partida naceria muerta.
         finished.set(false);
         closeNotified.set(false);
+        // "Otra partida" reusa este NeoMatchUI: una pregunta pendiente de la
+        // anterior seria un dialogo fantasma sobre la mesa nueva.
+        uiRunLater(() -> table.forgetEngineDialogs());
         gameOverShowing = false;
         closeDeferred = false;
         // El aviso de "el motor se ha muerto" es de un solo uso: si no se
@@ -2267,6 +2382,12 @@ public class NeoMatchUI extends NetworkGuiGame {
         // Quien somos, para que el click derecho no ensenye el morfo del
         // rival. Ver el porque en forge.neo.ui.CardZoom.localViewers.
         forge.neo.ui.CardZoom.setLocalViewers(getLocalPlayers());
+        // Si ampliar una carta va a parar la partida de verdad, la mesa lo
+        // dice al ampliarla. Aqui, que es por donde pasan TODAS las partidas
+        // (principio 8): en red no para nadie, y una maqueta no tiene motor.
+        if (table != null) {
+            table.setEnginePausable(!isNetGame());
+        }
         pushToTable();
 
         // Que una tierra de dos colores pregunte cual da, en vez de decidirlo
@@ -2500,6 +2621,10 @@ public class NeoMatchUI extends NetworkGuiGame {
     @Override
     public void finishGame() {
         finished.set(true);
+        // Se acabo: lo que el motor estuviera esperando ya no lo espera nadie.
+        // Sin esto, el vigilante de la mesa podria reponer una pregunta muerta
+        // ENCIMA de la pantalla de victoria. Ver TableScreen.markEngineDialog.
+        uiRunLater(() -> table.forgetEngineDialogs());
         final GameView gv = getGameView();
         System.out.println();
         if (gv != null && gv.isGameOver()) {
@@ -4027,10 +4152,32 @@ public class NeoMatchUI extends NetworkGuiGame {
         final CompletableFuture<T> answer = new CompletableFuture<>();
         ui.runLater(() -> {
             try {
+                // Que dialogo se ha puesto no lo sabe este metodo: lo pinta el
+                // shower, que es distinto en cada pregunta. Se le pregunta a la
+                // capa DESPUES, y esa es la pieza que hace que la mesa pueda
+                // reponerlo si algo se lo lleva por delante. Ver
+                // TableScreen.markEngineDialog.
+                final javafx.scene.layout.Region[] shown = new javafx.scene.layout.Region[1];
+                // Lo que habia ANTES, porque no todas las preguntas del motor
+                // se pintan en esta capa: el aviso de "esto te acaba de pasar"
+                // usa la banda de arriba. Si la capa no ha cambiado, esto no es
+                // su dialogo y marcarlo seria adoptar el de otro — y al
+                // contestar, borrarle la guardia.
+                final javafx.scene.layout.Region before = table.getOverlay().getContent();
                 shower.accept(value -> {
+                    if (shown[0] != null) {
+                        table.clearEngineDialog(shown[0]);
+                    }
                     table.getOverlay().hide();
                     answer.complete(value);
                 });
+                // Si ya ha contestado aqui mismo (un dialogo que se resuelve
+                // solo), no hay nada pendiente que vigilar.
+                final javafx.scene.layout.Region after = table.getOverlay().getContent();
+                if (!answer.isDone() && after != null && after != before) {
+                    shown[0] = after;
+                    table.markEngineDialog(after);
+                }
             } catch (final Exception e) {
                 e.printStackTrace();
                 answer.complete(fallback);
@@ -4075,16 +4222,28 @@ public class NeoMatchUI extends NetworkGuiGame {
         final List<T> box = new ArrayList<>(1);
         box.add(fallback);
 
+        final javafx.scene.layout.Region[] shown = new javafx.scene.layout.Region[1];
+        // Ver el comentario gemelo en askUser: solo es "su" dialogo si la capa
+        // ha cambiado al pintarlo.
+        final javafx.scene.layout.Region before = table.getOverlay().getContent();
         try {
             shower.accept(value -> {
                 // Contestar dos veces reventaria el bucle anidado.
                 if (!answered.compareAndSet(false, true)) {
                     return;
                 }
+                if (shown[0] != null) {
+                    table.clearEngineDialog(shown[0]);
+                }
                 table.getOverlay().hide();
                 box.set(0, value);
                 javafx.application.Platform.exitNestedEventLoop(key, null);
             });
+            final javafx.scene.layout.Region after = table.getOverlay().getContent();
+            if (!answered.get() && after != null && after != before) {
+                shown[0] = after;
+                table.markEngineDialog(after);
+            }
         } catch (final Exception e) {
             e.printStackTrace();
             return fallback;
@@ -4638,14 +4797,29 @@ public class NeoMatchUI extends NetworkGuiGame {
 
         final boolean[] all = new boolean[labels.size()];
         java.util.Arrays.fill(all, true);
+        // EN LA CAPA DEL MENU, no en la de los dialogos de la partida.
+        //
+        // Este menu es consultar, no contestar, y la capa de los dialogos solo
+        // ensenya UNA cosa (Overlay.show hace setAll): abrirlo ahi mientras el
+        // motor esperaba una eleccion **borraba esa eleccion de la pantalla**,
+        // y el "Volver" de "Ver la mesa" te devolvia a este menu en vez de a la
+        // pregunta. Cerrandolo con Cancelar, la pregunta ya no estaba en ningun
+        // sitio y el motor se quedaba esperando una respuesta que ya no se
+        // podia dar: partida muerta, sin un solo error.
+        //
+        // Reportado en itch.io el 20-09-2026 con la secuencia entera: un rival
+        // lanza Dredge the Mire, se abre la eleccion, el jugador da a "Ver la
+        // mesa" para leer el hechizo en el stack, abre este menu... y ya no hay
+        // vuelta. Es la misma regla que ya cumplia el visor de zonas
+        // (TableScreen.showZone) y que a este menu se le habia escapado.
         final AbilityMenu menu = new AbilityMenu(source, labels, all,
                 table.zoomCardWidth() * 0.62, picked -> {
-                    table.getOverlay().hide();
+                    table.getMenuOverlay().hide();
                     if (picked != null && picked >= 0 && picked < actions.size()) {
                         actions.get(picked).run();
                     }
                 });
-        table.getOverlay().show(menu);
+        table.getMenuOverlay().show(menu);
     }
 
     /** Si lo recordado vale para la habilidad o para la carta. Lo dice el motor. */

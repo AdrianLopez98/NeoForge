@@ -231,6 +231,13 @@ public final class NeoMain {
                 banner("Piloto automatico: el bloqueo obligado");
                 forge.neo.match.BlockCheck.run();
                 break;
+            case "readingcheck":
+                // La pausa mientras lees una carta: que el motor se pare DE
+                // VERDAD (no solo la pantalla), que vuelva al cerrarla y que
+                // el tope la suelte pase lo que pase. Ver ReadingCheck.
+                banner("Pausa por lectura: el motor se para mientras lees");
+                forge.neo.match.ReadingCheck.run();
+                break;
             case "macrocheck":
                 // Las macros de Forge (grabar / repetir), jugadas: un click en
                 // un Bosque grabado en un turno y repetido en el siguiente.

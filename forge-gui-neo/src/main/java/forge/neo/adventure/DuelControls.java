@@ -6,6 +6,7 @@ import forge.neo.match.NeoMatchUI;
 import forge.neo.ui.CardZoom;
 import forge.neo.ui.PauseMenu;
 import forge.neo.ui.SettingsPanel;
+import forge.neo.ui.TableKeys;
 import forge.neo.ui.TableScreen;
 import javafx.scene.Node;
 import javafx.scene.Scene;
@@ -57,6 +58,15 @@ final class DuelControls {
             }
         });
         scene.setOnKeyReleased(ev -> HELD.clear());
+        // Y la guardia del boton con el foco, que es de la mesa y no de esta
+        // pantalla: sin ella, despues de clicar UNA vez el boton del registro,
+        // cada Espacio lo volvia a abrir en vez de pasar la prioridad.
+        // Reportado jugando la Aventura el 20-09-2026 ("this thing starts to
+        // show up every time i am pressing space... seems no problem in ascent
+        // or classic neo forge"), y el "no pasa en los otros modos" es la
+        // pista entera: alli la pone NeoApp, y esta escena es otra.
+        TableKeys.guardFocusedButtons(scene, () -> table,
+                ev -> shortcut(ev, scene, table, ui), HELD::clear);
     }
 
     private static void openPause(final TableScreen table, final NeoMatchUI ui) {

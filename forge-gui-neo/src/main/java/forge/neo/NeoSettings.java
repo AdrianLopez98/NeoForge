@@ -135,6 +135,48 @@ public final class NeoSettings {
     public static final String NEWS_STYLE = "newsStyle";
 
     /**
+     * <b>Parar la partida mientras el jugador lee.</b>
+     *
+     * <p>Pedido el 20-09-2026 por un jugador de itch.io, y el argumento es el
+     * que manda: <i>"un ajuste para pausar la partida al ampliar una carta
+     * dejaria a los jugadores nuevos o lentos leerse la carta sin perderse
+     * nada; hoy, si te pierdes algo, hay que ir al registro"</i>. Ampliar una
+     * carta es justo lo que hace un jugador que NO va sobrado, y era el unico
+     * momento en que la partida seguia corriendo detras.
+     *
+     * <p>Vale para las dos capas que el jugador abre a proposito: la carta
+     * ampliada y el menu de pausa (Escape), que tampoco paraba nada — se abria
+     * el menu a mitad del turno del rival y la IA seguia jugando detras.
+     *
+     * <p><b>Encendido de fabrica</b>, al reves que casi todo lo nuevo
+     * (la auditoría del motor 1.1) y a proposito: no aparece nada en pantalla que no
+     * estuviera, no cambia ninguna partida por su cuenta y solo ocurre cuando
+     * eres TU quien decide mirar una carta. Y quien lo necesita es justo quien
+     * no va a encontrar el ajuste. Se apaga para volver al ritmo de antes.
+     *
+     * <p>Lo aplica {@code NeoMatchUI.holdWhileReading}, durmiendo el hilo del
+     * motor. En <b>red no hace nada</b>: parar la mesa del anfitrion congela a
+     * los demas, y el invitado no tiene motor que parar.
+     */
+    public static final String PAUSE_WHILE_READING = "pauseWhileReading";
+
+    /**
+     * Si la partida se para mientras lees una carta.
+     *
+     * <p>{@code -Dneo.pauseWhileReading=true|false} lo fuerza en los dos
+     * sentidos sin escribir en las preferencias. Hacen falta los dos porque
+     * viene encendido: con {@code Boolean.getBoolean} no habria forma de
+     * probar el ritmo de antes sin cambiarle el ajuste al jugador.
+     */
+    public static boolean pauseWhileReading() {
+        final String forced = System.getProperty("neo.pauseWhileReading");
+        if (forced != null && !forced.isBlank()) {
+            return Boolean.parseBoolean(forced);
+        }
+        return getBool(PAUSE_WHILE_READING, true);
+    }
+
+    /**
      * La regla de mulligan (la auditoría del motor, apartado B4): {@code MulliganDefs.MulliganRule}
      * — Original, Paris, Vancouver, London u Houston. El motor la trae entera
      * ({@code MulliganService} la lee de {@code StaticData.instance()} en cada
@@ -269,6 +311,44 @@ public final class NeoSettings {
      * encoge hasta desaparecer cuando el stack lo necesita.
      */
     public static final String HOVER_DETAIL = "hoverDetail";
+
+    /**
+     * <b>Como se ensenya lo enganchado</b> (equipos, auras, fortificaciones):
+     * abanico bajo la criatura (de fabrica) o <b>apilado detras</b> de ella.
+     *
+     * <p>Pedido en itch.io el 20-09-2026: <i>"con la mesa llena cuesta
+     * seleccionar el equipo o el aura, sobre todo si se lo has puesto a una
+     * criatura del rival"</i>. Y es verdad: el abanico reparte lo enganchado a
+     * lo ancho del borde de abajo, asi que con tres cosas encima cada una
+     * asoma una rendija, y ademas cuelga sobre la fila de atras.
+     *
+     * <p>Apilado, lo enganchado no ocupa ni un pixel fuera de la carta: se
+     * dibuja <b>detras</b>, como las fichas repetidas, con su contador. Y para
+     * verlo o elegirlo se clica ese contador, que abre el visor de siempre con
+     * las cartas en grande — un objetivo de raton enorme en vez de una
+     * rendija, que es justo lo que se pedia.
+     *
+     * <p><b>Apagado de fabrica</b> (la auditoría del motor 1.1) y esta vez el motivo no
+     * es solo la prudencia: apilado se pierde de un vistazo <b>que criatura
+     * esta encantada</b>, y eso importa — las auras que mas cambian una
+     * partida son las que te roban una criatura. Quien tenga la mesa llena lo
+     * enciende; quien mire mas que clique, lo deja como esta.
+     */
+    public static final String ATTACHMENTS_STACKED = "attachmentsStacked";
+
+    /**
+     * Si lo enganchado va apilado detras de su anfitriona.
+     *
+     * <p>{@code -Dneo.attachStacked=true|false} lo fuerza sin tocar las
+     * preferencias, para poder capturar los dos modos.
+     */
+    public static boolean attachmentsStacked() {
+        final String forced = System.getProperty("neo.attachStacked");
+        if (forced != null && !forced.isBlank()) {
+            return Boolean.parseBoolean(forced);
+        }
+        return getBool(ATTACHMENTS_STACKED, false);
+    }
 
     /**
      * Si una Aventura nueva en Commander empieza eligiendo entre tres comandantes
@@ -475,8 +555,45 @@ public final class NeoSettings {
     private static final Properties PROPS = new Properties();
     private static boolean loaded;
 
+    /**
+     * Donde vive nuestro fichero de ajustes.
+     *
+     * <p>Normalmente, junto a las preferencias de Forge. Pero el proceso de la
+     * <b>Aventura</b> corre con su propio perfil de Forge (sus partidas
+     * guardadas van aparte a proposito), y eso arrastraba nuestros ajustes con
+     * el: ahi dentro el jugador se encontraba <b>sus atajos, su auto-pass y su
+     * ritmo de la IA de fabrica</b>, porque se estaban leyendo de otro fichero.
+     * Reportado el 20-09-2026 — <i>"me da que no se aplican los atajos que
+     * tengo en NeoForge sino los basicos"</i>, y era exactamente eso.
+     *
+     * <p>Las partidas de la Aventura son suyas; <b>los ajustes de la interfaz
+     * son del jugador</b> y solo hay unos. Por eso el lanzador le pasa la ruta
+     * de verdad en {@code neo.settingsFile} y aqui se respeta.
+     */
     private static File file() {
+        final String forced = System.getProperty("neo.settingsFile");
+        if (forced != null && !forced.isBlank()) {
+            return new File(forced);
+        }
         return new File(ForgeConstants.USER_PREFS_DIR, "neo.properties");
+    }
+
+    /** La ruta, para poder pasarsela a otro proceso. Ver {@link #file()}. */
+    public static String path() {
+        return file().getAbsolutePath();
+    }
+
+    /**
+     * Vuelve a leer el fichero.
+     *
+     * <p>Hace falta porque la Aventura corre en OTRO proceso y comparte estos
+     * ajustes: si el jugador cambia algo en su menu de pausa, el que se quedo
+     * esperando aqui tiene la copia vieja en memoria y la escribiria encima.
+     */
+    public static synchronized void reload() {
+        PROPS.clear();
+        loaded = false;
+        load();
     }
 
     /**

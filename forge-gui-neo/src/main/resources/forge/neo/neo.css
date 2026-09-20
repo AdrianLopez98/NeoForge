@@ -822,6 +822,20 @@
     -fx-border-width: 1.5;
 }
 
+/* El contador de lo ENGANCHADO (equipos y auras apilados detras de la carta).
+   Se distingue de la pila de fichas a proposito: son dos cosas distintas, y
+   ademas esta SE CLICA — de ahi el acento de fondo, que es el color con el que
+   toda la interfaz dice "esto se puede tocar". */
+.attach-count {
+    -fx-background-color: -neo-accent;
+    -fx-text-fill: #0B0F14;
+    -fx-border-color: rgba(10,14,20,0.8);
+}
+
+.attach-count:hover {
+    -fx-background-color: derive(-neo-accent, 25%);
+}
+
 /* ---------- zona de la mano ---------- */
 
 .hand-area {

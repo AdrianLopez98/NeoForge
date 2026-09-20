@@ -194,34 +194,12 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             }
         });
         // Espacio (y Enter) sobre un boton de la mesa que se ha quedado con el
-        // foco. Un boton de JavaFX se "pulsa" con Espacio y se queda la tecla
-        // antes de que llegue a los atajos: tras clicar una vez el boton del
-        // registro, cada Espacio para cerrar un aviso abria el registro
-        // (reportado: "every time I press space to close the pop ups it opens
-        // the Log"). En la mesa, sin nada modal encima, esas teclas son atajos
-        // de partida, nunca "pulsar lo que tenga el foco". Los dialogos se
-        // quedan como estan: ahi Espacio sobre su boton si es lo que se quiere.
-        final javafx.event.EventHandler<javafx.scene.input.KeyEvent> focusedButtonGuard = ev -> {
-            final javafx.scene.input.KeyCode code = ev.getCode();
-            if (code != javafx.scene.input.KeyCode.SPACE && code != javafx.scene.input.KeyCode.ENTER) {
-                return;
-            }
-            if (table == null || table.getScene() == null || table.isModalShowing()) {
-                return;
-            }
-            final javafx.scene.Node owner = scene.getFocusOwner();
-            if (!(owner instanceof javafx.scene.control.ButtonBase) || !isInside(owner, table)) {
-                return;
-            }
-            ev.consume();
-            if (ev.getEventType() == javafx.scene.input.KeyEvent.KEY_PRESSED) {
-                runShortcut(ev);
-            } else {
-                heldShortcuts.clear();
-            }
-        };
-        scene.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, focusedButtonGuard);
-        scene.addEventFilter(javafx.scene.input.KeyEvent.KEY_RELEASED, focusedButtonGuard);
+        // foco. Vive en forge.neo.ui.TableKeys porque el duelo de la Aventura
+        // monta su mesa en OTRA escena y tiene que llevar la misma guardia: sin
+        // ella, alli cada Espacio volvia a abrir el registro (reportado el
+        // 20-09-2026). Ver el principio 8 de las notas de diseño.
+        forge.neo.ui.TableKeys.guardFocusedButtons(scene, () -> table,
+                this::runShortcut, heldShortcuts::clear);
         // Soltar una tecla rearma los atajos que no se repiten.
         scene.addEventHandler(javafx.scene.input.KeyEvent.KEY_RELEASED, ev -> heldShortcuts.clear());
 
@@ -415,7 +393,8 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 || args.contains("--mock-piles") || optionOf(args, "--mock-piles") != null
                 || args.contains("--mock-sideboard") || args.contains("--mock-relics")
                 || args.contains("--mock-boss-relics") || args.contains("--mock-multiboard")
-                || args.contains("--mock-foil") || optionOf(args, "--mock-foil") != null;
+                || args.contains("--mock-foil") || optionOf(args, "--mock-foil") != null
+                || args.contains("--dialog-guard-test");
 
         if (live || mock) {
             // --format=ESTANDAR juega otro formato sin pasar por el menu.
@@ -642,6 +621,9 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 }
                 if (args.contains("--mock-piles") || optionOf(args, "--mock-piles") != null) {
                     debug.mockPiles(args);
+                }
+                if (args.contains("--dialog-guard-test")) {
+                    debug.dialogGuardTest();
                 }
                 if (args.contains("--mock-sideboard")) {
                     debug.mockSideboard();
@@ -1509,6 +1491,32 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                         javafx.scene.input.MouseButton.SECONDARY);
                 debug.fire(card, javafx.scene.input.MouseEvent.MOUSE_CLICKED, debug.centreOf(card),
                         javafx.scene.input.MouseButton.SECONDARY);
+            });
+            t.play();
+        }
+
+        // Clica el contador de lo enganchado (modo apilado), que es la UNICA
+        // forma de llegar a un equipo o un aura cuando van detras de la carta.
+        // Se dispara un click de verdad sobre la insignia, no se llama a su
+        // manejador: asi la prueba cubre tambien que se pueda ACERTAR con ella.
+        if (args.contains("--attach-test")) {
+            final PauseTransition t = new PauseTransition(Duration.millis(
+                    Long.getLong("neo.attach.testAt", 1500L)));
+            t.setOnFinished(e -> {
+                final java.util.Set<javafx.scene.Node> badges =
+                        scene.getRoot().lookupAll(".attach-count");
+                if (badges.isEmpty()) {
+                    System.out.println("[enganchado] no hay ningun contador en pantalla"
+                            + " (¿esta apagado el ajuste?)");
+                    return;
+                }
+                final javafx.scene.Node badge = badges.iterator().next();
+                System.out.println("[enganchado] click en el contador: "
+                        + ((javafx.scene.control.Label) badge).getText());
+                debug.fire(badge, javafx.scene.input.MouseEvent.MOUSE_CLICKED,
+                        NeoAppDebug.centreOf(badge), javafx.scene.input.MouseButton.PRIMARY);
+                System.out.println("[enganchado] visor abierto: "
+                        + (table != null && table.getMenuOverlay().isShowing()));
             });
             t.play();
         }

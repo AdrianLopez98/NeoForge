@@ -115,6 +115,21 @@ public class ZoneViewer extends VBox {
      *
      * @param mayView dice si se puede ver la cara de esa carta; nunca null
      */
+    /**
+     * El titulo. Se guarda para poder cambiarlo: este visor tambien ensenya
+     * <b>lo que lleva encima una carta</b> (equipos y auras, cuando van
+     * apilados), y ahi "Campo de batalla de Fulano" no dice nada — lo que
+     * hace falta es el nombre de la criatura. Ver {@code setHeading}.
+     */
+    private Label heading;
+
+    /** Cambia el titulo por uno ya escrito. */
+    public void setHeading(final String text) {
+        if (heading != null && text != null) {
+            heading.setText(text);
+        }
+    }
+
     public ZoneViewer(final String owner, final ZoneType zone, final List<CardView> cards,
                       final Predicate<CardView> mayView, final double cardWidth,
                       final Runnable onClose) {
@@ -146,6 +161,7 @@ public class ZoneViewer extends VBox {
         final Label heading = new Label(owner == null ? nameOf(zone)
                 : NeoText.get("zoneViewer.of", nameOf(zone), owner));
         heading.getStyleClass().add("dialog-title");
+        this.heading = heading;
 
         int hidden = 0;
         int castable = 0;

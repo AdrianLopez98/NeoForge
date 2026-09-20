@@ -110,6 +110,11 @@ public final class AdventureLauncher {
             reader.start();
 
             proc.onExit().thenRun(() -> Platform.runLater(() -> {
+                // Los dos procesos comparten el fichero de ajustes, asi que lo
+                // que se haya tocado ahi dentro (los Ajustes salen tambien en
+                // la pausa del duelo) hay que releerlo: esta copia en memoria
+                // es de antes de abrir la Aventura y lo escribiria encima.
+                forge.neo.NeoSettings.reload();
                 if (scene.getRoot() == loading) {
                     // Se cerro (o fallo) antes de ensenyarse.
                     showMenu.run();
@@ -183,13 +188,22 @@ public final class AdventureLauncher {
         // Una sola ventana a la vista: si NeoForge esta en pantalla completa, el
         // Adventure que la sustituye tambien (ver WindowPlacement).
         l.props.add("neo.adventure.fullscreen=" + stage.isFullScreen());
+        // TUS ajustes, no unos de fabrica. El proceso de la Aventura corre con
+        // su propio perfil de Forge (sus partidas guardadas van aparte, y eso
+        // esta bien), pero eso se llevaba por delante nuestro neo.properties:
+        // dentro de la Aventura el jugador se encontraba sus atajos, su
+        // auto-pass y su ritmo de la IA como recien instalados. Reportado el
+        // 20-09-2026. Las partidas son de la Aventura; los ajustes de la
+        // interfaz son del jugador y solo hay unos. Ver NeoSettings.file().
+        l.props.add("neo.settingsFile=" + forge.neo.NeoSettings.path());
         // Lo que hace portable a la copia de D: (user.home, temporales y cache
         // de JavaFX dentro del disco) tiene que valer tambien aqui: si no,
         // libGDX y JavaFX escribirian en C: del ordenador donde se enchufe.
         // Y solo pruebas: las banderas de autoprueba.
         for (final String k : new String[] {"user.home", "java.io.tmpdir", "javafx.cachedir",
                 "neo.adventure.selftest", "neo.adventure.auto", "neo.adventure.snapshot",
-                "neo.adventure.snapshotMs", "neo.adventure.pressEsc"}) {
+                "neo.adventure.snapshotMs", "neo.adventure.pressEsc",
+                "neo.adventure.spaceTest", "neo.adventure.spaceTestMs"}) {
             if (System.getProperty(k) != null) {
                 l.props.add(k + "=" + System.getProperty(k));
             }

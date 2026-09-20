@@ -215,6 +215,29 @@ public class BattlefieldPane extends Pane {
         this.onClick = handler;
     }
 
+    /**
+     * Que hacer al clicar el contador de lo enganchado, cuando va apilado
+     * ({@code NeoSettings.ATTACHMENTS_STACKED}). La mesa lo abre en el visor.
+     */
+    public void setOnAttachPeek(
+            final java.util.function.BiConsumer<forge.game.card.CardView,
+                    java.util.List<forge.game.card.CardView>> handler) {
+        this.onAttachPeek = handler;
+    }
+
+    private java.util.function.BiConsumer<forge.game.card.CardView,
+            java.util.List<forge.game.card.CardView>> onAttachPeek;
+
+    /** ¿Alguna carta de esta fila lleva algo enganchado? Lo pregunta el reparto. */
+    public boolean hasAttachments() {
+        for (final Entry e : entries) {
+            if (!e.node.getAttachments().isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     // ---------------------------------------------------------------
 
     /**
@@ -286,6 +309,11 @@ public class BattlefieldPane extends Pane {
             }
 
             node.setAttachmentHandlers(this::fireClick, this::fireHover);
+            node.setOnAttachPeek((host, carried) -> {
+                if (onAttachPeek != null) {
+                    onAttachPeek.accept(host, carried);
+                }
+            });
             node.setAttachments(attachedTo.get(members.get(0).getId()));
             node.getFront().setCombatDirection(combatDirection);
 

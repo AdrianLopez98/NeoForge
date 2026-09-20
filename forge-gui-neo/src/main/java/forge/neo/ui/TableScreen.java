@@ -230,6 +230,8 @@ public class TableScreen extends Pane {
         selfField.setOnCardHover(this::hovered);
         opponentField.setOnCardClick(this::cardClicked);
         selfField.setOnCardClick(this::cardClicked);
+        opponentField.setOnAttachPeek(this::showAttached);
+        selfField.setOnAttachPeek(this::showAttached);
 
         // El asiento 0 son los de siempre. Ver oppBars/oppFields.
         oppBars.add(opponentBar);
@@ -331,6 +333,21 @@ public class TableScreen extends Pane {
         // clicando la carta. Un filtro en la capa entera lo caza pase lo que
         // pase, y no hace falta acertar con la geometria.
         zoomOverlay.setOnBackgroundClick(this::hideZoom);
+        // Las dos capas que el jugador abre A PROPOSITO para dejar de mirar la
+        // mesa: la carta ampliada y el menu de pausa. Mientras alguna este
+        // puesta, el motor se para (NeoMatchUI.holdWhileReading lee esto desde
+        // SU hilo, de ahi el volatile).
+        //
+        // El espejo cuelga de visibleProperty y NO se pone a mano en showZoom
+        // y hideZoom, que es lo obvio y lo que se rompe: si un dia algo mas
+        // oculta la capa por otro camino, la bandera se quedaria encendida y
+        // eso es la partida congelada para siempre. Colgada de la propiedad,
+        // cualquier camino que la oculte la apaga.
+        final javafx.beans.value.ChangeListener<Boolean> watchPause =
+                (o, was, is) -> playerReading =
+                        zoomOverlay.isShowing() || menuOverlay.isShowing();
+        zoomOverlay.visibleProperty().addListener(watchPause);
+        menuOverlay.visibleProperty().addListener(watchPause);
         // Los dialogos de la partida se pueden apartar para mirar la mesa: lo
         // que eliges con un tutor depende de lo que hay en ella. Ver Overlay.
         overlay.setPeekable(forge.neo.NeoText.get("overlay.peek"),
@@ -2281,6 +2298,36 @@ public class TableScreen extends Pane {
     }
 
     /**
+     * <b>Lo que lleva encima una carta</b>, en grande y clicable.
+     *
+     * <p>Solo hace falta con lo enganchado <b>apilado</b>
+     * ({@code NeoSettings.ATTACHMENTS_STACKED}): ahi el equipo y el aura no se
+     * ven, asi que esta es la unica forma de leerlos y de elegirlos. Pedido en
+     * itch.io el 20-09-2026 — <i>"con la mesa llena cuesta seleccionar el
+     * equipo, sobre todo en las criaturas del rival"</i> — y la respuesta es
+     * esta: en vez de afinar el raton sobre una rendija de ocho pixeles, se
+     * clica un contador y salen las cartas enteras.
+     *
+     * <p>Es el MISMO visor de las zonas, y no uno nuevo, por lo que trae
+     * hecho: marca lo que el motor deja elegir, marca lo que se puede lanzar
+     * desde donde esta, y al clicar contesta por el camino de siempre
+     * ({@code cardClickedDirect}). O sea que desde aqui se puede apuntar a un
+     * aura con una destruccion, o activar el equipar de un equipo.
+     */
+    public void showAttached(final CardView host, final List<CardView> attached) {
+        if (host == null || attached == null || attached.isEmpty()) {
+            return;
+        }
+        final ZoneViewer viewer = new ZoneViewer(null, forge.game.zone.ZoneType.Battlefield,
+                attached, mayView, cardWidth * 1.15, selectable, playableOutside,
+                this::pickedInZone, menuOverlay::hide);
+        viewer.setHeading(NeoText.get("zoneViewer.attachedTo",
+                forge.neo.card.CardText.nameOf(host)));
+        menuOverlay.show(viewer);
+        gesture(Gesture.ZONE_OPEN);
+    }
+
+    /**
      * Se ha clicado una carta dentro del visor de una zona.
      *
      * <p>Se cierra el visor antes de contestar: el motor puede pedir lo
@@ -2342,6 +2389,107 @@ public class TableScreen extends Pane {
         return menuOverlay;
     }
 
+    // ---------------------------------------------------------------
+    // La pregunta que el motor esta esperando no se puede perder
+    // ---------------------------------------------------------------
+
+    /**
+     * Los dialogos que el motor espera, el ultimo arriba.
+     *
+     * <p><b>Por que hace falta.</b> Reportado en itch.io el 20-09-2026: un
+     * rival lanza <i>Dredge the Mire</i>, se abre la eleccion obligatoria, el
+     * jugador da a "Ver la mesa" para leer el hechizo, abre el menu del
+     * stack... y la eleccion <b>ya no vuelve</b>. El motor se queda esperando
+     * una respuesta que nadie puede dar: partida muerta, sin un solo error
+     * por consola y sin mas salida que abandonar.
+     *
+     * <p>La causa de ESE caso era el menu del stack, que se abria en la capa
+     * de los dialogos (una capa ensenya una sola cosa: {@code show} hace
+     * {@code setAll}), y esta arreglado en su sitio. Pero quien lo reporto
+     * tenia razon en lo otro que decia: <i>"puede que sea un problema mas
+     * general de conservar la pregunta pendiente"</i>. Esto es lo general —
+     * cualquier camino, hoy o dentro de un anyo, que tape o cierre la capa
+     * mientras el motor espera, se deshace solo.
+     *
+     * <p>La regla es una sola frase, y se mira sola: <b>si el motor espera un
+     * dialogo, ese dialogo tiene que estar puesto</b>. Si no lo esta, se pone.
+     */
+    private final java.util.ArrayDeque<Region> engineDialogs =
+            new java.util.ArrayDeque<>();
+
+    /** El vigilante, solo vivo mientras hay algo que vigilar. */
+    private javafx.animation.Timeline dialogGuard;
+
+    /**
+     * "El motor esta esperando ESTE dialogo."
+     *
+     * <p>Lo dice {@code NeoMatchUI.askUser}, que es por donde pasan todas las
+     * preguntas del motor — las de sus quince sitios distintos. Hilo de
+     * interfaz siempre.
+     */
+    public void markEngineDialog(final Region dialog) {
+        if (dialog == null) {
+            return;
+        }
+        engineDialogs.remove(dialog);
+        engineDialogs.push(dialog);
+        if (dialogGuard == null) {
+            // Un segundo: esto no es una animacion, es una red. Si salta,
+            // el jugador ya ha tenido tiempo de darse cuenta de que algo
+            // raro ha pasado, y lo que importa es que pueda seguir jugando.
+            dialogGuard = new javafx.animation.Timeline(
+                    new javafx.animation.KeyFrame(javafx.util.Duration.seconds(1),
+                            e -> guardEngineDialog()));
+            dialogGuard.setCycleCount(javafx.animation.Animation.INDEFINITE);
+        }
+        dialogGuard.playFromStart();
+    }
+
+    /**
+     * Contestado: ese dialogo ya no lo espera nadie.
+     *
+     * <p>Y si debajo habia otro (el motor puede preguntar una cosa DENTRO de
+     * otra: una habilidad al clicar una carta mientras hay algo pendiente),
+     * vuelve en el acto, sin esperar al vigilante.
+     */
+    public void clearEngineDialog(final Region dialog) {
+        engineDialogs.remove(dialog);
+        if (engineDialogs.isEmpty()) {
+            if (dialogGuard != null) {
+                dialogGuard.stop();
+            }
+            return;
+        }
+        guardEngineDialog();
+    }
+
+    /** La partida se ha acabado o se abandona: ya no hay nada que esperar. */
+    public void forgetEngineDialogs() {
+        engineDialogs.clear();
+        if (dialogGuard != null) {
+            dialogGuard.stop();
+        }
+    }
+
+    /** ¿El motor espera una respuesta que no se puede dar? Pues se repone. */
+    private void guardEngineDialog() {
+        final Region top = engineDialogs.peek();
+        if (top == null) {
+            if (dialogGuard != null) {
+                dialogGuard.stop();
+            }
+            return;
+        }
+        // Apartado con "Ver la mesa" NO es haberlo perdido: sigue puesto, solo
+        // que invisible a proposito, y la pastilla de volver esta ahi. Por eso
+        // se compara el CONTENIDO y no si se ve.
+        if (overlay.isShowing() && overlay.getContent() == top) {
+            return;
+        }
+        System.out.println("[neo] el dialogo que el motor espera se habia perdido: se repone");
+        overlay.show(top);
+    }
+
     /** true si hay algo modal delante de la mesa. */
     public boolean isModalShowing() {
         return overlay.isShowing() || menuOverlay.isShowing() || zoomOverlay.isShowing();
@@ -2378,8 +2526,27 @@ public class TableScreen extends Pane {
         // la carta grande y, al lado, lo que la imagen NO cuenta (P/T de ahora
         // contra la impresa, contadores, danyo y lo que lleva encima). El click
         // sobre la propia carta tambien cierra: nadie quiere buscar una X.
-        zoomOverlay.show(CardZoom.compose(card, zoomCardWidth(),
-                Math.max(getWidth(), 640), this::hideZoom));
+        // Y se dice que la partida esta parada. Sin esto, la pausa es
+        // invisible: el jugador no sabe si le estan esperando o si la IA sigue
+        // jugando detras de la carta (principio 6: nunca dejarle sin saber que
+        // pasa). El rotulo dice ademas como seguir, que es lo unico que hay
+        // que saber.
+        final boolean paused = pausesWhileReading();
+        // Con rotulo debajo, la carta se encoge un pelin: a pantalla completa
+        // ocupa el 86% del alto y el rotulo se salia por abajo.
+        final Region big = CardZoom.compose(card, zoomCardWidth() * (paused ? 0.95 : 1),
+                Math.max(getWidth(), 640), this::hideZoom);
+        if (paused) {
+            final Label note = new Label(NeoText.get("zoom.paused"));
+            note.getStyleClass().add("zoom-browse-hint");
+            note.setMouseTransparent(true);
+            final VBox box = new VBox(8, big, note);
+            box.setAlignment(Pos.CENTER);
+            box.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+            zoomOverlay.show(box);
+        } else {
+            zoomOverlay.show(big);
+        }
         gesture(Gesture.ZOOM_CARD);
     }
 
@@ -2389,6 +2556,40 @@ public class TableScreen extends Pane {
 
     public boolean isZoomShowing() {
         return zoomOverlay.isShowing();
+    }
+
+    /**
+     * Si el jugador ha parado la partida para leer: carta ampliada o menu de
+     * pausa puestos.
+     *
+     * <p>Lo pregunta {@code NeoMatchUI.holdWhileReading} desde el hilo del
+     * MOTOR, y por eso es {@code volatile} y no un {@code isShowing()} de
+     * JavaFX: leer el grafo de escena desde fuera del hilo de interfaz no esta
+     * garantizado. El espejo lo mantienen los dos listeners del constructor.
+     */
+    public boolean isPlayerReading() {
+        return playerReading;
+    }
+
+    private volatile boolean playerReading;
+
+    /**
+     * Si detras de esta mesa hay un motor NUESTRO al que de verdad se le puede
+     * parar el reloj. Lo pone {@code NeoMatchUI.openView}.
+     *
+     * <p>Solo decide si se anuncia la pausa al ampliar una carta: quien para
+     * de verdad es {@code NeoMatchUI}. Una maqueta o una partida en red no
+     * paran nada, y prometerlo en pantalla seria mentir (principio 1).
+     */
+    public void setEnginePausable(final boolean can) {
+        this.enginePausable = can;
+    }
+
+    private boolean enginePausable;
+
+    /** ¿Ampliar una carta va a parar la partida ahora mismo? */
+    private boolean pausesWhileReading() {
+        return enginePausable && forge.neo.NeoSettings.pauseWhileReading();
     }
 
     /**

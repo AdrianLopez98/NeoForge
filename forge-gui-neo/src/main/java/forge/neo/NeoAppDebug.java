@@ -656,6 +656,64 @@ final class NeoAppDebug {
     }
 
     /**
+     * <b>Que la pregunta que el motor espera no se pueda perder</b>
+     * ({@code --dialog-guard-test}).
+     *
+     * <p>Reproduce el fallo reportado en itch.io el 20-09-2026 sin tener que
+     * repetir la partida entera que lo saco (un rival lanzando
+     * <i>Dredge the Mire</i>): se pone un dialogo, se marca como "el motor
+     * espera esto" y acto seguido <b>se le roba la capa</b>, que es justo lo
+     * que hacia el menu del stack. Antes eso dejaba la partida muerta: la
+     * pregunta desaparecia de la pantalla y el motor se quedaba esperando una
+     * respuesta que ya no se podia dar.
+     *
+     * <p>Se prueba lo que se rompia, no la carta: el jugador que lo reporto ya
+     * decia que lo habia visto de mas maneras, y lo que tienen todas en comun
+     * es esto. Dice <b>BIEN</b> o <b>MAL</b> por consola, asi que sirve con
+     * {@code --snapshot} y sin mirar la pantalla.
+     */
+    void dialogGuardTest() {
+        final javafx.scene.control.Label dialog = new javafx.scene.control.Label(
+                "La pregunta del motor");
+        dialog.getStyleClass().add("dialog");
+        dialog.setPadding(new javafx.geometry.Insets(40, 60, 40, 60));
+        app.table.getOverlay().show(dialog);
+        app.table.markEngineDialog(dialog);
+        System.out.println("[guardia] puesta la pregunta y marcada como pendiente");
+
+        // 1) Alguien abre lo suyo en la MISMA capa (el menu del stack de ayer).
+        after(700, () -> {
+            final javafx.scene.control.Label thief = new javafx.scene.control.Label(
+                    "Un menu cualquiera");
+            thief.getStyleClass().add("dialog");
+            thief.setPadding(new javafx.geometry.Insets(30, 50, 30, 50));
+            app.table.getOverlay().show(thief);
+            System.out.println("[guardia] la capa se la ha llevado otro");
+        });
+        // 2) Y lo cierra con Cancelar, que es lo que dejaba la partida muerta.
+        after(1400, () -> {
+            app.table.getOverlay().hide();
+            System.out.println("[guardia] y lo ha cerrado: aqui la pregunta ya no estaba");
+        });
+        // 3) El vigilante tiene un segundo de ciclo: a los 3 s ya ha pasado.
+        after(3000, () -> {
+            final boolean back = app.table.getOverlay().isShowing()
+                    && app.table.getOverlay().getContent() == dialog;
+            System.out.println(back
+                    ? "  [BIEN] la pregunta ha vuelto sola: la partida se puede seguir"
+                    : "  [MAL] la pregunta NO ha vuelto: el motor se queda esperando para siempre");
+        });
+    }
+
+    /** Un recado dentro de N ms, en el hilo de interfaz. */
+    private static void after(final int ms, final Runnable what) {
+        final javafx.animation.PauseTransition wait =
+                new javafx.animation.PauseTransition(javafx.util.Duration.millis(ms));
+        wait.setOnFinished(e -> what.run());
+        wait.play();
+    }
+
+    /**
      * Maqueta: el banquillo entre partida y partida de un Bo3 (draft/sellado
      * con banquillo — la auditoría del motor, apartado C5).
      *

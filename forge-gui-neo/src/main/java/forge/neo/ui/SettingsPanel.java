@@ -545,6 +545,21 @@ public class SettingsPanel extends VBox {
                     NeoSettings.save();
                 }));
 
+        // --- parar la partida mientras lees ---
+        //
+        // Lo otro que faltaba del mismo problema: el ritmo de arriba te da
+        // tres segundos por carta, pero leerse una carta que no conoces son
+        // mas. Ampliar una carta (o abrir este menu) para el reloj hasta que
+        // la cierras. Encendido de fabrica: solo pasa cuando eres tu quien
+        // decide mirar, y quien lo necesita es justo quien no va a bajar hasta
+        // aqui. En red no hace nada (parar la mesa congelaria a los demas).
+        getChildren().add(toggleRow(NeoText.get("settings.pauseWhileReading"),
+                NeoSettings.pauseWhileReading(),
+                on -> {
+                    NeoSettings.setBool(NeoSettings.PAUSE_WHILE_READING, on);
+                    NeoSettings.save();
+                }));
+
         // --- dificultad de la IA (la auditoría del motor, apartado B4) ---
         //
         // Dos ajustes de Forge que hoy no leiamos: cuanto puede "hacer
@@ -620,6 +635,21 @@ public class SettingsPanel extends VBox {
                 NeoSettings.stackCards(),
                 on -> {
                     NeoSettings.setBool(NeoSettings.STACK_CARDS, on);
+                    NeoSettings.save();
+                    host.refreshTable();
+                }));
+
+        // --- equipos y auras: abanico o apilados ---
+        //
+        // Pedido en itch.io el 20-09-2026: con la mesa llena, lo enganchado
+        // queda en rendijas de pocos pixeles y cuesta clicarlo. Apilado no
+        // ocupa nada fuera de la carta y se abre por su contador, en grande.
+        // Apagado de fabrica: apilado se pierde de un vistazo QUE criatura
+        // esta encantada, y eso importa. Se relee al montar la mesa.
+        getChildren().add(toggleRow(NeoText.get("settings.attachStacked"),
+                NeoSettings.attachmentsStacked(),
+                on -> {
+                    NeoSettings.setBool(NeoSettings.ATTACHMENTS_STACKED, on);
                     NeoSettings.save();
                     host.refreshTable();
                 }));
