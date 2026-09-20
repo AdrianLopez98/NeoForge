@@ -870,6 +870,19 @@
     -fx-text-fill: #BEE7FF;
 }
 
+/* Con la primera carta DESTAPADA (Bolas's Citadel y familia), el contador se
+   va a la esquina: en el centro tapa justo el arte y el nombre, que es lo que
+   se ha destapado para poder leer. Mismo tamano y forma que el "xN" de las
+   pilas de fichas, para que se lea igual en los dos sitios. */
+.zone-pile-count-corner {
+    -fx-background-color: rgba(10,14,20,0.94);
+    -fx-background-radius: 4;
+    -fx-border-color: -neo-accent;
+    -fx-border-radius: 4;
+    -fx-border-width: 1.2;
+    -fx-padding: 0 4;
+}
+
 /* ---------- entradas del stack ---------- */
 
 /* Cada entrada lleva la CARTA al lado. Un disparo del comandante en el paso

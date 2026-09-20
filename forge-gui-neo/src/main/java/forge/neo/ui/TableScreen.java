@@ -1097,6 +1097,24 @@ public class TableScreen extends Pane {
         selfField.setZoneCounts(graveyard, exile, gravePlayable, exilePlayable);
     }
 
+    /**
+     * <b>Tu mazo en la mesa</b>, y la primera carta si el motor te deja verla.
+     *
+     * <p>El filtro va AQUI porque el {@code mayView} del motor lo tiene la
+     * mesa: el campo no sabe nada de permisos, solo pinta lo que le llega. Con
+     * eso, destapar la de arriba deja de ser una decision nuestra — la toma el
+     * motor, carta a carta, igual que en el visor de la biblioteca.
+     *
+     * <p>Reportado en Reddit el 20-09-2026: con Bolas's Citadel <i>"no
+     * encuentro la interfaz del mazo"</i>. Mirar y jugar esa carta ya
+     * funcionaba; lo que no habia era forma de saberlo sin clicar un contador
+     * que no parecia clicable. Ver {@code ZonePile.setTopCard} y
+     * {@code run.cmd topcheck}.
+     */
+    public void setSelfLibraryPile(final int size, final CardView top) {
+        selfField.setLibrary(size, top != null && mayView.test(top) ? top : null);
+    }
+
     public void setHand(final List<CardView> cards) {
         hand.clearCards();
         extraNodes.clear();

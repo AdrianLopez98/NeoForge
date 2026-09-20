@@ -1273,6 +1273,28 @@ final class NeoAppDebug {
         });
     }
 
+    /**
+     * Maqueta: <b>el mazo en la mesa</b>, con y sin la carta de arriba
+     * destapada ({@code --mock-topdeck}, y {@code -Dneo.topdeck.hidden=true}
+     * para verlo con la funda).
+     *
+     * <p>Es lo que se pidio en Reddit el 20-09-2026 con Bolas's Citadel: el
+     * mazo se ve como una pila mas, y cuando algo te deja mirar la primera
+     * carta, esa sale boca arriba en vez de la funda. Provocarlo en una
+     * partida de verdad pide tener Citadel en la mesa; aqui es una bandera.
+     */
+    void mockTopdeck() {
+        final forge.trackable.Tracker t = new forge.trackable.Tracker();
+        final CardView top = mockCard(t, 9200, "Shock", "Instant", 0, 0);
+        final boolean hidden = Boolean.getBoolean("neo.topdeck.hidden");
+        app.table.setSelfLibraryPile(53, hidden ? null : top);
+        app.table.setPrompt(hidden
+                ? "Maqueta: el mazo con su funda (--mock-topdeck -Dneo.topdeck.hidden=true)"
+                : "Maqueta: Bolas's Citadel te deja mirar la de arriba (--mock-topdeck)");
+        System.out.println("[mazo] pila del mazo con "
+                + (hidden ? "la funda" : "la carta de arriba destapada"));
+    }
+
     void mockMechanics() {
         // --- contadores del jugador ---
         final com.google.common.collect.Multiset<forge.game.card.CounterType> mine =

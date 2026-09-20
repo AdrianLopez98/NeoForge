@@ -709,6 +709,11 @@ public class TableBinder {
                     hasPlayable(p, ZoneType.Graveyard), hasPlayable(p, ZoneType.Exile));
         } else {
             table.setSelfBattlefield(battlefield);
+            // El mazo, con su primera carta si algo te deja mirarla (Bolas's
+            // Citadel y familia). Quien decide si se ve es el motor; aqui solo
+            // se manda la de arriba y la mesa pregunta. Ver
+            // TableScreen.setSelfLibraryPile.
+            table.setSelfLibraryPile(p.getZoneSize(ZoneType.Library), topOfLibrary(p));
             table.setSelfZonePiles(p.getZoneSize(ZoneType.Graveyard),
                     p.getZoneSize(ZoneType.Exile),
                     hasPlayable(p, ZoneType.Graveyard), hasPlayable(p, ZoneType.Exile));
@@ -731,6 +736,24 @@ public class TableBinder {
      * la lista de la zona: {@code getFlashback()} las trae TODAS juntas, de las
      * cinco zonas y de todos los jugadores.
      */
+    /**
+     * La primera carta del mazo, tal cual la publica el motor.
+     *
+     * <p>Sin permisos ni filtros: eso lo hace la mesa con {@code mayView}. Si
+     * el motor no manda las cartas de esa zona — que es lo normal para un
+     * rival — aqui no hay nada que devolver.
+     */
+    private static CardView topOfLibrary(final PlayerView p) {
+        final var library = p == null ? null : p.getCards(ZoneType.Library);
+        if (library == null) {
+            return null;
+        }
+        for (final CardView cv : library) {
+            return cv;
+        }
+        return null;
+    }
+
     private boolean hasPlayable(final PlayerView owner, final ZoneType zone) {
         for (final CardView cv : playableOutside()) {
             if (cv != null && cv.getZone() == zone && owner.equals(cv.getOwner())) {

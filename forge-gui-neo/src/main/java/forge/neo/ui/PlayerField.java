@@ -52,6 +52,17 @@ public class PlayerField extends Pane {
     private final BattlefieldPane landRow;
     private final ZonePile graveyard;
     private final ZonePile exile;
+
+    /**
+     * <b>Tu mazo, en la mesa.</b>
+     *
+     * <p>Solo en TU campo, y a proposito: la tira de pilas cuesta ancho de
+     * mesa (ver {@code setPilesOnBoard}), y la funda del rival no dice nada
+     * que su contador de la barra no diga ya. En el tuyo si: es donde sale
+     * <b>boca arriba</b> la primera carta cuando algo te deja mirarla
+     * (Bolas's Citadel y familia). Ver {@code ZonePile.setTopCard}.
+     */
+    private final ZonePile library;
     private final boolean opponent;
     private final double baseCardWidth;
 
@@ -77,6 +88,9 @@ public class PlayerField extends Pane {
         this.landRow = new BattlefieldPane(baseCardWidth);
         this.graveyard = new ZonePile(NeoText.get("zone.graveyard"), baseCardWidth * 0.62);
         this.exile = new ZonePile(NeoText.get("zone.exile"), baseCardWidth * 0.62);
+        this.library = new ZonePile(NeoText.get("zone.library"), baseCardWidth * 0.62);
+        this.library.setVisible(!opponent);
+        this.library.setManaged(!opponent);
 
         setPickOnBounds(false);
         landRow.getStyleClass().add("arena-lands");
@@ -92,7 +106,7 @@ public class PlayerField extends Pane {
         // debajo. Con la fila de atras pintada despues, un equipo quedaba
         // escondido detras de una tierra: visible en la maqueta y en el campo
         // del rival, invisible justo en el tuyo.
-        getChildren().addAll(permanentRow, landRow, creatureRow, graveyard, exile);
+        getChildren().addAll(permanentRow, landRow, creatureRow, graveyard, exile, library);
     }
 
     public void setOnCardHover(final Consumer<CardNode> handler) {
@@ -228,6 +242,7 @@ public class PlayerField extends Pane {
     public void setSleeveImage(final javafx.scene.image.Image image) {
         graveyard.setSleeveImage(image);
         exile.setSleeveImage(image);
+        library.setSleeveImage(image);
     }
 
     public void setZoneCounts(final int graveyardSize, final int exileSize) {
@@ -248,6 +263,22 @@ public class PlayerField extends Pane {
         // mano sobre algo que no hace nada confunde mas que ayuda.
         wireZone(graveyard, forge.game.zone.ZoneType.Graveyard, graveyardSize);
         wireZone(exile, forge.game.zone.ZoneType.Exile, exileSize);
+    }
+
+    /**
+     * El mazo: cuantas cartas quedan y, si el motor lo permite, la de arriba
+     * <b>destapada</b>.
+     *
+     * <p>Quien decide si se puede ver es la mesa, que es quien tiene el
+     * {@code mayView} del motor. Aqui llega ya decidido: una carta, o nada.
+     */
+    public void setLibrary(final int size, final CardView top) {
+        library.setCount(size);
+        library.setTopCard(top);
+        // El borde de acento cuando hay algo que lanzar desde ahi, igual que
+        // en el cementerio y el exilio.
+        library.setHasPlayable(top != null);
+        wireZone(library, forge.game.zone.ZoneType.Library, size);
     }
 
     private void wireZone(final ZonePile pile, final forge.game.zone.ZoneType zone,
@@ -311,7 +342,11 @@ public class PlayerField extends Pane {
         final double w = getWidth();
         final double h = getHeight();
 
-        final double stripW = pilesOnBoard ? graveyard.getCardWidth() * 2 + 18 : 0;
+        // Dos pilas en el campo del rival (cementerio y exilio) y tres en el
+        // tuyo, que ademas lleva el mazo. Se cuenta, no se da por hecho: este
+        // ancho es lo que se le quita a las cartas.
+        final int piles = pilesOnBoard ? (opponent ? 2 : 3) : 0;
+        final double stripW = piles == 0 ? 0 : graveyard.getCardWidth() * piles + 6 * (piles + 1);
         final double rowsW = Math.max(1, w - stripW - 20);
 
         final int nCreatures = creatureRow.slotCount();
@@ -470,6 +505,9 @@ public class PlayerField extends Pane {
         final double y = Math.max(0, (h - pileH) / 2);
         graveyard.resizeRelocate(x, y, pileW + 6, pileH);
         exile.resizeRelocate(x + pileW + 12, y, pileW + 6, pileH);
+        if (!opponent) {
+            library.resizeRelocate(x + (pileW + 12) * 2, y, pileW + 6, pileH);
+        }
     }
 
     /**
@@ -487,6 +525,8 @@ public class PlayerField extends Pane {
         graveyard.setManaged(on);
         exile.setVisible(on);
         exile.setManaged(on);
+        library.setVisible(on && !opponent);
+        library.setManaged(on && !opponent);
         requestLayout();
     }
 

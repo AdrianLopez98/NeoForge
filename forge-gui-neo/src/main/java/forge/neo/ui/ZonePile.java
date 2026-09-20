@@ -56,11 +56,97 @@ public class ZonePile extends VBox {
         caption = new Label(captionText);
         caption.getStyleClass().add("caption");
 
-        final StackPane pile = new StackPane(shadow, back, count);
+        this.pile = new StackPane(shadow, back, count);
         pile.setAlignment(Pos.CENTER);
         getChildren().addAll(pile, caption);
 
         setCardWidth(cardWidth);
+    }
+
+    private final StackPane pile;
+
+    /**
+     * <b>La primera carta, boca arriba</b> (o {@code null} para la funda de
+     * siempre).
+     *
+     * <p>Para el mazo. Hay una familia de cartas que te deja mirar la de
+     * arriba — Bolas's Citadel, Oraculo de Mul Daya, Vision del futuro, Melek,
+     * Materia de invocacion — y varias ademas te dejan <b>jugarla desde ahi</b>.
+     * Todo eso funcionaba ya... si adivinabas que el contador "MAZO" de la
+     * barra se clicaba. Reportado en Reddit el 20-09-2026 tal cual:
+     * <i>"How to view topdeck? I tried and have Bolas Citadel however I can't
+     * find the deck UI"</i>.
+     *
+     * <p>Quien decide si se puede ver NO es esta clase: es el motor, y lo
+     * pregunta la mesa ({@code TableScreen.setSelfLibraryPile} con
+     * {@code mayView}). Aqui solo se pinta lo que llegue.
+     *
+     * <p>La carta se pinta <b>encima de la funda</b> y no en su lugar: asi la
+     * pila sigue pareciendo una pila — con su sombra detras y su numero — y lo
+     * que cambia es que la de arriba esta destapada, que es justo lo que pasa
+     * en la mesa de verdad.
+     */
+    public void setTopCard(final forge.game.card.CardView card) {
+        if (card == null) {
+            if (top != null) {
+                top.setVisible(false);
+                top.setManaged(false);
+            }
+            back.setVisible(true);
+            placeCount(false);
+            return;
+        }
+        if (top == null) {
+            top = new CardNode(cardWidth);
+            // De lectura: ni se gira ni lleva pastillas. Y el raton lo atraviesa
+            // para que el click siga siendo el de la PILA (abrir el visor), que
+            // es donde la carta se ve grande y se puede lanzar. Clicarla aqui
+            // para lanzarla pagando vidas seria muy facil de hacer sin querer.
+            top.setRotationEnabled(false);
+            top.setBadgesVisible(false);
+            top.setMouseTransparent(true);
+            pile.getChildren().add(pile.getChildren().indexOf(count), top);
+        }
+        top.setVisible(true);
+        top.setManaged(true);
+        top.setCardWidth(cardWidth);
+        top.setCard(card);
+        // La funda se esconde: con la carta encima no se ve, y dejarla pintando
+        // debajo es trabajo de balde en cada refresco.
+        back.setVisible(false);
+        placeCount(true);
+    }
+
+    /**
+     * Donde va el numero: en el centro de la funda, o en una esquina cuando hay
+     * carta destapada.
+     *
+     * <p>Centrado sobre una carta boca arriba tapa el arte y el nombre — o sea
+     * justo lo que se ha destapado para poder mirarlo. Se vio en la primera
+     * captura y por eso esta escrito aqui.
+     */
+    private void placeCount(final boolean overCard) {
+        StackPane.setAlignment(count, overCard ? Pos.BOTTOM_RIGHT : Pos.CENTER);
+        final double w = cardWidth;
+        count.setStyle("-fx-font-size:"
+                + (overCard ? Math.max(9, w * 0.2) : Math.max(10, w * 0.34)) + "px;");
+        if (overCard) {
+            if (!count.getStyleClass().contains("zone-pile-count-corner")) {
+                count.getStyleClass().add("zone-pile-count-corner");
+            }
+        } else {
+            count.getStyleClass().remove("zone-pile-count-corner");
+        }
+        StackPane.setMargin(count, overCard
+                ? new javafx.geometry.Insets(0, Math.max(2, w * 0.04), Math.max(2, w * 0.04), 0)
+                : javafx.geometry.Insets.EMPTY);
+    }
+
+    private CardNode top;
+
+    /** La carta que se esta ensenyando boca arriba, si hay alguna. */
+    public forge.game.card.CardView getTopCard() {
+        return top == null || !top.isVisible() ? null : top.getCard();
     }
 
     /**
@@ -114,7 +200,12 @@ public class ZonePile extends VBox {
         shadow.setTranslateX(Math.max(2, w * 0.05));
         shadow.setTranslateY(-Math.max(2, w * 0.05));
 
-        count.setStyle("-fx-font-size:" + Math.max(10, w * 0.34) + "px;");
+        if (top != null) {
+            top.setCardWidth(w);
+        }
+        // El tamanyo del numero depende de si hay carta debajo: lo decide
+        // placeCount, que ademas sabe donde ponerlo.
+        placeCount(top != null && top.isVisible());
     }
 
     public double getCardWidth() {

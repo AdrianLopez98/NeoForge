@@ -385,7 +385,7 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 || args.contains("--mock-prompt-nocard") || args.contains("--mock-trigger-subject")
                 || args.contains("--anim-test") || args.contains("--mock-turn")
                 || args.contains("--mock-picked") || args.contains("--mock-crowded") || args.contains("--mock-stack")
-                || args.contains("--mock-token-pick")
+                || args.contains("--mock-token-pick") || args.contains("--mock-topdeck")
                 || args.contains("--mock-aura") || args.contains("--mock-zone-pick")
                 || args.contains("--mock-amount") || optionOf(args, "--mock-amount") != null
                 || args.contains("--mock-mechanics")
@@ -575,6 +575,9 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 }
                 if (args.contains("--mock-token-pick")) {
                     debug.mockTokenPick();
+                }
+                if (args.contains("--mock-topdeck")) {
+                    debug.mockTopdeck();
                 }
                 if (args.contains("--mock-command") || optionOf(args, "--mock-command") != null) {
                     final String howMany = optionOf(args, "--mock-command");

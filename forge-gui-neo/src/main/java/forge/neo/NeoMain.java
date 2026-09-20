@@ -231,6 +231,13 @@ public final class NeoMain {
                 banner("Piloto automatico: el bloqueo obligado");
                 forge.neo.match.BlockCheck.run();
                 break;
+            case "topcheck":
+                // Jugar desde lo alto de la biblioteca (Bolas's Citadel y
+                // familia): que el motor deje MIRAR esa carta y JUGARLA, que
+                // son dos permisos distintos. Ver TopOfLibraryCheck.
+                banner("Lo alto de la biblioteca: mirarla y jugarla");
+                forge.neo.match.TopOfLibraryCheck.run();
+                break;
             case "readingcheck":
                 // La pausa mientras lees una carta: que el motor se pare DE
                 // VERDAD (no solo la pantalla), que vuelva al cerrarla y que
