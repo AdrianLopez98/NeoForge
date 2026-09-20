@@ -100,6 +100,7 @@ public final class AscentCheck {
             comandanteMulticolor();
             singletonEnCommander();
             calidadDelPremio();
+            sinergia();
             reliquiasQueLaIaPuedeLlevar();
             descanso();
             tienda();
@@ -2248,6 +2249,142 @@ public final class AscentCheck {
      * <p>Se mide sobre 300 cartas por altura, que es lo que hace falta para que
      * un 5% se distinga del ruido.
      */
+    // ------------------------------------------------------------------
+    //  El mazo va de algo, y los premios tambien
+    // ------------------------------------------------------------------
+
+    /**
+     * Que la <b>sinergia</b> con el comandante se note, medida.
+     *
+     * <p>Lo de "ahora el mazo pega con el comandante" es una frase. Debajo hay
+     * un booleano ({@code isCardGen}) y una matriz que puede no estar: si el
+     * {@code .dat} faltara del paquete, o Forge le cambiara el nombre al
+     * formato, <b>todo seguiria funcionando</b> y los mazos volverian a ser 99
+     * cartas del color sin que saltara ni un error. Eso es justo lo que esta
+     * sonda existe para cazar.
+     *
+     * <p>Se mide contra un <b>control</b>: el mismo comandante con el generador
+     * de antes. Sin control, "el 40% de las cartas pegan" no dice nada — podria
+     * ser lo que sale por casualidad al coger cartas de su color.
+     */
+    private static void sinergia() {
+        // 1. La matriz esta y conoce gente.
+        PaperCard conocido = null;
+        int cuantos = 0;
+        int mejor = 0;
+        for (final PaperCard c : AscentSeedDeck.commanderPool()) {
+            final int size = AscentSynergy.poolOf(c).size();
+            if (size > 0) {
+                cuantos++;
+                if (size > mejor) {
+                    mejor = size;
+                    conocido = c;
+                }
+            }
+        }
+        if (conocido == null) {
+            fail("sinergia: la matriz de Forge no conoce NI UN comandante — falta"
+                    + " res/deckgendecks/Commander.dat o no ha cargado; los mazos y los"
+                    + " premios han vuelto a ser cartas sueltas del color");
+            return;
+        }
+        ok("sinergia: la matriz conoce " + cuantos + " comandantes (el mas documentado es "
+                + conocido.getName() + ", con " + mejor + " cartas)");
+
+        // 2. El mazo de salida sale de ese pozo mucho mas que por casualidad.
+        final java.util.Set<String> pozo = AscentSynergy.namesFor(List.of(conocido));
+        final double mio = cuota(AscentSeedDeck.generate(
+                AscentRun.Mode.COMMANDER, conocido, "prueba-sinergia").getMain(), pozo);
+        double control = 0;
+        try {
+            control = cuota(forge.deck.DeckgenUtil.generateRandomCommanderDeck(
+                    conocido, forge.deck.DeckFormat.Commander, false, false, 2).getMain(), pozo);
+        } catch (final RuntimeException e) {
+            fail("sinergia: no se ha podido montar el mazo de control: " + e);
+            return;
+        }
+        if (mio > control + 0.15) {
+            ok(String.format(Locale.ROOT, "sinergia: el mazo de salida es %.0f%% cartas de su"
+                    + " comandante, contra %.0f%% del generador de antes", 100 * mio, 100 * control));
+        } else {
+            fail(String.format(Locale.ROOT, "sinergia: el mazo de salida (%.0f%%) no se separa"
+                    + " del generador por color (%.0f%%) — isCardGen no esta haciendo nada",
+                    100 * mio, 100 * control));
+        }
+
+        // 3. Y el recorte no se ha comido los remates. Cinco mazos, porque un
+        //    comandante de curva baja podria no tener ninguno por si solo.
+        int conRemate = 0;
+        for (int i = 0; i < 5; i++) {
+            final Deck d = AscentSeedDeck.generate(
+                    AscentRun.Mode.COMMANDER, conocido, "prueba-remate-" + i);
+            for (final Map.Entry<PaperCard, Integer> e : d.getMain()) {
+                if (pozo.contains(e.getKey().getName())
+                        && e.getKey().getRules().getManaCost().getCMC() >= 4) {
+                    conRemate++;
+                    break;
+                }
+            }
+        }
+        if (conRemate >= 4) {
+            ok("sinergia: " + conRemate + " de 5 mazos de salida conservan alguna carta"
+                    + " tematica de coste 4 o mas — el recorte por coste ya no se las come");
+        } else {
+            fail("sinergia: solo " + conRemate + " de 5 mazos conservan una carta tematica"
+                    + " cara; el recorte se esta llevando justo lo que hacia el mazo suyo");
+        }
+
+        // 4. Los premios: mas tematicos cuanto mas arriba.
+        final AscentRun run;
+        try {
+            run = AscentRun.begin(AscentRun.Mode.COMMANDER, 0, 40, conocido);
+        } catch (final RuntimeException e) {
+            fail("sinergia: no se ha podido montar la run de prueba: " + e);
+            return;
+        }
+        final double[] alturas = {0.0, 1.0};
+        final double[] parte = new double[alturas.length];
+        for (int a = 0; a < alturas.length; a++) {
+            final Random rnd = new Random(4242L + a);
+            int dentro = 0;
+            int total = 0;
+            for (int i = 0; i < 60; i++) {
+                for (final PaperCard c : AscentRewards.offer(run, alturas[a], rnd, 3)) {
+                    total++;
+                    if (pozo.contains(c.getName())) {
+                        dentro++;
+                    }
+                }
+            }
+            parte[a] = total == 0 ? 0 : (double) dentro / total;
+        }
+        if (parte[1] > parte[0] && parte[0] > 0.15) {
+            ok(String.format(Locale.ROOT, "sinergia: los premios van del %.0f%% al %.0f%% de"
+                    + " cartas de tu comandante segun subes — abajo quieres cartas, arriba"
+                    + " quieres TUS cartas", 100 * parte[0], 100 * parte[1]));
+        } else {
+            fail(String.format(Locale.ROOT, "sinergia: los premios ofrecen %.0f%% abajo y"
+                    + " %.0f%% arriba; se esperaba que subiera y que abajo ya fuera 1 de 3",
+                    100 * parte[0], 100 * parte[1]));
+        }
+    }
+
+    /** Que parte de los hechizos de un mazo estan en ese pozo. */
+    private static double cuota(final forge.deck.CardPool pool, final java.util.Set<String> names) {
+        int dentro = 0;
+        int total = 0;
+        for (final Map.Entry<PaperCard, Integer> e : pool) {
+            if (e.getKey().getRules().getType().isLand()) {
+                continue;
+            }
+            total += e.getValue();
+            if (names.contains(e.getKey().getName())) {
+                dentro += e.getValue();
+            }
+        }
+        return total == 0 ? 0 : (double) dentro / total;
+    }
+
     private static void calidadDelPremio() {
         final AscentRun run = demoRun(AscentRun.Mode.COMMANDER);
         if (run == null) {

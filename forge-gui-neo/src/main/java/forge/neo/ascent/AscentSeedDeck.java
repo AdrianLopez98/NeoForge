@@ -49,6 +49,32 @@ import forge.util.MyRandom;
  * parametro {@code maxBracket} de {@code generateRandomCommanderDeck}. Nosotros
  * solo decidimos que pedir.
  *
+ * <h2>Flojo NO quiere decir incoherente (20-09-2026)</h2>
+ *
+ * <p>Hasta hoy el mazo de Commander se pedia con {@code isCardGen = false}, o
+ * sea <b>99 cartas legales del color</b> sin mirar que hace el comandante.
+ * Reportado por un jugador en Reddit, y tenia toda la razon: <i>"the deckgen is
+ * a bit sad, it prevents using synergetic commanders at all"</i>. Y lo dicho en
+ * el §"Malo" no lo justificaba — una cosa es que el mazo sea <b>debil</b>, que
+ * es lo que hace que mejorarlo se note, y otra que <b>no vaya de nada</b>, que
+ * es lo que hace que el comandante que elegiste de siete mil de nada.
+ *
+ * <p>Asi que se pide con {@code isCardGen = true}, que es el generador del
+ * boton <i>"Generar mazo"</i> de Forge: tira de la matriz de mazos reales
+ * ({@link AscentSynergy}) y devuelve algo que va de lo que va el comandante. No
+ * sube la potencia — el {@code maxBracket} sigue siendo el mismo — sube la
+ * <b>coherencia</b>, que son cosas distintas.
+ *
+ * <p>Con dos cuidados, y los dos importan:
+ * <ul>
+ *   <li><b>La matriz no conoce a todos los comandantes.</b> Solo a los que
+ *       aparecen en los mazos que Forge trae; de los 10.824 jugables, la
+ *       mayoria no esta. Al que no, se le monta el mazo como siempre: mejor un
+ *       mazo por color que ninguno.</li>
+ *   <li><b>El recorte se comia justo la parte coherente</b>, y por eso existe
+ *       {@link #signature}. Ver ahi.</li>
+ * </ul>
+ *
  * <h2>El recorte</h2>
  *
  * <p>El motor genera mazos de 60 y de 100; una run empieza con 30 (Estandar) o
@@ -89,6 +115,46 @@ public final class AscentSeedDeck {
 
     /** Que parte del mazo son tierras. Doce de treinta es la proporcion de siempre. */
     private static final double LAND_RATIO = 0.40;
+
+    /**
+     * Cuantas cartas se salvan del recorte <b>por pegar con el comandante</b>.
+     *
+     * <p>Son las <i>cartas de salida</i> de un personaje de Slay the Spire: no
+     * hacen el mazo bueno, pero dicen <b>a que juega</b>. Sin ellas, activar el
+     * generador coherente no serviria de nada — {@link #trim} se queda con los
+     * hechizos mas baratos, y lo primero que se lleva por delante es justo el
+     * remate caro alrededor del cual se habia montado el mazo.
+     *
+     * <p>Seis de los ~36 hechizos que caben. No mas: el mazo de salida tiene que
+     * seguir siendo <b>flojo</b>, y seis cartas tematicas son un plan que se
+     * reconoce, mientras que veinte serian ya un mazo hecho y las recompensas
+     * dejarian de notarse.
+     */
+    private static final int SIGNATURE = 6;
+
+    /**
+     * Entre que costes se salva una.
+     *
+     * <p><b>El techo</b>: salvar la bomba de ocho del pozo no es dar tematica,
+     * es meter en un mazo de 24 tierras una carta que no se va a lanzar nunca.
+     *
+     * <p><b>Y el suelo, que es el que costo una corrida de {@code ascentcheck}
+     * entenderlo.</b> La primera version salvaba las cartas <b>mas asociadas</b>
+     * al comandante sin mirar el coste, que suena bien y no hace nada: lo mas
+     * asociado a cualquier comandante de Commander es <i>Sol Ring</i>,
+     * <i>Command Tower</i>, <i>Arcane Signet</i> — cartas de uno y dos que el
+     * relleno por coste ascendente <b>ya iba a coger igual</b>. O sea que los
+     * seis huecos reservados se gastaban en cartas que no necesitaban hueco, y
+     * el mazo seguia saliendo sin una sola carta de cuatro para arriba: la
+     * sonda lo midio en 3 de cada 5 mazos.
+     *
+     * <p>Reservar solo tiene sentido para lo que <b>se iba a caer</b>. De ahi el
+     * suelo: lo barato se defiende solo.
+     */
+    private static final int SIGNATURE_MAX_CMC = 6;
+
+    /** Ver {@link #SIGNATURE_MAX_CMC}: lo barato no necesita que se le reserve nada. */
+    private static final int SIGNATURE_MIN_CMC = 4;
 
     /**
      * El techo de potencia del mazo de Commander de salida.
@@ -210,10 +276,27 @@ public final class AscentSeedDeck {
             // uno sin comandante daria una run rarisima sin decir por que.
             throw new IllegalStateException("no se ha podido elegir comandante para la run");
         }
-        // maxBracket es lo que limita la potencia, y lo aplica el motor
-        // (limitCardsToCommanderBracket). Solo hace caso entre 1 y 3.
-        final Deck full = DeckgenUtil.generateRandomCommanderDeck(
-                cmd, DeckFormat.Commander, false, false, MAX_BRACKET);
+        // El cuarto parametro es isCardGen, y es la diferencia entre un mazo
+        // QUE PEGA con el comandante y noventa y nueve cartas legales de su
+        // color. Ver el javadoc de arriba.
+        Deck full = null;
+        if (AscentSynergy.knows(cmd)) {
+            try {
+                full = DeckgenUtil.generateRandomCommanderDeck(
+                        cmd, DeckFormat.Commander, false, true, MAX_BRACKET);
+            } catch (final RuntimeException e) {
+                // El generador coherente tira con comandantes raros. No es
+                // motivo para quedarse sin run: se cae al de siempre.
+                System.out.println("[ascenso] el generador coherente ha fallado con "
+                        + cmd.getName() + ": " + e);
+            }
+        }
+        if (full == null || full.getMain().countAll() == 0) {
+            // maxBracket es lo que limita la potencia, y lo aplica el motor
+            // (limitCardsToCommanderBracket). Solo hace caso entre 1 y 3.
+            full = DeckgenUtil.generateRandomCommanderDeck(
+                    cmd, DeckFormat.Commander, false, false, MAX_BRACKET);
+        }
         return trim(full, cmd, COMMANDER_SIZE, name);
     }
 
@@ -498,6 +581,52 @@ public final class AscentSeedDeck {
         }
     }
 
+    /**
+     * Las cartas del mazo generado que <b>hay que salvar del recorte</b>.
+     *
+     * <p>Las mas asociadas a este comandante en la matriz de Forge
+     * ({@link AscentSynergy}), hasta {@link #SIGNATURE} y de coste entre
+     * {@link #SIGNATURE_MIN_CMC} y {@link #SIGNATURE_MAX_CMC} — lo barato no se
+     * salva porque no hace falta salvarlo, ver ahi.
+     *
+     * <p><b>Por que hace falta, aunque el mazo ya venga coherente:</b>
+     * {@link #trim} se queda con los hechizos <b>mas baratos</b>, y esa regla
+     * existe por un motivo que sigue en pie (una run empieza con poco mana).
+     * Pero aplicada a secas se come justo lo que hacia que el mazo fuera de
+     * este comandante y no de cualquiera: el remate de cinco o seis. Asi que en
+     * vez de cambiar la regla se le <b>reservan seis huecos</b> a lo tematico y
+     * el resto se recorta igual que antes.
+     *
+     * <p>En Estandar no hay comandante, y entonces esto no hace nada: devuelve
+     * la lista vacia y el recorte es exactamente el de siempre.
+     */
+    private static List<PaperCard> signature(final List<PaperCard> spells,
+                                             final PaperCard commander) {
+        final List<PaperCard> out = new ArrayList<>();
+        if (commander == null) {
+            return out;
+        }
+        // Lo que hay en el mazo, por nombre: la matriz habla de nombres y aqui
+        // se necesita la impresion concreta que trajo el generador.
+        final java.util.Map<String, PaperCard> inDeck = new java.util.HashMap<>();
+        for (final PaperCard c : spells) {
+            final int cmc = c.getRules().getManaCost().getCMC();
+            if (cmc >= SIGNATURE_MIN_CMC && cmc <= SIGNATURE_MAX_CMC) {
+                inDeck.putIfAbsent(c.getName(), c);
+            }
+        }
+        for (final PaperCard weighted : AscentSynergy.byWeight(commander)) {
+            final PaperCard mine = inDeck.remove(weighted.getName());
+            if (mine != null) {
+                out.add(mine);
+                if (out.size() >= SIGNATURE) {
+                    break;
+                }
+            }
+        }
+        return out;
+    }
+
     /** Quita el hechizo mas caro del mazo. Devuelve si quito alguno. */
     private static boolean dropCostliestSpell(final Deck deck) {
         PaperCard worst = null;
@@ -563,6 +692,12 @@ public final class AscentSeedDeck {
         final Deck out = new Deck(name);
         for (int i = 0; i < takeLands; i++) {
             out.getMain().add(lands.get(i));
+        }
+        // Primero lo que pega con el comandante, que si no se lo lleva el
+        // recorte por caro; luego lo barato, como siempre.
+        for (final PaperCard sign : signature(spells, commander)) {
+            spells.remove(sign);
+            out.getMain().add(sign);
         }
         for (int i = 0; i < spells.size() && out.getMain().countAll() < size; i++) {
             out.getMain().add(spells.get(i));

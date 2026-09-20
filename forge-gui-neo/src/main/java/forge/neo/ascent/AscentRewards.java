@@ -650,6 +650,32 @@ public final class AscentRewards {
     private static final double GC_START = 0.45;
     private static final double GC_TOP = 0.20;
 
+    /**
+     * Que parte de los premios <b>pegan con tu comandante</b>, abajo y arriba
+     * de la run.
+     *
+     * <p>Una de cada tres al empezar, dos de cada tres en el jefe final. Es lo
+     * que pidio el jugador que reporto esto — <i>"maybe a system of the deeper
+     * you go the more you get"</i> — y responde a algo que se notaba jugando:
+     * al principio quieres <b>cartas</b>, porque tu mazo esta medio vacio y
+     * casi cualquier cosa lo mejora; al final ya tienes un plan y lo que
+     * quieres son <b>las piezas de ese plan</b>.
+     *
+     * <p>Y no sube a 1: un premio en el que las tres cartas van del mismo tema
+     * deja de ser una eleccion. Dos de tres tematicas y una suelta es lo que
+     * mantiene la decision viva.
+     *
+     * <p>⚠️ En Estandar esto no hace nada — no hay comandante, asi que el cubo
+     * sinergico se queda vacio y el sorteo es el de siempre.
+     */
+    public static double synergyChance(final double climb) {
+        final double c = Math.max(0.0, Math.min(1.0, climb));
+        return SYN_LOW + (SYN_HIGH - SYN_LOW) * c;
+    }
+
+    private static final double SYN_LOW = 1.0 / 3.0;
+    private static final double SYN_HIGH = 2.0 / 3.0;
+
     /** Que parte de las cartas ofrecidas a esa altura son gamechangers. */
     public static double gameChangerChance(final double climb) {
         final double c = Math.max(0.0, Math.min(1.0, climb));
@@ -671,21 +697,81 @@ public final class AscentRewards {
      * cubos, que es lo que hace esto.
      */
     private static final class Pools {
-        private final List<PaperCard> uncommon = new ArrayList<>();
-        private final List<PaperCard> rare = new ArrayList<>();
-        private final List<PaperCard> mythic = new ArrayList<>();
+
+        /**
+         * Los tres cubos de rareza. Hay <b>dos</b> juegos: el de todo lo
+         * jugable y el de lo que pega con el comandante.
+         */
+        private static final class Tier {
+            private final List<PaperCard> uncommon = new ArrayList<>();
+            private final List<PaperCard> rare = new ArrayList<>();
+            private final List<PaperCard> mythic = new ArrayList<>();
+
+            boolean isEmpty() {
+                return uncommon.isEmpty() && rare.isEmpty() && mythic.isEmpty();
+            }
+
+            void add(final PaperCard c) {
+                switch (c.getRarity()) {
+                    case Uncommon:
+                        uncommon.add(c);
+                        break;
+                    case Rare:
+                        rare.add(c);
+                        break;
+                    case MythicRare:
+                        mythic.add(c);
+                        break;
+                    default:
+                        // Comunes, fichas, especiales: fuera. El suelo es
+                        // infrecuente (ver el javadoc de poolsFor).
+                        break;
+                }
+            }
+
+            /**
+             * Una carta de este juego de cubos, en el orden de rareza pedido.
+             *
+             * <p>Si el cubo que sale esta vacio se baja al siguiente: un mazo
+             * de un color raro puede no tener ni una mitica jugable, y devolver
+             * {@code null} ahi seria ofrecer dos cartas de tres.
+             */
+            PaperCard pick(final int order, final Random rnd) {
+                final List<List<PaperCard>> buckets = order == 0
+                        ? List.of(mythic, rare, uncommon)
+                        : order == 1
+                        ? List.of(rare, mythic, uncommon)
+                        : List.of(uncommon, rare, mythic);
+                for (final List<PaperCard> bucket : buckets) {
+                    if (!bucket.isEmpty()) {
+                        return bucket.get(rnd.nextInt(bucket.size()));
+                    }
+                }
+                return null;
+            }
+        }
+
+        private final Tier all = new Tier();
+        private final Tier synergy = new Tier();
         private final List<PaperCard> gameChangers = new ArrayList<>();
 
         boolean isEmpty() {
-            return uncommon.isEmpty() && rare.isEmpty() && mythic.isEmpty();
+            return all.isEmpty();
         }
 
         /**
-         * Una carta de la calidad que toque a esa altura.
+         * Una carta de la calidad que toque a esa altura, y <b>a ser posible</b>
+         * de las que pegan con tu comandante.
          *
-         * <p>Si el cubo que sale esta vacio se baja al siguiente: un mazo de un
-         * color raro puede no tener ni una mitica jugable, y devolver
-         * {@code null} ahi seria ofrecer dos cartas de tres.
+         * <p>La sinergia es un <b>filtro</b>, no un cubo aparte: primero se
+         * decide la rareza igual que siempre y luego se busca en el juego de
+         * cubos que toque. Asi la curva de calidad de la run no cambia ni un
+         * punto por meter esto — lo unico que cambia es <i>cual</i> de las
+         * cartas de esa calidad sale.
+         *
+         * <p>Y si el juego sinergico no tiene nada de esa rareza, se cae al
+         * general en vez de devolver {@code null}: ofrecer dos cartas de tres
+         * por ser tiquismiquis con la tematica seria un premio peor, no mejor.
          */
         PaperCard roll(final double climb, final Random rnd) {
             if (!gameChangers.isEmpty() && rnd.nextDouble() < gameChangerChance(climb)) {
@@ -694,17 +780,14 @@ public final class AscentRewards {
             final double r = rnd.nextDouble();
             final double mythicP = mythicChance(climb);
             final double rareP = RARE_LOW + (RARE_HIGH - RARE_LOW) * Math.max(0, Math.min(1, climb));
-            final List<List<PaperCard>> order = r < mythicP
-                    ? List.of(mythic, rare, uncommon)
-                    : r < mythicP + rareP
-                    ? List.of(rare, mythic, uncommon)
-                    : List.of(uncommon, rare, mythic);
-            for (final List<PaperCard> bucket : order) {
-                if (!bucket.isEmpty()) {
-                    return bucket.get(rnd.nextInt(bucket.size()));
+            final int order = r < mythicP ? 0 : r < mythicP + rareP ? 1 : 2;
+            if (!synergy.isEmpty() && rnd.nextDouble() < synergyChance(climb)) {
+                final PaperCard c = synergy.pick(order, rnd);
+                if (c != null) {
+                    return c;
                 }
             }
-            return null;
+            return all.pick(order, rnd);
         }
     }
 
@@ -716,6 +799,15 @@ public final class AscentRewards {
      * el unico que aporte identidad), y cachear dejaria de casar en cuanto eso
      * pasara. Recorrer 33.000 cartas una vez por combate no se nota al lado de
      * la propia partida.
+     *
+     * <p><b>Y desde el 20-09-2026, con sesgo de sinergia.</b> Antes el unico
+     * criterio de "esta carta te viene bien" era el color y la rareza, o sea
+     * que en un mazo azul de robar cartas te podia salir tres veces seguidas
+     * una criatura grande sin nada que ver con tu plan. Ahora una parte de las
+     * cartas ofrecidas — de un tercio a dos tercios segun {@link
+     * #synergyChance} — sale del pozo de <b>tu comandante</b>
+     * ({@link AscentSynergy}). Sigue habiendo cartas sueltas a proposito: un
+     * premio de tres cartas del mismo tema no es una eleccion.
      *
      * <p><b>Las comunes ya no entran.</b> Reportado jugando: en el acto 1 se
      * ofrecian comunes e infrecuentes, o sea que llegar al jefe con el mazo
@@ -730,15 +822,20 @@ public final class AscentRewards {
         // a 2 de 6 (§24.6), que multiplica por dos las ocasiones de que pase,
         // pero el agujero estaba desde el principio.
         final Set<String> owned = new HashSet<>();
-        if (run.getMode() == AscentRun.Mode.COMMANDER) {
-            final Deck mine = AscentDecks.load(run);
-            if (mine != null) {
-                for (final Map.Entry<PaperCard, Integer> e : mine.getMain()) {
-                    owned.add(e.getKey().getName());
-                }
+        final Deck mine = run.getMode() == AscentRun.Mode.COMMANDER ? AscentDecks.load(run) : null;
+        if (mine != null) {
+            for (final Map.Entry<PaperCard, Integer> e : mine.getMain()) {
+                owned.add(e.getKey().getName());
             }
         }
         final Set<String> changers = gameChangerNames();
+        // Lo que pega con TU comandante, segun los mazos reales que trae Forge.
+        // Vacio en Estandar (no hay comandante) y vacio tambien si la matriz no
+        // conoce al tuyo, que es el caso normal: entonces el premio se sortea
+        // como se sorteaba antes de todo esto.
+        final Set<String> synergy = run.getMode() == AscentRun.Mode.COMMANDER && mine != null
+                ? AscentSynergy.namesFor(mine.getCommanders())
+                : Set.of();
         final Pools out = new Pools();
         for (final PaperCard c : FModel.getMagicDb().getCommonCards().getUniqueCards()) {
             if (owned.contains(c.getName())) {
@@ -762,20 +859,14 @@ public final class AscentRewards {
                 out.gameChangers.add(c);
                 continue;
             }
-            switch (c.getRarity()) {
-                case Uncommon:
-                    out.uncommon.add(c);
-                    break;
-                case Rare:
-                    out.rare.add(c);
-                    break;
-                case MythicRare:
-                    out.mythic.add(c);
-                    break;
-                default:
-                    // Comunes, fichas, especiales: fuera. El suelo es
-                    // infrecuente (ver el javadoc de arriba).
-                    break;
+            // Al juego general SIEMPRE, y ademas al sinergico si pega. No es
+            // "o uno u otro" como con los gamechangers: aqui el cubo sinergico
+            // es un subconjunto del general, y tiene que serlo — si la carta
+            // solo estuviera en el sinergico, apagarlo la haria desaparecer del
+            // premio en vez de dejar de favorecerla.
+            out.all.add(c);
+            if (synergy.contains(c.getName())) {
+                out.synergy.add(c);
             }
         }
         return out;

@@ -14,6 +14,11 @@ A full run in 45–60 minutes, played against the AI on a branching node map.
   improve it node by node — winning a fight lets you add one of three cards, and shops let
   you buy cards or remove a bad one. In a 30-card deck, cutting a card you can never cast is
   often worth more than adding a good one.
+- **And in Commander, the deck actually plays to your commander.** The seed deck is built
+  from the cards people really run with that commander, and reward cards lean the same way —
+  one in three at the start, two in three by the final boss, so early on you want *cards* and
+  by the end you want *your* cards. Weak was always the point; going nowhere wasn't. The seed
+  deck is still deliberately weak: this changes what it's about, not how strong it is.
 - **37 relics** give you permanent passives (your creatures get +1/+1, you gain life each
   upkeep, and so on). Bosses offer three and let you pick one.
 - **24 events**, shops, rest sites and three acts, each set on a different plane.
