@@ -1,193 +1,242 @@
 # NeoForge
 
-Una interfaz nueva para jugar a **Magic: the Gathering contra la IA**, sobre el motor de
-reglas de [Forge](https://github.com/Card-Forge/forge).
+A new interface for playing **Magic: the Gathering against the AI**, on top of the
+[Forge](https://github.com/Card-Forge/forge) rules engine.
 
-Forge tiene las reglas, las 33.000 cartas y una IA que lleva años puliéndose. Lo que no
-tiene es una interfaz de este siglo. NeoForge es eso y sólo eso: presentación. **Ni una
-línea de reglas es nuestra.**
+Forge has the rules, the 33,000 cards and an AI that has been getting polished for years.
+What it doesn't have is an interface from this century. NeoForge is that and only that:
+presentation. **Not one line of the rules is ours.**
 
-![La mesa, en combate](imagenes/mesa-combate.png)
+![The table, in combat](imagenes/mesa-combate.png)
 
-💬 **Discord:** [discord.gg/fF5Tn7Z2pv](https://discord.gg/fF5Tn7Z2pv) — fallos, ideas y gente con
-la que jugar en red.
+🎮 **Download and play:** [dokkodolabs.itch.io/neo-forge](https://dokkodolabs.itch.io/neo-forge)
+— free, Windows and macOS, nothing to install.
+
+💬 **Discord:** [discord.gg/fF5Tn7Z2pv](https://discord.gg/fF5Tn7Z2pv) — bugs, ideas and people
+to play online with.
 
 ---
 
-## Qué hace
+## Download and play
 
-- **Commander contra la IA**, y también Estándar, Brawl, Oathbreaker y Tiny Leaders.
-  A cuatro jugadores se puede ver **la mesa de todos los rivales a la vez**, en vez de una
-  y pestañas (se enciende en Ajustes; ver más abajo).
-- **Ascenso**, un modo roguelike propio: una run por un mapa de nodos ramificado, con la
-  vida arrastrándose entre combates, un mazo que se forma dentro de la run, 37 reliquias,
-  24 eventos, tienda, descansos y diez niveles de Ascensión con desbloqueos por hitos.
-- **Aventura** — el Adventure de Forge **tal cual** (mapa del mundo, pueblos y mazmorras),
-  con los combates y el editor de mazos de NeoForge dentro. Se abre en su propia ventana.
-  Sólo en Windows por ahora.
-- **Quest** (el modo de campaña clásico de Forge): duelos, 37 desafíos, 93 mundos, tienda
-  de sobres, bazar y colección.
-- **Draft** y **Sellado**, con elección de expansión y el mazo editable con tu pool.
-- **Torneo** por eliminación directa, de 4 u 8.
-- **Puzzles**: los 372 que trae Forge.
-- **Partida privada en red** (IP directa), usando el netcode del propio Forge.
-- **Tutorial** de tres lecciones, sobre mesas preparadas.
-- **Deck builder** con catálogo buscable, curva de maná, cambio de arte e importación de
-  decklists de Moxfield y Archidekt.
-- **Diez idiomas**, los mismos que Forge, y en ocho de ellos también los nombres de las cartas.
-- **Atajos de teclado configurables**, con tres estilos de partida para empezar: el de
-  NeoForge, el de Forge y el de Arena (ver más abajo).
+The ready-to-play builds live on itch.io. They are free (pay what you want) and each one
+brings its own Java runtime, so there is nothing to install:
 
-### Atajos de teclado
-
-Ajustes → *Teclado* → *Ver y cambiar* (o **H** durante una partida) abre la lista de atajos.
-Se consultan y se cambian ahí mismo: clic en el hueco y se pulsa la tecla nueva; Retroceso la
-quita y Esc cancela. Cada acción admite dos teclas.
-
-- **NeoForge**, el de fábrica: Espacio pasa prioridad, Ctrl+E pasa hasta el final del turno,
-  Ctrl+A ataca con todo, Ctrl+Z deshace, Z amplía la carta bajo el ratón, L abre el registro,
-  S despliega el stack, Ctrl+Q se rinde (preguntando antes) y H enseña los atajos.
-- **Forge**: lo mismo, más Y / N (siempre sí / siempre no al disparo de arriba del stack) y
-  P (pasar la prioridad sola o no).
-- **Arena**: Espacio pasa, Enter y Mayús+Enter pasan el turno, Z deshace y Ctrl+Mayús es el
-  control total.
-
-Esc no se puede reasignar: abre siempre la pausa y los ajustes, que es por donde se llega a
-cambiar el resto.
-
-### Ver todas las mesas a la vez
-
-En Commander a tres o cuatro jugadores, Ajustes → *Ver la mesa de todos los rivales a la vez*
-sustituye las pestañas de rival por una mesa por rival, en fila. **Viene apagado**, y no por
-prudencia: repartir el ancho entre tres deja las cartas bastante más pequeñas, así que es una
-decisión de gusto. Con él encendido se gana ver de un vistazo lo que tiene cada uno, y elegir
-a quién atacas sin cambiar de pestaña primero.
-
-Dos cosas que conviene saber:
-
-- **Actívalo antes de empezar la partida.** Es un ajuste de disposición de la mesa.
-- Si la ventana no da para tres barras de jugador enteras, se sigue jugando con pestañas y
-  se avisa por qué: una barra recortada esconde la vida del rival, que es justo el dato por
-  el que decides el combate.
-
-Para leer una carta pequeña: **clic derecho** la amplía, y **Ctrl + rueda** acerca la mesa.
+**→ [dokkodolabs.itch.io/neo-forge](https://dokkodolabs.itch.io/neo-forge)**
 
 | | |
 |---|---|
-| ![Pantalla de inicio](imagenes/inicio.png) | ![Deck builder](imagenes/deck-builder.png) |
-| ![Quest](imagenes/aventura-cuartel.png) | ![Torneo](imagenes/torneo.png) |
+| **Windows** | `neo-forge-win64.zip` — unzip it anywhere and double-click `NeoForge.exe` |
+| **macOS** | `NeoForge-macOS-arm64.dmg` (Apple Silicon) or `NeoForge-macOS-x64.dmg` (Intel) |
+
+The first launch takes around 45 seconds, while it reads the 33,000 cards. After that it
+starts much faster.
+
+### Updating without losing your progress
+
+On **Windows**, everything of yours lives in a single folder called `datos`, created next to
+`NeoForge.exe` the first time you play: your decks, your settings, your Quest, Ascent and
+Adventure saves, and every card image already downloaded. Nothing is stored anywhere else on
+your PC. So an update is three steps:
+
+1. Unzip the new version into a **new** folder.
+2. Copy the whole **`datos`** folder from your old NeoForge folder into the new one.
+3. Launch the new `NeoForge.exe`.
+
+Do it before the first launch and everything is exactly where you left it — same decks, same
+settings, and it won't download the card art all over again. If you launch it first by
+accident, nothing breaks: close the game and copy your old `datos` over the new one,
+replacing it.
+
+Unzipping the new version **on top of** the old folder works too. `datos` isn't inside the
+zip, so it survives untouched. The clean folder is just tidier, because old libraries don't
+pile up in `app/`.
+
+> **Don't bring anything else across.** In particular, leave `forge.profile.properties`
+> behind: it gets rewritten on every launch, and it holds absolute paths from whichever
+> machine wrote it.
+
+On **macOS** there is nothing to move. Your data lives outside the app, in
+`~/Library/Application Support/Forge`, so updating is just dragging the new NeoForge into
+Applications and replacing the old one.
+
+To start over from scratch, delete the `datos` folder (Windows) or that one (macOS).
 
 ---
 
-## Jugar en un Mac
+## What it does
 
-En [Releases](https://github.com/AdrianLopez98/NeoForge/releases) hay un `.dmg` para
-**Apple Silicon** (`arm64`) y otro para **Intel** (`x64`). Trae su propio Java: se abre,
-se arrastra NeoForge a Aplicaciones y listo. Todo funciona igual que en Windows **salvo la
-Aventura** (el Adventure de Forge), que en Mac todavía no está.
+- **Commander against the AI**, and also Standard, Brawl, Oathbreaker and Tiny Leaders.
+  In four-player games you can see **every opponent's battlefield at once** instead of one
+  plus tabs (switched on in Settings; see below).
+- **Ascent**, a roguelike mode of our own: a run across a branching node map, with your life
+  carrying over between fights, a deck that takes shape inside the run, 37 relics, 24 events,
+  a shop, rest sites and ten Ascension levels with milestone unlocks.
+- **Adventure** — Forge's Adventure mode **as it is** (world map, towns and dungeons), with
+  NeoForge's duels and deck builder inside it. It opens in its own window. Windows only for
+  now.
+- **Quest** (Forge's classic campaign mode): duels, 37 challenges, 93 worlds, a booster shop,
+  a bazaar and a collection.
+- **Draft** and **Sealed**, picking your own expansion, with the deck editable from your pool.
+- **Tournament**, single-elimination, 4 or 8 players.
+- **Puzzles**: the 372 that Forge ships.
+- **Private online play** (direct IP), using Forge's own netcode.
+- **A tutorial** of three lessons, played on prepared board states.
+- **A deck builder** with a searchable catalog, mana curve, art swapping and decklist import
+  from Moxfield and Archidekt.
+- **Ten languages**, the same ones Forge has, and in eight of them the card names too.
+- **Configurable keyboard shortcuts**, with three in-game presets to start from: NeoForge's,
+  Forge's and Arena's (see below).
 
-La primera vez macOS lo bloquea, porque no está firmado con una cuenta de desarrollador
-de Apple: doble clic, se acepta el aviso, y **Ajustes del Sistema → Privacidad y
-seguridad → Abrir igualmente**. Las instrucciones completas van dentro del `.dmg`
-(`LEEME-MAC.txt`).
+### Keyboard shortcuts
 
-En un Mac, **Cmd hace de Ctrl** (Cmd+Z deshace), **Ctrl+clic es clic derecho** (amplía la
-carta), **pellizcar** acerca la mesa y **Cmd+arrastrar** la mueve. Los datos van donde
-los pone Forge en un Mac: `~/Library/Application Support/Forge`.
+Settings → *Keyboard* → *View and change* (or **H** during a game) opens the list of
+shortcuts. You read them and change them right there: click the slot and press the new key,
+Backspace clears it, Esc cancels. Every action takes two keys.
 
-Los `.dmg` los compila [el flujo `macos`](.github/workflows/macos.yml) en las máquinas
-Mac de GitHub, que además arranca la aplicación ya empaquetada y juega una partida antes
-de dar el paquete por bueno. Para compilarlo en un Mac propio: `mac/empaquetar.sh`.
+- **NeoForge**, the default: Space passes priority, Ctrl+E passes until the end of the turn,
+  Ctrl+A attacks with everything, Ctrl+Z undoes, Z enlarges the card under the mouse, L opens
+  the game log, S expands the stack, Ctrl+Q concedes (asking first) and H shows the shortcuts.
+- **Forge**: the same, plus Y / N (always yes / always no to the trigger on top of the stack)
+  and P (pass priority once, or not).
+- **Arena**: Space passes, Enter and Shift+Enter pass the turn, Z undoes and Ctrl+Shift is
+  full control.
+
+Esc can't be rebound: it always opens the pause menu and the settings, which is how you get
+to change everything else.
+
+### Seeing every battlefield at once
+
+In three- or four-player Commander, Settings → *Show every opponent's battlefield at once*
+replaces the opponent tabs with one battlefield per opponent, side by side. It **ships off**,
+and not out of caution: splitting the width three ways makes the cards noticeably smaller, so
+it is a matter of taste. With it on you see what everyone has at a glance, and you pick who
+you attack without switching tabs first.
+
+Two things worth knowing:
+
+- **Turn it on before starting the game.** It's a board layout setting.
+- If the window isn't wide enough for three whole player bars, it keeps playing with tabs and
+  says why: a clipped bar hides the opponent's life total, which is exactly the number you
+  decide combat on.
+
+To read a small card: **right-click** enlarges it, and **Ctrl + wheel** zooms the table in.
+
+| | |
+|---|---|
+| ![Start screen](imagenes/inicio.png) | ![Deck builder](imagenes/deck-builder.png) |
+| ![Quest](imagenes/aventura-cuartel.png) | ![Tournament](imagenes/torneo.png) |
 
 ---
 
-## Cómo está construido
+## Playing on a Mac
 
-Forge separa motor y presentación con un contrato formal, y ya hay **dos** interfaces
-distintas enchufadas ahí (Swing y libGDX). Ésta es la tercera. No es un parche: es el
-patrón previsto.
+[Releases](https://github.com/AdrianLopez98/NeoForge/releases) has a `.dmg` for **Apple
+Silicon** (`arm64`) and another for **Intel** (`x64`), and so does the
+[itch.io page](https://dokkodolabs.itch.io/neo-forge). It brings its own Java: open it, drag
+NeoForge into Applications and that's it. Everything works the same as on Windows **except
+Adventure** (Forge's Adventure mode), which isn't on Mac yet.
+
+The first time, macOS blocks it, because it isn't signed with a paid Apple developer
+account: double-click, accept the warning, then **System Settings → Privacy & Security →
+Open Anyway**. The full instructions are inside the `.dmg` (`LEEME-MAC.txt`).
+
+On a Mac, **Cmd stands in for Ctrl** (Cmd+Z undoes), **Ctrl+click is right-click** (enlarges
+the card), **pinch** zooms the table in and **Cmd+drag** moves it. Your data goes where Forge
+puts it on a Mac: `~/Library/Application Support/Forge`.
+
+The `.dmg` files are built by [the `macos` workflow](.github/workflows/macos.yml) on GitHub's
+Mac machines, which also launches the packaged application and plays a game before calling the
+build good. To build it on a Mac of your own: `mac/empaquetar.sh`.
+
+---
+
+## How it's built
+
+Forge separates engine from presentation with a formal contract, and there are already **two**
+different interfaces plugged into it (Swing and libGDX). This is the third. It isn't a patch:
+it's the intended pattern.
 
 ```
   forge-gui-desktop (Swing)   forge-gui-mobile (libGDX)   forge-gui-neo (JavaFX)
         │  IGameController                        ▲  IGuiGame
         ▼                                         │
-  forge-gui   ·   la costura:  HostedMatch · AbstractGuiGame · PlayerControllerHuman
+  forge-gui   ·   the seam:  HostedMatch · AbstractGuiGame · PlayerControllerHuman
         │  PlayerController                       ▲  GameView · CardView · GameEvent
         ▼                                         │
-  forge-ai   ·   forge-game   ·   forge-core      (el motor: reglas, stack, cartas)
+  forge-ai   ·   forge-game   ·   forge-core      (the engine: rules, stack, cards)
 ```
 
-Todo el código de este repositorio vive en **`forge-gui-neo/`**, un módulo Maven más del
-reactor de Forge. Es JavaFX 21 sobre Java 17.
+All the code in this repository lives in **`forge-gui-neo/`**, one more Maven module of
+Forge's reactor. It's JavaFX 21 on Java 17.
 
-La regla que sostiene el proyecto: **no se modifica ningún fichero que ya exista en el
-repositorio de Forge.** La única excepción es una línea en el `pom.xml` padre. Así
-`git rebase upstream/master` nunca da conflictos y cada actualización de Forge —con sus
-cartas y expansiones nuevas— entra sin trabajo. Cuando el motor tiene un fallo que nos
-afecta, se **envuelve** desde este módulo en vez de parchearlo.
+The rule that holds the project up: **no file that already exists in the Forge repository is
+ever modified.** The only exception is one line in the parent `pom.xml`. That way
+`git rebase upstream/master` never conflicts, and every Forge update — with its new cards and
+expansions — arrives for free. When the engine has a bug that affects us, it gets **wrapped**
+from this module instead of patched.
 
 ---
 
-## Compilar
+## Building
 
-Hace falta **JDK 17** (Forge lo exige con maven-enforcer) y Maven 3.9.
+You need **JDK 17** (Forge enforces it with maven-enforcer) and Maven 3.9.
 
 ```bash
-# 1. el motor
+# 1. the engine
 git clone https://github.com/Card-Forge/forge.git
 cd forge
-git checkout 746455d75515daabec62971e0544cf19c66356b3   # la base probada; master suele valer
+git checkout 746455d75515daabec62971e0544cf19c66356b3   # the tested base; master usually works
 
-# 2. este módulo, dentro
+# 2. this module, inside it
 git clone https://github.com/AdrianLopez98/NeoForge.git /tmp/neoforge
 cp -r /tmp/neoforge/forge-gui-neo .
 
-# 3. la única línea que se toca de Forge: añadir el módulo al reactor
-#    en pom.xml, junto a los otros <module>:
+# 3. the only line of Forge that gets touched: add the module to the reactor
+#    in pom.xml, next to the other <module> entries:
 #        <module>forge-gui-neo</module>
 
-# 4. compilar SIEMPRE dentro del reactor, con -am
+# 4. always build inside the reactor, with -am
 export MAVEN_OPTS="-Dfile.encoding=UTF-8 -Xmx2g"
 mvn -B install -DskipTests -pl forge-gui-neo -am
 ```
 
-> **`-am` no es opcional.** Forge ata el plugin *flatten* a la fase `deploy`, no a
-> `install`, así que los POMs que quedan en `~/.m2` conservan `${revision}` sin resolver y
-> los módulos no se pueden consumir de forma aislada. Con `-am` se resuelve desde el
-> reactor.
+> **`-am` is not optional.** Forge binds the *flatten* plugin to the `deploy` phase, not to
+> `install`, so the POMs left in `~/.m2` keep `${revision}` unresolved and the modules can't be
+> consumed in isolation. With `-am` it resolves from the reactor.
 
-## Ejecutar
+## Running
 
-El directorio de trabajo tiene que ser `forge-gui-neo/`, para que `../forge-gui/` resuelva
-`res/cardsfolder`, `res/editions` y el resto de recursos del motor.
+The working directory has to be `forge-gui-neo/`, so that `../forge-gui/` resolves
+`res/cardsfolder`, `res/editions` and the rest of the engine's resources.
 
 ```bash
 cd forge-gui-neo
 java -Dfile.encoding=UTF-8 -Xmx2g -cp "target/classes:target/lib/*" forge.neo.NeoMain ui
 ```
 
-`target/lib/` lo rellena el `maven-dependency-plugin` en la fase `package`. El directorio
-de recursos se puede mover con `-Dforge.assetsDir=...`, y todos los datos del jugador se
-pueden meter dentro de la carpeta del juego con `-Dneo.dataDir=...`.
+`target/lib/` is filled by the `maven-dependency-plugin` during the `package` phase. The
+resource directory can be moved with `-Dforge.assetsDir=...`, and every bit of the player's
+data can be kept inside the game's own folder with `-Dneo.dataDir=...`.
 
-Sin argumentos, `NeoMain` lista los mazos. Con `ui` abre la ventana. Hay además una
-familia de comprobadores que corren **sin ventana** (`deckcheck`, `draftcheck`,
-`questcheck`, `tutorialcheck`, `lobbycheck`, `tournamentcheck`…), que es como se verifica
-que un rebase de Forge no ha roto nada.
+With no arguments, `NeoMain` lists the decks. With `ui` it opens the window. There is also a
+family of checkers that run **headless** (`deckcheck`, `draftcheck`, `questcheck`,
+`tutorialcheck`, `lobbycheck`, `tournamentcheck`…), which is how a Forge rebase is verified
+not to have broken anything.
 
 ---
 
-## Licencia
+## License
 
-**GNU GPL v3**, la misma que Forge. Esto es obra derivada de Forge y no podría ser otra.
-El texto completo está en [LICENSE](LICENSE).
+**GNU GPL v3**, the same as Forge. This is derivative work of Forge and it couldn't be
+anything else. The full text is in [LICENSE](LICENSE).
 
-Las **imágenes de las cartas no se distribuyen**: se descargan de
-[Scryfall](https://scryfall.com) al jugar, igual que hace Forge.
+The **card images are not distributed**: they are downloaded from
+[Scryfall](https://scryfall.com) as you play, exactly as Forge does.
 
-## Aviso
+## Notice
 
-No es un producto oficial. NeoForge no está afiliado, patrocinado ni aprobado por Wizards
-of the Coast. *Magic: the Gathering*, los nombres de las cartas y sus ilustraciones son
-propiedad de Wizards of the Coast LLC. Proyecto de aficionado, sin ánimo de lucro: no se
-vende, no lleva publicidad y no se cobra por él. Ver [AVISOS.txt](AVISOS.txt).
+This is not an official product. NeoForge is not affiliated with, endorsed or sponsored by
+Wizards of the Coast. *Magic: the Gathering*, the card names and their artwork are property of
+Wizards of the Coast LLC. Fan project, non-commercial: it isn't sold, it carries no
+advertising and nothing is charged for it. See [AVISOS.txt](AVISOS.txt).
