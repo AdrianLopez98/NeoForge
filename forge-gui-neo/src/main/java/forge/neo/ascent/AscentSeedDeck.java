@@ -447,7 +447,12 @@ public final class AscentSeedDeck {
      * mejor que la basica que la sustituiria, y quitarla para meter un Bosque
      * seria empeorar el mazo mientras se arregla.
      *
-     * <p>No cambia el tamanyo del mazo: se quitan N basicas y se ponen N.
+     * <p><b>No cambia el tamanyo del mazo</b>: se quitan N basicas y se ponen
+     * N. Es una invariante del modo entero y no un detalle de esta funcion
+     * — {@link #COMMANDER_SIZE} se da por sentado desde {@link #curse} hasta
+     * los premios —, y se rompio de verdad con los mazos de cinco colores y
+     * tres basicas (ver el bucle del presupuesto). Por eso ademas se comprueba
+     * antes de tocar el mazo, en vez de confiar en que las cuentas salgan.
      */
     private static void ensureColorSources(final Deck deck) {
         // 1. Que colores PIDEN los hechizos, y cuanto. Los simbolos y no la
@@ -526,11 +531,44 @@ public final class AscentSeedDeck {
                     worst = i;
                 }
             }
-            if (worst < 0) {
-                break; // todos a uno y aun sobran colores: se deja como esta
+            if (worst >= 0) {
+                want[worst]--;
+                given--;
+                continue;
             }
-            want[worst]--;
-            given--;
+            // Todos a uno y AUN sobran colores: hay menos huecos de basica que
+            // colores que pagar, asi que el suelo de "una por color" no cabe y
+            // hay que dejar alguno fuera.
+            //
+            // ⚠️ Aqui se cortaba el bucle ("se deja como esta"), y era justo
+            // lo que hacia CRECER el mazo: abajo se quitan {@code slots}
+            // basicas y se ponen {@code given}, asi que salir de aqui con
+            // given > slots devuelve un mazo de 61 o 62 cartas. Lo cazaba
+            // {@code ascentcheck} una corrida de cada varias — "1 mazo con un
+            // tamanyo que no es el pedido" — y al repetir salia en verde,
+            // porque depende del comandante que toque. El caso real: Ashling,
+            // the Limitless, identidad WUBRG, 24 tierras de las que solo TRES
+            // son basicas (el generador le da duales y de utilidad) y cinco
+            // colores que pagar: 3 huecos, 5 suelos, mazo de 62.
+            //
+            // Se queda fuera el color que MENOS se paga y, a igualdad, el que
+            // ya tenga mas fuentes no basicas — que es ademas el motivo de que
+            // queden tan pocos huecos.
+            int drop = -1;
+            for (int i = 0; i < want.length; i++) {
+                if (want[i] <= 0) {
+                    continue;
+                }
+                if (drop < 0 || pips[i] < pips[drop]
+                        || (pips[i] == pips[drop] && fromNonBasic[i] > fromNonBasic[drop])) {
+                    drop = i;
+                }
+            }
+            if (drop < 0) {
+                break; // no puede pasar: given > slots >= 0 obliga a algun want > 0
+            }
+            given -= want[drop];
+            want[drop] = 0;
         }
         // Y lo que sobre, al color con el resto mas alto. Sin esto un mazo
         // mono-color con doce huecos se quedaria con once tierras.
@@ -572,6 +610,18 @@ public final class AscentSeedDeck {
             for (int n = 0; n < want[i]; n++) {
                 basicsIn.add(b);
             }
+        }
+        // Y la red, porque "se quitan N y se ponen N" es hasta aqui un
+        // RAZONAMIENTO, y un razonamiento no se ejecuta: si las cuentas no
+        // cuadran se deja el mazo COMO ESTABA. Un mazo con las basicas mal
+        // repartidas se puede jugar; uno de 61 cartas rompe el tamanyo que el
+        // resto del modo da por sentado (COMMANDER_SIZE / STANDARD_SIZE, ver
+        // curse()) y enciende ascentcheck de forma intermitente.
+        if (basicsIn.size() != basicsOut.size()) {
+            System.out.println("[ascenso] el reparto de basicas no cuadra ("
+                    + basicsOut.size() + " huecos -> " + basicsIn.size()
+                    + " tierras): se deja el mazo tal cual");
+            return;
         }
         for (final PaperCard old : basicsOut) {
             deck.getMain().remove(old);

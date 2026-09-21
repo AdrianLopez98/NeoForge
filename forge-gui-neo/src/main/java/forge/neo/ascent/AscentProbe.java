@@ -236,6 +236,10 @@ public final class AscentProbe {
             final java.util.Set<String> huellas = new java.util.HashSet<>();
             final java.util.Set<String> comandantes = new java.util.HashSet<>();
             int malTamanyo = 0;
+            // Con el numero solo no se puede investigar nada: el fallo sale
+            // una corrida de cada varias y depende del comandante que toque,
+            // asi que al repetir sale en verde y no queda rastro de cual fue.
+            final java.util.List<String> culpablesTamanyo = new ArrayList<>();
             int sinTierras = 0;
             int raras = 0;
             int maxColores = 0;
@@ -257,16 +261,17 @@ public final class AscentProbe {
                 maxCartas = Math.max(maxCartas, n);
                 final int esperado = mode == AscentRun.Mode.COMMANDER
                         ? AscentSeedDeck.COMMANDER_SIZE : AscentSeedDeck.STANDARD_SIZE;
-                if (n != esperado) {
-                    malTamanyo++;
-                }
                 int tierras = 0;
+                int basicas = 0;
                 final List<String> nombres = new ArrayList<>();
                 final java.util.Set<Byte> colores = new java.util.HashSet<>();
                 for (final java.util.Map.Entry<PaperCard, Integer> e : d.getMain()) {
                     nombres.add(e.getKey().getName() + "x" + e.getValue());
                     if (e.getKey().getRules().getType().isLand()) {
                         tierras += e.getValue();
+                        if (e.getKey().getRules().getType().isBasicLand()) {
+                            basicas += e.getValue();
+                        }
                     }
                     // Rareza: el mazo de principiante no lleva raras ni miticas.
                     final forge.card.CardRarity rar = e.getKey().getRarity();
@@ -294,6 +299,16 @@ public final class AscentProbe {
                     }
                 }
                 maxColores = Math.max(maxColores, colores.size());
+                // El tamanyo, con lo que hace falta para entender por que:
+                // las veces que se ha ido de 60 ha sido repartiendo basicas
+                // en un mazo con muchas tierras y pocas basicas que repartir.
+                if (n != esperado) {
+                    malTamanyo++;
+                    culpablesTamanyo.add((d.getCommanders().isEmpty()
+                            ? "sin comandante" : d.getCommanders().get(0).getName())
+                            + ": " + n + " cartas (pedidas " + esperado + "), "
+                            + tierras + " tierras de las que " + basicas + " basicas");
+                }
                 if (tierras == 0) {
                     sinTierras++;
                     diag = AscentSeedDeck.lastRawLandCount();
@@ -316,7 +331,8 @@ public final class AscentProbe {
                         + " mazos distintos — las runs se van a parecer demasiado");
             }
             if (malTamanyo > 0) {
-                fail(etiqueta + ": " + malTamanyo + " mazo(s) con un tamanyo que no es el pedido");
+                fail(etiqueta + ": " + malTamanyo + " mazo(s) con un tamanyo que no es el pedido"
+                        + " — " + String.join(" · ", culpablesTamanyo));
             }
             if (sinTierras > 0) {
                 fail(etiqueta + ": " + sinTierras + " de " + runs

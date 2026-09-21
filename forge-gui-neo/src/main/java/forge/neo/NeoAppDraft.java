@@ -163,8 +163,11 @@ final class NeoAppDraft {
 
     /** Monta la pantalla de picks, comun a expansion, todo Magic y cubo. */
     void openDraftScreen(final forge.neo.draft.NeoDraft draft) {
+        // El Consumer se declara sobre PackSource porque la pantalla es la
+        // MISMA que usa el draft en red (ver forge.neo.draft.PackSource). Aqui
+        // dentro la fuente siempre es este NeoDraft.
         final DraftScreen screen = new DraftScreen(draft, app.cardWidth,
-                this::finishDraft, app::showMainMenu);
+                source -> finishDraft(draft), app::showMainMenu);
         app.draftScreen = screen;
         app.scene.setRoot(screen);
         app.applyScale();

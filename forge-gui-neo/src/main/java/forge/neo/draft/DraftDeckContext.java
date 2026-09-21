@@ -117,13 +117,14 @@ public final class DraftDeckContext implements DeckContext {
         }
     }
 
-    private static boolean isBasic(final PaperCard card) {
+    /** Visible en el paquete: lo usa tambien {@link NetPoolContext}. */
+    static boolean isBasic(final PaperCard card) {
         return card != null && card.getRules() != null
                 && card.getRules().getType().isBasicLand();
     }
 
     /** Igual que {@code DeckEditor.normalized}: junta aventura y hechizo, o carta de ambientacion. */
-    private static String normalizedName(final String name) {
+    static String normalizedName(final String name) {
         return name == null ? "" : forge.StaticData.instance().getCommonCards().getNormalizedName(name);
     }
 
@@ -134,7 +135,7 @@ public final class DraftDeckContext implements DeckContext {
      * Bloomburrow, las llanuras del mazo tambien lo son y la mesa no queda
      * hecha un mosaico. Si ninguna las trae, la que Forge prefiera por arte.
      */
-    private static List<PaperCard> basics(final Deck deck) {
+    static List<PaperCard> basics(final Deck deck) {
         final List<PaperCard> out = new ArrayList<>();
         final Map<String, PaperCard> already = basicsInDeck(deck);
         final String code = landSet(deck);

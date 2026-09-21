@@ -27,6 +27,50 @@ public class HandFan extends Pane {
     private static final double ARC_DROP = 0.09;
 
     /**
+     * Si la mano se pinta en abanico o con las cartas rectas.
+     *
+     * <p>Reportado probando el juego (21-09-2026): una carta girada cinco
+     * grados la pinta JavaFX con antialiasing, y en un monitor de 1080p el
+     * borde y el texto del nombre salen sucios. Con las cartas rectas cada
+     * pixel de la imagen cae sobre un pixel de la pantalla y se lee mejor.
+     *
+     * <p>Es un ajuste, no un cambio: el abanico sigue siendo el de fabrica
+     * porque es lo que hace que una mano de siete cartas se lea de un vistazo.
+     * Quien prefiera nitidez lo apaga.
+     */
+    private static volatile boolean fanned = true;
+
+    /** @see #fanned */
+    public static void setFanned(final boolean on) {
+        fanned = on;
+    }
+
+    /** @see #fanned */
+    public static boolean isFanned() {
+        return fanned;
+    }
+
+    /**
+     * Vuelve a repartir todas las manos que cuelguen de este nodo.
+     *
+     * <p>El ajuste se cambia con la partida abierta detras, y el reparto solo
+     * se rehace cuando algo lo pide: sin esto, el cambio no se veria hasta que
+     * el motor mandara el siguiente aviso.
+     */
+    public static void relayoutAllIn(final javafx.scene.Node root) {
+        if (root instanceof HandFan) {
+            ((HandFan) root).requestLayout();
+            return;
+        }
+        if (root instanceof javafx.scene.Parent) {
+            for (final javafx.scene.Node child
+                    : ((javafx.scene.Parent) root).getChildrenUnmodifiable()) {
+                relayoutAllIn(child);
+            }
+        }
+    }
+
+    /**
      * Cuanto tiene que asomar de una carta tapada para seguir siendo una carta.
      *
      * <p>Un tercio: es lo que ocupa el nombre y el coste, que es por lo que se
@@ -149,6 +193,10 @@ public class HandFan extends Pane {
         final double totalWidth = step * (n - 1) + w;
         final double x0 = EDGE_PAD + Math.max(0, (available - totalWidth) / 2.0);
         final double centre = (n - 1) / 2.0;
+        // Con las cartas rectas no hay arco, pero el hueco de abajo se deja
+        // igual: si la mano cambiase de altura al tocar el ajuste, se moveria
+        // toda la mesa con ella.
+        final double drop = fanned ? ARC_DROP : 0;
         final double baseY = Math.max(0, getHeight() - cardH * (1 + ARC_DROP) - w * .07 - 4);
 
         for (int i = 0; i < n; i++) {
@@ -162,8 +210,8 @@ public class HandFan extends Pane {
             // esquina del arte. Hay que darle el tamano explicitamente.
             c.resize(w, cardH);
             c.setLayoutX(x0 + i * step - scrollX);
-            c.setLayoutY(baseY + Math.abs(t) * cardH * ARC_DROP);
-            c.setRotate(c.isTapped() ? 90 : t * MAX_TILT);
+            c.setLayoutY(baseY + Math.abs(t) * cardH * drop);
+            c.setRotate(c.isTapped() ? 90 : fanned ? t * MAX_TILT : 0);
             // Las de la derecha por encima: se lee como un abanico de verdad.
             c.setViewOrder(-i * 0.001);
         }

@@ -47,7 +47,8 @@ import javafx.scene.layout.VBox;
  * <p><b>Los avisos llegan en cualquier hilo</b> — el de netty, el de fondo que
  * conecto — asi que todo lo que toca nodos pasa por {@code Platform.runLater}.
  */
-public class LobbyScreen extends BorderPane implements NeoOnline.View {
+public class LobbyScreen extends BorderPane
+        implements NeoOnline.View, forge.gui.interfaces.IDraftEventHandler {
 
     /**
      * Quien mas quiere enterarse de lo que pasa en la red: la mesa.
@@ -88,6 +89,27 @@ public class LobbyScreen extends BorderPane implements NeoOnline.View {
 
         /** La partida ha empezado: hay que enseñar la mesa. */
         void gameStarting();
+
+        /**
+         * Ha llegado el primer sobre del draft: hay que abrir la pantalla de
+         * picks. Llega en un hilo cualquiera.
+         *
+         * @param seat  mi asiento en el pod, que no se sabe hasta este momento
+         * @param event el evento, para el nombre del producto y los nombres del
+         *              pod; puede ser null en el invitado antes del primer
+         *              reparto
+         */
+        default void draftStarting(int seat, forge.gamemodes.net.NetworkEventView event) {
+        }
+
+        /**
+         * Se acabo el draft (o el sellado): aqui esta tu pool. Hilo cualquiera.
+         *
+         * <p>Lo que toca es abrir el constructor para que montes el mazo con
+         * el. El pool ya esta guardado cuando se llama.
+         */
+        default void poolArrived(forge.deck.Deck pool, boolean sealed) {
+        }
     }
 
     private final Actions actions;
@@ -96,6 +118,25 @@ public class LobbyScreen extends BorderPane implements NeoOnline.View {
 
     private volatile GameLobby lobby;
     private volatile IPlayerChangeListener playerChange;
+
+    /**
+     * A que se juega. Lo manda el anfitrion y llega al invitado por el cable.
+     *
+     * <p>Es {@code volatile} porque lo escribe {@code refresh()} (hilo de
+     * JavaFX) y lo leen los botones de mazo, que corren ahi mismo — pero
+     * tambien {@code autoDriveForTest}, y sobre todo sirve de aviso de que este
+     * valor NO es una decision de esta pantalla: es un espejo de lo que dicen
+     * las variantes del lobby.
+     */
+    private volatile NeoFormat format = NeoFormat.COMMANDER;
+
+    /** Los botones del modo, en el anfitrion. Vacio en el invitado. */
+    private final java.util.Map<NeoFormat, Button> formatButtons =
+            new java.util.EnumMap<>(NeoFormat.class);
+
+    /** Lo que se lee del modo: el nombre (invitado) y la linea que lo explica. */
+    private final Label formatName = new Label();
+    private final Label formatNote = new Label();
 
     private final VBox seatBox = new VBox(8);
     private final VBox chatLines = new VBox(2);
@@ -150,13 +191,620 @@ public class LobbyScreen extends BorderPane implements NeoOnline.View {
 
         final VBox words = new VBox(2, title, status);
 
-        final VBox box = new VBox(10, words);
+        final VBox box = new VBox(10, words, formatRow(), eventRow());
         if (host) {
             box.getChildren().add(addressRow());
         }
         box.setPadding(new Insets(20, 30, 12, 30));
         return box;
     }
+
+    /**
+     * A que se juega.
+     *
+     * <p><b>Se ve en los dos lados y es lo primero que hay que ver</b>, porque
+     * decide el mazo: el invitado elegia siempre entre sus mazos de Commander,
+     * asi que la sala solo sabia jugar a una cosa. Aqui manda el anfitrion —
+     * es su partida — y el invitado lo lee.
+     *
+     * <p>Los botones se crean <b>una vez</b> y luego solo se les cambia la
+     * marca: reconstruir la fila en cada aviso del lobby (que llegan a
+     * puñados) le quitaria el boton de debajo del raton a quien esta a punto de
+     * pulsarlo.
+     */
+    private Region formatRow() {
+        final Label caption = new Label(NeoText.get("lobby.format"));
+        caption.getStyleClass().add("caption");
+
+        formatName.getStyleClass().add("mode-tile-name");
+        formatNote.getStyleClass().add("mode-tile-note");
+        formatNote.setWrapText(true);
+        formatNote.setMaxWidth(560);
+        formatNote.setMinHeight(Region.USE_PREF_SIZE);
+
+        if (!host) {
+            // El invitado no elige: lo lee. Un botón apagado diría lo mismo
+            // peor — parecería que se puede pulsar y no se puede.
+            return new VBox(2, caption, formatName, formatNote);
+        }
+
+        final HBox picks = new HBox(6);
+        picks.setAlignment(Pos.CENTER_LEFT);
+        for (final NeoFormat f : NeoLobby.FORMATS) {
+            final Button b = new Button(f.getLabel());
+            b.getStyleClass().add("segment");
+            // Sin esto JavaFX los encoge por debajo de su texto en cuanto la
+            // fila va justa, y salen botones que ponen "..." y nada mas.
+            b.setMinWidth(Region.USE_PREF_SIZE);
+            b.setOnAction(e -> changeFormat(f));
+            formatButtons.put(f, b);
+            picks.getChildren().add(b);
+        }
+        // formatName sale tambien en el anfitrion, pero SOLO en limitado: ahi
+        // los botones se esconden y sin el la fila se quedaria con un titulo y
+        // una explicacion de algo que no se nombra en ninguna parte.
+        formatName.setVisible(false);
+        formatName.setManaged(false);
+        return new VBox(6, caption, formatName, picks, formatNote);
+    }
+
+    /**
+     * El anfitrion cambia el modo.
+     *
+     * <p>Lo que hace de verdad vive en {@link NeoLobby#setFormat} — incluido
+     * quitarle el mazo a todo el mundo, que es la parte que no se ve venir — y
+     * aqui solo queda volver a sentar a las IAs, que son las unicas que no
+     * pueden elegirse mazo solas.
+     *
+     * <p>No se pregunta antes aunque se pierdan las elecciones de los demas: es
+     * la sala del anfitrion, el cambio se deshace pulsando el modo de antes y
+     * lo unico que se pierde son dos clicks. Preguntar en un control que se usa
+     * al principio y una vez seria estorbar en el caso normal para cubrir el
+     * raro.
+     */
+    private void changeFormat(final NeoFormat wanted) {
+        final GameLobby l = lobby;
+        if (l == null || !host || wanted == format || l.isMatchActive()) {
+            return;
+        }
+        NeoLobby.setFormat(l, wanted);
+        // Las IAs vuelven a quedarse listas solas, con un mazo del modo nuevo:
+        // son asientos que no tienen a nadie detras y dejarlos a medias
+        // obligaria a repasarlos uno a uno cada vez que se prueba otro modo.
+        for (int i = 0; i < l.getNumberOfSlots(); i++) {
+            final LobbySlot s = l.getSlot(i);
+            if (s == null || s.getType() != LobbySlotType.AI) {
+                continue;
+            }
+            final Deck deck = NeoLobby.randomAiDeck(wanted);
+            if (deck != null) {
+                sendDeck(i, deck);
+            }
+            if (deck != null || !NeoLobby.needsDeck(wanted)) {
+                send(i, UpdateLobbyPlayerEvent.isReadyUpdate(true));
+            }
+        }
+        refresh();
+    }
+
+    /**
+     * Con que modo se abre la sala.
+     *
+     * <p>Commander, que es a lo que se juega aqui. {@code -Dneo.lobby.format=X}
+     * lo cambia y existe <b>solo para las capturas</b>: la fila de Momir no
+     * tiene boton de mazo y no hay forma de llegar a ella desde una sesion sin
+     * manos. Un nombre que no sea de {@link NeoLobby#FORMATS} se ignora.
+     */
+    private static NeoFormat startFormat() {
+        final String wanted = System.getProperty("neo.lobby.format");
+        if (wanted != null && !wanted.isBlank()) {
+            for (final NeoFormat f : NeoLobby.FORMATS) {
+                if (f.name().equalsIgnoreCase(wanted.trim())) {
+                    return f;
+                }
+            }
+            System.out.println("[lobby] modo desconocido: " + wanted);
+        }
+        return NeoFormat.COMMANDER;
+    }
+
+    // ------------------------------------------------------------------
+    // El draft y el sellado en red
+    // ------------------------------------------------------------------
+
+    /**
+     * La fila del evento: montar un draft o un sellado, y ver como va.
+     *
+     * <p><b>Un evento no es un modo, y por eso tiene fila propia.</b> Commander
+     * o Estandar es una variante que se aplica a la partida; un draft es una
+     * <b>fase previa</b> entera — sobres, picks por el cable, un pool, cada uno
+     * monta su mazo — y solo despues se juega. Meterlo en la fila de modos
+     * seria prometer con un boton pequenyo algo que dura media hora.
+     *
+     * <p>Mientras hay evento, la fila de modos se apaga: en limitado no se
+     * elige formato, lo pone el motor ({@code GameType.Draft} y
+     * {@code DeckFormat.Limited}, que salen de {@code data.isLimitedMode()}).
+     */
+    private Region eventRow() {
+        final Label caption = new Label(NeoText.get("net.event"));
+        caption.getStyleClass().add("caption");
+
+        eventName.getStyleClass().add("mode-tile-name");
+        eventNote.getStyleClass().add("mode-tile-note");
+        eventNote.setWrapText(true);
+        eventNote.setMaxWidth(560);
+        eventNote.setMinHeight(Region.USE_PREF_SIZE);
+
+        eventButtons.setAlignment(Pos.CENTER_LEFT);
+        if (host) {
+            setUpEvent.getStyleClass().add("btn-secondary");
+            setUpEvent.setMinWidth(Region.USE_PREF_SIZE);
+            setUpEvent.setOnAction(e -> openEventWizard());
+
+            startEvent.getStyleClass().add("btn-primary");
+            startEvent.setMinWidth(Region.USE_PREF_SIZE);
+            startEvent.setOnAction(e -> launchEvent());
+
+            dropEvent.getStyleClass().add("btn-secondary");
+            dropEvent.setMinWidth(Region.USE_PREF_SIZE);
+            dropEvent.setOnAction(e -> discardEvent());
+
+            eventButtons.getChildren().addAll(setUpEvent, startEvent, dropEvent);
+        }
+        // "Montar mi mazo" vale para los DOS: el pool le llega a cada uno.
+        buildPool.getStyleClass().add("btn-secondary");
+        buildPool.setMinWidth(Region.USE_PREF_SIZE);
+        buildPool.setOnAction(e -> openMyPool());
+        eventButtons.getChildren().add(buildPool);
+
+        // Esto es lo ultimo que se ha anyadido y lo unico de la aplicacion que
+        // NO se ha jugado con dos ordenadores de verdad: el comprobador lo
+        // recorre entero, pero en un solo proceso y con IA. Decirlo antes de
+        // que alguien monte un draft de media hora con sus amigos es mas
+        // barato que el rato que se pierde si se corta a mitad.
+        eventWarn.getStyleClass().add("lobby-warn");
+        eventWarn.setWrapText(true);
+        eventWarn.setMaxWidth(560);
+        eventWarn.setMinHeight(Region.USE_PREF_SIZE);
+
+        return new VBox(6, caption, eventName, eventNote, eventWarn, eventButtons);
+    }
+
+    private final Label eventWarn = new Label(NeoText.get("net.event.beta"));
+
+    private final Label eventName = new Label();
+    private final Label eventNote = new Label();
+    private final HBox eventButtons = new HBox(8);
+    private final Button setUpEvent = new Button(NeoText.get("net.event.setUp"));
+    private final Button startEvent = new Button(NeoText.get("net.event.start"));
+    private final Button dropEvent = new Button(NeoText.get("net.event.drop"));
+    private final Button buildPool = new Button(NeoText.get("net.event.build"));
+
+    /** El pool que me ha tocado, cuando llegue. */
+    private volatile forge.deck.Deck myPool;
+
+    /** Si el evento era de sellado, para abrir el constructor con el rotulo bueno. */
+    private volatile boolean poolSealed;
+
+    /** Mi fuente del draft mientras dura. La crea el primer sobre. */
+    private volatile forge.neo.net.NetDraftSource draftSource;
+
+    /** Pone al dia la fila del evento. Hilo de JavaFX. */
+    private void showEvent(final GameLobby l) {
+        final forge.gamemodes.net.NetworkEventView view = forge.neo.net.NeoNetEvent.viewOf(l);
+        final boolean limited = forge.neo.net.NeoNetEvent.isLimited(l);
+        final boolean havePool = myPool != null;
+
+        eventName.setText(view == null
+                ? NeoText.get(limited ? "net.event.done" : "net.event.none")
+                : NeoText.get(view.getFormat() == forge.gamemodes.net.EventFormat.SEALED
+                        ? "net.event.sealed" : "net.event.draft"));
+        eventNote.setText(eventNote(l, view, havePool));
+
+        buildPool.setVisible(havePool);
+        buildPool.setManaged(havePool);
+        if (!host) {
+            return;
+        }
+        final boolean running = view != null
+                && view.getPhase() != forge.gamemodes.net.EventPhase.LOBBY_GATHER;
+        // Montar otro con uno a medias seria tirar el que esta corriendo sin
+        // decirlo; y con la partida en marcha no hay nada que montar.
+        setUpEvent.setDisable(failed || running || l.isMatchActive());
+        startEvent.setVisible(view != null && !running);
+        startEvent.setManaged(view != null && !running);
+        startEvent.setText(NeoText.get(
+                view != null && view.getFormat() == forge.gamemodes.net.EventFormat.SEALED
+                        ? "net.event.startSealed" : "net.event.startDraft"));
+        startEvent.setDisable(failed || l.findFirstUnreadySlot() != null);
+        dropEvent.setVisible(view != null || limited);
+        dropEvent.setManaged(view != null || limited);
+    }
+
+    /** La linea que explica en que punto esta el evento. */
+    private String eventNote(final GameLobby l,
+                             final forge.gamemodes.net.NetworkEventView view,
+                             final boolean havePool) {
+        if (havePool) {
+            return NeoText.get("net.event.note.pool", myPool.getName());
+        }
+        if (view == null) {
+            return NeoText.get(forge.neo.net.NeoNetEvent.isLimited(l)
+                    ? "net.event.note.limited"
+                    : host ? "net.event.note.hostIdle" : "net.event.note.guestIdle");
+        }
+        if (view.getPhase() != forge.gamemodes.net.EventPhase.LOBBY_GATHER) {
+            return NeoText.get("net.event.note.running", view.getProductDescription());
+        }
+        final String product = view.getProductDescription() == null
+                ? "" : view.getProductDescription();
+        if (view.getFormat() == forge.gamemodes.net.EventFormat.SEALED) {
+            return NeoText.get("net.event.note.readySealed", product);
+        }
+        return NeoText.get("net.event.note.readyDraft", product,
+                view.getPodSize(), view.getPickTimerSeconds());
+    }
+
+    /**
+     * El asistente para montar el evento. <b>Hilo de fondo</b>, y no por gusto.
+     *
+     * <p>Por dentro pregunta seis cosas seguidas con {@code SGuiChoose} y
+     * {@code SOptionPane} — tipo de evento, formato del pozo, bloque o
+     * expansion (eso lo pregunta el propio {@code BoosterDraft}), tamanyo del
+     * pod, regla de picks y los dos relojes — y <b>cada una bloquea hasta que
+     * contestas</b>. En el hilo de JavaFX eso es un cuelgue instantaneo.
+     *
+     * <p>Lo bueno es que esos dialogos ya salen en NUESTRA interfaz sin tocar
+     * nada: {@code SGuiChoose} entra por {@code NeoGuiBase.getChoices}, que es
+     * el mismo camino por el que el draft de cubo pregunta que cubo quieres.
+     * Por eso montar un evento es una secuencia de llamadas y no una pantalla
+     * nueva.
+     */
+    private void openEventWizard() {
+        final GameLobby l = lobby;
+        if (!(l instanceof forge.gamemodes.net.server.ServerGameLobby server)) {
+            return;
+        }
+        setUpEvent.setDisable(true);
+        final Thread t = new Thread(() -> {
+            try {
+                runEventWizard(server, l);
+            } catch (final Exception | LinkageError e) {
+                System.out.println("[lobby] no se ha podido montar el evento: " + e);
+                e.printStackTrace();
+                setNotice(NeoText.get("net.event.failed", String.valueOf(e)));
+            } finally {
+                Platform.runLater(() -> refresh());
+            }
+        }, "neo-lobby-event");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    private void runEventWizard(final forge.gamemodes.net.server.ServerGameLobby server,
+                                final GameLobby l) {
+        // Un pool ya jugado se puede volver a usar sin draftear otra vez: es lo
+        // que hace falta cuando la sesion se corto a mitad, o cuando quedais
+        // otro dia con los mismos mazos.
+        final List<forge.gamemodes.net.NetworkEvent.EventChoice> past =
+                forge.neo.net.NeoNetEvent.pastEvents();
+        if (!past.isEmpty()) {
+            final String create = NeoText.get("net.event.wizard.new");
+            final String load = NeoText.get("net.event.wizard.past");
+            final String what = forge.gui.util.SGuiChoose.oneOrNone(
+                    NeoText.get("net.event.wizard.whatNow"), List.of(create, load));
+            if (what == null) {
+                return;
+            }
+            if (load.equals(what)) {
+                final forge.gamemodes.net.NetworkEvent.EventChoice chosen =
+                        forge.gui.util.SGuiChoose.oneOrNone(
+                                NeoText.get("net.event.wizard.pickPast"), past);
+                if (chosen != null) {
+                    toLimited(l, server);
+                    server.selectEventForMatch(chosen.id(), true);
+                }
+                return;
+            }
+        }
+
+        final String draftLabel = NeoText.get("net.event.draft");
+        final String sealedLabel = NeoText.get("net.event.sealed");
+        final String kind = forge.gui.util.SGuiChoose.oneOrNone(
+                NeoText.get("net.event.wizard.kind"), List.of(draftLabel, sealedLabel));
+        if (kind == null) {
+            return;
+        }
+        final boolean isDraft = draftLabel.equals(kind);
+        if (isDraft && !forge.neo.net.NeoNetEvent.podFits(l)) {
+            setNotice(NeoText.get("net.event.tooMany",
+                    forge.gamemodes.limited.BoosterDraft.N_PLAYERS));
+            return;
+        }
+
+        final forge.gamemodes.limited.LimitedPoolType poolType =
+                forge.gui.util.SGuiChoose.oneOrNone(NeoText.get("net.event.wizard.pool"),
+                        List.of(forge.gamemodes.limited.LimitedPoolType.values(isDraft)));
+        if (poolType == null) {
+            return;
+        }
+
+        // Montar el draft dispara los dialogos de bloque/expansion/cubo del
+        // propio motor. Null = el jugador ha cancelado uno de ellos.
+        forge.gamemodes.limited.BoosterDraft draft = null;
+        if (isDraft) {
+            draft = forge.gamemodes.limited.BoosterDraft.createDraftForNetwork(poolType);
+            if (draft == null) {
+                return;
+            }
+            final List<Integer> pods = forge.neo.net.NeoNetEvent.podSizes(l);
+            final int recommended = draft.getPodSize();
+            final Integer pod = forge.gui.util.SGuiChoose.oneOrNone(
+                    NeoText.get("net.event.wizard.pod"), pods,
+                    pods.contains(recommended) ? recommended : pods.get(0),
+                    n -> forge.gamemodes.net.NetworkEvent.markSetDefault(
+                            forge.gamemodes.net.NetworkEvent.podSizeLabel(n), n == recommended));
+            if (pod == null) {
+                return;
+            }
+            draft.setPodSize(pod);
+
+            final forge.card.DraftOptions.DoublePick byDefault =
+                    forge.gamemodes.net.NetworkEvent.defaultPicksFor(draft, pod);
+            final forge.card.DraftOptions.DoublePick picks = forge.gui.util.SGuiChoose.oneOrNone(
+                    NeoText.get("net.event.wizard.picks"),
+                    forge.neo.net.NeoNetEvent.pickRules(), byDefault,
+                    rule -> forge.gamemodes.net.NetworkEvent.markSetDefault(
+                            forge.gamemodes.net.NetworkEvent.picksLabel(rule), rule == byDefault));
+            if (picks == null) {
+                return;
+            }
+            draft.setDoublePick(picks);
+        }
+
+        final int pick = isDraft
+                ? askSeconds("net.event.wizard.timer", forge.neo.net.NeoNetEvent.DEFAULT_PICK_SECONDS)
+                : 0;
+        final int grace = isDraft
+                ? askSeconds("net.event.wizard.grace", forge.neo.net.NeoNetEvent.DEFAULT_GRACE_SECONDS)
+                : 0;
+
+        final boolean ok = forge.neo.net.NeoNetEvent.configure(server,
+                isDraft ? forge.gamemodes.net.EventFormat.BOOSTER_DRAFT
+                        : forge.gamemodes.net.EventFormat.SEALED,
+                poolType, draft, pick, grace);
+        if (ok) {
+            toLimited(l, server);
+        }
+    }
+
+    /**
+     * La sala pasa a limitado.
+     *
+     * <p><b>Hay que limpiar las variantes, y no es cosmetico.</b> Si la sala
+     * venia de Momir Basic, el conjunto sigue teniendo {@code MomirBasic} — y
+     * {@code GameLobby.startGame()} mira eso ANTES que nada: encuentra una
+     * variante autogenerada, monta sesenta tierras basicas para cada uno y
+     * <b>tira el pool que acabais de draftear</b>. Media hora de picks a la
+     * basura sin un solo aviso.
+     *
+     * <p>Se hace con {@link NeoLobby#setFormat}, que ademas quita los mazos y
+     * los "listo": el de Commander que tuviera cada uno ya no vale aqui.
+     */
+    private void toLimited(final GameLobby l,
+                           final forge.gamemodes.net.server.ServerGameLobby server) {
+        NeoLobby.setFormat(l, NeoFormat.ESTANDAR);
+        server.setLimitedMode(true);
+    }
+
+    /** Un plazo en segundos, con el de fabrica escrito. Cancelar deja el de fabrica. */
+    private static int askSeconds(final String key, final int fallback) {
+        final String answer = forge.gui.util.SOptionPane.showInputDialog(
+                NeoText.get(key), NeoText.get("net.event.wizard.timers"),
+                null, String.valueOf(fallback), null, true);
+        if (answer == null || answer.isBlank()) {
+            return fallback;
+        }
+        try {
+            final int n = Integer.parseInt(answer.trim());
+            return n >= 0 ? n : fallback;
+        } catch (final NumberFormatException e) {
+            return fallback;
+        }
+    }
+
+    /**
+     * Repartir sobres (o pools). <b>Hilo de fondo</b>: abre los sobres de todo
+     * el pod, que con ocho asientos son 24 sobres.
+     */
+    private void launchEvent() {
+        final GameLobby l = lobby;
+        if (!(l instanceof forge.gamemodes.net.server.ServerGameLobby server)) {
+            return;
+        }
+        startEvent.setDisable(true);
+        final Thread t = new Thread(() -> {
+            final String why = forge.neo.net.NeoNetEvent.start(server);
+            if (why != null) {
+                setNotice(NeoText.get("net.event.cannot." + why));
+            }
+            Platform.runLater(this::refresh);
+        }, "neo-lobby-event-start");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    /** El anfitrion se echa atras: fuera el evento y la sala vuelve a ser normal. */
+    private void discardEvent() {
+        final GameLobby l = lobby;
+        if (!(l instanceof forge.gamemodes.net.server.ServerGameLobby server)) {
+            return;
+        }
+        server.clearCurrentEvent();
+        server.selectEventForMatch(null, true);
+        server.setLimitedMode(false);
+        myPool = null;
+        // Al salir de limitado hay que volver a poner un modo de verdad, y con
+        // el, quitarle a todos el mazo del pool: ya no vale para nada.
+        NeoLobby.setFormat(l, NeoFormat.COMMANDER);
+        refresh();
+    }
+
+    /** Abre el constructor con mi pool. Lo hace la app, que es quien tiene pantallas. */
+    private void openMyPool() {
+        final forge.deck.Deck pool = myPool;
+        if (pool != null) {
+            actions.poolArrived(pool, poolSealed);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // IDraftEventHandler — TODO esto llega en el hilo de netty
+    // ------------------------------------------------------------------
+
+    /**
+     * Forge pregunta esto <b>una vez</b>, al conectar
+     * ({@code NetConnectUtil.host/join}), y se queda con lo que devolvamos. Si
+     * devuelves null — que es lo que hacia el {@code default} del interfaz —
+     * los paquetes del draft se reciben y se tiran en silencio: el sobre no
+     * llega nunca y la pantalla no sale.
+     */
+    @Override
+    public forge.gui.interfaces.IDraftEventHandler getDraftHandler() {
+        return this;
+    }
+
+    @Override
+    public void draftPackArrived(final int seatIndex, final List<forge.item.PaperCard> pack,
+                                 final int packNumber, final int pickNumber,
+                                 final int timerDurationSeconds) {
+        forge.neo.net.NetDraftSource source = draftSource;
+        if (source == null) {
+            final GameLobby l = lobby;
+            final forge.gamemodes.net.NetworkEventView view =
+                    forge.neo.net.NeoNetEvent.viewOf(l);
+            source = new forge.neo.net.NetDraftSource(seatIndex,
+                    view == null ? List.of() : view.getParticipants(),
+                    view == null ? null : view.getProductDescription(),
+                    pick -> {
+                        final NeoOnline o = online;
+                        if (o != null) {
+                            o.sendDraftPick(lobby, pick);
+                        }
+                    });
+            draftSource = source;
+            source.packArrived(pack, packNumber, pickNumber, timerDurationSeconds);
+            actions.draftStarting(seatIndex, view);
+            return;
+        }
+        source.packArrived(pack, packNumber, pickNumber, timerDurationSeconds);
+        repaintDraft();
+    }
+
+    @Override
+    public void draftSeatPicked(final int seatIndex, final int[] seatQueueDepths) {
+        final forge.neo.net.NetDraftSource source = draftSource;
+        if (source != null) {
+            source.seatPicked(seatQueueDepths);
+            repaintDraft();
+        }
+    }
+
+    @Override
+    public void draftAutoPicked(final int seatIndex, final forge.item.PaperCard card,
+                                final int packNumber, final int pickInPack) {
+        final forge.neo.net.NetDraftSource source = draftSource;
+        if (source != null) {
+            source.autoPicked(seatIndex, card);
+            repaintDraft();
+        }
+    }
+
+    /**
+     * Se acabo: aqui esta tu pool.
+     *
+     * <p>Llega igual en las dos puntas y en los dos formatos — al terminar el
+     * draft y al repartir los pools de un sellado — y por eso es el unico sitio
+     * donde hay que cerrar la pantalla de picks: hacerlo contando picks seria
+     * adivinar.
+     */
+    @Override
+    public void receiveEventPool(final String eventId, final forge.deck.Deck pool) {
+        final GameLobby l = lobby;
+        final forge.gamemodes.net.NetworkEventView view = forge.neo.net.NeoNetEvent.viewOf(l);
+        poolSealed = view != null
+                && view.getFormat() == forge.gamemodes.net.EventFormat.SEALED;
+        forge.neo.net.NeoNetEvent.savePool(pool,
+                l instanceof forge.gamemodes.net.server.ServerGameLobby server
+                        ? server.getCurrentEvent() : null);
+        myPool = pool;
+
+        final forge.neo.net.NetDraftSource source = draftSource;
+        if (source != null) {
+            source.finish();
+            repaintDraft();
+        }
+        draftSource = null;
+
+        if (l instanceof forge.gamemodes.net.server.ServerGameLobby server) {
+            // El anfitrion decide con que pool se juega, y lo reparte: sin esto
+            // el invitado no sabe que mazos le valen.
+            server.selectEventForMatch(eventId, true);
+        }
+        actions.poolArrived(pool, poolSealed);
+        refresh();
+    }
+
+    /** Quien esta pintando el draft, para avisarle. Lo pone la app. */
+    private volatile Runnable draftRepaint;
+
+    public void setDraftRepaint(final Runnable repaint) {
+        this.draftRepaint = repaint;
+    }
+
+    /** La fuente del draft, para que la pantalla de picks tire de ella. */
+    public forge.neo.net.NetDraftSource getDraftSource() {
+        return draftSource;
+    }
+
+    private void repaintDraft() {
+        final Runnable r = draftRepaint;
+        if (r != null) {
+            Platform.runLater(r);
+        }
+    }
+
+    /** Pone al dia la fila del modo. Hilo de JavaFX. */
+    private void showFormat(final GameLobby l) {
+        // En limitado no hay modo que elegir: lo pone el motor a partir del
+        // evento (GameType.Draft y DeckFormat.Limited, que salen de
+        // isLimitedMode en GameLobby.startGame). Dejar los botones encendidos
+        // seria ofrecer una decision que no se aplica — principio 1.
+        final boolean limited = forge.neo.net.NeoNetEvent.isLimited(l);
+        formatName.setText(limited
+                ? NeoText.get("net.event.limited") : format.getLabel());
+        if (host) {
+            formatName.setVisible(limited);
+            formatName.setManaged(limited);
+        }
+        formatNote.setText(limited
+                ? NeoText.get("net.event.limited.note")
+                : NeoLobby.needsDeck(format)
+                        ? format.getDescription()
+                        : NeoText.get("lobby.format.noDeck", format.getDescription()));
+        for (final java.util.Map.Entry<NeoFormat, Button> e : formatButtons.entrySet()) {
+            e.getValue().pseudoClassStateChanged(SELECTED, !limited && e.getKey() == format);
+            e.getValue().setVisible(!limited);
+            e.getValue().setManaged(!limited);
+            // Con la partida en marcha el modo ya esta decidido: cambiarlo no
+            // tocaria esa partida y solo serviria para que al volver a la sala
+            // nadie supiera por que se ha quedado sin mazo.
+            e.getValue().setDisable(failed || l.isMatchActive());
+        }
+    }
+
+    private static final javafx.css.PseudoClass SELECTED =
+            javafx.css.PseudoClass.getPseudoClass("selected");
 
     /**
      * La direccion que hay que pasarle a los amigos.
@@ -460,7 +1108,7 @@ public class LobbyScreen extends BorderPane implements NeoOnline.View {
         final Region gap = new Region();
         HBox.setHgrow(gap, Priority.ALWAYS);
 
-        final HBox row = new HBox(10, back, gap);
+        final HBox row = new HBox(10, back, NetHelp.button(), gap);
         row.setAlignment(Pos.CENTER_RIGHT);
         row.setPadding(new Insets(14, 30, 20, 30));
 
@@ -526,7 +1174,7 @@ public class LobbyScreen extends BorderPane implements NeoOnline.View {
         row.setPadding(new Insets(10, 14, 10, 14));
 
         if (!open) {
-            row.getChildren().add(deckButton(l, index, slot));
+            row.getChildren().add(deckCell(l, index, slot));
 
             final Region gap = new Region();
             HBox.setHgrow(gap, Priority.ALWAYS);
@@ -588,16 +1236,50 @@ public class LobbyScreen extends BorderPane implements NeoOnline.View {
         return host ? slot.getType() == LobbySlotType.LOCAL : l.mayEdit(index);
     }
 
-    private Button deckButton(final GameLobby l, final int index, final LobbySlot slot) {
+    /**
+     * Con que juega este asiento.
+     *
+     * <p>En Momir Basic y MoJhoSto <b>no es un boton</b>: ahi el mazo lo monta
+     * el motor y no hay nada que elegir. Un boton apagado en su sitio seria un
+     * control que no hace nada y, peor, dejaria pensando que falta algo por
+     * hacer.
+     */
+    private Region deckCell(final GameLobby l, final int index, final LobbySlot slot) {
+        if (!NeoLobby.needsDeck(format)) {
+            final Label auto = new Label(NeoText.get("lobby.autoDeck"));
+            auto.getStyleClass().add("mode-tile-note");
+            auto.setMinWidth(Region.USE_PREF_SIZE);
+            return auto;
+        }
         final Deck deck = slot.getDeck();
-        final Button b = new Button(deck == null
-                ? NeoText.get("lobby.pickDeck")
-                : shorten(deck.getName()));
+        // En limitado el mazo sale del pool, y hasta que el evento no reparte
+        // no hay ninguno: abrir ahi el selector ensenyaria una rejilla vacia
+        // sin decir por que. El boton dice que se esta esperando.
+        final boolean limited = forge.neo.net.NeoNetEvent.isLimited(l);
+        final forge.gamemodes.net.NetworkEventView pending = forge.neo.net.NeoNetEvent.viewOf(l);
+        // Dos formas de estar esperando, y hacen falta las dos. La obvia: no
+        // hay ningun pool guardado. La que no se ve venir: SI los hay, pero de
+        // drafts de otros dias — con el evento montado y sin repartir, el
+        // selector te ofrecia el pool de la semana pasada para jugar el draft
+        // de hoy. Mientras haya un evento sin repartir, no hay mazo que elegir.
+        //
+        // ⚠️ "Sin repartir" es la FASE, no la existencia del evento: la vista
+        // sigue publicada despues de repartir (la quita clearCurrentEvent, que
+        // solo llama el anfitrion al descartarlo). Mirando solo si hay evento,
+        // el boton se quedaba apagado para siempre justo cuando ya tenias pool.
+        final boolean notDealtYet = pending != null
+                && pending.getPhase() == forge.gamemodes.net.EventPhase.LOBBY_GATHER;
+        final boolean noPoolYet = limited
+                && (notDealtYet || forge.neo.net.NeoNetEvent.poolsFor(
+                        forge.neo.net.NeoNetEvent.activeEventId(l),
+                        forge.neo.net.NeoNetEvent.conformance(l)).isEmpty());
+        final Button b = new Button(deck != null ? shorten(deck.getName())
+                : NeoText.get(noPoolYet ? "lobby.waitPool" : "lobby.pickDeck"));
         b.getStyleClass().add("btn-secondary");
         b.setMinWidth(Region.USE_PREF_SIZE);
         // mayEdit lo contesta el motor: en el invitado solo es true para SU
         // asiento, y en el anfitrion para todos menos los remotos.
-        b.setDisable(!l.mayEdit(index));
+        b.setDisable(!l.mayEdit(index) || noPoolYet);
         b.setOnAction(e -> pickDeck(index));
         return b;
     }
@@ -608,8 +1290,11 @@ public class LobbyScreen extends BorderPane implements NeoOnline.View {
         b.getStyleClass().add(ready ? "btn-primary" : "btn-secondary");
         b.setMinWidth(Region.USE_PREF_SIZE);
         // Sin mazo no se puede estar listo: el motor lo rechazaria al empezar y
-        // el aviso saldria mucho despues, cuando ya nadie sabe de que va.
-        b.setDisable(!l.mayEdit(index) || slot.getDeck() == null);
+        // el aviso saldria mucho despues, cuando ya nadie sabe de que va. Pero
+        // solo donde hace falta mazo: en Momir esperar uno que no va a llegar
+        // deja la sala muerta con el boton apagado y sin explicacion.
+        b.setDisable(!l.mayEdit(index)
+                || (NeoLobby.needsDeck(format) && slot.getDeck() == null));
         b.setOnAction(e -> send(index, UpdateLobbyPlayerEvent.isReadyUpdate(!ready)));
         return b;
     }
@@ -625,14 +1310,40 @@ public class LobbyScreen extends BorderPane implements NeoOnline.View {
     /**
      * Elegir mazo, con la misma rejilla visual que en el resto del juego.
      *
-     * <p>Los preconstruidos van en su pestanya: quien no se haya montado un
-     * mazo de Commander tiene 173 con los que sentarse igualmente.
+     * <p><b>Los mazos salen del modo de la sala</b>, no de una carpeta fija: en
+     * una sala de Brawl se ofrecen los de Brawl. Antes se ofrecian siempre los
+     * de Commander, que es lo que hacia que la sala solo supiera jugar a una
+     * cosa.
+     *
+     * <p>Se reparten igual que en la pantalla de inicio — tuyos en una pestanya
+     * y los de Forge en otra, con {@code format.isMine} decidiendo — y se
+     * añaden los bajados de internet, que son mazos hechos y ya estan en el
+     * disco. En los formatos con comandante va ademas "Generame uno": Brawl,
+     * Oathbreaker y Tiny Leaders <b>no traen preconstruidos</b>, asi que sin
+     * eso quien no se haya montado uno se encuentra la lista vacia y la sala no
+     * sirve de nada.
      */
     private void pickDeck(final int index) {
+        final NeoFormat f = format;
+        final GameLobby l = lobby;
         final List<Deck> mine = new ArrayList<>();
         final List<Deck> stock = new ArrayList<>();
-        forge.model.FModel.getDecks().getCommander().forEach(mine::add);
-        forge.model.FModel.getDecks().getCommanderPrecons().forEach(stock::add);
+        if (forge.neo.net.NeoNetEvent.isLimited(l)) {
+            // En un evento el mazo sale del POOL y de ningun otro sitio: es lo
+            // que impide sentarse en un draft con un mazo de Commander de tu
+            // carpeta. El filtro lo decide el anfitrion (conformance) y viaja
+            // en el estado de la sala, asi que el invitado aplica el mismo.
+            mine.addAll(forge.neo.net.NeoNetEvent.poolsFor(
+                    forge.neo.net.NeoNetEvent.activeEventId(l),
+                    forge.neo.net.NeoNetEvent.conformance(l)));
+        } else {
+            for (final Deck d : f.decks()) {
+                (f.isMine(d) ? mine : stock).add(d);
+            }
+            if (forge.neo.deck.NetDecks.isSupported(f.getGameType())) {
+                stock.addAll(forge.neo.deck.NetDecks.cached(f.getGameType()));
+            }
+        }
 
         final DeckPickerDialog picker = new DeckPickerDialog(
                 NeoText.get("lobby.pickDeckTitle"), mine, stock, tileWidth * 0.72,
@@ -647,7 +1358,10 @@ public class LobbyScreen extends BorderPane implements NeoOnline.View {
                         }
                     }
                 },
-                overlay::hide);
+                overlay::hide,
+                // En limitado no se genera nada: el pool es el que es.
+                !forge.neo.net.NeoNetEvent.isLimited(l) && f.isCommanderStyle()
+                        ? () -> NeoLobby.generateDeck(f) : null);
         overlay.setOnBackgroundClick(overlay::hide);
         overlay.show(picker);
     }
@@ -686,12 +1400,16 @@ public class LobbyScreen extends BorderPane implements NeoOnline.View {
             // El evento lo compone NeoLobby: ahi vive la regla del nombre, y
             // ahi la puede probar el comprobador sin ventana.
             send(index, NeoLobby.aiSeatEvent(l));
-            // Y se sienta ya con un preconstruido y lista: sentar una IA y
+            // Y se sienta ya con un mazo DEL MODO y lista: sentar una IA y
             // tener que elegirle mazo Y marcarla lista era lo que mas pasos
             // costaba de la sala. El mazo se le cambia igual con su boton.
-            final Deck deck = NeoLobby.randomAiDeck();
+            final Deck deck = NeoLobby.randomAiDeck(format);
             if (deck != null) {
                 sendDeck(index, deck);
+            }
+            // En Momir no hay mazo que darle y aun asi esta lista: esperar uno
+            // que no existe la dejaria sin marcar para siempre.
+            if (deck != null || !NeoLobby.needsDeck(format)) {
                 send(index, UpdateLobbyPlayerEvent.isReadyUpdate(true));
             }
         }
@@ -750,9 +1468,11 @@ public class LobbyScreen extends BorderPane implements NeoOnline.View {
     @Override
     public void bindLobby(final GameLobby lobby) {
         this.lobby = lobby;
-        // Commander, y lo pone el anfitrion: el invitado lo recibe por el cable.
+        // El modo lo pone el anfitrion: el invitado lo recibe por el cable.
+        // Commander de salida porque es a lo que se juega aqui; se cambia con
+        // la fila de arriba.
         if (host) {
-            NeoLobby.setCommander(lobby);
+            NeoLobby.setFormat(lobby, startFormat());
         }
         refresh();
     }
@@ -808,6 +1528,30 @@ public class LobbyScreen extends BorderPane implements NeoOnline.View {
                 lastDescribed = now;
                 System.out.println("[lobby] " + now);
             }
+            // El modo primero: los asientos se pintan a partir de el (que mazos
+            // se ofrecen, si hace falta mazo para estar listo).
+            //
+            // El aviso se compone AQUI y no se manda por el chat a proposito:
+            // por el cable viaja texto tal cual, asi que la frase del anfitrion
+            // llegaria en su idioma. Cada lado lee las variantes que le han
+            // llegado y escribe la suya.
+            final NeoFormat wasFormat = format;
+            format = NeoLobby.formatOf(l);
+            // En limitado NO se anuncia: el modo lo fija el evento, y decir
+            // "ahora se juega a Estandar" mientras la fila de al lado pone
+            // "Draft" es contarse una cosa por dos sitios y mal.
+            if (format != wasFormat && !first
+                    && !forge.neo.net.NeoNetEvent.isLimited(l)) {
+                addChatLine(NeoText.get("lobby.format.changed", format.getLabel()));
+            }
+            // Hasta que no hay asientos, lo que se esta leyendo no es el modo
+            // de la sala: es el lobby vacio del invitado, que nace sin
+            // variantes (o sea "Estandar") y se rellena cuando llega el primer
+            // reparto del anfitrion. Anunciarlo ahi le diria "el anfitrion ha
+            // cambiado el modo" nada mas entrar, y no ha cambiado nada.
+            first = l.getNumberOfSlots() == 0;
+            showFormat(l);
+            showEvent(l);
             rebuildSeats();
             status.setText(statusText(l));
             if (host) {
@@ -827,6 +1571,15 @@ public class LobbyScreen extends BorderPane implements NeoOnline.View {
 
     /** Lo ultimo que se apunto en el registro, para no repetirlo. */
     private String lastDescribed = "";
+
+    /**
+     * Todavia no se ha pintado nada.
+     *
+     * <p>El primer repaso siempre "cambia" el modo — se pasa del valor inicial
+     * al que diga el lobby — y anunciar "el anfitrion ha cambiado el modo" nada
+     * mas entrar seria decir que ha pasado algo que no ha pasado.
+     */
+    private boolean first = true;
 
     private String statusText(final GameLobby l) {
         if (failed) {
@@ -938,9 +1691,8 @@ public class LobbyScreen extends BorderPane implements NeoOnline.View {
                         if (s == null || s.getType() == LobbySlotType.OPEN || !isMe(l, i, s)) {
                             continue;
                         }
-                        if (s.getDeck() == null) {
-                            final List<Deck> mine = new ArrayList<>();
-                            forge.model.FModel.getDecks().getCommander().forEach(mine::add);
+                        if (s.getDeck() == null && NeoLobby.needsDeck(format)) {
+                            final List<Deck> mine = new ArrayList<>(format.decks());
                             if (!mine.isEmpty()) {
                                 System.out.println("[lobby-auto] mi mazo: " + mine.get(0).getName());
                                 sendDeck(i, mine.get(0));
@@ -960,6 +1712,70 @@ public class LobbyScreen extends BorderPane implements NeoOnline.View {
                 }));
         t.setCycleCount(javafx.animation.Animation.INDEFINITE);
         t.play();
+    }
+
+    /**
+     * Monta un evento sin pasar por el asistente. <b>Solo para capturas.</b>
+     *
+     * <p>El asistente son seis preguntas encadenadas y desde una sesion sin
+     * manos no hay forma de contestarlas, asi que ni la fila del evento ni la
+     * pantalla de picks en red se podrian mirar nunca. Se usa
+     * {@code LimitedPoolType.Full}, que es el unico que no abre dialogos de
+     * bloque ni de expansion.
+     *
+     * @param kind {@code draft}, {@code sealed} o {@code draft-run} (que ademas
+     *             reparte los sobres y abre la pantalla de picks)
+     */
+    public void autoEventForTest(final String kind) {
+        final Thread t = new Thread(() -> {
+            for (int i = 0; i < 200 && lobby == null; i++) {
+                try {
+                    Thread.sleep(50);
+                } catch (final InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+            if (!(lobby instanceof forge.gamemodes.net.server.ServerGameLobby server)) {
+                return;
+            }
+            final boolean sealed = kind.startsWith("sealed");
+            forge.gamemodes.limited.BoosterDraft draft = null;
+            if (!sealed) {
+                draft = forge.gamemodes.limited.BoosterDraft.createDraftForNetwork(
+                        forge.gamemodes.limited.LimitedPoolType.Full);
+                if (draft == null) {
+                    return;
+                }
+            }
+            final boolean ok = forge.neo.net.NeoNetEvent.configure(server,
+                    sealed ? forge.gamemodes.net.EventFormat.SEALED
+                            : forge.gamemodes.net.EventFormat.BOOSTER_DRAFT,
+                    forge.gamemodes.limited.LimitedPoolType.Full, draft, 45, 120);
+            if (!ok) {
+                System.out.println("[lobby-auto] no se ha podido montar el evento");
+                return;
+            }
+            toLimited(lobby, server);
+            Platform.runLater(this::refresh);
+            if (kind.endsWith("-run")) {
+                // Directo al asiento, NO por send(): el IPlayerChangeListener
+                // lo pone NetConnectUtil DESPUES de atar el lobby a la
+                // pantalla, asi que aqui todavia puede ser null y el "listo"
+                // se perderia sin decirlo (salia "notReady" al arrancar).
+                final GameLobby l = lobby;
+                for (int i = 0; i < l.getNumberOfSlots(); i++) {
+                    if (l.mayEdit(i)) {
+                        l.applyToSlot(i, UpdateLobbyPlayerEvent.isReadyUpdate(true));
+                    }
+                }
+                final String why = forge.neo.net.NeoNetEvent.start(server);
+                System.out.println("[lobby-auto] evento arrancado: "
+                        + (why == null ? "ok" : why));
+            }
+        }, "neo-lobby-auto-event");
+        t.setDaemon(true);
+        t.start();
     }
 
     /**
@@ -984,8 +1800,14 @@ public class LobbyScreen extends BorderPane implements NeoOnline.View {
         }
     }
 
-    /** Que formato se juega. Hoy siempre Commander; queda dicho, no adivinado. */
-    public static NeoFormat format() {
-        return NeoFormat.COMMANDER;
+    /**
+     * A que se juega en esta sala.
+     *
+     * <p>Lo decide el anfitrion y llega al invitado dentro del estado del
+     * lobby, asi que aqui no se guarda ninguna decision: es un espejo de
+     * {@link NeoLobby#formatOf}.
+     */
+    public NeoFormat format() {
+        return format;
     }
 }

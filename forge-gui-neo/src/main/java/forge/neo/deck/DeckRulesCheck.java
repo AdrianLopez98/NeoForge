@@ -54,6 +54,8 @@ public final class DeckRulesCheck {
         generatesADeckForTheCommander();
         generatesARandomOpponentDeck();
         ascentCardsStayOutOfTheCatalogue();
+        oathbreakerHasTwoSlots();
+        oathbreakerDoesNotChangeCommander();
 
         System.out.println();
         System.out.printf("  %d comprobaciones OK, %d fallos%n", passed, failed);
@@ -466,6 +468,15 @@ public final class DeckRulesCheck {
                 !id.startsWith("contains one or more"));
         check("Problema del mazo: y NO se come la lista de cartas",
                 id.contains("Lightning Bolt"));
+
+        // Las dos de Oathbreaker, que son las que mas se leen ahi: salen en
+        // cuanto abres un mazo nuevo y no se van hasta llenar los dos huecos.
+        final String sinOath = DeckProblem.translate("is missing an oathbreaker");
+        check("Problema del mazo: 'sin oathbreaker' se traduce",
+                !sinOath.equals("is missing an oathbreaker"));
+        final String sinSpell = DeckProblem.translate("is missing a signature spell");
+        check("Problema del mazo: 'sin hechizo insignia' se traduce",
+                !sinSpell.equals("is missing a signature spell"));
 
         // Lo que no conocemos, intacto. Ni traducido a medias ni tragado.
         final String raro = "contains the nonexisting card Blorble";
@@ -924,6 +935,100 @@ public final class DeckRulesCheck {
     }
 
     // ---------------------------------------------------------------
+
+    /**
+     * Oathbreaker tiene DOS huecos en la zona de mando, y los dos se rellenan.
+     *
+     * <p>Reportado por un jugador el 21-09-2026: no habia forma de poner el
+     * hechizo insignia. El editor solo conocia "comandante", y para este
+     * formato eso es {@code canBeOathbreaker()} — planeswalkers — asi que un
+     * instantaneo no salia en el selector y {@code setCommander} lo rechazaba.
+     * El mazo se quedaba para siempre en "is missing a signature spell", y
+     * pegar una lista de Moxfield <b>perdia</b> el hechizo por el mismo sitio.
+     */
+    private static void oathbreakerHasTwoSlots() {
+        final DeckEditor editor = DeckEditor.createNew(NeoFormat.OATHBREAKER, "prueba");
+        final PaperCard oath = card("Chandra, Fire Artisan");
+        final PaperCard spell = card("Lightning Bolt");
+
+        check("Oathbreaker: el formato declara los dos huecos",
+                editor.usesCommander() && editor.usesSignatureSpell());
+        check("Oathbreaker: entra el planeswalker", editor.setCommander(oath));
+        check("Oathbreaker: entra el hechizo insignia", editor.setCommander(spell));
+
+        // Lo que fallaba: el segundo vaciaba la zona y se llevaba al primero.
+        check("Oathbreaker: el planeswalker sigue puesto",
+                oath.equals(editor.mainCommander()));
+        check("Oathbreaker: y el hechizo tambien",
+                spell.equals(editor.signatureSpell()));
+        check("Oathbreaker: la zona de mando tiene exactamente 2",
+                editor.commanders().size() == 2);
+
+        // Cambiar de planeswalker sustituye SOLO al planeswalker.
+        final PaperCard other = card("Jaya, Venerated Firemage");
+        check("Oathbreaker: se cambia de oathbreaker", editor.setCommander(other));
+        check("Oathbreaker: el nuevo esta puesto", other.equals(editor.mainCommander()));
+        check("Oathbreaker: y el hechizo NO se ha ido",
+                spell.equals(editor.signatureSpell()));
+        check("Oathbreaker: siguen siendo 2", editor.commanders().size() == 2);
+
+        // La identidad de color la fija el oathbreaker, no el hechizo: si el
+        // hechizo contara, la interfaz daria por buenas cartas que el motor
+        // rechaza al guardar.
+        check("Oathbreaker: una carta roja entra",
+                editor.add(card("Goblin Guide"), 1) == 1);
+        check("Oathbreaker: una azul NO entra",
+                editor.add(card("Counterspell"), 1) == 0);
+
+        // Y el selector del hueco del hechizo ofrece instantaneos y conjuros.
+        final List<PaperCard> spells = editor.signatureCandidates("Lightning Bolt", 20);
+        check("Oathbreaker: el selector del hechizo encuentra el instantaneo",
+                spells.stream().anyMatch(c -> "Lightning Bolt".equals(c.getName())));
+        check("Oathbreaker: y el del comandante NO lo ofrece",
+                editor.commanderCandidates("Lightning Bolt", 20).isEmpty());
+
+        // El mazo entero: 58 + oathbreaker + hechizo = 60, y el motor lo da por
+        // bueno. Es la comprobacion de verdad — las demas miran piezas.
+        final DeckEditor full = DeckEditor.createNew(NeoFormat.OATHBREAKER, "completo");
+        full.setCommander(oath);
+        full.setCommander(spell);
+        full.add(card("Mountain"), 58);
+        check("Oathbreaker: un mazo con los dos huecos es legal",
+                full.problem() == null);
+
+        // Y sin hechizo no lo es, que es justo el estado en el que se quedaban
+        // todos los mazos antes de esto.
+        final DeckEditor half = DeckEditor.createNew(NeoFormat.OATHBREAKER, "sin hechizo");
+        half.setCommander(oath);
+        half.add(card("Mountain"), 58);
+        check("Oathbreaker: sin hechizo insignia NO es legal",
+                half.problem() != null);
+    }
+
+    /**
+     * Y Commander no se entera de nada de lo anterior.
+     *
+     * <p>Todo el hueco del hechizo cuelga de {@code hasSignatureSpell()}, que
+     * solo es cierto en Oathbreaker. Esta prueba existe para que se vea en rojo
+     * el dia que alguien lo saque de ahi.
+     */
+    private static void oathbreakerDoesNotChangeCommander() {
+        final DeckEditor editor = DeckEditor.createNew(NeoFormat.COMMANDER, "prueba");
+        check("Commander: no tiene hechizo insignia", !editor.usesSignatureSpell());
+        check("Commander: un instantaneo no es hechizo insignia",
+                !editor.isSignatureSpell(card("Lightning Bolt")));
+        check("Commander: un instantaneo NO puede ser comandante",
+                !editor.setCommander(card("Lightning Bolt")));
+
+        // El reemplazo de siempre: un comandante que no es companyero sustituye
+        // al anterior y la zona se queda con uno.
+        check("Commander: entra el primero", editor.setCommander(card("Krenko, Mob Boss")));
+        check("Commander: entra el segundo", editor.setCommander(card("Talrand, Sky Summoner")));
+        check("Commander: y sustituye al primero", editor.commanders().size() == 1);
+        check("Commander: mainCommander devuelve ese",
+                "Talrand, Sky Summoner".equals(
+                        editor.mainCommander() == null ? null : editor.mainCommander().getName()));
+    }
 
     private static PaperCard card(final String name) {
         final PaperCard c = FModel.getMagicDb().getCommonCards().getCard(name);

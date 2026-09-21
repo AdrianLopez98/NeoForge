@@ -148,6 +148,17 @@ public class DeckBuilderScreen extends StackPane {
     private boolean commanderMode;
 
     /**
+     * Y si lo que se esta eligiendo es el <b>hechizo insignia</b> en vez del
+     * comandante.
+     *
+     * <p>Solo puede ser true en Oathbreaker, el unico formato con dos huecos en
+     * la zona de mando ({@code DeckEditor.usesSignatureSpell}). En Commander,
+     * Brawl y Tiny Leaders vale siempre false y todo lo que cuelga de el es
+     * codigo muerto: por eso ninguno de los caminos de siempre cambia.
+     */
+    private boolean pickingSpell;
+
+    /**
      * "ELIGIENDO COMANDANTE", al lado del titulo del catalogo.
      *
      * <p>Pedido el 15-09-2026: el boton marcado esta abajo, entre otros, y
@@ -174,6 +185,17 @@ public class DeckBuilderScreen extends StackPane {
      * catalogo ya vuelto.
      */
     private final Button commanderButton = new Button(NeoText.get("deck.pickCommander"));
+
+    /**
+     * Su gemelo para el hechizo insignia. Solo existe en Oathbreaker.
+     *
+     * <p>Dos botones y no uno que alterne: son dos huecos distintos y los dos
+     * hay que rellenarlos: con un solo boton no habria forma de ver, sin
+     * pulsarlo, que el mazo necesita tambien un hechizo. En los demas formatos
+     * ni se ensenya — un boton apagado seguiria diciendo que aqui hay hechizos
+     * insignia, y en Commander no los hay (principio 1).
+     */
+    private final Button spellButton = new Button(NeoText.get("deck.pickSignature"));
 
     /**
      * Espera antes de buscar mientras se teclea.
@@ -621,7 +643,17 @@ public class DeckBuilderScreen extends StackPane {
         final boolean withCommander = editor.usesCommander();
         commander.setVisible(withCommander);
         commander.setManaged(withCommander);
-        commander.setOnAction(e -> setCommanderMode(!commanderMode));
+        commander.setOnAction(e -> openPicker(!(commanderMode && !pickingSpell), false));
+
+        // El hueco del hechizo, solo donde existe.
+        final boolean withSpell = editor.usesSignatureSpell();
+        spellButton.getStyleClass().add("btn-secondary");
+        spellButton.setVisible(withSpell);
+        spellButton.setManaged(withSpell);
+        spellButton.setOnAction(e -> openPicker(!pickingSpell, true));
+        if (withSpell) {
+            commander.setText(NeoText.get("deck.pickOathbreaker"));
+        }
 
         // Solo con comandante puesto: sin uno no hay identidad de color con
         // la que el motor pueda elegir cartas, y es la MISMA condicion que
@@ -652,11 +684,13 @@ public class DeckBuilderScreen extends StackPane {
 
         // Ningun boton se encoge por debajo de su texto: cuando la fila no cabe,
         // JavaFX lo corta con puntos suspensivos y queda un pie ilegible.
-        for (final Button b : new Button[] {back, cleanup, commander, generate, importer, export, save}) {
+        for (final Button b : new Button[] {back, cleanup, commander, spellButton, generate,
+                importer, export, save}) {
             b.setMinWidth(Region.USE_PREF_SIZE);
         }
 
-        final FlowPane actions = new FlowPane(8, 8, cleanup, commander, generate, importer, export);
+        final FlowPane actions =
+                new FlowPane(8, 8, cleanup, commander, spellButton, generate, importer, export);
         actions.setAlignment(Pos.CENTER_RIGHT);
         actions.setMinWidth(0);
         HBox.setHgrow(actions, Priority.ALWAYS);
@@ -679,9 +713,30 @@ public class DeckBuilderScreen extends StackPane {
      * estilos y por eso el boton se veia igual encendido que apagado.
      */
     private void setCommanderMode(final boolean on) {
+        openPicker(on, false);
+    }
+
+    /**
+     * Abre el selector de la zona de mando en uno de sus dos huecos.
+     *
+     * <p>{@code spell} solo puede ser true en Oathbreaker. Los dos botones se
+     * marcan por separado y la chapa dice cual estas rellenando: son dos
+     * preguntas distintas ("quien es tu oathbreaker" y "cual es su hechizo"), y
+     * con una sola chapa que dijera "eligiendo comandante" no habria forma de
+     * saber en cual estas.
+     */
+    private void openPicker(final boolean on, final boolean spell) {
         commanderMode = on;
-        commanderButton.setText(NeoText.get(on ? "deck.backToCatalogue" : "deck.pickCommander"));
-        commanderButton.pseudoClassStateChanged(SELECTED, on);
+        pickingSpell = on && spell;
+        final boolean twoSlots = editor.usesSignatureSpell();
+        commanderButton.setText(NeoText.get(on && !pickingSpell ? "deck.backToCatalogue"
+                : twoSlots ? "deck.pickOathbreaker" : "deck.pickCommander"));
+        commanderButton.pseudoClassStateChanged(SELECTED, on && !pickingSpell);
+        spellButton.setText(NeoText.get(pickingSpell
+                ? "deck.backToCatalogue" : "deck.pickSignature"));
+        spellButton.pseudoClassStateChanged(SELECTED, pickingSpell);
+        pickingBadge.setText(NeoText.get(pickingSpell ? "deck.pickingSignature"
+                : twoSlots ? "deck.pickingOathbreaker" : "deck.pickingCommander"));
         pickingBadge.setVisible(on);
         pickingBadge.setManaged(on);
         refreshCatalogue();
@@ -701,8 +756,15 @@ public class DeckBuilderScreen extends StackPane {
      * se llama lo decide quien abre el editor ({@code NeoApp.showDeckBuilder}).
      */
     public void startByPickingCommander() {
-        if (editor.usesCommander() && editor.commanders().isEmpty() && !commanderMode) {
-            setCommanderMode(true);
+        if (!editor.usesCommander() || commanderMode) {
+            return;
+        }
+        if (editor.commanders().isEmpty()) {
+            openPicker(true, false);
+        } else if (editor.usesSignatureSpell() && editor.signatureSpell() == null) {
+            // Mazo de Oathbreaker con su planeswalker y sin hechizo: se entra
+            // por el hueco que falta. Es el caso de abrir un mazo a medias.
+            openPicker(true, true);
         }
     }
 
@@ -753,7 +815,9 @@ public class DeckBuilderScreen extends StackPane {
             // En modo comandante manda una sola regla, la del motor: que cartas
             // pueden serlo. Los filtros de color y "solo lo que cabe" no pintan
             // nada aqui, porque es el comandante quien FIJA la identidad.
-            catalogueHits = editor.commanderCandidates(query, FETCH_LIMIT);
+            catalogueHits = pickingSpell
+                    ? editor.signatureCandidates(query, FETCH_LIMIT)
+                    : editor.commanderCandidates(query, FETCH_LIMIT);
             catalogueTotal = catalogueHits.size();
         } else {
             // Una sola pasada por el catalogo para las cartas Y el total.
@@ -810,9 +874,9 @@ public class DeckBuilderScreen extends StackPane {
         showBasics(!basicHits.isEmpty());
 
         if (catalogueHits.isEmpty() && basicHits.isEmpty()) {
-            final Label empty = new Label(commanderMode
-                    ? NeoText.get("deck.noCommander")
-                    : NeoText.get("deck.noCard"));
+            final Label empty = new Label(!commanderMode ? NeoText.get("deck.noCard")
+                    : pickingSpell ? NeoText.get("deck.noSignature")
+                            : NeoText.get("deck.noCommander"));
             empty.getStyleClass().add("home-subtitle");
             results.getChildren().add(empty);
         }
@@ -890,12 +954,25 @@ public class DeckBuilderScreen extends StackPane {
             }
             if (commanderMode) {
                 if (!editor.setCommander(card)) {
-                    message(NeoText.get("deck.notCommander.title"),
-                            NeoText.get("deck.notCommander", CardText.nameOf(card),
+                    message(NeoText.get(pickingSpell ? "deck.notSignature.title"
+                                    : "deck.notCommander.title"),
+                            NeoText.get(pickingSpell ? "deck.notSignature"
+                                            : "deck.notCommander",
+                                    CardText.nameOf(card),
                                     editor.getFormat().getLabel()));
                     return;
                 }
                 refreshDeck();
+                // Oathbreaker se monta en dos pasos: elegido el planeswalker,
+                // se pasa SOLO al hechizo. El mazo no es legal sin los dos, y
+                // devolver al catalogo entre uno y otro es la forma de que el
+                // segundo no se encuentre (el mazo se quedaba en "is missing a
+                // signature spell" sin decir donde se arregla).
+                if (!pickingSpell && editor.usesSignatureSpell()
+                        && editor.signatureSpell() == null) {
+                    openPicker(true, true);
+                    return;
+                }
                 // Elegido el comandante, se sale del modo. Quedarse dentro
                 // dejaba el catalogo ensenyando SOLO comandantes justo cuando
                 // toca montar el mazo, y el unico aviso de que seguias ahi era
@@ -1064,7 +1141,12 @@ public class DeckBuilderScreen extends StackPane {
         deckCount.setText(NeoText.get("count.cards", main));
         status.setText(NeoText.get("deck.status",
                 editor.getFormat().getLabel(), main,
-                editor.commanders().isEmpty() ? "" : NeoText.get("deck.plusCommander"),
+                // "58 cartas + comandante" se queda corto en Oathbreaker: la
+                // zona de mando lleva DOS cartas y el mazo son 60.
+                editor.commanders().isEmpty() ? ""
+                        : NeoText.get(editor.usesSignatureSpell()
+                                && editor.commanders().size() >= 2
+                                        ? "deck.plusSignature" : "deck.plusCommander"),
                 problem == null ? NeoText.get("deck.ready") : oneLine(problem)));
         status.pseudoClassStateChanged(INVALID, problem != null);
 
@@ -1207,8 +1289,12 @@ public class DeckBuilderScreen extends StackPane {
         showCardMenu(card, CardActionMenu.actions(
                 printingAction(card),
                 foilAction(card),
-                new CardActionMenu.Action(NeoText.get("deck.dropCommander"),
-                        NeoText.get("deck.dropCommander.detail"), true,
+                new CardActionMenu.Action(
+                        NeoText.get(editor.isSignatureSpell(card)
+                                ? "deck.dropSignature" : "deck.dropCommander"),
+                        NeoText.get(editor.isSignatureSpell(card)
+                                ? "deck.dropSignature.detail"
+                                : "deck.dropCommander.detail"), true,
                         () -> {
                             editor.removeCommander(card);
                             refreshDeck();
@@ -1229,9 +1315,15 @@ public class DeckBuilderScreen extends StackPane {
 
         CardActionMenu.Action commander = null;
         if (editor.usesCommander()
-                && editor.deckFormat().isLegalCommander(card.getRules())) {
-            commander = new CardActionMenu.Action(NeoText.get("deck.makeCommander"),
-                    NeoText.get("deck.makeCommander.detail"), true,
+                && (editor.deckFormat().isLegalCommander(card.getRules())
+                        || editor.isSignatureSpell(card))) {
+            // En Oathbreaker la misma entrada sirve para los dos huecos, y dice
+            // cual: "Hacer comandante" sobre un instantaneo no se entiende.
+            final boolean spell = editor.isSignatureSpell(card);
+            commander = new CardActionMenu.Action(
+                    NeoText.get(spell ? "deck.makeSignature" : "deck.makeCommander"),
+                    NeoText.get(spell ? "deck.makeSignature.detail"
+                            : "deck.makeCommander.detail"), true,
                     () -> {
                         editor.setCommander(card);
                         refreshDeck();
@@ -1360,8 +1452,13 @@ public class DeckBuilderScreen extends StackPane {
         // de donde sale la identidad de color con la que el motor elige
         // cartas. Se recalcula aqui porque este metodo es quien se entera de
         // cuando cambia el comandante.
-        generate.setVisible(editor.usesCommander() && !cmd.isEmpty());
-        generate.setManaged(editor.usesCommander() && !cmd.isEmpty());
+        //
+        // mainCommander() y no !cmd.isEmpty(): en Oathbreaker la zona puede
+        // tener solo el hechizo, y generar el mazo "para" un instantaneo no
+        // sale de ningun sitio.
+        final boolean canGenerate = editor.usesCommander() && editor.mainCommander() != null;
+        generate.setVisible(canGenerate);
+        generate.setManaged(canGenerate);
         if (cmd.isEmpty()) {
             if (editor.usesCommander()) {
                 final Label none = new Label(NeoText.get("deck.noCommanderYet"));
@@ -1858,8 +1955,14 @@ public class DeckBuilderScreen extends StackPane {
             }));
         }
         if (editor.usesCommander()) {
-            final boolean can = editor.deckFormat().isLegalCommander(card.getRules());
-            actions.add(new CardActionMenu.Action(NeoText.get("deck.makeCommander"),
+            // En Oathbreaker un instantaneo o conjuro entra por el OTRO hueco,
+            // y la entrada lo dice: la misma opcion diciendo "Hacer comandante"
+            // sobre un Counterspell no se entiende, y apagada seria mentira.
+            final boolean spell = editor.isSignatureSpell(card);
+            final boolean can = spell
+                    || editor.deckFormat().isLegalCommander(card.getRules());
+            actions.add(new CardActionMenu.Action(
+                    NeoText.get(spell ? "deck.makeSignature" : "deck.makeCommander"),
                     can ? null : NeoText.get("deck.cannotCommand",
                             editor.getFormat().getLabel()),
                     can, () -> {
@@ -2137,6 +2240,36 @@ public class DeckBuilderScreen extends StackPane {
     /** Enciende el modo "elegir comandante" (para la captura de prueba). */
     public void toggleCommanderModeForTest() {
         commanderButton.fire();
+    }
+
+    /**
+     * Elige el primer candidato del hueco que este abierto (para la captura).
+     *
+     * <p>Es la unica forma de comprobar sin raton el ENCADENADO de Oathbreaker:
+     * que al elegir el planeswalker se pasa solo al hechizo insignia. Una
+     * captura del selector abierto no lo demuestra — el fallo estaria en el
+     * paso siguiente.
+     */
+    public void pickFirstCandidateForTest() {
+        if (!commanderMode || catalogueHits.isEmpty()) {
+            System.out.println("[mazo] no hay selector abierto");
+            return;
+        }
+        final PaperCard card = catalogueHits.get(0);
+        if (!editor.setCommander(card)) {
+            System.out.println("[mazo] rechazada: " + card.getName());
+            return;
+        }
+        System.out.printf("[mazo] elegida %s para el hueco %s%n",
+                card.getName(), pickingSpell ? "del hechizo" : "del comandante");
+        refreshDeck();
+        if (!pickingSpell && editor.usesSignatureSpell()
+                && editor.signatureSpell() == null) {
+            openPicker(true, true);
+            System.out.println("[mazo] encadena al hechizo insignia");
+            return;
+        }
+        setCommanderMode(false);
     }
 
     /**

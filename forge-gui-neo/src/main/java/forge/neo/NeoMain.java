@@ -308,6 +308,14 @@ public final class NeoMain {
                 banner("Partida privada: anfitrion e invitado");
                 forge.neo.net.LobbyCheck.run();
                 break;
+            case "neteventcheck":
+                // El draft y el sellado EN RED, enteros y sin ventana. Cabe en
+                // un solo proceso porque aqui no se juega ninguna partida: el
+                // draft es puro mensaje, y el anfitrion recibe sus sobres por
+                // el mismo sitio que un invitado.
+                banner("Draft y sellado en red");
+                forge.neo.net.NetEventCheck.run();
+                break;
             case "lobbyguest":
                 // El invitado de lobbycheck. No se usa jugando: existe para que
                 // la prueba pueda tener las dos partes en procesos distintos,

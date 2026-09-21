@@ -278,14 +278,17 @@ public final class DeckEditor {
      *         no ha podido generar nada
      */
     public int generateForCommander() {
-        final List<PaperCard> cmd = commanders();
-        if (cmd.isEmpty()) {
+        // mainCommander() y no commanders().get(0): en Oathbreaker el hechizo
+        // insignia esta en la misma zona y puede salir el primero, y generar el
+        // mazo "para" un instantaneo no tiene ningun sentido.
+        final PaperCard head = mainCommander();
+        if (head == null) {
             return -1;
         }
         final Deck generated;
         try {
             generated = forge.deck.DeckgenUtil.generateRandomCommanderDeck(
-                    cmd.get(0), deckFormat(), false, true);
+                    head, deckFormat(), false, true);
         } catch (final RuntimeException e) {
             return -1;
         }
@@ -322,6 +325,54 @@ public final class DeckEditor {
     /** Si el formato juega con comandante. */
     public boolean usesCommander() {
         return deckFormat().hasCommander();
+    }
+
+    /**
+     * Si el formato tiene <b>dos</b> huecos en la zona de mando: el comandante
+     * y un <i>hechizo insignia</i>.
+     *
+     * <p>Solo Oathbreaker ({@code DeckFormat.hasSignatureSpell}). Todo lo que
+     * cuelga de aqui es una rama aparte a proposito: Commander, Brawl y Tiny
+     * Leaders no entran nunca, asi que no hay forma de que esto les cambie
+     * nada. El motor ya sabe de los dos huecos — {@code Deck.getOathbreaker} y
+     * {@code Deck.getSignatureSpell} los separan leyendo la misma zona — y lo
+     * unico que faltaba era que la interfaz supiera rellenar el segundo.
+     */
+    public boolean usesSignatureSpell() {
+        return deckFormat().hasSignatureSpell();
+    }
+
+    /**
+     * Si esta carta vale como hechizo insignia <b>en este formato</b>.
+     *
+     * <p>{@code canBeSignatureSpell} es instantaneo o conjuro, y lo decide el
+     * motor. Fuera de Oathbreaker devuelve siempre false, que es lo que
+     * mantiene a Commander sin enterarse de que esto existe.
+     */
+    public boolean isSignatureSpell(final PaperCard card) {
+        return card != null && usesSignatureSpell()
+                && card.getRules() != null && card.getRules().canBeSignatureSpell();
+    }
+
+    /** El hechizo insignia que tiene puesto el mazo, o null. */
+    public PaperCard signatureSpell() {
+        return usesSignatureSpell() ? deck.getSignatureSpell() : null;
+    }
+
+    /**
+     * El comandante de verdad, separado del hechizo.
+     *
+     * <p>En Oathbreaker {@link #commanders()} devuelve los dos: el planeswalker
+     * y el hechizo viven en la MISMA zona ({@code DeckSection.Commander}), que
+     * es como lo guarda Forge. Quien quiera "el comandante" a secas tiene que
+     * pedirlo asi, o acaba ensenyando un instantaneo donde va la carta grande.
+     */
+    public PaperCard mainCommander() {
+        if (usesSignatureSpell()) {
+            return deck.getOathbreaker();
+        }
+        final List<PaperCard> cmd = commanders();
+        return cmd.isEmpty() ? null : cmd.get(0);
     }
 
     /**
@@ -745,8 +796,16 @@ public final class DeckEditor {
         // por aqui se entra tambien al pegar una lista: una decklist de
         // Commander pegada en un mazo de Estandar le colaba el comandante, y de
         // ahi salia un .dck de construido con zona de mando dentro.
-        if (card == null || !usesCommander()
-                || !deckFormat().isLegalCommander(card.getRules())) {
+        if (card == null || !usesCommander()) {
+            return false;
+        }
+        // Oathbreaker tiene DOS huecos en la misma zona. isLegalCommander solo
+        // contesta por el primero (para ese formato es canBeOathbreaker, o sea
+        // planeswalkers), asi que sin esta segunda puerta el hechizo insignia
+        // no habia forma de ponerlo: ni desde el catalogo ni pegando una lista.
+        // El mazo se quedaba en "is missing a signature spell" para siempre.
+        final boolean spell = isSignatureSpell(card);
+        if (!spell && !deckFormat().isLegalCommander(card.getRules())) {
             return false;
         }
         // Y tienes que TENERLO. Por el catalogo no puede colarse — solo ensenya
@@ -757,10 +816,21 @@ public final class DeckEditor {
         }
         deck.getMain().remove(card, deck.getMain().count(card));
         final CardPool pool = deck.getOrCreate(DeckSection.Commander);
-        // Un comandante nuevo sustituye al anterior salvo que sean companeros;
-        // de las parejas ya sabe el motor, asi que se deja anyadir un segundo
-        // solo si el mazo sigue siendo conforme con los dos.
-        if (!pool.isEmpty() && !acceptsPartner(card)) {
+        if (usesSignatureSpell()) {
+            // Aqui NO se vacia la zona: se sustituye la carta DEL MISMO HUECO.
+            // Vaciarla (que es lo que hace la rama de abajo) borraria el
+            // planeswalker al elegir el hechizo, y al reves. Es lo mismo que
+            // hace la GUI vieja en CEditorConstructed.onAddItems: compara
+            // canBeOathbreaker() de la nueva con el de la que ya esta.
+            final PaperCard previous = spell ? deck.getSignatureSpell() : deck.getOathbreaker();
+            if (previous != null) {
+                pool.remove(previous, pool.count(previous));
+            }
+        } else if (!pool.isEmpty() && !acceptsPartner(card)) {
+            // Un comandante nuevo sustituye al anterior salvo que sean
+            // companeros; de las parejas ya sabe el motor, asi que se deja
+            // anyadir un segundo solo si el mazo sigue siendo conforme con los
+            // dos.
             pool.clear();
         }
         pool.add(card, 1);
@@ -1241,7 +1311,7 @@ public final class DeckEditor {
      * comandante.
      */
     private Predicate<PaperCard> identityFilter() {
-        final List<PaperCard> cmd = commanders();
+        final List<PaperCard> cmd = identitySource();
         if (!deckFormat().hasCommander() || cmd.isEmpty()) {
             cachedIdentityKey = null;
             cachedIdentity = null;
@@ -1258,8 +1328,46 @@ public final class DeckEditor {
     private String cachedIdentityKey;
     private Predicate<PaperCard> cachedIdentity;
 
+    /**
+     * Quien FIJA la identidad de color del mazo.
+     *
+     * <p>Normalmente los comandantes, y ya esta. Pero en Oathbreaker el hechizo
+     * insignia vive en la misma zona y {@link #commanders()} lo devuelve
+     * tambien: pasarselo a {@code isLegalCardForCommanderPredicate} ensancharia
+     * la identidad con los colores del hechizo, y entonces la interfaz daria
+     * por buenas cartas que el motor rechaza al guardar. El motor saca
+     * {@code cmdCI} <b>solo del oathbreaker</b>
+     * ({@code DeckFormat.getDeckConformanceProblem}), asi que aqui igual.
+     */
+    private List<PaperCard> identitySource() {
+        if (!usesSignatureSpell()) {
+            return commanders();
+        }
+        final PaperCard oath = deck.getOathbreaker();
+        return oath == null ? List.of() : List.of(oath);
+    }
+
     /** Las cartas que pueden ser comandante en este formato. */
     public List<PaperCard> commanderCandidates(final String query, final int limit) {
+        return commandZoneCandidates(query, limit, false);
+    }
+
+    /**
+     * Las cartas que pueden ser <b>hechizo insignia</b>: instantaneos y
+     * conjuros, y solo en Oathbreaker.
+     *
+     * <p>No se filtran por la identidad de color del oathbreaker <b>a
+     * proposito</b>. El motor no la comprueba para esta carta — el bucle de
+     * identidad de {@code getDeckConformanceProblem} solo recorre el mazo
+     * principal y la banda — y esconder aqui lo que el motor acepta seria
+     * inventarnos una regla de construccion, que es justo lo que no hacemos.
+     */
+    public List<PaperCard> signatureCandidates(final String query, final int limit) {
+        return usesSignatureSpell() ? commandZoneCandidates(query, limit, true) : List.of();
+    }
+
+    private List<PaperCard> commandZoneCandidates(final String query, final int limit,
+                                                  final boolean spell) {
         final String q = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
         final DeckFormat df = deckFormat();
         final List<PaperCard> hits = new ArrayList<>();
@@ -1272,7 +1380,11 @@ public final class DeckEditor {
             if (c.isRebalanced() || c.getName().startsWith("A-")) {
                 continue;
             }
-            if (index.matches(i, q) && df.isLegalCommander(c.getRules())) {
+            final boolean fits = spell
+                    ? c.getRules() != null && c.getRules().canBeSignatureSpell()
+                            && df.isLegalCard(c)
+                    : df.isLegalCommander(c.getRules());
+            if (index.matches(i, q) && fits) {
                 hits.add(c);
             }
         }

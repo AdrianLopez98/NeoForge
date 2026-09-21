@@ -108,6 +108,17 @@ final class NeoAppNet {
                         // TODAS las partidas. Aqui solo se apunta.
                         System.out.println("[lobby] la partida ha empezado");
                     }
+
+                    @Override
+                    public void draftStarting(final int seat,
+                                              final forge.gamemodes.net.NetworkEventView event) {
+                        Platform.runLater(() -> showNetDraft());
+                    }
+
+                    @Override
+                    public void poolArrived(final forge.deck.Deck pool, final boolean sealed) {
+                        Platform.runLater(() -> showNetPool(pool, sealed));
+                    }
                 });
         lobbyScreen = screen;
         online = new forge.neo.net.NeoOnline(screen);
@@ -159,6 +170,117 @@ final class NeoAppNet {
         }, "neo-lobby-connect");
         t.setDaemon(true);
         t.start();
+    }
+
+    // ------------------------------------------------------------------
+    // El draft y el sellado en red
+    // ------------------------------------------------------------------
+
+    /** La pantalla de picks mientras dura el draft en red. */
+    private forge.neo.ui.DraftScreen netDraft;
+
+    /**
+     * Abre la pantalla de picks del draft en red.
+     *
+     * <p>Es <b>la misma</b> que la del draft de siempre: lo unico que cambia es
+     * de donde salen los sobres ({@code forge.neo.draft.PackSource}). Asi el
+     * draft con amigos se ve exactamente igual que el de en casa — el sobre en
+     * rejilla de cinco, el vuelo del pick, la tira de lo que llevas, el clic
+     * derecho para leer la carta — y no hay una segunda pantalla que se quede
+     * vieja.
+     *
+     * <p>El <b>repintado lo manda la red</b>, no un reloj: cada vez que llega
+     * un sobre o alguien elige, {@code LobbyScreen} avisa. Lo unico que se
+     * refresca por tiempo es la cuenta atras, y por eso ese temporizador solo
+     * existe si el anfitrion puso reloj.
+     */
+    private void showNetDraft() {
+        final forge.neo.ui.LobbyScreen screen = lobbyScreen;
+        if (screen == null || screen.getDraftSource() == null) {
+            return;
+        }
+        final forge.neo.ui.DraftScreen picks = new forge.neo.ui.DraftScreen(
+                screen.getDraftSource(), app.cardWidth,
+                // Terminar NO lo decide la pantalla: lo decide el pool que
+                // manda el anfitrion. Ver NetDraftSource.isDone.
+                source -> { },
+                this::leaveDraft);
+        netDraft = picks;
+        screen.setDraftRepaint(this::refreshNetDraft);
+        app.scene.setRoot(picks);
+        app.applyScale();
+
+        // El reloj del pick lo cuenta el servidor; esto solo lo ensenya, asi
+        // que basta con repintar una vez por segundo. Se para solo cuando la
+        // pantalla deja de ser la de picks.
+        final javafx.animation.Timeline tick = new javafx.animation.Timeline(
+                new javafx.animation.KeyFrame(javafx.util.Duration.seconds(1),
+                        e -> refreshNetDraft()));
+        tick.setCycleCount(javafx.animation.Animation.INDEFINITE);
+        tick.play();
+        netDraftTick = tick;
+    }
+
+    private javafx.animation.Timeline netDraftTick;
+
+    /** Hilo de JavaFX. */
+    private void refreshNetDraft() {
+        final forge.neo.ui.DraftScreen picks = netDraft;
+        if (picks != null) {
+            picks.refresh();
+        }
+    }
+
+    /**
+     * Salir del draft a medias.
+     *
+     * <p>No hay forma suave: irse de un draft en red <b>deja el pod colgando</b>
+     * — tu asiento deja de elegir y el servidor acaba eligiendo por ti hasta
+     * que se agote el plazo de gracia. Asi que salir de aqui es salir de la
+     * sala entera, igual que rendirse en una partida.
+     */
+    private void leaveDraft() {
+        stopNetDraft();
+        leaveLobby();
+    }
+
+    private void stopNetDraft() {
+        if (netDraftTick != null) {
+            netDraftTick.stop();
+            netDraftTick = null;
+        }
+        netDraft = null;
+        final forge.neo.ui.LobbyScreen screen = lobbyScreen;
+        if (screen != null) {
+            screen.setDraftRepaint(null);
+        }
+    }
+
+    /**
+     * Ha llegado el pool: a montar el mazo.
+     *
+     * <p>Se abre el constructor de siempre con el pool de catalogo
+     * ({@code NetPoolContext}), y al salir se vuelve a la sala — que es donde
+     * hay que elegir ese mazo y darle a listo. No se vuelve al menu: la sala
+     * sigue viva y los demas estan ahi.
+     */
+    private void showNetPool(final forge.deck.Deck pool, final boolean sealed) {
+        stopNetDraft();
+        if (pool == null) {
+            return;
+        }
+        final forge.neo.draft.NetPoolContext context =
+                new forge.neo.draft.NetPoolContext(pool, sealed);
+        // Sobre una COPIA, como en todo el editor: salir sin guardar tiene que
+        // dejar el pool tal y como llego.
+        final forge.neo.deck.DeckEditor editor =
+                forge.neo.deck.DeckEditor.copyOf(context, pool);
+        app.builder = new forge.neo.ui.DeckBuilderScreen(editor, app.cardWidth, () -> {
+            app.builder = null;
+            backToLobby();
+        });
+        app.scene.setRoot(app.builder);
+        app.applyScale();
     }
 
     /**
@@ -258,6 +380,7 @@ final class NeoAppNet {
     /** Cerrar la sala y volver al menu. */
     void leaveLobby() {
         inMatch = false;
+        stopNetDraft();
         final forge.neo.net.NeoOnline o = online;
         if (o != null) {
             final Thread t = new Thread(o::leave, "neo-lobby-leave");

@@ -67,7 +67,10 @@ public class OnlineMenu extends BorderPane {
 
         final Region gap = new Region();
         HBox.setHgrow(gap, Priority.ALWAYS);
-        final HBox footer = new HBox(10, back, gap);
+        // La guia de red, aqui y en la sala: son los dos sitios donde alguien
+        // se queda atascado, y el problema casi nunca esta en el programa sino
+        // en el router de su casa. Ver NetHelp.
+        final HBox footer = new HBox(10, back, NetHelp.button(), gap);
         footer.getStyleClass().add("home-footer");
         footer.setPadding(new Insets(16, 30, 22, 30));
         footer.setAlignment(Pos.CENTER_LEFT);

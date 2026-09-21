@@ -9,7 +9,7 @@ import forge.gamemodes.limited.CardRanker;
 import forge.item.PaperCard;
 import forge.neo.NeoSettings;
 import forge.neo.card.CardNode;
-import forge.neo.draft.NeoDraft;
+import forge.neo.draft.PackSource;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
@@ -44,8 +44,8 @@ import javafx.scene.layout.VBox;
  */
 public class DraftScreen extends BorderPane {
 
-    private final NeoDraft draft;
-    private final Consumer<NeoDraft> onFinished;
+    private final PackSource draft;
+    private final Consumer<PackSource> onFinished;
 
     private final Label progress = new Label();
     private final GridPane pack = new GridPane();
@@ -55,8 +55,8 @@ public class DraftScreen extends BorderPane {
     private double packCardWidth;
     private final double baseCardWidth;
 
-    public DraftScreen(final NeoDraft draft, final double cardWidth,
-                       final Consumer<NeoDraft> onFinished, final Runnable onQuit) {
+    public DraftScreen(final PackSource draft, final double cardWidth,
+                       final Consumer<PackSource> onFinished, final Runnable onQuit) {
         this.draft = draft;
         this.onFinished = onFinished;
         this.baseCardWidth = cardWidth;
@@ -81,7 +81,16 @@ public class DraftScreen extends BorderPane {
         final Region gap = new Region();
         HBox.setHgrow(gap, Priority.ALWAYS);
         final VBox titles = new VBox(2, title, progress);
-        final HBox header = new HBox(12, titles, gap, quit);
+
+        // El reloj solo existe en el draft en red, y solo si el anfitrion le
+        // puso plazo. Se crea siempre y se ensenya cuando hay algo que contar:
+        // una etiqueta vacia no ocupa nada.
+        clock.getStyleClass().add("draft-clock");
+        clock.setMinWidth(Region.USE_PREF_SIZE);
+        clock.setVisible(false);
+        clock.setManaged(false);
+
+        final HBox header = new HBox(12, titles, gap, clock, quit);
         header.setAlignment(Pos.CENTER_LEFT);
         header.setPadding(new Insets(20, 26, 12, 30));
         setTop(header);
@@ -93,7 +102,20 @@ public class DraftScreen extends BorderPane {
         pack.setHgap(12);
         pack.setVgap(12);
         pack.setPadding(new Insets(6, 20, 6, 20));
-        setCenter(pack);
+
+        // En red hay ratos SIN sobre en la mano — el de al lado esta pensando y
+        // su sobre todavia no ha llegado. Una rejilla vacia y muda es
+        // indistinguible de estar roto, asi que esos ratos se cuentan: que se
+        // espera, y quien tiene cuantos sobres en cola.
+        waitingTitle.getStyleClass().add("home-title");
+        waitingWhy.getStyleClass().add("home-subtitle");
+        waitingWhy.setWrapText(true);
+        seats.setAlignment(Pos.CENTER);
+        seats.setPadding(new Insets(8, 0, 0, 0));
+        waitingBox.setAlignment(Pos.CENTER);
+        waitingBox.setVisible(false);
+        waitingBox.setMouseTransparent(true);
+        setCenter(new javafx.scene.layout.StackPane(pack, waitingBox));
 
         detail = new CardDetailPanel(cardWidth * 1.9);
         setRight(detail);
@@ -121,6 +143,15 @@ public class DraftScreen extends BorderPane {
     }
 
     private final Label pickedLabel = new Label();
+
+    /** Lo que queda para que el pick lo haga el servidor. Solo en red. */
+    private final Label clock = new Label();
+
+    /** Lo que se ve cuando no hay sobre que mirar. Solo en red. */
+    private final Label waitingTitle = new Label(NeoText.get("draft.waiting"));
+    private final Label waitingWhy = new Label(NeoText.get("draft.waiting.why"));
+    private final VBox seats = new VBox(2);
+    private final VBox waitingBox = new VBox(6, waitingTitle, waitingWhy, seats);
 
     /**
      * El sobre tiene que caber entero sin scroll.
@@ -157,8 +188,45 @@ public class DraftScreen extends BorderPane {
     private static final double HGAP = 12;
     private static final double VGAP = 12;
 
-    /** Repinta el sobre y la tira de lo que llevas. */
-    private void refresh() {
+    /**
+     * Repinta el sobre y la tira de lo que llevas.
+     *
+     * <p>Publico porque en red <b>nadie lo pide desde aqui</b>: el sobre llega
+     * por el cable y quien lo recibe tiene que poder decir "ya hay algo que
+     * pintar". En el draft de siempre lo llama solo el propio pick.
+     */
+    public void refresh() {
+        // El reloj y el pod, que solo existen en red.
+        final int secs = draft.secondsLeft();
+        final boolean hasClock = secs > 0 && !draft.waiting();
+        clock.setVisible(hasClock);
+        clock.setManaged(hasClock);
+        if (hasClock) {
+            clock.setText(NeoText.get("draft.clock", secs));
+            // Los ultimos diez segundos en rojo: es cuando la informacion deja
+            // de ser un dato y pasa a ser un aviso.
+            clock.pseudoClassStateChanged(HURRY, secs <= 10);
+        }
+
+        // Sin sobre en la mano no se pinta una rejilla vacia: se cuenta la
+        // espera. Y NO se da el draft por terminado — en red eso lo dice el
+        // anfitrion cuando manda el pool, no la ausencia de sobre.
+        if (draft.waiting()) {
+            pack.getChildren().clear();
+            waitingBox.setVisible(true);
+            seats.getChildren().clear();
+            for (final String note : draft.seatNotes()) {
+                final Label l = new Label(note);
+                l.getStyleClass().add("mode-tile-note");
+                seats.getChildren().add(l);
+            }
+            progress.setText(NeoText.get("draft.progress",
+                    draft.round(), draft.pickNumber(), draft.cardsLeft()));
+            refreshPicked();
+            return;
+        }
+        waitingBox.setVisible(false);
+
         if (draft.isDone()) {
             onFinished.accept(draft);
             return;
@@ -202,6 +270,9 @@ public class DraftScreen extends BorderPane {
     }
 
     private static final int COLUMNS = 5;
+
+    private static final javafx.css.PseudoClass HURRY =
+            javafx.css.PseudoClass.getPseudoClass("hurry");
 
     /**
      * Mientras vuela un pick no se admite otro.

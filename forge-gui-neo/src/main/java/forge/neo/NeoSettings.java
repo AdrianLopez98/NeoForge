@@ -76,6 +76,34 @@ public final class NeoSettings {
      * por si en algun equipo se nota lento o raro.
      */
     public static final String SHARP_ART = "sharpArt";
+    /**
+     * La mano en abanico (cartas inclinadas) o con las cartas rectas.
+     *
+     * <p>Encendido de fabrica: el abanico es lo que hace que una mano de siete
+     * cartas se lea de un vistazo. Se puede apagar porque inclinar una carta
+     * obliga a JavaFX a suavizarle los bordes, y en un monitor de 1080p eso se
+     * ve sucio. Ver {@code forge.neo.ui.HandFan}.
+     */
+    public static final String HAND_FAN = "handFan";
+
+    /**
+     * Si la mano se pinta en abanico. Encendido de fabrica.
+     *
+     * <p>{@code -Dneo.handFan=false} lo apaga sin escribir en las preferencias
+     * del jugador, que es lo unico que permite capturar las dos manos desde
+     * una sesion de prueba. Al reves que {@code allBoards}, aqui el defecto es
+     * SI, asi que la bandera tiene tres estados y no dos: sin poner, no hace
+     * nada.
+     *
+     * @see forge.neo.ui.HandFan
+     */
+    public static boolean handFan() {
+        final String forced = System.getProperty("neo.handFan");
+        if (forced != null && !forced.isEmpty()) {
+            return Boolean.parseBoolean(forced);
+        }
+        return getBool(HAND_FAN, true);
+    }
     /** Ventana a pantalla completa. */
     public static final String FULLSCREEN = "fullscreen";
     /** Pagar el mana automaticamente al lanzar, en vez de clicar tierras. */

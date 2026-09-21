@@ -3267,3 +3267,18 @@
 .shortcut-key {
     -fx-alignment: center;
 }
+
+/* ---------- el reloj del draft en red ----------
+   Grande y a la derecha de la cabecera: no es un dato mas del progreso, es lo
+   unico que puede quitarte el pick de las manos. Los ultimos diez segundos
+   cambian de color, que es cuando deja de ser informacion y pasa a ser aviso. */
+.draft-clock {
+    -fx-font-size: 1.5em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -neo-text-dim;
+    -fx-padding: 2 12 2 12;
+}
+
+.draft-clock:hurry {
+    -fx-text-fill: -neo-danger;
+}

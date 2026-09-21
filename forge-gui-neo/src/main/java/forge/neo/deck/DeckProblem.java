@@ -29,6 +29,10 @@ import forge.neo.NeoText;
  * atracciones, cachivaches, cartas personalizadas, cartas que no existen —
  * pasan de largo, y es lo correcto: traducir a ciegas una frase que no se ha
  * visto nunca es la forma de acabar diciendo otra cosa.
+ *
+ * <p>Desde el 21-09-2026 son ocho: se suman las dos de Oathbreaker
+ * ({@code is missing an oathbreaker} / {@code a signature spell}), que son
+ * frases fijas y se leen constantemente ahora que ese formato se puede montar.
  */
 public final class DeckProblem {
 
@@ -70,6 +74,19 @@ public final class DeckProblem {
             "^contains more than one copy of the following restricted cards:(.*)$", Pattern.DOTALL);
 
     /**
+     * Las dos de Oathbreaker, que son frases fijas y sin numero.
+     *
+     * <p>Hasta el 21-09-2026 no hacia falta traducirlas: no habia forma de
+     * poner el hechizo insignia, asi que nadie llegaba a montar un mazo de ese
+     * formato. Ahora son las dos que mas se leen ahi — salen en cuanto abres un
+     * mazo nuevo y no se van hasta que los dos huecos estan puestos.
+     */
+    private static final String MISSING_OATHBREAKER = "is missing an oathbreaker";
+
+    /** @see #MISSING_OATHBREAKER */
+    private static final String MISSING_SIGNATURE = "is missing a signature spell";
+
+    /**
      * El texto del motor, traducido si lo reconocemos.
      *
      * @param engine lo que devolvió {@code getDeckConformanceProblem}, o null
@@ -81,6 +98,13 @@ public final class DeckProblem {
             return engine;
         }
         final String s = engine.trim();
+
+        if (MISSING_OATHBREAKER.equals(s)) {
+            return NeoText.get("deck.problem.noOathbreaker");
+        }
+        if (MISSING_SIGNATURE.equals(s)) {
+            return NeoText.get("deck.problem.noSignature");
+        }
 
         Matcher m = AT_LEAST.matcher(s);
         if (m.matches()) {

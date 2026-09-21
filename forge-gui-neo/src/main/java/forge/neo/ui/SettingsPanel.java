@@ -180,6 +180,24 @@ public class SettingsPanel extends VBox {
                     NeoSettings.save();
                 }));
 
+        // --- la mano en abanico ---
+        //
+        // Encendido de fabrica. Apagarlo pone las cartas rectas: pierdes la
+        // lectura de abanico y ganas nitidez, porque una carta girada la pinta
+        // JavaFX con los bordes suavizados y en 1080p eso se ve sucio.
+        getChildren().add(toggleRow(NeoText.get("settings.handFan"),
+                NeoSettings.handFan(),
+                on -> {
+                    HandFan.setFanned(on);
+                    NeoSettings.setBool(NeoSettings.HAND_FAN, on);
+                    NeoSettings.save();
+                    // Los ajustes se abren con la partida detras: sin esto el
+                    // cambio no se veria hasta el siguiente aviso del motor.
+                    if (getScene() != null && getScene().getRoot() != null) {
+                        HandFan.relayoutAllIn(getScene().getRoot());
+                    }
+                }));
+
         // --- brillo de las foil (la auditoría del motor, apartado D5) ---
         getChildren().add(toggleRow(NeoText.get("settings.foilEffect"),
                 NeoSettings.getBool(NeoSettings.FOIL_EFFECT, true),

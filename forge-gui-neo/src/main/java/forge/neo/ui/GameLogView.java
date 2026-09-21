@@ -1,7 +1,6 @@
 package forge.neo.ui;
 
 import forge.neo.NeoText;
-import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
@@ -42,6 +41,14 @@ import javafx.scene.layout.VBox;
  *   <li><b>Lo tuyo, en negrita.</b> En una partida a cuatro la mayoria de lineas
  *       son de otros; lo que te importa es lo que te toca a ti o a tus cartas, y
  *       tiene que saltar a la vista sin leer todo.</li>
+ *   <li><b>De arriba abajo, en orden.</b> El turno 1 arriba y lo ultimo abajo,
+ *       y se abre mirando el final. Antes los turnos iban del reves — lo
+ *       reciente primero — para no tener que bajar; pero dentro de cada turno
+ *       si se leia hacia adelante, asi que el registro cambiaba de sentido
+ *       cada pocas lineas y no habia forma de seguir una secuencia. Reportado
+ *       probando el juego el 21-09-2026.</li>
+ *   <li><b>Se puede copiar entero</b>, como en el Forge de siempre: para
+ *       pegarlo en un informe de fallo o repasar la partida fuera.</li>
  * </ul>
  */
 public class GameLogView extends VBox {
@@ -70,6 +77,11 @@ public class GameLogView extends VBox {
     private final VBox lines = new VBox(1);
     private final ScrollPane scroll = new ScrollPane(lines);
 
+    /** El registro entero en texto plano: lo que se lleva el boton de copiar. */
+    private String plain = "";
+
+    private final Button copy = new Button(NeoText.get("log.copy"));
+
     public GameLogView(final Runnable onClose) {
         getStyleClass().addAll("dialog", "game-log");
         setSpacing(12);
@@ -90,13 +102,35 @@ public class GameLogView extends VBox {
         scroll.setPrefViewportHeight(460);
         VBox.setVgrow(scroll, Priority.ALWAYS);
 
+        // Abrir mirando el final, que es lo que se viene a leer: "que acaba de
+        // pasar". Se engancha al alto de las lineas y no a un runLater porque
+        // el ScrollPane no sabe cuanto puede bajar hasta que ha repartido su
+        // contenido, y eso ocurre DESPUES de update(). Es el mismo apanyo que
+        // usa el chat de red (NetChatView).
+        lines.heightProperty().addListener((o, was, is) -> scroll.setVvalue(1.0));
+
+        copy.getStyleClass().add("btn-secondary");
+        copy.setOnAction(e -> {
+            final javafx.scene.input.ClipboardContent content =
+                    new javafx.scene.input.ClipboardContent();
+            content.putString(plain);
+            javafx.scene.input.Clipboard.getSystemClipboard().setContent(content);
+            // El portapapeles no se ve: sin acuse no hay forma de saber si el
+            // boton ha hecho algo. Vuelve a su texto solo, a los dos segundos.
+            copy.setText(NeoText.get("log.copied"));
+            final javafx.animation.PauseTransition back =
+                    new javafx.animation.PauseTransition(javafx.util.Duration.seconds(2));
+            back.setOnFinished(ev -> copy.setText(NeoText.get("log.copy")));
+            back.play();
+        });
+
         final Button close = new Button(NeoText.get("common.close"));
         close.getStyleClass().add("btn-primary");
         close.setOnAction(e -> onClose.run());
 
         final Region gap = new Region();
         HBox.setHgrow(gap, Priority.ALWAYS);
-        final HBox footer = new HBox(10, gap, close);
+        final HBox footer = new HBox(10, copy, gap, close);
         footer.setAlignment(Pos.CENTER_LEFT);
 
         getChildren().addAll(heading, hint, scroll, footer);
@@ -117,10 +151,12 @@ public class GameLogView extends VBox {
             return;
         }
 
-        // El motor devuelve lo MAS RECIENTE primero; se le da la vuelta para
-        // leerlo como una historia dentro de cada turno.
-        final List<GameLogEntry> all = new ArrayList<>(log.getAllEntries());
-        java.util.Collections.reverse(all);
+        // OJO: getAllEntries() ya viene en ORDEN DE INSERCION, o sea lo mas
+        // viejo primero — el que devuelve lo reciente primero es getLogEntries.
+        // Aqui habia un reverse() por esa confusion, y luego otro sobre los
+        // grupos que lo tapaba a medias: los turnos salian en orden pero las
+        // lineas de dentro al reves. Se lee tal cual.
+        final List<GameLogEntry> all = log.getAllEntries();
 
         // El nombre DE PARTIDA, no el del perfil: las lineas del registro las
         // escribe el motor con Player.toString(), que es el desempatado. Con
@@ -129,12 +165,13 @@ public class GameLogView extends VBox {
         final String myName = me == null ? null
                 : forge.neo.match.PlayerName.of(me).toLowerCase(Locale.ROOT);
 
-        // Se agrupa por turno (cabecera + sus lineas, en orden cronologico) y
-        // LUEGO se ponen los grupos con el mas reciente primero. En una
-        // partida larga, abrir el registro y tener que bajar hasta el turno
-        // 80 para ver lo ultimo es justo lo que esto evita.
-        final List<List<Region>> turns = new ArrayList<>();
-        List<Region> current = null;
+        // Se agrupa por turno (cabecera + sus lineas) y los turnos van en
+        // ORDEN, el primero arriba y el ultimo abajo. Antes se daba la vuelta
+        // a los grupos para no tener que bajar hasta el turno 80 — pero dentro
+        // de cada turno se seguia leyendo hacia adelante, asi que el registro
+        // cambiaba de sentido cada pocas lineas. El atajo de verdad es abrirlo
+        // mirando el final, que es lo que hace el constructor.
+        final StringBuilder text = new StringBuilder();
         boolean any = false;
         for (final GameLogEntry entry : all) {
             if (!INTERESTING.contains(entry.type())) {
@@ -142,31 +179,24 @@ public class GameLogView extends VBox {
             }
             any = true;
             if (entry.type() == GameLogEntryType.TURN) {
-                current = new ArrayList<>();
-                turns.add(current);
-                current.add(turnHeader(entry.message()));
-            } else {
-                if (current == null) {
-                    current = new ArrayList<>();
-                    turns.add(current);
+                if (text.length() > 0) {
+                    text.append(System.lineSeparator());
                 }
-                current.add(line(entry, mine(entry, me, myName)));
+                lines.getChildren().add(turnHeader(entry.message()));
+            } else {
+                lines.getChildren().add(line(entry, mine(entry, me, myName)));
             }
+            text.append(entry.message()).append(System.lineSeparator());
         }
+
+        plain = text.toString();
+        copy.setDisable(!any);
 
         if (!any) {
             final Label empty = new Label(NeoText.get("log.empty"));
             empty.getStyleClass().add("home-subtitle");
             lines.getChildren().add(empty);
-        } else {
-            java.util.Collections.reverse(turns);
-            for (final List<Region> turn : turns) {
-                lines.getChildren().addAll(turn);
-            }
         }
-
-        // Lo mas reciente ya esta arriba: abrir mirando el principio.
-        javafx.application.Platform.runLater(() -> scroll.setVvalue(0.0));
     }
 
     /**

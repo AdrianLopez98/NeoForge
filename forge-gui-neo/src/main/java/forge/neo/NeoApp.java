@@ -140,6 +140,7 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 NeoSettings.getBool(NeoSettings.ANIMATIONS, true));
         forge.neo.card.CardNode.setFoilEffectEnabled(
                 NeoSettings.getBool(NeoSettings.FOIL_EFFECT, true));
+        forge.neo.ui.HandFan.setFanned(NeoSettings.handFan());
         // -Dneo.blindMana fuerza el apanyo sin tocar los ajustes del jugador:
         // es lo unico que permite probar el bucle entero con --filter-land.
         forge.neo.match.NeoMatchUI.setBlindSourceFallback(
@@ -902,6 +903,15 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             if (args.contains("--lobby-auto") && net.lobbyScreen != null) {
                 net.lobbyScreen.autoDriveForTest();
             }
+            // -Dneo.lobby.event=draft|sealed|draft-run: monta un evento sin
+            // pasar por el asistente, que son seis preguntas encadenadas y
+            // desde una sesion sin manos no hay forma de contestarlas. Es lo
+            // unico que deja capturar la fila del evento y la pantalla de
+            // picks en red.
+            final String autoEvent = System.getProperty("neo.lobby.event");
+            if (autoEvent != null && !autoEvent.isBlank() && net.lobbyScreen != null) {
+                net.lobbyScreen.autoEventForTest(autoEvent.trim());
+            }
         } else if (args.contains("--ascent-reward")) {
             // El premio de un jefe: las tres cartas Y las tres reliquias a
             // elegir. Provocarlo jugando exige ganarle a un jefe.
@@ -1106,6 +1116,14 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             }
             if (args.contains("--commander-mode") && builder != null) {
                 builder.toggleCommanderModeForTest();
+            }
+            // --pick-commander elige el primer candidato del selector que este
+            // abierto. Repetido, recorre los DOS huecos de Oathbreaker, que es
+            // lo unico que demuestra el encadenado.
+            for (final String a : args) {
+                if ("--pick-commander".equals(a) && builder != null) {
+                    builder.pickFirstCandidateForTest();
+                }
             }
             // --search=texto escribe en el buscador del catalogo. Un puñado de
             // resultados sueltos es el caso que se rompe distinto al del mazo
@@ -1471,6 +1489,47 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 final CardNode card = hand.get(which);
                 System.out.println("[mano] clico " + debug.nameOf(card.getCard()));
                 debug.fire(card, javafx.scene.input.MouseEvent.MOUSE_CLICKED, debug.centreOf(card));
+            });
+            t.play();
+        }
+
+        // Abre el REGISTRO de la partida, que no tiene otra forma de mirarse
+        // sin raton: es un boton de la barra, no una maqueta. Hace falta para
+        // comprobar con una captura que las lineas van en orden y que se abre
+        // mirando el final.
+        if (args.contains("--log-open")) {
+            final PauseTransition t = new PauseTransition(Duration.millis(
+                    Long.getLong("neo.log.openAt", 8000L)));
+            t.setOnFinished(e -> {
+                if (table == null) {
+                    System.out.println("[registro] no hay mesa");
+                    return;
+                }
+                table.getLogButton().fire();
+                System.out.println("[registro] abierto");
+                // -Dneo.log.copy=true pulsa ademas "Copiar el registro" y dice
+                // que se ha llevado: es lo unico que comprueba el portapapeles,
+                // que en una captura no se ve.
+                if (Boolean.getBoolean("neo.log.copy")) {
+                    final String label = NeoText.get("log.copy");
+                    for (final javafx.scene.Node n
+                            : scene.getRoot().lookupAll(".btn-secondary")) {
+                        if (n instanceof javafx.scene.control.Button b
+                                && label.equals(b.getText())) {
+                            b.fire();
+                            final String got = javafx.scene.input.Clipboard
+                                    .getSystemClipboard().getString();
+                            System.out.printf(
+                                    "[registro] copiadas %d lineas, empieza por: %s%n",
+                                    got == null ? 0L
+                                            : got.chars().filter(c -> c == 10).count(),
+                                    got == null || got.isEmpty() ? "(nada)"
+                                            : got.substring(0, Math.min(60, got.length())));
+                            return;
+                        }
+                    }
+                    System.out.println("[registro] no encuentro el boton de copiar");
+                }
             });
             t.play();
         }
@@ -2499,10 +2558,13 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             builder = null;
             showHome(format);
         });
-        // Un mazo NUEVO de Commander o Brawl empieza eligiendo comandante, con
-        // el catalogo de comandantes ya puesto. Solo esos dos formatos, a
-        // proposito: pedido asi el 15-09-2026.
-        if (deck == null && (format == NeoFormat.COMMANDER || format == NeoFormat.BRAWL)) {
+        // Un mazo NUEVO de Commander, Brawl u Oathbreaker empieza eligiendo
+        // comandante, con el catalogo de comandantes ya puesto. Solo esos tres
+        // formatos, a proposito: pedido asi el 15-09-2026, y Oathbreaker se
+        // suma el 21-09-2026 porque es donde mas falta hace — ahi hay que
+        // rellenar DOS huecos y el segundo encadena con el primero.
+        if (deck == null && (format == NeoFormat.COMMANDER || format == NeoFormat.BRAWL
+                || format == NeoFormat.OATHBREAKER)) {
             builder.startByPickingCommander();
         }
         scene.setRoot(builder);

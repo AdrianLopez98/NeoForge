@@ -76,6 +76,32 @@ public final class LobbyCheck {
     }
 
     /**
+     * A que se juega la partida viva.
+     *
+     * <p>Commander, que es lo que se juega aqui y lo que hay que tener
+     * blindado: la zona de mando y el danyo de comandante viajando por el cable
+     * son la parte con mas piezas. El resto de modos los cubre
+     * {@code checkFormats} en frio, que no monta una partida.
+     *
+     * <p>{@code -Dneo.lobby.check.format=MOMIR} juega la partida entera en otro
+     * modo. No se pone por defecto porque cada corrida son ~60 s y la bateria
+     * ya tarda; se usa a mano cuando se toca esta parte. Momir es el que mas
+     * merece la pena: es el unico en el que los asientos van <b>sin mazo</b>.
+     */
+    private static NeoFormat liveFormat() {
+        final String wanted = System.getProperty("neo.lobby.check.format");
+        if (wanted != null && !wanted.isBlank()) {
+            for (final NeoFormat f : NeoLobby.FORMATS) {
+                if (f.name().equalsIgnoreCase(wanted.trim())) {
+                    return f;
+                }
+            }
+            System.out.println("  (modo desconocido: " + wanted + "; se juega Commander)");
+        }
+        return NeoFormat.COMMANDER;
+    }
+
+    /**
      * {@code NeoMatchUI} que ademas cuenta lo que llega por el cable.
      *
      * <p>Contar {@code applyDelta} no es un adorno: es la prueba de que heredar
@@ -129,16 +155,27 @@ public final class LobbyCheck {
         Process guestProc = null;
         try {
             // ---- mazos ----
-            final List<Deck> decks = NeoFormat.COMMANDER.decks();
-            System.out.printf(Locale.ROOT, "  Mazos de Commander disponibles: %d%n", decks.size());
-            if (decks.size() < 2) {
-                System.out.println("  FALLO: hacen falta al menos 2 mazos de Commander");
-                return;
+            final NeoFormat format = liveFormat();
+            final boolean needsDeck = NeoLobby.needsDeck(format);
+            Deck hostDeck = null;
+            Deck guestDeck = null;
+            if (needsDeck) {
+                final List<Deck> decks = format.decks();
+                System.out.printf(Locale.ROOT, "  Mazos de %s disponibles: %d%n",
+                        format, decks.size());
+                if (decks.size() < 2) {
+                    System.out.printf(Locale.ROOT,
+                            "  FALLO: hacen falta al menos 2 mazos de %s%n", format);
+                    return;
+                }
+                hostDeck = decks.get(0);
+                guestDeck = decks.get(1);
+                System.out.printf(Locale.ROOT, "  Anfitrion: %s | Invitado: %s%n",
+                        hostDeck.getName(), guestDeck.getName());
+            } else {
+                System.out.printf(Locale.ROOT,
+                        "  %s no lleva mazo: lo monta el motor%n", format);
             }
-            final Deck hostDeck = decks.get(0);
-            final Deck guestDeck = decks.get(1);
-            System.out.printf(Locale.ROOT, "  Anfitrion: %s | Invitado: %s%n",
-                    hostDeck.getName(), guestDeck.getName());
 
             // ---- 1. el servidor ----
             final CountingUi hostUi = new CountingUi();
@@ -163,9 +200,15 @@ public final class LobbyCheck {
                 }
             });
 
-            NeoLobby.setCommander(lobby);
-            ok &= check("el lobby esta en Commander",
-                    NeoLobby.variants(lobby).contains(GameType.Commander));
+            NeoLobby.setFormat(lobby, format);
+            ok &= check("el lobby esta en " + format, NeoLobby.formatOf(lobby) == format);
+            if (format == NeoFormat.COMMANDER) {
+                // La variante puesta a mano, no solo nuestra lectura: es lo que
+                // hace que se pregunte por la zona de mando y que se pierda a
+                // 21 de danyo de comandante.
+                ok &= check("y la variante Commander esta aplicada de verdad",
+                        NeoLobby.variants(lobby).contains(GameType.Commander));
+            }
 
             // ---- 2. el invitado, en su propio proceso ----
             final AtomicReference<String> guestResult = new AtomicReference<>();
@@ -177,7 +220,8 @@ public final class LobbyCheck {
             final String sharedName = forge.neo.look.NeoLook.playerName();
             System.out.printf(Locale.ROOT,
                     "  Los dos jugadores se llaman \"%s\" (a proposito)%n", sharedName);
-            guestProc = spawnGuest(guestDeck.getName(), sharedName, guestResult);
+            guestProc = spawnGuest(format,
+                    guestDeck == null ? "" : guestDeck.getName(), sharedName, guestResult);
             ok &= check("el proceso del invitado ha arrancado", guestProc != null);
             if (guestProc == null) {
                 return;
@@ -200,14 +244,21 @@ public final class LobbyCheck {
             // dentro del UpdateLobbyPlayerEvent que manda el invitado.
             final boolean guestReady = waitUntil(() -> {
                 final LobbySlot s = lobby.getSlot(guestSeat);
-                return s != null && s.getDeck() != null && s.isReady();
+                return s != null && s.isReady() && (!needsDeck || s.getDeck() != null);
             }, 60_000);
             final LobbySlot remote = lobby.getSlot(guestSeat);
-            ok &= check("el mazo del invitado ha llegado al anfitrion",
-                    guestReady && remote != null && remote.getDeck() != null);
-            if (remote != null && remote.getDeck() != null) {
-                ok &= check("y es el SUYO, no el del anfitrion",
-                        guestDeck.getName().equals(remote.getDeck().getName()));
+            if (needsDeck) {
+                ok &= check("el mazo del invitado ha llegado al anfitrion",
+                        guestReady && remote != null && remote.getDeck() != null);
+                if (remote != null && remote.getDeck() != null) {
+                    ok &= check("y es el SUYO, no el del anfitrion",
+                            guestDeck.getName().equals(remote.getDeck().getName()));
+                }
+            } else {
+                // Sin mazo y listo: en Momir es lo correcto, y es justo lo que
+                // el boton "Listo" de la sala tiene que permitir.
+                ok &= check("el invitado se pone listo SIN mazo (lo monta el motor)",
+                        guestReady && remote != null && remote.getDeck() == null);
             }
 
             // ---- 4. el anfitrion se prepara ----
@@ -217,11 +268,13 @@ public final class LobbyCheck {
             // (LobbySlot.apply no lo cuenta como cambio), y en la sala de
             // verdad eso dejaba al invitado sin poder ponerse "Listo".
             final int updatesBefore = lobbyUpdates.get();
-            for (final UpdateLobbyPlayerEvent e : NeoLobby.deckEvents(hostDeck)) {
-                lobby.applyToSlot(hostSeat, e);
+            if (hostDeck != null) {
+                for (final UpdateLobbyPlayerEvent e : NeoLobby.deckEvents(hostDeck)) {
+                    lobby.applyToSlot(hostSeat, e);
+                }
+                ok &= check("cambiar de mazo avisa (si no, nadie mas se entera)",
+                        lobbyUpdates.get() > updatesBefore);
             }
-            ok &= check("cambiar de mazo avisa (si no, nadie mas se entera)",
-                    lobbyUpdates.get() > updatesBefore);
             lobby.applyToSlot(hostSeat, UpdateLobbyPlayerEvent.isReadyUpdate(true));
 
             // ---- 4-bis. y sienta una IA ----
@@ -234,7 +287,9 @@ public final class LobbyCheck {
             lobby.addSlot();
             final int aiSeat = lobby.getNumberOfSlots() - 1;
             lobby.applyToSlot(aiSeat, NeoLobby.aiSeatEvent(lobby));
-            lobby.applyToSlot(aiSeat, UpdateLobbyPlayerEvent.deckUpdate(hostDeck));
+            if (hostDeck != null) {
+                lobby.applyToSlot(aiSeat, UpdateLobbyPlayerEvent.deckUpdate(hostDeck));
+            }
             lobby.applyToSlot(aiSeat, UpdateLobbyPlayerEvent.isReadyUpdate(true));
             final LobbySlot ai = lobby.getSlot(aiSeat);
             ok &= check("la IA se sienta CON NOMBRE (sin el, no arranca la partida)",
@@ -338,6 +393,7 @@ public final class LobbyCheck {
 
             // ---- 9. la sala, sin red ----
             ok &= checkSeatRemoval();
+            ok &= checkFormats();
             ok &= checkServerPhrases();
             ok &= checkBuildStamp();
             ok &= checkHostChatHasAName();
@@ -448,6 +504,116 @@ public final class LobbyCheck {
         NeoLobby.clearOpenSeats(l);
         ok &= check("un hueco libre no se queda con el mazo del que se fue",
                 l.getSlot(3).getDeck() == null);
+        return ok;
+    }
+
+    /**
+     * El selector de modo del anfitrion.
+     *
+     * <p>Son tres cosas y ninguna se ve en una captura:
+     *
+     * <ol>
+     *   <li><b>Que el modo se pueda volver a leer.</b> {@code formatOf} tiene
+     *       que devolver lo mismo que se puso, y para los SIETE: el invitado no
+     *       recibe {@code currentGameType} — solo el conjunto de variantes — asi
+     *       que si esa lectura falla, su pantalla le ofrece los mazos del modo
+     *       equivocado. Estandar es el caso delicado: es la <b>ausencia</b> de
+     *       variantes, no una variante llamada Constructed.</li>
+     *   <li><b>Que cambiar de modo deje a todos sin mazo y sin "listo".</b> Un
+     *       mazo de Commander en una sala de Estandar no lo rechaza nadie hasta
+     *       que se da a EMPEZAR, y para entonces ya nadie ata el aviso al cambio
+     *       de modo.</li>
+     *   <li><b>Que se reparta.</b> El cambio tiene que provocar un aviso del
+     *       lobby; sin el, el invitado se queda con el modo anterior en
+     *       pantalla y eligiendo el mazo que no es. Es justo lo que pasaria con
+     *       {@code clearVariants()} a secas, que no llama a
+     *       {@code updateView}.</li>
+     * </ol>
+     */
+    private static boolean checkFormats() {
+        final ServerGameLobby l = new ServerGameLobby();
+        final AtomicInteger updates = new AtomicInteger();
+        l.setListener(new forge.interfaces.IUpdateable() {
+            @Override
+            public void update(final boolean fullUpdate) {
+                updates.incrementAndGet();
+            }
+
+            @Override
+            public void update(final int slot, final LobbySlotType type) {
+                updates.incrementAndGet();
+            }
+        });
+
+        boolean ok = true;
+        for (final NeoFormat f : NeoLobby.FORMATS) {
+            NeoLobby.setFormat(l, f);
+            ok &= check("se puede volver a leer el modo: " + f.getLabel(),
+                    NeoLobby.formatOf(l) == f);
+        }
+        // Y el de fabrica, sin que nadie haya elegido nada.
+        ok &= check("una sala recien creada se lee como Estandar",
+                NeoLobby.formatOf(new ServerGameLobby()) == NeoFormat.ESTANDAR);
+
+        // Cambiar de modo borra lo que ya no vale, y avisa.
+        NeoLobby.setFormat(l, NeoFormat.COMMANDER);
+        l.getSlot(0).setDeck(new Deck("mi mazo de Commander"));
+        l.getSlot(0).setIsReady(true);
+        l.getSlot(1).setType(LobbySlotType.REMOTE);
+        l.getSlot(1).setName("Invitado");
+        l.getSlot(1).setDeck(new Deck("el mazo del invitado"));
+        l.getSlot(1).setIsReady(true);
+
+        final int before = updates.get();
+        NeoLobby.setFormat(l, NeoFormat.ESTANDAR);
+        ok &= check("cambiar de modo quita el mazo del anfitrion",
+                l.getSlot(0).getDeck() == null && !l.getSlot(0).isReady());
+        // El asiento remoto es el que no se puede tocar con un evento
+        // (ServerGameLobby.mayEdit dice que no), y es justo el que hay que
+        // limpiar: el invitado tenia su "Listo" puesto sobre otra cosa.
+        ok &= check("y tambien el del invitado, que es el que no se puede editar",
+                l.getSlot(1).getDeck() == null && !l.getSlot(1).isReady());
+        ok &= check("el cambio se reparte (si no, el invitado ve el modo de antes)",
+                updates.get() > before);
+        ok &= check("y la sala ya esta en Estandar",
+                NeoLobby.formatOf(l) == NeoFormat.ESTANDAR);
+
+        // Los dos modos sin mazo, que son los que rompen el "Listo".
+        ok &= check("Momir y MoJhoSto no piden mazo",
+                !NeoLobby.needsDeck(NeoFormat.MOMIR) && !NeoLobby.needsDeck(NeoFormat.MOJHOSTO));
+        ok &= check("y los demas si", NeoLobby.needsDeck(NeoFormat.COMMANDER)
+                && NeoLobby.needsDeck(NeoFormat.ESTANDAR));
+        ok &= check("en Momir no se le busca mazo a la IA",
+                NeoLobby.randomAiDeck(NeoFormat.MOMIR) == null);
+
+        // La IA tiene que poder sentarse en CUALQUIER modo: Brawl, Oathbreaker
+        // y Tiny Leaders no traen preconstruidos, asi que si esto devolviera
+        // null el anfitrion se quedaria sin rival y sin saber por que.
+        for (final NeoFormat f : NeoLobby.FORMATS) {
+            if (!NeoLobby.needsDeck(f)) {
+                continue;
+            }
+            final Deck d = NeoLobby.randomAiDeck(f);
+            System.out.printf(Locale.ROOT, "    IA en %s: %s%n",
+                    f.getLabel(), d == null ? "(sin mazo)" : d.getName());
+            ok &= check("la IA encuentra mazo en " + f.getLabel(), d != null);
+        }
+
+        // Los textos de la fila del modo y del enlace a la guia. Sin esto lo
+        // que sale en pantalla es la clave, que es lo que pasa siempre que se
+        // añade una pantalla y se olvida un idioma.
+        for (final String key : new String[] {"lobby.format", "lobby.format.noDeck",
+                "lobby.format.changed", "lobby.autoDeck",
+                "lobby.wiki", "lobby.wiki.note"}) {
+            ok &= check("el texto " + key + " existe",
+                    !forge.neo.NeoText.get(key).equals(key));
+        }
+        // Y cada modo tiene su nombre y su linea: la fila los usa los dos.
+        for (final NeoFormat f : NeoLobby.FORMATS) {
+            ok &= check("el modo " + f.name() + " tiene nombre y descripcion",
+                    !f.getLabel().isBlank() && !f.getDescription().isBlank()
+                            && !f.getDescription().startsWith("format."));
+        }
         return ok;
     }
 
@@ -636,7 +802,8 @@ public final class LobbyCheck {
      * el invitado falla, el motivo tiene que verse aqui, no perderse en una
      * consola que nadie mira.
      */
-    private static Process spawnGuest(final String deckName, final String guestName,
+    private static Process spawnGuest(final NeoFormat format, final String deckName,
+                                      final String guestName,
                                       final AtomicReference<String> result) {
         try {
             final String java = System.getProperty("java.home")
@@ -656,6 +823,7 @@ public final class LobbyCheck {
             cmd.add("lobbyguest");
             cmd.add("--port=" + PORT);
             cmd.add("--deck=" + deckName);
+            cmd.add("--format=" + format.name());
             cmd.add("--name=" + guestName);
             cmd.add("--wait=" + GAME_TIMEOUT_SECS);
 

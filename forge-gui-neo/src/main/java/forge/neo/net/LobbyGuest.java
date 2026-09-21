@@ -123,21 +123,28 @@ public final class LobbyGuest {
     /**
      * Se conecta, se sienta con su mazo y juega hasta que acabe.
      *
-     * @param args {@code --port=N --deck=nombre --name=texto --wait=segundos}
+     * @param args {@code --port=N --deck=nombre --name=texto --wait=segundos
+     *             --format=COMMANDER}
      */
     public static void run(final String[] args) {
         final int port = intArg(args, "--port", 36799);
         final String deckName = arg(args, "--deck", null);
         final String name = arg(args, "--name", "Invitado");
         final int waitSecs = intArg(args, "--wait", 300);
+        final NeoFormat format = formatArg(args);
 
-        final Deck deck = findDeck(deckName);
-        if (deck == null) {
+        // En Momir y MoJhoSto no hay mazo que mandar: lo monta el motor. Pedir
+        // uno aqui abortaria la prueba por "sin-mazo" en el unico modo en el
+        // que no tener mazo es lo correcto.
+        final boolean needsDeck = NeoLobby.needsDeck(format);
+        final Deck deck = needsDeck ? findDeck(format, deckName) : null;
+        if (needsDeck && deck == null) {
             System.out.println("[invitado] no encuentro el mazo: " + deckName);
             System.out.println(RESULT_PREFIX + "ok=false deltas=0 decisiones=0 motivo=sin-mazo");
             return;
         }
-        System.out.printf(Locale.ROOT, "[invitado] %s juega con %s%n", name, deck.getName());
+        System.out.printf(Locale.ROOT, "[invitado] %s juega a %s con %s%n",
+                name, format, deck == null ? "el mazo que monte el juego" : deck.getName());
 
         // Marca deliberada para la prueba del anfitrion: el invitado pone el
         // auto-pase en TRUE y el anfitrion lo pone en FALSE. Luego se le
@@ -166,7 +173,9 @@ public final class LobbyGuest {
 
             // Su mazo y su "listo" viajan al anfitrion. Es exactamente lo que
             // hara la pantalla cuando la haya.
-            NeoLobby.deckEvents(deck).forEach(guest::send);
+            if (deck != null) {
+                NeoLobby.deckEvents(deck).forEach(guest::send);
+            }
             guest.send(UpdateLobbyPlayerEvent.isReadyUpdate(true));
             System.out.println("[invitado] mazo enviado y listo");
 
@@ -247,9 +256,22 @@ public final class LobbyGuest {
         return null;
     }
 
+    /** El modo del {@code --format=X}, o Commander. Igual que el del anfitrion. */
+    private static NeoFormat formatArg(final String[] args) {
+        final String wanted = arg(args, "--format", null);
+        if (wanted != null && !wanted.isBlank()) {
+            for (final NeoFormat f : NeoLobby.FORMATS) {
+                if (f.name().equalsIgnoreCase(wanted.trim())) {
+                    return f;
+                }
+            }
+        }
+        return NeoFormat.COMMANDER;
+    }
+
     /** Por nombre exacto; si no, el primero que haya. */
-    private static Deck findDeck(final String name) {
-        final List<Deck> decks = NeoFormat.COMMANDER.decks();
+    private static Deck findDeck(final NeoFormat format, final String name) {
+        final List<Deck> decks = format.decks();
         if (decks.isEmpty()) {
             return null;
         }

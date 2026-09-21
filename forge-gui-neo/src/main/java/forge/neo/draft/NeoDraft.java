@@ -40,7 +40,7 @@ import forge.model.FModel;
  *
  * <p>Cero JavaFX aqui dentro, a proposito.
  */
-public final class NeoDraft {
+public final class NeoDraft implements PackSource {
 
     private final IBoosterDraft draft;
     private CardPool pack;

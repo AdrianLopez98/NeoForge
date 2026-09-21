@@ -268,6 +268,38 @@ public final class NeoOnline implements IOnlineLobby, IOnlineChatInterface {
         return client != null;
     }
 
+    /**
+     * Manda un pick del draft en red.
+     *
+     * <p><b>Los dos lados van por caminos distintos y no hay forma de
+     * unificarlos</b>, porque el anfitrion <i>es</i> el servidor: su pick no
+     * tiene que salir a la red, se entrega en mano al
+     * {@code BoosterDraftHost}. El {@code -1} de {@code handleDraftPick} le
+     * dice al servidor "este viene de casa, no compruebes de que cliente
+     * sale" — la comprobacion existe para que un invitado no pueda elegir por
+     * otro, y aqui no hay cliente que comprobar.
+     *
+     * <p>El invitado lo manda por el cable y el servidor lo valida contra su
+     * asiento. Si el paquete se pierde no hay que reintentar nada: al agotarse
+     * el reloj, el servidor elige por el.
+     *
+     * @param lobby el lobby de esta sala, para llegar al servidor si hospedamos
+     */
+    public void sendDraftPick(final GameLobby lobby,
+                              final forge.gamemodes.net.event.DraftPickEvent pick) {
+        if (pick == null) {
+            return;
+        }
+        if (lobby instanceof forge.gamemodes.net.server.ServerGameLobby server) {
+            server.handleDraftPick(pick, -1);
+            return;
+        }
+        final FGameClient c = client;
+        if (c != null) {
+            c.send(pick);
+        }
+    }
+
     /** La direccion que hay que pasarle a los amigos, ya formateada. */
     public static String shareAddress() {
         final List<String[]> all = localAddresses();
