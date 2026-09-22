@@ -1,14 +1,12 @@
-**NeoForge para macOS 1.0.6 (beta).**
+**NeoForge para macOS 1.0.7 (beta).**
 
-Novedades, casi todas salidas de lo que ha reportado la gente:
-- **Ascenso: 54 reliquias**, diecinueve más que antes, y las nuevas **piden un color**: solo te salen las que tu mazo puede usar. Por eso pueden hacer cosas que una reliquia universal no puede — añadir {B}{B}{B} en tu primer turno, crear fichas de Humano al ganar vida, devolver un permanente del cementerio cada turno — y dos runs de colores distintos ya no te ofrecen lo mismo. Las 35 de siempre no piden color y siguen saliendo en todas.
-- **Ascenso: eliges los colores del mazo en Estándar.** Las cinco letras WUBRG en la pantalla de montar la run, hasta dos. Sin marcar nada funciona como hasta ahora.
-- Arreglado: **seis reliquias se disparaban cada turno en vez de una vez.** *Lucky Coin*, que es común, curaba 4 en **cada** mantenimiento. Y por lo mismo, el último aliento del jefe de Ascensión 10 saltaba en su primer turno a vida llena, así que esa mecánica no la había visto nadie.
-- Arreglado: **te ofrecían de premio cartas que no se pueden lanzar** (*Lotus Bloom*, *Mox Tantalite* y cuatro conjuros de Suspender). Parecen un premiazo y son carta muerta.
-- **Oathbreaker ya se puede jugar**: no había forma de poner el hechizo insignia, así que todos los mazos se quedaban en "is missing a signature spell".
-- **Mano recta** (Ajustes → Mano en abanico), para quien vea mal las cartas en ángulo a 1080p.
-- **El registro de la partida** en orden cronológico, abierto por el final y con "Copiar el registro".
-- **Discord**: tu estado dice a qué estás jugando. Encendido de fábrica y apagable en Ajustes.
+Version de arreglos. Todo sale de lo que ha reportado la gente estos dias:
+- **Ascenso: un comandante por nombre** en el selector. Listaba **todas las impresiones** de cada carta (11.090 entradas para 3.726 comandantes), asi que el mismo legendario salia cuatro u ocho veces seguidas. Y eso arreglaba de paso lo que parecia otro fallo: todas esas copias **salian con el mismo arte**.
+- Arreglado tambien, y no lo habia visto nadie: **"Que elija el juego" estaba sesgado**. Sorteaba de esa misma lista sin filtrar, asi que un comandante con ocho ediciones salia ocho veces mas que uno con una, y podia darte una carta rebalanceada de Arena que el selector si esconde.
+- **La flecha de "pagina anterior" ya funciona.** Se decidia si se podia pulsar **una sola vez**, al construir la barra: como entras en la pagina 1, nacia apagada y no se encendia nunca.
+- **Cuando una carta no se puede lanzar, ahora se dice POR QUE.** Antes solo ponia "Ahi no se puede.", que no explica nada. Ahora usa las palabras de la propia carta: *"Ahora mismo no hay ningun objetivo valido: Select target creature spell you control"*.
+- **Ajustes: cuanto crece la carta al pasar el raton** (sin ampliar, 108 %, 120 %, 135 % o 150 %).
+- **La version del motor de Forge, en el menu**, abajo a la izquierda y copiable: es lo que hace falta para reportar un fallo de reglas o de cartas en Card-Forge.
 
 Descarga el `.dmg` de tu Mac:
 

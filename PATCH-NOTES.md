@@ -1,5 +1,57 @@
 # NeoForge — What's new
 
+# Version 3.4
+
+A small fix release. Everything here came from players reporting things in the days
+after 3.3 — thank you.
+
+## Ascent: one entry per commander in the picker
+
+The commander picker was listing **every printing** of a card instead of the card, so the
+same legendary showed up four or eight times in a row: 11,090 entries for 3,726 actual
+commanders. It now shows one per name.
+
+That also fixes something that looked like a separate bug: those duplicates all showed
+**the same artwork**. When the exact printing isn't in your image cache, the art falls back
+to a lookup by card name, so every printing drew the same illustration.
+
+And a third one nobody had spotted: **"Let the game choose" was drawing from that same
+unfiltered list**, so a commander with eight printings was eight times more likely to come
+up than one with a single printing — and it could hand you an Arena-rebalanced card that
+the picker itself hides. The button and the list now offer the same thing.
+
+## Ascent: the "previous page" button works
+
+The arrows worked out whether they should be clickable **once**, when the bar was built. You
+start on page 1 with "previous" disabled, so it never turned back on; "next" started enabled,
+which is why paging forward worked and paging back didn't. The same gap left the page counter
+stale after a search.
+
+## When a card can't be cast, we now tell you why
+
+Clicking a card you can't cast used to say only **"Not there."**, which explains nothing — so
+the reasonable conclusion was that the game was broken. It now gives the actual reason, using
+the card's own words: *"There is no legal target right now: Select target creature spell you
+control."*
+
+That example is real. A player reported *Double Major* as a bug because it wouldn't let them
+pick a creature — it copies a creature **spell on the stack**, not a creature on the
+battlefield, and their stack was empty. The card was right; our message wasn't.
+
+## Settings: how much a card grows on mouse over
+
+**Settings → Enlarge the card on mouse over**: off, 108% (what it always was), 120%, 135% or
+150%. It has a ceiling on purpose — beyond that it starts doing right-click's job, and then
+two gestures mean the same thing.
+
+## The Forge engine version is on the main menu
+
+Bottom left: **Forge 2.0.15-SNAPSHOT · 2026-09-22**, and you can select and copy it. If you
+hit something that's a rules or card bug rather than an interface one, that's the line
+Card-Forge will ask you for. It updates itself whenever the engine is rebuilt.
+
+---
+
 # Version 3.3
 
 ## Ascent: relics that know what colours you play

@@ -180,6 +180,30 @@ public class SettingsPanel extends VBox {
                     NeoSettings.save();
                 }));
 
+        // --- cuanto crece la carta al pasar el raton ---
+        //
+        // Pedido por un jugador el 22-09-2026: "an option to enlarge the card a
+        // bit on mouse over, not as much as with right click". El 8 % de
+        // siempre se queda corto en pantallas grandes y sobra en las pequenyas,
+        // asi que se pregunta en vez de subirlo para todos. El tope (150 %) es
+        // a proposito: mas alla el hover se come al clic derecho, y entonces
+        // son dos gestos para lo mismo.
+        final int[] hoverPcts = {100, 108, 120, 135, 150};
+        final String[] hoverLabels = new String[hoverPcts.length];
+        for (int i = 0; i < hoverPcts.length; i++) {
+            hoverLabels[i] = hoverPcts[i] == 100
+                    ? NeoText.get("settings.hoverZoom.off") : hoverPcts[i] + "%";
+        }
+        final int hoverNow = (int) Math.round(NeoSettings.hoverZoom() * 100);
+        getChildren().add(choiceRow(NeoText.get("settings.hoverZoom"), hoverLabels,
+                hoverNow == 100 ? NeoText.get("settings.hoverZoom.off") : hoverNow + "%",
+                v -> {
+                    final int pct = v.endsWith("%")
+                            ? Integer.parseInt(v.replace("%", "")) : 100;
+                    NeoSettings.setInt(NeoSettings.HOVER_ZOOM, pct);
+                    NeoSettings.save();
+                }));
+
         // --- la mano en abanico ---
         //
         // Encendido de fabrica. Apagarlo pone las cartas rectas: pierdes la

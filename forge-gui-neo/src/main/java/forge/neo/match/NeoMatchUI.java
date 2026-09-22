@@ -5231,7 +5231,12 @@ public class NeoMatchUI extends NetworkGuiGame {
     @Override
     public void flashIncorrectAction() {
         trace("accion incorrecta");
-        showWhy(NeoText.get("why.incorrect"));
+        // Y si se puede, DICIENDO POR QUE. "Ahi no se puede." no explica nada,
+        // y quien clica una carta que no responde concluye —con razon— que el
+        // juego esta roto: paso con Double Major, que apunta a un hechizo en la
+        // pila y con la pila vacia no tiene objetivo. Ver CantPlay.
+        final String why = CantPlay.reason(getGameController(), lastClicked);
+        showWhy(why != null ? why : NeoText.get("why.incorrect"));
     }
 
     @Override public void alertUser() { }

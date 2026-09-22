@@ -248,9 +248,28 @@ public class MainMenu extends BorderPane {
         quit.getStyleClass().add("btn-secondary");
         quit.setOnAction(e -> actions.quit());
 
+        // Que motor se esta jugando, abajo a la izquierda. Pedido por un
+        // jugador el 22-09-2026: cuando falla una carta o una regla el fallo es
+        // DEL MOTOR, y para reportarlo en Card-Forge hay que decir contra que
+        // version pasa — el instalador oficial lo lleva en el nombre del
+        // fichero y aqui no habia forma de saberlo. Se sella al compilar, asi
+        // que se actualiza solo con cada actualizar.bat. Ver NeoVersion.
+        final String engine = forge.neo.NeoVersion.engineLabel();
         final Region gap = new Region();
         HBox.setHgrow(gap, Priority.ALWAYS);
-        final HBox footer = new HBox(10, gap, settings, quit);
+        final HBox footer = new HBox(10);
+        if (engine != null) {
+            // Se puede seleccionar con el raton: quien vaya a abrir un informe
+            // en Card-Forge tiene que poder copiarlo, y un Label normal no deja.
+            final javafx.scene.control.TextField copiable =
+                    new javafx.scene.control.TextField(engine);
+            copiable.setEditable(false);
+            copiable.getStyleClass().add("home-version");
+            copiable.setPrefWidth(new javafx.scene.text.Text(engine)
+                    .getLayoutBounds().getWidth() + 18);
+            footer.getChildren().add(copiable);
+        }
+        footer.getChildren().addAll(gap, settings, quit);
         footer.getStyleClass().add("home-footer");
         footer.setPadding(new Insets(16, 30, 22, 30));
         footer.setAlignment(Pos.CENTER_RIGHT);

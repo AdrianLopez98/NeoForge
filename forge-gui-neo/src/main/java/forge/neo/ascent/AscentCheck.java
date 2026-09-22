@@ -102,6 +102,7 @@ public final class AscentCheck {
             reliquiasPorColor();
             siluetasDistinguibles();
             coloresDelMazoDeEstandar();
+            comandantesSinDuplicados();
             singletonEnCommander();
             calidadDelPremio();
             sinergia();
@@ -2554,6 +2555,116 @@ public final class AscentCheck {
             }
         } finally {
             run.discard();
+        }
+    }
+
+    /**
+     * Que el selector de comandante ensenye <b>uno por nombre</b>, y que "que
+     * elija el juego" saque de esa misma lista.
+     *
+     * <h2>El fallo</h2>
+     *
+     * <p>Reportado jugando el 22-09-2026: <i>"can it display only one commander
+     * per card name? the duplicates fill too much room and made it hard to
+     * choose"</i>. {@code FModel.getCommanderPool()} se construye con
+     * {@code getAllCards()}, o sea <b>una entrada por impresion</b>: el mismo
+     * legendario salia cuatro u ocho veces seguidas. 11.054 entradas para unos
+     * 10.800 comandantes.
+     *
+     * <p>El mismo reporte traia un segundo sintoma que parecia otro fallo —
+     * <i>"muestra todo el rato el mismo arte"</i> — y era este: sin la impresion
+     * exacta en la cache, {@code CardImages} cae en {@code OfflineArt}, que
+     * resuelve por NOMBRE, asi que las ocho impresiones pintaban la misma
+     * ilustracion. A quien las tiene bajadas no le pasa.
+     *
+     * <p>Y un tercero que no habia visto nadie: {@link
+     * AscentSeedDeck#randomCommander} tiraba del pozo <b>en crudo</b>, asi que
+     * un comandante con ocho ediciones salia ocho veces mas que uno con una, y
+     * ademas podian tocarte las cartas rebalanceadas de Arena que el selector
+     * si esconde. Un sesgo asi no se nota jugando: hacen falta muchas tiradas
+     * para sospechar, y para entonces ya has decidido que el modo repite.
+     */
+    private static void comandantesSinDuplicados() {
+        final List<PaperCard> pool = AscentSeedDeck.commanderPool();
+        if (pool.size() < 1000) {
+            fail("comandantes: el pozo trae solo " + pool.size() + ", algo lo esta vaciando");
+            return;
+        }
+
+        // ⚠️ Y que no se haya perdido NADIE por el camino. Deduplicar es quitar
+        // filas, y una dedup mal hecha se lleva comandantes por delante sin que
+        // nada falle: la pantalla sigue llena y nadie echa de menos una carta
+        // entre miles. Asi que se cuentan los nombres distintos del pozo EN
+        // CRUDO y tienen que salir los mismos.
+        final Set<String> enCrudo = new HashSet<>();
+        for (final Map.Entry<PaperCard, Integer> e : forge.model.FModel.getCommanderPool()) {
+            final PaperCard c = e.getKey();
+            if (!c.isRebalanced() && !c.getName().startsWith("A-")) {
+                enCrudo.add(c.getName());
+            }
+        }
+        if (pool.size() != enCrudo.size()) {
+            fail("comandantes: el pozo en crudo tiene " + enCrudo.size() + " nombres distintos"
+                    + " y el selector ensenya " + pool.size() + "; deduplicar ha perdido "
+                    + (enCrudo.size() - pool.size()));
+        } else {
+            ok("comandantes: los " + enCrudo.size() + " nombres del pozo siguen estando"
+                    + " (de " + forge.model.FModel.getCommanderPool().countAll()
+                    + " entradas por impresion)");
+        }
+
+        final Map<String, Integer> veces = new LinkedHashMap<>();
+        final List<String> rebalanceadas = new ArrayList<>();
+        for (final PaperCard c : pool) {
+            veces.merge(c.getName(), 1, Integer::sum);
+            if (c.isRebalanced() || c.getName().startsWith("A-")) {
+                rebalanceadas.add(c.getName());
+            }
+        }
+        final List<String> repes = new ArrayList<>();
+        for (final Map.Entry<String, Integer> e : veces.entrySet()) {
+            if (e.getValue() > 1) {
+                repes.add(e.getKey() + " x" + e.getValue());
+            }
+        }
+        if (!repes.isEmpty()) {
+            fail("comandantes: " + repes.size() + " nombre(s) salen mas de una vez en el"
+                    + " selector: " + String.join(", ", repes.subList(0, Math.min(5, repes.size()))));
+        } else {
+            ok("comandantes: " + pool.size() + " en el selector y ni un nombre repetido");
+        }
+        if (!rebalanceadas.isEmpty()) {
+            fail("comandantes: " + rebalanceadas.size() + " rebalanceadas de Arena en el selector");
+        }
+
+        // Y el sorteo, que tiene que salir de la MISMA lista. Con muestra
+        // grande: un sesgo por impresiones no se ve en diez tiradas.
+        final Set<String> nombres = new HashSet<>();
+        for (final PaperCard c : pool) {
+            nombres.add(c.getName());
+        }
+        int fuera = 0;
+        int rebal = 0;
+        for (int i = 0; i < 400; i++) {
+            final PaperCard c = AscentSeedDeck.randomCommander();
+            if (c == null) {
+                fail("comandantes: el sorteo ha devuelto null");
+                return;
+            }
+            if (!nombres.contains(c.getName())) {
+                fuera++;
+            }
+            if (c.isRebalanced() || c.getName().startsWith("A-")) {
+                rebal++;
+            }
+        }
+        if (fuera > 0 || rebal > 0) {
+            fail("comandantes: de 400 sorteos, " + fuera + " no estaban en el selector y "
+                    + rebal + " eran rebalanceadas de Arena; el sorteo y la lista no"
+                    + " ofrecen lo mismo");
+        } else {
+            ok("comandantes: 400 sorteos de \"que elija el juego\", todos dentro del selector"
+                    + " y ninguno rebalanceado");
         }
     }
 
