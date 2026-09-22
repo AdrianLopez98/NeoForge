@@ -390,6 +390,26 @@ public final class NeoSettings {
     }
 
     /**
+     * Si Discord ensenya a tus amigos que estas jugando. Ver
+     * {@code forge.neo.discord.DiscordRich}.
+     *
+     * <p><b>Encendido de fabrica</b>, que es lo que hace cualquier juego y es
+     * lo que pedia quien lo pidio. Se puede porque por encima de esto manda el
+     * interruptor del propio Discord ("Mostrar la actividad actual"), que el
+     * jugador ya controla: nadie acaba ensenyando nada sin tener donde
+     * apagarlo. Y lo que se ensenya esta elegido para que no cuente de nadie —
+     * ni nombres de rival, ni de mazo (ver {@code DiscordStatus}).
+     *
+     * <p>Sin Discord abierto no hace absolutamente nada, que es el caso de casi
+     * todo el mundo.
+     */
+    public static final String DISCORD = "discordRichPresence";
+
+    public static boolean discord() {
+        return getBool(DISCORD, true);
+    }
+
+    /**
      * Si el panel de detalle esta encendido.
      *
      * <p>{@code -Dneo.hoverDetail=true} lo enciende sin escribir en las

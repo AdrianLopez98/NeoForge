@@ -89,8 +89,13 @@ public final class AscentRelicCheck {
         private int counter;
         private boolean selfExiled;
         private int startingLife = -1;
-        private final List<String> board = new ArrayList<>();
+        private final List<List<String>> board = new ArrayList<>();
         private boolean byTrigger;
+        private boolean once;
+        private int tokens;
+        private int oppLife;
+        private int blockExtra;
+        private String cannotSee;
 
         Spec(final String id) {
             this.id = id;
@@ -148,7 +153,41 @@ public final class AscentRelicCheck {
          * nada.
          */
         Spec board(final String... names) {
-            board.addAll(Arrays.asList(names));
+            // Cada llamada es UNA ranura; los nombres de dentro son
+            // alternativas de esa ranura. Llamarlo dos veces pone dos cartas —
+            // que es como se consiguen las 6 vidas por turno que necesita
+            // seraphs_accord, o los 3 molinos por turno de charnel_mound.
+            board.add(Arrays.asList(names));
+            return this;
+        }
+
+        /** Tienes n fichas de criatura en la mesa. */
+        Spec token(final int n) {
+            tokens = n;
+            return this;
+        }
+
+        /** El rival ha perdido n vidas (y no por un ataque tuyo: la sonda no ataca). */
+        Spec oppLife(final int n) {
+            oppLife = n;
+            return this;
+        }
+
+        /** Tus criaturas pueden bloquear n criaturas de mas. */
+        Spec blockExtra(final int n) {
+            blockExtra = n;
+            return this;
+        }
+
+        /**
+         * No se puede ver jugando, y <b>por que</b>.
+         *
+         * <p>Se declara a mano y con el motivo escrito, como las dos de
+         * adivinar. Callarselo seria peor: asi queda negro sobre blanco cuales
+         * son las unicas que no estan cubiertas, y que no es por olvido.
+         */
+        Spec cannotSee(final String why) {
+            cannotSee = why;
             return this;
         }
 
@@ -173,11 +212,37 @@ public final class AscentRelicCheck {
             return this;
         }
 
+        /**
+         * Solo se dispara <b>una vez por partida</b>, no cada turno.
+         *
+         * <p>Lo llevan las que dicen <i>"at the beginning of your FIRST
+         * upkeep"</i>. Hace falta declararlo porque el resto del comprobador
+         * mira si el efecto <b>ocurre</b>, y se para en cuanto lo ve: una
+         * reliquia que se dispara todos los turnos pasa <b>exactamente igual</b>
+         * que una que se dispara una. Fallo real (22-09-2026): las cuatro de
+         * "primer mantenimiento" llevaban la condicion en {@code
+         * ConditionCheckSVar}, que en una linea {@code T:} <b>el motor ni
+         * lee</b> — o sea sin condicion — y <i>Lucky Coin</i>, una comun,
+         * curaba 4 cada turno: mas que su legendaria equivalente.
+         */
+        Spec once() {
+            once = true;
+            return this;
+        }
+
         /** Se exilia a si misma al dispararse (el "segundo aliento" del jefe). */
         Spec selfExiled(final int withLife) {
             selfExiled = true;
             startingLife = withLife;
             return this;
+        }
+
+        /** Si lo unico que se declara es que el disparo se resuelva. */
+        boolean onlyTrigger() {
+            return byTrigger && power == 0 && toughness == 0 && keywords.isEmpty()
+                    && playerKeyword == null && life == 0 && draw == 0 && mana == 0
+                    && counter == 0 && tokens == 0 && oppLife == 0 && blockExtra == 0
+                    && !selfExiled;
         }
 
         /** Que se ve, para poder decirlo cuando falle. */
@@ -204,6 +269,25 @@ public final class AscentRelicCheck {
             }
             if (selfExiled) {
                 bits.add("se exilia sola");
+            }
+            if (once) {
+                bits.add("una sola vez");
+            }
+            if (tokens > 0) {
+                bits.add(tokens + " ficha(s)");
+            }
+            if (oppLife > 0) {
+                bits.add("el rival pierde " + oppLife);
+            }
+            if (blockExtra > 0) {
+                bits.add("bloquea " + blockExtra + " de mas");
+            }
+            if (bits.isEmpty() && byTrigger) {
+                // ⚠️ Sin esto what() sale VACIA y probar() la manda al hueco de
+                // adivinar: la reliquia se saltaba con un motivo que ademas era
+                // mentira. Cazado el 22-09-2026 con las cinco nuevas que solo
+                // declaran byTrigger.
+                bits.add("el disparo se resuelve");
             }
             return String.join(", ", bits);
         }
@@ -250,13 +334,13 @@ public final class AscentRelicCheck {
                 new Spec("warden_seal").life(2),
                 new Spec("phoenix_heart").life(3),
                 new Spec("chalice_of_ages").life(4),
-                new Spec("lucky_coin").life(4),
+                new Spec("lucky_coin").life(4).once(),
 
                 // --- robar ---
                 new Spec("the_infinite_tome").draw(1),
-                new Spec("wanderers_compass").draw(1),
-                new Spec("oracle_lens").draw(2),
-                new Spec("hourglass_of_kings").draw(3),
+                new Spec("wanderers_compass").draw(1).once(),
+                new Spec("oracle_lens").draw(2).once(),
+                new Spec("hourglass_of_kings").draw(3).once(),
                 // Necesita que una criatura TUYA muera, y el humano de la
                 // sonda no ataca ni bloquea. Ball Lightning se sacrifica sola
                 // al final de cada turno, sin que nadie decida nada: es la
@@ -282,6 +366,82 @@ public final class AscentRelicCheck {
                 // --- adivinar: no se puede ver desde fuera (ver abajo) ---
                 new Spec("scouts_map"),
                 new Spec("chronicle_page"),
+
+                // ==========================================================
+                //  Las de COLOR (22-09-2026)
+                // ==========================================================
+                //
+                // Estas hacen cosas que las 35 de siempre no hacian, asi que
+                // casi todas necesitan una carta en la mesa que PROVOQUE el
+                // efecto: el humano de la sonda no lanza, no ataca y no
+                // bloquea, o sea que nada pasa por si solo. Cada ayudante esta
+                // elegido por ser automatico y no pedir ninguna decision.
+
+                // --- blancas ---
+                // Entra en juego con la partida: no hace falta provocar nada.
+                new Spec("recruiters_pennant").token(1),
+                // Bitterblossom crea un Hada CADA mantenimiento y no es
+                // opcional: es la unica forma de que entre una criatura sin
+                // que nadie decida nada.
+                new Spec("chalice_of_welcome").life(1)
+                        .board("Bitterblossom", "Ophiomancer"),
+                // Celestial Force da 3 vidas en cada mantenimiento, sola.
+                new Spec("reliquary_of_dawn").token(1).board("Celestial Force"),
+                new Spec("ledger_of_mercies").draw(1).board("Celestial Force"),
+                // DOS Celestial Force = 6 vidas por turno, que es lo que pide
+                // el umbral de 4 de esta.
+                new Spec("seraphs_accord").token(1)
+                        .board("Celestial Force").board("Celestial Force"),
+                new Spec("heralds_laurel").kw("Renown"),
+                new Spec("bulwark_pauldron").blockExtra(1),
+                new Spec("shepherds_lantern").byTrigger().board("Bitterblossom"),
+                // Ball Lightning se sacrifica sola al final de cada turno y
+                // cuesta 3, o sea que deja en el cementerio justo lo que esta
+                // reliquia sabe devolver.
+                new Spec("gravebound_censer").byTrigger()
+                        .board("Ball Lightning", "Blistering Firecat", "Spark Elemental"),
+                // Dos Hadas comparten tipo, asi que cada una se lleva +1/+1.
+                new Spec("standard_of_kin").pump(1, 1).board("Bitterblossom"),
+                // El humano de la sonda no ataca, y esto pide atacar.
+                new Spec("muster_horn").cannotSee(
+                        "pide atacar con dos criaturas y el humano de la sonda no ataca"),
+
+                // --- negras ---
+                // Que se muera una criatura DEL RIVAL sin que nadie ataque ni
+                // bloquee. The Abyss destruye una criatura del jugador ACTIVO
+                // en cada mantenimiento, obligatorio y sin elegir nada: o sea
+                // una criatura del rival en cada turno suyo, para siempre.
+                //
+                // Dos que parecian valer y NO valen: Braids deja entregar "un
+                // artefacto, criatura o tierra" y la IA da una tierra; y
+                // Ball Lightning + Grave Pact solo dispara UNA vez (el rayo
+                // muere en el primer turno y ya no vuelve), justo cuando el
+                // rival todavia no tiene criaturas que sacrificar.
+                new Spec("gravecallers_tithe").life(1).board("The Abyss"),
+                new Spec("widows_toll").byTrigger().board("The Abyss"),
+                new Spec("rotting_hourglass").byTrigger(),
+                // Cuatro Nyx Weaver = 8 cartas al cementerio en tu primer
+                // mantenimiento, o sea el umbral de 7 cruzado antes del primer
+                // paso final.
+                //
+                // ⚠️ Bloodcurdler parecia el ayudante obvio (mila 1 en cada
+                // mantenimiento) y es el peor posible: al llegar a 7 cartas
+                // gana "al principio de tu paso final, exilia dos cartas de tu
+                // cementerio", o sea que compite con esta misma reliquia y le
+                // vacia el cementerio justo al cruzar el umbral. Medido: el
+                // cementerio bajaba de 6 a 2 solo.
+                new Spec("charnel_mound").token(1)
+                        .board("Nyx Weaver", "Splinterfright").board("Nyx Weaver", "Splinterfright")
+                        .board("Nyx Weaver", "Splinterfright").board("Nyx Weaver", "Splinterfright"),
+                // El rival roba cada turno, asi que esto dispara solo. Y la
+                // vida que pierde es atribuible: la sonda no ataca.
+                new Spec("whispering_debt").oppLife(1),
+                new Spec("midnight_offering").mana(3).byTrigger(),
+                new Spec("tyrants_mirror").byTrigger(),
+                // Pide TAPAR un pantano para mana, y el humano de la sonda no
+                // lanza nada, asi que no llega a tapar una tierra en su vida.
+                new Spec("coffers_key").cannotSee(
+                        "pide tapar un pantano para mana y el humano de la sonda no lanza nada"),
 
                 // --- el segundo aliento del jefe (Ascension 10) ---
                 new Spec("cornered_fury").pump(2, 2).selfExiled(15),
@@ -344,7 +504,99 @@ public final class AscentRelicCheck {
             }
             probar(spec, deck);
         }
+
+        // 3. Y AHORA, con partidas jugadas detras, mirar que ninguna reliquia
+        //    se haya colado en el pozo de premios. Aqui y no en AscentCheck:
+        //    ver el javadoc.
+        reliquiasFueraDelPremio();
         resumen();
+    }
+
+    /**
+     * Que el <b>premio de un nodo</b> no ofrezca nunca una reliquia como carta
+     * de mazo.
+     *
+     * <h2>El fallo que viene a tapar</h2>
+     *
+     * <p>Reportado jugando (22-09-2026): <i>"sometimes player artifacts are
+     * added as playing card and they are only discard fodder since they cant be
+     * used"</i>. Y es literal: una reliquia es una carta nuestra con
+     * {@code ManaCost:no cost}, o sea que <b>en la mano no se puede lanzar</b>.
+     * Metida en el mazo no es una carta mala: es una carta muerta, y en un mazo
+     * de 30 eso es una carta menos para el resto de la run.
+     *
+     * <p>Puede pasar porque el filtro vive en <b>un solo camino</b> y no es
+     * este: {@code CardIndex.withoutOurCustomCards} saca las reliquias del
+     * catalogo del <i>deck builder</i>, pero {@code AscentRewards} lee
+     * {@code getCommonCards().getUniqueCards()} <b>en crudo</b>. El principio 8
+     * al reves. Y son <b>incoloras</b>, o sea que el filtro de color del pozo
+     * las deja pasar con cualquier comandante, en todas las runs.
+     *
+     * <h2>⚠️ Por que esto vive aqui y no en {@code AscentCheck}</h2>
+     *
+     * <p>Porque {@code CardDb.addCard} <b>no reindexa</b>: mete la carta en
+     * {@code allCardsByName} y se va. {@code getUniqueCards()} lee otro mapa,
+     * {@code uniqueCardsByRules}, que solo se rehace cuando el motor carga
+     * cartas — o sea <b>cuando se juega</b>. Medido: en {@code ascentcheck},
+     * que no juega ninguna partida antes, las reliquias visibles en el catalogo
+     * son <b>0 de 37</b>, asi que el comprobador pasaba en verde <i>sin mirar
+     * nada</i>. Es el mismo verde vacio que ya enganyo una vez en
+     * {@code DeckRulesCheck}. Aqui detras van 37 partidas, que es justo la
+     * condicion que hace falta — y se dice cuantas se ven, para que un verde
+     * vacio no pueda volver a disfrazarse de verde.
+     */
+    private static void reliquiasFueraDelPremio() {
+        final java.util.Set<String> nuestras = AscentRelics.allCardNames();
+        int visibles = 0;
+        for (final PaperCard c : forge.model.FModel.getMagicDb()
+                .getCommonCards().getUniqueCards()) {
+            if (nuestras.contains(c.getName())) {
+                visibles++;
+            }
+        }
+        if (visibles == 0) {
+            skip("premio: el motor no tiene ninguna reliquia en el catalogo todavia,"
+                    + " asi que mirar el pozo no demostraria nada");
+            return;
+        }
+
+        PaperCard cmd = null;
+        for (final PaperCard c : AscentSeedDeck.commanderPool()) {
+            cmd = c;
+            break;
+        }
+        if (cmd == null) {
+            fail("premio: no hay comandantes en el pozo");
+            return;
+        }
+        final AscentRun run = AscentRun.begin(AscentRun.Mode.COMMANDER, 0, 40, cmd);
+        try {
+            // Por los TRES actos: el pozo cambia de rareza con la altura, asi
+            // que mirar solo el acto 1 dejaria sin ver dos tercios de lo que
+            // una run llega a ofrecer.
+            final List<String> coladas = new ArrayList<>();
+            int vistas = 0;
+            for (int acto = 1; acto <= 3; acto++) {
+                final List<PaperCard> muestra =
+                        AscentRewards.offer(run, acto, new java.util.Random(1000L + acto), 400);
+                vistas += muestra.size();
+                for (final PaperCard c : muestra) {
+                    if (nuestras.contains(c.getName()) && !coladas.contains(c.getName())) {
+                        coladas.add(c.getName());
+                    }
+                }
+            }
+            if (coladas.isEmpty()) {
+                ok("premio: con las " + visibles + " reliquias visibles en el catalogo, ninguna"
+                        + " se ofrece como carta de mazo (" + vistas + " cartas, tres actos)");
+            } else {
+                fail("premio: " + coladas.size() + " reliquia(s) se ofrecen como carta de mazo y"
+                        + " no se pueden lanzar (ManaCost:no cost): "
+                        + String.join(", ", coladas));
+            }
+        } finally {
+            run.discard();
+        }
     }
 
     /** El id del script del segundo aliento de ese modo. */
@@ -382,6 +634,10 @@ public final class AscentRelicCheck {
             fail(spec.id + ": no esta registrada, el motor no la encuentra");
             return;
         }
+        if (spec.cannotSee != null) {
+            skip(spec.id + ": " + spec.cannotSee);
+            return;
+        }
         if (spec.what().isEmpty()) {
             skip(spec.id + ": adivinar no lo publica el motor, no se puede ver desde fuera");
             return;
@@ -392,11 +648,11 @@ public final class AscentRelicCheck {
         final String[] visto = {null};
 
         final List<PaperCard> board = new ArrayList<>();
-        if (!spec.board.isEmpty()) {
-            final PaperCard helper = firstThatExists(spec.board);
+        for (final List<String> ranura : spec.board) {
+            final PaperCard helper = firstThatExists(ranura);
             if (helper == null) {
                 fail(spec.id + ": no existe ninguna de las cartas que hacen falta para verla ("
-                        + String.join(", ", spec.board) + ")");
+                        + String.join(", ", ranura) + ")");
                 return;
             }
             board.add(helper);
@@ -411,11 +667,89 @@ public final class AscentRelicCheck {
                 true, poll, game -> cumple(game, spec, card.getName(), baseLife, visto));
 
         if (r.reached) {
+            // Y las de "primer mantenimiento", una SEGUNDA partida para ver
+            // que no vuelve a pasar. Ver Spec#once().
+            if (spec.once && !soloUnaVez(spec, deck, card, life)) {
+                return;
+            }
             ok(spec.id + " (" + spec.what() + "): " + visto[0]);
         } else {
             fail(spec.id + " (" + spec.what() + ") NO hace lo que dice: " + r.why
                     + " — ¿script mal escrito? Forge NO avisa de eso");
         }
+    }
+
+    /** Hasta que turno TUYO se vigila que la reliquia no se repita. */
+    private static final int TURNOS_VIGILADOS = 3;
+
+    /**
+     * Que una reliquia de "primer mantenimiento" <b>no vuelva a dispararse</b>.
+     *
+     * <h2>Por que hace falta una segunda partida</h2>
+     *
+     * <p>La primera se para en cuanto ve el efecto ({@code stopOnHit}), que es
+     * lo que la hace rapida — y por eso no puede contestar esta pregunta: en el
+     * momento en que mira, una reliquia rota y una buena son indistinguibles.
+     * Las dos han curado 4. La diferencia esta en el turno siguiente.
+     *
+     * <p>Asi que esta corrida <b>no se para en el efecto</b>: se para cuando
+     * sabe la respuesta, sea cual sea. Si el efecto vuelve a ocurrir en un
+     * turno que no es el primero, rojo; si llegas al turno
+     * {@value #TURNOS_VIGILADOS} sin que ocurra, verde. No hace falta jugar la
+     * partida entera: el fallo que caza es un disparo <b>sin condicion</b>, y
+     * uno de esos salta en el primer mantenimiento que le toca.
+     */
+    private static boolean soloUnaVez(final Spec spec, final Deck deck,
+                                      final PaperCard card, final int life) {
+        final String[] veredicto = {null};
+        final AscentProbe.Result r = AscentProbe.play("repite-" + spec.id,
+                EnumSet.of(GameType.Commander), deck, life, null, List.of(card), List.of(),
+                true, 100L, game -> {
+                    final Player me = mine(game);
+                    // El primer turno es el suyo POR CONTRATO: lo que se busca
+                    // es el segundo.
+                    if (me == null || me.getTurn() < 2) {
+                        return false;
+                    }
+                    if (repitio(me, spec)) {
+                        veredicto[0] = "repite";
+                        return true;
+                    }
+                    if (me.getTurn() >= TURNOS_VIGILADOS) {
+                        veredicto[0] = "no repite";
+                        return true;
+                    }
+                    return false;
+                });
+
+        if (!r.reached) {
+            fail(spec.id + ": no se ha podido comprobar si se repite (" + r.why + ")");
+            return false;
+        }
+        if ("repite".equals(veredicto[0])) {
+            fail(spec.id + ": su texto dice \"first upkeep\" pero se dispara TODOS los turnos"
+                    + " — el disparo se ha quedado sin condicion, y Forge NO avisa de eso");
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Si el efecto ha vuelto a ocurrir en un turno que <b>no</b> es el primero.
+     *
+     * <p>Se mide con los contadores del turno y no con el total: el total lo
+     * tapa un ataque de la IA (la vida) y no distingue el robo del turno (las
+     * cartas). Robar se pide otra vez con {@code +1} por lo mismo que en la
+     * primera partida — esa carta la roba el paso de robo de todas formas.
+     */
+    private static boolean repitio(final Player me, final Spec spec) {
+        if (spec.life > 0) {
+            return me.getLifeGainedThisTurn() >= spec.life;
+        }
+        if (spec.draw > 0) {
+            return me.getNumDrawnThisTurn() >= spec.draw + 1;
+        }
+        return false;
     }
 
     // ------------------------------------------------------------------
@@ -435,12 +769,58 @@ public final class AscentRelicCheck {
             return false;
         }
 
+        if (spec.onlyTrigger()) {
+            // ⚠️ Tiene que salir ANTES del bucle de criaturas de abajo: alli se
+            // compara contra +0/+0 y sin palabras clave, o sea que CUALQUIER
+            // criatura tuya daria verde. Una reliquia que solo declara
+            // byTrigger se comprueba por el registro y por nada mas.
+            return byTrigger(game, spec, cardName, visto);
+        }
+
         if (spec.playerKeyword != null) {
             if (!me.hasKeyword(spec.playerKeyword)) {
                 return false;
             }
             visto[0] = "tienes " + spec.playerKeyword;
             return true;
+        }
+
+        if (spec.tokens > 0) {
+            int fichas = 0;
+            for (final Card c : me.getCardsIn(ZoneType.Battlefield)) {
+                if (c.isCreature() && c.isToken()) {
+                    fichas++;
+                }
+            }
+            if (fichas >= spec.tokens) {
+                visto[0] = fichas + " ficha(s) de criatura en tu mesa";
+                return true;
+            }
+            return false;
+        }
+
+        if (spec.oppLife > 0) {
+            // La vida del rival, no la tuya. Es atribuible porque el humano de
+            // la sonda NO ataca: si baja, ha bajado por la reliquia.
+            for (final Player p : game.getPlayers()) {
+                if (p != me && p.getStartingLife() - p.getLife() >= spec.oppLife) {
+                    visto[0] = "el rival ha bajado de " + p.getStartingLife()
+                            + " a " + p.getLife();
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        if (spec.blockExtra > 0) {
+            for (final Card c : me.getCardsIn(ZoneType.Battlefield)) {
+                if (c.isCreature() && c.canBlockAdditional() >= spec.blockExtra) {
+                    visto[0] = c.getName() + " puede bloquear "
+                            + c.canBlockAdditional() + " criatura(s) de mas";
+                    return true;
+                }
+            }
+            return false;
         }
 
         if (spec.life > 0) {
@@ -462,7 +842,16 @@ public final class AscentRelicCheck {
             // +1 por el robo normal del turno: pedir solo spec.draw daria verde
             // con la reliquia rota, porque esa carta la roba el turno de todas
             // formas.
-            final int need = spec.draw + 1;
+            //
+            // ⚠️ Salvo en el turno 1 de la partida, porque el que SALE no roba
+            // ese turno. A una reliquia de "primer mantenimiento" eso le pasa
+            // la mitad de las veces, asi que pedir siempre +1 hacia que el
+            // comprobador saliera verde o rojo segun quien ganase el sorteo de
+            // salida — y un rojo que va y viene es peor que un rojo fijo:
+            // acabas mirando el script bueno. Cazado el 22-09-2026, cuando
+            // wanderers_compass y oracle_lens pasaron en --solo y fallaron en
+            // la bateria: la unica diferencia era que Ana salio segundo.
+            final int need = spec.draw + (game.getPhaseHandler().getTurn() == 1 ? 0 : 1);
             if (me.getNumDrawnThisTurn() >= need) {
                 visto[0] = "has robado " + me.getNumDrawnThisTurn() + " este turno";
                 return true;
@@ -505,7 +894,7 @@ public final class AscentRelicCheck {
             }
             boolean todas = true;
             for (final String kw : spec.keywords) {
-                if (!c.hasKeyword(kw)) {
+                if (!tieneKeyword(c, kw)) {
                     todas = false;
                     break;
                 }
@@ -526,6 +915,29 @@ public final class AscentRelicCheck {
                     + (spec.keywords.isEmpty() ? "" : " con " + String.join(", ", spec.keywords))
                     + (spec.selfExiled ? " y la carta ya esta en el exilio" : "");
             return true;
+        }
+        return false;
+    }
+
+    /**
+     * Si la criatura tiene esa palabra clave, <b>o una que empieza igual</b>.
+     *
+     * <p>El prefijo hace falta para las que llevan numero: {@code Renown:1} se
+     * concede asi en el script pero el motor la guarda con su propio formato, y
+     * un {@code hasKeyword("Renown")} pelado no la encuentra. Comparar por
+     * prefijo cubre las dos formas sin tener que adivinar cual usa cada
+     * version de Forge.
+     */
+    private static boolean tieneKeyword(final Card c, final String kw) {
+        if (c.hasKeyword(kw)) {
+            return true;
+        }
+        final String buscado = kw.toLowerCase(Locale.ROOT);
+        for (final forge.game.keyword.KeywordInterface k : c.getKeywords()) {
+            final String tiene = k.getOriginal();
+            if (tiene != null && tiene.toLowerCase(Locale.ROOT).startsWith(buscado)) {
+                return true;
+            }
         }
         return false;
     }

@@ -76,62 +76,147 @@ public final class AscentRelics {
      * rareza no esta en el script, y una reliquia que aparece sola en el juego
      * porque alguien dejo un fichero suelto es justo lo que no queremos.
      */
-    private static final Map<String, AscentRelic.Rarity> CATALOGUE = new LinkedHashMap<>();
+    private static final Map<String, Entry> CATALOGUE = new LinkedHashMap<>();
+
+    /** Sin requisito de color: sale en cualquier run. Las 37 de siempre. */
+    public static final byte COLOURLESS = 0;
+
+    private static final byte W = forge.card.MagicColor.WHITE;
+    private static final byte U = forge.card.MagicColor.BLUE;
+    private static final byte B = forge.card.MagicColor.BLACK;
+    private static final byte R = forge.card.MagicColor.RED;
+    private static final byte G = forge.card.MagicColor.GREEN;
+
+    /**
+     * Lo que se declara de una reliquia en el catalogo: de que rareza es y
+     * <b>que colores pide</b>.
+     *
+     * <p>Era solo la rareza hasta el 22-09-2026. El color entro para que una
+     * reliquia pueda decir {@code add {B}{B}{B}} sin que le toque a un mazo
+     * mono-blanco, donde seria un premio vacio — y de paso para que las runs de
+     * un color no se parezcan a las de otro, que es lo que pedia Ana.
+     */
+    private static final class Entry {
+        private final AscentRelic.Rarity rarity;
+        private final byte colors;
+
+        Entry(final AscentRelic.Rarity rarity, final byte colors) {
+            this.rarity = rarity;
+            this.colors = colors;
+        }
+    }
+
+    /** Atajo para las de siempre: rareza y ningun requisito de color. */
+    private static void add(final String id, final AscentRelic.Rarity rarity) {
+        CATALOGUE.put(id, new Entry(rarity, COLOURLESS));
+    }
+
+    /** Una reliquia que solo se le ofrece a un mazo de esos colores. */
+    private static void add(final String id, final AscentRelic.Rarity rarity, final byte colors) {
+        CATALOGUE.put(id, new Entry(rarity, colors));
+    }
 
     static {
         // Comunes: tesoros y tiendas. Empujoncitos, no vuelcos.
-        CATALOGUE.put("smiths_blessing", AscentRelic.Rarity.COMMON);
-        CATALOGUE.put("pilgrims_chalice", AscentRelic.Rarity.COMMON);
-        CATALOGUE.put("whetstone_sigil", AscentRelic.Rarity.COMMON);
-        CATALOGUE.put("wanderers_compass", AscentRelic.Rarity.COMMON);
+        add("smiths_blessing", AscentRelic.Rarity.COMMON);
+        add("pilgrims_chalice", AscentRelic.Rarity.COMMON);
+        add("whetstone_sigil", AscentRelic.Rarity.COMMON);
+        add("wanderers_compass", AscentRelic.Rarity.COMMON);
 
         // Raras: lo que paga una elite, que es un nodo que puede costarte la run.
-        CATALOGUE.put("ember_totem", AscentRelic.Rarity.RARE);
-        CATALOGUE.put("warden_seal", AscentRelic.Rarity.RARE);
-        CATALOGUE.put("oracle_lens", AscentRelic.Rarity.RARE);
-        CATALOGUE.put("wellspring_stone", AscentRelic.Rarity.RARE);
+        add("ember_totem", AscentRelic.Rarity.RARE);
+        add("warden_seal", AscentRelic.Rarity.RARE);
+        add("oracle_lens", AscentRelic.Rarity.RARE);
+        add("wellspring_stone", AscentRelic.Rarity.RARE);
 
         // De jefe. SEIS, y no es un numero al azar: un jefe ofrece TRES a elegir
         // y ninguna que ya lleves, asi que con tres bosses hacen falta seis para
         // que el ultimo siga teniendo de donde elegir. Y pegan de verdad: son el
         // salto que tiene que aguantar el acto siguiente entero.
-        CATALOGUE.put("crown_of_ascent", AscentRelic.Rarity.BOSS);
-        CATALOGUE.put("phoenix_heart", AscentRelic.Rarity.BOSS);
-        CATALOGUE.put("hourglass_of_kings", AscentRelic.Rarity.BOSS);
-        CATALOGUE.put("titans_grasp", AscentRelic.Rarity.BOSS);
-        CATALOGUE.put("ascendant_geode", AscentRelic.Rarity.BOSS);
-        CATALOGUE.put("banner_of_legions", AscentRelic.Rarity.BOSS);
+        add("crown_of_ascent", AscentRelic.Rarity.BOSS);
+        add("phoenix_heart", AscentRelic.Rarity.BOSS);
+        add("hourglass_of_kings", AscentRelic.Rarity.BOSS);
+        add("titans_grasp", AscentRelic.Rarity.BOSS);
+        add("ascendant_geode", AscentRelic.Rarity.BOSS);
+        add("banner_of_legions", AscentRelic.Rarity.BOSS);
 
         // ---- el lote grande (02-09-2026) ----
         //
         // La gracia de un roguelike es la VARIEDAD de builds, y con catorce
         // reliquias las runs se parecian demasiado entre si. Con treinta y
         // cinco, dos runs seguidas ya no ofrecen lo mismo.
-        CATALOGUE.put("sharpened_fang", AscentRelic.Rarity.COMMON);
-        CATALOGUE.put("hunters_charm", AscentRelic.Rarity.COMMON);
-        CATALOGUE.put("swiftfoot_anklet", AscentRelic.Rarity.COMMON);
-        CATALOGUE.put("copper_ring", AscentRelic.Rarity.COMMON);
-        CATALOGUE.put("lucky_coin", AscentRelic.Rarity.COMMON);
-        CATALOGUE.put("scouts_map", AscentRelic.Rarity.COMMON);
+        add("sharpened_fang", AscentRelic.Rarity.COMMON);
+        add("hunters_charm", AscentRelic.Rarity.COMMON);
+        add("swiftfoot_anklet", AscentRelic.Rarity.COMMON);
+        add("copper_ring", AscentRelic.Rarity.COMMON);
+        add("lucky_coin", AscentRelic.Rarity.COMMON);
+        add("scouts_map", AscentRelic.Rarity.COMMON);
 
-        CATALOGUE.put("sunlit_aegis", AscentRelic.Rarity.RARE);
-        CATALOGUE.put("serpent_coil", AscentRelic.Rarity.RARE);
-        CATALOGUE.put("stoneheart_idol", AscentRelic.Rarity.RARE);
-        CATALOGUE.put("berserkers_mask", AscentRelic.Rarity.RARE);
-        CATALOGUE.put("chronicle_page", AscentRelic.Rarity.RARE);
-        CATALOGUE.put("pilgrims_ward", AscentRelic.Rarity.RARE);
+        add("sunlit_aegis", AscentRelic.Rarity.RARE);
+        add("serpent_coil", AscentRelic.Rarity.RARE);
+        add("stoneheart_idol", AscentRelic.Rarity.RARE);
+        add("berserkers_mask", AscentRelic.Rarity.RARE);
+        add("chronicle_page", AscentRelic.Rarity.RARE);
+        add("pilgrims_ward", AscentRelic.Rarity.RARE);
 
-        CATALOGUE.put("warlords_standard", AscentRelic.Rarity.BOSS);
-        CATALOGUE.put("windrider_cloak", AscentRelic.Rarity.BOSS);
-        CATALOGUE.put("font_of_souls", AscentRelic.Rarity.BOSS);
-        CATALOGUE.put("chalice_of_ages", AscentRelic.Rarity.BOSS);
+        add("warlords_standard", AscentRelic.Rarity.BOSS);
+        add("windrider_cloak", AscentRelic.Rarity.BOSS);
+        add("font_of_souls", AscentRelic.Rarity.BOSS);
+        add("chalice_of_ages", AscentRelic.Rarity.BOSS);
 
         // Las rotas. Salen casi nunca y se nota cuando salen: eso es el punto.
-        CATALOGUE.put("crown_of_the_eternal", AscentRelic.Rarity.LEGENDARY);
-        CATALOGUE.put("the_infinite_tome", AscentRelic.Rarity.LEGENDARY);
-        CATALOGUE.put("heart_of_the_mountain", AscentRelic.Rarity.LEGENDARY);
-        CATALOGUE.put("aegis_eternal", AscentRelic.Rarity.LEGENDARY);
-        CATALOGUE.put("wings_of_the_ascended", AscentRelic.Rarity.LEGENDARY);
+        add("crown_of_the_eternal", AscentRelic.Rarity.LEGENDARY);
+        add("the_infinite_tome", AscentRelic.Rarity.LEGENDARY);
+        add("heart_of_the_mountain", AscentRelic.Rarity.LEGENDARY);
+        add("aegis_eternal", AscentRelic.Rarity.LEGENDARY);
+        add("wings_of_the_ascended", AscentRelic.Rarity.LEGENDARY);
+
+        // ---- las de COLOR (22-09-2026) ----
+        //
+        // Ideas del autor. Lo que las separa de las 35 de arriba no es la
+        // potencia: es que **piden un color**, y por eso pueden hacer cosas que
+        // una reliquia universal no puede — {B}{B}{B}, fichas de Humano,
+        // pantanos que dan de mas. Una reliquia que vale para todos los mazos
+        // acaba siendo "tus criaturas +X/+X" en sus mil variantes; una que
+        // sabe de que color eres puede ser otra cosa.
+        //
+        // Solo salen si tu mazo comparte color con ellas (AscentRelic#fitsColors),
+        // asi que dos runs de colores distintos ya no ofrecen lo mismo — que es
+        // lo que se pedia. Y al rival NO se le dan: ver AscentBattle.relicsFor.
+
+        // Blancas: vida que se convierte en cuerpos, y anchura.
+        add("recruiters_pennant", AscentRelic.Rarity.COMMON, W);
+        add("chalice_of_welcome", AscentRelic.Rarity.COMMON, W);
+        add("reliquary_of_dawn", AscentRelic.Rarity.COMMON, W);
+
+        // ⚠️ Muster Horn es RARA y no comun, aunque la idea original la ponia
+        // abajo. De media partida en adelante atacar con dos criaturas es la
+        // jugada normal, o sea que en la practica es UNA CARTA POR TURNO — que
+        // es exactamente The Infinite Tome, que es legendaria. Dejarla comun
+        // repetia el fallo de Lucky Coin (22-09-2026) pero por disenyo en vez
+        // de por un script roto: una comun que tapa a una legendaria hace que
+        // encontrar la legendaria no signifique nada.
+        add("muster_horn", AscentRelic.Rarity.RARE, W);
+        add("ledger_of_mercies", AscentRelic.Rarity.RARE, W);
+        add("heralds_laurel", AscentRelic.Rarity.RARE, W);
+        add("bulwark_pauldron", AscentRelic.Rarity.RARE, W);
+        add("shepherds_lantern", AscentRelic.Rarity.RARE, W);
+
+        add("seraphs_accord", AscentRelic.Rarity.BOSS, W);
+        add("gravebound_censer", AscentRelic.Rarity.BOSS, W);
+        add("standard_of_kin", AscentRelic.Rarity.BOSS, W);
+
+        // Negras: el cementerio, la mano del rival y su vida.
+        add("gravecallers_tithe", AscentRelic.Rarity.COMMON, B);
+        add("rotting_hourglass", AscentRelic.Rarity.COMMON, B);
+        add("charnel_mound", AscentRelic.Rarity.COMMON, B);
+
+        add("whispering_debt", AscentRelic.Rarity.RARE, B);
+        add("midnight_offering", AscentRelic.Rarity.RARE, B);
+        add("widows_toll", AscentRelic.Rarity.RARE, B);
+
+        add("tyrants_mirror", AscentRelic.Rarity.BOSS, B);
+        add("coffers_key", AscentRelic.Rarity.BOSS, B);
     }
 
     /**
@@ -182,7 +267,7 @@ public final class AscentRelics {
         installed = true;
 
         final CardRules.Reader reader = new CardRules.Reader();
-        for (final Map.Entry<String, AscentRelic.Rarity> e : CATALOGUE.entrySet()) {
+        for (final Map.Entry<String, Entry> e : CATALOGUE.entrySet()) {
             final String id = e.getKey();
             final List<String> lines = read(id);
             if (lines.isEmpty()) {
@@ -213,8 +298,8 @@ public final class AscentRelics {
             } else {
                 FModel.getMagicDb().getCommonCards().addCard(card);
             }
-            final AscentRelic relic = new AscentRelic(id, rules.getName(), e.getValue(),
-                    rules.getOracleText());
+            final AscentRelic relic = new AscentRelic(id, rules.getName(), e.getValue().rarity,
+                    rules.getOracleText(), e.getValue().colors);
             LOADED.add(relic);
             BY_NAME.put(relic.getCardName(), relic);
         }
@@ -252,7 +337,7 @@ public final class AscentRelics {
             // JEFE, o sea que se ve en la mesa, y es justo la carta que hay que
             // poder leer: dice cuando y con que te va a rematar.
             BY_NAME.put(card.getName(), new AscentRelic(id, card.getName(),
-                    AscentRelic.Rarity.BOSS, rules.getOracleText()));
+                    AscentRelic.Rarity.BOSS, rules.getOracleText(), COLOURLESS));
         }
     }
 

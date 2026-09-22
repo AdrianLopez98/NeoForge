@@ -1,0 +1,7 @@
+Name:Standard of Kin
+ManaCost:no cost
+Types:Enchantment
+S:Mode$ Continuous | EffectZone$ Command | Affected$ Creature.YouCtrl | AddPower$ AffectedX | AddToughness$ AffectedX | Description$ Each creature you control gets +1/+1 for each other creature you control that shares a creature type with it.
+SVar:AffectedX:Count$Valid Creature.YouCtrl+sharesCreatureTypeWith+Other
+AI:RemoveDeck:All
+Oracle:Each creature you control gets +1/+1 for each other creature you control that shares a creature type with it.

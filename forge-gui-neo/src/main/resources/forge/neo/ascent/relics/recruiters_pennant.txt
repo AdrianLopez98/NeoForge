@@ -1,0 +1,7 @@
+Name:Recruiter's Pennant
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ NewGame | TriggerZones$ Command | Execute$ TrigToken | Static$ True | TriggerDescription$ You begin the game with a 1/1 white Human creature token on the battlefield.
+SVar:TrigToken:DB$ Token | TokenScript$ w_1_1_human | TokenOwner$ You
+AI:RemoveDeck:All
+Oracle:You begin the game with a 1/1 white Human creature token on the battlefield.

@@ -114,6 +114,35 @@ public final class RelicEmblem {
         MOTIFS.put("warden_seal", Motif.SEAL);
         MOTIFS.put("heart_of_the_mountain", Motif.FLAME);
         MOTIFS.put("hunters_charm", Motif.ARROW);
+        // ---- las de color (22-09-2026) ----
+        //
+        // Reusan silueta a proposito: las 31 ya estaban todas cogidas, y
+        // dibujar 19 formas nuevas seria mucho codigo para poca diferencia.
+        // Lo que NO se puede repetir es silueta + rareza, que es lo unico
+        // indistinguible en la barra del mapa — ya paso con Font of Souls /
+        // Chalice of Ages. Lo vigila ahora AscentCheck.siluetasDistinguibles(),
+        // asi que anyadir la numero 55 ya no depende de acordarse.
+        MOTIFS.put("recruiters_pennant", Motif.BANNER);
+        MOTIFS.put("chalice_of_welcome", Motif.FONT);
+        MOTIFS.put("reliquary_of_dawn", Motif.SUN);
+        MOTIFS.put("muster_horn", Motif.HORN);
+        MOTIFS.put("ledger_of_mercies", Motif.BOOK);
+        MOTIFS.put("heralds_laurel", Motif.CROWN);
+        MOTIFS.put("bulwark_pauldron", Motif.GAUNTLET);
+        MOTIFS.put("shepherds_lantern", Motif.FLAME);
+        MOTIFS.put("seraphs_accord", Motif.WINGS);
+        MOTIFS.put("gravebound_censer", Motif.SEAL);
+        MOTIFS.put("standard_of_kin", Motif.IDOL);
+
+        MOTIFS.put("gravecallers_tithe", Motif.HEART);
+        MOTIFS.put("rotting_hourglass", Motif.HOURGLASS);
+        MOTIFS.put("charnel_mound", Motif.TOTEM);
+        MOTIFS.put("whispering_debt", Motif.COIN);
+        MOTIFS.put("midnight_offering", Motif.RING);
+        MOTIFS.put("widows_toll", Motif.FANG);
+        MOTIFS.put("tyrants_mirror", Motif.EYE);
+        MOTIFS.put("coffers_key", Motif.MAP);
+
         // El "segundo aliento" del jefe del acto 3 (Ascension 10). No es un
         // premio y no esta en el catalogo, pero SE VE: entra en la zona de
         // mando del jefe y ahi la mesa la pinta como cualquier otra carta.

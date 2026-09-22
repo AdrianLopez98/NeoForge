@@ -769,7 +769,15 @@ public final class AscentBattle {
             //
             // Para TI siguen estando: son de las mejores que hay, y en tu
             // asiento no cuestan nada porque las decisiones las tomas tu.
-            if (!AscentRelics.growsHand(relic)) {
+            //
+            // Y desde el 22-09-2026, tampoco las que piden COLOR. No es por
+            // equilibrio: es que aqui no se sabe de que colores es el mazo del
+            // rival. Sale de los 505 preconstruidos y se elige por rareza, asi
+            // que darle una reliquia que anyade {B}{B}{B} a un rival mono-rojo
+            // seria darle una reliquia que no hace nada — o sea un jefe que
+            // parece llevar dos y lleva una, sin que nada falle ni se vea.
+            // Para TI si estan: ahi si se sabe (AscentRewards.colorsOf).
+            if (!AscentRelics.growsHand(relic) && relic.getColors() == AscentRelics.COLOURLESS) {
                 pool.add(relic);
             }
         }

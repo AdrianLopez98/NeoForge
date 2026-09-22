@@ -1,0 +1,6 @@
+Name:Bulwark Pauldron
+ManaCost:no cost
+Types:Enchantment
+S:Mode$ Continuous | EffectZone$ Command | Affected$ Creature.YouCtrl | CanBlockAmount$ 1 | Description$ Creatures you control can each block an additional creature.
+AI:RemoveDeck:All
+Oracle:Creatures you control can each block an additional creature.

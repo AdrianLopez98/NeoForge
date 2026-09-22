@@ -753,6 +753,23 @@ public class SettingsPanel extends VBox {
                     }));
         }
 
+        // --- Discord ---
+        //
+        // Pedido en itch.io el 22-09-2026. El interruptor es obligatorio y no
+        // un detalle: esto lo ven TODOS los amigos de quien juega, y quien no
+        // lo quiera tiene que poder apagarlo sin buscar. Se aplica en el acto
+        // (no "en la proxima partida"): apagarlo sin que desaparezca de Discord
+        // hasta reiniciar seria justo lo contrario de lo que pide quien lo
+        // apaga. Ver forge.neo.discord.DiscordRich.
+        getChildren().add(section(NeoText.get("settings.discord")));
+        getChildren().add(toggleRow(NeoText.get("settings.discord.on"),
+                NeoSettings.discord(),
+                on -> {
+                    NeoSettings.setBool(NeoSettings.DISCORD, on);
+                    NeoSettings.save();
+                    forge.neo.discord.DiscordRich.setEnabled(on);
+                }));
+
         getChildren().add(section(NeoText.get("settings.sound")));
 
         // --- volumen ---

@@ -1,0 +1,7 @@
+Name:Gravecaller's Tithe
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ ChangesZone | Origin$ Battlefield | Destination$ Graveyard | ValidCard$ Creature.OppCtrl | TriggerZones$ Command | ActivationLimit$ 1 | Execute$ TrigGainLife | TriggerDescription$ Whenever a creature an opponent controls dies, you gain 1 life. This ability triggers only once each turn.
+SVar:TrigGainLife:DB$ GainLife | LifeAmount$ 1
+AI:RemoveDeck:All
+Oracle:Whenever a creature an opponent controls dies, you gain 1 life. This ability triggers only once each turn.

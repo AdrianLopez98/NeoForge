@@ -1,0 +1,7 @@
+Name:Widow's Toll
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ ChangesZone | Origin$ Battlefield | Destination$ Graveyard | ValidCard$ Creature.OppCtrl | TriggerZones$ Command | ActivationLimit$ 1 | Execute$ TrigDiscard | TriggerDescription$ Whenever a creature an opponent controls dies, that player discards a card. This ability triggers only once each turn.
+SVar:TrigDiscard:DB$ Discard | Defined$ TriggeredCardController | NumCards$ 1 | Mode$ TgtChoose
+AI:RemoveDeck:All
+Oracle:Whenever a creature an opponent controls dies, that player discards a card. This ability triggers only once each turn.

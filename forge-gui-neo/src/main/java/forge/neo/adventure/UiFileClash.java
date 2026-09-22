@@ -29,14 +29,20 @@ import java.util.Map;
  * {@code languages/}: hoy solo choca {@code quests}, pero el dia que alguien
  * traduzca {@code shops} al aleman o un diseno se llame como otro fichero de
  * datos, choca igual y ya esta cubierto.
+ *
+ * <p><b>Publica porque Android tambien la necesita.</b> Alli el Adventure corre
+ * dentro de la aplicacion de NeoForge y llega al mismo fallo por el mismo
+ * camino —el idioma del Adventure es el de NeoForge—, pero no pasa por
+ * {@link WindowPlacement}, que es de LWJGL. La logica no se duplica: NeoForge
+ * Android llama a esto mismo desde su propio primer fotograma.
  */
-final class UiFileClash {
+public final class UiFileClash {
 
     private UiFileClash() {
     }
 
     /** En el hilo de libGDX, con {@link Config} ya creada (primer fotograma). */
-    static void apply() {
+    public static void apply() {
         try {
             final Config cfg = Config.instance();
             final Field f = Config.class.getDeclaredField("Cache");

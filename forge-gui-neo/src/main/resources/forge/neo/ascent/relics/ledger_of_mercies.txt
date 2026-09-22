@@ -1,0 +1,7 @@
+Name:Ledger of Mercies
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ LifeGained | ValidPlayer$ You | TriggerZones$ Command | ActivationLimit$ 1 | Execute$ TrigDraw | TriggerDescription$ Whenever you gain life, draw a card. This ability triggers only once each turn.
+SVar:TrigDraw:DB$ Draw | NumCards$ 1
+AI:RemoveDeck:All
+Oracle:Whenever you gain life, draw a card. This ability triggers only once each turn.

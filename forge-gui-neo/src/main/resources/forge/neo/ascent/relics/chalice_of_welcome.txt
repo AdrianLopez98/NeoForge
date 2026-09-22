@@ -1,0 +1,7 @@
+Name:Chalice of Welcome
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ ChangesZone | Origin$ Any | Destination$ Battlefield | ValidCard$ Creature.YouCtrl | TriggerZones$ Command | ActivationLimit$ 1 | Execute$ TrigGainLife | TriggerDescription$ Whenever a creature you control enters, you gain 1 life. This ability triggers only once each turn.
+SVar:TrigGainLife:DB$ GainLife | LifeAmount$ 1
+AI:RemoveDeck:All
+Oracle:Whenever a creature you control enters, you gain 1 life. This ability triggers only once each turn.
