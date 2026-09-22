@@ -1685,21 +1685,52 @@ public class CardNode extends StackPane {
         // pasar el raton por encima es justo el gesto de "ensenyamela".
         setViewOrder(Math.min(baseViewOrder, 0) - 1);
         setEffect(lift);
+        final double zoom = forge.neo.NeoSettings.hoverZoom();
+        final double up = hoverLift(zoom);
         if (!animations) {
-            setScaleX(1.08);
-            setScaleY(1.08);
-            setTranslateY(baseTranslateY - cardWidth * 0.12);
+            setScaleX(zoom);
+            setScaleY(zoom);
+            setTranslateY(baseTranslateY - up);
             return;
         }
         final ScaleTransition s = new ScaleTransition(HOVER_TIME, this);
-        s.setToX(1.08);
-        s.setToY(1.08);
+        s.setToX(zoom);
+        s.setToY(zoom);
         s.setInterpolator(Interpolator.EASE_OUT);
         s.play();
         final TranslateTransition t = new TranslateTransition(HOVER_TIME, this);
-        t.setToY(baseTranslateY - cardWidth * 0.12);
+        t.setToY(baseTranslateY - up);
         t.setInterpolator(Interpolator.EASE_OUT);
         t.play();
+    }
+
+    /**
+     * Cuanto se levanta la carta al pasar el raton, para ese aumento.
+     *
+     * <h2>Por que sube MAS cuanto mas crece</h2>
+     *
+     * <p>{@code setScale} agranda desde el centro, asi que la mitad de lo que
+     * crece se va hacia abajo. En la mano — que esta pegada al borde inferior —
+     * eso significa que el trozo nuevo de carta sale por debajo de la ventana:
+     * al ampliar mas, se veria menos carta. Con el aumento de siempre (8 %) da
+     * exactamente el {@code 0,12 x ancho} que habia escrito a mano, asi que
+     * quien no toque el ajuste no nota ninguna diferencia.
+     *
+     * <p>El {@code 0,7} es medio alto de carta en unidades de ancho: la
+     * proporcion es 5:7, o sea alto = 1,4 x ancho.
+     */
+    private double hoverLift(final double zoom) {
+        return hoverLiftFor(zoom, cardWidth);
+    }
+
+    /**
+     * La misma cuenta, sin necesitar una carta. Es lo que deja comprobarla sin
+     * ventana: lo que hay que garantizar es que al aumento de siempre (1,08)
+     * sale <b>exactamente</b> el {@code 0,12 x ancho} que habia escrito a mano,
+     * o sea que quien no toque el ajuste no nota ninguna diferencia.
+     */
+    public static double hoverLiftFor(final double zoom, final double width) {
+        return width * (0.12 + (zoom - 1.08) * 0.7);
     }
 
     private void hoverOut() {

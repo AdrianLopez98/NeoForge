@@ -35,6 +35,7 @@ public final class LookCheck {
         importedMusicIsKept();
         aiNamesAreRealAndStable();
         deckCarriesItsOwnSleeve();
+        hoverZoomBehaves();
 
         System.out.println();
         System.out.printf(Locale.ROOT, "  %d comprobaciones OK, %d fallos%n", passed, failed);
@@ -44,6 +45,67 @@ public final class LookCheck {
     }
 
     // ---------------------------------------------------------------
+
+    /**
+     * El aumento al pasar el raton: que respete el tope y que <b>por defecto no
+     * cambie nada</b>.
+     *
+     * <h2>Que se comprueba y por que</h2>
+     *
+     * <p>Pedido por un jugador el 22-09-2026 (<i>"an option to enlarge the card
+     * a bit on mouse over"</i>). Lo que hay que garantizar no es que ampliar
+     * funcione —eso es un {@code setScale}— sino las dos cosas que se rompen en
+     * silencio:
+     *
+     * <ol>
+     *   <li><b>Que a quien no toque el ajuste no le cambie la mesa.</b> Con el
+     *       valor de siempre (108 %) la carta tiene que subir <b>exactamente</b>
+     *       el {@code 0,12 x ancho} que estaba escrito a mano. Un decimal de
+     *       mas aqui y la mano se mueve un poco para todo el mundo, sin que
+     *       nadie sepa por que.</li>
+     *   <li><b>Que el tope se aplique.</b> Sin el, un numero grande en las
+     *       preferencias convierte el hover en el zoom del clic derecho, y
+     *       entonces son dos gestos para lo mismo.</li>
+     * </ol>
+     *
+     * <p>Sin ventana: es aritmetica, y comprobarla jugando costaria una partida
+     * y no daria mas certeza.
+     */
+    private static void hoverZoomBehaves() {
+        final String antes = System.getProperty("neo.hoverZoom");
+        try {
+            System.clearProperty("neo.hoverZoom");
+            final double pordefecto = forge.neo.NeoSettings.hoverZoom();
+            check("hover: de fabrica aumenta un "
+                    + Math.round((pordefecto - 1) * 100) + " % (el de siempre)",
+                    Math.abs(pordefecto - 1.08) < 1e-9);
+
+            // La cuenta del levantamiento, con el valor de siempre, tiene que
+            // dar el 0,12 x ancho de antes. Ese es el "no he cambiado nada".
+            final double w = 100.0;
+            check("hover: con el aumento de siempre la carta sube lo mismo que antes",
+                    Math.abs(forge.neo.card.CardNode.hoverLiftFor(1.08, w) - w * 0.12) < 1e-9);
+            check("hover: al ampliar mas, sube mas (si no, la mano se saldria por abajo)",
+                    forge.neo.card.CardNode.hoverLiftFor(1.35, w)
+                            > forge.neo.card.CardNode.hoverLiftFor(1.08, w));
+
+            System.setProperty("neo.hoverZoom", "400");
+            check("hover: el tope se aplica (400 pedido -> 150)",
+                    Math.abs(forge.neo.NeoSettings.hoverZoom() - 1.50) < 1e-9);
+            System.setProperty("neo.hoverZoom", "10");
+            check("hover: el suelo se aplica (10 pedido -> 100, la carta nunca encoge)",
+                    Math.abs(forge.neo.NeoSettings.hoverZoom() - 1.00) < 1e-9);
+            System.setProperty("neo.hoverZoom", "no-es-un-numero");
+            check("hover: un valor con basura cae en el de siempre, no revienta",
+                    Math.abs(forge.neo.NeoSettings.hoverZoom() - 1.08) < 1e-9);
+        } finally {
+            if (antes == null) {
+                System.clearProperty("neo.hoverZoom");
+            } else {
+                System.setProperty("neo.hoverZoom", antes);
+            }
+        }
+    }
 
     /**
      * La hoja de sprites se trocea y salen muchos.

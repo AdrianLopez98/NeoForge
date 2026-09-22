@@ -203,6 +203,10 @@ public final class NeoMain {
                 banner("Draft completo, sin ventana");
                 forge.neo.draft.DraftCheck.run();
                 break;
+            case "cantplaycheck":
+                banner("Por que no se puede lanzar esa carta");
+                forge.neo.match.CantPlayCheck.run();
+                break;
             case "filtercheck":
                 banner("Mana: las fuentes que el motor no ve");
                 forge.neo.match.FilterCheck.run();

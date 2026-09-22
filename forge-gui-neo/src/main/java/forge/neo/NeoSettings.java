@@ -36,6 +36,9 @@ public final class NeoSettings {
     public static final String AI_PROFILE = "aiProfile";
     /** Escala de interfaz; vacio o "auto" para automatica. */
     public static final String UI_SCALE = "uiScale";
+    /** Cuanto crece una carta al pasarle el raton por encima, en por ciento. */
+    public static final String HOVER_ZOOM = "hoverZoom";
+
     /** Zoom del texto del panel de detalle. */
     public static final String TEXT_ZOOM = "textZoom";
     /** Volumen de los efectos de sonido, 0-100. */
@@ -97,6 +100,48 @@ public final class NeoSettings {
      *
      * @see forge.neo.ui.HandFan
      */
+    /** Lo que crecia la carta al pasar el raton antes de que esto se pudiera elegir. */
+    public static final int HOVER_ZOOM_DEFAULT = 108;
+
+    /**
+     * Cuanto crece una carta al pasarle el raton, como factor ({@code 1.08} =
+     * un 8 % mas grande).
+     *
+     * <h2>Por que es un ajuste y no un numero fijo</h2>
+     *
+     * <p>Pedido por un jugador el 22-09-2026: <i>"maybe an option to enlarge
+     * the card a bit on mouse over, not as much as with right click"</i>. El
+     * 8 % de siempre se queda corto en pantallas grandes y de sobra en las
+     * pequenyas, y no hay un numero que valga para las dos — por eso se
+     * pregunta en vez de subirlo para todos, que le cambiaria la mesa a quien
+     * ya la tiene como quiere.
+     *
+     * <p>Tiene <b>techo</b> a proposito: pasarse convierte el hover en el zoom
+     * del clic derecho, y entonces son dos gestos para lo mismo. El hover
+     * ensenya de que carta se trata; leerla entera es el otro.
+     *
+     * <p>{@code -Dneo.hoverZoom=N} lo fuerza sin escribir en las preferencias,
+     * para poder capturarlo.
+     */
+    public static double hoverZoom() {
+        final String forced = System.getProperty("neo.hoverZoom");
+        int pct;
+        if (forced != null && !forced.isEmpty()) {
+            try {
+                pct = Integer.parseInt(forced.trim());
+            } catch (final NumberFormatException e) {
+                pct = HOVER_ZOOM_DEFAULT;
+            }
+        } else {
+            pct = getInt(HOVER_ZOOM, HOVER_ZOOM_DEFAULT);
+        }
+        // Suelo en 100 (sin ampliar) y techo en 150: por debajo la carta
+        // encogeria al pasar el raton, que no lo quiere nadie, y por encima
+        // pisa al clic derecho.
+        pct = Math.max(100, Math.min(150, pct));
+        return pct / 100.0;
+    }
+
     public static boolean handFan() {
         final String forced = System.getProperty("neo.handFan");
         if (forced != null && !forced.isEmpty()) {

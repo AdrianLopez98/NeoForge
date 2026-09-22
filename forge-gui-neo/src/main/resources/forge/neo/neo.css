@@ -3290,3 +3290,19 @@
 .draft-clock:hurry {
     -fx-text-fill: -neo-danger;
 }
+
+/* La version del motor, abajo a la izquierda del menu. Es un TextField para
+   que se pueda copiar (quien reporte un fallo en Card-Forge la necesita), asi
+   que hay que quitarle TODO el aspecto de campo: fondo, borde y foco. */
+.home-version {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+    -fx-text-fill: -neo-text-dim;
+    -fx-font-size: 0.8em;
+}
+.home-version:focused {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}

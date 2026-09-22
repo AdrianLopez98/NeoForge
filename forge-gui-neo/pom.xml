@@ -15,6 +15,12 @@
     <properties>
         <javafx.version>21.0.5</javafx.version>
         <neo.mainClass>forge.neo.NeoMain</neo.mainClass>
+        <!-- La fecha de compilacion, para sellarla en build.properties y poder
+             ensenyar en el menu QUE motor se esta jugando. Se pasa por una
+             propiedad propia a proposito: ${maven.build.timestamp} no se
+             sustituye al filtrar recursos, y por eso hay que rebotarlo aqui. -->
+        <maven.build.timestamp.format>yyyy-MM-dd</maven.build.timestamp.format>
+        <neo.buildTime>${maven.build.timestamp}</neo.buildTime>
     </properties>
 
     <dependencies>
@@ -79,6 +85,25 @@
     </dependencies>
 
     <build>
+        <!-- Solo build.properties se filtra. El resto NO puede filtrarse: los
+             diez ficheros de idioma y los scripts de las reliquias llevan
+             ${...} y llaves que Maven intentaria sustituir. -->
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+                <excludes>
+                    <exclude>forge/neo/build.properties</exclude>
+                </excludes>
+            </resource>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>forge/neo/build.properties</include>
+                </includes>
+            </resource>
+        </resources>
         <plugins>
             <!-- Copia todas las dependencias de runtime a target/lib para poder
                  arrancar con  -cp "target/classes;target/lib/*"  sin pelearse

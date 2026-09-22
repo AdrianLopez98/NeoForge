@@ -54,8 +54,16 @@ public final class AscentPlanes {
         }
         final List<PaperCard> out = new ArrayList<>();
         try {
+            // ⚠️ UNO POR NOMBRE. El pozo del motor trae una entrada por
+            // IMPRESION (Planechase, Planechase 2012, Anthology...), asi que el
+            // mismo sitio salia varias veces. No es cosmetico: forRun() evita
+            // que dos actos repitan sitio, y con duplicados un acto podia
+            // "cambiar" de plano y aterrizar en el mismo con otra edicion.
+            // Mismo fallo que el del selector de comandantes (22-09-2026).
+            final java.util.Set<String> vistos = new java.util.HashSet<>();
             for (final PaperCard c : FModel.getPlanechaseCards().toFlatList()) {
-                if (c.getRules() != null && c.getRules().getType().isPlane()) {
+                if (c.getRules() != null && c.getRules().getType().isPlane()
+                        && vistos.add(c.getName())) {
                     out.add(c);
                 }
             }
@@ -104,10 +112,17 @@ public final class AscentPlanes {
         if (run == null || pool.isEmpty()) {
             return out;
         }
+        // Por NOMBRE y no por carta: dos impresiones del mismo sitio son dos
+        // PaperCard distintas pero el mismo paisaje, asi que comparar objetos
+        // dejaba pasar el caso que esto viene a evitar. Hoy no puede darse
+        // porque all() ya viene sin duplicados, pero la invariante es "sitios
+        // distintos", y se comprueba como se dice.
+        final java.util.Set<String> usados = new java.util.HashSet<>();
         for (int act = 1; act <= AscentRun.ACTS; act++) {
             PaperCard pick = of(run, act);
             final Random rnd = rng(run, act);
-            for (int tries = 0; tries < 20 && out.contains(pick); tries++) {
+            for (int tries = 0; tries < 20 && pick != null && !usados.add(pick.getName());
+                    tries++) {
                 pick = pool.get(rnd.nextInt(pool.size()));
             }
             out.add(pick);

@@ -383,10 +383,14 @@ public final class AscentSeedDeck {
      * ochocientos legendarios antes de empezar una run de cuarenta minutos.
      */
     public static PaperCard randomCommander() {
-        final List<PaperCard> pool = new ArrayList<>();
-        for (final Map.Entry<PaperCard, Integer> e : FModel.getCommanderPool()) {
-            pool.add(e.getKey());
-        }
+        // ⚠️ Del pozo YA filtrado, no de FModel.getCommanderPool() en crudo.
+        // Aquel trae UNA ENTRADA POR IMPRESION, y eso rompia el sorteo de dos
+        // maneras que no se ven: un comandante con ocho ediciones salia ocho
+        // veces mas que uno con una, y ademas podian tocarte las cartas
+        // rebalanceadas de Arena ("A-algo"), que el selector de al lado si
+        // esconde. O sea que "Que elija el juego" y la lista que tienes
+        // delante no ofrecian lo mismo. Cazado el 22-09-2026.
+        final List<PaperCard> pool = commanderPool();
         if (pool.isEmpty()) {
             return null;
         }
@@ -407,12 +411,35 @@ public final class AscentSeedDeck {
      * literal y no hay ninguna carta de Magic de verdad que empiece asi.
      */
     public static List<PaperCard> commanderPool() {
-        final List<PaperCard> pool = new ArrayList<>();
+        // ⚠️ UNA CARTA POR NOMBRE. FModel.getCommanderPool() se construye con
+        // getAllCards(), o sea TODAS LAS IMPRESIONES: el mismo legendario
+        // aparecia cuatro u ocho veces seguidas en la rejilla. Reportado
+        // jugando el 22-09-2026 ("the duplicates fill too much room and made it
+        // hard to choose"), con 11.054 entradas para ~10.800 comandantes.
+        //
+        // Y explica el segundo sintoma del mismo reporte — "muestra todo el
+        // rato el mismo arte" —, que no era un fallo aparte: cuando la
+        // impresion exacta no esta en la cache, CardImages cae en OfflineArt,
+        // que resuelve el fichero POR NOMBRE. Asi que las ocho impresiones
+        // acababan pintando la misma ilustracion. A quien las tiene bajadas no
+        // le pasa, que es justo por lo que no se veia desde aqui.
+        //
+        // Se queda la impresion canonica, la misma que ensenya el resto de la
+        // aplicacion (getUniqueByName); si el motor no la da, la primera que
+        // llegue, que es mejor que dejar fuera al comandante.
+        final forge.card.CardDb db = FModel.getMagicDb().getCommonCards();
+        final Map<String, PaperCard> byName = new java.util.LinkedHashMap<>();
         for (final Map.Entry<PaperCard, Integer> e : FModel.getCommanderPool()) {
-            if (!e.getKey().isRebalanced() && !e.getKey().getName().startsWith("A-")) {
-                pool.add(e.getKey());
+            final PaperCard c = e.getKey();
+            if (c.isRebalanced() || c.getName().startsWith("A-")) {
+                continue;
             }
+            byName.computeIfAbsent(c.getName(), n -> {
+                final PaperCard best = db.getUniqueByName(n);
+                return best != null && n.equals(best.getName()) ? best : c;
+            });
         }
+        final List<PaperCard> pool = new ArrayList<>(byName.values());
         pool.sort(Comparator.comparing(PaperCard::getName));
         return pool;
     }

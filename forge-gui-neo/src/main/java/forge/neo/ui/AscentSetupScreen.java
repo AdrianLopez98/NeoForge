@@ -95,7 +95,16 @@ public class AscentSetupScreen extends StackPane {
     private int ascension = Math.max(0,
             Math.min(AscentUnlocks.maxAscension(), Integer.getInteger("neo.ascent.setupLevel", 0)));
     private String search = "";
-    private int page;
+    /**
+     * En que pagina del selector se entra.
+     *
+     * <p>{@code -Dneo.ascent.setupPage=N} la deja puesta al abrir. Existe para
+     * poder capturar la barra de paginas con la flecha de atras ACTIVA: en la
+     * pagina 1 sale apagada, que es justo el estado en el que el fallo del
+     * 22-09-2026 no se distinguia de lo normal. {@code syncPager} la recorta al
+     * rango, asi que un numero grande cae en la ultima.
+     */
+    private int page = Math.max(0, Integer.getInteger("neo.ascent.setupPage", 0));
 
     public AscentSetupScreen(final double cardWidth, final boolean runInProgress,
                              final Actions actions) {
@@ -213,6 +222,7 @@ public class AscentSetupScreen extends StackPane {
             search = b == null ? "" : b;
             page = 0;
             refreshCommanders();
+            syncPager();
         });
 
         final Button random = choice(NeoText.get("ascent.setup.randomCommander"),
@@ -282,36 +292,61 @@ public class AscentSetupScreen extends StackPane {
      * lo recortado. Son 10.824 comandantes y aqui caben 24.
      */
     private Region pager() {
-        final int total = matches().size();
-        final int pages = Math.max(1, (total + PAGE - 1) / PAGE);
-        final Button prev = new Button("<");
-        final Button next = new Button(">");
-        prev.getStyleClass().add("ascent-button");
-        next.getStyleClass().add("ascent-button");
-        prev.setDisable(page <= 0);
-        next.setDisable(page >= pages - 1);
-        prev.setOnAction(e -> {
+        prevPage.setText("<");
+        nextPage.setText(">");
+        prevPage.getStyleClass().add("ascent-button");
+        nextPage.getStyleClass().add("ascent-button");
+        prevPage.setOnAction(e -> {
             page--;
             refreshCommanders();
-            rebuildPagerLabel();
+            syncPager();
         });
-        next.setOnAction(e -> {
+        nextPage.setOnAction(e -> {
             page++;
             refreshCommanders();
-            rebuildPagerLabel();
+            syncPager();
         });
-        pageLabel.setText(NeoText.get("ascent.setup.page", page + 1, pages, total));
         pageLabel.getStyleClass().add("ascent-hint");
-        final HBox row = new HBox(10, prev, pageLabel, next);
+        syncPager();
+        final HBox row = new HBox(10, prevPage, pageLabel, nextPage);
         row.setAlignment(Pos.CENTER);
         return row;
     }
 
     private final Label pageLabel = new Label();
+    private final Button prevPage = new Button();
+    private final Button nextPage = new Button();
 
-    private void rebuildPagerLabel() {
+    /**
+     * Deja la barra de paginas diciendo la verdad: el contador <b>y</b> si cada
+     * flecha se puede pulsar.
+     *
+     * <h2>El fallo que tapa</h2>
+     *
+     * <p>Reportado jugando el 22-09-2026: <i>"the previous page button isn't
+     * working"</i>. Y era exactamente eso, solo el de atras: el
+     * {@code setDisable} de las dos flechas se evaluaba <b>una sola vez, al
+     * construir la barra</b>, y los manejadores solo refrescaban la rejilla y
+     * el texto. Como se entra en la pagina 0, {@code prev} nacia deshabilitado
+     * y ya no se volvia a habilitar nunca; {@code next} nacia habilitado, y por
+     * eso avanzar si funcionaba y volver no.
+     *
+     * <p>El mismo agujero se comia la busqueda: escribir en el buscador cambia
+     * cuantos hay y pone la pagina a 0, pero nadie tocaba la barra, asi que el
+     * contador seguia diciendo "pagina 7 de 461" sobre una busqueda de tres
+     * cartas.
+     *
+     * <p>Por eso ahora hay <b>un solo sitio</b> que pone la barra al dia y lo
+     * llaman los tres caminos. Y recorta {@code page} al rango: si te quedas en
+     * la pagina 7 y buscas algo con una sola, la pagina que hay que ensenyar es
+     * la ultima que existe, no un hueco vacio.
+     */
+    private void syncPager() {
         final int total = matches().size();
         final int pages = Math.max(1, (total + PAGE - 1) / PAGE);
+        page = Math.max(0, Math.min(page, pages - 1));
+        prevPage.setDisable(page <= 0);
+        nextPage.setDisable(page >= pages - 1);
         pageLabel.setText(NeoText.get("ascent.setup.page", page + 1, pages, total));
     }
 
