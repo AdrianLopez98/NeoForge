@@ -176,8 +176,21 @@ public class HandFan extends Pane {
                 Math.min(w * 1.04, (available - w) / (n - 1)));
         scrollMax = Math.max(0, step * (n - 1) + w - available);
         scrollX = Math.max(0, Math.min(scrollX, scrollMax));
-        clip.setX(0); clip.setY(-Math.max(80, w * .5));
-        clip.setWidth(getWidth()); clip.setHeight(getHeight() + Math.max(80, w * .5));
+
+        // El recorte tiene que dejar sitio para el hover, y el hueco fijo de
+        // antes (Math.max(80, w * .5)) estaba medido para el 8 % de siempre:
+        // con el ajuste nuevo de NeoSettings.hoverZoom() (hasta 150 %) una
+        // carta se quedaba cortada por los lados y por arriba, un filo recto
+        // justo en el borde del recorte. Se calcula lo que la carta crece de
+        // verdad — CardNode.hoverLiftFor es la MISMA cuenta que usa el propio
+        // hover, asi que el margen y el gesto nunca se desincronizan — y se
+        // anyade un colchon pequenyo por el redondeo del easing.
+        final double zoom = forge.neo.NeoSettings.hoverZoom();
+        final double hoverCardH = w * CardNode.ASPECT;
+        final double growSide = (zoom - 1) * w / 2 + 6;
+        final double marginTop = CardNode.hoverLiftFor(zoom, w) + (zoom - 1) * hoverCardH / 2 + 6;
+        clip.setX(-growSide); clip.setY(-marginTop);
+        clip.setWidth(getWidth() + growSide * 2); clip.setHeight(getHeight() + marginTop);
         previous.setVisible(scrollMax > .5); next.setVisible(scrollMax > .5);
         previous.setDisable(scrollX <= .5); next.setDisable(scrollX >= scrollMax - .5);
         previous.resizeRelocate(2, 4, 28, 26);

@@ -122,6 +122,24 @@ public class TableScreen extends Pane {
     private final Button logButton = new Button(NeoText.get("table.log"));
 
     /**
+     * El boton de la pausa, <b>apagado de fabrica</b>.
+     *
+     * <p>En una partida normal no sale: Escape abre la pausa y eso lo ensenya
+     * el tutorial, que es por donde entra todo el mundo la primera vez. Lo
+     * enciende quien no tiene esa puerta — la <b>Aventura</b>, que arranca en
+     * su propio proceso y a la que se llega desde el mapa de Forge sin haber
+     * pasado por ningun tutorial nuestro.
+     *
+     * <p>Reportado en Reddit el 22-09-2026: <i>"I don't seem to find a concede
+     * button in the battle screen for adventure mode"</i>. Estaba — en Escape —
+     * pero un control que hay que adivinar es un control que no existe.
+     *
+     * <p>Va en la misma esquina muerta que el registro y no toca la barra de
+     * acciones: esto no actua sobre la partida, abre una capa (principio 1).
+     */
+    private final Button menuButton = new Button(NeoText.get("table.menu"));
+
+    /**
      * Grabar y repetir una macro con el raton, como en el Forge de siempre.
      * Pedido por quien pidio las macros: con solo teclas no llego a usarlas.
      * Encima del registro, en la misma esquina muerta.
@@ -282,6 +300,12 @@ public class TableScreen extends Pane {
         chatButton.setFocusTraversable(false);
         chatButton.setVisible(false);
         chatButton.setOnAction(e -> openChat());
+        // La pausa, solo donde no hay tutorial que ensenye Escape: la enciende
+        // enablePauseButton. Sin foco, como los demas de la esquina: el
+        // Espacio siguiente es un atajo de partida, no "pulsar esto".
+        menuButton.getStyleClass().add("log-button");
+        menuButton.setFocusTraversable(false);
+        menuButton.setVisible(false);
 
         playerDetails.getStyleClass().add("player-details");
         playerDetails.setWrapText(true);
@@ -320,7 +344,7 @@ public class TableScreen extends Pane {
         spotlight.setFill(javafx.scene.paint.Color.TRANSPARENT);
 
         getChildren().addAll(opponentTabs, opponentBar, viewport,
-                selfBar, hand, commandZone, phaseRail, side, combatOverlay, logButton, chatButton, macroRecordButton, macroPlayButton, cooldownBadge,
+                selfBar, hand, commandZone, phaseRail, side, combatOverlay, logButton, menuButton, chatButton, macroRecordButton, macroPlayButton, cooldownBadge,
                 promptBanner, notices, turnBanner, playerDetails, zoomBadge, macroBadge, spotlight,
                 overlay, menuOverlay, zoomOverlay);
 
@@ -363,7 +387,8 @@ public class TableScreen extends Pane {
             }
             final Object t = e.getTarget();
             if (isInside(t, overlay) || isInside(t, menuOverlay) || isInside(t, zoomOverlay)
-                    || isInside(t, logButton) || isInside(t, chatButton) || isInside(t, opponentTabs)
+                    || isInside(t, logButton) || isInside(t, menuButton)
+                    || isInside(t, chatButton) || isInside(t, opponentTabs)
                     || isZoneOpener(t)) {
                 return;
             }
@@ -438,9 +463,14 @@ public class TableScreen extends Pane {
         // Las macros, apiladas encima y del mismo ancho: una columna se lee
         // como un grupo, y a lo ancho se meterian en la mano.
         double cornerTop = h - lbH - PAD;
-        final double mbW = Math.max(Math.max(lbW, chatButton.prefWidth(-1)),
+        double mbW = Math.max(Math.max(lbW, chatButton.prefWidth(-1)),
                 Math.max(macroRecordButton.prefWidth(-1), macroPlayButton.prefWidth(-1)));
-        for (final Button b : List.of(chatButton, macroRecordButton, macroPlayButton)) {
+        // El de la pausa solo cuenta si esta puesto: si no, su texto ensancharia
+        // la columna en los modos donde ni siquiera sale.
+        if (menuButton.isVisible()) {
+            mbW = Math.max(mbW, menuButton.prefWidth(-1));
+        }
+        for (final Button b : List.of(menuButton, chatButton, macroRecordButton, macroPlayButton)) {
             if (b.isVisible()) {
                 final double bh = b.prefHeight(mbW);
                 cornerTop -= bh + 4;
@@ -2144,6 +2174,23 @@ public class TableScreen extends Pane {
     /** El boton que abre el registro. */
     public Button getLogButton() {
         return logButton;
+    }
+
+    /**
+     * Ensenya el boton de la pausa y dice que hace al pulsarlo.
+     *
+     * <p>Apagado mientras nadie lo encienda, asi que el resto de los modos
+     * quedan exactamente igual que antes. Ver {@link #menuButton}.
+     */
+    public void enablePauseButton(final Runnable open) {
+        menuButton.setOnAction(e -> open.run());
+        menuButton.setVisible(true);
+        requestLayout();
+    }
+
+    /** Solo para pruebas: el boton de la pausa, este puesto o no. */
+    public Button getMenuButton() {
+        return menuButton;
     }
 
     /** Levanta el registro de partida. */

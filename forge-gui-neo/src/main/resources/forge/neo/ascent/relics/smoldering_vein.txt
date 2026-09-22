@@ -1,0 +1,7 @@
+Name:Smoldering Vein
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ LandPlayed | ValidCard$ Land.YouCtrl | TriggerZones$ Command | Execute$ TrigMana | TriggerDescription$ Whenever you play a land, add {R}.
+SVar:TrigMana:DB$ Mana | Produced$ R | Amount$ 1
+AI:RemoveDeck:All
+Oracle:Whenever you play a land, add {R}.

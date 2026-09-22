@@ -1,0 +1,6 @@
+Name:Unbroken Seal
+ManaCost:no cost
+Types:Enchantment
+R:Event$ Counter | ActiveZones$ Command | ValidSA$ Spell.Creature+YouCtrl | Layer$ CantHappen | Description$ Creature spells you control can't be countered.
+AI:RemoveDeck:All
+Oracle:Creature spells you control can't be countered.

@@ -62,6 +62,19 @@ public class PauseMenu extends StackPane {
      */
     private final boolean netGame;
 
+    /**
+     * Si es un duelo de la <b>Aventura</b>.
+     *
+     * <p>Ahi no hay "Reiniciar" (repetir el duelo seria volver a barajar contra
+     * el mismo enemigo) y salir no lleva al menu: se rinde uno y vuelve al
+     * mapa. Lo unico que cambia son las palabras, pero <b>tienen que cambiar
+     * las dos</b>: hasta el 22-09-2026 solo se reetiquetaba el boton — a mano,
+     * buscando el texto entre los nodos desde {@code DuelControls} — y la
+     * pregunta que salia detras seguia diciendo "vuelves a la pantalla de
+     * inicio", que aqui es mentira.
+     */
+    private final boolean adventure;
+
     public PauseMenu(final Actions actions, final SettingsPanel.Host settingsHost) {
         this(actions, settingsHost, false);
     }
@@ -69,6 +82,12 @@ public class PauseMenu extends StackPane {
     public PauseMenu(final Actions actions, final SettingsPanel.Host settingsHost,
                      final boolean runAtStake) {
         this(actions, settingsHost, runAtStake, false);
+    }
+
+    /** El menu del duelo de la Aventura: sin reiniciar, y salir es rendirse. */
+    public static PauseMenu forAdventure(final Actions actions,
+                                         final SettingsPanel.Host settingsHost) {
+        return new PauseMenu(actions, settingsHost, false, false, true);
     }
 
     /**
@@ -96,10 +115,16 @@ public class PauseMenu extends StackPane {
      */
     public PauseMenu(final Actions actions, final SettingsPanel.Host settingsHost,
                      final boolean runAtStake, final boolean netGame) {
+        this(actions, settingsHost, runAtStake, netGame, false);
+    }
+
+    private PauseMenu(final Actions actions, final SettingsPanel.Host settingsHost,
+                      final boolean runAtStake, final boolean netGame, final boolean adventure) {
         this.actions = actions;
         this.settingsHost = settingsHost;
         this.runAtStake = runAtStake;
         this.netGame = netGame;
+        this.adventure = adventure;
         setAlignment(Pos.CENTER);
         showMain();
     }
@@ -122,14 +147,15 @@ public class PauseMenu extends StackPane {
 
         // Reiniciar NO se ofrece en una run: reiniciar el duelo es volver a
         // barajar tu mano, o sea la trampa que el modo entero tiene que impedir.
-        if (!runAtStake && !netGame) {
+        if (!runAtStake && !netGame && !adventure) {
             root.getChildren().add(item(NeoText.get("pause.restart"), "btn-secondary",
                     () -> confirm(NeoText.get("pause.restart.ask"),
                             NeoText.get("pause.restart.detail"),
                             NeoText.get("pause.restart.yes"), actions::restart)));
         }
 
-        root.getChildren().add(item(NeoText.get(netGame ? "pause.quit.net" : "pause.quit"),
+        root.getChildren().add(item(NeoText.get(adventure ? "adventure.concede"
+                        : netGame ? "pause.quit.net" : "pause.quit"),
                 "btn-secondary", this::askQuit));
 
         getChildren().setAll(root);
@@ -143,6 +169,12 @@ public class PauseMenu extends StackPane {
      * las mismas palabras, incluido el aviso de que en Ascenso cuesta la run.
      */
     public void askQuit() {
+        if (adventure) {
+            confirm(NeoText.get("adventure.concede.ask"),
+                    NeoText.get("adventure.concede.detail"),
+                    NeoText.get("adventure.concede.yes"), actions::quitToMenu);
+            return;
+        }
         if (netGame) {
             confirm(NeoText.get("pause.quit.net.ask"), NeoText.get("pause.quit.net.detail"),
                     NeoText.get("pause.quit.net.yes"), actions::quitToMenu);

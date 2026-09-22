@@ -1,0 +1,7 @@
+Name:Scrapper's Anvil
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ Phase | Phase$ Upkeep | ValidPlayer$ You | TriggerZones$ Command | OptionalDecider$ You | Execute$ TrigDestroy | TriggerDescription$ At the beginning of your upkeep, you may destroy target artifact.
+SVar:TrigDestroy:DB$ Destroy | ValidTgts$ Artifact | TgtPrompt$ Select target artifact
+AI:RemoveDeck:All
+Oracle:At the beginning of your upkeep, you may destroy target artifact.

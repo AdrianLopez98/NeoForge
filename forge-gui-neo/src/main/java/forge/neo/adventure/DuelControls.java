@@ -1,16 +1,13 @@
 package forge.neo.adventure;
 
 import forge.neo.NeoShortcuts;
-import forge.neo.NeoText;
 import forge.neo.match.NeoMatchUI;
 import forge.neo.ui.CardZoom;
 import forge.neo.ui.PauseMenu;
 import forge.neo.ui.SettingsPanel;
 import forge.neo.ui.TableKeys;
 import forge.neo.ui.TableScreen;
-import javafx.scene.Node;
 import javafx.scene.Scene;
-import javafx.scene.control.Labeled;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 
@@ -27,9 +24,15 @@ import java.util.Set;
  * dialogo apartado y si no abre la pausa; y los atajos de partida de
  * {@link NeoShortcuts}, con la tecla que tengas configurada.
  *
- * <p>La pausa va <b>sin "Reiniciar"</b> (repetir el duelo seria volver a barajar
- * contra el mismo enemigo) y su "Salir" dice lo que hace aqui: rendirse y volver
- * al mapa.
+ * <p>La pausa es la de {@code PauseMenu.forAdventure}: <b>sin "Reiniciar"</b>
+ * (repetir el duelo seria volver a barajar contra el mismo enemigo) y con
+ * "Salir" diciendo lo que hace aqui — rendirse y volver al mapa — tambien en la
+ * pregunta de confirmacion, que es donde antes seguia hablando de la pantalla
+ * de inicio.
+ *
+ * <p>Y se abre ademas desde un <b>boton</b> de la mesa
+ * ({@code TableScreen.enablePauseButton}), no solo con Escape: aqui no hay
+ * tutorial que lo ensenye.
  */
 final class DuelControls {
 
@@ -67,10 +70,19 @@ final class DuelControls {
         // pista entera: alli la pone NeoApp, y esta escena es otra.
         TableKeys.guardFocusedButtons(scene, () -> table,
                 ev -> shortcut(ev, scene, table, ui), HELD::clear);
+        // Y el boton, porque aqui Escape no lo ensenya nadie: al duelo de la
+        // Aventura se llega desde el mapa de Forge, sin pasar por nuestro
+        // tutorial. Reportado en Reddit el 22-09-2026: "I don't seem to find a
+        // concede button in the battle screen for adventure mode". Estaba, en
+        // Escape — pero un control que hay que adivinar no existe.
+        table.enablePauseButton(() -> openPause(table, ui));
     }
 
     private static void openPause(final TableScreen table, final NeoMatchUI ui) {
-        final PauseMenu menu = new PauseMenu(new PauseMenu.Actions() {
+        if (table.getMenuOverlay().isShowing()) {
+            return;
+        }
+        final PauseMenu menu = PauseMenu.forAdventure(new PauseMenu.Actions() {
             @Override
             public void resume() {
                 table.getMenuOverlay().hide();
@@ -87,20 +99,6 @@ final class DuelControls {
                 ui.leaveMatch(NeoMatchUI.Exit.MENU);
             }
         }, host(table, ui));
-        // Sin "Reiniciar", y "Salir" dice lo que hace aqui.
-        final String restart = NeoText.get("pause.restart");
-        final String quit = NeoText.get("pause.quit");
-        for (final Node n : menu.lookupAll(".button")) {
-            if (n instanceof Labeled) {
-                final Labeled l = (Labeled) n;
-                if (restart.equals(l.getText())) {
-                    l.setVisible(false);
-                    l.setManaged(false);
-                } else if (quit.equals(l.getText())) {
-                    l.setText(NeoText.get("adventure.concede"));
-                }
-            }
-        }
         table.getMenuOverlay().show(menu);
     }
 
@@ -190,6 +188,8 @@ final class DuelControls {
                 return free && ui.passTurn();
             case ALPHA_STRIKE:
                 return free && ui.alphaStrike();
+            case ATTACK_NON_TOKENS:
+                return free && ui.attackWithNonTokens();
             case ZOOM_CARD: {
                 final forge.neo.card.CardNode hovered = CardZoom.hoveredCardNode(table);
                 if (hovered != null && hovered.getCard() != null) {

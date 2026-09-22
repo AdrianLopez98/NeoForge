@@ -1,0 +1,7 @@
+Name:Frostbound Heart
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ ChangesZone | Origin$ Any | Destination$ Battlefield | ValidCard$ Creature.OppCtrl | TriggerZones$ Command | Execute$ TrigStun | TriggerDescription$ Whenever a creature an opponent controls enters, put a stun counter on it.
+SVar:TrigStun:DB$ PutCounter | Defined$ TriggeredCardLKICopy | CounterType$ STUN | CounterNum$ 1
+AI:RemoveDeck:All
+Oracle:Whenever a creature an opponent controls enters, put a stun counter on it.

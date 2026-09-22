@@ -1,0 +1,7 @@
+Name:Swindler's Mask
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ Phase | Phase$ End of Turn | ValidPlayer$ You | TriggerZones$ Command | OptionalDecider$ You | Execute$ TrigExchange | TriggerDescription$ At the beginning of your end step, you may exchange control of two target nonland permanents that share a card type.
+SVar:TrigExchange:DB$ ExchangeControl | TargetMin$ 2 | TargetMax$ 2 | ValidTgts$ Permanent.nonLand | TgtPrompt$ Select two target nonland permanents that share a card type | TargetsWithSameCardType$ True
+AI:RemoveDeck:All
+Oracle:At the beginning of your end step, you may exchange control of two target nonland permanents that share a card type.

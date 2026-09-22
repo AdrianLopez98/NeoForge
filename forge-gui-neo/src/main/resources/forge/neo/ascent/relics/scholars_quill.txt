@@ -1,0 +1,8 @@
+Name:Scholar's Quill
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ SpellCast | ValidCard$ Instant,Sorcery | ValidActivatingPlayer$ You | TriggerZones$ Command | Execute$ TrigDraw | TriggerDescription$ When you cast your first instant or sorcery spell each battle, draw a card. (Then this relic is exiled until your next battle.)
+SVar:TrigDraw:DB$ Draw | NumCards$ 1 | SubAbility$ DBExile
+SVar:DBExile:DB$ ChangeZone | Defined$ Self | Origin$ Command | Destination$ Exile
+AI:RemoveDeck:All
+Oracle:When you cast your first instant or sorcery spell each battle, draw a card. (Then this relic is exiled until your next battle.)

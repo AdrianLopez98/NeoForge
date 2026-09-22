@@ -1,0 +1,8 @@
+Name:Denial Codex
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ Countered | ValidCause$ SpellAbility.YouCtrl | ValidSA$ Spell | TriggerZones$ Command | Execute$ TrigDraw | TriggerDescription$ Whenever a spell or ability you control counters a spell, draw a card, then discard a card.
+SVar:TrigDraw:DB$ Draw | NumCards$ 1 | SubAbility$ DBDiscard
+SVar:DBDiscard:DB$ Discard | Defined$ You | NumCards$ 1 | Mode$ TgtChoose
+AI:RemoveDeck:All
+Oracle:Whenever a spell or ability you control counters a spell, draw a card, then discard a card.

@@ -1,0 +1,8 @@
+Name:Kindling Blade
+ManaCost:no cost
+Types:Enchantment
+R:Event$ DamageDone | ActiveZones$ Command | ValidSource$ Card.YouCtrl,Emblem.YouCtrl | ValidTarget$ Player.Opponent,Permanent.OppCtrl | ReplaceWith$ DmgPlus1 | Description$ If a source you control would deal damage to an opponent or a permanent an opponent controls, it deals that much damage plus 1 instead.
+SVar:DmgPlus1:DB$ ReplaceEffect | VarName$ DamageAmount | VarValue$ X
+SVar:X:ReplaceCount$DamageAmount/Plus.1
+AI:RemoveDeck:All
+Oracle:If a source you control would deal damage to an opponent or a permanent an opponent controls, it deals that much damage plus 1 instead.

@@ -1,0 +1,6 @@
+Name:Hoarder's Crown
+ManaCost:no cost
+Types:Enchantment
+S:Mode$ Continuous | EffectZone$ Command | Affected$ You | SetMaxHandSize$ Unlimited | Description$ You have no maximum hand size.
+AI:RemoveDeck:All
+Oracle:You have no maximum hand size.

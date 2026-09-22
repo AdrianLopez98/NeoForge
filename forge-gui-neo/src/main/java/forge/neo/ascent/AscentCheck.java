@@ -496,13 +496,21 @@ public final class AscentCheck {
             }
             final boolean estatica = script.contains("\nS:");
             final boolean disparo = script.contains("\nT:");
+            // La tercera familia, desde el 23-09-2026: los efectos de
+            // REEMPLAZO ("si una fuente tuya fuese a hacer danyo...", "no se
+            // pueden contrarrestar"). Su clave es otra -- ActiveZones$ -- y es
+            // igual de muda: sin ella, en el mando no reemplazan nada.
+            final boolean reemplazo = script.contains("\nR:");
             if (estatica && !script.contains("EffectZone$ Command")) {
                 mal.add(r.getId() + " (estatica sin EffectZone$ Command)");
             }
             if (disparo && !script.contains("TriggerZones$ Command")) {
                 mal.add(r.getId() + " (disparo sin TriggerZones$ Command)");
             }
-            if (!estatica && !disparo) {
+            if (reemplazo && !script.contains("ActiveZones$ Command")) {
+                mal.add(r.getId() + " (reemplazo sin ActiveZones$ Command)");
+            }
+            if (!estatica && !disparo && !reemplazo) {
                 mal.add(r.getId() + " (ni estatica ni disparo: no hace nada)");
             }
         }
@@ -2824,29 +2832,30 @@ public final class AscentCheck {
      */
     private static void reliquiasPorColor() {
         AscentRelics.install();
-        PaperCard blanco = null;
-        PaperCard negro = null;
-        for (final PaperCard c : AscentSeedDeck.commanderPool()) {
-            if (c.getRules() == null) {
+        // Los CINCO colores desde el 23-09-2026, cuando entraron las azules,
+        // rojas y verdes. Y el "otro color" ya no es uno concreto sino los
+        // CUATRO restantes: un mazo mono-verde no puede ver ni una roja, ni
+        // una azul, ni ninguna de las de antes.
+        final String[] nombres = {"blanco", "azul", "negro", "rojo", "verde"};
+        final byte[] colores = {forge.card.MagicColor.WHITE, forge.card.MagicColor.BLUE,
+            forge.card.MagicColor.BLACK, forge.card.MagicColor.RED, forge.card.MagicColor.GREEN};
+        for (int i = 0; i < colores.length; i++) {
+            PaperCard mono = null;
+            for (final PaperCard c : AscentSeedDeck.commanderPool()) {
+                if (c.getRules() != null
+                        && c.getRules().getColorIdentity().countColors() == 1
+                        && c.getRules().getColorIdentity().hasAnyColor(colores[i])) {
+                    mono = c;
+                    break;
+                }
+            }
+            if (mono == null) {
+                fail("color: no hay ningun comandante mono-" + nombres[i] + " en el pozo");
                 continue;
             }
-            final forge.card.ColorSet id = c.getRules().getColorIdentity();
-            if (id.countColors() != 1) {
-                continue;
-            }
-            if (id.hasWhite() && blanco == null) {
-                blanco = c;
-            }
-            if (id.hasBlack() && negro == null) {
-                negro = c;
-            }
+            final byte otros = (byte) (forge.card.MagicColor.ALL_COLORS & ~colores[i]);
+            unColor(nombres[i], mono, colores[i], otros);
         }
-        if (blanco == null || negro == null) {
-            fail("color: no hay comandantes monocolor blanco y negro en el pozo");
-            return;
-        }
-        unColor("blanco", blanco, forge.card.MagicColor.WHITE, forge.card.MagicColor.BLACK);
-        unColor("negro", negro, forge.card.MagicColor.BLACK, forge.card.MagicColor.WHITE);
     }
 
     /** Un mazo de ese color: ve las suyas, no ve las del otro. */

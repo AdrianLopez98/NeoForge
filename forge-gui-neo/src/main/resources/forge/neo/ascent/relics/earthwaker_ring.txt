@@ -1,0 +1,9 @@
+Name:Earthwaker Ring
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ Phase | Phase$ BeginCombat | ValidPlayer$ You | TriggerZones$ Command | Execute$ TrigAnimate | TriggerDescription$ At the beginning of combat on your turn, target land you control becomes a creature with haste until end of turn, with "This creature's power and toughness are each equal to the number of lands you control." It's still a land.
+SVar:TrigAnimate:DB$ Animate | ValidTgts$ Land.YouCtrl | TgtPrompt$ Select target land you control | Types$ Creature,Elemental | Keywords$ Haste | staticAbilities$ StLandPT
+SVar:StLandPT:Mode$ Continuous | EffectZone$ All | CharacteristicDefining$ True | SetPower$ X | SetToughness$ X | Description$ This creature's power and toughness are each equal to the number of lands you control.
+SVar:X:Count$Valid Land.YouCtrl
+AI:RemoveDeck:All
+Oracle:At the beginning of combat on your turn, target land you control becomes a creature with haste until end of turn, with "This creature's power and toughness are each equal to the number of lands you control." It's still a land.

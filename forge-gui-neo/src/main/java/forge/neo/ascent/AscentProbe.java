@@ -658,6 +658,29 @@ public final class AscentProbe {
                        final List<PaperCard> command, final List<PaperCard> board,
                        final boolean stopOnHit, final long pollMs,
                        final java.util.function.Predicate<Game> condition) {
+        return play(label, variants, deck, life, schemes, command, board, null,
+                stopOnHit, pollMs, condition);
+    }
+
+    /**
+     * Igual, y ademas con cartas en la zona de mando <b>de la IA</b>.
+     *
+     * <p>Existe desde el 23-09-2026 para las reliquias que solo hacen algo
+     * cuando su duenyo <b>ataca, lanza o juega una tierra</b>. El humano de la
+     * sonda no hace ninguna de las tres cosas — y provocarlo con una carta
+     * ayudante, como se hizo con las blancas y negras, no siempre se puede: no
+     * hay ninguna que ataque sola. La IA si las hace, todas, en cada partida.
+     * Asi que la reliquia se le da a ella y se mira que SU disparo llegue.
+     *
+     * @param aiCommand lo que va a la zona de mando de la IA; {@code null} para
+     *                  nada
+     */
+    static Result play(final String label, final EnumSet<GameType> variants,
+                       final Deck deck, final int life, final CardPool schemes,
+                       final List<PaperCard> command, final List<PaperCard> board,
+                       final List<PaperCard> aiCommand,
+                       final boolean stopOnHit, final long pollMs,
+                       final java.util.function.Predicate<Game> condition) {
         final Result out = new Result();
         NeoGame.applyEnginePrefs();
 
@@ -703,6 +726,9 @@ public final class AscentProbe {
                 2, variants, aiDeck,
                 schemes == null ? null : schemes.toFlatList(), schemes != null, null, null)
                 .setPlayer(forge.neo.look.NeoPlayers.ai(0, null));
+        if (aiCommand != null && !aiCommand.isEmpty()) {
+            ai.addExtraCardsInCommandZone(new ArrayList<forge.item.IPaperCard>(aiCommand));
+        }
         players.add(ai);
 
         final AtomicBoolean alive = new AtomicBoolean(true);

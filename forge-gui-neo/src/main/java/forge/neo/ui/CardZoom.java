@@ -193,7 +193,7 @@ public final class CardZoom {
         // desde el EXILIO. Dentro no se habria visto nunca.
         final boolean side = hasState(card) || otherFace(card) != null
                 || related(card) != null || canReadLiveText(card)
-                || !keywordsOf(card).isEmpty();
+                || !keywordsOf(card).isEmpty() || hasPlainText(card);
         double w = bigWidth;
         if (side) {
             w = Math.min(w, sceneWidth * 0.9 / (1 + SIDE_RATIO));
@@ -305,6 +305,11 @@ public final class CardZoom {
         final Region live = liveTextBlock(card, width);
         if (live != null) {
             box.getChildren().add(live);
+        }
+
+        final Region plain = plainTextBlock(card, width);
+        if (plain != null) {
+            box.getChildren().add(plain);
         }
         return box;
     }
@@ -488,6 +493,102 @@ public final class CardZoom {
             scroll.setVisible(show);
             scroll.setManaged(show);
             toggle.setText(NeoText.get(show ? "zoom.liveTextHide" : "zoom.liveTextShow"));
+            e.consume();
+        });
+
+        final VBox box = new VBox(6, toggle, scroll);
+        box.setAlignment(Pos.TOP_LEFT);
+        return box;
+    }
+
+    /** Si hay texto impreso que ofrecer en plano: casi siempre que sí. */
+    private static boolean hasPlainText(final CardView card) {
+        if (card == null) {
+            return false;
+        }
+        final CardStateView st = card.getCurrentState();
+        return st != null && !CardText.rulesOf(st).isEmpty();
+    }
+
+    /**
+     * "Ver el texto de la carta": lo IMPRESO, en texto plano y en tu idioma.
+     *
+     * <p>{@link #liveTextBlock} contesta "¿ha cambiado el texto?" y por eso
+     * solo aparece en el campo de batalla. Esto contesta otra pregunta
+     * distinta — "no puedo leer lo que pone ahi" — y por eso vale en
+     * <b>cualquier zona</b>: el catalogo, un sobre, la mano, la mesa.
+     *
+     * <p>Pedido jugando con una impresion de coleccionista (arte de pagina
+     * entera, con la caligrafia japonesa del propio arte encima del
+     * recuadro de reglas): ilegible aunque se juegue en ingles, porque el
+     * arte no es texto en ningun idioma. El nombre y el texto salen de
+     * {@link CardText}, que traduce por el nombre <b>interno</b> de la
+     * carta — la impresion da igual.
+     *
+     * <p>Plegado por lo mismo que {@link #liveTextBlock}: en una carta
+     * normal es el mismo texto que ya se lee en la imagen, y ensenyarlo
+     * siempre seria repetirlo en todas las cartas de la mesa.
+     */
+    private static Region plainTextBlock(final CardView card, final double width) {
+        final CardStateView st = card.getCurrentState();
+        if (st == null) {
+            return null;
+        }
+        final String rules = CardText.rulesOf(st);
+        if (rules.isEmpty()) {
+            return null;
+        }
+
+        final StringBuilder text = new StringBuilder();
+        final String name = CardText.nameOf(st);
+        if (!name.isEmpty()) {
+            text.append(name);
+        }
+        final String cost = st.getManaCost() == null ? "" : st.getManaCost().toString();
+        if (!cost.isEmpty()) {
+            if (text.length() > 0) {
+                text.append("   ");
+            }
+            text.append(cost);
+        }
+        final String type = CardText.typeOf(st);
+        if (!type.isEmpty()) {
+            if (text.length() > 0) {
+                text.append('\n');
+            }
+            text.append(type);
+        }
+        if (text.length() > 0) {
+            text.append("\n\n");
+        }
+        text.append(rules);
+        if (st.isCreature()) {
+            text.append("\n\n").append(st.getPower()).append('/').append(st.getToughness());
+        }
+
+        final Label body = new Label(text.toString());
+        body.getStyleClass().addAll("zoom-line", "zoom-live-text");
+        body.setWrapText(true);
+        body.setMaxWidth(width);
+
+        final javafx.scene.control.ScrollPane scroll =
+                new javafx.scene.control.ScrollPane(body);
+        scroll.getStyleClass().add("zoom-live-scroll");
+        scroll.setFitToWidth(true);
+        scroll.setPrefHeight(240);
+        scroll.setMaxHeight(380);
+        scroll.setVisible(false);
+        scroll.setManaged(false);
+
+        final javafx.scene.control.Button toggle =
+                new javafx.scene.control.Button(NeoText.get("zoom.plainTextShow"));
+        toggle.getStyleClass().add("zoom-live-toggle");
+        toggle.setMaxWidth(Double.MAX_VALUE);
+        toggle.setOnAction(e -> {
+            final boolean show = !scroll.isVisible();
+            scroll.setVisible(show);
+            scroll.setManaged(show);
+            toggle.setText(NeoText.get(show ? "zoom.plainTextHide" : "zoom.plainTextShow"));
             e.consume();
         });
 

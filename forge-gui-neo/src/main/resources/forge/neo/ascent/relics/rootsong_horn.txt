@@ -1,0 +1,7 @@
+Name:Rootsong Horn
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ ChangesZone | Origin$ Any | Destination$ Battlefield | ValidCard$ Land.YouCtrl | TriggerZones$ Command | Execute$ TrigGainLife | TriggerDescription$ Whenever a land you control enters, you gain 1 life.
+SVar:TrigGainLife:DB$ GainLife | Defined$ You | LifeAmount$ 1
+AI:RemoveDeck:All
+Oracle:Whenever a land you control enters, you gain 1 life.
