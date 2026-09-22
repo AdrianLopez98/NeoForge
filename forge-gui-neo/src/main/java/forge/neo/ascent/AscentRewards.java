@@ -848,6 +848,9 @@ public final class AscentRewards {
                 // landsFor() y takeLands().
                 continue;
             }
+            if (!castable(c)) {
+                continue;
+            }
             final ColorSet id = c.getRules().getColorIdentity();
             if (!id.hasNoColorsExcept(allowed)) {
                 continue;
@@ -870,6 +873,34 @@ public final class AscentRewards {
             }
         }
         return out;
+    }
+
+    /**
+     * Si esa carta se puede <b>lanzar</b> desde la mano, sin mas.
+     *
+     * <h2>El fallo que tapa</h2>
+     *
+     * <p>Reportado jugando (22-09-2026): <i>"sometimes player artifacts are
+     * added as playing card and they are only discard fodder since they cant be
+     * used"</i>. Son las cartas de <b>Suspender</b> sin coste de mana, y en el
+     * pozo hay seis: <i>Lotus Bloom</i> y <i>Mox Tantalite</i> (los dos
+     * artefactos, que es lo que se reporto), mas <i>Living End</i>,
+     * <i>Hypergenesis</i>, <i>Restore Balance</i> y <i>Glimpse of Tomorrow</i>.
+     *
+     * <p>No es que sean malas: es que <b>no se pueden lanzar nunca</b>. Su
+     * unica forma de salir de la mano es suspenderlas y esperar tres o seis
+     * turnos, y una partida de Ascenso no siempre llega. Y encima <b>parecen un
+     * premiazo</b> — un Mox y un Lotus — asi que el premio en el que salen es
+     * peor que no coger nada, que es justo lo que la pantalla deja hacer.
+     *
+     * <p>Se mira el <b>coste</b> y no una lista de nombres a proposito: una
+     * lista habria que mantenerla, y la carta de Suspender que Wizards imprima
+     * manyana entraria sola. Las tierras ya se han filtrado antes, asi que aqui
+     * "sin coste de mana" solo deja fuera lo que de verdad no se puede lanzar.
+     */
+    private static boolean castable(final PaperCard c) {
+        final forge.card.mana.ManaCost cost = c.getRules().getManaCost();
+        return cost != null && !cost.isNoCost();
     }
 
     /**
@@ -989,7 +1020,7 @@ public final class AscentRewards {
      */
     public static AscentRelic relic(final AscentRun run, final AscentRelic.Rarity rarity,
                                     final Random rnd) {
-        return pickRelic(owned(run), rollRarity(rarity, rnd), rnd);
+        return pickRelic(owned(run), colorsOf(run), rollRarity(rarity, rnd), rnd);
     }
 
     /**
@@ -1071,12 +1102,13 @@ public final class AscentRewards {
                                            final int howMany, final Random rnd) {
         final List<AscentRelic> out = new ArrayList<>();
         final Set<String> taken = owned(run);
+        final ColorSet mios = colorsOf(run);
         // La rareza se tira POR HUECO, no una vez para los tres: asi las tres
         // que ofrece un jefe pueden no ser del mismo escalon, y de vez en
         // cuando una de ellas es legendaria. Tirarla una sola vez daria tres
         // legendarias juntas o ninguna, que son los dos extremos malos.
         while (out.size() < howMany) {
-            final AscentRelic pick = pickRelic(taken, rollRarity(rarity, rnd), rnd);
+            final AscentRelic pick = pickRelic(taken, mios, rollRarity(rarity, rnd), rnd);
             if (pick == null) {
                 break;
             }
@@ -1091,13 +1123,30 @@ public final class AscentRewards {
         return relic == null ? List.of() : List.of(relic);
     }
 
-    /** Una reliquia libre de esa rareza, bajando de escalon si no queda ninguna. */
-    private static AscentRelic pickRelic(final Set<String> taken,
+    /**
+     * Una reliquia libre de esa rareza, <b>de tus colores</b>, bajando de
+     * escalon si no queda ninguna.
+     *
+     * <h2>El filtro de color (22-09-2026)</h2>
+     *
+     * <p>Este es el <b>unico</b> sitio por el que sale una reliquia para ti:
+     * tesoro, tienda, elite, jefe y los eventos que dan reliquia llaman todos a
+     * {@link #relic} o a {@link #relics}, y las dos acaban aqui. El principio 8
+     * otra vez — una regla que vale para todas las reliquias va en el punto por
+     * el que pasan todas, no en cada camino.
+     *
+     * <p>Las 37 de siempre no piden color, asi que <b>siguen saliendo
+     * igual</b>: lo que el filtro decide es solo si ademas ves las nuevas. O
+     * sea que un mazo mono-blanco no se queda con medio catalogo, se queda con
+     * el catalogo entero <i>mas</i> las blancas — mas variedad relevante, no
+     * menos. Por eso tampoco hace falta red por si no encaja ninguna.
+     */
+    private static AscentRelic pickRelic(final Set<String> taken, final ColorSet colors,
                                          final AscentRelic.Rarity rarity, final Random rnd) {
         for (final AscentRelic.Rarity tier : tiersFrom(rarity)) {
             final List<AscentRelic> pool = new ArrayList<>();
             for (final AscentRelic r : AscentRelics.all()) {
-                if (r.getRarity() == tier && !taken.contains(r.getId())) {
+                if (r.getRarity() == tier && !taken.contains(r.getId()) && r.fitsColors(colors)) {
                     pool.add(r);
                 }
             }

@@ -61,7 +61,7 @@ public class AscentSetupScreen extends StackPane {
          * @param commander en Commander, el elegido, o {@code null} para que
          *                  salga uno al azar. En Estandar se ignora
          */
-        void start(AscentRun.Mode mode, PaperCard commander, int ascension);
+        void start(AscentRun.Mode mode, PaperCard commander, int ascension, byte colours);
 
         void back();
     }
@@ -76,6 +76,13 @@ public class AscentSetupScreen extends StackPane {
     private final VBox body = new VBox(14);
     private AscentRun.Mode mode = AscentRun.Mode.STANDARD;
     private PaperCard commander;
+    /**
+     * Los colores pedidos para el mazo de Estandar, o 0 = al azar.
+     *
+     * <p>{@code -Dneo.ascent.setupColours=WB} los deja marcados al abrir, que
+     * es la unica forma de capturar la fila con {@code --snapshot}.
+     */
+    private byte colours = parseColours(System.getProperty("neo.ascent.setupColours", ""));
     /**
      * A que nivel esta puesta la ruleta.
      *
@@ -131,6 +138,8 @@ public class AscentSetupScreen extends StackPane {
 
         if (mode == AscentRun.Mode.COMMANDER) {
             body.getChildren().addAll(label("ascent.setup.commander"), commanderBox());
+        } else {
+            body.getChildren().addAll(label("ascent.setup.colours"), coloursBox());
         }
 
         if (AscentUnlocks.maxAscension() > 0) {
@@ -353,6 +362,134 @@ public class AscentSetupScreen extends StackPane {
         return box;
     }
 
+    /** Las cinco letras de color: marcas hasta dos, o ninguna. */
+    private static final byte[] COLOUR_ORDER = {
+        forge.card.MagicColor.WHITE, forge.card.MagicColor.BLUE,
+        forge.card.MagicColor.BLACK, forge.card.MagicColor.RED,
+        forge.card.MagicColor.GREEN};
+
+    private static final String[] COLOUR_LETTERS = {"W", "U", "B", "R", "G"};
+
+    /**
+     * Con que colores se genera el mazo de Estandar.
+     *
+     * <h2>La decision de interfaz, y por que esta</h2>
+     *
+     * <p>Habia dos formas: dejar que "ninguno marcado" signifique al azar, o
+     * poner ademas un boton <i>Al azar</i>. <b>Se eligio lo primero, pero con
+     * el resultado escrito debajo siempre.</b>
+     *
+     * <p>El boton aparte suena mas claro y no lo es: serian <b>dos controles
+     * para una sola decision</b>, y en cuanto existen hay un estado imposible
+     * que alguien tiene que resolver — ¿que pasa si esta pulsado <i>Al azar</i>
+     * y ademas hay dos letras marcadas? Cualquier respuesta a eso es una regla
+     * que el jugador tiene que adivinar.
+     *
+     * <p>El unico argumento a favor del boton era la ambiguedad: sin marcar
+     * nada no se sabe si es a proposito o se te olvido. Eso se arregla sin
+     * anyadir un control, diciendolo: la linea de debajo dice <b>siempre</b> con
+     * que se va a jugar ("Al azar", "Mono-blanco", "Blanco y negro"). Asi no
+     * hay modo escondido — que es el principio 1, un control que no hace lo que
+     * parece es peor que no tenerlo — y empezar una run <b>no se deshace</b>,
+     * asi que lo que va a pasar tiene que estar a la vista antes de pulsar.
+     *
+     * <p>El tope de <b>dos</b> se aplica al pulsar: marcar una tercera suelta
+     * la mas antigua en vez de no hacer nada. Un boton que no responde parece
+     * roto; uno que responde ensenya la regla sin un cartel de error.
+     */
+    private Region coloursBox() {
+        final HBox row = new HBox(8);
+        row.setAlignment(Pos.CENTER);
+        for (int i = 0; i < COLOUR_ORDER.length; i++) {
+            final byte c = COLOUR_ORDER[i];
+            final String letter = COLOUR_LETTERS[i];
+            final Button b = new Button(letter);
+            b.getStyleClass().addAll("segment", "colour-filter",
+                    "mana-" + letter.toLowerCase(java.util.Locale.ROOT));
+            if ((colours & c) != 0) {
+                b.getStyleClass().add("colour-filter-on");
+            }
+            b.setOnAction(e -> {
+                colours = toggle(colours, c);
+                rebuild();
+            });
+            row.getChildren().add(b);
+        }
+
+        final Label what = new Label(coloursCaption());
+        what.getStyleClass().add("ascent-info-text");
+        what.setWrapText(true);
+        what.setMaxWidth(620);
+        // Centrada, al reves que la descripcion del modo de arriba: aquella es
+        // un parrafo que ocupa las dos lineas enteras y alineado a la izquierda
+        // se lee mejor; esta es UNA frase corta, y suelta a la izquierda de una
+        // caja de 620 parece un texto descolocado en vez de el pie de las cinco
+        // letras que tiene encima.
+        what.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
+        // ⚠️ Y setAlignment ADEMAS: con setMaxWidth(620) la etiqueta ocupa los
+        // 620 aunque el texto sean cuatro palabras, asi que centrar el NODO en
+        // el VBox no mueve nada y setTextAlignment solo reparte las lineas
+        // entre si. Lo que coloca el texto dentro de la etiqueta es esto.
+        what.setAlignment(Pos.CENTER);
+
+        final VBox box = new VBox(6, row, what);
+        box.setAlignment(Pos.CENTER);
+        return box;
+    }
+
+    /**
+     * Marcar o desmarcar, respetando el tope.
+     *
+     * <p>Al marcar la tercera se <b>suelta la primera</b> (la de menor peso en
+     * el orden WUBRG). No se ignora la pulsacion: un boton que no reacciona
+     * parece roto, y la regla se aprende viendo que siempre quedan dos.
+     */
+    private static byte toggle(final byte current, final byte colour) {
+        if ((current & colour) != 0) {
+            return (byte) (current & ~colour);
+        }
+        byte next = (byte) (current | colour);
+        for (final byte c : COLOUR_ORDER) {
+            if (Integer.bitCount(next & 0xFF) <= AscentSeedDeck.MAX_COLOURS) {
+                break;
+            }
+            if (c != colour && (next & c) != 0) {
+                next = (byte) (next & ~c);
+            }
+        }
+        return next;
+    }
+
+    /** Lo que va a pasar al pulsar Empezar, dicho con todas las letras. */
+    private String coloursCaption() {
+        final List<String> names = new ArrayList<>();
+        for (int i = 0; i < COLOUR_ORDER.length; i++) {
+            if ((colours & COLOUR_ORDER[i]) != 0) {
+                names.add(NeoText.get("ascent.setup.colours."
+                        + COLOUR_LETTERS[i].toLowerCase(java.util.Locale.ROOT)));
+            }
+        }
+        if (names.isEmpty()) {
+            return NeoText.get("ascent.setup.colours.any");
+        }
+        if (names.size() == 1) {
+            return NeoText.get("ascent.setup.colours.one", names.get(0));
+        }
+        return NeoText.get("ascent.setup.colours.two", names.get(0), names.get(1));
+    }
+
+    /** {@code -Dneo.ascent.setupColours=WB} -> mascara, para poder capturarlo. */
+    private static byte parseColours(final String spec) {
+        byte mask = 0;
+        for (final char c : spec.toCharArray()) {
+            mask |= forge.card.MagicColor.fromName(c);
+        }
+        while (Integer.bitCount(mask & 0xFF) > AscentSeedDeck.MAX_COLOURS) {
+            mask = (byte) (mask & (mask - 1));
+        }
+        return mask;
+    }
+
     /** Empezar, y avisar si eso se lleva por delante una run. */
     private Region footer() {
         final Button start = new Button(NeoText.get(runInProgress
@@ -362,7 +499,7 @@ public class AscentSetupScreen extends StackPane {
             if (runInProgress) {
                 confirmOverwrite();
             } else {
-                actions.start(mode, commander, ascension);
+                actions.start(mode, commander, ascension, colours);
             }
         });
 
@@ -405,7 +542,7 @@ public class AscentSetupScreen extends StackPane {
         no.getStyleClass().addAll("ascent-button", "btn-primary");
         final Button yes = new Button(NeoText.get("ascent.setup.confirm.yes"));
         yes.getStyleClass().addAll("ascent-button", "ascent-button-danger");
-        yes.setOnAction(e -> actions.start(mode, commander, ascension));
+        yes.setOnAction(e -> actions.start(mode, commander, ascension, colours));
 
         final HBox buttons = new HBox(12, no, yes);
         buttons.setAlignment(Pos.CENTER);

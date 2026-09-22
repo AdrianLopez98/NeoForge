@@ -1,0 +1,7 @@
+Name:Midnight Offering
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ Phase | Phase$ Main1 | ValidPlayer$ You | TriggerZones$ Command | CheckSVar$ Count$YourTurns | SVarCompare$ EQ1 | Execute$ TrigMana | TriggerDescription$ At the beginning of your first precombat main phase, add {B}{B}{B}.
+SVar:TrigMana:DB$ Mana | Produced$ B | Amount$ 3
+AI:RemoveDeck:All
+Oracle:At the beginning of your first precombat main phase, add {B}{B}{B}.

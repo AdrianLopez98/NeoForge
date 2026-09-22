@@ -44,13 +44,15 @@ public final class AscentRelic {
     private final String cardName;
     private final Rarity rarity;
     private final String text;
+    private final byte colors;
 
     AscentRelic(final String id, final String cardName, final Rarity rarity,
-                final String text) {
+                final String text, final byte colors) {
         this.id = id;
         this.cardName = cardName;
         this.rarity = rarity;
         this.text = text;
+        this.colors = colors;
     }
 
     /**
@@ -89,6 +91,39 @@ public final class AscentRelic {
      */
     public String getText() {
         return text;
+    }
+
+    /**
+     * Los colores del mazo que esta reliquia <b>pide</b>, o {@code 0} si no
+     * pide ninguno.
+     *
+     * <h2>Por que se declara y no se deduce de la carta</h2>
+     *
+     * <p>Una reliquia lleva {@code ManaCost:no cost}, asi que para el motor su
+     * identidad de color es <b>incolora</b> siempre — incluso una que diga
+     * "anyade {B}{B}{B}". O sea que preguntarle a {@code CardRules} devolveria
+     * "sirve para todos" justo en las que no.
+     *
+     * <p>{@code 0} no quiere decir "incolora" en el sentido de Magic: quiere
+     * decir <b>sin requisito</b>. Las 37 de siempre valen en cualquier run y
+     * siguen saliendo siempre; lo que se filtra es lo nuevo.
+     *
+     * @see AscentRelics#COLOURLESS
+     */
+    public byte getColors() {
+        return colors;
+    }
+
+    /**
+     * Si esta reliquia se le puede ofrecer a un mazo de esos colores.
+     *
+     * <p>Basta con <b>compartir un color</b>, no con estar contenida: un mazo
+     * Orzhov (blanco-negro) tiene que ver las reliquias blancas y las negras.
+     * Exigir subconjunto dejaria a los mazos de dos colores con menos opciones
+     * que a los monocolor, que es justo al reves de lo que interesa.
+     */
+    public boolean fitsColors(final forge.card.ColorSet deck) {
+        return colors == 0 || deck == null || deck.hasAnyColor(colors);
     }
 
     @Override

@@ -269,6 +269,27 @@ public class NeoApp extends Application implements SettingsPanel.Host {
         // tamanyos: Windows elige el que necesita en cada sitio. Ver NeoLogo.
         forge.neo.NeoLogo.applyTo(stage);
         stage.setScene(scene);
+
+        // Discord: "Jugando a Neo Forge", con lo que estas haciendo.
+        //
+        // UN oyente sobre la raiz de la escena, y no una llamada en cada uno de
+        // los veintitantos scene.setRoot(...) que hay en esta clase. El dia que
+        // se anyada la pantalla veintitres, esta se entera sola — que es la
+        // diferencia entre un adorno que envejece bien y uno que miente a los
+        // seis meses. Ver forge.neo.discord.DiscordStatus.
+        //
+        // No puede tirar la aplicacion: lo que hay debajo no lanza, pero este
+        // oyente corre en el hilo de JavaFX en cada cambio de pantalla y una
+        // excepcion aqui se llevaria por delante la navegacion entera.
+        forge.neo.discord.DiscordRich.setEnabled(NeoSettings.discord());
+        scene.rootProperty().addListener((obs, old, root) -> {
+            try {
+                forge.neo.discord.DiscordStatus.screen(root);
+            } catch (final RuntimeException e) {
+                System.err.println("[neo] Discord: " + e);
+            }
+        });
+
         // En un Mac, Ctrl+clic es el clic derecho. Fuera de un Mac no hace nada.
         forge.neo.platform.NeoOs.installMacMouse(scene);
         // Sin esto JavaFX se queda con Escape para salir de pantalla completa y
@@ -935,6 +956,14 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             // El descanso, a media vida: con la vida llena el boton de curarse
             // sale deshabilitado y no se ve lo que hay que ver.
             ascent.showMock("rest");
+        } else if (args.contains("--ascent-setup")) {
+            // La pantalla de MONTAR la run, siempre, aunque haya una a medias.
+            // --ascent no vale para capturarla: con una run guardada entra a
+            // AscentPickScreen, y la unica forma de llegar al montaje seria
+            // abandonarla — o sea borrarle la run al jugador para hacer una
+            // captura. Hace falta desde que el montaje tiene la fila de
+            // colores del mazo de Estandar (-Dneo.ascent.setupColours=WB).
+            ascent.showSetup();
         } else if (args.contains("--ascent")) {
             // Ascenso, igual que la casilla del menu principal. Con una run a
             // medias entra a AscentPickScreen (continuar o abandonar); sin

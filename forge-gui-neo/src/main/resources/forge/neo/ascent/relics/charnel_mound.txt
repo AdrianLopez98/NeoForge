@@ -1,0 +1,8 @@
+Name:Charnel Mound
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ Phase | Phase$ End of Turn | ValidPlayer$ You | TriggerZones$ Command | CheckSVar$ MiCementerio | SVarCompare$ GE7 | Execute$ TrigToken | TriggerDescription$ At the beginning of your end step, if there are seven or more cards in your graveyard, create a 2/2 black Zombie creature token.
+SVar:TrigToken:DB$ Token | TokenScript$ b_2_2_zombie | TokenOwner$ You
+SVar:MiCementerio:Count$ValidGraveyard Card.YouOwn
+AI:RemoveDeck:All
+Oracle:At the beginning of your end step, if there are seven or more cards in your graveyard, create a 2/2 black Zombie creature token.

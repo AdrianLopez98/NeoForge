@@ -140,7 +140,7 @@ final class NeoAppAscent {
                 new AscentSetupScreen.Actions() {
                     @Override
                     public void start(final AscentRun.Mode mode, final PaperCard commander,
-                                      final int ascension) {
+                                      final int ascension, final byte colours) {
                         final AscentRun previous = AscentRun.current();
                         if (previous != null) {
                             // Su mazo se va con ella: si no, la carpeta de
@@ -148,7 +148,7 @@ final class NeoAppAscent {
                             previous.discard();
                         }
                         showMap(AscentRun.begin(mode, ascension,
-                                mode == AscentRun.Mode.COMMANDER ? 40 : 20, commander));
+                                mode == AscentRun.Mode.COMMANDER ? 40 : 20, commander, colours));
                     }
 
                     @Override

@@ -196,9 +196,39 @@ public final class AscentSeedDeck {
      */
     public static Deck generate(final AscentRun.Mode mode, final PaperCard commander,
                                 final String name, final int ascension) {
+        return generate(mode, commander, name, ascension, NO_COLOURS);
+    }
+
+    /** Ningun color pedido: el mazo de Estandar se sortea como siempre. */
+    public static final byte NO_COLOURS = 0;
+
+    /**
+     * Igual, con los <b>colores que pidio el jugador</b> para el mazo de
+     * Estandar.
+     *
+     * <h2>Por que solo en Estandar, y por que dos como mucho</h2>
+     *
+     * <p>En Commander los colores no son una eleccion: los manda la identidad
+     * del comandante, y el motor rechaza el mazo si te sales. En Estandar si lo
+     * son, y hasta el 22-09-2026 los sorteaba el juego — o sea que la decision
+     * mas grande de la run (con que vas a jugar cuarenta minutos) se tomaba
+     * sola.
+     *
+     * <p>El <b>tope de dos</b> no es un limite de la pantalla por comodidad: es
+     * que el mazo de salida son {@value #STANDARD_SIZE} cartas con doce
+     * tierras. A tres colores, la mitad de las manos no se pueden lanzar; a
+     * cinco no se puede jugar. Ofrecerlo seria ofrecer una opcion que rompe la
+     * run sin decirlo (principio 6: lo que no se puede deshacer, hay que evitar
+     * que pase).
+     *
+     * @param colours mascara de {@code MagicColor}, o {@link #NO_COLOURS} para
+     *                que salgan al azar. Se ignora en Commander
+     */
+    public static Deck generate(final AscentRun.Mode mode, final PaperCard commander,
+                                final String name, final int ascension, final byte colours) {
         final Deck deck = mode == AscentRun.Mode.COMMANDER
                 ? commander(commander, name)
-                : standard(name);
+                : standard(name, colours);
         if (ascension >= 3) {
             curse(deck);
         }
@@ -252,18 +282,64 @@ public final class AscentSeedDeck {
     //  Estandar: mono o dos colores, y de principiante
     // ------------------------------------------------------------------
 
-    private static Deck standard(final String name) {
-        // Uno o dos colores. El motor ofrece {1,2,3} y {1,2,3,5}; ninguno vale,
-        // asi que se le pasa la seleccion a mano. "Random" es su forma de decir
-        // "elige tu el color".
-        final int colors = 1 + MyRandom.getRandom().nextInt(2);
+    private static Deck standard(final String name, final byte colours) {
+        // El motor ofrece {1,2,3} y {1,2,3,5} colores; ninguno vale para un
+        // mazo de 30 cartas, asi que se le pasa la seleccion a mano.
+        //
+        // Los nombres que entiende son los de MagicColor.Constant ("white",
+        // "blue"...). Cualquier otra cosa —el "Random" de toda la vida— cae en
+        // el `fromName(...) == 0` de DeckGeneratorMonoColor y le hace sortear
+        // el color. O sea que pedir y no pedir es el MISMO camino, solo cambia
+        // la cadena: por eso esto no anyade un generador nuevo que mantener.
         final List<String> selection = new ArrayList<>();
-        for (int i = 0; i < colors; i++) {
-            selection.add("Random");
+        if (colours != NO_COLOURS) {
+            for (final String nombre : namesOf(colours)) {
+                selection.add(nombre);
+            }
+        }
+        if (selection.isEmpty()) {
+            final int howMany = 1 + MyRandom.getRandom().nextInt(2);
+            for (int i = 0; i < howMany; i++) {
+                selection.add("Random");
+            }
         }
         final Deck full = DeckgenUtil.buildColorDeck(selection, BEGINNER, false);
         return trim(full, null, STANDARD_SIZE, name);
     }
+
+    /**
+     * Los nombres que el generador entiende, para esa mascara.
+     *
+     * <p>Recortado a <b>dos</b>: la pantalla ya no deja marcar mas, pero esto
+     * lo llaman tambien los comprobadores y una run de tres colores con 30
+     * cartas es injugable. El limite vive donde se construye el mazo, no solo
+     * donde se pulsa — un limite que solo esta en la interfaz no es un limite.
+     */
+    private static List<String> namesOf(final byte colours) {
+        final List<String> out = new ArrayList<>();
+        if ((colours & forge.card.MagicColor.WHITE) != 0) {
+            out.add(forge.card.MagicColor.Constant.WHITE);
+        }
+        if ((colours & forge.card.MagicColor.BLUE) != 0) {
+            out.add(forge.card.MagicColor.Constant.BLUE);
+        }
+        if ((colours & forge.card.MagicColor.BLACK) != 0) {
+            out.add(forge.card.MagicColor.Constant.BLACK);
+        }
+        if ((colours & forge.card.MagicColor.RED) != 0) {
+            out.add(forge.card.MagicColor.Constant.RED);
+        }
+        if ((colours & forge.card.MagicColor.GREEN) != 0) {
+            out.add(forge.card.MagicColor.Constant.GREEN);
+        }
+        while (out.size() > MAX_COLOURS) {
+            out.remove(out.size() - 1);
+        }
+        return out;
+    }
+
+    /** Cuantos colores como mucho puede pedir un mazo de Estandar. */
+    public static final int MAX_COLOURS = 2;
 
     // ------------------------------------------------------------------
     //  Commander: el que elijas, y con techo de potencia

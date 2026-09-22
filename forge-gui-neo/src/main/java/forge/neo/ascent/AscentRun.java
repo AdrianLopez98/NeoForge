@@ -152,8 +152,22 @@ public final class AscentRun {
      */
     public static AscentRun begin(final Mode mode, final int ascension, final int maxLife,
                                   final forge.item.PaperCard commander) {
+        return begin(mode, ascension, maxLife, commander, AscentSeedDeck.NO_COLOURS);
+    }
+
+    /**
+     * Igual, con los <b>colores</b> que pidio el jugador para el mazo de
+     * Estandar.
+     *
+     * @param colours mascara de {@code MagicColor}, o
+     *                {@link AscentSeedDeck#NO_COLOURS} para que salgan al azar.
+     *                Se ignora en Commander, donde los manda el comandante
+     */
+    public static AscentRun begin(final Mode mode, final int ascension, final int maxLife,
+                                  final forge.item.PaperCard commander, final byte colours) {
         final String name = deckNameFor(mode);
-        final forge.deck.Deck deck = AscentSeedDeck.generate(mode, commander, name, ascension);
+        final forge.deck.Deck deck =
+                AscentSeedDeck.generate(mode, commander, name, ascension, colours);
         AscentDecks.save(deck);
         return start(mode, ascension, maxLife, name);
     }

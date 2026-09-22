@@ -339,6 +339,9 @@ public class NeoMatchUI extends NetworkGuiGame {
     private PhaseType lastPhase;
     private int lastTurn = -1;
 
+    /** Cuantos asientos de esta partida son mios. 0 = estoy mirando. */
+    private int discordSeats;
+
     /**
      * Cuantas veces seguidas, en este turno, el piloto automatico se ha
      * encontrado un ataque que el motor no va a aceptar. Ver autoPressOk().
@@ -1426,6 +1429,11 @@ public class NeoMatchUI extends NetworkGuiGame {
         if (phase != lastPhase) {
             lastPhase = phase;
             trace("fase: %s", phase);
+            // De paso, el turno que se ensenya en Discord. Aqui y no en un
+            // temporizador propio: es el latido que ya existe. Y no cuesta
+            // nada aunque salte mil veces — DiscordRich guarda solo el ultimo
+            // y manda como mucho uno cada cinco segundos.
+            updateDiscord();
             // El mana flotante se vacia al acabar cada paso, y de eso no
             // siempre llega aviso. Olvidar aqui la fuente evita que la marca
             // se quede pegada a una carta que ya no tiene nada que deshacer.
@@ -1434,6 +1442,22 @@ public class NeoMatchUI extends NetworkGuiGame {
             lastPoolSize = localPoolSize();
         }
         pushToTable();
+    }
+
+    /**
+     * Le cuenta a Discord en que partida estas.
+     *
+     * <p>Envuelto en su propio {@code try}: la presencia es un adorno y no
+     * puede tirar una partida. Esto corre en el hilo del MOTOR (llega desde
+     * {@code handleGameEvent}), asi que una excepcion suelta aqui no seria un
+     * icono que no sale — seria la partida muerta.
+     */
+    private void updateDiscord() {
+        try {
+            forge.neo.discord.DiscordStatus.game(getGameView(), discordSeats, isNetGame());
+        } catch (final RuntimeException e) {
+            trace("Discord: %s", e);
+        }
     }
 
     /** Estado de la mesa: exactamente los datos que pintara la fase 3. */
@@ -2413,6 +2437,12 @@ public class NeoMatchUI extends NetworkGuiGame {
         // Y a partir de aqui, enterarnos de lo que pasa. Ver listenToTheEngine:
         // en una partida local nadie nos cuenta nada si no lo pedimos.
         listenToTheEngine();
+
+        // Discord, si el jugador lo quiere. AQUI por el principio 8: es el
+        // punto por el que pasan TODAS las partidas, asi que un modo nuevo —o
+        // el duelo de la aventura, que lo monta QuestUtil— aparece solo.
+        discordSeats = myPlayers == null ? 0 : myPlayers.size();
+        updateDiscord();
 
         // ---- decirle al anfitrion como juego YO ----
         //

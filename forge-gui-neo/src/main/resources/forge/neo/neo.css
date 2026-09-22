@@ -1794,6 +1794,14 @@
 .colour-filter.mana-r { -fx-text-fill: #E28B75; -fx-border-color: #E28B75; }
 .colour-filter.mana-g { -fx-text-fill: #7FBE94; -fx-border-color: #7FBE94; }
 
+/* Marcado por clase y no por :selected, porque la pantalla de Ascenso
+   reconstruye los botones en cada pulsacion y el pseudo-estado se perderia. */
+.colour-filter.mana-w.colour-filter-on { -fx-background-color: #F5F0DC; -fx-text-fill: #12161C; }
+.colour-filter.mana-u.colour-filter-on { -fx-background-color: #7FB4DC; -fx-text-fill: #12161C; }
+.colour-filter.mana-b.colour-filter-on { -fx-background-color: #A79EA0; -fx-text-fill: #12161C; }
+.colour-filter.mana-r.colour-filter-on { -fx-background-color: #E28B75; -fx-text-fill: #12161C; }
+.colour-filter.mana-g.colour-filter-on { -fx-background-color: #7FBE94; -fx-text-fill: #12161C; }
+
 .colour-filter.mana-w:selected { -fx-background-color: #F5F0DC; -fx-text-fill: #12161C; }
 .colour-filter.mana-u:selected { -fx-background-color: #7FB4DC; -fx-text-fill: #12161C; }
 .colour-filter.mana-b:selected { -fx-background-color: #A79EA0; -fx-text-fill: #12161C; }

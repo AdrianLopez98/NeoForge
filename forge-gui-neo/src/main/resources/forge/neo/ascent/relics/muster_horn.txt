@@ -1,0 +1,8 @@
+Name:Muster Horn
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ AttackersDeclared | AttackingPlayer$ You | TriggerZones$ Command | ActivationLimit$ 1 | CheckSVar$ Atacantes | SVarCompare$ GE2 | Execute$ TrigDraw | TriggerDescription$ Whenever you attack with two or more nontoken creatures, draw a card. This ability triggers only once each turn.
+SVar:TrigDraw:DB$ Draw | NumCards$ 1
+SVar:Atacantes:Count$Valid Creature.attacking+YouCtrl+nonToken
+AI:RemoveDeck:All
+Oracle:Whenever you attack with two or more nontoken creatures, draw a card. This ability triggers only once each turn.

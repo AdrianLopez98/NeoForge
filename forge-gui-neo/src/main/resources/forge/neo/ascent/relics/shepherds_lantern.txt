@@ -1,0 +1,9 @@
+Name:Shepherd's Lantern
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ Phase | Phase$ End of Turn | ValidPlayer$ You | TriggerZones$ Command | OptionalDecider$ You | Execute$ TrigExile | TriggerDescription$ At the beginning of your end step, you may exile target permanent you control, then return it to the battlefield under its owner's control.
+SVar:TrigExile:DB$ ChangeZone | ValidTgts$ Permanent.YouCtrl | TgtPrompt$ Select target permanent you control | Origin$ Battlefield | Destination$ Exile | RememberChanged$ True | SubAbility$ DBReturn
+SVar:DBReturn:DB$ ChangeZone | Defined$ Remembered | Origin$ Exile | Destination$ Battlefield | SubAbility$ DBCleanup
+SVar:DBCleanup:DB$ Cleanup | ClearRemembered$ True
+AI:RemoveDeck:All
+Oracle:At the beginning of your end step, you may exile target permanent you control, then return it to the battlefield under its owner's control.

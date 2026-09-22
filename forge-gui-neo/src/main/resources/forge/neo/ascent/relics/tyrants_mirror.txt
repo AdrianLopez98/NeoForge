@@ -1,0 +1,7 @@
+Name:Tyrant's Mirror
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ Phase | Phase$ Upkeep | ValidPlayer$ You | TriggerZones$ Command | Execute$ TrigDiscard | TriggerDescription$ At the beginning of your upkeep, target opponent reveals their hand. You choose a card from it. That player discards that card.
+SVar:TrigDiscard:DB$ Discard | ValidTgts$ Opponent | Mode$ RevealYouChoose | NumCards$ 1
+AI:RemoveDeck:All
+Oracle:At the beginning of your upkeep, target opponent reveals their hand. You choose a card from it. That player discards that card.

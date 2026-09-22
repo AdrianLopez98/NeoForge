@@ -1,0 +1,7 @@
+Name:Gravebound Censer
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ Phase | Phase$ End of Turn | ValidPlayer$ You | TriggerZones$ Command | Execute$ TrigReturn | TriggerDescription$ At the beginning of your end step, return a permanent card with mana value 3 or less from your graveyard to the battlefield.
+SVar:TrigReturn:DB$ ChangeZone | Origin$ Graveyard | Destination$ Battlefield | ChangeType$ Permanent.YouOwn+cmcLE3 | ChangeNum$ 1 | Chooser$ You | Hidden$ True | Mandatory$ True
+AI:RemoveDeck:All
+Oracle:At the beginning of your end step, return a permanent card with mana value 3 or less from your graveyard to the battlefield.

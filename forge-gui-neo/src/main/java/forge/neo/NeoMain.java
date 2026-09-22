@@ -79,6 +79,14 @@ public final class NeoMain {
             return;
         }
 
+        // La presencia de Discord: solo cadenas, ni tuberia ni motor ni cartas.
+        // Aqui arriba con las otras tres baratas. Ver DiscordCheck.
+        if ("discordcheck".equals(cmd)) {
+            banner("Discord: la presencia, sin Discord");
+            forge.neo.discord.DiscordCheck.run();
+            return;
+        }
+
         // La Aventura (el Adventure de Forge) en su propio proceso, lanzado desde
         // el menu. Va ANTES del cerrojo de instancia unica: el NeoForge que la
         // abre sigue vivo, y con el cerrojo este proceso se cerraria solo. En el

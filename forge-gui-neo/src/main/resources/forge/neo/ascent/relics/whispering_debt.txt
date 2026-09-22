@@ -1,0 +1,7 @@
+Name:Whispering Debt
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ Drawn | ValidCard$ Card.OppOwn | TriggerZones$ Command | Execute$ TrigLoseLife | TriggerDescription$ Whenever an opponent draws a card, they lose 1 life.
+SVar:TrigLoseLife:DB$ LoseLife | Defined$ TriggeredPlayer | LifeAmount$ 1
+AI:RemoveDeck:All
+Oracle:Whenever an opponent draws a card, they lose 1 life.

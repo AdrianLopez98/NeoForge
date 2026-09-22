@@ -98,6 +98,10 @@ public final class AscentCheck {
             tierrasEnElPremio();
             elDobleEnCommander();
             comandanteMulticolor();
+            premioSoloCartasJugables();
+            reliquiasPorColor();
+            siluetasDistinguibles();
+            coloresDelMazoDeEstandar();
             singletonEnCommander();
             calidadDelPremio();
             sinergia();
@@ -2547,6 +2551,288 @@ public final class AscentCheck {
             } else {
                 fail("singleton: " + mal + " tierras no basicas entrarian con un numero de"
                         + " copias que Commander no permite");
+            }
+        } finally {
+            run.discard();
+        }
+    }
+
+    /**
+     * Que el mazo de Estandar salga de <b>los colores que pidio el jugador</b>.
+     *
+     * <h2>Que se comprueba</h2>
+     *
+     * <p>Pedido por Ana (22-09-2026): en Estandar los colores eran un sorteo,
+     * o sea que la decision mas grande de la run —con que vas a jugar cuarenta
+     * minutos— se tomaba sola. Ahora se marcan en la pantalla de montaje.
+     *
+     * <p>Tres cosas, y las tres callan si fallan:
+     *
+     * <ol>
+     *   <li><b>Que se respeten.</b> Si el generador ignorara la peticion, el
+     *       mazo saldria perfectamente jugable — de otro color. Nadie lo
+     *       llamaria fallo, solo mala suerte.</li>
+     *   <li><b>Que se usen los dos.</b> Pedir dos y recibir un mono-color es el
+     *       fallo silencioso de verdad: el mazo funciona, pero la mitad de lo
+     *       que elegiste no esta.</li>
+     *   <li><b>Que sin pedir nada siga saliendo un mazo.</b> Es el camino de
+     *       siempre y el que juega quien no toca la fila.</li>
+     * </ol>
+     *
+     * <p>Y que el <b>tope de dos</b> se aplique donde se construye el mazo y no
+     * solo donde se pulsa: un limite que solo vive en la interfaz no es un
+     * limite. Se pide con tres colores a proposito.
+     */
+    private static void coloresDelMazoDeEstandar() {
+        final byte wb = (byte) (forge.card.MagicColor.WHITE | forge.card.MagicColor.BLACK);
+        unMazoDeColores("blanco-negro", wb, 2);
+
+        final byte soloRojo = forge.card.MagicColor.RED;
+        unMazoDeColores("mono-rojo", soloRojo, 1);
+
+        // Tres pedidos: el generador tiene que quedarse en dos.
+        final byte tres = (byte) (forge.card.MagicColor.WHITE
+                | forge.card.MagicColor.BLUE | forge.card.MagicColor.GREEN);
+        final Deck recortado = AscentSeedDeck.generate(AscentRun.Mode.STANDARD, null,
+                "check-tope", 0, tres);
+        final forge.card.ColorSet usados = coloresDe(recortado);
+        if (usados.countColors() > AscentSeedDeck.MAX_COLOURS) {
+            fail("colores: pidiendo TRES colores el mazo ha salido de " + usados.countColors()
+                    + " (" + usados + "); el tope tiene que aplicarse al construir, no solo"
+                    + " en la pantalla");
+        } else {
+            ok("colores: pidiendo tres, el mazo se queda en " + usados.countColors()
+                    + " (" + usados + ") — el tope vive donde se construye el mazo");
+        }
+
+        // Y sin pedir nada, el camino de siempre.
+        final Deck azar = AscentSeedDeck.generate(AscentRun.Mode.STANDARD, null,
+                "check-azar", 0, AscentSeedDeck.NO_COLOURS);
+        if (azar == null || azar.getMain().countAll() < AscentSeedDeck.STANDARD_SIZE) {
+            fail("colores: sin pedir ninguno no sale un mazo de "
+                    + AscentSeedDeck.STANDARD_SIZE + " cartas");
+        } else {
+            ok("colores: sin pedir ninguno sigue saliendo un mazo de "
+                    + azar.getMain().countAll() + " cartas (" + coloresDe(azar) + ")");
+        }
+    }
+
+    /** Un mazo de Estandar con esos colores pedidos: ni uno de mas, ni uno de menos. */
+    private static void unMazoDeColores(final String nombre, final byte pedidos,
+                                        final int cuantos) {
+        final Deck deck = AscentSeedDeck.generate(AscentRun.Mode.STANDARD, null,
+                "check-" + nombre, 0, pedidos);
+        if (deck == null) {
+            fail("colores: pidiendo " + nombre + " no ha salido mazo");
+            return;
+        }
+        final forge.card.ColorSet usados = coloresDe(deck);
+        if (!usados.hasNoColorsExcept(forge.card.ColorSet.fromMask(pedidos))) {
+            fail("colores: pidiendo " + nombre + " el mazo trae " + usados
+                    + ", que se sale de lo pedido");
+            return;
+        }
+        if (usados.countColors() < cuantos) {
+            fail("colores: pidiendo " + nombre + " (" + cuantos + " colores) el mazo solo usa "
+                    + usados + "; la mitad de lo elegido no estaria");
+            return;
+        }
+        ok("colores: pidiendo " + nombre + " el mazo sale de " + usados + " y de nada mas ("
+                + deck.getMain().countAll() + " cartas)");
+    }
+
+    /** Los colores que de verdad juega un mazo: por el COSTE de sus hechizos. */
+    private static forge.card.ColorSet coloresDe(final Deck deck) {
+        byte mask = 0;
+        for (final Map.Entry<PaperCard, Integer> e : deck.getMain()) {
+            final PaperCard c = e.getKey();
+            if (c.getRules() == null || c.getRules().getType().isLand()) {
+                continue;
+            }
+            mask |= c.getRules().getManaCost().getColorProfile();
+        }
+        return forge.card.ColorSet.fromMask(mask);
+    }
+
+    /**
+     * Que no haya <b>dos reliquias con la misma silueta y la misma rareza</b>.
+     *
+     * <h2>Por que importa</h2>
+     *
+     * <p>En la barra del mapa una reliquia es una pastilla: su emblema y su
+     * color de rareza, y nada mas. Dos que coincidan en las dos cosas son
+     * <b>literalmente indistinguibles</b> — no es que se parezcan, es que no
+     * hay forma de saber cual llevas. Ya paso dos veces con las 35 primeras
+     * (<i>Font of Souls</i> / <i>Chalice of Ages</i> y <i>Banner of Legions</i>
+     * / <i>Warlord's Standard</i>, las dos parejas en oro) y se caz&oacute; mirando
+     * {@code run.cmd ui --mock-relics} con los ojos.
+     *
+     * <p>Con 54 reliquias y 31 siluetas, reusar es obligatorio: lo que no se
+     * puede es reusar <b>dentro de la misma rareza</b>. Esto lo comprueba solo,
+     * que es lo que hace barato anyadir la numero 55.
+     */
+    private static void siluetasDistinguibles() {
+        AscentRelics.install();
+        final Map<String, String> vistas = new LinkedHashMap<>();
+        final List<String> choques = new ArrayList<>();
+        for (final AscentRelic r : AscentRelics.all()) {
+            final String clave = forge.neo.card.RelicEmblem.motifOf(r.getId())
+                    + "/" + r.getRarity();
+            final String antes = vistas.put(clave, r.getId());
+            if (antes != null) {
+                choques.add(antes + " y " + r.getId() + " (" + clave + ")");
+            }
+        }
+        if (choques.isEmpty()) {
+            ok("siluetas: las " + AscentRelics.all().size() + " reliquias se distinguen en la"
+                    + " barra del mapa — ninguna pareja comparte emblema Y rareza");
+        } else {
+            fail("siluetas: " + choques.size() + " pareja(s) indistinguibles en la barra del"
+                    + " mapa: " + String.join("; ", choques));
+        }
+    }
+
+    /**
+     * Que las reliquias <b>de color</b> solo se le ofrezcan a quien juega ese
+     * color — y que las de siempre se le sigan ofreciendo a todo el mundo.
+     *
+     * <h2>Que se comprueba y por que no basta con leer el codigo</h2>
+     *
+     * <p>Pedido por Ana (22-09-2026): <i>"que te salgan reliquias tambien en
+     * base al color que juegues"</i>. El filtro es una linea en
+     * {@code AscentRewards.pickRelic}, pero equivocarse ahi no da ningun error:
+     * o se cuelan las negras en un mazo blanco (un premio vacio, porque
+     * {@code add {B}{B}{B}} no hace nada sin pantanos) o se caen <b>todas</b>
+     * las de color y el sistema entero no existe sin que nada falle. Las dos
+     * cosas son invisibles jugando hasta llevar muchas runs.
+     *
+     * <p>Asi que se mira lo que SALE, con dos comandantes monocolor y una
+     * muestra grande, y se exige lo de <b>los dos lados</b>: que no salga
+     * ninguna del color ajeno, y que si salga alguna del propio. Solo lo
+     * primero pasaria en verde con el sistema apagado del todo.
+     */
+    private static void reliquiasPorColor() {
+        AscentRelics.install();
+        PaperCard blanco = null;
+        PaperCard negro = null;
+        for (final PaperCard c : AscentSeedDeck.commanderPool()) {
+            if (c.getRules() == null) {
+                continue;
+            }
+            final forge.card.ColorSet id = c.getRules().getColorIdentity();
+            if (id.countColors() != 1) {
+                continue;
+            }
+            if (id.hasWhite() && blanco == null) {
+                blanco = c;
+            }
+            if (id.hasBlack() && negro == null) {
+                negro = c;
+            }
+        }
+        if (blanco == null || negro == null) {
+            fail("color: no hay comandantes monocolor blanco y negro en el pozo");
+            return;
+        }
+        unColor("blanco", blanco, forge.card.MagicColor.WHITE, forge.card.MagicColor.BLACK);
+        unColor("negro", negro, forge.card.MagicColor.BLACK, forge.card.MagicColor.WHITE);
+    }
+
+    /** Un mazo de ese color: ve las suyas, no ve las del otro. */
+    private static void unColor(final String nombre, final PaperCard cmd,
+                                final byte propio, final byte ajeno) {
+        final AscentRun run = AscentRun.begin(AscentRun.Mode.COMMANDER, 0, 40, cmd);
+        try {
+            int mias = 0;
+            int ajenas = 0;
+            int sinColor = 0;
+            final AscentRelic.Rarity[] rarezas = {
+                AscentRelic.Rarity.COMMON, AscentRelic.Rarity.RARE, AscentRelic.Rarity.BOSS};
+            for (int i = 0; i < 600; i++) {
+                final AscentRelic r = AscentRewards.relic(
+                        run, rarezas[i % rarezas.length], new Random(i * 7919L + 13));
+                if (r == null) {
+                    continue;
+                }
+                if (r.getColors() == AscentRelics.COLOURLESS) {
+                    sinColor++;
+                } else if ((r.getColors() & ajeno) != 0) {
+                    ajenas++;
+                } else if ((r.getColors() & propio) != 0) {
+                    mias++;
+                }
+            }
+            if (ajenas > 0) {
+                fail("color: a un mazo " + nombre + " le han salido " + ajenas
+                        + " reliquia(s) del otro color — serian premios vacios");
+            } else if (mias == 0) {
+                fail("color: a un mazo " + nombre + " no le ha salido ni UNA reliquia de su"
+                        + " color en 600 tiradas; el sistema de color no estaria haciendo nada");
+            } else {
+                ok("color: un mazo " + nombre + " ve " + mias + " reliquia(s) suyas y "
+                        + sinColor + " sin color, y CERO del otro color");
+            }
+        } finally {
+            run.discard();
+        }
+    }
+
+    /**
+     * Que el premio no ofrezca nunca una carta que <b>no se pueda lanzar</b>.
+     *
+     * <h2>El fallo</h2>
+     *
+     * <p>Reportado jugando (22-09-2026): <i>"sometimes player artifacts are
+     * added as playing card and they are only discard fodder since they cant be
+     * used"</i>. Eran las cartas de <b>Suspender sin coste de mana</b>: seis en
+     * el pozo, y las dos que mas duelen son artefactos que parecen un premiazo
+     * — <i>Lotus Bloom</i> y <i>Mox Tantalite</i>. Ver
+     * {@code AscentRewards.castable}.
+     *
+     * <h2>Por que se mide en vez de confiar en el filtro</h2>
+     *
+     * <p>Porque el filtro vive en {@code pools()} y el pozo lo consumen
+     * <b>tres</b> sitios — premio, tienda y evento. Todos pasan hoy por
+     * {@code offer()}, pero el dia que alguien anyada un cuarto camino que lea
+     * {@code getUniqueCards()} por su cuenta, esto se pone en rojo. Un
+     * comprobador sobre lo que SALE, no sobre lo que el codigo dice que hace.
+     *
+     * <p>La muestra es grande y por los tres actos a proposito: son seis cartas
+     * entre miles, asi que con tres tiradas no saldrian ni estando el fallo.
+     */
+    private static void premioSoloCartasJugables() {
+        PaperCard cmd = null;
+        for (final PaperCard c : AscentSeedDeck.commanderPool()) {
+            cmd = c;
+            break;
+        }
+        if (cmd == null) {
+            fail("jugables: no hay comandantes en el pozo");
+            return;
+        }
+        final AscentRun run = AscentRun.begin(AscentRun.Mode.COMMANDER, 0, 40, cmd);
+        try {
+            final Set<String> muertas = new java.util.LinkedHashSet<>();
+            int vistas = 0;
+            for (int acto = 1; acto <= 3; acto++) {
+                for (int semilla = 0; semilla < 12; semilla++) {
+                    final List<PaperCard> m = AscentRewards.offer(
+                            run, acto, new Random(semilla * 31L + acto), 300);
+                    vistas += m.size();
+                    for (final PaperCard c : m) {
+                        if (c.getRules() != null && c.getRules().getManaCost() != null
+                                && c.getRules().getManaCost().isNoCost()) {
+                            muertas.add(c.getName());
+                        }
+                    }
+                }
+            }
+            if (muertas.isEmpty()) {
+                ok("jugables: en " + vistas + " cartas ofrecidas por los tres actos no sale"
+                        + " ni una sin coste de mana (las de Suspender no se pueden lanzar)");
+            } else {
+                fail("jugables: " + muertas.size() + " carta(s) ofrecidas no se pueden lanzar,"
+                        + " solo suspender: " + String.join(", ", muertas));
             }
         } finally {
             run.discard();

@@ -1,0 +1,7 @@
+Name:Rotting Hourglass
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ Phase | Phase$ Upkeep | ValidPlayer$ You | TriggerZones$ Command | Execute$ TrigMill | TriggerDescription$ At the beginning of your upkeep, each opponent mills a card.
+SVar:TrigMill:DB$ Mill | Defined$ Player.Opponent | NumCards$ 1
+AI:RemoveDeck:All
+Oracle:At the beginning of your upkeep, each opponent mills a card.

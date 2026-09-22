@@ -1,0 +1,8 @@
+Name:Coffers Key
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ TapsForMana | ValidCard$ Swamp.YouCtrl | Activator$ You | TriggerZones$ Command | Static$ True | CheckSVar$ MisPantanos | SVarCompare$ GE4 | Execute$ TrigMana | TriggerDescription$ As long as you control four or more Swamps, whenever you tap a Swamp for mana, add an additional {B}.
+SVar:TrigMana:DB$ Mana | Produced$ B | Amount$ 1
+SVar:MisPantanos:Count$Valid Swamp.YouCtrl
+AI:RemoveDeck:All
+Oracle:As long as you control four or more Swamps, whenever you tap a Swamp for mana, add an additional {B}.

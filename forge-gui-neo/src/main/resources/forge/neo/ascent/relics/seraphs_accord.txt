@@ -1,0 +1,8 @@
+Name:Seraph's Accord
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ Phase | Phase$ End of Turn | ValidPlayer$ You | TriggerZones$ Command | CheckSVar$ VidaGanada | SVarCompare$ GE4 | Execute$ TrigToken | TriggerDescription$ At the beginning of your end step, if you gained 4 or more life this turn, create a 4/4 white Angel creature token with flying.
+SVar:TrigToken:DB$ Token | TokenScript$ w_4_4_angel_flying | TokenOwner$ You
+SVar:VidaGanada:Count$LifeYouGainedThisTurn
+AI:RemoveDeck:All
+Oracle:At the beginning of your end step, if you gained 4 or more life this turn, create a 4/4 white Angel creature token with flying.
