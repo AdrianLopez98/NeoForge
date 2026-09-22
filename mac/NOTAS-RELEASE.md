@@ -1,12 +1,13 @@
-**NeoForge para macOS 1.0.7 (beta).**
+**NeoForge para macOS 1.0.8 (beta).**
 
-Version de arreglos. Todo sale de lo que ha reportado la gente estos dias:
-- **Ascenso: un comandante por nombre** en el selector. Listaba **todas las impresiones** de cada carta (11.090 entradas para 3.726 comandantes), asi que el mismo legendario salia cuatro u ocho veces seguidas. Y eso arreglaba de paso lo que parecia otro fallo: todas esas copias **salian con el mismo arte**.
-- Arreglado tambien, y no lo habia visto nadie: **"Que elija el juego" estaba sesgado**. Sorteaba de esa misma lista sin filtrar, asi que un comandante con ocho ediciones salia ocho veces mas que uno con una, y podia darte una carta rebalanceada de Arena que el selector si esconde.
-- **La flecha de "pagina anterior" ya funciona.** Se decidia si se podia pulsar **una sola vez**, al construir la barra: como entras en la pagina 1, nacia apagada y no se encendia nunca.
-- **Cuando una carta no se puede lanzar, ahora se dice POR QUE.** Antes solo ponia "Ahi no se puede.", que no explica nada. Ahora usa las palabras de la propia carta: *"Ahora mismo no hay ningun objetivo valido: Select target creature spell you control"*.
-- **Ajustes: cuanto crece la carta al pasar el raton** (sin ampliar, 108 %, 120 %, 135 % o 150 %).
-- **La version del motor de Forge, en el menu**, abajo a la izquierda y copiable: es lo que hace falta para reportar un fallo de reglas o de cartas en Card-Forge.
+Novedades:
+- **Ascenso: reliquias de los cinco colores, de 54 a 81.** Azules, rojas y verdes se unen a las blancas y negras. Como antes, una reliquia de color solo te sale si tu mazo juega ese color.
+- **Aventura: tu coleccion ya no se juzga por la lista de prohibidas de un formato.** Una partida de Realm of Legends traida de Forge decia que muchas cartas "no son legales", y el aviso era nuestro.
+- **Aventura: boton de rendirse a la vista**, no solo detras de Escape.
+- **Atacar con todo menos las fichas**: el ataque total, sin arriesgar tu carta unica.
+- **Ver el texto impreso de la carta** al ampliarla, en tu idioma.
+- Arreglado: con el aumento al pasar el raton al maximo, **la carta se cortaba por los bordes**.
+- **El motor de Forge, al dia** (22-09-2026), con las ultimas cartas.
 
 Descarga el `.dmg` de tu Mac:
 

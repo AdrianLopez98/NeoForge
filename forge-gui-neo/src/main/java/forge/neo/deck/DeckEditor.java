@@ -584,7 +584,7 @@ public final class DeckEditor {
         }
         final DeckFormat df = deckFormat();
 
-        if (!df.isLegalCard(card)) {
+        if (!inCardPool(card)) {
             return forge.neo.NeoText.get("reject.notLegal",
                     forge.neo.card.CardText.nameOf(card), format.getLabel());
         }
@@ -628,6 +628,19 @@ public final class DeckEditor {
                             have, forge.neo.card.CardText.nameOf(card));
         }
         return null;
+    }
+
+    /**
+     * Si esta carta esta en el pozo de cartas del formato.
+     *
+     * <p>Un solo sitio para las cuatro preguntas que hay que contestar igual
+     * — rechazar al anyadir, marcar lo que sobra en el mazo, quitarlo y filtrar
+     * el catalogo —, porque contestarlas distinto deja al jugador con un mazo
+     * que se puede montar pero no guardar. Y porque hay un contexto que dice
+     * que no, la Aventura: ver {@link DeckContext#enforcesCardPool()}.
+     */
+    private boolean inCardPool(final PaperCard card) {
+        return !format.enforcesCardPool() || deckFormat().isLegalCard(card);
     }
 
     /**
@@ -849,7 +862,6 @@ public final class DeckEditor {
     public List<PaperCard> illegalCards() {
         final List<PaperCard> out = new ArrayList<>();
         final java.util.Set<String> seen = new java.util.HashSet<>();
-        final DeckFormat df = deckFormat();
         final Predicate<PaperCard> identity = identityFilter();
         final GameFormat pool = format.poolFormat();
 
@@ -860,7 +872,7 @@ public final class DeckEditor {
             if (!seen.add(normalized(card.getName()))) {
                 continue;
             }
-            if (!df.isLegalCard(card)
+            if (!inCardPool(card)
                     || (pool != null && !pool.getFilterRules().test(card))
                     || (identity != null && !identity.test(card))
                     || overCopies(card) || overOwned(card)) {
@@ -984,7 +996,7 @@ public final class DeckEditor {
         final DeckFormat df = deckFormat();
         final Predicate<PaperCard> id = identityFilter();
         for (final PaperCard card : illegalCards()) {
-            if (!df.isLegalCard(card) || (id != null && !id.test(card))) {
+            if (!inCardPool(card) || (id != null && !id.test(card))) {
                 // Prohibida o fuera de la identidad de color: fuera entera.
                 removed += dropCopies(card, countOf(card));
                 continue;
@@ -1278,7 +1290,8 @@ public final class DeckEditor {
     /**
      * Que cartas caben en este mazo.
      *
-     * <p>Tres preguntas, las tres al motor: si la carta es legal en el formato,
+     * <p>Tres preguntas, las tres al motor: si la carta esta en el pozo del
+     * formato ({@link #inCardPool}, que en la Aventura no aplica),
      * si vale en el pozo de {@link GameFormat} cuando lo hay (Modern, Pioneer,
      * Pauper...), y — cuando ya hay comandante — si respeta su identidad de
      * color. La ultima es la que hace util el buscador en Commander: sin ella
@@ -1288,10 +1301,9 @@ public final class DeckEditor {
      * {@link #rejectionReason} y conviene que las dos respondan igual.
      */
     public Predicate<PaperCard> legalFilter() {
-        final DeckFormat df = deckFormat();
         final GameFormat pool = format.poolFormat();
         final Predicate<PaperCard> identity = identityFilter();
-        Predicate<PaperCard> p = df::isLegalCard;
+        Predicate<PaperCard> p = this::inCardPool;
         if (pool != null) {
             p = p.and(pool.getFilterRules());
         }

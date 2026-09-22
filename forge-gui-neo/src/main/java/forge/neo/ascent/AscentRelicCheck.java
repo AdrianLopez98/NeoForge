@@ -96,6 +96,15 @@ public final class AscentRelicCheck {
         private int oppLife;
         private int blockExtra;
         private String cannotSee;
+        private boolean onAi;
+        private boolean unlimitedHand;
+        private boolean oppStun;
+        private int landPlays;
+        private int oppFirstDrop;
+        private boolean animatedLand;
+        /** El primer golpe que se ha visto en la vida del rival (ver oppFirstDrop). */
+        private int firstDropSeen;
+        private int lastOppLife = -1;
 
         Spec(final String id) {
             this.id = id;
@@ -192,6 +201,58 @@ public final class AscentRelicCheck {
         }
 
         /**
+         * La reliquia se le da a la <b>IA</b>, y lo que se mira es SU asiento.
+         *
+         * <p>Para las que solo hacen algo cuando su duenyo ataca, lanza desde
+         * la mano o juega una tierra: el humano de la sonda no hace nada de eso
+         * y no hay carta ayudante que ataque sola, pero la IA lo hace todo en
+         * cada partida. Todo lo demas de la declaracion se lee igual, solo que
+         * sobre el jugador de la IA.
+         */
+        Spec onAi() {
+            onAi = true;
+            return this;
+        }
+
+        /** Tienes la mano sin limite. */
+        Spec unlimitedHand() {
+            unlimitedHand = true;
+            return this;
+        }
+
+        /** Una criatura DEL RIVAL tiene un contador de aturdimiento. */
+        Spec oppStun() {
+            oppStun = true;
+            return this;
+        }
+
+        /** Puedes jugar n tierras por turno. */
+        Spec landPlays(final int n) {
+            landPlays = n;
+            return this;
+        }
+
+        /**
+         * El PRIMER golpe que recibe el rival es de exactamente n.
+         *
+         * <p>Para las de "hace uno mas de danyo". Mirar cuanto ha perdido en
+         * total no distingue nada: con Sulfuric Vortex (2 por mantenimiento) el
+         * rival llega a -3 en su segundo turno SIN la reliquia y en el primero
+         * CON ella, y las dos cosas dan verde. Lo que distingue es el tamanyo
+         * del primer golpe: 2 sin ella, 3 con ella.
+         */
+        Spec oppFirstDrop(final int n) {
+            oppFirstDrop = n;
+            return this;
+        }
+
+        /** Tienes una tierra que ademas es criatura. */
+        Spec animatedLand() {
+            animatedLand = true;
+            return this;
+        }
+
+        /**
          * Vale con que el <b>disparo se resuelva</b> si no se puede ver el
          * efecto.
          *
@@ -242,7 +303,8 @@ public final class AscentRelicCheck {
             return byTrigger && power == 0 && toughness == 0 && keywords.isEmpty()
                     && playerKeyword == null && life == 0 && draw == 0 && mana == 0
                     && counter == 0 && tokens == 0 && oppLife == 0 && blockExtra == 0
-                    && !selfExiled;
+                    && !selfExiled && !unlimitedHand && !oppStun && landPlays == 0
+                    && oppFirstDrop == 0 && !animatedLand;
         }
 
         /** Que se ve, para poder decirlo cuando falle. */
@@ -281,6 +343,21 @@ public final class AscentRelicCheck {
             }
             if (blockExtra > 0) {
                 bits.add("bloquea " + blockExtra + " de mas");
+            }
+            if (unlimitedHand) {
+                bits.add("mano sin limite");
+            }
+            if (oppStun) {
+                bits.add("aturdido en criatura rival");
+            }
+            if (landPlays > 0) {
+                bits.add(landPlays + " tierras por turno");
+            }
+            if (oppFirstDrop > 0) {
+                bits.add("primer golpe al rival de " + oppFirstDrop);
+            }
+            if (animatedLand) {
+                bits.add("tierra animada");
             }
             if (bits.isEmpty() && byTrigger) {
                 // ⚠️ Sin esto what() sale VACIA y probar() la manda al hueco de
@@ -442,6 +519,67 @@ public final class AscentRelicCheck {
                 // lanza nada, asi que no llega a tapar una tierra en su vida.
                 new Spec("coffers_key").cannotSee(
                         "pide tapar un pantano para mana y el humano de la sonda no lanza nada"),
+
+                // ==========================================================
+                //  Azules, rojas y verdes (23-09-2026)
+                // ==========================================================
+                //
+                // Muchas solo hacen algo cuando su duenyo ataca, lanza o juega
+                // una tierra, y eso el humano de la sonda no lo hace nunca. Esas
+                // van con onAi(): la reliquia se le da a la IA, que si lo hace.
+
+                // --- azules ---
+                // Medido el 23-09-2026: con la reliquia en la IA, ella jugo 14
+                // turnos con el cementerio A CERO -- o sea sin lanzar un solo
+                // instantaneo o conjuro, que se habrian ido ahi al resolver. El
+                // mazo de la sonda no trae ninguno. No es el script: su disparo
+                // es el SpellCast de siempre y el exilio es el de cornered_fury,
+                // que si se comprueba.
+                new Spec("scholars_quill").cannotSee(
+                        "pide lanzar un instantaneo o conjuro, y el mazo de la sonda no trae"
+                                + " ninguno (la IA juega 14 turnos con el cementerio a cero)"),
+                new Spec("hoarders_crown").unlimitedHand(),
+                new Spec("denial_codex").cannotSee(
+                        "pide contrarrestar un hechizo, y ni el humano de la sonda ni la IA"
+                                + " lo hacen de forma fiable"),
+                // La IA saca criaturas en cada partida: la primera ya entra aturdida.
+                new Spec("frostbound_heart").oppStun(),
+                new Spec("echoing_cadence").cannotSee(
+                        "abarata el SEGUNDO hechizo del turno, y un coste rebajado no deja"
+                                + " rastro en la mesa que se pueda mirar"),
+                // Howling Mine da una carta DE MAS en el paso de robo, o sea que no
+                // es la primera: justo la que esta reliquia cuenta.
+                new Spec("mindwell_charm").counter(1).board("Howling Mine"),
+                new Spec("tidal_compass").onAi().byTrigger(),
+                new Spec("mirrorwake_shield").token(1),
+                new Spec("swindlers_mask").byTrigger(),
+
+                // --- rojas ---
+                new Spec("rummagers_torch").onAi().byTrigger(),
+                new Spec("vanguards_gauntlet").onAi().kw("First Strike"),
+                new Spec("forgefathers_anvil").byTrigger(),
+                // Sulfuric Vortex hace 2 al rival en su mantenimiento; con la
+                // reliquia tienen que ser 3. Ver Spec#oppFirstDrop.
+                new Spec("kindling_blade").oppFirstDrop(3).board("Sulfuric Vortex"),
+                new Spec("taunting_banner").kw("Trample"),
+                new Spec("smoldering_vein").onAi().byTrigger(),
+                new Spec("relentless_totem").onAi().byTrigger(),
+                new Spec("scrappers_anvil").byTrigger().board("Millstone", "Mind Stone"),
+
+                // --- verdes ---
+                new Spec("rootsong_horn").onAi().life(1),
+                new Spec("canopy_mantle").pump(0, 2).kw("Reach"),
+                new Spec("unbroken_seal").cannotSee(
+                        "hace que tus criaturas no se puedan contrarrestar, y ni la sonda ni"
+                                + " la IA contrarrestan de forma fiable"),
+                new Spec("stampede_idol").kw("Trample"),
+                new Spec("pathfinders_map").landPlays(2),
+                new Spec("wildwood_compass").byTrigger(),
+                new Spec("thornveil_cloak").kw("Hexproof"),
+                new Spec("predators_fang").byTrigger(),
+                // Hace falta una tierra propia que animar.
+                new Spec("earthwaker_ring").animatedLand().board("Forest"),
+                new Spec("behemoth_bestiary").onAi().byTrigger(),
 
                 // --- el segundo aliento del jefe (Ascension 10) ---
                 new Spec("cornered_fury").pump(2, 2).selfExiled(15),
@@ -662,8 +800,12 @@ public final class AscentRelicCheck {
         // nunca (medido, 0 de 4). Lo demas no corre ninguna prisa.
         final long poll = spec.mana > 0 ? 5L : 100L;
 
+        // En la IA la reliquia va a SU mando y el humano se queda sin nada: es
+        // ella quien tiene que atacar, lanzar o jugar la tierra.
+        final List<PaperCard> mioMando = spec.onAi ? List.of() : List.of(card);
+        final List<PaperCard> suMando = spec.onAi ? List.of(card) : null;
         final AscentProbe.Result r = AscentProbe.play("reliquia-" + spec.id,
-                EnumSet.of(GameType.Commander), deck, life, null, List.of(card), board,
+                EnumSet.of(GameType.Commander), deck, life, null, mioMando, board, suMando,
                 true, poll, game -> cumple(game, spec, card.getName(), baseLife, visto));
 
         if (r.reached) {
@@ -758,14 +900,9 @@ public final class AscentRelicCheck {
 
     private static boolean cumple(final Game game, final Spec spec, final String cardName,
                                   final int baseLife, final String[] visto) {
-        final Player me = mine(game);
+        // Con onAi, "yo" es la IA: es ella quien lleva la reliquia.
+        final Player me = spec.onAi ? rival(game) : mine(game);
         if (me == null) {
-            return false;
-        }
-
-        // La reliquia tiene que estar en el mando... salvo la que se exilia
-        // sola, que precisamente demuestra que funciono al NO estar.
-        if (!spec.selfExiled && !inCommandZone(me, cardName)) {
             return false;
         }
 
@@ -774,7 +911,83 @@ public final class AscentRelicCheck {
             // compara contra +0/+0 y sin palabras clave, o sea que CUALQUIER
             // criatura tuya daria verde. Una reliquia que solo declara
             // byTrigger se comprueba por el registro y por nada mas.
+            //
+            // Y va antes de mirar la zona de mando: el registro ya prueba que
+            // la carta estaba (si no, no habria disparado), y hay reliquias que
+            // se exilian solas al dispararse (Scholar's Quill) — exigir que
+            // siga en el mando las daria por rotas justo cuando funcionan.
             return byTrigger(game, spec, cardName, visto);
+        }
+
+        // La reliquia tiene que estar en el mando... salvo la que se exilia
+        // sola, que precisamente demuestra que funciono al NO estar.
+        if (!spec.selfExiled && !inCommandZone(me, cardName)) {
+            return false;
+        }
+
+        if (spec.unlimitedHand) {
+            if (me.isUnlimitedHandSize()) {
+                visto[0] = "tienes la mano sin limite";
+                return true;
+            }
+            return false;
+        }
+
+        if (spec.landPlays > 0) {
+            if (me.getMaxLandPlaysInfinite() || me.getMaxLandPlays() >= spec.landPlays) {
+                visto[0] = "puedes jugar " + me.getMaxLandPlays() + " tierras por turno";
+                return true;
+            }
+            return false;
+        }
+
+        if (spec.oppStun) {
+            for (final Player p : game.getPlayers()) {
+                if (p == me) {
+                    continue;
+                }
+                for (final Card c : p.getCardsIn(ZoneType.Battlefield)) {
+                    if (c.isCreature() && c.getCounters(CounterEnumType.STUN) > 0) {
+                        visto[0] = c.getName() + " del rival tiene "
+                                + c.getCounters(CounterEnumType.STUN) + " contador(es) de aturdir";
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        if (spec.oppFirstDrop > 0) {
+            // Se apunta el PRIMER golpe y se decide ahi: ni antes ni despues.
+            for (final Player p : game.getPlayers()) {
+                if (p == me) {
+                    continue;
+                }
+                if (spec.lastOppLife < 0) {
+                    spec.lastOppLife = p.getLife();
+                    return false;
+                }
+                if (p.getLife() < spec.lastOppLife && spec.firstDropSeen == 0) {
+                    spec.firstDropSeen = spec.lastOppLife - p.getLife();
+                }
+                spec.lastOppLife = p.getLife();
+                if (spec.firstDropSeen > 0) {
+                    visto[0] = "el primer golpe al rival ha sido de " + spec.firstDropSeen;
+                    return spec.firstDropSeen == spec.oppFirstDrop;
+                }
+            }
+            return false;
+        }
+
+        if (spec.animatedLand) {
+            for (final Card c : me.getCardsIn(ZoneType.Battlefield)) {
+                if (c.isLand() && c.isCreature()) {
+                    visto[0] = c.getName() + " es tierra y criatura "
+                            + c.getNetPower() + "/" + c.getNetToughness();
+                    return true;
+                }
+            }
+            return false;
         }
 
         if (spec.playerKeyword != null) {
@@ -1005,6 +1218,16 @@ public final class AscentRelicCheck {
     private static Player mine(final Game game) {
         for (final Player p : game.getPlayers()) {
             if (!p.getController().isAI()) {
+                return p;
+            }
+        }
+        return null;
+    }
+
+    /** El jugador de la IA: el asiento de las reliquias que se prueban con {@code onAi}. */
+    private static Player rival(final Game game) {
+        for (final Player p : game.getPlayers()) {
+            if (p.getController().isAI()) {
                 return p;
             }
         }

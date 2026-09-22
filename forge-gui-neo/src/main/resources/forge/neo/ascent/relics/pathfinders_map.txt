@@ -1,0 +1,6 @@
+Name:Pathfinder's Map
+ManaCost:no cost
+Types:Enchantment
+S:Mode$ Continuous | EffectZone$ Command | Affected$ You | AdjustLandPlays$ 1 | Description$ You may play an additional land on each of your turns.
+AI:RemoveDeck:All
+Oracle:You may play an additional land on each of your turns.

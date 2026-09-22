@@ -1,0 +1,9 @@
+Name:Behemoth Bestiary
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ ChangesZone | Origin$ Any | Destination$ Battlefield | ValidCard$ Creature.YouCtrl | TriggerZones$ Command | CheckSVar$ ComoElla | SVarCompare$ EQ1 | Execute$ TrigDraw | TriggerDescription$ Whenever a creature you control enters, if it has greater power than each other creature on the battlefield, draw a card.
+SVar:TrigDraw:DB$ Draw | NumCards$ 1
+SVar:ComoElla:Count$Valid Creature.powerGEY
+SVar:Y:TriggeredCard$CardPower
+AI:RemoveDeck:All
+Oracle:Whenever a creature you control enters, if it has greater power than each other creature on the battlefield, draw a card.

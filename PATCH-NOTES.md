@@ -1,5 +1,60 @@
 # NeoForge — What's new
 
+# Version 3.5
+
+## Ascent: relics for every colour — 54 to 81
+
+The rest of a batch of relic ideas sent in by a player. Blue, red and green now have their own,
+like white and black already did: **9 blue, 8 red and 10 green**. As before, a coloured relic is
+only offered if your deck plays that colour, so a mono-green run and a mono-blue run no longer
+see the same things.
+
+A few highlights: *Frostbound Heart* puts a stun counter on every creature an opponent plays;
+*Kindling Blade* makes your damage to opponents one higher; *Relentless Totem* gives you a second
+combat after your first; *Earthwaker Ring* turns a land into a creature as big as your land
+count; and *Mirrorwake Shield* — the strongest of the lot — copies any nonland permanent,
+yours or theirs, every upkeep.
+
+Two ideas didn't go in because they were **exactly** an existing colourless relic ("+1/+0 to your
+creatures" is *Sharpened Fang*, "draw two at the start" is *Oracle Lens*): a coloured copy of a
+universal relic adds no variety, it just makes the same one come up twice.
+
+## Adventure: your collection isn't judged by format ban lists
+
+Reported on Reddit: loading a Realm of Legends save from Forge and editing a deck said many cards
+were "not legal in Adventure" — and the warning was ours. Adventure has no format ban list; your
+collection is what you own.
+
+## Adventure: a visible concede button
+
+Also from that report: *"I don't seem to find a concede button in the battle screen"*. It existed
+behind Escape, but Escape is taught by the tutorial, and you reach Adventure through Forge's own
+map without passing through it. There is now a button on screen.
+
+## Attack with everything except tokens
+
+A new shortcut next to "attack with everything". A true alpha strike risks your one-of creature
+to a block that kills it, while tokens come back on their own — so this sends everything that
+isn't a token.
+
+## See a card's printed text
+
+When you enlarge a card there is now **"Show card text"**: the printed text in plain form and in
+your language. It answers a different question from "Show current text" (what the card has right
+now, with everything gained and lost), so it's available everywhere, not only on the battlefield.
+
+## Fixed: cards clipped at the edges when enlarged on hover
+
+With the new mouse-over size setting at its higher values, a hovered card could be cut off with a
+straight edge at the sides or top. The space around the hand and the rows is now sized to what the
+card actually grows to.
+
+## Engine update
+
+The Forge rules engine is updated to 22 September 2026, with the latest card additions and fixes.
+
+---
+
 # Version 3.4
 
 A small fix release. Everything here came from players reporting things in the days

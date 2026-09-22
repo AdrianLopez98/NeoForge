@@ -54,6 +54,7 @@ public final class DeckRulesCheck {
         generatesADeckForTheCommander();
         generatesARandomOpponentDeck();
         ascentCardsStayOutOfTheCatalogue();
+        adventureIgnoresTheBanList();
         oathbreakerHasTwoSlots();
         oathbreakerDoesNotChangeCommander();
 
@@ -1028,6 +1029,107 @@ public final class DeckRulesCheck {
         check("Commander: mainCommander devuelve ese",
                 "Talrand, Sky Summoner".equals(
                         editor.mainCommander() == null ? null : editor.mainCommander().getName()));
+    }
+
+    /**
+     * En la Aventura, la lista de prohibidas del formato no pinta nada — pero
+     * las reglas de construccion si, y fuera de la Aventura no cambia nada.
+     *
+     * <p>Las tres mitades hacen falta. Quitar la comprobacion del pozo de
+     * cartas es aflojar una regla, y aflojarla de mas seria peor que el fallo
+     * que arregla: un mazo de Commander normal tiene que seguir rechazando lo
+     * mismo que rechazaba ayer.
+     *
+     * <p>Sale de un informe de Reddit del 22-09-2026 sobre una partida de
+     * <i>Realm of Legends</i> traida de Forge: <i>"it tells me that a lot of
+     * the cards are not legal in adventure, when in fact I am using them in
+     * Forge's Realm of Legends deck"</i>. Eran las 58 prohibidas en Commander y
+     * las 216 rebalanceadas de Alchemy que la Aventura reparte como premio; su
+     * editor no las mira nunca. Ver {@link DeckContext#enforcesCardPool()}.
+     */
+    private static void adventureIgnoresTheBanList() {
+        final PaperCard banned = card("Mana Crypt");
+        final PaperCard alchemy = card("A-Blood Artist");
+        final PaperCard normal = card("Sol Ring");
+        final PaperCard commander = card("Yahenni, Undying Partisan");
+        final PaperCard offColour = card("Lightning Bolt");
+
+        // 1. Fuera de la Aventura manda el formato, hoy igual que ayer.
+        final DeckEditor cmd = new DeckEditor(NeoFormat.COMMANDER, new Deck("__neocheck-ban__"));
+        check("Commander: Mana Crypt sigue prohibida",
+                cmd.rejectionReason(banned) != null);
+        check("Commander: las rebalanceadas de Arena siguen fuera",
+                cmd.rejectionReason(alchemy) != null);
+
+        // 2. Dentro, no.
+        final DeckEditor adv = new DeckEditor(
+                new AdventureLike(List.of(banned, alchemy, normal, commander, offColour)),
+                new Deck("__neocheck-adv__"));
+        check("Aventura: una prohibida en Commander entra (la dio el propio modo)",
+                adv.rejectionReason(banned) == null);
+        check("Aventura: una rebalanceada de Arena entra",
+                adv.rejectionReason(alchemy) == null);
+        check("Aventura: y lo de siempre sigue entrando",
+                adv.rejectionReason(normal) == null);
+        adv.add(banned, 1);
+        adv.add(alchemy, 1);
+        check("Aventura: puestas en el mazo, no salen marcadas como ilegales",
+                adv.illegalCards().isEmpty());
+
+        // 3. Pero las reglas de construccion, las mismas de siempre.
+        check("Aventura: el singleton de Commander se sigue aplicando",
+                adv.rejectionReason(banned) != null);
+        check("Aventura: el comandante se acepta igual",
+                adv.setCommander(commander));
+        check("Aventura: la identidad de color se sigue aplicando",
+                adv.rejectionReason(offColour) != null);
+    }
+
+    /**
+     * Un contexto como el de la Aventura: coleccion cerrada, reglas de
+     * Commander y <b>sin</b> pozo de cartas del formato.
+     *
+     * <p>Copia de lo que contesta {@code AdventureDeckContext} en las tres
+     * preguntas que importan aqui. No se usa el de verdad porque cuelga de un
+     * {@code AdventurePlayer} y del hilo de libGDX, que sin ventana no existen.
+     */
+    private static final class AdventureLike implements DeckContext {
+
+        private final List<PaperCard> pool;
+
+        AdventureLike(final List<PaperCard> pool) {
+            this.pool = pool;
+        }
+
+        @Override
+        public String getLabel() {
+            return "Adventure";
+        }
+
+        @Override
+        public forge.deck.DeckFormat deckFormat() {
+            return forge.game.GameType.Commander.getDeckFormat();
+        }
+
+        @Override
+        public forge.util.storage.IStorage<Deck> storage() {
+            return new forge.util.storage.StorageBase<>("adv", "adv", new java.util.HashMap<>());
+        }
+
+        @Override
+        public List<PaperCard> pool() {
+            return pool;
+        }
+
+        @Override
+        public int owned(final PaperCard card) {
+            return Integer.MAX_VALUE;
+        }
+
+        @Override
+        public boolean enforcesCardPool() {
+            return false;
+        }
     }
 
     private static PaperCard card(final String name) {

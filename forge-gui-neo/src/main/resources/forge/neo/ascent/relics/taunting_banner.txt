@@ -1,0 +1,6 @@
+Name:Taunting Banner
+ManaCost:no cost
+Types:Enchantment
+S:Mode$ Continuous | EffectZone$ Command | Affected$ Creature.YouCtrl | AddKeyword$ Trample | AddHiddenKeyword$ CARDNAME must be blocked if able. | Description$ Creatures you control have trample and must be blocked if able.
+AI:RemoveDeck:All
+Oracle:Creatures you control have trample and must be blocked if able.

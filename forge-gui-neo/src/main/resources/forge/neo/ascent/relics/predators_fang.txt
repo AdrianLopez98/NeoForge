@@ -1,0 +1,8 @@
+Name:Predator's Fang
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ Phase | Phase$ Upkeep | ValidPlayer$ You | TriggerZones$ Command | OptionalDecider$ You | Execute$ TrigPump | TriggerDescription$ At the beginning of your upkeep, you may have target creature you control fight target creature you don't control.
+SVar:TrigPump:DB$ Pump | ValidTgts$ Creature.YouCtrl | TgtPrompt$ Select target creature you control | SubAbility$ DBFight
+SVar:DBFight:DB$ Fight | Defined$ ParentTarget | ValidTgts$ Creature.YouDontCtrl | TgtPrompt$ Select target creature you don't control
+AI:RemoveDeck:All
+Oracle:At the beginning of your upkeep, you may have target creature you control fight target creature you don't control.

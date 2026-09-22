@@ -143,6 +143,41 @@ public final class RelicEmblem {
         MOTIFS.put("tyrants_mirror", Motif.EYE);
         MOTIFS.put("coffers_key", Motif.MAP);
 
+        // ---- azules, rojas y verdes (23-09-2026) ----
+        //
+        // Con 81 reliquias y 31 siluetas no quedaba forma tematica libre
+        // para todas, asi que aqui se hizo AL REVES: el nombre sale de la
+        // silueta que quedaba libre en su rareza (Unbroken Seal, Swindler's
+        // Mask, Behemoth Bestiary). El jugador reconoce la reliquia por el
+        // nombre, y una 'Satchel' pintada como corona no se reconoce.
+        MOTIFS.put("scholars_quill", Motif.SCROLL);
+        MOTIFS.put("hoarders_crown", Motif.CROWN);
+        MOTIFS.put("denial_codex", Motif.BOOK);
+        MOTIFS.put("frostbound_heart", Motif.HEART);
+        MOTIFS.put("echoing_cadence", Motif.HOURGLASS);
+        MOTIFS.put("mindwell_charm", Motif.FONT);
+        MOTIFS.put("tidal_compass", Motif.COMPASS);
+        MOTIFS.put("mirrorwake_shield", Motif.SHIELD);
+        MOTIFS.put("swindlers_mask", Motif.MASK);
+        MOTIFS.put("rummagers_torch", Motif.FLAME);
+        MOTIFS.put("vanguards_gauntlet", Motif.GAUNTLET);
+        MOTIFS.put("forgefathers_anvil", Motif.ANVIL);
+        MOTIFS.put("kindling_blade", Motif.BLADE);
+        MOTIFS.put("taunting_banner", Motif.BANNER);
+        MOTIFS.put("smoldering_vein", Motif.FLAME);
+        MOTIFS.put("relentless_totem", Motif.TOTEM);
+        MOTIFS.put("scrappers_anvil", Motif.ANVIL);
+        MOTIFS.put("rootsong_horn", Motif.HORN);
+        MOTIFS.put("canopy_mantle", Motif.CLOAK);
+        MOTIFS.put("unbroken_seal", Motif.SEAL);
+        MOTIFS.put("stampede_idol", Motif.IDOL);
+        MOTIFS.put("pathfinders_map", Motif.MAP);
+        MOTIFS.put("wildwood_compass", Motif.COMPASS);
+        MOTIFS.put("thornveil_cloak", Motif.CLOAK);
+        MOTIFS.put("predators_fang", Motif.FANG);
+        MOTIFS.put("earthwaker_ring", Motif.RING);
+        MOTIFS.put("behemoth_bestiary", Motif.BOOK);
+
         // El "segundo aliento" del jefe del acto 3 (Ascension 10). No es un
         // premio y no esta en el catalogo, pero SE VE: entra en la zona de
         // mando del jefe y ahi la mesa la pinta como cualquier otra carta.

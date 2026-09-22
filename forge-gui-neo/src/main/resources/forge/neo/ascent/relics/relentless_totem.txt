@@ -1,0 +1,7 @@
+Name:Relentless Totem
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ AttackersDeclared | AttackingPlayer$ You | FirstCombat$ True | TriggerZones$ Command | Execute$ TrigAddCombat | TriggerDescription$ Whenever you attack, if it's the first combat phase of the turn, there is an additional combat phase after this one, followed by an additional main phase.
+SVar:TrigAddCombat:DB$ AddPhase | ExtraPhase$ Combat | FollowedBy$ Main2 | AfterPhase$ EndCombat
+AI:RemoveDeck:All
+Oracle:Whenever you attack, if it's the first combat phase of the turn, there is an additional combat phase after this one, followed by an additional main phase.

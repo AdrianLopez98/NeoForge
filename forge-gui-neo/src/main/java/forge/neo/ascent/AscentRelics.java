@@ -217,6 +217,53 @@ public final class AscentRelics {
 
         add("tyrants_mirror", AscentRelic.Rarity.BOSS, B);
         add("coffers_key", AscentRelic.Rarity.BOSS, B);
+
+        // ---- azules, rojas y verdes (23-09-2026) ----
+        //
+        // El resto del lote de ideas del mismo jugador. Dos se quedaron fuera
+        // por ser EXACTAMENTE una que ya existe sin color: "+1/+0 a tus
+        // criaturas" es Sharpened Fang y "roba dos al empezar" es Oracle Lens.
+        // Una reliquia de color que repite a una universal no anyade variedad:
+        // solo hace que salga dos veces la misma en el sorteo.
+
+        // Azules: la mano, la pila y el control.
+        add("scholars_quill", AscentRelic.Rarity.COMMON, U);
+        add("hoarders_crown", AscentRelic.Rarity.COMMON, U);
+        add("denial_codex", AscentRelic.Rarity.COMMON, U);
+
+        add("frostbound_heart", AscentRelic.Rarity.RARE, U);
+        add("echoing_cadence", AscentRelic.Rarity.RARE, U);
+        add("mindwell_charm", AscentRelic.Rarity.RARE, U);
+
+        add("tidal_compass", AscentRelic.Rarity.BOSS, U);
+        add("mirrorwake_shield", AscentRelic.Rarity.BOSS, U);
+        add("swindlers_mask", AscentRelic.Rarity.BOSS, U);
+
+        // Rojas: el ataque y el danyo.
+        add("rummagers_torch", AscentRelic.Rarity.COMMON, R);
+        add("vanguards_gauntlet", AscentRelic.Rarity.COMMON, R);
+
+        add("forgefathers_anvil", AscentRelic.Rarity.RARE, R);
+        add("kindling_blade", AscentRelic.Rarity.RARE, R);
+        add("taunting_banner", AscentRelic.Rarity.RARE, R);
+
+        add("smoldering_vein", AscentRelic.Rarity.BOSS, R);
+        add("relentless_totem", AscentRelic.Rarity.BOSS, R);
+        add("scrappers_anvil", AscentRelic.Rarity.BOSS, R);
+
+        // Verdes: las tierras y las criaturas grandes.
+        add("rootsong_horn", AscentRelic.Rarity.COMMON, G);
+        add("canopy_mantle", AscentRelic.Rarity.COMMON, G);
+        add("unbroken_seal", AscentRelic.Rarity.COMMON, G);
+        add("stampede_idol", AscentRelic.Rarity.COMMON, G);
+
+        add("pathfinders_map", AscentRelic.Rarity.RARE, G);
+        add("wildwood_compass", AscentRelic.Rarity.RARE, G);
+        add("thornveil_cloak", AscentRelic.Rarity.RARE, G);
+
+        add("predators_fang", AscentRelic.Rarity.BOSS, G);
+        add("earthwaker_ring", AscentRelic.Rarity.BOSS, G);
+        add("behemoth_bestiary", AscentRelic.Rarity.BOSS, G);
     }
 
     /**

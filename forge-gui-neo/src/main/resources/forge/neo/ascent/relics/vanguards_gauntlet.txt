@@ -1,0 +1,6 @@
+Name:Vanguard's Gauntlet
+ManaCost:no cost
+Types:Enchantment
+S:Mode$ Continuous | EffectZone$ Command | Affected$ Creature.attacking+YouCtrl | AddKeyword$ First Strike | Description$ Attacking creatures you control have first strike.
+AI:RemoveDeck:All
+Oracle:Attacking creatures you control have first strike.

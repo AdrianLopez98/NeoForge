@@ -58,6 +58,14 @@ public final class NeoShortcuts {
         PASS_TURN("passTurn"),
         /** "Alpha strike" de Forge (Ctrl+A). */
         ALPHA_STRIKE("alphaStrike"),
+        /**
+         * Atacar con todo MENOS las fichas: el mismo alpha strike, pero
+         * retirando despues cualquier ficha que haya declarado. No existe en
+         * Forge ni en Arena. Pedido en itch.io el 22-09-2026: un alpha strike
+         * de verdad arriesga la carta unica a un bloqueo que la mata, y las
+         * fichas no se echan de menos igual.
+         */
+        ATTACK_NON_TOKENS("attackNonTokens"),
         UNDO("undo"),
         /** Ampliar la carta que hay bajo el raton (Z en Forge). */
         ZOOM_CARD("zoomCard"),
@@ -157,6 +165,7 @@ public final class NeoShortcuts {
         neo.bind(Action.PASS_PRIORITY, "Space");
         neo.bind(Action.PASS_TURN, "Ctrl+E");
         neo.bind(Action.ALPHA_STRIKE, "Ctrl+A");
+        neo.bind(Action.ATTACK_NON_TOKENS, "Ctrl+Shift+A");
         neo.bind(Action.UNDO, "Ctrl+Z");
         neo.bind(Action.ZOOM_CARD, "Z");
         neo.bind(Action.GAME_LOG, "L");
@@ -178,6 +187,7 @@ public final class NeoShortcuts {
         forge.bind(Action.PASS_PRIORITY, "Space");
         forge.bind(Action.PASS_TURN, "Ctrl+E");
         forge.bind(Action.ALPHA_STRIKE, "Ctrl+A");
+        forge.bind(Action.ATTACK_NON_TOKENS, "Ctrl+Shift+A");
         forge.bind(Action.UNDO, "Ctrl+Z");
         forge.bind(Action.ZOOM_CARD, "Z");
         forge.bind(Action.GAME_LOG, "L");
@@ -202,6 +212,7 @@ public final class NeoShortcuts {
         arena.bind(Action.PASS_PRIORITY, "Space");
         arena.bind(Action.PASS_TURN, "Enter", "Shift+Enter");
         arena.bind(Action.ALPHA_STRIKE);
+        arena.bind(Action.ATTACK_NON_TOKENS);
         arena.bind(Action.UNDO, "Z");
         arena.bind(Action.ZOOM_CARD);
         arena.bind(Action.GAME_LOG, "L");

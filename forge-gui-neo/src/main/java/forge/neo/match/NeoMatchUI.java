@@ -1095,6 +1095,58 @@ public class NeoMatchUI extends NetworkGuiGame {
         return true;
     }
 
+    /**
+     * "Atacar con todo, menos las fichas". Pedido en itch.io el 22-09-2026: un
+     * alpha strike de verdad expone tu carta unica a un bloqueo que la mata,
+     * y las fichas —que se reponen solas, Landfall y compania— no se echan de
+     * menos igual. No merece la pena arriesgar la carta rara solo por no
+     * seleccionar atacante por atacante.
+     *
+     * <p>No hay tal boton en el motor, y no se inventa aqui: se hace en dos
+     * pasos. Primero el {@code alphaStrike} REAL — es quien sabe elegir
+     * defensor y cumplir los ataques obligados, y reproducir esa logica aqui
+     * seria justo la logica de reglas que este proyecto no toca. Luego se
+     * retira del combate cada ficha que haya declarado, tocando el
+     * {@code Combat} directamente: el mismo truco que ya usa
+     * {@code assignRequiredBlocks} para los bloqueos obligados. Hace falta
+     * porque {@code InputAttack} no publica un "quitar" que valga para
+     * cualquier ficha sea cual sea su defensor: un click normal solo
+     * undeclara si la carta esta atacando al defensor que tienes mirado
+     * ahora mismo, y en una mesa con varios rivales una ficha puede estar
+     * atacando a otro.
+     *
+     * <p>Si alguna ficha estaba obligada a atacar, el motor rechazara pasar
+     * prioridad hasta que se resuelva — ni un caso mas que comprobar aqui.
+     */
+    public boolean attackWithNonTokens() {
+        if (!interactive() || finished.get()) {
+            return false;
+        }
+        final IGameController gc = getGameController();
+        if (!(gc instanceof forge.player.PlayerControllerHuman human)) {
+            return false;
+        }
+        respondLater(() -> {
+            human.alphaStrike();
+            final Game game = human.getGame();
+            final forge.game.combat.Combat combat = game == null ? null : game.getCombat();
+            if (combat == null) {
+                return;
+            }
+            boolean removed = false;
+            for (final forge.game.card.Card c : new java.util.ArrayList<>(combat.getAttackers())) {
+                if (c.isToken()) {
+                    combat.removeFromCombat(c);
+                    removed = true;
+                }
+            }
+            if (removed) {
+                game.fireEvent(new forge.game.event.GameEventCombatChanged());
+            }
+        });
+        return true;
+    }
+
     /** El menu de click derecho del stack, para lo de arriba. False si esta vacio. */
     public boolean openTopStackMenu() {
         final StackItemView top = topOfStack();

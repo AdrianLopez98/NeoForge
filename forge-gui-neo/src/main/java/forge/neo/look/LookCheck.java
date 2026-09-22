@@ -70,15 +70,40 @@ public final class LookCheck {
      *
      * <p>Sin ventana: es aritmetica, y comprobarla jugando costaria una partida
      * y no daria mas certeza.
+     *
+     * <h2>Lo de fabrica se le pregunta a la CONSTANTE, no a {@code hoverZoom()}</h2>
+     *
+     * <p>Parece lo mismo y no lo es. Sin la bandera {@code -Dneo.hoverZoom},
+     * {@code NeoSettings.hoverZoom()} hace {@code getInt(HOVER_ZOOM, ...)}: lee
+     * <b>el ajuste guardado de quien esta ejecutando la prueba</b>. O sea que
+     * la comprobacion titulada "de fabrica" no miraba lo de fabrica — miraba el
+     * hover de esta maquina, y se ponia en rojo en cuanto alguien lo cambiaba
+     * en Ajustes, que es justo para lo que existe el ajuste.
+     *
+     * <p>Paso el 22-09-2026 con el hover al maximo: <i>"hover: de fabrica
+     * aumenta un 50 %"</i>, toda la bateria en rojo por una preferencia. Y un
+     * rojo que depende de como tengas configurado el juego es peor que no tener
+     * la prueba: se deja de mirar, y con el se dejan de mirar los otros 27.
+     *
+     * <p>Por el camino de las preferencias si se comprueba lo unico que vale
+     * para cualquier ajuste: que lo que salga de ahi este DENTRO del tope y el
+     * suelo. Eso caza un recorte roto sin depender de lo que tenga guardado
+     * nadie.
      */
     private static void hoverZoomBehaves() {
         final String antes = System.getProperty("neo.hoverZoom");
         try {
             System.clearProperty("neo.hoverZoom");
-            final double pordefecto = forge.neo.NeoSettings.hoverZoom();
-            check("hover: de fabrica aumenta un "
-                    + Math.round((pordefecto - 1) * 100) + " % (el de siempre)",
-                    Math.abs(pordefecto - 1.08) < 1e-9);
+            final int fabrica = forge.neo.NeoSettings.HOVER_ZOOM_DEFAULT;
+            check("hover: de fabrica aumenta un " + (fabrica - 100) + " % (el de siempre)",
+                    fabrica == 108);
+
+            // Y por el camino de las preferencias, lo que vale sea cual sea el
+            // ajuste de quien pasa la prueba: que el recorte se aplique.
+            final double guardado = forge.neo.NeoSettings.hoverZoom();
+            check("hover: lo que hay guardado sale recortado entre 100 % y 150 % (aqui, "
+                    + Math.round(guardado * 100) + " %)",
+                    guardado >= 1.0 - 1e-9 && guardado <= 1.5 + 1e-9);
 
             // La cuenta del levantamiento, con el valor de siempre, tiene que
             // dar el 0,12 x ancho de antes. Ese es el "no he cambiado nada".
@@ -96,8 +121,10 @@ public final class LookCheck {
             check("hover: el suelo se aplica (10 pedido -> 100, la carta nunca encoge)",
                     Math.abs(forge.neo.NeoSettings.hoverZoom() - 1.00) < 1e-9);
             System.setProperty("neo.hoverZoom", "no-es-un-numero");
+            // Contra la constante, para que este y el de arriba no puedan
+            // separarse el dia que se cambie el valor de fabrica.
             check("hover: un valor con basura cae en el de siempre, no revienta",
-                    Math.abs(forge.neo.NeoSettings.hoverZoom() - 1.08) < 1e-9);
+                    Math.abs(forge.neo.NeoSettings.hoverZoom() - fabrica / 100.0) < 1e-9);
         } finally {
             if (antes == null) {
                 System.clearProperty("neo.hoverZoom");

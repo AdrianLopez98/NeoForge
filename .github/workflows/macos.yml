@@ -15,7 +15,7 @@ on:
 env:
   # El commit de Forge sobre el que se ha probado este codigo. Se sube a la vez
   # que se rebasa el arbol de trabajo.
-  FORGE_REF: adc6421e10b909725447473f752b11061429f95a
+  FORGE_REF: 2d0711c71a17aaa30f9ce22a84e223b2dce55f6d
   VERSION: "1.0"
 
 jobs:

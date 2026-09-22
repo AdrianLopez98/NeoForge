@@ -97,6 +97,22 @@ final class AdventureDeckContext implements DeckContext {
                 : GameType.Adventure.getDeckFormat();
     }
 
+    /**
+     * En la Aventura, no.
+     *
+     * <p>El formato pone el tamanyo del mazo, el limite de copias y la
+     * identidad de color — eso son reglas de construccion y valen aqui igual
+     * que en cualquier sitio. Lo que no vale es su <b>lista de prohibidas</b>:
+     * dentro de la Aventura el pozo de cartas es tu coleccion, y lo que hay en
+     * ella te lo ha dado el propio modo como premio. Ver
+     * {@link DeckContext#enforcesCardPool()} para el por que entero y para lo
+     * que costaba (reportado en Reddit el 22-09-2026).
+     */
+    @Override
+    public boolean enforcesCardPool() {
+        return false;
+    }
+
     @Override
     public IStorage<Deck> storage() {
         return storage;

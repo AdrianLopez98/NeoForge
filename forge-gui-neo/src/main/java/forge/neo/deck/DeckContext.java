@@ -78,6 +78,42 @@ public interface DeckContext {
     }
 
     /**
+     * Si ademas de las reglas de construccion hay que respetar el <b>pozo de
+     * cartas</b> del formato: su lista de prohibidas y, en Commander, el veto a
+     * las rebalanceadas de Arena ({@code DeckFormat.isLegalCard}).
+     *
+     * <p>Cierto en todo lo normal. <b>Falso en la Aventura</b>, y esa es la
+     * unica excepcion.
+     *
+     * <p><b>Por que.</b> {@code DeckFormat.Commander.isLegalCard} no es una
+     * regla de construccion: es el <i>formato</i> Commander de
+     * {@code res/formats/Casual/Commander.txt} — la lista de prohibidas de la
+     * mesa de torneo — mas {@code IS_REBALANCED.negate()}. Dentro de la
+     * Aventura eso no pinta nada: ahi el pozo de cartas <b>es tu coleccion</b>,
+     * y lo que hay en ella te lo ha dado el propio modo. Forge no lo pregunta
+     * nunca: su editor ({@code AdventureDeckEditor}) solo mira copias,
+     * identidad de color y {@code isLegalCommander}, y antes del duelo
+     * {@code DuelScene.prepareDeck} solo recorta tamaño y copias sobrantes.
+     *
+     * <p>Medido sobre el pozo obtenible de <i>Realm of Legends</i>: de 33.184
+     * cartas alcanzables, <b>274</b> las rechazaba nuestro editor y Forge no —
+     * 216 rebalanceadas de Alchemy (que entran de fabrica: la casilla
+     * {@code excludeAlchemyVariants} viene apagada) y 58 prohibidas en
+     * Commander, que son justo las que la Aventura reparte como premio gordo:
+     * Mana Crypt, Jeweled Lotus, Dockside Extortionist, Golos… Reportado en
+     * Reddit el 22-09-2026: <i>"it tells me that a lot of the cards are not
+     * legal in adventure, when in fact I am using them in Forge's Realm of
+     * Legends deck"</i>. Tenia razon, y el aviso era nuestro.
+     *
+     * <p>No afecta a los comandantes: {@code isLegalCommander} en Commander no
+     * consulta ese filtro (usa {@code cardPoolFilter}, que ahi es null), asi
+     * que sigue contestando lo mismo que le contesta a Forge.
+     */
+    default boolean enforcesCardPool() {
+        return true;
+    }
+
+    /**
      * El pozo de cartas adicional (sets legales, prohibidas, restringidas) que
      * ademas hay que cumplir, o null si sólo mandan las reglas de construccion.
      *

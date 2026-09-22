@@ -1,0 +1,7 @@
+Name:Wildwood Compass
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ NewGame | TriggerZones$ Command | Execute$ TrigTutor | TriggerDescription$ At the beginning of the game, search your library for a Forest card, put it onto the battlefield tapped, then shuffle.
+SVar:TrigTutor:DB$ ChangeZone | Origin$ Library | Destination$ Battlefield | ChangeType$ Land.Forest | ChangeNum$ 1 | Tapped$ True | ShuffleNonMandatory$ True
+AI:RemoveDeck:All
+Oracle:At the beginning of the game, search your library for a Forest card, put it onto the battlefield tapped, then shuffle.

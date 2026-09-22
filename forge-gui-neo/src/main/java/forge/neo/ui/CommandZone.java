@@ -60,6 +60,8 @@ public class CommandZone extends Pane {
 
     private double cardWidth;
     private boolean grouping = true;
+    /** Cuantas de sus cartas tiene el raton encima ahora mismo. Ver setCards. */
+    private int hoveredCount;
     private Consumer<CardNode> onHover;
     private Consumer<CardNode> onClick;
 
@@ -103,6 +105,11 @@ public class CommandZone extends Pane {
         }
         piles.clear();
         cards.clear();
+        // Las cartas viejas se van con sus oyentes puestos: si una se
+        // reconstruye a mitad de un hover, ese aviso de "salida" ya no llega
+        // nunca. Sin este reinicio el contador se quedaria colgado.
+        hoveredCount = 0;
+        setViewOrder(0);
 
         int casts = 0;
         if (command != null) {
@@ -151,6 +158,16 @@ public class CommandZone extends Pane {
                     if (is && onHover != null) {
                         onHover.accept(n);
                     }
+                    hoveredCount += is ? 1 : -1;
+                    // Delante del rail de fases y de la columna lateral, que
+                    // se pintan DESPUES en TableScreen y por eso ganan siempre
+                    // por defecto: una carta que crece con el hover
+                    // (NeoSettings.hoverZoom) se quedaba tapada a partir de
+                    // ese borde, cortada en linea recta justo donde empieza
+                    // el rail. Solo mientras dura el hover: en reposo esta
+                    // zona nunca se solapa con esas dos, asi que no cambia
+                    // nada verlas.
+                    setViewOrder(hoveredCount > 0 ? -1 : 0);
                 });
                 n.setOnMouseClicked(e -> {
                     if (onClick != null && e.getButton() == javafx.scene.input.MouseButton.PRIMARY) {

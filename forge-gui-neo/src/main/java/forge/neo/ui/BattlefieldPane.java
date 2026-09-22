@@ -105,7 +105,6 @@ public class BattlefieldPane extends Pane {
 
         // Recortar al area asignada: si por lo que sea una carta se sale, se
         // corta aqui en vez de pintarse encima de la barra o de la mano.
-        clip.widthProperty().bind(widthProperty());
         setClip(clip);
         updateClip();
         setOnScroll(e -> {
@@ -133,9 +132,33 @@ public class BattlefieldPane extends Pane {
 
     }
 
+    /**
+     * Cuanto puede crecer una carta con el hover, para dejarle sitio al
+     * recorte en las cuatro direcciones.
+     *
+     * <p>Antes el ancho del recorte iba atado sin mas al ancho de la fila
+     * (0 de margen a los lados) y el alto solo abria hacia la linea de
+     * combate ({@link #setOverflow}), pensado para el paso adelante del
+     * atacante. Con el ajuste nuevo de hover ({@code NeoSettings.hoverZoom},
+     * hasta 150 %) una carta de tierra o de tierra o artefacto —que no
+     * avanza nunca— crecia y se segaba en el propio borde de su fila: el
+     * caso reportado jugando, una <i>Naya Panorama</i> a la que el hover le
+     * cortaba el nombre entero. Se usa {@code maxCardWidth}, el ancho mas
+     * grande que puede tener esta fila, para no tener que esperar a que
+     * {@code layoutChildren} calcule el ancho real de cada pasada.
+     */
     private void updateClip() {
-        clip.setY(-overflowTop);
-        clip.setHeight(getHeight() + overflowTop + overflowBottom + attachOverhang);
+        final double zoom = forge.neo.NeoSettings.hoverZoom();
+        final double cardH = maxCardWidth * CardNode.ASPECT;
+        final double liftUp = CardNode.hoverLiftFor(zoom, maxCardWidth);
+        final double growH = (zoom - 1) * cardH / 2 + 6;
+        final double growW = (zoom - 1) * maxCardWidth / 2 + 6;
+        final double top = overflowTop + liftUp + growH;
+        final double bottom = overflowBottom + growH + attachOverhang;
+        clip.setX(-growW);
+        clip.setY(-top);
+        clip.setWidth(getWidth() + growW * 2);
+        clip.setHeight(getHeight() + top + bottom);
     }
 
     /**

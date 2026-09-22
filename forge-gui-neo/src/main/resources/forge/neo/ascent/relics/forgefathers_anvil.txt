@@ -1,0 +1,7 @@
+Name:Forgefather's Anvil
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ NewGame | TriggerZones$ Command | Execute$ TrigTutor | TriggerDescription$ At the beginning of the game, search your library for an Equipment card, put it onto the battlefield, then shuffle.
+SVar:TrigTutor:DB$ ChangeZone | Origin$ Library | Destination$ Battlefield | ChangeType$ Equipment | ChangeNum$ 1 | ShuffleNonMandatory$ True
+AI:RemoveDeck:All
+Oracle:At the beginning of the game, search your library for an Equipment card, put it onto the battlefield, then shuffle.

@@ -1877,6 +1877,8 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 return free && ui != null && ui.passTurn();
             case ALPHA_STRIKE:
                 return free && ui != null && ui.alphaStrike();
+            case ATTACK_NON_TOKENS:
+                return free && ui != null && ui.attackWithNonTokens();
             case UNDO:
                 // Deshace lo ultimo (tapear una tierra por error).
                 undoLast();
