@@ -1,13 +1,13 @@
-**NeoForge para macOS 1.0.8 (beta).**
+**NeoForge para macOS 1.0.9 (beta).**
 
-Novedades:
-- **Ascenso: reliquias de los cinco colores, de 54 a 81.** Azules, rojas y verdes se unen a las blancas y negras. Como antes, una reliquia de color solo te sale si tu mazo juega ese color.
-- **Aventura: tu coleccion ya no se juzga por la lista de prohibidas de un formato.** Una partida de Realm of Legends traida de Forge decia que muchas cartas "no son legales", y el aviso era nuestro.
-- **Aventura: boton de rendirse a la vista**, no solo detras de Escape.
-- **Atacar con todo menos las fichas**: el ataque total, sin arriesgar tu carta unica.
-- **Ver el texto impreso de la carta** al ampliarla, en tu idioma.
-- Arreglado: con el aumento al pasar el raton al maximo, **la carta se cortaba por los bordes**.
-- **El motor de Forge, al dia** (22-09-2026), con las ultimas cartas.
+Novedades, todas de avisos en Discord:
+- **El arte sin conexion baja en una hora, no en un dia y medio.** Ahora va por la CDN de Scryfall en vez de por su API (dos peticiones por segundo). La primera vez baja el indice de cartas de Scryfall (~75 MB).
+- **Nueva opcion: todas las cartas y todos los artes** — cada edicion y cada arte alternativo (~95.000 imagenes, ~7 GB). Ajustes → Arte de las cartas.
+- **Boton «Equipar {coste}»** al ampliar un equipo tuyo: se cierra la carta y eliges la criatura.
+- **Con los equipos y auras apilados detras de la carta**, el visor del «+N» ya deja usarlos (volver a equipar), no solo mirarlos.
+- Arreglado: el **mana negro flotante** parecia incoloro.
+- Arreglado: **Ascenso** no respetaba el ajuste de pago automatico de mana.
+- Arreglado: con **OK mantenido** en una cadena larga de disparos, la interfaz se adelantaba al motor y podia preguntar «¿dejar tu fase principal?» a mitad.
 
 Descarga el `.dmg` de tu Mac:
 
@@ -30,7 +30,7 @@ La primera vez tarda en abrir (~45 s): está leyendo las 33.000 cartas. Trae su 
 
 ---
 
-**NeoForge for macOS 1.0.5 (beta).** What's new, all of it from player reports: **download the card art** for offline play (Settings → Card art) — everything (33,647 cards, ~2.5 GB) or just your decks (a few hundred MB, one minute), with the size shown before you start, stoppable, and it resumes where it left off; **pause the game while you read a card** (Settings, on by default) — zooming a card stops the engine, not just the screen, and the Escape menu too; fixed a choice window that **could be lost for good** if you opened the stack menu on top of it, leaving the game waiting forever; fixed **two identical stacked tokens only letting you pick one** (convoke, sacrificing two Blood tokens) — the stack now splits as soon as one is chosen; **equipment and auras** no longer overlap the row behind them, plus a new option to stack them behind the card with a counter that opens them full size; and **your deck is now another pile on the table**, with the top card shown face up whenever something lets you look at it (Bolas's Citadel, Oracle of Mul Daya, Future Sight).; and **in Ascent the deck now plays to your commander** — the seed deck is built from cards people really run with it, and reward cards lean the same way, one in three at the start and two in three by the final boss (still deliberately weak: what changed is what it's about, not how strong it is). Download the `.dmg` for your Mac: `arm64` for Apple Silicon (M1–M4), `x64` for Intel.
+**NeoForge for macOS 1.0.9 (beta).** What's new, all of it from Discord reports: **offline card art now downloads in about an hour instead of a day and a half** — it goes through Scryfall's CDN instead of their API (two requests per second), fetching Scryfall's card index (~75 MB) the first time; a new option to download **every card and every art** — all printings and alternate arts (~95,000 images, ~7 GB), in Settings → Card art; an **"Equip {cost}" button** when you zoom one of your equipment cards; with equipment and auras **stacked behind the card**, the "+N" viewer now lets you use yours (re-equip), not just read them; and fixes for **black floating mana** looking colourless, **Ascent** ignoring the auto-pay mana setting, and a **held OK key** getting ahead of the engine during a long chain of triggers, which could ask "leave your main phase?" mid-loop. Download the `.dmg` for your Mac: `arm64` for Apple Silicon (M1–M4), `x64` for Intel.
 
 1. Open the `.dmg` and drag **NeoForge** into **Applications**.
 2. macOS blocks it the first time because it isn't signed with an Apple developer account: double-click it, dismiss the warning, then **System Settings → Privacy & Security → Open Anyway**.
