@@ -434,6 +434,14 @@ final class NeoAppDebug {
         gear.set(forge.trackable.TrackableProperty.EntityAttachedTo, mine);
         mine.set(forge.trackable.TrackableProperty.AttachedCards,
                 new forge.trackable.TrackableCollection<>(List.of(aura, gear)));
+        // Y quien controla que: el equipo es TUYO y el aura del rival. Con los
+        // enganchados apilados, el visor deja USAR lo tuyo (volver a equipar) y
+        // no lo del otro — y sin controlador no hay forma de ver esa diferencia.
+        final forge.game.player.PlayerView me = new forge.game.player.PlayerView(9901, t);
+        final forge.game.player.PlayerView rival = new forge.game.player.PlayerView(9902, t);
+        mine.set(forge.trackable.TrackableProperty.Controller, me);
+        gear.set(forge.trackable.TrackableProperty.Controller, me);
+        aura.set(forge.trackable.TrackableProperty.Controller, rival);
 
         // Y el caso entero del que sale todo esto: la P/T de la mesa no es la
         // impresa ni de lejos, porque encima hay contadores.

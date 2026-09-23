@@ -50,11 +50,12 @@ public final class ArtDownloadPanel extends VBox {
         setSpacing(12);
         setAlignment(Pos.CENTER_LEFT);
 
-        final boolean all = scope == ArtDownload.Scope.ALL;
-        final Label title = new Label(NeoText.get(all ? "artdl.title.all" : "artdl.title.decks"));
+        final String which = scope == ArtDownload.Scope.ALL ? "all"
+                : scope == ArtDownload.Scope.EVERY_PRINTING ? "every" : "decks";
+        final Label title = new Label(NeoText.get("artdl.title." + which));
         title.getStyleClass().add("dialog-title");
 
-        final Label note = new Label(NeoText.get(all ? "artdl.note.all" : "artdl.note.decks"));
+        final Label note = new Label(NeoText.get("artdl.note." + which));
         note.getStyleClass().add("dialog-note");
         note.setWrapText(true);
         note.setMaxWidth(560);
@@ -100,7 +101,21 @@ public final class ArtDownloadPanel extends VBox {
 
         // La lista se monta en un hilo de fondo (lo hace el propio servicio) y
         // avisa por ready(). Hasta entonces, "contando".
-        control = NeoDownloads.watch(new ArtDownload(scope), new NeoDownloads.Watch() {
+        // Todas las impresiones las baja el descargador de Forge tal cual; las
+        // otras dos, el nuestro (una foto por nombre). Ver ArtDownload.
+        final forge.gui.download.GuiDownloadService service;
+        if (scope == ArtDownload.Scope.EVERY_PRINTING) {
+            service = ArtDownload.everyPrinting();
+        } else {
+            final ArtDownload mine = new ArtDownload(scope);
+            // La primera vez de "todas" se baja antes el indice de Scryfall (75
+            // MB, un par de minutos): sin decirlo, parece que "contando" se ha
+            // colgado.
+            mine.setOnIndex(fraction -> onUi(() -> status.setText(NeoText.get("artdl.index",
+                    fraction < 0 ? "" : Math.round(fraction * 100) + " %"))));
+            service = mine;
+        }
+        control = NeoDownloads.watch(service, new NeoDownloads.Watch() {
             @Override
             public void ready(final int pending) {
                 onUi(() -> {

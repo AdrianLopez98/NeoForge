@@ -152,6 +152,25 @@ public class ZoneViewer extends VBox {
                       final Predicate<CardView> playable,
                       final java.util.function.Consumer<CardView> onPick,
                       final Runnable onClose) {
+        this(owner, zone, cards, mayView, cardWidth, selectable, playable, null, onPick, onClose);
+    }
+
+    /**
+     * Y ademas para USAR lo que esta en la mesa.
+     *
+     * @param usable que cartas del campo se pueden activar desde aqui (el
+     *               equipar de un equipo apilado detras de su criatura). Se
+     *               clican igual que en la mesa y acaban en el mismo
+     *               selectCard: el motor dice que habilidades hay. Puede ser
+     *               null
+     */
+    public ZoneViewer(final String owner, final ZoneType zone, final List<CardView> cards,
+                      final Predicate<CardView> mayView, final double cardWidth,
+                      final Predicate<CardView> selectable,
+                      final Predicate<CardView> playable,
+                      final Predicate<CardView> usable,
+                      final java.util.function.Consumer<CardView> onPick,
+                      final Runnable onClose) {
         getStyleClass().addAll("dialog", "zone-viewer");
         setSpacing(12);
         setPadding(new Insets(20, 24, 18, 24));
@@ -165,6 +184,7 @@ public class ZoneViewer extends VBox {
 
         int hidden = 0;
         int castable = 0;
+        int usableCount = 0;
         final FlowPane grid = new FlowPane(10, 10);
         grid.setAlignment(Pos.CENTER);
         grid.setPrefWrapLength(Math.max(600, cardWidth * 6));
@@ -214,7 +234,16 @@ public class ZoneViewer extends VBox {
                     node.setActionable(1);
                     castable++;
                 }
-                if (pick || cast) {
+                // Lo enganchado que es TUYO: sin esto, con los equipos
+                // apilados detras de la criatura no habia forma de volver a
+                // equipar — la ventana solo dejaba mirarlos (Discord,
+                // 23-09-2026). En abanico se clicaban en la mesa y funcionaba.
+                final boolean use = !pick && !cast && usable != null && usable.test(card);
+                if (use) {
+                    node.setActionable(1);
+                    usableCount++;
+                }
+                if (pick || cast || use) {
                     node.setOnMouseClicked(e -> {
                         if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY
                                 && onPick != null) {
@@ -240,12 +269,14 @@ public class ZoneViewer extends VBox {
         // Que una carta se pueda clicar no se ve, y aqui el gesto no es obvio:
         // nadie espera poder JUGAR desde una ventana que hasta ahora solo
         // servia para mirar.
-        final Label hint = new Label(castable == 1
-                ? NeoText.get("zoneViewer.canCastOne")
-                : NeoText.get("zoneViewer.canCast", castable));
+        final Label hint = new Label(castable > 0
+                ? (castable == 1 ? NeoText.get("zoneViewer.canCastOne")
+                        : NeoText.get("zoneViewer.canCast", castable))
+                : (usableCount == 1 ? NeoText.get("zoneViewer.canUseOne")
+                        : NeoText.get("zoneViewer.canUse", usableCount)));
         hint.getStyleClass().add("zone-viewer-hint");
-        hint.setVisible(castable > 0);
-        hint.setManaged(castable > 0);
+        hint.setVisible(castable + usableCount > 0);
+        hint.setManaged(castable + usableCount > 0);
 
         final ScrollPane scroll = new ScrollPane(grid);
         scroll.getStyleClass().add("dialog-scroll");

@@ -248,8 +248,8 @@ public class TableScreen extends Pane {
         selfField.setOnCardHover(this::hovered);
         opponentField.setOnCardClick(this::cardClicked);
         selfField.setOnCardClick(this::cardClicked);
-        opponentField.setOnAttachPeek(this::showAttached);
-        selfField.setOnAttachPeek(this::showAttached);
+        opponentField.setOnAttachPeek((host, carried) -> showAttached(host, carried, false));
+        selfField.setOnAttachPeek((host, carried) -> showAttached(host, carried, true));
 
         // El asiento 0 son los de siempre. Ver oppBars/oppFields.
         oppBars.add(opponentBar);
@@ -2380,11 +2380,40 @@ public class TableScreen extends Pane {
      * aura con una destruccion, o activar el equipar de un equipo.
      */
     public void showAttached(final CardView host, final List<CardView> attached) {
+        showAttached(host, attached, false);
+    }
+
+    /**
+     * Lo mismo, y ademas <b>usable</b> si la criatura es tuya.
+     *
+     * <p>Faltaba esto: la ventana marcaba lo que el motor PREGUNTA y lo que se
+     * lanza desde fuera, pero un equipo en la mesa con su "Equipar" a mano no
+     * es ninguna de las dos — asi que con los equipos apilados no habia forma
+     * de volver a equipar Skullclamp a otra criatura (Discord, 23-09-2026).
+     * Ahora se clica como en la mesa y el motor enseña sus habilidades.
+     *
+     * <p>Se puede usar lo que el motor marca como accionable y, por si esos
+     * resaltados estan apagados en ese momento, lo que controlas tu encima de
+     * una criatura tuya. Lo del rival no: clicarlo cerraria la ventana para
+     * nada. Un aura del rival sobre tu criatura tampoco, salvo que el motor la
+     * marque.
+     *
+     * @param ownField la criatura esta en tu lado de la mesa
+     */
+    public void showAttached(final CardView host, final List<CardView> attached, final boolean ownField) {
         if (host == null || attached == null || attached.isEmpty()) {
             return;
         }
+        final java.util.function.ToIntFunction<CardView> strength = actionable;
+        final Predicate<CardView> usable = c -> {
+            if (strength != null && strength.applyAsInt(c) > 0) {
+                return true;
+            }
+            return ownField && c.getController() != null
+                    && c.getController().equals(host.getController());
+        };
         final ZoneViewer viewer = new ZoneViewer(null, forge.game.zone.ZoneType.Battlefield,
-                attached, mayView, cardWidth * 1.15, selectable, playableOutside,
+                attached, mayView, cardWidth * 1.15, selectable, playableOutside, usable,
                 this::pickedInZone, menuOverlay::hide);
         viewer.setHeading(NeoText.get("zoneViewer.attachedTo",
                 forge.neo.card.CardText.nameOf(host)));
@@ -2597,15 +2626,35 @@ public class TableScreen extends Pane {
         // pasa). El rotulo dice ademas como seguir, que es lo unico que hay
         // que saber.
         final boolean paused = pausesWhileReading();
-        // Con rotulo debajo, la carta se encoge un pelin: a pantalla completa
-        // ocupa el 86% del alto y el rotulo se salia por abajo.
-        final Region big = CardZoom.compose(card, zoomCardWidth() * (paused ? 0.95 : 1),
+        // "Equipar {1}" si es un equipo tuyo y ahora se puede. Ver
+        // NeoMatchUI.equipLabel.
+        final String equip = equipLabel == null ? null : equipLabel.apply(card);
+        // Con rotulo o boton debajo, la carta se encoge un pelin: a pantalla
+        // completa ocupa el 86% del alto y lo de abajo se salia.
+        final boolean below = paused || equip != null;
+        final Region big = CardZoom.compose(card, zoomCardWidth() * (below ? (equip != null ? 0.9 : 0.95) : 1),
                 Math.max(getWidth(), 640), this::hideZoom);
-        if (paused) {
-            final Label note = new Label(NeoText.get("zoom.paused"));
-            note.getStyleClass().add("zoom-browse-hint");
-            note.setMouseTransparent(true);
-            final VBox box = new VBox(8, big, note);
+        if (below) {
+            final VBox box = new VBox(8, big);
+            if (equip != null) {
+                final Button b = new Button(equip);
+                b.getStyleClass().addAll("btn-primary", "zoom-equip");
+                // Se cierra la ampliacion ANTES: el motor va a pedir el
+                // objetivo enseguida, y se contesta clicando la mesa.
+                b.setOnAction(e -> {
+                    hideZoom();
+                    if (onEquip != null) {
+                        onEquip.accept(card);
+                    }
+                });
+                box.getChildren().add(b);
+            }
+            if (paused) {
+                final Label note = new Label(NeoText.get("zoom.paused"));
+                note.getStyleClass().add("zoom-browse-hint");
+                note.setMouseTransparent(true);
+                box.getChildren().add(note);
+            }
             box.setAlignment(Pos.CENTER);
             box.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
             zoomOverlay.show(box);
@@ -2617,6 +2666,27 @@ public class TableScreen extends Pane {
 
     public void hideZoom() {
         zoomOverlay.hide();
+    }
+
+    /** El texto del boton "Equipar" para esa carta, o null si no toca. */
+    private java.util.function.Function<CardView, String> equipLabel;
+    /** Que hacer al pulsarlo. */
+    private Consumer<CardView> onEquip;
+
+    /**
+     * El boton "Equipar {coste}" de la carta ampliada. Quien sabe si se puede
+     * y como se hace es la partida ({@code NeoMatchUI.equipLabel}); la mesa
+     * solo lo pinta.
+     */
+    public void setEquipAction(final java.util.function.Function<CardView, String> label,
+                               final Consumer<CardView> action) {
+        this.equipLabel = label;
+        this.onEquip = action;
+    }
+
+    /** Solo pruebas ({@code --equip-test}): el texto que tendria el boton. */
+    public String equipLabelFor(final CardView card) {
+        return equipLabel == null || card == null ? null : equipLabel.apply(card);
     }
 
     public boolean isZoomShowing() {
