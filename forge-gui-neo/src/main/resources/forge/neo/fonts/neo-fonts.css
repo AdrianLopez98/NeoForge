@@ -1,0 +1,6 @@
+/* La letra de repuesto. Solo se anyade a la escena cuando el sistema no
+   tiene Segoe UI (Linux / Steam Deck con Proton): ver NeoFonts. En Windows y
+   en Mac esta hoja no se carga nunca. */
+.root {
+    -fx-font-family: "Inter";
+}

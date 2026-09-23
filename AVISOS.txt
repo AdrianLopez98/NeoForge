@@ -34,3 +34,12 @@ EL JAVA QUE VIENE DENTRO
 
 La carpeta runtime\ es un Java 17 de Eclipse Adoptium (Temurin), bajo licencia
 GPLv2 con Classpath Exception. Ver https://adoptium.net/
+
+LA LETRA QUE VIENE DENTRO
+-------------------------
+
+Dentro del programa va la letra Inter (https://github.com/rsms/inter),
+Copyright (c) 2016 The Inter Project Authors, bajo la SIL Open Font License 1.1.
+Solo se usa cuando el sistema no tiene Segoe UI (Linux, Steam Deck con Proton).
+El texto de la licencia va junto a la letra, en forge/neo/fonts/Inter-OFL.txt
+dentro de app\neo.jar.
