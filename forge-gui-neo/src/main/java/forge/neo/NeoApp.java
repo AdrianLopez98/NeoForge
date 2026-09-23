@@ -154,6 +154,7 @@ public class NeoApp extends Application implements SettingsPanel.Host {
         if (css != null) {
             scene.getStylesheets().add(css.toExternalForm());
         }
+        forge.neo.platform.NeoFonts.apply(scene);
 
         // Escala de interfaz: la hoja de estilos usa em, asi que fijando el
         // tamano de fuente de la raiz se escala todo el texto de golpe. Se
@@ -2926,6 +2927,7 @@ public class NeoApp extends Application implements SettingsPanel.Host {
         if (css != null) {
             s.getStylesheets().add(css.toExternalForm());
         }
+        forge.neo.platform.NeoFonts.apply(s);
         stage.setScene(s);
         stage.show();
     }
