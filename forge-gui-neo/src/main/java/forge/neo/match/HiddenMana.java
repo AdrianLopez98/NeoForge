@@ -99,6 +99,16 @@ public final class HiddenMana {
     private static final AtomicReference<Verdict> FIRST = new AtomicReference<>();
     private static final AtomicInteger HOLDS = new AtomicInteger();
 
+    // Y lo que opinaba el motor en esa misma prioridad, para demostrar que el
+    // hueco existe. Solo se calcula en la prueba: es el barrido entero otra vez.
+    private static volatile boolean probeEngine;
+    private static final AtomicReference<Boolean> ENGINE = new AtomicReference<>();
+
+    /** Lo que dijo el motor ({@code hasAvailableActions}) en la prioridad de {@link #first()}. */
+    public static Boolean engineSawActions() {
+        return ENGINE.get();
+    }
+
     public static Verdict first() {
         return FIRST.get();
     }
@@ -107,9 +117,11 @@ public final class HiddenMana {
         return HOLDS.get();
     }
 
-    public static void resetForTest() {
+    public static void resetForTest(final boolean withEngineProbe) {
         FIRST.set(null);
         HOLDS.set(0);
+        ENGINE.set(null);
+        probeEngine = withEngineProbe;
     }
 
     /**
@@ -128,8 +140,8 @@ public final class HiddenMana {
             p.runWithController(() -> out.set(scan(p)),
                     new PlayerControllerAi(p.getGame(), p, p.getOriginalLobbyPlayer()));
             final Verdict v = out.get();
-            if (!v.hidden().isEmpty()) {
-                FIRST.compareAndSet(null, v);
+            if (!v.hidden().isEmpty() && FIRST.compareAndSet(null, v) && probeEngine) {
+                ENGINE.set(forge.ai.AvailableActions.compute(p, 5_000L));
             }
             if (v.holds()) {
                 HOLDS.incrementAndGet();

@@ -228,6 +228,12 @@ public final class NeoMain {
                 banner("Acciones: que el barrido no mate la partida");
                 forge.neo.match.ActionsCheck.run();
                 break;
+            case "devotioncheck":
+                // Que el auto-pass no se salte tu turno con Nyx Lotus: el motor
+                // cuenta su devocion a cero. Ver HiddenMana.
+                banner("Auto-pass: el mana que el motor no cuenta");
+                forge.neo.match.DevotionCheck.run();
+                break;
             case "attackcheck":
                 // Que el piloto automatico no se quede dando OK para siempre a
                 // un ataque obligado (Juggernaut). Colgo questcheck 90 minutos
