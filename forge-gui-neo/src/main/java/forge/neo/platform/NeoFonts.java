@@ -22,7 +22,7 @@ import javafx.scene.text.Font;
  * negrita: un 600 sale normal y un 800 o 900 sale en negrita, igual que con
  * Segoe UI.
  *
- * <h2>Bajo Wine, ademas, el texto por el camino LCD</h2>
+ * <h2>Bajo Wine, ademas, las letras las dibuja JavaFX</h2>
  *
  * <p>La letra sola lo empeoro (23-09-2026, captura del Discord): el texto
  * salia en pixeles duros, sin suavizar. La causa no es la letra sino
@@ -31,26 +31,36 @@ import javafx.scene.text.Font;
  * no suaviza: cualquier letra sale dentada. La que ponia Wine por su cuenta
  * estaba pensada para verse sin suavizado; Inter no, y por eso se vio peor.
  *
- * <p>El texto LCD va por otro sitio: {@code IDWriteGlyphRunAnalysis}
- * ({@code DWGlyph.getLCDMask}), que Wine implementa con FreeType y SI suaviza.
- * Asi que bajo Wine se pide {@code -fx-font-smoothing-type: lcd} a todo el
- * texto ({@code neo-wine.css}). Donde JavaFX no puede usar LCD (texto escalado,
- * con efecto o sobre fondo transparente) vuelve solo al gris, como siempre.
+ * <p><b>Primer intento, que se quedo corto: el texto LCD</b>
+ * ({@code neo-wine.css}). Va por {@code IDWriteGlyphRunAnalysis}, que Wine si
+ * suaviza, pero JavaFX solo lo usa con color opaco, sin efecto y sin escala:
+ * medido en una captura de pantalla de verdad, "IDIOMA" seguia por Direct2D.
+ * Y el jugador dijo que no cambiaba nada. Queda como interruptor, apagado.
+ *
+ * <p><b>Lo que se hace: {@code prism.fontSizeLimit=1}.</b> Por encima de ese
+ * tamanyo JavaFX no pide la imagen de la letra: coge su contorno y lo rellena
+ * con su propio dibujante, que suaviza siempre y no pasa por Direct2D. Con el
+ * limite a 1 punto eso vale para TODO el texto. Medido en Windows con una
+ * partida automatica de 100 s: 58,5 fps sin el cambio y 58,7 con el, y el
+ * peor frame igual. La propiedad la lee JavaFX UNA vez al arrancar, por eso
+ * va en {@link #beforeJavaFx}, desde lo primero de {@code NeoMain.main}.
  *
  * <p>Wine se reconoce por lo que deja: sus variables de entorno (Proton las
  * pasa) o {@code winecfg.exe} en {@code system32}, que no existe en un
  * Windows de verdad.
  *
  * <p><b>No puede cambiar Windows ni Mac</b>, por construccion: en un Windows
- * de verdad hay Segoe UI y no hay Wine, asi que no se anyade ninguna hoja; en
- * Mac no se mira nada.
+ * de verdad hay Segoe UI y no hay Wine, asi que no se toca nada; en Mac no se
+ * mira nada.
  *
- * <p>Las dos cosas se fuerzan o se apagan sin recompilar, con una linea
+ * <p>Todo se fuerza o se apaga sin recompilar, con una linea
  * {@code java-options=...} en el {@code NeoForge.cfg} de {@code app}. Es como
  * se prueba con quien lo juega en Linux, porque aqui no hay forma de verlo:
  * <ul>
  *   <li>{@code -Dneo.font.fallback=true|false}: la letra Inter.</li>
- *   <li>{@code -Dneo.text.lcd=true|false}: el texto por el camino LCD.</li>
+ *   <li>{@code -Dneo.text.shapes=true|false}: las letras dibujadas por JavaFX.</li>
+ *   <li>{@code -Dneo.text.lcd=true|false}: el texto por el camino LCD (apagado
+ *       si no se pide).</li>
  * </ul>
  * Sin ellas, decide solo.
  */
@@ -100,12 +110,35 @@ public final class NeoFonts {
         return v == null || v.isBlank() ? null : Boolean.valueOf(v.trim());
     }
 
+    /** Lo que decidio {@link #beforeJavaFx}, para contarlo en el registro. */
+    private static String shapesNote;
+
+    /**
+     * Antes de arrancar JavaFX: bajo Wine, las letras como formas. Si alguien
+     * ya ha puesto {@code prism.fontSizeLimit} a mano, manda la suya.
+     */
+    public static void beforeJavaFx() {
+        if (System.getProperty("prism.fontSizeLimit") != null) {
+            return;
+        }
+        final Boolean f = forced("neo.text.shapes");
+        final boolean shapes = f != null ? f : (!NeoOs.MAC && isWine());
+        if (shapes) {
+            System.setProperty("prism.fontSizeLimit", "1");
+            // El registro todavia no existe: se cuenta en el primer apply().
+            shapesNote = "[neo] Letras dibujadas por JavaFX" + (f != null ? " (forzado)" : " (Wine)");
+        }
+    }
+
     private static synchronized boolean needsLcd() {
         if (useLcd == null) {
+            if (shapesNote != null) {
+                System.out.println(shapesNote);
+            }
             final Boolean f = forced("neo.text.lcd");
-            useLcd = f != null ? f : (!NeoOs.MAC && isWine());
+            useLcd = Boolean.TRUE.equals(f);
             if (useLcd) {
-                System.out.println("[neo] Texto por el camino LCD" + (f != null ? " (forzado)" : " (Wine)"));
+                System.out.println("[neo] Texto por el camino LCD (forzado)");
             }
         }
         return useLcd;

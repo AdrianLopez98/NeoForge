@@ -46,6 +46,11 @@ public final class NeoMain {
         // primeros en necesitar una carpeta. Ver NeoPortable.
         NeoPortable.apply();
 
+        // Bajo Wine, las letras dibujadas por JavaFX y no por Direct2D: tiene
+        // que ser antes de que arranque JavaFX, que lee la propiedad una vez.
+        // Ver NeoFonts.
+        forge.neo.platform.NeoFonts.beforeJavaFx();
+
         final String cmd = args.length > 0 && !args[0].startsWith("-") ? args[0].toLowerCase(Locale.ROOT) : "list";
 
         // Y aqui mismo, antes que nada mas: la prueba del propio NeoPortable.
