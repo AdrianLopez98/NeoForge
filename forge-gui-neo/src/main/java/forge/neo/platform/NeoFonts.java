@@ -1,41 +1,58 @@
 package forge.neo.platform;
 
+import java.io.File;
 import java.io.InputStream;
 
 import javafx.scene.Scene;
 import javafx.scene.text.Font;
 
 /**
- * La letra de repuesto, para cuando no hay Segoe UI.
+ * La letra de repuesto, para cuando no hay Segoe UI, y el texto suavizado
+ * bajo Wine.
  *
  * <p><b>Existe por Linux.</b> {@code neo.css} pide "Segoe UI", que es de
  * Windows. En la Steam Deck y en Linux el juego corre con Proton/Wine, que no
- * la trae, y JavaFX cae en lo primero que encuentra: texto borroso, apretado y
- * desigual. Reportado en el Discord varias veces ("en SteamOS el texto se ve
- * mucho peor que en Windows").
+ * la trae, y JavaFX cae en lo primero que encuentra. Reportado en el Discord
+ * varias veces ("en SteamOS el texto se ve mucho peor que en Windows").
  *
- * <p>El remedio es llevar la letra dentro: <b>Inter</b> (licencia OFL, la
- * licencia va al lado en {@code fonts/Inter-OFL.txt}), que ya era la segunda
- * de la lista de {@code neo.css}. Solo se cargan cuatro cortes —normal,
- * negrita y sus cursivas— porque JavaFX, al buscar una letra, solo distingue
- * negrita de no negrita: un 600 sale normal y un 800 o 900 sale en negrita,
- * igual que con Segoe UI.
+ * <p>La letra que va dentro es <b>Inter</b> (licencia OFL, la licencia va al
+ * lado en {@code fonts/Inter-OFL.txt}), que ya era la segunda de la lista de
+ * {@code neo.css}. Solo se cargan cuatro cortes —normal, negrita y sus
+ * cursivas— porque JavaFX, al buscar una letra, solo distingue negrita de no
+ * negrita: un 600 sale normal y un 800 o 900 sale en negrita, igual que con
+ * Segoe UI.
  *
- * <p><b>No puede cambiar Windows ni Mac</b>, y no por intencion sino por
- * construccion:
+ * <h2>Bajo Wine, ademas, el texto por el camino LCD</h2>
+ *
+ * <p>La letra sola lo empeoro (23-09-2026, captura del Discord): el texto
+ * salia en pixeles duros, sin suavizar. La causa no es la letra sino
+ * <b>por donde la dibuja JavaFX</b>. En Windows, el texto gris normal se
+ * rasteriza con Direct2D ({@code DWGlyph.getD2DMask}), y el Direct2D de Wine
+ * no suaviza: cualquier letra sale dentada. La que ponia Wine por su cuenta
+ * estaba pensada para verse sin suavizado; Inter no, y por eso se vio peor.
+ *
+ * <p>El texto LCD va por otro sitio: {@code IDWriteGlyphRunAnalysis}
+ * ({@code DWGlyph.getLCDMask}), que Wine implementa con FreeType y SI suaviza.
+ * Asi que bajo Wine se pide {@code -fx-font-smoothing-type: lcd} a todo el
+ * texto ({@code neo-wine.css}). Donde JavaFX no puede usar LCD (texto escalado,
+ * con efecto o sobre fondo transparente) vuelve solo al gris, como siempre.
+ *
+ * <p>Wine se reconoce por lo que deja: sus variables de entorno (Proton las
+ * pasa) o {@code winecfg.exe} en {@code system32}, que no existe en un
+ * Windows de verdad.
+ *
+ * <p><b>No puede cambiar Windows ni Mac</b>, por construccion: en un Windows
+ * de verdad hay Segoe UI y no hay Wine, asi que no se anyade ninguna hoja; en
+ * Mac no se mira nada.
+ *
+ * <p>Las dos cosas se fuerzan o se apagan sin recompilar, con una linea
+ * {@code java-options=...} en el {@code NeoForge.cfg} de {@code app}. Es como
+ * se prueba con quien lo juega en Linux, porque aqui no hay forma de verlo:
  * <ul>
- *   <li>Si el sistema tiene Segoe UI —cualquier Windows de verdad— no se hace
- *       nada: ni se cargan las letras ni se anyade la hoja.</li>
- *   <li>En Mac tampoco: alli se ve bien con la letra del sistema, se ha
- *       probado asi y no se toca.</li>
+ *   <li>{@code -Dneo.font.fallback=true|false}: la letra Inter.</li>
+ *   <li>{@code -Dneo.text.lcd=true|false}: el texto por el camino LCD.</li>
  * </ul>
- *
- * <p>Se mira si <em>falta la letra</em>, no si el sistema "es Linux": con
- * Proton el juego se cree en Windows ({@code os.name} dice Windows), y es
- * justo el caso que hay que arreglar.
- *
- * <p>Para probarlo en Windows: {@code -Dneo.font.fallback=true} fuerza el
- * repuesto aunque haya Segoe UI.
+ * Sin ellas, decide solo.
  */
 public final class NeoFonts {
 
@@ -43,24 +60,75 @@ public final class NeoFonts {
         "Inter-Regular.ttf", "Inter-Bold.ttf", "Inter-Italic.ttf", "Inter-BoldItalic.ttf",
     };
 
+    private static final String[] WINE_ENV = {
+        "WINEPREFIX", "WINELOADER", "WINEDLLPATH", "WINEDLLOVERRIDES", "STEAM_COMPAT_DATA_PATH",
+    };
+
     /** null = sin decidir todavia. */
     private static Boolean useFallback;
+    private static Boolean useLcd;
 
     private NeoFonts() {
     }
 
     /**
-     * Hilo de JavaFX: pone la letra de repuesto en esta escena si hace falta.
-     * Va DESPUES de anyadir {@code neo.css}, para que su {@code .root} gane.
+     * Hilo de JavaFX: pone la letra de repuesto y el texto LCD en esta escena
+     * si hace falta. Va DESPUES de anyadir {@code neo.css}, para que gane.
      */
     public static void apply(final Scene scene) {
-        if (scene == null || !needsFallback()) {
+        if (scene == null) {
             return;
         }
-        final var css = NeoFonts.class.getResource("/forge/neo/fonts/neo-fonts.css");
+        if (needsFallback()) {
+            addSheet(scene, "neo-fonts.css");
+        }
+        if (needsLcd()) {
+            addSheet(scene, "neo-wine.css");
+        }
+    }
+
+    private static void addSheet(final Scene scene, final String name) {
+        final var css = NeoFonts.class.getResource("/forge/neo/fonts/" + name);
         if (css != null && !scene.getStylesheets().contains(css.toExternalForm())) {
             scene.getStylesheets().add(css.toExternalForm());
         }
+    }
+
+    /** TRUE o FALSE si se ha forzado; null si decide solo. */
+    private static Boolean forced(final String key) {
+        final String v = System.getProperty(key);
+        return v == null || v.isBlank() ? null : Boolean.valueOf(v.trim());
+    }
+
+    private static synchronized boolean needsLcd() {
+        if (useLcd == null) {
+            final Boolean f = forced("neo.text.lcd");
+            useLcd = f != null ? f : (!NeoOs.MAC && isWine());
+            if (useLcd) {
+                System.out.println("[neo] Texto por el camino LCD" + (f != null ? " (forzado)" : " (Wine)"));
+            }
+        }
+        return useLcd;
+    }
+
+    /** Wine o Proton. En un Windows de verdad no hay nada de esto. */
+    static boolean isWine() {
+        try {
+            for (final String v : WINE_ENV) {
+                final String e = System.getenv(v);
+                if (e != null && !e.isEmpty()) {
+                    return true;
+                }
+            }
+            final String win = System.getenv("WINDIR");
+            if (win != null) {
+                final File sys = new File(win, "system32");
+                return new File(sys, "winecfg.exe").isFile() || new File(sys, "wineboot.exe").isFile();
+            }
+        } catch (final RuntimeException e) {
+            // Sin permiso para mirar: se da por Windows, que es no tocar nada.
+        }
+        return false;
     }
 
     private static synchronized boolean needsFallback() {
@@ -71,7 +139,11 @@ public final class NeoFonts {
     }
 
     private static boolean decide() {
-        final boolean forced = Boolean.getBoolean("neo.font.fallback");
+        final Boolean f = forced("neo.font.fallback");
+        if (Boolean.FALSE.equals(f)) {
+            return false;
+        }
+        final boolean forced = Boolean.TRUE.equals(f);
         if (!forced) {
             if (NeoOs.MAC) {
                 return false;
@@ -86,8 +158,8 @@ public final class NeoFonts {
             }
         }
         int loaded = 0;
-        for (final String f : FILES) {
-            try (InputStream in = NeoFonts.class.getResourceAsStream("/forge/neo/fonts/" + f)) {
+        for (final String file : FILES) {
+            try (InputStream in = NeoFonts.class.getResourceAsStream("/forge/neo/fonts/" + file)) {
                 if (in != null && Font.loadFont(in, 12) != null) {
                     loaded++;
                 }

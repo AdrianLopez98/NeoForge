@@ -279,12 +279,31 @@ public final class SafeActions {
                 System.out.printf("[acciones] prioridad: resaltados=%s autopass=%s%n",
                         highlights, autoPass);
             }
+            // Antes del barrido y en este hilo: mayAutoPass solo lee el veredicto.
+            hiddenMana = "true".equalsIgnoreCase(autoPass)
+                    && HiddenMana.evaluate(getPlayer()).holds();
             try {
                 return super.chooseSpellAbilityToPlay();
             } catch (final RuntimeException e) {
                 return rescue(this, e, "chooseSpellAbilityToPlay",
                         super::chooseSpellAbilityToPlay);
             }
+        }
+
+        /** Hay algo pagable con maná que el motor no cuenta (ver {@link HiddenMana}). */
+        private volatile boolean hiddenMana;
+
+        /**
+         * El auto-pass de "no tienes nada que hacer", menos cuando el motor
+         * se ha equivocado contando tu maná. Un "pasar" que hayas pedido tú
+         * ({@code shouldAutoYield}) manda siempre.
+         */
+        @Override
+        public boolean mayAutoPass() {
+            if (!super.mayAutoPass()) {
+                return false;
+            }
+            return !hiddenMana || getYieldController().shouldAutoYield();
         }
 
         /** El mismo barrido, pedido desde el hilo de interfaz para resaltar. */
