@@ -22,7 +22,7 @@ import javafx.scene.text.Font;
  * negrita: un 600 sale normal y un 800 o 900 sale en negrita, igual que con
  * Segoe UI.
  *
- * <h2>Bajo Wine, ademas, el texto por el camino LCD</h2>
+ * <h2>Bajo Wine, ademas, las letras las dibuja JavaFX</h2>
  *
  * <p>La letra sola lo empeoro (23-09-2026, captura del Discord): el texto
  * salia en pixeles duros, sin suavizar. La causa no es la letra sino
@@ -31,27 +31,19 @@ import javafx.scene.text.Font;
  * no suaviza: cualquier letra sale dentada. La que ponia Wine por su cuenta
  * estaba pensada para verse sin suavizado; Inter no, y por eso se vio peor.
  *
- * <p><b>El texto LCD</b> ({@code neo-wine.css}), lo que se usa bajo Wine.
- * Va por {@code IDWriteGlyphRunAnalysis}, que Wine si suaviza, pero JavaFX
- * solo lo usa con color opaco, sin efecto y sin escala: medido en una captura
- * de pantalla de verdad, "IDIOMA" seguia por Direct2D. El jugador no noto
- * cambio, pero es lo que arranca.
+ * <p><b>Primer intento, que se quedo corto: el texto LCD</b>
+ * ({@code neo-wine.css}). Va por {@code IDWriteGlyphRunAnalysis}, que Wine si
+ * suaviza, pero JavaFX solo lo usa con color opaco, sin efecto y sin escala:
+ * medido en una captura de pantalla de verdad, "IDIOMA" seguia por Direct2D.
+ * Y el jugador dijo que no cambiaba nada. Queda como interruptor, apagado.
  *
- * <p><b>Segundo intento, que colgo el juego: {@code prism.fontSizeLimit=1}.</b> Por encima de ese
+ * <p><b>Lo que se hace: {@code prism.fontSizeLimit=1}.</b> Por encima de ese
  * tamanyo JavaFX no pide la imagen de la letra: coge su contorno y lo rellena
  * con su propio dibujante, que suaviza siempre y no pasa por Direct2D. Con el
  * limite a 1 punto eso vale para TODO el texto. Medido en Windows con una
  * partida automatica de 100 s: 58,5 fps sin el cambio y 58,7 con el, y el
  * peor frame igual. La propiedad la lee JavaFX UNA vez al arrancar, por eso
  * va en {@link #beforeJavaFx}, desde lo primero de {@code NeoMain.main}.
- *
- * <p><b>Pero bajo Proton de verdad (CachyOS, 23-09-2026) se quedo clavado en
- * la pantalla de carga</b>: el "Loading..." salia ya suave, el registro decia
- * "listo para jugar" y la ventana no volvia a pintarse. En Windows, con el
- * entorno de Proton simulado y con el pipeline por software, va a 60 fps: lo
- * que falla es algo de Wine al sacar el contorno de las letras, y desde aqui
- * no se puede ver. Asi que queda <b>apagado</b> salvo que se pida, y por
- * defecto bajo Wine se vuelve a lo ultimo que arrancaba: Inter + LCD.
  *
  * <p>Wine se reconoce por lo que deja: sus variables de entorno (Proton las
  * pasa) o {@code winecfg.exe} en {@code system32}, que no existe en un
@@ -66,9 +58,9 @@ import javafx.scene.text.Font;
  * se prueba con quien lo juega en Linux, porque aqui no hay forma de verlo:
  * <ul>
  *   <li>{@code -Dneo.font.fallback=true|false}: la letra Inter.</li>
- *   <li>{@code -Dneo.text.shapes=true|false}: las letras dibujadas por JavaFX
- *       (apagado si no se pide: colgo el juego bajo Proton).</li>
- *   <li>{@code -Dneo.text.lcd=true|false}: el texto por el camino LCD.</li>
+ *   <li>{@code -Dneo.text.shapes=true|false}: las letras dibujadas por JavaFX.</li>
+ *   <li>{@code -Dneo.text.lcd=true|false}: el texto por el camino LCD (apagado
+ *       si no se pide).</li>
  * </ul>
  * Sin ellas, decide solo.
  */
@@ -122,7 +114,7 @@ public final class NeoFonts {
     private static String shapesNote;
 
     /**
-     * Antes de arrancar JavaFX: las letras como formas, solo si se piden. Si alguien
+     * Antes de arrancar JavaFX: bajo Wine, las letras como formas. Si alguien
      * ya ha puesto {@code prism.fontSizeLimit} a mano, manda la suya.
      */
     public static void beforeJavaFx() {
@@ -130,12 +122,11 @@ public final class NeoFonts {
             return;
         }
         final Boolean f = forced("neo.text.shapes");
-        // Solo si se pide: bajo Wine de verdad se quedo colgado (ver arriba).
-        final boolean shapes = Boolean.TRUE.equals(f);
+        final boolean shapes = f != null ? f : (!NeoOs.MAC && isWine());
         if (shapes) {
             System.setProperty("prism.fontSizeLimit", "1");
             // El registro todavia no existe: se cuenta en el primer apply().
-            shapesNote = "[neo] Letras dibujadas por JavaFX (forzado)";
+            shapesNote = "[neo] Letras dibujadas por JavaFX" + (f != null ? " (forzado)" : " (Wine)");
         }
     }
 
@@ -145,9 +136,9 @@ public final class NeoFonts {
                 System.out.println(shapesNote);
             }
             final Boolean f = forced("neo.text.lcd");
-            useLcd = f != null ? f : (!NeoOs.MAC && isWine());
+            useLcd = Boolean.TRUE.equals(f);
             if (useLcd) {
-                System.out.println("[neo] Texto por el camino LCD" + (f != null ? " (forzado)" : " (Wine)"));
+                System.out.println("[neo] Texto por el camino LCD (forzado)");
             }
         }
         return useLcd;
