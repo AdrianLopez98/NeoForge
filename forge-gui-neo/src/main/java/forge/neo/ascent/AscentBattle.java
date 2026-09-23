@@ -530,8 +530,16 @@ public final class AscentBattle {
         // boton, "continuar Ascenso". Los dos de una partida suelta mentian los
         // dos — "otra partida" se leia como dejar el duelo a medias y borraba
         // la run, y "volver al menu" no volvia a ningun menu.
+        //
+        // El pago de mana, EL DEL JUGADOR. Aqui iba un `true` fijo, asi que en
+        // Ascenso el ajuste no valia: apagarlo en Ajustes servia para ese
+        // combate y el siguiente volvia a pagar solo (Discord, 23-09-2026).
+        // Sin jugador (reliccheck, ascentcheck) sigue encendido, que es como
+        // se han medido siempre.
+        final boolean autoMana = mode != NeoMatchUI.Mode.HUMAN
+                || forge.neo.NeoSettings.autoPayMana() || Boolean.getBoolean("neo.autoPay");
         final NeoGame.Result result = NeoGame.play(yours, 1, mode, timeoutSecs, false,
-                binder, plan.aiProfile, true,
+                binder, plan.aiProfile, autoMana,
                 run.getMode() == AscentRun.Mode.COMMANDER ? NeoFormat.COMMANDER : NeoFormat.ESTANDAR,
                 List.of(plan.opponentDeck), 1, seating(plan), NeoMatchUI.Ending.ASCENT);
 

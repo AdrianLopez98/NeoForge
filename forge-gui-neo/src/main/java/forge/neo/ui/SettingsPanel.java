@@ -844,6 +844,15 @@ public class SettingsPanel extends VBox {
         artDecks.setOnAction(e -> showArtDownload(forge.neo.card.ArtDownload.Scope.MY_DECKS));
         getChildren().add(row(NeoText.get("settings.art.decksRow"), artDecks));
 
+        // Todas las impresiones y artes, como el descargador de Forge (~7 GB).
+        // Para quien lo quiere TODO; al que solo quiere jugar sin linea le
+        // basta el primero. Pedido en Discord el 23-09-2026.
+        final Button artEvery = new Button(NeoText.get("settings.art.every"));
+        artEvery.getStyleClass().add("segment");
+        artEvery.setMinWidth(Region.USE_PREF_SIZE);
+        artEvery.setOnAction(e -> showArtDownload(forge.neo.card.ArtDownload.Scope.EVERY_PRINTING));
+        getChildren().add(row(NeoText.get("settings.art.everyRow"), artEvery));
+
         getChildren().add(section(NeoText.get("settings.keyboard")));
         final Button shortcuts = new Button(NeoText.get("settings.shortcuts.open"));
         shortcuts.getStyleClass().add("segment");

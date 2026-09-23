@@ -763,6 +763,17 @@
 .mana-g { -fx-background-color: #7FBE94; }
 .mana-c { -fx-background-color: #BDC5CC; }
 
+/* El negro, OSCURO de verdad. Con el gris de arriba (#A79EA0) el pip negro y
+   el incoloro (#BDC5CC) eran casi el mismo circulo, y cuatro de negro se leian
+   como cuatro incoloros (reportado en Discord el 23-09-2026). Borde claro para
+   que no se pierda contra la barra, y el numero en blanco. Solo en el pip: el
+   filtro de color del constructor tambien usa .mana-b y alli se lee bien. */
+.mana-pip.mana-b {
+    -fx-background-color: #231E26;
+    -fx-border-color: #A79EA0;
+    -fx-text-fill: #E6EBF2;
+}
+
 /* ---------- rail de fases ---------- */
 
 .phase-rail {
@@ -2009,6 +2020,14 @@
 }
 
 /* "3 / 60 · rueda para pasar de carta", debajo de la carta ampliada */
+/* "Equipar {1}" bajo un equipo ampliado: es una ACCION, asi que se ve como el
+   boton grande de la barra y no como la letra pequenya de al lado. */
+.zoom-equip {
+    -fx-font-size: 1.15em;
+    -fx-padding: 9 28 9 28;
+    -fx-min-width: 180px;
+}
+
 .zoom-browse-hint {
     -fx-font-size: 0.9em;
     -fx-text-fill: -neo-text-dim;

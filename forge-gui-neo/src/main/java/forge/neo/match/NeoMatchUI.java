@@ -618,6 +618,8 @@ public class NeoMatchUI extends NetworkGuiGame {
             // El visor de zonas ensenya cada carta solo si el motor lo permite:
             // la biblioteca es informacion oculta.
             table.setCardVisibility(this::mayView);
+            // "Equipar" desde la carta ampliada. Ver equipLabel.
+            table.setEquipAction(this::equipLabel, this::equipFromZoom);
             table.setOnCardDropped(this::onCardDropped);
 
             // Gastar mana flotante clicando su pip.
@@ -3128,6 +3130,43 @@ public class NeoMatchUI extends NetworkGuiGame {
      *
      * @return true si nos hemos quedado la pulsacion para preguntar
      */
+    /**
+     * Cuantas veces ha preguntado el motor ({@code updateButtons}), y en cual
+     * de ellas mandamos el ultimo OK.
+     *
+     * <p><b>Un OK por pregunta.</b> Reportado en Discord el 23-09-2026: en un
+     * bucle casi infinito, con la tecla de OK MANTENIDA, salio el aviso de
+     * "dejar tu fase principal" en mitad del bucle. Lo explico bien quien lo
+     * reporto: la interfaz aceptaba el OK antes de que el motor volviera a
+     * preguntar. Cada OK hace que el motor resuelva lo de arriba del stack en
+     * SU hilo, y mientras tanto el boton sigue encendido con el mensaje de la
+     * pregunta anterior. La repeticion de la tecla caia justo en el hueco
+     * entre "se resolvio" y "se puso el disparo siguiente": stack vacio,
+     * fase principal, mensaje de prioridad normal — y el aviso, que se fia de
+     * esas tres cosas, preguntaba sin que el motor hubiera preguntado nada.
+     *
+     * <p>Mandar mas OK en ese hueco tampoco sirve de nada: no hay ninguna
+     * pregunta abierta que contestar. Asi que se ignoran hasta que el motor
+     * vuelve a llamar a {@code updateButtons} — que SOLO lo llama una pregunta
+     * nueva al aparecer; parar la anterior no la llama
+     * ({@code InputSyncronizedBase.stop}). Mantener la tecla sigue resolviendo
+     * el bucle entero, un OK por disparo, al ritmo del motor.
+     *
+     * <p>Con valvula (principio 7): si en {@link #OK_WAIT_MS} el motor no ha
+     * vuelto a preguntar, el OK vuelve a valer. Mejor un aviso de mas que un
+     * boton muerto.
+     */
+    private final AtomicInteger askGen = new AtomicInteger();
+    private volatile int okSentAtGen = -1;
+    private volatile long okSentAt;
+    private static final long OK_WAIT_MS = 3000;
+
+    /** true si este OK llega antes de que el motor haya vuelto a preguntar. */
+    private boolean okAwaitingEngine() {
+        return okSentAtGen == askGen.get()
+                && System.currentTimeMillis() - okSentAt < OK_WAIT_MS;
+    }
+
     private boolean confirmLeavingMain() {
         if (table == null || !interactive() || finished.get()) {
             return false;
@@ -3389,6 +3428,8 @@ public class NeoMatchUI extends NetworkGuiGame {
             }
             return;
         }
+        // El motor vuelve a preguntar: el OK vuelve a valer. Ver okAwaitingEngine.
+        askGen.incrementAndGet();
         // Lo PRIMERO: saber si hay un pago de mana en curso, y saberlo por lo
         // que dice el motor. Ver setPayingMana.
         setPayingMana(isAutoPayLabel(okLabel));
@@ -3435,6 +3476,18 @@ public class NeoMatchUI extends NetworkGuiGame {
                 ui.runLater(() -> {
                     table.getActionBar().setButtons(okLabel, cancelLabel, okEnabled, cancelEnabled);
                     table.getActionBar().setOnOk(() -> {
+                        // Un OK por pregunta del motor. Lo demas, fuera: ver
+                        // okAwaitingEngine.
+                        if (okAwaitingEngine()) {
+                            // Solo pruebas (--ok-hold-test): cuantas de estas
+                            // caen con el stack VACIO en la vista, que es
+                            // cuando el aviso de la fase principal saltaba.
+                            if (Boolean.getBoolean("neo.okhold.debug")) {
+                                System.out.println("[okhold] OK ignorado, el motor aun no ha vuelto"
+                                        + " a preguntar | stack vacio en la vista: " + (topOfStack() == null));
+                            }
+                            return;
+                        }
                         // Antes de dar por buena una eleccion VACIA, preguntar.
                         if (warnNothingPicked()) {
                             return;
@@ -3442,6 +3495,15 @@ public class NeoMatchUI extends NetworkGuiGame {
                         // Y antes de dejar tu fase principal, tambien.
                         if (confirmLeavingMain()) {
                             return;
+                        }
+                        // Solo el OK de PASAR PRIORIDAD: es el que se da en
+                        // rafaga. En una seleccion, un OK rechazado no hace que
+                        // el motor vuelva a preguntar, y bloquear el siguiente
+                        // dejaria el boton muerto unos segundos.
+                        if (!payingMana && !isSelecting() && getSelectionMax() <= 0
+                                && isRoutinePriorityPrompt(lastPrompt)) {
+                            okSentAtGen = askGen.get();
+                            okSentAt = System.currentTimeMillis();
                         }
                         respondLater(() -> getGameController().selectButtonOk());
                     });
@@ -4520,6 +4582,9 @@ public class NeoMatchUI extends NetworkGuiGame {
     @Override
     public boolean showConfirmDialog(final String message, final String title, final String yes,
                                      final String no, final boolean defaultYes) {
+        // Tambien es el motor preguntando ("perderas el mana flotante...").
+        // Si se contesta que no, el OK siguiente tiene que valer. Ver askGen.
+        askGen.incrementAndGet();
         if (autoConfirm) {
             // Ya se le ha preguntado al jugador en nuestro propio dialogo.
             return true;
@@ -4959,23 +5024,152 @@ public class NeoMatchUI extends NetworkGuiGame {
     public SpellAbilityView getAbilityToPlay(final CardView hostCard,
                                              final List<SpellAbilityView> abilities,
                                              final ITriggerEvent triggerEvent) {
+        // Si esta pregunta viene del boton "Equipar" de la carta ampliada, se
+        // contesta sola con el equipar: el jugador ya dijo lo que queria.
+        List<SpellAbilityView> offered = abilities;
+        final int wanted = pendingEquipCard;
+        if (wanted >= 0) {
+            pendingEquipCard = -1;
+            if (hostCard != null && hostCard.getId() == wanted && abilities != null
+                    && System.currentTimeMillis() - pendingEquipAt < EQUIP_PENDING_MS) {
+                final List<SpellAbilityView> equips = new ArrayList<>();
+                for (final SpellAbilityView sa : abilities) {
+                    if (sa != null && sa.canPlay() && isEquip(sa)) {
+                        equips.add(sa);
+                    }
+                }
+                if (equips.isEmpty()) {
+                    // Ahora no se puede (otro coste, otra fase...): se dice, y
+                    // no se activa otra cosa en su lugar.
+                    showWhy(NeoText.get("zoom.equip.cant"));
+                    return null;
+                }
+                if (equips.size() == 1) {
+                    return equips.get(0);
+                }
+                // Varios equipar (p.ej. uno barato para legendarias): el menu
+                // de siempre, pero solo con esos.
+                offered = equips;
+            }
+        }
+        final List<SpellAbilityView> choices = offered;
         // El motor nos devuelve la llamada cuando una carta tiene varias cosas
         // jugables: es el menu contextual de Arena.
-        if (interactive() && abilities != null && abilities.size() > 1) {
+        if (interactive() && choices != null && choices.size() > 1) {
             final Integer picked = askUser(reply -> {
                 final AbilityMenu menu = new AbilityMenu(
-                        hostCard, abilities, table.zoomCardWidth() * 0.62, reply::accept);
+                        hostCard, choices, table.zoomCardWidth() * 0.62, reply::accept);
                 table.getOverlay().show(menu);
             }, null);
             // -1 (o nada) significa "me he equivocado de carta": devolver null
             // es la forma de decirle al motor que no se hace nada. Sin esto,
             // clicar una carta por error te obligaba a activar algo.
-            if (picked == null || picked < 0 || picked >= abilities.size()) {
+            if (picked == null || picked < 0 || picked >= choices.size()) {
                 return null;
             }
-            return abilities.get(picked);
+            return choices.get(picked);
         }
-        return (abilities == null || abilities.isEmpty()) ? null : abilities.get(0);
+        return (choices == null || choices.isEmpty()) ? null : choices.get(0);
+    }
+
+    // ---------------------------------------------------------------
+    // "Equipar" desde la carta ampliada
+    // ---------------------------------------------------------------
+
+    /**
+     * La carta cuyo equipar se ha pedido con el boton, o -1.
+     *
+     * <p>Pedido en Discord el 23-09-2026: con los equipos apilados detras de
+     * la criatura no se veia como volver a equipar. El boton no activa nada
+     * por su cuenta — no hay forma publica de lanzar UNA habilidad concreta
+     * sin que el motor la haya ofrecido antes ({@code selectAbility} solo vale
+     * despues de su menu). Hace lo mismo que un clic en la carta, y cuando el
+     * motor pregunta que habilidad ({@code getAbilityToPlay}, que pregunta
+     * SIEMPRE, aunque haya una sola) se contesta el equipar sin ensenyar el
+     * menu. Luego el motor pide el objetivo como siempre.
+     *
+     * <p>Caduca: el clic va por {@code respondLater}, asi que la pregunta
+     * llega un poco despues; y si nunca llega (el motor esperaba otra cosa),
+     * no puede quedarse armado y contestar "equipar" a un clic de dentro de
+     * un rato.
+     */
+    private volatile int pendingEquipCard = -1;
+    private volatile long pendingEquipAt;
+    private static final long EQUIP_PENDING_MS = 5000;
+
+    /** "Equip {1}", "Heroic — Equip {2}", "Equip legendary creature {1}"... pero no "Equipped". */
+    private static final java.util.regex.Pattern EQUIP_DESC =
+            java.util.regex.Pattern.compile("^(?:[^—]*—\\s*)?Equip(?!ped)\\b");
+
+    /**
+     * Si esta habilidad es un equipar. Por su texto: el motor lo monta siempre
+     * igual ({@code CardFactoryUtil}, "PrecostDesc$ Equip") y en ingles, sea
+     * cual sea el idioma de la interfaz.
+     */
+    private static boolean isEquip(final SpellAbilityView sa) {
+        final String d = sa.getDescription();
+        return d != null && EQUIP_DESC.matcher(d.trim()).find();
+    }
+
+    /**
+     * El texto del boton ("Equipar {1}"), o null si ahora no toca ofrecerlo.
+     *
+     * <p>Solo cuando de verdad se puede: un equipo TUYO en la mesa, en TU fase
+     * principal con el stack vacio (equipar va a velocidad de conjuro), sin
+     * una eleccion ni un pago a medias, y con la carta marcada por el motor
+     * como usable. Un boton que se ofrece y luego no hace nada es peor que no
+     * tenerlo (principio 1).
+     */
+    private String equipLabel(final CardView card) {
+        if (!interactive() || card == null || finished.get() || payingMana || isSelecting()
+                || card.getZone() != ZoneType.Battlefield || !isLocalPlayer(card.getController())) {
+            return null;
+        }
+        final GameView gv = getGameView();
+        if (gv == null || !isLocalPlayer(gv.getPlayerTurn())
+                || (gv.getPhase() != PhaseType.MAIN1 && gv.getPhase() != PhaseType.MAIN2)
+                || (gv.getStack() != null && !gv.getStack().isEmpty())) {
+            return null;
+        }
+        final CardView.CardStateView st = card.getCurrentState();
+        if (st == null || st.getKeywords() == null || actionableStrength(card) <= 0) {
+            return null;
+        }
+        final java.util.Set<String> costs = new java.util.LinkedHashSet<>();
+        for (final forge.game.keyword.KeywordView k : st.getKeywords()) {
+            if (k == null || k.keyword() != forge.game.keyword.Keyword.EQUIP) {
+                continue;
+            }
+            costs.add(equipCost(k.original()));
+        }
+        if (costs.isEmpty()) {
+            return null;
+        }
+        costs.remove("");
+        return NeoText.get("zoom.equip", String.join(" / ", costs)).trim();
+    }
+
+    /** "Equip:1:..." -> "{1}". Si no se entiende, vacio: el boton sale sin coste. */
+    private static String equipCost(final String original) {
+        try {
+            final String[] k = original.split(":");
+            if (k.length < 2) {
+                return "";
+            }
+            return new forge.game.cost.Cost(k[1], true).toSimpleString();
+        } catch (final RuntimeException e) {
+            return "";
+        }
+    }
+
+    /** El boton: armar la respuesta y hacer el clic de siempre. */
+    private void equipFromZoom(final CardView card) {
+        if (equipLabel(card) == null) {
+            return;
+        }
+        pendingEquipCard = card.getId();
+        pendingEquipAt = System.currentTimeMillis();
+        onCardClicked(card);
     }
 
     @Override

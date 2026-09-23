@@ -681,12 +681,14 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                     if (Boolean.getBoolean("neo.settings.shortcuts")) {
                         mockSettings.showShortcuts();
                     }
-                    // -Dneo.settings.art=all|decks entra en la descarga de
+                    // -Dneo.settings.art=all|decks|every entra en la descarga de
                     // arte, por el mismo boton que la abre jugando.
                     final String art = System.getProperty("neo.settings.art");
                     if (art != null && !art.isBlank()) {
                         mockSettings.showArtDownload("decks".equalsIgnoreCase(art)
                                 ? forge.neo.card.ArtDownload.Scope.MY_DECKS
+                                : "every".equalsIgnoreCase(art)
+                                ? forge.neo.card.ArtDownload.Scope.EVERY_PRINTING
                                 : forge.neo.card.ArtDownload.Scope.ALL);
                     }
                     // -Dneo.settings.scroll=0..1 baja el visor: esta pantalla
@@ -1622,6 +1624,127 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                         + (table != null && table.getMenuOverlay().isShowing()));
             });
             t.play();
+        }
+
+        // El boton "Equipar" de la carta ampliada, por el camino entero y en
+        // partida de verdad: se espera a que un equipo tuyo lo ofrezca (con
+        // --rig=Skullclamp;...), se amplia, se PULSA el boton y se mira que
+        // pide el motor despues. Lo bueno es que pida el objetivo.
+        if (args.contains("--equip-test")) {
+            final String wantedName = System.getProperty("neo.equip.card", "Skullclamp");
+            final javafx.animation.Timeline poll = new javafx.animation.Timeline();
+            final long started = System.currentTimeMillis();
+            poll.getKeyFrames().add(new javafx.animation.KeyFrame(Duration.millis(500), e -> {
+                if (table == null) {
+                    return;
+                }
+                if (System.currentTimeMillis() - started > 90_000) {
+                    poll.stop();
+                    System.out.println("[equipar] en 90 s no hubo ningun " + wantedName
+                            + " con el boton disponible");
+                    return;
+                }
+                final List<CardNode> all = new ArrayList<>();
+                debug.collectCardNodes(scene.getRoot(), all);
+                for (final CardNode n : all) {
+                    final forge.game.card.CardView cv = n.getCard();
+                    if (cv == null || !wantedName.equals(cv.getName())) {
+                        continue;
+                    }
+                    final String label = table.equipLabelFor(cv);
+                    if (label == null) {
+                        continue;
+                    }
+                    poll.stop();
+                    System.out.println("[equipar] boton: \"" + label + "\" en " + cv);
+                    table.showZoom(cv);
+                    // -Dneo.equip.press=false: amplia y se queda ahi, para
+                    // capturar como se ve el boton.
+                    if (!Boolean.parseBoolean(System.getProperty("neo.equip.press", "true"))) {
+                        return;
+                    }
+                    final PauseTransition press = new PauseTransition(Duration.millis(700));
+                    press.setOnFinished(ev -> {
+                        final javafx.scene.Node b = scene.getRoot().lookup(".zoom-equip");
+                        System.out.println("[equipar] boton en pantalla: " + (b != null));
+                        if (b instanceof javafx.scene.control.Button button) {
+                            button.fire();
+                        }
+                        final PauseTransition after = new PauseTransition(Duration.millis(1500));
+                        after.setOnFinished(ev2 -> System.out.println("[equipar] ampliacion cerrada: "
+                                + !table.isZoomShowing() + " | el motor pide: "
+                                + table.getLastPrompt().replace('\n', ' ')));
+                        after.play();
+                    });
+                    press.play();
+                    return;
+                }
+                // Todavia no: se contesta lo que haya delante (jugar primero,
+                // quedarse la mano, pasar el turno del rival) con el OK de la
+                // barra, uno cada segundo y medio, hasta llegar a tu fase
+                // principal con el equipo disponible.
+                if ((System.currentTimeMillis() - started) % 1500 < 500) {
+                    final javafx.scene.Node ok = scene.getRoot().lookup(".action-bar .btn-primary");
+                    if (ok instanceof javafx.scene.control.Button button && !button.isDisabled()) {
+                        System.out.println("[equipar] OK a: " + table.getLastPrompt().replace('\n', ' '));
+                        button.fire();
+                    }
+                }
+            }));
+            poll.setCycleCount(javafx.animation.Animation.INDEFINITE);
+            poll.play();
+        }
+
+        // El OK MANTENIDO durante un bucle (Discord, 23-09-2026). Con
+        // --rig=Sanctum of Stone Fangs;Exquisite Blood;Marauding Blight-Priest
+        // cada resolucion crea el disparo siguiente hasta que el rival muere.
+        // Se pulsa OK cada 35 ms, como la repeticion de una tecla, y se mira si
+        // sale la pregunta de "dejar tu fase principal" con el bucle a medias.
+        if (args.contains("--ok-hold-test")) {
+            final long every = Long.getLong("neo.okhold.everyMs", 35L);
+            final int[] presses = {0};
+            final java.util.Set<javafx.scene.Node> firedInDialog =
+                    java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
+            final javafx.animation.Timeline hold = new javafx.animation.Timeline();
+            hold.getKeyFrames().add(new javafx.animation.KeyFrame(Duration.millis(every), e -> {
+                if (table == null || table.getScene() == null) {
+                    return;
+                }
+                if (scene.getRoot().lookup(".phase-ask") != null) {
+                    hold.stop();
+                    System.out.println("[okhold] SALE LA PREGUNTA de dejar la fase principal tras "
+                            + presses[0] + " pulsaciones | prompt: "
+                            + table.getLastPrompt().replace('\n', ' '));
+                    return;
+                }
+                // La primera resolucion dispara dos cosas a la vez y el motor
+                // pide ORDENARLAS: eso no se contesta con OK. Se pulsa lo
+                // primero que haya activo en el dialogo (las dos opciones y
+                // luego el boton de aceptar). Solo pasa una vez por bucle.
+                if (table.getOverlay().isShowing() && table.getOverlay().getContent() != null) {
+                    // Cada opcion se pulsa UNA vez: pulsarla otra vez la desmarca.
+                    for (final javafx.scene.Node n : table.getOverlay().getContent().lookupAll(".button")) {
+                        if (n instanceof javafx.scene.control.Button b && !b.isDisabled() && b.isVisible()
+                                && !firedInDialog.contains(b)) {
+                            firedInDialog.add(b);
+                            b.fire();
+                            return;
+                        }
+                    }
+                    return;
+                }
+                // Igual que la tecla (runShortcut, PASS_PRIORITY): primero el
+                // aviso central, si lo hay.
+                if (table.getPromptBanner().acknowledge() || table.getActionBar().pressPrimary()) {
+                    presses[0]++;
+                    if (presses[0] % 200 == 0) {
+                        System.out.println("[okhold] " + presses[0] + " pulsaciones | "
+                                + table.getLastPrompt().replace('\n', ' '));
+                    }
+                }
+            }));
+            hold.setCycleCount(javafx.animation.Animation.INDEFINITE);
+            hold.play();
         }
 
         // -Dneo.overlay.peekAt=N aparta el dialogo de la mesa ("Ver la mesa") a

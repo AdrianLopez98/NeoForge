@@ -447,15 +447,37 @@ public final class CardImages {
                         && LOCALIZED_ASKED.add(imageKey);
 
                 File file = findOnDisk(imageKey);
+                boolean fallback = false;
                 if (file == null || !file.exists()) {
                     // Sin la impresion exacta: el arte bajado de antemano para
                     // jugar sin internet, si esta. Ver OfflineArt.
                     file = OfflineArt.find(imageKey, false);
+                    fallback = file != null && file.exists();
                 }
                 if (file != null && file.exists()) {
                     decode(imageKey, file);
+                    // ⚠️ EL RESPALDO SE PINTA, PERO NO CUENTA COMO TERMINADO.
+                    //
+                    // OfflineArt es UNA imagen por NOMBRE.  Antes, en cuanto
+                    // aparecia, se pintaba y aqui se acababa todo: la impresion
+                    // exacta no se pedia nunca, y como ya habia algo en CACHE,
+                    // get() no volvia a buscar.  O sea que a quien tuviera el
+                    // arte sin conexion, las doce impresiones de Baleful Strix
+                    // le salian con el mismo dibujo PARA SIEMPRE - reportado en
+                    // Mac el 23-09-2026, con captura del selector de impresion.
+                    // Android tuvo el mismo fallo y se arreglo igual (decision
+                    // 109 de alli).
+                    //
+                    // Ahora se ensenya el respaldo mientras tanto - para eso
+                    // esta - y ademas se pide la exacta; cuando llega,
+                    // resolveAfterDownload la pone encima y la carta se cambia
+                    // sola.  Sin internet la descarga falla y se queda el
+                    // respaldo, que es exactamente lo que tiene que pasar.
+                    final boolean exact = fallback && !cannotBeDownloaded(imageKey);
                     if (askLocalized) {
-                        requestLocalized(imageKey);
+                        requestLocalized(imageKey, exact);
+                    } else if (exact) {
+                        requestDownload(imageKey);
                     }
                     return;
                 }
@@ -521,6 +543,16 @@ public final class CardImages {
      * ensenyar, se sigue con la descarga de siempre.
      */
     private static void requestLocalized(final String imageKey) {
+        requestLocalized(imageKey, false);
+    }
+
+    /**
+     * @param alsoExact lo que hay puesto es el RESPALDO por nombre
+     *                  ({@link OfflineArt}), no la impresion: si no llega la
+     *                  traducida, hay que pedir la exacta aunque la cache ya
+     *                  tenga algo.  Ver {@link #load}.
+     */
+    private static void requestLocalized(final String imageKey, final boolean alsoExact) {
         final forge.util.ImageFetcher fetcher = GuiBase.getInterface().getImageFetcher();
         if (!(fetcher instanceof forge.neo.platform.NeoImageFetcher neo)) {
             requestDownload(imageKey);
@@ -532,8 +564,9 @@ public final class CardImages {
                 decode(imageKey, f);
                 return;
             }
-            if (CACHE.getIfPresent(imageKey) == null) {
-                // No habia nada puesto: toca el camino normal.
+            if (alsoExact || CACHE.getIfPresent(imageKey) == null) {
+                // No habia nada puesto, o lo puesto era el respaldo: toca el
+                // camino normal.
                 requestDownload(imageKey);
             }
         });

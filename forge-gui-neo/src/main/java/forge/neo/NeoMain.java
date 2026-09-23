@@ -649,6 +649,7 @@ public final class NeoMain {
         checkArtDownloadTargets();
         if (Integer.getInteger("neo.art.testLimit", 0) > 0) {
             checkArtDownloadRuns();
+            checkEveryPrintingRuns();
         }
     }
 
@@ -700,6 +701,45 @@ public final class NeoMain {
         if (pedidas.isEmpty() || pedidas.size() - encontradas > permitidos) {
             throw new IllegalStateException("se pidieron " + pedidas.size()
                     + " artes y OfflineArt solo encuentra " + encontradas);
+        }
+    }
+
+    /**
+     * "Todas las cartas y todos los artes", en pequenyo: el descargador de
+     * Forge ({@code ArtDownload.everyPrinting}) con UNA carta de muchas
+     * ediciones, y luego se mira que cada impresion este donde la busca el
+     * motor ({@code pics/cards/<clave>.jpg} o {@code .fullborder.jpg}, la
+     * misma cuenta que hace el descargador). Quiere linea.
+     */
+    private static void checkEveryPrintingRuns() {
+        final String name = System.getProperty("neo.art.everyCard", "Skullclamp");
+        final forge.gui.download.GuiDownloadService service =
+                new forge.gui.download.GuiDownloadFilteredCardImages(c -> name.equals(c.getName()));
+        System.out.println("  todas las impresiones de " + name + " (descargador de Forge)...");
+        final boolean ok = forge.neo.platform.NeoDownloads.runAndWait(service, 300);
+        forge.neo.card.ArtDownload.afterDownload();
+        int total = 0;
+        int found = 0;
+        for (final PaperCard pc : forge.model.FModel.getMagicDb().getCommonCards().getAllCards(name)) {
+            final String key = forge.util.ImageUtil.getImageKey(pc, "", true);
+            if (key == null) {
+                continue;
+            }
+            total++;
+            final java.io.File full = new java.io.File(
+                    forge.localinstance.properties.ForgeConstants.CACHE_CARD_PICS_DIR, key + ".jpg");
+            final String fb = key.contains(".full") ? key.replace(".full", ".fullborder") : key + ".fullborder";
+            final java.io.File border = new java.io.File(
+                    forge.localinstance.properties.ForgeConstants.CACHE_CARD_PICS_DIR, fb + ".jpg");
+            if (full.exists() || border.exists()) {
+                found++;
+            }
+        }
+        System.out.println("  descarga terminada: " + ok + " | impresiones en disco: "
+                + found + " de " + total);
+        if (total == 0 || total - found > Math.max(2, total / 10)) {
+            throw new IllegalStateException("de " + total + " impresiones de " + name
+                    + " solo hay " + found + " en disco");
         }
     }
 
