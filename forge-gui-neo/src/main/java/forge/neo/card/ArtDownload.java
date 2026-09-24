@@ -85,7 +85,38 @@ public final class ArtDownload extends GuiDownloadService {
      * que el motor espera. Nada que copiar ni que mantener alineado.
      */
     public static GuiDownloadService everyPrinting() {
-        return new forge.gui.download.GuiDownloadFilteredCardImages(c -> true);
+        return new forge.gui.download.GuiDownloadFilteredCardImages(c -> true) {
+            private Map<String, String> asked;
+
+            // Las que ya se sabe que Scryfall no tiene no se vuelven a pedir,
+            // y las que fallen en esta tanda se apuntan. Ver ArtUnavailable.
+            @Override
+            protected Map<String, String> getNeededFiles() throws UnsupportedEncodingException {
+                asked = super.getNeededFiles();
+                ArtUnavailable.filter(asked);
+                return asked;
+            }
+
+            @Override
+            protected void finish() {
+                recordLater(asked);
+                super.finish();
+            }
+        };
+    }
+
+    /**
+     * Apunta las que no se bajaron, en un hilo aparte: {@code finish} llega en
+     * el hilo de interfaz y la primera tanda pueden ser 95.000 ficheros que
+     * mirar en el disco.
+     */
+    private static void recordLater(final Map<String, String> asked) {
+        if (asked == null || asked.isEmpty()) {
+            return;
+        }
+        final Thread t = new Thread(() -> ArtUnavailable.record(asked), "neo-arte-no-disponibles");
+        t.setDaemon(true);
+        t.start();
     }
 
     private final Scope scope;
@@ -135,7 +166,19 @@ public final class ArtDownload extends GuiDownloadService {
 
     @Override
     protected Map<String, String> getNeededFiles() throws UnsupportedEncodingException {
-        return list(true);
+        asked = list(true);
+        ArtUnavailable.filter(asked);
+        this.count = asked.size();
+        return asked;
+    }
+
+    /** La lista que se esta recorriendo, para mirar al final cuales faltan. */
+    private Map<String, String> asked;
+
+    @Override
+    protected void finish() {
+        recordLater(asked);
+        super.finish();
     }
 
     /** Una foto por bajar: la carta, que cara y a que fichero. */
@@ -453,7 +496,9 @@ public final class ArtDownload extends GuiDownloadService {
      */
     public static int missing(final Scope scope) {
         try {
-            return new ArtDownload(scope).list(false).size();
+            final Map<String, String> wanted = new ArtDownload(scope).list(false);
+            ArtUnavailable.filter(wanted);
+            return wanted.size();
         } catch (final UnsupportedEncodingException e) {
             return 0;
         }
