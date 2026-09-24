@@ -14,7 +14,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 FORGE_REF="${FORGE_REF:?falta FORGE_REF: el commit de Forge sobre el que se ha probado}"
 ARCH="${ARCH:-$(uname -m)}"
-VERSION="${VERSION:-1.0}"
+# La version sale de <neo.version> de nuestro pom, el UNICO sitio donde se
+# escribe. Se puede forzar con VERSION=... para una prueba.
+VERSION="${VERSION:-$(sed -n 's:.*<neo.version>\(.*\)</neo.version>.*:\1:p' "$ROOT/forge-gui-neo/pom.xml" | head -n 1)}"
+VERSION="${VERSION:?no se encuentra <neo.version> en forge-gui-neo/pom.xml}"
 WORK="${WORK:-$ROOT/_mac}"
 OUT="${OUT:-$ROOT/_mac/out}"
 
