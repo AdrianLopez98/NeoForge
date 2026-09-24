@@ -135,6 +135,21 @@ public final class NetPoolContext implements DeckContext {
         return true;
     }
 
+    /**
+     * "Montar solo" y "Vaciar el mazo" tambien en red: el pool es el mismo
+     * tipo de pila (mazo y banda disjuntos), y no tenerlos aqui seria el mismo
+     * fallo que se arreglo en el draft de siempre el 23-09-2026.
+     */
+    @Override
+    public boolean canAutoBuild() {
+        return true;
+    }
+
+    @Override
+    public forge.deck.CardPool autoBuild(final List<forge.item.PaperCard> cards) {
+        return LimitedAutoBuild.build(cards, null);
+    }
+
     @Override
     public int owned(final PaperCard card) {
         if (card == null) {

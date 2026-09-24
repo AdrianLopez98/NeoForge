@@ -104,11 +104,11 @@ public class ChoiceDialog<T> extends VBox {
         heading = new Label(title == null ? NeoText.get("choice.title") : title);
         heading.getStyleClass().add("dialog-title");
         heading.setWrapText(true);
-        heading.setMaxWidth(760);
+        heading.setMaxWidth(UiScale.px(760));
 
         items = new FlowPane(10, 10);
         items.setAlignment(Pos.CENTER);
-        items.setPrefWrapLength(760);
+        items.setPrefWrapLength(UiScale.px(760));
 
         for (final T option : options) {
             final Region node = optionNode(option, display, cardWidth, items);
@@ -243,7 +243,7 @@ public class ChoiceDialog<T> extends VBox {
         final Button b = new Button(display == null ? String.valueOf(option) : display.apply(option));
         b.getStyleClass().add("choice-item");
         b.setWrapText(true);
-        b.setMaxWidth(340);
+        b.setMaxWidth(UiScale.px(340));
         // El texto envuelve, asi que el alto depende del ancho: sin esto el
         // boton se queda con el alto de una linea y el parrafo sale cortado.
         b.setMinHeight(Region.USE_PREF_SIZE);
@@ -357,7 +357,9 @@ public class ChoiceDialog<T> extends VBox {
         final javafx.scene.Scene scene = getScene();
         if (!sized && scene != null && scene.getWidth() > 0 && scene.getHeight() > 0) {
             sized = true;
-            final double wrap = Math.max(560, Math.min(1280, scene.getWidth() * 0.78));
+            // Los topes son de 1080p y crecen con la letra (UiScale.px).
+            final double wrap = Math.max(UiScale.px(560),
+                    Math.min(UiScale.px(1280), scene.getWidth() * 0.78));
             items.setPrefWrapLength(wrap);
             heading.setMaxWidth(wrap);
             // Dos por fila cuando son parrafos: mas estrecho no se lee, y a una

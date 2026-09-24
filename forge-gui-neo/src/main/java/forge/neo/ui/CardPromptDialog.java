@@ -56,14 +56,14 @@ public class CardPromptDialog extends VBox {
             final Label name = new Label(heading);
             name.getStyleClass().add("dialog-title");
             name.setWrapText(true);
-            name.setMaxWidth(420);
+            name.setMaxWidth(UiScale.px(420));
             right.getChildren().add(name);
         }
 
         final Label ask = new Label(question == null ? "" : question);
         ask.getStyleClass().add("card-prompt-question");
         ask.setWrapText(true);
-        ask.setMaxWidth(420);
+        ask.setMaxWidth(UiScale.px(420));
         ask.setMinHeight(Region.USE_PREF_SIZE);
         right.getChildren().add(ask);
 
@@ -81,7 +81,7 @@ public class CardPromptDialog extends VBox {
             b.setOnAction(e -> onPick.accept(index));
             buttons.getChildren().add(b);
         }
-        buttons.setPrefWidth(300);
+        buttons.setPrefWidth(UiScale.px(300));
         right.getChildren().add(buttons);
 
         if (card != null) {

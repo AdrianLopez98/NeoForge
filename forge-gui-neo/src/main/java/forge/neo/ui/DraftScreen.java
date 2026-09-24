@@ -49,7 +49,33 @@ public class DraftScreen extends BorderPane {
 
     private final Label progress = new Label();
     private final GridPane pack = new GridPane();
-    private final HBox pickedStrip = new HBox(-14);
+    /**
+     * Lo que llevas, en dos grupos: mazo y banquillo. Es la caja a la que
+     * vuela el pick, asi que la animacion no cambia.
+     */
+    private final HBox pickedStrip = new HBox(18);
+    private final HBox deckRow = new HBox(-14);
+    private final HBox sideRow = new HBox(-14);
+    private final Label deckCaption = new Label();
+    private final Label sideCaption = new Label();
+    private final Label stats = new Label();
+
+    /**
+     * Que picks estan en el banquillo, por su posicion en {@code picked()}.
+     *
+     * <p>Por posicion y no por carta: con dos copias de la misma, cada una
+     * tiene que poder estar en un sitio. La lista de picks solo crece, asi que
+     * la posicion de un pick no cambia nunca.
+     */
+    private final java.util.Set<Integer> sideboarded = new java.util.HashSet<>();
+
+    /** Cuantos picks se han repartido ya (los nuevos entran al mazo). */
+    private int placed;
+
+    /** Como se ordena lo que llevas. */
+    private enum Sort { PICK, COLOR, COST, TYPE }
+
+    private Sort sort = readSort();
     private final CardDetailPanel detail;
 
     private double packCardWidth;
@@ -120,16 +146,32 @@ public class DraftScreen extends BorderPane {
         detail = new CardDetailPanel(cardWidth * 1.9);
         setRight(detail);
 
+        // Lo que llevas, repartido entre mazo y banquillo, como en la GUI de
+        // Forge y en Arena. Un clic pasa la carta de un lado al otro.
+        deckRow.setAlignment(Pos.CENTER_LEFT);
+        sideRow.setAlignment(Pos.CENTER_LEFT);
+        deckCaption.getStyleClass().add("caption");
+        sideCaption.getStyleClass().add("caption");
+        final VBox deckBox = new VBox(2, deckCaption, deckRow);
+        final VBox sideBox = new VBox(2, sideCaption, sideRow);
+        sideBox.getStyleClass().add("draft-sideboard");
+        pickedStrip.getChildren().setAll(deckBox, sideBox);
         pickedStrip.setAlignment(Pos.CENTER_LEFT);
-        pickedStrip.setPadding(new Insets(6, 10, 6, 10));
+        pickedStrip.setPadding(new Insets(4, 10, 4, 10));
         final ScrollPane pickedScroll = new ScrollPane(pickedStrip);
         pickedScroll.getStyleClass().add("dialog-scroll");
         pickedScroll.setFitToHeight(true);
         pickedScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        pickedScroll.setPrefHeight(cardWidth * CardNode.ASPECT * 0.62 + 22);
+        pickedScroll.setPrefHeight(cardWidth * CardNode.ASPECT * 0.62 + 40);
 
         pickedLabel.getStyleClass().add("caption");
-        final VBox bottom = new VBox(2, pickedLabel, pickedScroll);
+        stats.getStyleClass().add("caption");
+        stats.setMinWidth(0);
+        final Region sortGap = new Region();
+        HBox.setHgrow(sortGap, Priority.ALWAYS);
+        final HBox pickedHeader = new HBox(14, pickedLabel, stats, sortGap, sortButtons());
+        pickedHeader.setAlignment(Pos.CENTER_LEFT);
+        final VBox bottom = new VBox(2, pickedHeader, pickedScroll);
         bottom.setPadding(new Insets(4, 26, 14, 30));
         setBottom(bottom);
 
@@ -228,6 +270,10 @@ public class DraftScreen extends BorderPane {
         waitingBox.setVisible(false);
 
         if (draft.isDone()) {
+            // La tira ANTES de cerrar: es la que le dice al draft que picks van
+            // al mazo (planMain), y sin esto el ultimo pick se guardaba siempre
+            // en el banquillo. Lo cazo LimitedUiTest.
+            refreshPicked();
             onFinished.accept(draft);
             return;
         }
@@ -315,19 +361,41 @@ public class DraftScreen extends BorderPane {
     }
 
     /**
-     * Lo que llevas cogido, lo ultimo a la izquierda.
+     * Lo que llevas cogido, en el mazo o en el banquillo.
      *
      * <p>Solapadas dejando ver la franja del titulo: son 45 al final del draft
-     * y una tira de cartas enteras no cabria ni serviria de nada.
+     * y una tira de cartas enteras no cabria ni serviria de nada. Con el orden
+     * "pick", lo ultimo va a la izquierda, que es donde vuela la carta.
      */
     private void refreshPicked() {
         final List<PaperCard> mine = draft.picked();
+        // Los picks nuevos entran al mazo, como en Forge. Las basicas no:
+        // casi nunca se cogen para jugarlas, y el mazo se llenaria de ruido.
+        for (; placed < mine.size(); placed++) {
+            if (isBasic(mine.get(placed))) {
+                sideboarded.add(placed);
+            }
+        }
         pickedLabel.setText(NeoText.get("draft.picked", mine.size()));
-        pickedStrip.getChildren().clear();
+
+        final List<Integer> order = new java.util.ArrayList<>();
+        for (int i = 0; i < mine.size(); i++) {
+            order.add(i);
+        }
+        order.sort(comparator(mine));
+
+        deckRow.getChildren().clear();
+        sideRow.getChildren().clear();
         final double w = baseCardWidth * 0.62;
-        for (int i = mine.size() - 1; i >= 0; i--) {
+        final List<PaperCard> main = new java.util.ArrayList<>();
+        for (final int i : order) {
+            final PaperCard pc = mine.get(i);
+            final boolean inSide = sideboarded.contains(i);
+            if (!inSide) {
+                main.add(pc);
+            }
             final CardNode node = new CardNode(w);
-            final CardView view = CardView.getCardForUi(mine.get(i));
+            final CardView view = CardView.getCardForUi(pc);
             node.setCard(view);
             node.setRotationEnabled(false);
             node.hoverProperty().addListener((o, was, is) -> {
@@ -335,7 +403,154 @@ public class DraftScreen extends BorderPane {
                     detail.show(view);
                 }
             });
-            pickedStrip.getChildren().add(node);
+            node.setOnMouseClicked(e -> {
+                if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY) {
+                    if (!sideboarded.remove(i)) {
+                        sideboarded.add(i);
+                    }
+                    refreshPicked();
+                }
+            });
+            (inSide ? sideRow : deckRow).getChildren().add(node);
+        }
+        deckCaption.setText(NeoText.get("draft.deckGroup", main.size()));
+        sideCaption.setText(NeoText.get("draft.sideGroup", mine.size() - main.size()));
+        stats.setText(statsOf(main));
+        draft.planMain(main);
+    }
+
+    /** El orden de la tira. "Pick" pone lo ultimo cogido delante. */
+    private java.util.Comparator<Integer> comparator(final List<PaperCard> mine) {
+        final java.util.Comparator<Integer> newestFirst = java.util.Comparator.reverseOrder();
+        final java.util.Comparator<Integer> byName = java.util.Comparator.comparing(
+                i -> forge.neo.card.CardText.nameOf(mine.get(i)));
+        return switch (sort) {
+            case PICK -> newestFirst;
+            case COLOR -> java.util.Comparator.<Integer>comparingInt(i -> colourRank(mine.get(i)))
+                    .thenComparingInt(i -> cmc(mine.get(i))).thenComparing(byName);
+            case COST -> java.util.Comparator.<Integer>comparingInt(
+                    i -> isLand(mine.get(i)) ? 99 : cmc(mine.get(i))).thenComparing(byName);
+            case TYPE -> java.util.Comparator.<Integer>comparingInt(i -> typeRank(mine.get(i)))
+                    .thenComparingInt(i -> cmc(mine.get(i))).thenComparing(byName);
+        };
+    }
+
+    /**
+     * W, U, B, R, G, varios colores, incolora y tierras: el orden en el que se
+     * lee un pool de limitado buscando en que colores estas.
+     */
+    private static int colourRank(final PaperCard card) {
+        if (isLand(card)) {
+            return 8;
+        }
+        final forge.card.ColorSet colours = card.getRules().getColor();
+        if (colours.isColorless()) {
+            return 7;
+        }
+        if (colours.isMulticolor()) {
+            return 6;
+        }
+        final byte[] wubrg = {forge.card.MagicColor.WHITE, forge.card.MagicColor.BLUE,
+                forge.card.MagicColor.BLACK, forge.card.MagicColor.RED, forge.card.MagicColor.GREEN};
+        for (int i = 0; i < wubrg.length; i++) {
+            if (colours.hasAnyColor(wubrg[i])) {
+                return i;
+            }
+        }
+        return 7;
+    }
+
+    private static int typeRank(final PaperCard card) {
+        final forge.card.CardType type = card.getRules().getType();
+        return type.isCreature() ? 0 : type.isLand() ? 2 : 1;
+    }
+
+    private static int cmc(final PaperCard card) {
+        return card.getRules().getManaCost().getCMC();
+    }
+
+    private static boolean isLand(final PaperCard card) {
+        return card.getRules().getType().isLand();
+    }
+
+    private static boolean isBasic(final PaperCard card) {
+        return card.getRules().getType().isBasicLand();
+    }
+
+    /**
+     * Lo que dice el mazo de un vistazo: cuantas criaturas, cuantos hechizos
+     * mas, cuantas tierras, y la curva. Es la pregunta de "donde estan los
+     * huecos" que se hace quien draftea a partir del segundo sobre.
+     */
+    private static String statsOf(final List<PaperCard> main) {
+        int creatures = 0;
+        int others = 0;
+        int lands = 0;
+        final int[] curve = new int[7];
+        for (final PaperCard pc : main) {
+            if (isLand(pc)) {
+                lands++;
+                continue;
+            }
+            if (pc.getRules().getType().isCreature()) {
+                creatures++;
+            } else {
+                others++;
+            }
+            curve[Math.min(6, cmc(pc))]++;
+        }
+        final StringBuilder sb = new StringBuilder();
+        for (int c = 0; c < curve.length; c++) {
+            if (curve[c] == 0) {
+                continue;
+            }
+            if (sb.length() > 0) {
+                sb.append("  ");
+            }
+            sb.append(c == 6 ? "6+" : String.valueOf(c)).append(':').append(curve[c]);
+        }
+        return NeoText.get("draft.stats", creatures, others, lands,
+                sb.length() == 0 ? "-" : sb.toString());
+    }
+
+    /** Los botones de orden, con el de ahora marcado. Se recuerda entre drafts. */
+    private Region sortButtons() {
+        final Label label = new Label(NeoText.get("draft.sort"));
+        label.getStyleClass().add("caption");
+        final HBox box = new HBox(6, label);
+        box.setAlignment(Pos.CENTER_RIGHT);
+        final List<Button> all = new java.util.ArrayList<>();
+        for (final Sort s : Sort.values()) {
+            final Button b = new Button(NeoText.get(
+                    "draft.sort." + s.name().toLowerCase(java.util.Locale.ROOT)));
+            b.getStyleClass().add("btn-secondary");
+            b.setMinWidth(Region.USE_PREF_SIZE);
+            b.pseudoClassStateChanged(SELECTED, s == sort);
+            b.setOnAction(e -> {
+                sort = s;
+                NeoSettings.set(SORT_KEY, s.name());
+                NeoSettings.save();
+                for (int i = 0; i < all.size(); i++) {
+                    all.get(i).pseudoClassStateChanged(SELECTED, Sort.values()[i] == sort);
+                }
+                refreshPicked();
+            });
+            all.add(b);
+            box.getChildren().add(b);
+        }
+        return box;
+    }
+
+    private static final String SORT_KEY = "draftSort";
+
+    private static final javafx.css.PseudoClass SELECTED =
+            javafx.css.PseudoClass.getPseudoClass("selected");
+
+    private static Sort readSort() {
+        try {
+            return Sort.valueOf(NeoSettings.get(SORT_KEY, Sort.PICK.name()));
+        } catch (final IllegalArgumentException e) {
+            return Sort.PICK;
         }
     }
 
@@ -355,6 +570,33 @@ public class DraftScreen extends BorderPane {
         if (!cards.isEmpty()) {
             take(cards.get(0), node);
         }
+    }
+
+    /** Cuantas cartas hay en el grupo del mazo de la tira. Herramienta de prueba. */
+    public int deckCountForTest() {
+        return deckRow.getChildren().size();
+    }
+
+    /** Cuantas en el del banquillo. Herramienta de prueba. */
+    public int sideCountForTest() {
+        return sideRow.getChildren().size();
+    }
+
+    /**
+     * Clica la primera carta del mazo (o del banquillo) de la tira, con un
+     * {@code MouseEvent} de verdad: pasa por los filtros de los padres
+     * ({@code CardZoom}) igual que un clic del raton. Herramienta de prueba.
+     */
+    public boolean clickStripCardForTest(final boolean fromSide) {
+        final HBox row = fromSide ? sideRow : deckRow;
+        if (row.getChildren().isEmpty()) {
+            return false;
+        }
+        row.getChildren().get(0).fireEvent(new javafx.scene.input.MouseEvent(
+                javafx.scene.input.MouseEvent.MOUSE_CLICKED, 10, 10, 10, 10,
+                javafx.scene.input.MouseButton.PRIMARY, 1,
+                false, false, false, false, true, false, false, true, false, false, null));
+        return true;
     }
 
     /** Las imagenes llegan de Scryfall en segundo plano: hay que repedirlas. */

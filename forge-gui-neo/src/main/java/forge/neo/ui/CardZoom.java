@@ -274,6 +274,7 @@ public final class CardZoom {
         if (dmg > 0) {
             final Label l = new Label(NeoText.get("zoom.damage", String.valueOf(dmg)));
             l.getStyleClass().addAll("zoom-line", "zoom-damage");
+            UiScale.fixedFont(l, 13);
             box.getChildren().add(l);
         }
 
@@ -368,6 +369,7 @@ public final class CardZoom {
 
         final Label caption = new Label(NeoText.get("zoom.keywords"));
         caption.getStyleClass().add("zoom-head");
+        UiScale.fixedFont(caption, 12);
         caption.setWrapText(true);
         caption.setMaxWidth(width);
 
@@ -463,6 +465,7 @@ public final class CardZoom {
 
         final Label body = new Label(live);
         body.getStyleClass().addAll("zoom-line", "zoom-live-text");
+        UiScale.fixedFont(body, 13);
         body.setWrapText(true);
         body.setMaxWidth(width);
 
@@ -479,8 +482,8 @@ public final class CardZoom {
         // instrucciones se queda con su alto por defecto (unas tres lineas) y
         // el "mas grande" de setMaxHeight no se nota hasta que el texto es
         // largo de verdad.
-        scroll.setPrefHeight(210);
-        scroll.setMaxHeight(340);
+        scroll.setPrefHeight(UiScale.px(210));
+        scroll.setMaxHeight(UiScale.px(340));
         scroll.setVisible(false);
         scroll.setManaged(false);
 
@@ -568,6 +571,7 @@ public final class CardZoom {
 
         final Label body = new Label(text.toString());
         body.getStyleClass().addAll("zoom-line", "zoom-live-text");
+        UiScale.fixedFont(body, 13);
         body.setWrapText(true);
         body.setMaxWidth(width);
 
@@ -575,8 +579,8 @@ public final class CardZoom {
                 new javafx.scene.control.ScrollPane(body);
         scroll.getStyleClass().add("zoom-live-scroll");
         scroll.setFitToWidth(true);
-        scroll.setPrefHeight(240);
-        scroll.setMaxHeight(380);
+        scroll.setPrefHeight(UiScale.px(240));
+        scroll.setMaxHeight(UiScale.px(380));
         scroll.setVisible(false);
         scroll.setManaged(false);
 
@@ -645,6 +649,7 @@ public final class CardZoom {
         final CardView other = (CardView) rel[1];
         final Label title = new Label(NeoText.get((String) rel[0]));
         title.getStyleClass().add("zoom-head");
+        UiScale.fixedFont(title, 12);
 
         final CardNode node = new CardNode(width * 0.66);
         node.setRotationEnabled(false);
@@ -654,6 +659,7 @@ public final class CardZoom {
         final Label name = new Label(other.getCurrentState() == null
                 ? other.getName() : CardText.nameOf(other.getCurrentState()));
         name.getStyleClass().addAll("zoom-line", "zoom-dim");
+        UiScale.fixedFont(name, 13);
         name.setWrapText(true);
         name.setMaxWidth(width);
 
@@ -700,6 +706,7 @@ public final class CardZoom {
         final VBox box = new VBox(6);
         final Label title = new Label(NeoText.get("zoom.holding"));
         title.getStyleClass().add("zoom-head");
+        UiScale.fixedFont(title, 12);
         box.getChildren().add(title);
 
         final FlowPane flow = new FlowPane(8, 8);
@@ -712,6 +719,7 @@ public final class CardZoom {
             final Label name = new Label(cv.getCurrentState() == null
                     ? cv.getName() : CardText.nameOf(cv.getCurrentState()));
             name.getStyleClass().addAll("zoom-line", "zoom-dim");
+            UiScale.fixedFont(name, 13);
             name.setWrapText(true);
             name.setMaxWidth(w);
             flow.getChildren().add(new VBox(3, n, name));
@@ -795,6 +803,7 @@ public final class CardZoom {
         final VBox box = new VBox(6);
         final Label title = new Label(NeoText.get("zoom.otherFace"));
         title.getStyleClass().add("zoom-head");
+        UiScale.fixedFont(title, 12);
 
         final double w = width * 0.72;
         final CardNode node = new CardNode(w);
@@ -806,6 +815,7 @@ public final class CardZoom {
 
         final Label name = new Label(CardText.nameOf(face));
         name.getStyleClass().addAll("zoom-line", "zoom-dim");
+        UiScale.fixedFont(name, 13);
         name.setWrapText(true);
         name.setMaxWidth(width);
 
@@ -836,11 +846,13 @@ public final class CardZoom {
         final VBox box = new VBox(6);
         final Label title = new Label(NeoText.get("zoom.preparedSpell"));
         title.getStyleClass().add("zoom-head");
+        UiScale.fixedFont(title, 12);
 
         final boolean ready = card.getPreparedSpell() != null;
         final Label how = new Label(NeoText.get(
                 ready ? "zoom.preparedNow" : "zoom.preparedNot"));
         how.getStyleClass().addAll("zoom-line", ready ? "zoom-ready" : "zoom-dim");
+        UiScale.fixedFont(how, 13);
         how.setWrapText(true);
         how.setMaxWidth(width);
         how.setMinHeight(Region.USE_PREF_SIZE);
@@ -873,6 +885,7 @@ public final class CardZoom {
         final int tou = st.getToughness();
         final Label now = new Label(pow + "/" + tou);
         now.getStyleClass().add("zoom-pt");
+        UiScale.fixedFont(now, 30);
 
         final int[] printed = CardNode.printedPowerToughness(st);
         final boolean up = printed != null && (pow > printed[0] || tou > printed[1]);
@@ -885,11 +898,13 @@ public final class CardZoom {
             final Label was = new Label(NeoText.get("zoom.printed",
                     printed[0] + "/" + printed[1]));
             was.getStyleClass().addAll("zoom-line", "zoom-dim");
+            UiScale.fixedFont(was, 13);
             box.getChildren().add(was);
         }
         if (card.getDamage() > 0 && card.getLethalDamage() <= 0) {
             final Label lethal = new Label(NeoText.get("zoom.lethal"));
             lethal.getStyleClass().addAll("zoom-line", "zoom-damage");
+            UiScale.fixedFont(lethal, 13);
             box.getChildren().add(lethal);
         }
         return box;
@@ -920,6 +935,7 @@ public final class CardZoom {
             final Color bg = Color.rgb(t.getRed(), t.getGreen(), t.getBlue());
             pill.setStyle("-fx-background-color:" + web(bg) + ";"
                     + "-fx-text-fill:" + (luminance(bg) > 0.55 ? "#101418" : "white") + ";");
+                    UiScale.fixedFont(pill, 13);
             flow.getChildren().add(pill);
         }
         return flow;
@@ -940,6 +956,7 @@ public final class CardZoom {
         final VBox box = new VBox(6);
         final Label title = new Label(NeoText.get("zoom.attached"));
         title.getStyleClass().add("zoom-head");
+        UiScale.fixedFont(title, 12);
         box.getChildren().add(title);
 
         final FlowPane flow = new FlowPane(8, 8);
@@ -952,6 +969,7 @@ public final class CardZoom {
             final Label name = new Label(cv.getCurrentState() == null
                     ? cv.getName() : CardText.nameOf(cv.getCurrentState()));
             name.getStyleClass().addAll("zoom-line", "zoom-dim");
+            UiScale.fixedFont(name, 13);
             name.setWrapText(true);
             name.setMaxWidth(w);
             final VBox one = new VBox(3, n, name);

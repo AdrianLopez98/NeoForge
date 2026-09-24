@@ -195,6 +195,7 @@ public class AmountDialog extends VBox {
             final Label pip = new Label(colour.getShortName());
             pip.getStyleClass().addAll("amount-pip",
                     "mana-" + colour.getShortName().toLowerCase(Locale.ROOT));
+                    UiScale.fixedCircle(pip, 54);
             pip.setAlignment(Pos.CENTER);
             final Label name = new Label(colour.getTranslatedName());
             name.getStyleClass().add("dialog-counter");

@@ -184,7 +184,7 @@ public class QuestScreen extends BorderPane {
         box.getStyleClass().add("stat-tile");
         box.setAlignment(Pos.CENTER);
         box.setPadding(new Insets(12, 18, 10, 18));
-        box.setMinWidth(140);
+        box.setMinWidth(UiScale.px(140));
         return box;
     }
 
@@ -261,7 +261,7 @@ public class QuestScreen extends BorderPane {
                 : problem);
         state.getStyleClass().add(problem == null ? "quest-ok" : "quest-problem");
         state.setWrapText(true);
-        state.setMaxWidth(520);
+        state.setMaxWidth(UiScale.px(520));
 
         final Button change = new Button(NeoText.get("quest.changeDeck"));
         change.getStyleClass().add("btn-secondary");
@@ -390,7 +390,7 @@ public class QuestScreen extends BorderPane {
         box.getStyleClass().addAll("duel-tile", styleFor(duel.getDifficulty()));
         box.setPadding(new Insets(14));
         box.setAlignment(Pos.TOP_CENTER);
-        box.setMinWidth(190);
+        box.setMinWidth(UiScale.px(190));
 
         final Label badge = new Label(duel.showDifficulty()
                 ? difficultyLabel(duel.getDifficulty()) : NeoText.get("quest.surprise"));
@@ -399,7 +399,7 @@ public class QuestScreen extends BorderPane {
         final Label name = new Label(duel.getTitle());
         name.getStyleClass().add("duel-name");
         name.setWrapText(true);
-        name.setMaxWidth(200);
+        name.setMaxWidth(UiScale.px(200));
         name.setMinHeight(Region.USE_PREF_SIZE);
 
         box.getChildren().add(badge);
@@ -501,8 +501,8 @@ public class QuestScreen extends BorderPane {
         box.getStyleClass().addAll("duel-tile", styleFor(c.getDifficulty()));
         box.setPadding(new Insets(14));
         box.setAlignment(Pos.TOP_LEFT);
-        box.setPrefWidth(330);
-        box.setMinWidth(300);
+        box.setPrefWidth(UiScale.px(330));
+        box.setMinWidth(UiScale.px(300));
 
         final Label badge = new Label(difficultyLabel(c.getDifficulty()));
         badge.getStyleClass().addAll("duel-badge", styleFor(c.getDifficulty()));
@@ -510,13 +510,13 @@ public class QuestScreen extends BorderPane {
         final Label name = new Label(safe(c.getTitle()));
         name.getStyleClass().add("duel-name");
         name.setWrapText(true);
-        name.setMaxWidth(300);
+        name.setMaxWidth(UiScale.px(300));
         name.setMinHeight(Region.USE_PREF_SIZE);
 
         final Label desc = new Label(safe(c.getDescription()));
         desc.getStyleClass().add("home-subtitle");
         desc.setWrapText(true);
-        desc.setMaxWidth(300);
+        desc.setMaxWidth(UiScale.px(300));
         desc.setMinHeight(Region.USE_PREF_SIZE);
 
         // Lo que hace distinto a ESTE desafio, en una linea. La vida del rival
@@ -542,7 +542,7 @@ public class QuestScreen extends BorderPane {
         final Label info = new Label(facts.toString());
         info.getStyleClass().add("caption");
         info.setWrapText(true);
-        info.setMaxWidth(300);
+        info.setMaxWidth(UiScale.px(300));
         info.setMinHeight(Region.USE_PREF_SIZE);
 
         final Button play = new Button(NeoText.get("home.play"));

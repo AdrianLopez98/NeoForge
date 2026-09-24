@@ -269,6 +269,17 @@ public final class NeoDraft implements PackSource {
 
     private final List<PaperCard> picked = new ArrayList<>();
 
+    /** Lo que el jugador quiere en el mazo, ver {@link PackSource#planMain}. */
+    private final List<PaperCard> plannedMain = new ArrayList<>();
+
+    @Override
+    public void planMain(final List<PaperCard> main) {
+        plannedMain.clear();
+        if (main != null) {
+            plannedMain.addAll(main);
+        }
+    }
+
     /**
      * Coge una carta del sobre.
      *
@@ -335,7 +346,8 @@ public final class NeoDraft implements PackSource {
      *
      * <p>Tus cartas llegan a la <b>banda</b> ({@code DeckSection.Sideboard}),
      * que es como Forge representa "el pool del que aun tienes que montar el
-     * mazo". El deck builder es el que decide despues cuales juegas.
+     * mazo", y al principal pasa solo lo que el jugador fue poniendo en el
+     * mazo durante el draft ({@link #planMain}). Nada se monta solo.
      */
     public DeckGroup save(final String name) {
         draft.postDraftActions();
@@ -353,7 +365,18 @@ public final class NeoDraft implements PackSource {
             mine.get(DeckSection.Sideboard).remove(removed);
         }
         mine.setDraftNotes(me.getSerializedDraftNotes());
-        buildMainDeck(mine);
+        // Lo que el jugador fue poniendo en el mazo durante el draft pasa de
+        // la banda al principal. Mazo y banda son disjuntos: se MUEVE.
+        final CardPool side = mine.get(DeckSection.Sideboard);
+        for (final PaperCard card : plannedMain) {
+            if (side.count(card) > 0) {
+                side.remove(card, 1);
+                mine.getMain().add(card, 1);
+            }
+        }
+        // El mazo sale VACIO: montarlo es cosa del jugador (o del boton "Montar
+        // solo" del editor). Ver LimitedAutoBuild.
+        DraftRun.markSplit(name, DraftRun.Kind.DRAFT);
 
         final DeckGroup group = new DeckGroup(name);
         group.setHumanDeck(mine);
@@ -361,43 +384,6 @@ public final class NeoDraft implements PackSource {
 
         FModel.getDecks().getDraft().add(group);
         return group;
-    }
-
-    /**
-     * Monta un mazo jugable de 40 cartas con el pool draftado.
-     *
-     * <p>Un draft guardado deja el pool entero en la banda y el mazo VACIO: tal
-     * cual, no se puede jugar. Montarlo es exactamente el trabajo que hace el
-     * motor para los siete rivales, asi que se le pide a el en vez de inventar
-     * nada.
-     *
-     * <p>Se usa {@code SealedDeckBuilder} y no {@code LimitedDeckBuilder} por
-     * un detalle que cuesta encontrar: el segundo necesita que le DIGAS los dos
-     * colores (los rivales los van acumulando pick a pick), y su clase de
-     * colores no es publica fuera del paquete. El de sellado los <b>elige el
-     * solo</b> a partir del mejor tercio del pool, que es justo lo que hace
-     * falta aqui. Sin eso revienta con "Add Lands to empty deck list!".
-     *
-     * <p>El pool se queda intacto en la banda: cambiar el mazo a mano es cosa
-     * del deck builder, y para eso tiene que seguir estando entero.
-     */
-    private static void buildMainDeck(final Deck deck) {
-        final List<PaperCard> pool = new ArrayList<>();
-        for (final Map.Entry<PaperCard, Integer> e : deck.get(DeckSection.Sideboard)) {
-            for (int i = 0; i < e.getValue(); i++) {
-                pool.add(e.getKey());
-            }
-        }
-        if (pool.isEmpty()) {
-            return;
-        }
-        try {
-            final Deck built = new forge.gamemodes.limited.SealedDeckBuilder(pool).buildDeck();
-            deck.getMain().clear();
-            deck.getMain().addAll(built.getMain());
-        } catch (final RuntimeException e) {
-            System.err.println("[neo] no se ha podido montar el mazo del draft: " + e);
-        }
     }
 
     /**

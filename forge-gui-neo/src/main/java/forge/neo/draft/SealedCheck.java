@@ -94,7 +94,15 @@ public final class SealedCheck {
             return;
         }
 
-        final Deck mine = group.getHumanDeck();
+        // El mazo sale VACIO (23-09-2026) y el pool entero en la banda; luego
+        // se pulsa "Montar solo", que es lo que hara quien no quiera montarlo.
+        final int emptyAtCreate = group.getHumanDeck().getMain().countAll();
+        final int poolAtCreate = DraftCheck.poolTotal(group.getHumanDeck());
+        ok &= emptyAtCreate == 0;
+        final Deck mine = DraftCheck.autoBuildSaved(DraftRun.of(name, DraftRun.Kind.SEALED));
+        ok &= DraftCheck.poolTotal(mine) == poolAtCreate;
+        System.out.printf(Locale.ROOT, "  Al crearlo: mazo de %d | pool de %d%n",
+                emptyAtCreate, poolAtCreate);
         final int main = mine.getMain().countAll();
         final int side = mine.get(DeckSection.Sideboard) == null ? 0
                 : mine.get(DeckSection.Sideboard).countAll();
@@ -173,7 +181,8 @@ public final class SealedCheck {
                 DraftRun.current(DraftRun.Kind.SEALED) == null ? "(ninguno)"
                         : DraftRun.current(DraftRun.Kind.SEALED).getName());
 
-        // Dos derrotas y se borra, como en el draft.
+        // En modo Arena, dos derrotas y se borra, como en el draft.
+        run.setArena(true);
         run.record(false);
         final boolean aliveAfterOne = !run.isEliminated();
         run.record(false);

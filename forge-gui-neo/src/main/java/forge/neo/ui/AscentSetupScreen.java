@@ -207,7 +207,7 @@ public class AscentSetupScreen extends StackPane {
                 ? "ascent.setup.mode.commander.desc" : "ascent.setup.mode.standard.desc"));
         what.getStyleClass().add("ascent-info-text");
         what.setWrapText(true);
-        what.setMaxWidth(620);
+        what.setMaxWidth(UiScale.px(620));
         final VBox box = new VBox(6, row, what);
         box.setAlignment(Pos.CENTER);
         return box;
@@ -217,7 +217,7 @@ public class AscentSetupScreen extends StackPane {
     private Region commanderBox() {
         final TextField field = new TextField(search);
         field.setPromptText(NeoText.get("ascent.setup.search"));
-        field.setMaxWidth(320);
+        field.setMaxWidth(UiScale.px(320));
         field.textProperty().addListener((o, a, b) -> {
             search = b == null ? "" : b;
             page = 0;
@@ -383,7 +383,7 @@ public class AscentSetupScreen extends StackPane {
     private Region ascensionEffects() {
         final VBox box = new VBox(3);
         box.setAlignment(Pos.CENTER_LEFT);
-        box.setMaxWidth(560);
+        box.setMaxWidth(UiScale.px(560));
         final Label head = new Label(NeoText.get("ascent.setup.ascension.active"));
         head.getStyleClass().add("ascent-hint");
         box.getChildren().add(head);
@@ -391,7 +391,7 @@ public class AscentSetupScreen extends StackPane {
             final Label line = new Label("·  " + NeoText.get(key));
             line.getStyleClass().add("ascent-info-text");
             line.setWrapText(true);
-            line.setMaxWidth(560);
+            line.setMaxWidth(UiScale.px(560));
             box.getChildren().add(line);
         }
         return box;
@@ -454,7 +454,7 @@ public class AscentSetupScreen extends StackPane {
         final Label what = new Label(coloursCaption());
         what.getStyleClass().add("ascent-info-text");
         what.setWrapText(true);
-        what.setMaxWidth(620);
+        what.setMaxWidth(UiScale.px(620));
         // Centrada, al reves que la descripcion del modo de arriba: aquella es
         // un parrafo que ocupa las dos lineas enteras y alineado a la izquierda
         // se lee mejor; esta es UNA frase corta, y suelta a la izquierda de una
@@ -554,7 +554,7 @@ public class AscentSetupScreen extends StackPane {
         final Label warn = new Label(NeoText.get("ascent.setup.willLose"));
         warn.getStyleClass().add("ascent-info-duel");
         warn.setWrapText(true);
-        warn.setMaxWidth(620);
+        warn.setMaxWidth(UiScale.px(620));
         final VBox box = new VBox(6, warn, row);
         box.setAlignment(Pos.CENTER);
         return box;
@@ -571,7 +571,7 @@ public class AscentSetupScreen extends StackPane {
         final Label d = new Label(NeoText.get("ascent.setup.confirm.detail"));
         d.getStyleClass().add("ascent-info-text");
         d.setWrapText(true);
-        d.setMaxWidth(420);
+        d.setMaxWidth(UiScale.px(420));
 
         final Button no = new Button(NeoText.get("common.cancel"));
         no.getStyleClass().addAll("ascent-button", "btn-primary");

@@ -219,7 +219,7 @@ public class LobbyScreen extends BorderPane
         formatName.getStyleClass().add("mode-tile-name");
         formatNote.getStyleClass().add("mode-tile-note");
         formatNote.setWrapText(true);
-        formatNote.setMaxWidth(560);
+        formatNote.setMaxWidth(UiScale.px(560));
         formatNote.setMinHeight(Region.USE_PREF_SIZE);
 
         if (!host) {
@@ -332,7 +332,7 @@ public class LobbyScreen extends BorderPane
         eventName.getStyleClass().add("mode-tile-name");
         eventNote.getStyleClass().add("mode-tile-note");
         eventNote.setWrapText(true);
-        eventNote.setMaxWidth(560);
+        eventNote.setMaxWidth(UiScale.px(560));
         eventNote.setMinHeight(Region.USE_PREF_SIZE);
 
         eventButtons.setAlignment(Pos.CENTER_LEFT);
@@ -364,7 +364,7 @@ public class LobbyScreen extends BorderPane
         // barato que el rato que se pierde si se corta a mitad.
         eventWarn.getStyleClass().add("lobby-warn");
         eventWarn.setWrapText(true);
-        eventWarn.setMaxWidth(560);
+        eventWarn.setMaxWidth(UiScale.px(560));
         eventWarn.setMinHeight(Region.USE_PREF_SIZE);
 
         return new VBox(6, caption, eventName, eventNote, eventWarn, eventButtons);
@@ -841,7 +841,7 @@ public class LobbyScreen extends BorderPane
             final Label note = new Label(NeoText.get("lobby.address.ipv6.note"));
             note.getStyleClass().add("lobby-warn-why");
             note.setWrapText(true);
-            note.setMaxWidth(560);
+            note.setMaxWidth(UiScale.px(560));
             note.setMinHeight(Region.USE_PREF_SIZE);
             rows.getChildren().addAll(
                     addressLine(NeoText.get("lobby.address.ipv6", v6[1]), v6[1]), note);
@@ -855,7 +855,7 @@ public class LobbyScreen extends BorderPane
             final Label note = new Label(NeoText.get("lobby.address.virtual.note"));
             note.getStyleClass().add("lobby-warn-why");
             note.setWrapText(true);
-            note.setMaxWidth(560);
+            note.setMaxWidth(UiScale.px(560));
             note.setMinHeight(Region.USE_PREF_SIZE);
             rows.getChildren().addAll(
                     addressLine(NeoText.get("lobby.address.virtual", virtual[0], virtual[1]),
@@ -920,7 +920,7 @@ public class LobbyScreen extends BorderPane
                     hasIpv6 ? "lobby.address.cgnat.v4only" : "lobby.address.cgnat"));
             warn.getStyleClass().add("lobby-warn");
             warn.setWrapText(true);
-            warn.setMaxWidth(560);
+            warn.setMaxWidth(UiScale.px(560));
             warn.setMinHeight(Region.USE_PREF_SIZE);
 
             // Y ahora lo unico que le importa a quien esta leyendo esto: que
@@ -946,13 +946,13 @@ public class LobbyScreen extends BorderPane
                     ? NeoText.get(fixKey, dormant) : NeoText.get(fixKey));
             fix.getStyleClass().add(dormant != null ? "lobby-warn" : "lobby-warn-why");
             fix.setWrapText(true);
-            fix.setMaxWidth(560);
+            fix.setMaxWidth(UiScale.px(560));
             fix.setMinHeight(Region.USE_PREF_SIZE);
 
             final Label why = new Label(NeoText.get("lobby.address.cgnat.what"));
             why.getStyleClass().add("lobby-warn-why");
             why.setWrapText(true);
-            why.setMaxWidth(560);
+            why.setMaxWidth(UiScale.px(560));
             why.setMinHeight(Region.USE_PREF_SIZE);
 
             internet.getChildren().setAll(warn, fix, why);
@@ -990,7 +990,7 @@ public class LobbyScreen extends BorderPane
                 String.valueOf(NeoLobby.port())));
         hint.getStyleClass().add("mode-tile-note");
         hint.setWrapText(true);
-        hint.setMaxWidth(560);
+        hint.setMaxWidth(UiScale.px(560));
         hint.setMinHeight(Region.USE_PREF_SIZE);
         internet.getChildren().setAll(
                 addressLine(NeoText.get("lobby.address.internet", ext), ext), hint);
@@ -1007,7 +1007,7 @@ public class LobbyScreen extends BorderPane
             final Label dunno = new Label(NeoText.get("lobby.address.noRouter"));
             dunno.getStyleClass().add("lobby-warn-why");
             dunno.setWrapText(true);
-            dunno.setMaxWidth(560);
+            dunno.setMaxWidth(UiScale.px(560));
             dunno.setMinHeight(Region.USE_PREF_SIZE);
             internet.getChildren().add(dunno);
         }
@@ -1093,8 +1093,8 @@ public class LobbyScreen extends BorderPane
         });
 
         final VBox box = new VBox(8, title, chatScroll, chatInput);
-        box.setPrefWidth(320);
-        box.setMinWidth(260);
+        box.setPrefWidth(UiScale.px(320));
+        box.setMinWidth(UiScale.px(260));
         box.setPadding(new Insets(0, 30, 0, 0));
         return box;
     }
@@ -1162,11 +1162,11 @@ public class LobbyScreen extends BorderPane
                 ? NeoText.get("lobby.slot.open")
                 : slot.getName() == null ? "?" : slot.getName());
         who.getStyleClass().add("mode-tile-name");
-        who.setMinWidth(140);
+        who.setMinWidth(UiScale.px(140));
 
         final Label kind = new Label(kindLabel(l, index, slot));
         kind.getStyleClass().add("mode-tile-note");
-        kind.setMinWidth(90);
+        kind.setMinWidth(UiScale.px(90));
 
         final HBox row = new HBox(12, who, kind);
         row.setAlignment(Pos.CENTER_LEFT);
@@ -1627,7 +1627,7 @@ public class LobbyScreen extends BorderPane
             final Label l = new Label(text);
             l.getStyleClass().add("mode-tile-note");
             l.setWrapText(true);
-            l.setMaxWidth(290);
+            l.setMaxWidth(UiScale.px(290));
             l.setMinHeight(Region.USE_PREF_SIZE);
             chatLines.getChildren().add(l);
             // Un chat que crece sin fin se come la memoria de una partida larga.

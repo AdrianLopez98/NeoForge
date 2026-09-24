@@ -312,7 +312,7 @@ public class TableScreen extends Pane {
         playerDetails.setMouseTransparent(true);
         playerDetails.setVisible(false);
         playerDetails.setManaged(false);
-        playerDetails.setMaxWidth(420);
+        playerDetails.setMaxWidth(UiScale.px(420));
         playerDetails.setMinHeight(Region.USE_PREF_SIZE);
         hoverDetails(opponentBar, true);
         hoverDetails(selfBar, false);
@@ -490,7 +490,7 @@ public class TableScreen extends Pane {
         // El cartel de turno, centrado y ARRIBA del todo del area de juego: en
         // el centro exacto taparia las criaturas justo cuando hay que mirarlas.
         if (turnBanner.isVisible()) {
-            final double bw = Math.min(TurnBanner.MAX_WIDTH,
+            final double bw = Math.min(UiScale.px(TurnBanner.MAX_WIDTH),
                     Math.max(turnBanner.bannerWidth(), contentW * 0.42));
             final double bh = turnBanner.bannerHeight(bw);
             turnBanner.resizeRelocate((contentW - bw) / 2, h * 0.13, bw, bh);
@@ -854,6 +854,7 @@ public class TableScreen extends Pane {
 
     private void installBoardZoom() {
         zoomBadge.getStyleClass().add("zoom-badge");
+        UiScale.fixedFont(zoomBadge, 12);
         zoomBadge.setVisible(false);
         zoomBadge.setManaged(false);
         zoomBadge.setOnMouseClicked(e -> {
@@ -1640,8 +1641,8 @@ public class TableScreen extends Pane {
                 open++;
             }
         }
-        return Math.min(list.size(), visibleRows()) * rowHeight() + TOP_ROW_EXTRA
-                + Math.min(open, MAX_OPEN_ROWS) * EXPANDED_EXTRA;
+        return Math.min(list.size(), visibleRows()) * rowHeight() + UiScale.px(TOP_ROW_EXTRA)
+                + Math.min(open, MAX_OPEN_ROWS) * UiScale.px(EXPANDED_EXTRA);
     }
 
     /**
@@ -1654,7 +1655,7 @@ public class TableScreen extends Pane {
      */
     private double rowHeight() {
         return forge.neo.NeoSettings.stackCards()
-                ? stackArtWidth() * CardNode.ASPECT + 8 : ROW_H;
+                ? stackArtWidth() * CardNode.ASPECT + 8 : UiScale.px(ROW_H);
     }
 
     /**
@@ -1680,7 +1681,7 @@ public class TableScreen extends Pane {
     /** Cuantas filas se ven de una vez; el resto, rodando. */
     private static final int VISIBLE_ROWS = 6;
 
-    /** Lo que mide una fila normal, con su separacion. */
+    /** Lo que mide una fila normal, con su separacion, en 1080p (crece con la letra). */
     private static final double ROW_H = 23;
 
     /** Lo que la primera fila abulta de mas por llevar el texto de la accion. */
@@ -1732,7 +1733,7 @@ public class TableScreen extends Pane {
      * nueve disparos encadenados siguen cabiendo en el visor que ya rodaba.
      */
     private double stackArtWidth() {
-        return Math.max(38, Math.min(54, sideWidth * 0.18));
+        return Math.max(38, Math.min(UiScale.px(54), sideWidth * 0.18));
     }
 
     /**
@@ -1837,7 +1838,7 @@ public class TableScreen extends Pane {
     private Region waitingRow(final StackItemView item, final int order, final PlayerView me) {
         final Label num = new Label(String.valueOf(order));
         num.getStyleClass().add("stack-order");
-        num.setMinWidth(15);
+        num.setMinWidth(UiScale.px(15));
 
         final Label who = new Label(ownerName(item, me));
         who.getStyleClass().add("stack-who");
@@ -2308,7 +2309,7 @@ public class TableScreen extends Pane {
         final Label body = new Label(text == null ? "" : text.replace("\\n", "\n"));
         body.getStyleClass().add("dialog-text");
         body.setWrapText(true);
-        body.setMaxWidth(560);
+        body.setMaxWidth(UiScale.px(560));
         body.setMinHeight(Region.USE_PREF_SIZE);
 
         final javafx.scene.control.Button ok = new javafx.scene.control.Button(NeoText.get("banner.understood"));

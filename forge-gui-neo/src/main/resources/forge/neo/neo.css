@@ -1165,6 +1165,10 @@
 
 .dialog-text { -fx-font-size: 0.95em; -fx-text-fill: -neo-text; }
 
+/* Explicacion bajo el titulo (descarga de arte). Sin esta regla la Label sale
+   con el gris oscuro de JavaFX, que sobre -neo-panel casi no se ve. */
+.dialog-note { -fx-font-size: 0.95em; -fx-text-fill: derive(-neo-text, -12%); }
+
 /* "Vas a dejar tu fase principal": mas grande que un dialogo normal y con el
    borde en el color de aviso. Es una pregunta que aparece JUSTO donde no la
    esperas -- la disparas dando OK por inercia -- y tiene que cortar el gesto,
@@ -1618,19 +1622,22 @@
     -fx-cursor: default;
 }
 
+/* Letra de las casillas subida el 24-09-2026 (itch.io, 1080p al 125%): la
+   descripcion iba a 0.85em -- unos 10 px -- con media casilla vacia debajo.
+   Con el idioma ya en desplegable sobra alto de sobra para las cuatro filas. */
 .mode-tile-name {
-    -fx-font-size: 1.25em;
+    -fx-font-size: 1.45em;
     -fx-font-weight: bold;
     -fx-text-fill: -neo-text;
 }
 
 .mode-tile-desc {
-    -fx-font-size: 0.85em;
+    -fx-font-size: 1.02em;
     -fx-text-fill: -neo-text-dim;
 }
 
 .mode-tile-note {
-    -fx-font-size: 0.78em;
+    -fx-font-size: 0.92em;
     -fx-text-fill: -neo-accent;
 }
 
@@ -2234,7 +2241,8 @@
     -fx-text-fill: -neo-text;
     -fx-font-size: 0.82em;
     -fx-padding: 10 14 10 14;
-    -fx-max-width: 420;
+    /* El ancho maximo lo pone TableScreen (UiScale.px): una regla de ancho
+       aqui ganaria al de Java y en 2K no creceria con la letra. */
 }
 
 /* =====================================================================
@@ -2865,7 +2873,7 @@
 
 .loading-bar {
     -fx-pref-height: 8;
-    -fx-pref-width: 360;
+    /* El ancho (360 en 1080p) lo pone LoadingScreen con UiScale.px. */
     -fx-indeterminate-bar-animation-time: 1.4;
 }
 
@@ -3057,7 +3065,8 @@
    distintos se lee como cosas distintas, y aqui son alternativas de lo
    mismo. */
 .ascent-event-option {
-    -fx-min-width: 520;
+    /* El ancho minimo (520 en 1080p) lo pone AscentEventScreen con UiScale.px:
+       aqui, en px fijos, ganaria al de Java y en 2K no creceria con la letra. */
     -fx-font-size: 1.15em;
     -fx-padding: 12 24 12 24;
 }
@@ -3213,59 +3222,62 @@
 /* Editor de mazos: catálogo amplio y lista ilustrada, acento bronce. */
 .deck-builder {
     -neo-accent: #d4a466;
+    /* La base del editor. DeckBuilderScreen la crece en 2K (UiScale.fixedFont):
+       todo lo de abajo va en em sobre ella, asi que en 1080p son los mismos px
+       de siempre y en 2K crece con el resto del texto. */
     -fx-font-size: 13px;
     -fx-background-color: radial-gradient(center 35% 0%, radius 100%, #242b35 0%, #10151c 55%, #090e14 100%);
 }
 .deck-builder .builder-header { -fx-border-color: transparent transparent #4a3c2c transparent; -fx-border-width: 0 0 1 0; }
-.deck-builder .builder-title { -fx-font-size: 25px; -fx-font-weight: bold; -fx-text-fill: #f2eadb; }
-.deck-builder .builder-format { -fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #d4a466; }
-.deck-builder .home-summary { -fx-font-size: 12px; -fx-text-fill: #b7c2cf; }
+.deck-builder .builder-title { -fx-font-size: 1.9231em; -fx-font-weight: bold; -fx-text-fill: #f2eadb; }
+.deck-builder .builder-format { -fx-font-size: 0.8462em; -fx-font-weight: bold; -fx-text-fill: #d4a466; }
+.deck-builder .home-summary { -fx-font-size: 0.9231em; -fx-text-fill: #b7c2cf; }
 .deck-builder .home-summary:invalid { -fx-text-fill: #e2b775; }
 .deck-builder .builder-columns { -fx-padding: 16 24 0 24; }
 .deck-builder .builder-catalogue { -fx-background-color: rgba(10,15,22,.48); -fx-background-radius: 8; -fx-border-color: #343943; -fx-border-radius: 8; }
-.deck-builder .caption { -fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #cbb992; }
-.deck-builder .text-input { -fx-font-size: 13px; -fx-padding: 9 12; -fx-background-color: #090f17; -fx-border-color: #55606e; -fx-border-radius: 4; }
+.deck-builder .caption { -fx-font-size: 0.7692em; -fx-font-weight: bold; -fx-text-fill: #cbb992; }
+.deck-builder .text-input { -fx-font-size: 1em; -fx-padding: 9 12; -fx-background-color: #090f17; -fx-border-color: #55606e; -fx-border-radius: 4; }
 .deck-builder .text-input:focused { -fx-border-color: #d4a466; }
-.deck-builder .segment { -fx-font-size: 11px; -fx-padding: 7 9; -fx-background-color: #202832; -fx-text-fill: #c3cbd6; -fx-border-color: #404a56; -fx-border-radius: 4; }
+.deck-builder .segment { -fx-font-size: 0.8462em; -fx-padding: 7 9; -fx-background-color: #202832; -fx-text-fill: #c3cbd6; -fx-border-color: #404a56; -fx-border-radius: 4; }
 .deck-builder .segment:selected { -fx-background-color: #705532; -fx-text-fill: #fff2da; -fx-border-color: #d4a466; }
-.deck-builder .colour-filter { -fx-min-width: 28; -fx-min-height: 30; -fx-padding: 5 6; -fx-background-radius: 20; -fx-border-radius: 20; }
+.deck-builder .colour-filter { -fx-min-width: 2.5455em; -fx-min-height: 2.7273em; -fx-padding: 5 6; -fx-background-radius: 20; -fx-border-radius: 20; }
 .deck-builder .colour-filter:selected { -fx-border-width: 2; }
 .deck-builder .builder-advanced { -fx-padding: 12; -fx-background-color: #141e2a; -fx-background-radius: 6; -fx-border-color: #394653; -fx-border-radius: 6; }
 .deck-builder .builder-pagebar { -fx-padding: 7 0 2 0; -fx-border-color: #303a46 transparent transparent transparent; }
-.deck-builder .dialog-counter { -fx-font-size: 10px; -fx-text-fill: #b4bfca; }
+.deck-builder .dialog-counter { -fx-font-size: 0.7692em; -fx-text-fill: #b4bfca; }
 .deck-builder .catalogue-tile { -fx-background-color: transparent; -fx-background-radius: 8; -fx-padding: 3; }
 .deck-builder .catalogue-tile:hover { -fx-background-color: #d2a262; -fx-effect: dropshadow(gaussian, rgba(218,166,93,.45), 16, .14, 0, 2); }
-.deck-builder .catalogue-count { -fx-font-size: 14px; -fx-font-weight: bold; -fx-padding: 4 9; -fx-background-color: #d4a466; -fx-text-fill: #10151c; -fx-background-radius: 12; }
+.deck-builder .catalogue-count { -fx-font-size: 1.0769em; -fx-font-weight: bold; -fx-padding: 4 9; -fx-background-color: #d4a466; -fx-text-fill: #10151c; -fx-background-radius: 12; }
 .deck-builder .deck-panel { -fx-background-color: linear-gradient(to bottom, #202b38, #101721); -fx-border-color: #746044; -fx-border-radius: 8; -fx-background-radius: 8; }
-.deck-builder .builder-deck-count { -fx-text-fill: #f3d5a4; -fx-font-size: 14px; -fx-font-weight: bold; }
-.deck-builder .deck-group { -fx-font-size: 11px; -fx-font-weight: bold; -fx-padding: 12 4 5 4; -fx-text-fill: #cab792; }
+.deck-builder .builder-deck-count { -fx-text-fill: #f3d5a4; -fx-font-size: 1.0769em; -fx-font-weight: bold; }
+.deck-builder .deck-group { -fx-font-size: 0.8462em; -fx-font-weight: bold; -fx-padding: 12 4 5 4; -fx-text-fill: #cab792; }
 .deck-builder .deck-row { -fx-background-color: #202a35; -fx-background-radius: 4; -fx-border-color: transparent; -fx-border-radius: 4; -fx-border-width: 1; }
 .deck-builder .deck-row:hover { -fx-border-color: #d4a466; }
 .deck-builder .deck-row:invalid { -fx-border-color: #db695b; }
-.deck-builder .deck-row-name { -fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #f5f0e6; }
-.deck-builder .deck-row-qty { -fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #f0ca8f; }
-.deck-builder .deck-row-cost { -fx-font-size: 10px; -fx-text-fill: #eee5d6; }
-.deck-builder .stepper { -fx-font-size: 14px; -fx-padding: 2 0; -fx-min-width: 24; -fx-pref-width: 24; -fx-max-width: 24; -fx-background-color: rgba(8,12,18,.82); -fx-border-color: #6b6355; -fx-text-fill: #f4e6cc; }
+.deck-builder .deck-row-name { -fx-font-size: 0.9231em; -fx-font-weight: bold; -fx-text-fill: #f5f0e6; }
+.deck-builder .deck-row-qty { -fx-font-size: 1.0769em; -fx-font-weight: bold; -fx-text-fill: #f0ca8f; }
+.deck-builder .deck-row-cost { -fx-font-size: 0.7692em; -fx-text-fill: #eee5d6; }
+.deck-builder .stepper { -fx-font-size: 1.0769em; -fx-padding: 2 0; -fx-min-width: 1.7143em; -fx-pref-width: 1.7143em; -fx-max-width: 1.7143em; -fx-background-color: rgba(8,12,18,.82); -fx-border-color: #6b6355; -fx-text-fill: #f4e6cc; }
 .deck-builder .stepper:hover { -fx-background-color: #9c773f; }
 .deck-art-strip { -fx-background-color: #263746; }
 .deck-art-shade { -fx-background-color: linear-gradient(to right, rgba(8,14,21,.92) 0%, rgba(8,14,21,.72) 55%, rgba(8,14,21,.28) 100%); }
 .deck-builder .builder-commander { -fx-border-color: #aa844f; -fx-border-radius: 4; -fx-padding: 1; }
-.deck-builder .builder-commander-name { -fx-text-fill: #f1d6a6; -fx-font-size: 13px; -fx-font-weight: bold; -fx-padding: 8 12; }
+.deck-builder .builder-commander-name { -fx-text-fill: #f1d6a6; -fx-font-size: 1em; -fx-font-weight: bold; -fx-padding: 8 12; }
 .deck-builder .builder-statistics > .title { -fx-background-color: #202c39; -fx-padding: 8; }
-.deck-builder .builder-statistics > .title > .text { -fx-fill: #d6c7ad; -fx-font-size: 10px; }
+.deck-builder .builder-statistics > .title > .text { -fx-fill: #d6c7ad; -fx-font-size: 0.7692em; }
 .deck-builder .builder-statistics > .content { -fx-background-color: #101721; -fx-border-color: #384555; }
 .deck-builder .deck-stats { -fx-background-color: transparent; }
-.deck-builder .deck-stats .home-subtitle { -fx-font-size: 11px; }
+.deck-builder .deck-stats .home-subtitle { -fx-font-size: 0.8462em; }
 .deck-builder .mana-curve { -fx-background-color: #0c131d; -fx-background-radius: 5; }
 .deck-builder .curve-bar { -fx-background-color: linear-gradient(to top, #886238, #e3bb77); }
 .deck-builder .home-footer { -fx-background-color: #0b1119; -fx-border-color: #4a3c2c transparent transparent transparent; }
-.deck-builder .btn-secondary { -fx-font-size: 11px; -fx-padding: 8 12; -fx-border-color: #716149; -fx-text-fill: #e0d6c4; }
-.deck-builder .btn-primary { -fx-background-color: linear-gradient(to bottom, #edc68a, #be8a45); -fx-text-fill: #16140f; -fx-font-size: 13px; -fx-font-weight: bold; -fx-padding: 10 24; -fx-border-color: #f5d69f; -fx-border-width: 1; }
+.deck-builder .btn-secondary { -fx-font-size: 0.8462em; -fx-padding: 8 12; -fx-border-color: #716149; -fx-text-fill: #e0d6c4; }
+.deck-builder .btn-primary { -fx-background-color: linear-gradient(to bottom, #edc68a, #be8a45); -fx-text-fill: #16140f; -fx-font-size: 1em; -fx-font-weight: bold; -fx-padding: 10 24; -fx-border-color: #f5d69f; -fx-border-width: 1; }
 .deck-builder .btn-primary:hover { -fx-background-color: #f1ce93; }
 
-.deck-builder .home-subtitle { -fx-font-size: 12px; -fx-text-fill: #abb8c8; }
-.deck-builder .curve-label, .deck-builder .curve-value { -fx-font-size: 10px; }
-.deck-builder .builder-mana-pip { -fx-font-size: 9px; -fx-font-weight: bold; -fx-text-fill: #18202a; -fx-background-color: #c0c6cd; -fx-background-radius: 20; -fx-padding: 1 2; -fx-alignment: center; }
+.deck-builder .home-subtitle { -fx-font-size: 0.9231em; -fx-text-fill: #abb8c8; }
+.deck-builder .curve-label, .deck-builder .curve-value { -fx-font-size: 0.7692em; }
+.deck-builder .builder-mana-pip { -fx-font-size: 0.6923em; -fx-font-weight: bold; -fx-text-fill: #18202a; -fx-background-color: #c0c6cd; -fx-background-radius: 20; -fx-padding: 1 2; -fx-alignment: center; }
 .deck-builder .builder-mana-w { -fx-background-color: #f0e9c6; }
 .deck-builder .builder-mana-u { -fx-background-color: #88c4e7; }
 .deck-builder .builder-mana-b { -fx-background-color: #b4a6bc; }
@@ -3308,6 +3320,15 @@
 
 .draft-clock:hurry {
     -fx-text-fill: -neo-danger;
+}
+
+/* El banquillo de la tira de picks: separado del mazo por una raya y un poco
+   apagado, para que "lo que juegas" se lea primero sin tener que leer rotulos. */
+.draft-sideboard {
+    -fx-border-color: transparent transparent transparent -neo-line;
+    -fx-border-width: 0 0 0 2;
+    -fx-padding: 0 0 0 14;
+    -fx-opacity: 0.72;
 }
 
 /* La version del motor, abajo a la izquierda del menu. Es un TextField para

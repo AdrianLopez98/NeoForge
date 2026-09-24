@@ -144,7 +144,7 @@ public class QuestPickScreen extends BorderPane {
         final HBox row = new HBox(14, text, play, bin);
         row.setAlignment(Pos.CENTER_LEFT);
         row.getStyleClass().add("quest-save-row");
-        row.setMaxWidth(720);
+        row.setMaxWidth(UiScale.px(720));
 
         // Toda la fila vale para entrar, que es el gesto obvio; la papelera
         // consume su click para que no se cuele.

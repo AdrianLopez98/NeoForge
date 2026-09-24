@@ -34,20 +34,20 @@ public class ConfirmDialog extends VBox {
             final Label t = new Label(title);
             t.getStyleClass().add("dialog-title");
             t.setWrapText(true);
-            t.setMaxWidth(560);
+            t.setMaxWidth(UiScale.px(560));
             getChildren().add(t);
         }
 
         final Label msg = new Label(message == null ? "" : message);
         msg.getStyleClass().add("dialog-text");
         msg.setWrapText(true);
-        msg.setMaxWidth(560);
+        msg.setMaxWidth(UiScale.px(560));
         msg.setMinHeight(Region.USE_PREF_SIZE);
         getChildren().add(wrapIfLong(msg));
 
         final FlowPane buttons = new FlowPane(8, 8);
         buttons.setAlignment(Pos.CENTER_RIGHT);
-        buttons.setPrefWrapLength(560);
+        buttons.setPrefWrapLength(UiScale.px(560));
         for (int i = 0; i < options.size(); i++) {
             final int index = i;
             final Button b = new Button(options.get(i));

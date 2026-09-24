@@ -45,8 +45,11 @@ public final class NeoDuelBridge {
                             final Set<GameType> variants, final List<RegisteredPlayer> players,
                             final RegisteredPlayer human, final String enemyName,
                             final Runnable backToAdventure) {
+        // Con la VRAM de JavaFX al lado: la pantalla en blanco del 23-09-2026
+        // salia "cada 3-5 duelos", y asi se ve si algo se va acumulando.
+        final String vram = forge.neo.platform.PrismGuard.vram();
         log("empieza el duelo contra " + enemyName + " (" + players.size() + " asientos, "
-                + rules.getGameType() + ")");
+                + rules.getGameType() + ")" + (vram == null ? "" : " | " + vram));
         NeoWindow.takeOver();
 
         Platform.runLater(() -> {

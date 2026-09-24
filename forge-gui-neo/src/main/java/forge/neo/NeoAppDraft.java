@@ -33,35 +33,73 @@ final class NeoAppDraft {
     /**
      * El modo draft.
      *
-     * <p>Con un evento a medias se entra a su marcador; si no, se abre un draft
-     * nuevo. Es la misma casilla del menu porque para el jugador es el mismo
-     * sitio: "mi draft".
+     * <p>Con drafts guardados se entra a la lista, como en Forge: se puede
+     * volver a cualquiera, no solo al ultimo (23-09-2026). Sin ninguno, directo
+     * a montar el primero.
      */
     void showDraft() {
-        final forge.neo.draft.DraftRun run = forge.neo.draft.DraftRun.current();
-        if (run != null && !run.isOver()) {
-            showDraftRun(run);
+        showEventsOrSetup(forge.neo.draft.DraftRun.Kind.DRAFT);
+    }
+
+    /**
+     * El modo sellado. Mismo criterio que el draft, y el marcador es <b>el
+     * mismo</b> ({@link DraftRunScreen}): lo unico que cambia es de donde salio
+     * el pool.
+     */
+    void showSealed() {
+        showEventsOrSetup(forge.neo.draft.DraftRun.Kind.SEALED);
+    }
+
+    private void showEventsOrSetup(final forge.neo.draft.DraftRun.Kind kind) {
+        if (forge.neo.draft.DraftRun.saved(kind).isEmpty()) {
+            showSetup(kind);
+        } else {
+            showEvents(kind);
+        }
+    }
+
+    private void showSetup(final forge.neo.draft.DraftRun.Kind kind) {
+        if (kind == forge.neo.draft.DraftRun.Kind.SEALED) {
+            showSealedSetup();
         } else {
             showDraftSetup();
         }
     }
 
     /**
-     * El modo sellado.
-     *
-     * <p>Mismo criterio que el draft: con un evento a medias se entra a su
-     * marcador, y si no, a montar uno. Y el marcador es <b>el mismo</b>
-     * ({@link DraftRunScreen}) porque el evento es el mismo: siete rivales y
-     * dos derrotas. Lo unico que cambia es de donde salio el pool.
+     * Volver desde "montar uno nuevo": a la lista si hay alguno guardado, y si
+     * no, al menu. Volver siempre a la lista dejaria una lista vacia delante.
      */
-    void showSealed() {
-        final forge.neo.draft.DraftRun run =
-                forge.neo.draft.DraftRun.current(forge.neo.draft.DraftRun.Kind.SEALED);
-        if (run != null && !run.isOver()) {
-            showDraftRun(run);
+    private void backFromSetup(final forge.neo.draft.DraftRun.Kind kind) {
+        if (forge.neo.draft.DraftRun.saved(kind).isEmpty()) {
+            app.showMainMenu();
         } else {
-            showSealedSetup();
+            showEvents(kind);
         }
+    }
+
+    /** Los eventos guardados de ese tipo ({@link forge.neo.ui.LimitedEventsScreen}). */
+    void showEvents(final forge.neo.draft.DraftRun.Kind kind) {
+        app.draftScreen = null;
+        app.scene.setRoot(new forge.neo.ui.LimitedEventsScreen(kind,
+                new forge.neo.ui.LimitedEventsScreen.Actions() {
+                    @Override
+                    public void open(final forge.neo.draft.DraftRun run) {
+                        run.makeCurrent();
+                        showDraftRun(run);
+                    }
+
+                    @Override
+                    public void create() {
+                        showSetup(kind);
+                    }
+
+                    @Override
+                    public void back() {
+                        app.showMainMenu();
+                    }
+                }));
+        app.applyScale();
     }
 
     /** De que expansion y cuantos sobres. */
@@ -96,7 +134,7 @@ final class NeoAppDraft {
 
             @Override
             public void back() {
-                app.showMainMenu();
+                backFromSetup(forge.neo.draft.DraftRun.Kind.SEALED);
             }
         }));
         app.applyScale();
@@ -125,7 +163,7 @@ final class NeoAppDraft {
 
                     @Override
                     public void back() {
-                        app.showMainMenu();
+                        backFromSetup(forge.neo.draft.DraftRun.Kind.DRAFT);
                     }
                 }));
         app.applyScale();
@@ -257,6 +295,26 @@ final class NeoAppDraft {
             }
 
             @Override
+            public void playAgainst(final forge.neo.draft.DraftRun r, final int rival) {
+                final List<Deck> all = r.opponents();
+                if (rival >= 0 && rival < all.size()) {
+                    playEventMatch(r, List.of(all.get(rival)), false);
+                }
+            }
+
+            @Override
+            public void playRandom(final forge.neo.draft.DraftRun r, final int count) {
+                final List<Deck> all = new java.util.ArrayList<>(r.opponents());
+                java.util.Collections.shuffle(all);
+                playEventMatch(r, new java.util.ArrayList<>(all.subList(0, Math.min(count, all.size()))), false);
+            }
+
+            @Override
+            public void reopen(final forge.neo.draft.DraftRun r) {
+                showDraftRun(r);
+            }
+
+            @Override
             public void newDraft() {
                 // "Otro" tiene que ser otro DE LO MISMO: desde un sellado
                 // terminado, mandar a draftear seria cambiarle el modo al
@@ -275,7 +333,7 @@ final class NeoAppDraft {
 
             @Override
             public void back() {
-                app.showMainMenu();
+                showEvents(run.getKind());
             }
         }));
         app.applyScale();
@@ -321,24 +379,40 @@ final class NeoAppDraft {
     }
 
     /**
-     * Una partida del evento: tu mazo contra el del rival que toca.
+     * La siguiente partida de la tanda: tu mazo contra el del rival que toca.
      *
-     * <p>Al terminar se anota el resultado y se vuelve al marcador. Si con esa
-     * derrota van dos, {@code DraftRun.record} ya se encarga de borrar el
-     * draft; aqui solo hay que volver a ensenyar la pantalla, que dira que se
-     * acabo.
+     * <p>Al terminar se anota el resultado y se vuelve al marcador. Si es modo
+     * Arena y con esa derrota van dos, {@code DraftRun.record} ya se encarga de
+     * borrar el draft; aqui solo hay que volver a ensenyar la pantalla.
      */
     void playDraftMatch(final forge.neo.draft.DraftRun run) {
-        final forge.deck.Deck mine = run.getDeck();
         final forge.deck.Deck rival = run.nextOpponent();
-        if (mine == null || rival == null) {
+        if (rival == null) {
+            showDraftRun(run);
+            return;
+        }
+        playEventMatch(run, List.of(rival), true);
+    }
+
+    /**
+     * Una partida con el mazo del evento contra esos rivales.
+     *
+     * <p>{@code counts} es si cuenta para la tanda. Las partidas libres — contra
+     * un rival elegido o contra varios al azar, como en Forge — no cuentan:
+     * son para probar el mazo, no para jugarse el evento. Contra varios no hay
+     * Bo3: al mejor de tres solo tiene sentido uno contra uno.
+     */
+    void playEventMatch(final forge.neo.draft.DraftRun run, final List<Deck> rivals,
+                        final boolean counts) {
+        final forge.deck.Deck mine = run.getDeck();
+        if (mine == null || rivals.isEmpty()) {
             showDraftRun(run);
             return;
         }
         final NeoFormat format = run.getKind() == forge.neo.draft.DraftRun.Kind.SEALED
                 ? NeoFormat.SELLADO : NeoFormat.DRAFT;
         app.lastFormat = format;
-        app.lastOpponentDecks = java.util.List.of(rival);
+        app.lastOpponentDecks = rivals;
         app.showTable();
 
         final TableBinder liveBinder = new TableBinder(app.table);
@@ -347,15 +421,15 @@ final class NeoAppDraft {
         // Bo3 es un ajuste del PROXIMO partido (la auditoría del motor, apartado C5), leido justo
         // aqui: cambiarlo desde el marcador solo afecta a partidos que
         // arrancan despues, nunca al que ya esta en curso.
-        final int gamesPerMatch = NeoSettings.bo3() ? 3 : 1;
+        final int gamesPerMatch = NeoSettings.bo3() && rivals.size() == 1 ? 3 : 1;
         app.table.setPrompt(forge.neo.NeoText.get("app.preparing"));
 
         final Thread engine = new Thread(() -> {
             boolean won = false;
             try {
-                final NeoGame.Result r = NeoGame.play(mine, 1, NeoMatchUI.Mode.HUMAN, 3600,
-                        false, liveBinder, NeoSettings.get(NeoSettings.AI_PROFILE, null),
-                        autoMana, format, java.util.List.of(rival), gamesPerMatch);
+                final NeoGame.Result r = NeoGame.play(mine, rivals.size(), NeoMatchUI.Mode.HUMAN,
+                        3600, false, liveBinder, NeoSettings.get(NeoSettings.AI_PROFILE, null),
+                        autoMana, format, rivals, gamesPerMatch);
                 won = r.winner != null && r.winner.equals(
                         forge.player.GamePlayerUtil.getGuiPlayer().getName());
             } catch (final Exception e) {
@@ -365,7 +439,9 @@ final class NeoAppDraft {
                 final boolean result = won;
                 Platform.runLater(() -> {
                     app.binder = null;
-                    run.record(result);
+                    if (counts) {
+                        run.record(result);
+                    }
                     showDraftRun(run);
                 });
             }

@@ -132,8 +132,8 @@ public class OtherFormatsScreen extends BorderPane {
         box.getStyleClass().add("mode-tile");
         box.setAlignment(Pos.TOP_LEFT);
         box.setPadding(new Insets(18, 20, 16, 20));
-        box.setPrefWidth(270);
-        box.setMinHeight(140);
+        box.setPrefWidth(UiScale.px(270));
+        box.setMinHeight(UiScale.px(140));
         box.setOnMouseClicked(e -> actions.play(format));
         return box;
     }

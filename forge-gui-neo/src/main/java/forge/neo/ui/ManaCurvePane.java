@@ -35,8 +35,8 @@ public class ManaCurvePane extends VBox {
 
         caption.getStyleClass().add("caption");
         bars.setAlignment(Pos.BOTTOM_LEFT);
-        bars.setMinHeight(MAX_HEIGHT + 18);
-        bars.setPrefHeight(MAX_HEIGHT + 18);
+        bars.setMinHeight(UiScale.px(MAX_HEIGHT + 18));
+        bars.setPrefHeight(UiScale.px(MAX_HEIGHT + 18));
 
         getChildren().addAll(caption, bars);
     }
@@ -75,7 +75,7 @@ public class ManaCurvePane extends VBox {
         fill.getStyleClass().add("curve-bar");
         // Una barra de altura 0 no se ve; se le deja un hilo para que la casilla
         // vacia siga leyendose como parte de la curva.
-        fill.setPrefHeight(count == 0 ? 2 : Math.max(4, MAX_HEIGHT * count / (double) peak));
+        fill.setPrefHeight(count == 0 ? 2 : Math.max(4, UiScale.px(MAX_HEIGHT) * count / (double) peak));
         fill.setMinHeight(Region.USE_PREF_SIZE);
         fill.setMaxWidth(Double.MAX_VALUE);
         fill.pseudoClassStateChanged(EMPTY, count == 0);
@@ -85,7 +85,7 @@ public class ManaCurvePane extends VBox {
 
         final VBox column = new VBox(2, value, fill, label);
         column.setAlignment(Pos.BOTTOM_CENTER);
-        column.setMinWidth(22);
+        column.setMinWidth(UiScale.px(22));
         HBox.setHgrow(column, Priority.ALWAYS);
         return column;
     }

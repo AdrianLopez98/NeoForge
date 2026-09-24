@@ -54,12 +54,12 @@ public final class LanguageScreen extends StackPane {
         final Label subtitle = new Label(NeoText.get("lang.subtitle"));
         subtitle.getStyleClass().add("home-subtitle");
         subtitle.setWrapText(true);
-        subtitle.setMaxWidth(760);
+        subtitle.setMaxWidth(UiScale.px(760));
         subtitle.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
 
         final FlowPane row = new FlowPane(12, 12);
         row.setAlignment(Pos.CENTER);
-        row.setMaxWidth(900);
+        row.setMaxWidth(UiScale.px(900));
 
         final Button go = new Button(NeoText.get("lang.continue"));
         go.getStyleClass().add("btn-primary");
@@ -68,7 +68,7 @@ public final class LanguageScreen extends StackPane {
         for (final NeoLanguage.Option option : NeoLanguage.available()) {
             final Button b = new Button(option.getLabel());
             b.getStyleClass().add("segment");
-            final javafx.scene.Node flag = FlagIcon.of(option.getId(), 14);
+            final javafx.scene.Node flag = FlagIcon.of(option.getId(), UiScale.px(14));
             if (flag != null) {
                 b.setGraphic(flag);
                 b.setGraphicTextGap(8);
@@ -92,12 +92,12 @@ public final class LanguageScreen extends StackPane {
         scroller.getStyleClass().add("dialog-scroll");
         scroller.setFitToWidth(true);
         scroller.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        scroller.setMaxHeight(320);
+        scroller.setMaxHeight(UiScale.px(320));
 
         final VBox box = new VBox(18, title, subtitle, scroller, go);
         box.setAlignment(Pos.CENTER);
         box.setPadding(new Insets(40));
-        box.setMaxWidth(900);
+        box.setMaxWidth(UiScale.px(900));
 
         getChildren().add(box);
         StackPane.setAlignment(box, Pos.CENTER);

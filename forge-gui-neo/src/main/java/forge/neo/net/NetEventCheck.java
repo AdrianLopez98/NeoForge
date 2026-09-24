@@ -324,6 +324,20 @@ public final class NetEventCheck {
                     context.owned(outsider) == 0
                             || pool.get(DeckSection.Sideboard).contains(outsider));
         }
+
+        // "Montar solo" y "Vaciar el mazo" tambien en red (23-09-2026), y sin
+        // crear ni destruir cartas del pool. Sobre una copia: el pool de la
+        // prueba no se toca.
+        final forge.neo.deck.DeckEditor editor = forge.neo.deck.DeckEditor.copyOf(context, pool);
+        final int before = forge.neo.draft.LimitedAutoBuild.poolOf(editor.getDeck()).size();
+        final int built = editor.autoBuildFromPool();
+        check("Montar solo monta un mazo jugable con el pool de red (" + built + ")",
+                editor.canAutoBuild() && built >= 40 && editor.isPlayable()
+                        && forge.neo.draft.LimitedAutoBuild.poolOf(editor.getDeck()).size() == before);
+        editor.clearToPool();
+        check("y Vaciar el mazo lo devuelve todo al pool",
+                editor.mainCount() == 0
+                        && forge.neo.draft.LimitedAutoBuild.poolOf(editor.getDeck()).size() == before);
     }
 
     // ------------------------------------------------------------------

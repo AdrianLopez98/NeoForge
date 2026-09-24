@@ -32,6 +32,7 @@ public class ImageCooldownBadge extends Label {
 
     public ImageCooldownBadge() {
         getStyleClass().add("cooldown-badge");
+        UiScale.fixedFont(this, 12);
         setMouseTransparent(true);
         setVisible(false);
         setManaged(false);

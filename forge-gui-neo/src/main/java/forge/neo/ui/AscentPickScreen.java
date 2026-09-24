@@ -177,7 +177,7 @@ public class AscentPickScreen extends StackPane {
         final Label d = new Label(NeoText.get("ascent.abandon.confirm.detail"));
         d.getStyleClass().add("ascent-info-text");
         d.setWrapText(true);
-        d.setMaxWidth(420);
+        d.setMaxWidth(UiScale.px(420));
 
         final Button no = new Button(NeoText.get("common.cancel"));
         no.getStyleClass().addAll("ascent-button", "btn-primary");

@@ -227,7 +227,7 @@ public class QuestShopScreen extends StackPane {
         sets.getStyleClass().add("dialog-scroll");
         sets.setFitToWidth(true);
         sets.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        sets.setPrefHeight(190);
+        sets.setPrefHeight(UiScale.px(190));
 
         final Label cap = new Label(NeoText.get("shop.editions"));
         cap.getStyleClass().add("caption");
@@ -264,6 +264,39 @@ public class QuestShopScreen extends StackPane {
         sp.setFitToWidth(true);
         sp.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         packsPage = sp;
+
+        // El visor de expansiones se queda con el alto que sobre, y la pagina
+        // es lo que quepa en el (Pager.fitTo). Con 190 px fijos se veian dos
+        // filas y media y el resto de la pantalla vacio, en 1080p y mas en 2K
+        // (24-09-2026). Nunca menos de esos 190: en una ventana baja manda el
+        // desplazamiento de la pagina entera, como antes.
+        final Runnable grow = () -> {
+            final double vh = sp.getViewportBounds().getHeight();
+            if (vh <= 0 || content.getWidth() <= 0) {
+                return;
+            }
+            // Lo que ocupa todo lo demas, sumado hermano a hermano: restar el
+            // visor del total no vale, porque el total se entera antes que el
+            // visor de su nuevo alto y la cuenta oscila.
+            double others = content.getPadding().getTop() + content.getPadding().getBottom();
+            int managed = 0;
+            for (final javafx.scene.Node n : content.getChildren()) {
+                if (n.isManaged()) {
+                    managed++;
+                    if (n != sets) {
+                        others += n.prefHeight(content.getWidth());
+                    }
+                }
+            }
+            others += content.getSpacing() * Math.max(0, managed - 1);
+            final double want = Math.max(UiScale.px(190), vh - others - 2);
+            if (Math.abs(want - sets.getPrefHeight()) > 1) {
+                sets.setPrefHeight(want);
+            }
+        };
+        sp.viewportBoundsProperty().addListener((o, was, is) -> grow.run());
+        content.heightProperty().addListener((o, was, is) -> grow.run());
+        pager.fitTo(sets, editionGrid, UiScale.px(190), UiScale.px(64), 12);
 
         tabBar.setAlignment(Pos.CENTER_LEFT);
         tabBar.getChildren().addAll(
@@ -585,12 +618,12 @@ public class QuestShopScreen extends StackPane {
                 NeoQuestShop.SECRET_LAIR_SIZE, NeoQuestShop.secretLairPool().size()));
         what.getStyleClass().add("home-subtitle");
         what.setWrapText(true);
-        what.setMaxWidth(760);
+        what.setMaxWidth(UiScale.px(760));
 
         final Label why = new Label(NeoText.get("shop.lair.why"));
         why.getStyleClass().add("home-subtitle");
         why.setWrapText(true);
-        why.setMaxWidth(760);
+        why.setMaxWidth(UiScale.px(760));
 
         // --- el selector: sorpresa y cada drop ---
         final Label pickCap = new Label(NeoText.get("shop.lair.choose"));
@@ -615,7 +648,7 @@ public class QuestShopScreen extends StackPane {
         lairPrice.getStyleClass().add("shop-price");
         lairNote.getStyleClass().add("caption");
         lairNote.setWrapText(true);
-        lairNote.setMaxWidth(520);
+        lairNote.setMaxWidth(UiScale.px(520));
 
         buyLair.getStyleClass().add("btn-primary");
         buyLair.setMinWidth(Region.USE_PREF_SIZE);
@@ -822,7 +855,7 @@ public class QuestShopScreen extends StackPane {
         sellPrice.getStyleClass().add("shop-price");
         sellNote.getStyleClass().add("caption");
         sellNote.setWrapText(true);
-        sellNote.setMaxWidth(520);
+        sellNote.setMaxWidth(UiScale.px(520));
 
         sellOne.getStyleClass().add("btn-primary");
         sellOne.setMinWidth(Region.USE_PREF_SIZE);
@@ -1038,7 +1071,7 @@ public class QuestShopScreen extends StackPane {
         final Label name = new Label(e.getName());
         name.getStyleClass().add("set-name");
         name.setWrapText(true);
-        name.setMaxWidth(170);
+        name.setMaxWidth(UiScale.px(170));
         name.setMinHeight(Region.USE_PREF_SIZE);
 
         // El precio, EN LA CASILLA. Van de 300 a 35.000 creditos, asi que sin
@@ -1052,7 +1085,7 @@ public class QuestShopScreen extends StackPane {
         final VBox tile = new VBox(3, code, name, cost);
         tile.getStyleClass().add("set-tile");
         tile.setPadding(new Insets(8, 12, 8, 12));
-        tile.setPrefWidth(190);
+        tile.setPrefWidth(UiScale.px(190));
         tile.pseudoClassStateChanged(PICKED, chosen != null && chosen.getCode().equals(e.getCode()));
         tile.setOnMouseClicked(ev -> choose(e));
         return tile;
@@ -1358,7 +1391,7 @@ public class QuestShopScreen extends StackPane {
             // nombre solo no hay forma de saber a que juega.
             chosenNote.getStyleClass().add("home-subtitle");
             chosenNote.setWrapText(true);
-            chosenNote.setMaxWidth(720);
+            chosenNote.setMaxWidth(UiScale.px(720));
             chosenNote.setMinHeight(Region.USE_PREF_SIZE);
             chosenNote.setVisible(false);
             chosenNote.setManaged(false);

@@ -47,14 +47,16 @@ public final class PackOpening extends StackPane {
         final int pageSize = cards.size() <= 20 ? Math.max(1, cards.size()) : 8;
         columns = Math.max(1, (int) Math.ceil(pageSize / 2.0));
         final int rows = (int) Math.ceil(pageSize / (double) columns);
-        cardWidth = Math.max(40, Math.min(220, Math.min(
+        // El tope de 220 px es de 1080p y crece con la letra (UiScale.px): fijo,
+        // en 2K las cartas del sobre salian del mismo tamanyo que en 1080p.
+        cardWidth = Math.max(40, Math.min(UiScale.px(220), Math.min(
                 (width - 48 - (columns - 1) * 16) / columns,
                 (height - 175) / (rows * CardNode.ASPECT))));
         getStyleClass().add("pack-opening");
         setId("pack-opening");
-        Label heading = new Label(title); heading.getStyleClass().add("opening-title");
+        Label heading = new Label(title); heading.getStyleClass().add("opening-title"); UiScale.fixedFont(heading, 24);
         heading.setWrapText(true);
-        Label detail = new Label(subtitle); detail.getStyleClass().add("opening-detail"); detail.setWrapText(true);
+        Label detail = new Label(subtitle); detail.getStyleClass().add("opening-detail"); UiScale.fixedFont(detail, 12); detail.setWrapText(true);
         VBox head = new VBox(5, heading, detail); head.setAlignment(Pos.CENTER);
         head.setPadding(new Insets(18, 20, 8, 20));
         pager = new Pager(pageSize, this::showPage); pager.setTotal(cards.size());
@@ -63,7 +65,7 @@ public final class PackOpening extends StackPane {
         reveal.setOnAction(e -> revealAll());
         Button done = new Button(NeoText.get("haul.done")); done.setId("opening-done");
         done.getStyleClass().add("btn-secondary"); done.setOnAction(e -> close());
-        progress.getStyleClass().add("opening-detail");
+        progress.getStyleClass().add("opening-detail"); UiScale.fixedFont(progress, 12);
         HBox buttons = new HBox(12, pager, reveal, done); buttons.setAlignment(Pos.CENTER);
         VBox footer = new VBox(8, progress, buttons); footer.setAlignment(Pos.CENTER);
         footer.setPadding(new Insets(8, 16, 16, 16));
@@ -76,19 +78,19 @@ public final class PackOpening extends StackPane {
     }
 
     private void showSealed() {
-        Label crest = new Label("✦"); crest.getStyleClass().add("opening-crest");
-        Label name = new Label(NeoText.get("opening.sealed")); name.getStyleClass().add("opening-pack-label");
+        Label crest = new Label("✦"); crest.getStyleClass().add("opening-crest"); UiScale.fixedFont(crest, 90);
+        Label name = new Label(NeoText.get("opening.sealed")); name.getStyleClass().add("opening-pack-label"); UiScale.fixedFont(name, 11);
         Button seal = new Button(); seal.setId("opening-seal");
         VBox face = new VBox(14, crest, name); face.setAlignment(Pos.CENTER);
         seal.setGraphic(face); seal.getStyleClass().add("opening-seal");
-        seal.setPrefSize(180, 240); seal.setMaxSize(180, 240);
+        seal.setPrefSize(UiScale.px(180), UiScale.px(240)); seal.setMaxSize(UiScale.px(180), UiScale.px(240));
         seal.setOnAction(e -> open());
-        Label hint = new Label(NeoText.get("opening.hint")); hint.getStyleClass().add("opening-detail");
+        Label hint = new Label(NeoText.get("opening.hint")); hint.getStyleClass().add("opening-detail"); UiScale.fixedFont(hint, 12);
         Circle orbit = new Circle(150, Color.TRANSPARENT);
         orbit.setStroke(Color.web("#d4aa5e", .32)); orbit.setStrokeWidth(1);
         orbit.getStrokeDashArray().setAll(36.0, 18.0, 3.0, 18.0);
         orbit.setMouseTransparent(true);
-        StackPane altar = new StackPane(orbit, seal); altar.setMaxHeight(300);
+        StackPane altar = new StackPane(orbit, seal); altar.setMaxHeight(UiScale.px(300));
         VBox pack = new VBox(16, altar, hint); pack.setAlignment(Pos.CENTER);
         if (CardNode.areAnimationsEnabled()) {
             RotateTransition rotate = new RotateTransition(Duration.seconds(24), orbit);
@@ -147,7 +149,7 @@ public final class PackOpening extends StackPane {
     private void paint(StackPane tile, int index) {
         tile.getChildren().clear(); tile.getStyleClass().setAll("opening-card");
         if (!revealed[index]) {
-            Label rune = new Label("✧"); rune.getStyleClass().add("opening-rune");
+            Label rune = new Label("✧"); rune.getStyleClass().add("opening-rune"); UiScale.fixedFont(rune, 66);
             tile.getStyleClass().add("opening-card-back"); tile.getChildren().add(rune);
             tile.setAccessibleText(NeoText.get("opening.hint"));
             return;

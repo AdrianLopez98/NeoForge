@@ -50,6 +50,9 @@ public final class NeoMain {
         // que ser antes de que arranque JavaFX, que lee la propiedad una vez.
         // Ver NeoFonts.
         forge.neo.platform.NeoFonts.beforeJavaFx();
+        // Y mas presupuesto de video para JavaFX: sin el, la pantalla se
+        // quedaba en blanco tras varios duelos (ver PrismGuard).
+        forge.neo.platform.PrismGuard.beforeJavaFx();
 
         final String cmd = args.length > 0 && !args[0].startsWith("-") ? args[0].toLowerCase(Locale.ROOT) : "list";
 

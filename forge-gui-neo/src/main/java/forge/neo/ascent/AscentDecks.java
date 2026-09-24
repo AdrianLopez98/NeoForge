@@ -47,6 +47,26 @@ public final class AscentDecks {
 
     private static IStorage<Deck> storage;
 
+    /**
+     * En las maquetas ({@link AscentRun#demo}), los mazos viven aqui y no en
+     * el disco. {@code null} fuera de ellas.
+     */
+    private static Map<String, Deck> inMemory;
+
+    /**
+     * Desde aqui, nada se escribe ni se borra en {@code decks/ascenso/}.
+     *
+     * <p>Leer si se lee — una maqueta sobre la run guardada tiene que ensenyar
+     * su mazo —, pero se lee una <b>copia</b>: las pantallas cambian el mazo
+     * que cargan antes de guardarlo, y el original es el que tiene en cache el
+     * almacen del motor.
+     */
+    static synchronized void keepInMemory() {
+        if (inMemory == null) {
+            inMemory = new java.util.HashMap<>();
+        }
+    }
+
     /** La carpeta de mazos de Ascenso, creada la primera vez que se pide. */
     public static synchronized IStorage<Deck> storage() {
         if (storage == null) {
@@ -63,6 +83,12 @@ public final class AscentDecks {
         if (deck == null) {
             return;
         }
+        synchronized (AscentDecks.class) {
+            if (inMemory != null) {
+                inMemory.put(deck.getName(), deck);
+                return;
+            }
+        }
         // add() reescribe si ya existe, que es justo lo que hace falta: el
         // mazo de la run cambia en cada nodo.
         storage().add(deck);
@@ -70,7 +96,23 @@ public final class AscentDecks {
 
     /** El mazo de esa run, o {@code null} si no esta. */
     public static Deck load(final String name) {
-        return name == null ? null : storage().get(name);
+        if (name == null) {
+            return null;
+        }
+        synchronized (AscentDecks.class) {
+            if (inMemory != null) {
+                Deck deck = inMemory.get(name);
+                if (deck == null) {
+                    final Deck saved = storage().get(name);
+                    if (saved != null) {
+                        deck = new Deck(saved, name);
+                        inMemory.put(name, deck);
+                    }
+                }
+                return deck;
+            }
+        }
+        return storage().get(name);
     }
 
     /** El mazo de esa run. */
@@ -115,6 +157,14 @@ public final class AscentDecks {
 
     /** Borra el mazo de una run terminada. */
     public static void remove(final String name) {
+        synchronized (AscentDecks.class) {
+            if (inMemory != null) {
+                if (name != null) {
+                    inMemory.remove(name);
+                }
+                return;
+            }
+        }
         if (name != null && storage().contains(name)) {
             storage().delete(name);
         }

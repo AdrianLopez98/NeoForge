@@ -743,6 +743,87 @@ public final class DeckEditor {
     }
 
     /**
+     * Vacia el mazo principal y devuelve cada carta al pool.
+     *
+     * <p>Solo en limitado ({@link DeckContext#poolInSideboard}): alli es "empezar
+     * a montar desde cero", y hasta el 23-09-2026 no existia — con el mazo que
+     * el motor montaba solo, habia que sacar las 23 cartas una a una. Las
+     * basicas no vuelven a ningun sitio, como en {@link #remove}.
+     *
+     * @return cuantas cartas se han sacado
+     */
+    public int clearToPool() {
+        if (!format.poolInSideboard()) {
+            return 0;
+        }
+        final CardPool main = deck.getMain();
+        int moved = 0;
+        // Sobre una copia: backToPool escribe en la banda mientras se recorre.
+        for (final Map.Entry<PaperCard, Integer> e : entries(main)) {
+            moved += e.getValue();
+            backToPool(e.getKey(), e.getValue());
+        }
+        main.clear();
+        if (moved > 0) {
+            dirty = true;
+        }
+        return moved;
+    }
+
+    private static List<Map.Entry<PaperCard, Integer>> entries(final CardPool pool) {
+        final List<Map.Entry<PaperCard, Integer>> out = new ArrayList<>();
+        for (final Map.Entry<PaperCard, Integer> e : pool) {
+            out.add(Map.entry(e.getKey(), e.getValue()));
+        }
+        return out;
+    }
+
+    /** Si este editor ofrece "Montar solo". */
+    public boolean canAutoBuild() {
+        return format.poolInSideboard() && format.canAutoBuild();
+    }
+
+    /**
+     * Monta el mazo con el pool, como lo haria el motor. Solo a peticion.
+     *
+     * <p>Primero vacia el principal (todo vuelve al pool) y luego mete lo que
+     * elija el motor, sacandolo de la banda. Asi el pool no cambia nunca de
+     * tamanyo, que es lo que de verdad importa aqui.
+     *
+     * @return cuantas cartas ha metido, o -1 si el motor no ha podido
+     */
+    public int autoBuildFromPool() {
+        if (!canAutoBuild()) {
+            return -1;
+        }
+        final List<PaperCard> pool = new ArrayList<>();
+        for (final CardPool section : new CardPool[] {deck.get(DeckSection.Sideboard), deck.getMain()}) {
+            if (section == null) {
+                continue;
+            }
+            for (final Map.Entry<PaperCard, Integer> e : section) {
+                if (e.getKey().getRules() != null && e.getKey().getRules().getType().isBasicLand()) {
+                    continue;
+                }
+                for (int i = 0; i < e.getValue(); i++) {
+                    pool.add(e.getKey());
+                }
+            }
+        }
+        final CardPool built = format.autoBuild(pool);
+        if (built == null) {
+            return -1;
+        }
+        clearToPool();
+        int added = 0;
+        for (final Map.Entry<PaperCard, Integer> e : built) {
+            added += addAnyway(e.getKey(), e.getValue());
+        }
+        dirty = true;
+        return added;
+    }
+
+    /**
      * Lo que ENTRA en el mazo sale de la banda, cuando la banda es el pozo.
      *
      * <p>Solo en limitado ({@link DeckContext#poolInSideboard}). Ahí el pool es

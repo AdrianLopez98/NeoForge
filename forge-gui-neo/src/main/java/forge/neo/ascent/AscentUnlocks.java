@@ -143,6 +143,10 @@ public final class AscentUnlocks {
      * @return {@code true} si se ha desbloqueado un nivel nuevo
      */
     public static boolean recordWin(final int playedAt) {
+        if (AscentRun.isDemo()) {
+            // Una maqueta no sube la escalera de nadie.
+            return false;
+        }
         NeoSettings.setInt(WINS, wins() + 1);
         final boolean unlocked = playedAt >= maxAscension() && maxAscension() < MAX;
         if (unlocked) {
@@ -191,7 +195,8 @@ public final class AscentUnlocks {
                 fresh.add(f);
             }
         }
-        if (fresh.isEmpty()) {
+        if (fresh.isEmpty() || AscentRun.isDemo()) {
+            // En una maqueta se anuncian, pero no se apuntan.
             return fresh;
         }
         had.addAll(fresh);

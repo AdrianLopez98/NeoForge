@@ -411,7 +411,7 @@ public class PlayerBar extends HBox {
         final VBox box = new VBox(-2, value, c);
         box.getStyleClass().add("zone-button");
         box.setAlignment(Pos.CENTER);
-        box.setMinWidth(42);
+        box.setMinWidth(UiScale.px(42));
         box.setCursor(javafx.scene.Cursor.HAND);
         box.setOnMouseClicked(e -> {
             // Que no llegue a la barra: mirar una zona no es "elegir a este
@@ -505,6 +505,7 @@ public class PlayerBar extends HBox {
         final Label label = new Label(relic.getCardName());
         label.getStyleClass().add("relic-chip-name");
         label.setStyle("-fx-text-fill: " + hex(ink) + ";");
+        UiScale.fixedFont(label, 11);
 
         final HBox chip = new HBox(6, holder, label);
         chip.getStyleClass().add("relic-chip");
@@ -781,6 +782,7 @@ public class PlayerBar extends HBox {
         }
         final Label pip = new Label(amount > 1 ? String.valueOf(amount) : "");
         pip.getStyleClass().addAll("mana-pip", "mana-" + letter.toLowerCase());
+        UiScale.fixedCircle(pip, 20);
         pip.setAlignment(Pos.CENTER);
         final StackPane sp = new StackPane(pip);
         sp.setCursor(javafx.scene.Cursor.HAND);

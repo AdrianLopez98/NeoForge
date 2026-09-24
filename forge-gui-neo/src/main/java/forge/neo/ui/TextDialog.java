@@ -115,7 +115,7 @@ public final class TextDialog {
         final Label hint = new Label(prompt);
         hint.getStyleClass().add("dialog-text");
         hint.setWrapText(true);
-        hint.setMaxWidth(460);
+        hint.setMaxWidth(UiScale.px(460));
 
         final Button ok = new Button(acceptLabel);
         ok.getStyleClass().add("btn-primary");

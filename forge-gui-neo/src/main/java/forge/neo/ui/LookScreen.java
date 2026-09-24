@@ -167,7 +167,7 @@ public class LookScreen extends BorderPane {
         final Label hint = new Label(NeoText.get("look.rivals.hint"));
         hint.getStyleClass().add("home-subtitle");
         hint.setWrapText(true);
-        hint.setMaxWidth(620);
+        hint.setMaxWidth(UiScale.px(620));
         hint.setMinHeight(Region.USE_PREF_SIZE);
         content.getChildren().add(hint);
 
@@ -236,7 +236,7 @@ public class LookScreen extends BorderPane {
         final Label hint = new Label(NeoText.get("look.sleeves.hint"));
         hint.getStyleClass().add("home-subtitle");
         hint.setWrapText(true);
-        hint.setMaxWidth(680);
+        hint.setMaxWidth(UiScale.px(680));
         hint.setMinHeight(Region.USE_PREF_SIZE);
         content.getChildren().addAll(hint,
                 picker(NeoLook.sleeves(), NeoLook.SLEEVE, 100, false,
@@ -251,8 +251,10 @@ public class LookScreen extends BorderPane {
      * @param dir    donde se copia lo que se importe
      * @param sizeHint que medidas conviene que tenga lo que traigas
      */
-    private Region picker(final List<LookItem> items, final String key, final double tile,
+    private Region picker(final List<LookItem> items, final String key, final double tile1080,
                           final boolean round, final File dir, final String sizeHint) {
+        // El tamanyo de casilla es de 1080p: en 2K crece como la letra.
+        final double tile = UiScale.px(tile1080);
         final FlowPane grid = new FlowPane(10, 10);
         grid.setAlignment(Pos.TOP_LEFT);
 
@@ -296,7 +298,7 @@ public class LookScreen extends BorderPane {
         final Label hint = new Label(sizeHint);
         hint.getStyleClass().add("home-subtitle");
         hint.setWrapText(true);
-        hint.setMaxWidth(620);
+        hint.setMaxWidth(UiScale.px(620));
         hint.setMinHeight(Region.USE_PREF_SIZE);
 
         final HBox footer = new HBox(14, bring, hint);
@@ -375,7 +377,7 @@ public class LookScreen extends BorderPane {
         final Label hint = new Label(NeoText.get("look.music.hint"));
         hint.getStyleClass().add("home-subtitle");
         hint.setWrapText(true);
-        hint.setMaxWidth(680);
+        hint.setMaxWidth(UiScale.px(680));
         hint.setMinHeight(Region.USE_PREF_SIZE);
         content.getChildren().add(hint);
 
@@ -383,7 +385,7 @@ public class LookScreen extends BorderPane {
             final Label bad = new Label(musicProblem);
             bad.getStyleClass().add("action-warning");
             bad.setWrapText(true);
-            bad.setMaxWidth(680);
+            bad.setMaxWidth(UiScale.px(680));
             bad.setMinHeight(Region.USE_PREF_SIZE);
             content.getChildren().add(bad);
         }
@@ -455,7 +457,7 @@ public class LookScreen extends BorderPane {
 
         final VBox box = new VBox(8, caption(label), scroll, bring);
         HBox.setHgrow(box, Priority.ALWAYS);
-        box.setPrefWidth(340);
+        box.setPrefWidth(UiScale.px(340));
         return box;
     }
 
