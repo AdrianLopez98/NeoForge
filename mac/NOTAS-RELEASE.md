@@ -7,7 +7,7 @@ Novedades, casi todas pedidas en itch.io y Discord:
 - **Ver el mazo:** la pila se abre al pasar el raton, y Cmd+rueda cambia el tamaño de las cartas.
 - **Pantallas grandes (2K/4K):** las medidas crecen con la pantalla y las rejillas llenan el hueco.
 - **Menu:** el idioma pasa a un desplegable, la letra de las casillas es mas grande y en el pie sale la version («Neo Forge 3.7 · Forge …»).
-- Arreglado: la **descarga de todo el arte** se quedaba en «1 min» al acabar, sin decir «Listo»; ahora lo dice, y cuantas imagenes no se pudieron bajar.
+- Arreglado: la **descarga de todo el arte** se quedaba en «1 min» al acabar, sin decir «Listo»; ahora lo dice, y las imagenes que Scryfall no tiene (Alchemy, caras traseras, variantes de mas) quedan apuntadas y no vuelven a contar como pendientes.
 - Arreglado: en la **Aventura**, la ventana podia quedarse en blanco tras varios duelos (fallo de JavaFX, ahora se recupera solo).
 - Arreglado: el ultimo pick del draft acababa siempre en el banquillo.
 
