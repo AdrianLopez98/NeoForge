@@ -220,21 +220,22 @@ final class NeoAppAscent {
      * llegar a la fila 10 (el descanso), o sea media hora de partida por
      * captura. Con esto se abren solas sobre una run de mentira, que es lo que
      * permite comprobarlas con {@code --snapshot}.
+     *
+     * <p>⚠️ La run es {@link AscentRun#demo}: <b>no se guarda nada</b>. Si el
+     * jugador tiene una a medias se ensenya una copia suya, y lo que la
+     * maqueta le haga encima (creditos, vida, nodos) no le llega.
      */
     void showMock(final String which) {
         AscentRelics.install();
-        AscentRun run = AscentRun.current();
-        if (run == null) {
-            // -Dneo.ascent.setupMode=commander para la maqueta en Commander,
-            // que NO ensenya lo mismo: alli todo lo que va de cartas va por dos
-            // (2 de 6 en el premio, dos al quitar). Ver AscentRun.cardBatch().
-            final boolean cmd = "commander".equalsIgnoreCase(
-                    System.getProperty("neo.ascent.setupMode", ""));
-            run = cmd
-                    ? AscentRun.begin(AscentRun.Mode.COMMANDER, 0, 40, null)
-                    : AscentRun.begin(AscentRun.Mode.STANDARD, 0, 20, null);
-        }
-        final AscentRun demo = run;
+        // -Dneo.ascent.setupMode=commander para la maqueta en Commander, que
+        // NO ensenya lo mismo: alli todo lo que va de cartas va por dos (2 de 6
+        // en el premio, dos al quitar). Ver AscentRun.cardBatch(). Solo cuenta
+        // si no hay run guardada: si la hay, manda la suya.
+        final boolean cmd = "commander".equalsIgnoreCase(
+                System.getProperty("neo.ascent.setupMode", ""));
+        final AscentRun demo = cmd
+                ? AscentRun.demo(AscentRun.Mode.COMMANDER, 40)
+                : AscentRun.demo(AscentRun.Mode.STANDARD, 20);
         if ("shop".equals(which)) {
             // Con dinero: una tienda sin creditos ensenya lo mismo pero todo
             // apagado, que es justo lo que NO hay que mirar.

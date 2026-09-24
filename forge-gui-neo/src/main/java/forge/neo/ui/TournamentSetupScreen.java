@@ -53,7 +53,7 @@ public class TournamentSetupScreen extends StackPane {
         final Label subtitle = new Label(NeoText.get("tournament.setup.desc"));
         subtitle.getStyleClass().add("home-subtitle");
         subtitle.setWrapText(true);
-        subtitle.setMaxWidth(620);
+        subtitle.setMaxWidth(UiScale.px(620));
         final VBox header = new VBox(6, title, subtitle);
         header.setAlignment(Pos.CENTER);
         header.setPadding(new Insets(28, 30, 10, 30));

@@ -182,7 +182,9 @@ public class AscentRestScreen extends StackPane {
         final ScrollPane scroll = new ScrollPane(grid);
         scroll.setFitToWidth(true);
         scroll.getStyleClass().add("ascent-scroll");
-        scroll.setPrefHeight(520);
+        scroll.setPrefHeight(UiScale.px(520));
+        CardFit.install(scroll, grid, cardWidth * 0.85,
+                Math.max(cardWidth * 0.85, UiScale.px(230)));
 
         final Button back = new Button(NeoText.get("common.back"));
         back.getStyleClass().add("ascent-button");

@@ -15,6 +15,12 @@
     <properties>
         <javafx.version>21.0.5</javafx.version>
         <neo.mainClass>forge.neo.NeoMain</neo.mainClass>
+        <!-- LA version de NeoForge, la que se anuncia en itch.io. Es el UNICO
+             sitio donde se escribe: de aqui la leen el pie del menu (via
+             build.properties) y el .dmg de Mac (mac/empaquetar.sh). Se sube
+             solo al cerrar una version para publicar; entre medias la fecha de
+             compilacion distingue una build de otra. -->
+        <neo.version>3.7</neo.version>
         <!-- La fecha de compilacion, para sellarla en build.properties y poder
              ensenyar en el menu QUE motor se esta jugando. Se pasa por una
              propiedad propia a proposito: ${maven.build.timestamp} no se

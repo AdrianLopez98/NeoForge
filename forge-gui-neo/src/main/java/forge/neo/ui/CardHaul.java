@@ -133,7 +133,7 @@ public final class CardHaul {
                 sp.getStyleClass().add("dialog-scroll");
                 sp.setFitToWidth(true);
                 sp.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-                sp.setPrefViewportHeight(180);
+                sp.setPrefViewportHeight(UiScale.px(180));
                 box.getChildren().add(sp);
             } else if (!lines.getChildren().isEmpty()) {
                 box.getChildren().add(lines);

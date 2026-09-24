@@ -68,6 +68,22 @@ public interface DeckContext {
         return false;
     }
 
+    /**
+     * El mazo principal que montaria el motor con este pool, o null si este
+     * contexto no sabe montarlo solo.
+     *
+     * <p>Solo en limitado, y solo cuando el jugador lo pide con "Montar solo":
+     * nunca se monta por su cuenta (ver {@code LimitedAutoBuild}).
+     */
+    default forge.deck.CardPool autoBuild(List<PaperCard> pool) {
+        return null;
+    }
+
+    /** Si {@link #autoBuild} hace algo aqui, para ensenyar o no el boton. */
+    default boolean canAutoBuild() {
+        return false;
+    }
+
     default String conformanceProblem(Deck deck) {
         final String base = deckFormat().getDeckConformanceProblem(deck);
         if (base != null) {

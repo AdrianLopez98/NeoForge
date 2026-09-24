@@ -121,8 +121,12 @@ public final class NeoDownloads {
         /** Una mas. Llega en el hilo de interfaz. */
         void progress(int done, int total);
 
-        /** Se acabo (o se cancelo). */
-        void finished();
+        /**
+         * Se acabo. {@code skipped} son las que no se pudieron bajar (el
+         * servidor no las tiene, o pidio frenar): el servicio las cuenta como
+         * hechas, asi que la barra llega al final igual.
+         */
+        void finished(int skipped);
     }
 
     /** El mando de una descarga que se esta mirando. */
@@ -197,10 +201,17 @@ public final class NeoDownloads {
                 // El total lo pone el servicio justo antes de esta orden.
                 watch.ready(pending);
             } else if (started) {
-                // La segunda orden es la de cerrar: se acabo.
-                watch.finished();
+                // La segunda orden es la de cerrar: se acabo. Pero NO se avisa
+                // aqui: el servicio pone esta orden (finish) ANTES de su ultimo
+                // setValue/setDescription, y ese setValue pisaba el "Listo" con
+                // "98.998 de 98.998 - 1 min" para siempre (itch.io, 24-09-2026).
+                // Avisa la barra, con lo ultimo que escribe el servicio.
+                closing = true;
             }
         }
+
+        /** Ha llegado la orden de cerrar: el proximo texto de la barra es el final. */
+        private boolean closing;
 
         /** El total que anuncio la barra, para poder darlo en {@code ready}. */
         private int pending;
@@ -254,11 +265,26 @@ public final class NeoDownloads {
             this.button = button;
         }
 
+        private boolean reported;
+
         @Override
         public void setDescription(final String s) {
-            // A proposito: el servicio la escribe en ingles y con el formato de
-            // su dialogo de Swing ("12/345 - 00:07 remaining."). La pantalla
+            // No se ensenya: el servicio la escribe en ingles y con el formato
+            // de su dialogo de Swing ("12/345 - 00:07 remaining."). La pantalla
             // escribe la suya con los numeros, que si estan traducidos.
+            // Solo se lee la ultima, la del final, que es la que viene detras
+            // del ultimo setValue y la unica que dice cuantas fallaron.
+            if (button.closing && !reported) {
+                reported = true;
+                watch.finished(skipped(s));
+            }
+        }
+
+        /** "... Skipped 747 items. Please close!" -> 747. */
+        private static int skipped(final String s) {
+            final java.util.regex.Matcher m = s == null ? null
+                    : java.util.regex.Pattern.compile("Skipped (\\d+)").matcher(s);
+            return m != null && m.find() ? Integer.parseInt(m.group(1)) : 0;
         }
 
         @Override

@@ -54,7 +54,7 @@ public final class TriggerSubjectRow extends VBox {
             // dialogo oscuro).
             name.getStyleClass().addAll("dialog-text", "trigger-subject-name");
             name.setWrapText(true);
-            name.setMaxWidth(240);
+            name.setMaxWidth(UiScale.px(240));
             text.getChildren().add(name);
             if (e.attacking() != null && !e.attacking().isBlank()) {
                 // La flecha es la de la mesa: de atacante a lo que ataca. Y el
@@ -62,7 +62,7 @@ public final class TriggerSubjectRow extends VBox {
                 final Label target = new Label("→ " + e.attacking());
                 target.getStyleClass().addAll("stack-targets", "trigger-subject-attacking");
                 target.setWrapText(true);
-                target.setMaxWidth(240);
+                target.setMaxWidth(UiScale.px(240));
                 text.getChildren().add(target);
             }
 

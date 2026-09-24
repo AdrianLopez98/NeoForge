@@ -79,7 +79,7 @@ public class CardActionMenu extends VBox {
 
         final VBox buttons = new VBox(6);
         buttons.setAlignment(Pos.TOP_LEFT);
-        buttons.setMinWidth(220);
+        buttons.setMinWidth(UiScale.px(220));
         for (final Action action : actions) {
             buttons.getChildren().add(button(action, onPick));
         }
@@ -115,7 +115,7 @@ public class CardActionMenu extends VBox {
             final Label note = new Label(action.note);
             note.getStyleClass().add("ability-item-note");
             note.setWrapText(true);
-            note.setMaxWidth(200);
+            note.setMaxWidth(UiScale.px(200));
             box.getChildren().add(note);
         }
 

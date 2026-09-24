@@ -75,7 +75,7 @@ public class ShortcutsPanel extends VBox {
         final Label hint = new Label(NeoText.get("shortcuts.hint"));
         hint.getStyleClass().add("home-subtitle");
         hint.setWrapText(true);
-        hint.setMaxWidth(560);
+        hint.setMaxWidth(UiScale.px(560));
         hint.setMinHeight(Region.USE_PREF_SIZE);
 
         // --- estilo: NeoForge / Forge / Arena ---
@@ -97,7 +97,7 @@ public class ShortcutsPanel extends VBox {
 
         note.getStyleClass().add("settings-note");
         note.setWrapText(true);
-        note.setMaxWidth(560);
+        note.setMaxWidth(UiScale.px(560));
         note.setMinHeight(Region.USE_PREF_SIZE);
         // Vacia no ocupa: si no, deja un hueco entre el estilo y la primera
         // accion que no se explica (se vio en la primera captura).
@@ -114,7 +114,7 @@ public class ShortcutsPanel extends VBox {
                 final int slot = i;
                 final Button b = new Button();
                 b.getStyleClass().addAll("segment", "shortcut-key");
-                b.setMinWidth(118);
+                b.setMinWidth(UiScale.px(118));
                 b.setOnAction(e -> startCapture(b, a, slot));
                 b.focusedProperty().addListener((o, was, is) -> {
                     if (!is && capturing == b) {
@@ -131,7 +131,7 @@ public class ShortcutsPanel extends VBox {
         final Label escape = new Label(NeoText.get("shortcuts.escape"));
         escape.getStyleClass().add("home-subtitle");
         escape.setWrapText(true);
-        escape.setMaxWidth(560);
+        escape.setMaxWidth(UiScale.px(560));
         escape.setMinHeight(Region.USE_PREF_SIZE);
         content.getChildren().add(escape);
 
@@ -290,8 +290,8 @@ public class ShortcutsPanel extends VBox {
     private static HBox row(final String caption, final Region control) {
         final Label label = new Label(caption);
         label.getStyleClass().add("settings-label");
-        label.setMinWidth(260);
-        label.setMaxWidth(260);
+        label.setMinWidth(UiScale.px(260));
+        label.setMaxWidth(UiScale.px(260));
         label.setWrapText(true);
         final HBox box = new HBox(14, label, control);
         box.setAlignment(Pos.CENTER_LEFT);

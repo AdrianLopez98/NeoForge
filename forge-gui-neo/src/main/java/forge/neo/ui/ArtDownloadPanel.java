@@ -58,11 +58,11 @@ public final class ArtDownloadPanel extends VBox {
         final Label note = new Label(NeoText.get("artdl.note." + which));
         note.getStyleClass().add("dialog-note");
         note.setWrapText(true);
-        note.setMaxWidth(560);
+        note.setMaxWidth(UiScale.px(560));
 
         status.getStyleClass().add("dialog-note");
         status.setWrapText(true);
-        status.setMaxWidth(560);
+        status.setMaxWidth(UiScale.px(560));
         status.setText(NeoText.get("artdl.counting"));
 
         // El mismo estilo que la barra de carga: una ProgressBar de JavaFX sin
@@ -70,7 +70,7 @@ public final class ArtDownloadPanel extends VBox {
         // todo lo demas.
         bar.getStyleClass().add("loading-bar");
         bar.setMaxWidth(Double.MAX_VALUE);
-        bar.setPrefHeight(14);
+        bar.setPrefHeight(UiScale.px(14));
         // Indeterminada mientras cuenta: recorrer 33.000 cartas mirando el
         // disco tarda lo suyo, y una barra a cero parece que no hace nada.
         bar.setProgress(javafx.scene.control.ProgressIndicator.INDETERMINATE_PROGRESS);
@@ -143,13 +143,14 @@ public final class ArtDownloadPanel extends VBox {
             }
 
             @Override
-            public void finished() {
+            public void finished(final int skipped) {
                 // Lo primero: sin esto, lo recien bajado no se ve hasta
                 // reiniciar. Ver ArtDownload.afterDownload.
                 ArtDownload.afterDownload();
                 onUi(() -> {
                     bar.setProgress(1);
-                    status.setText(NeoText.get("artdl.done"));
+                    status.setText(skipped == 0 ? NeoText.get("artdl.done")
+                            : NeoText.get("artdl.doneSkipped", group(skipped)));
                     startButton.setDisable(true);
                     stopButton.setVisible(false);
                     stopButton.setManaged(false);

@@ -98,6 +98,7 @@ public class HandFan extends Pane {
     private javafx.scene.control.Button scrollButton(String text, int direction) {
         var button = new javafx.scene.control.Button(text);
         button.getStyleClass().add("arena-scroll");
+        UiScale.fixedFont(button, 18);
         button.setAccessibleText(direction < 0 ? "Scroll left" : "Scroll right");
         button.setManaged(false);
         button.setVisible(false);
@@ -193,8 +194,9 @@ public class HandFan extends Pane {
         clip.setWidth(getWidth() + growSide * 2); clip.setHeight(getHeight() + marginTop);
         previous.setVisible(scrollMax > .5); next.setVisible(scrollMax > .5);
         previous.setDisable(scrollX <= .5); next.setDisable(scrollX >= scrollMax - .5);
-        previous.resizeRelocate(2, 4, 28, 26);
-        next.resizeRelocate(Math.max(30, getWidth() - 30), 4, 28, 26);
+        final double bw = UiScale.px(28), bh = UiScale.px(26);
+        previous.resizeRelocate(2, 4, bw, bh);
+        next.resizeRelocate(Math.max(bw + 2, getWidth() - bw - 2), 4, bw, bh);
         if (Math.abs(w - appliedWidth) > 0.5) {
             appliedWidth = w;
             for (final CardNode c : cards) {

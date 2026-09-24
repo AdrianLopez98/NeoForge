@@ -66,6 +66,9 @@ public class AscentDeckView extends ScrollPane {
         }
         setContent(grid);
         setFitToWidth(true);
+        // Que el mazo llene el visor: ver CardFit. El ancho que llega es el
+        // suelo, y el techo evita carteles con un mazo corto.
+        CardFit.install(this, grid, cardWidth, Math.max(cardWidth, UiScale.px(230)));
         getStyleClass().add("ascent-scroll");
         setHbarPolicy(ScrollBarPolicy.NEVER);
     }

@@ -30,7 +30,11 @@ public final class AdventureNeoMain {
         }
         System.setProperty(forge.neo.NeoSettings.ADVENTURE_PROCESS, "true");
         // JavaFX primero, en su propio hilo; el principal se lo queda libGDX.
+        // Tambien aqui, y antes de arrancar JavaFX: este proceso no pasa por
+        // NeoMain. Es donde se reporto la pantalla en blanco (ver PrismGuard).
+        forge.neo.platform.PrismGuard.beforeJavaFx();
         Platform.startup(() -> NeoDuelBridge.log("JavaFX listo"));
+        forge.neo.platform.PrismGuard.install(NeoDuelBridge::log);
         Platform.setImplicitExit(false);
         NeoDuelBridge.log("puente " + (NeoDuelBridge.enabled() ? "ENCENDIDO" : "apagado")
                 + ", arrancando el Adventure de Forge");

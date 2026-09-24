@@ -203,7 +203,8 @@ public final class AdventureLauncher {
         for (final String k : new String[] {"user.home", "java.io.tmpdir", "javafx.cachedir",
                 "neo.adventure.selftest", "neo.adventure.auto", "neo.adventure.snapshot",
                 "neo.adventure.snapshotMs", "neo.adventure.pressEsc",
-                "neo.adventure.spaceTest", "neo.adventure.spaceTestMs"}) {
+                "neo.adventure.spaceTest", "neo.adventure.spaceTestMs", "neo.adventure.duels",
+                "prism.maxvram", "neo.prism.guard", "neo.prism.breakTest"}) {
             if (System.getProperty(k) != null) {
                 l.props.add(k + "=" + System.getProperty(k));
             }

@@ -94,6 +94,7 @@ public class Overlay extends StackPane {
         // Una etiqueta y no un boton: un boton se queda el foco y el siguiente
         // Espacio lo "pulsaria" en vez de ir al dialogo.
         peekPill.getStyleClass().add("peek-pill");
+        UiScale.fixedFont(peekPill, 13);
         peekPill.setText(peek);
         StackPane.setAlignment(peekPill, Pos.TOP_CENTER);
         // En la franja del margen, por encima del dialogo y sin taparlo.

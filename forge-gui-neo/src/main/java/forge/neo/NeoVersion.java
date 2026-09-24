@@ -50,6 +50,7 @@ public final class NeoVersion {
 
     private static final String FILE = "/forge/neo/build.properties";
 
+    private static String neoVersion;
     private static String forgeVersion;
     private static String builtAt;
     private static boolean read;
@@ -68,6 +69,7 @@ public final class NeoVersion {
             }
             final Properties p = new Properties();
             p.load(in);
+            neoVersion = clean(p.getProperty("neoVersion"));
             forgeVersion = clean(p.getProperty("forgeVersion"));
             builtAt = clean(p.getProperty("builtAt"));
         } catch (final Exception e) {
@@ -91,6 +93,17 @@ public final class NeoVersion {
         return t.isEmpty() || t.startsWith("${") ? null : t;
     }
 
+    /**
+     * La version de NeoForge ({@code 3.7}), o {@code null}. Pedido el
+     * 24-09-2026: se ensenyaba la del motor y no la nuestra, que es la que se
+     * anuncia en itch.io. Sale de {@code <neo.version>} de nuestro pom, que es
+     * el unico sitio donde se escribe el numero.
+     */
+    public static String neoVersion() {
+        load();
+        return neoVersion;
+    }
+
     /** La version del motor ({@code 2.0.15-SNAPSHOT}), o {@code null}. */
     public static String forgeVersion() {
         load();
@@ -106,19 +119,25 @@ public final class NeoVersion {
     /**
      * Lo que se ensenya en el menu, o {@code null} si no hay nada que decir.
      *
-     * <p>Mismo formato que el instalador oficial, que es con lo que la gente va
-     * a comparar: {@code Forge 2.0.15-SNAPSHOT · 2026-09-22}.
+     * <p>Primero la nuestra y luego la del motor, con el mismo formato que el
+     * instalador oficial, que es con lo que la gente va a comparar:
+     * {@code Neo Forge 3.7 · Forge 2.0.15-SNAPSHOT · 2026-09-22}.
      */
-    public static String engineLabel() {
+    public static String label() {
         load();
-        if (forgeVersion == null && builtAt == null) {
-            return null;
+        final StringBuilder sb = new StringBuilder();
+        if (neoVersion != null) {
+            sb.append("Neo Forge ").append(neoVersion);
         }
-        final StringBuilder sb = new StringBuilder("Forge ");
-        sb.append(forgeVersion == null ? "?" : forgeVersion);
-        if (builtAt != null) {
-            sb.append(" \u00b7 ").append(builtAt);
+        if (forgeVersion != null || builtAt != null) {
+            if (sb.length() > 0) {
+                sb.append(" \u00b7 ");
+            }
+            sb.append("Forge ").append(forgeVersion == null ? "?" : forgeVersion);
+            if (builtAt != null) {
+                sb.append(" \u00b7 ").append(builtAt);
+            }
         }
-        return sb.toString();
+        return sb.length() == 0 ? null : sb.toString();
     }
 }

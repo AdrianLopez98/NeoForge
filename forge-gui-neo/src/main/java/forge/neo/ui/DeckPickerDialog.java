@@ -124,7 +124,7 @@ public class DeckPickerDialog extends VBox {
                 NeoText.get("picker.hint"));
         hint.getStyleClass().add("dialog-text");
         hint.setWrapText(true);
-        hint.setMaxWidth(700);
+        hint.setMaxWidth(UiScale.px(700));
 
         tabMine = tab(NeoText.get("home.tab.mine", mine.size()), true);
         tabStock = tab(NeoText.get("home.tab.stock", stock.size()), false);
@@ -183,7 +183,7 @@ public class DeckPickerDialog extends VBox {
         scroll.getStyleClass().add("dialog-scroll");
         scroll.setFitToWidth(true);
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        scroll.setPrefViewportHeight(430);
+        scroll.setPrefViewportHeight(UiScale.px(430));
         VBox.setVgrow(scroll, Priority.ALWAYS);
 
         final Button cancel = new Button(NeoText.get("common.cancel"));

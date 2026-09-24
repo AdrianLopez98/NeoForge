@@ -115,7 +115,7 @@ public class AscentOverScreen extends StackPane {
                     NeoText.get(forge.neo.ascent.AscentUnlocks.effectKey(nivel))));
             adds.getStyleClass().add("ascent-info-text");
             adds.setWrapText(true);
-            adds.setMaxWidth(560);
+            adds.setMaxWidth(UiScale.px(560));
             body.getChildren().add(adds);
         }
 

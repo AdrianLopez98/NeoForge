@@ -93,10 +93,9 @@ public final class NeoSealed {
      *
      * <p>Tu pool va a la <b>banda</b> ({@code DeckSection.Sideboard}), que es
      * como Forge representa "las cartas de las que aun tienes que sacar el
-     * mazo", y el mazo principal se monta solo con
-     * {@code SealedDeckBuilder} — igual que en el draft. Un pool guardado con
-     * el mazo vacio no se puede jugar, y mandar al jugador al constructor antes
-     * de dejarle probar nada es el camino largo.
+     * mazo", y el principal sale <b>vacio</b>: en limitado montar el mazo es
+     * el juego. Quien no quiera, tiene "Montar solo" en el editor
+     * ({@link LimitedAutoBuild}).
      *
      * <p>Los siete rivales abren <b>sus propios</b> sobres de la misma
      * expansion. Es lo que hace que un sellado tenga sentido: te enfrentas a
@@ -119,7 +118,6 @@ public final class NeoSealed {
         for (final PaperCard c : mine) {
             pool.add(c);
         }
-        buildMainDeck(deck, edition.getCode());
 
         final DeckGroup group = new DeckGroup(name);
         group.setHumanDeck(deck);
@@ -154,34 +152,6 @@ public final class NeoSealed {
                 "[sellado] %s: %d cartas de %s en %d sobres, %d rivales%n",
                 name, mine.size(), edition.getCode(), boosters, group.getAiDecks().size());
         return group;
-    }
-
-    /**
-     * Monta un mazo jugable de 40 cartas con el pool.
-     *
-     * <p>Se usa {@code SealedDeckBuilder} y no {@code LimitedDeckBuilder} por
-     * el mismo motivo que en el draft: el segundo necesita que le <b>digas</b>
-     * los dos colores, y su clase de colores no es publica fuera de su paquete.
-     * El de sellado los elige el solo a partir del mejor tercio del pool.
-     */
-    private static void buildMainDeck(final Deck deck, final String landSetCode) {
-        try {
-            final List<PaperCard> pool = deck.get(DeckSection.Sideboard).toFlatList();
-            final Deck built = new SealedDeckBuilder(pool).buildDeck(landSetCode);
-            if (built == null || built.getMain().isEmpty()) {
-                return;
-            }
-            deck.getMain().clear();
-            deck.getMain().addAll(built.getMain());
-            // Lo que ha entrado en el mazo sale de la banda: si no, el pool
-            // ensenyaria dos veces las mismas cartas y el constructor dejaria
-            // meter copias que no tienes.
-            for (final java.util.Map.Entry<PaperCard, Integer> e : built.getMain()) {
-                deck.get(DeckSection.Sideboard).remove(e.getKey(), e.getValue());
-            }
-        } catch (final RuntimeException e) {
-            System.err.println("[sellado] no se ha podido montar el mazo: " + e);
-        }
     }
 
     /** Los sellados guardados. */

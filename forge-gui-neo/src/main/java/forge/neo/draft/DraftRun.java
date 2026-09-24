@@ -9,29 +9,29 @@ import forge.model.FModel;
 import forge.neo.NeoSettings;
 
 /**
- * El evento de draft: lo que pasa DESPUES de draftear.
+ * El evento de draft (o de sellado): lo que pasa DESPUES de draftear.
  *
- * <p>Draftear un mazo y no hacer nada con el no es jugar a un draft. En Arena
- * el draft es un <b>evento</b>: montas el mazo y lo llevas hasta que se rompe.
- * Aqui es igual, con las reglas que se pidieron:
+ * <p>Te enfrentas, uno a uno y en orden, a los <b>rivales que draftearon
+ * contigo</b> — con los mazos que ellos se llevaron, no con preconstruidos.
+ * Es la "tanda" (el gauntlet de Forge): cuenta victorias y derrotas, se acaba
+ * al jugar contra todos, y se puede <b>repetir</b> ({@link #restart}).
  *
- * <ul>
- *   <li>Te enfrentas, uno a uno, a los <b>siete rivales que draftearon contigo</b>
- *       — con los mazos que ellos se llevaron, no con preconstruidos.</li>
- *   <li><b>Dos derrotas y se acabo</b>: el draft se borra y hay que empezar
- *       otro.</li>
- *   <li>Ganar a los siete es completarlo.</li>
- * </ul>
- *
- * <p>Eso es lo que le da peso a cada pick: un mazo malo se nota a la segunda
- * partida. Sin evento, el draft es un generador de mazos.
+ * <p>Hasta el 23-09-2026 las reglas eran las de Arena y nada mas: dos derrotas
+ * y el draft se borraba, sin poder elegir rival ni volver a un pool viejo.
+ * Reportado en itch.io por quien juega limitado a diario: Forge deja todo eso,
+ * y quitarlo era quitar lo que venia a buscar. Ahora el <b>modo Arena</b> es
+ * una opcion de cada evento ({@link #isArena}), apagada de fabrica, que solo
+ * se puede cambiar antes de la primera partida: cambiarla a mitad seria
+ * reescribir las reglas de algo ya jugado. Las partidas libres (contra un
+ * rival elegido, o contra varios al azar) no cuentan para la tanda, igual que
+ * en Forge.
  *
  * <p>El estado vive en {@code neo.properties} (NUESTRO fichero, no el de
  * Forge), una linea por draft. Es deliberadamente poca cosa: tres numeros.
  */
 public final class DraftRun {
 
-    /** Derrotas que acaban con el draft. */
+    /** Derrotas que acaban con el draft, en modo Arena. */
     public static final int MAX_LOSSES = 2;
 
     /**
@@ -67,11 +67,87 @@ public final class DraftRun {
     private int wins;
     private int losses;
 
+    /**
+     * Leido una vez y guardado aqui: {@link #discard} borra la clave, y el
+     * marcador que se pinta DESPUES de la derrota que borra el evento tiene que
+     * seguir sabiendo que era Arena (si no, dejaria de verse eliminado).
+     */
+    private boolean arena;
+
     private DraftRun(final String name, final Kind kind) {
         this.name = name;
         this.kind = kind;
         this.wins = NeoSettings.getInt(key("wins"), 0);
         this.losses = NeoSettings.getInt(key("losses"), 0);
+        this.arena = NeoSettings.getBool(key("arena"), false);
+        splitIfNeeded();
+    }
+
+    /**
+     * Apunta que el mazo y la banda de este evento ya son <b>disjuntos</b>.
+     *
+     * <p>Lo llama quien escribe el evento ({@code NeoDraft.save}) ANTES de
+     * abrir el {@code DraftRun}, para que {@link #splitIfNeeded} no lo toque.
+     */
+    public static void markSplit(final String eventName, final Kind kind) {
+        NeoSettings.setBool(kind.prefix() + "." + eventName + ".split", true);
+        NeoSettings.save();
+    }
+
+    /**
+     * Pasa un draft guardado con el formato viejo al de ahora, una sola vez.
+     *
+     * <p>Hasta el 23-09-2026 un draft guardaba el pool ENTERO en la banda y en
+     * el principal una <b>copia</b> de lo que se jugaba, mientras que el
+     * sellado los tenia disjuntos. El editor los trata como disjuntos a los
+     * dos, asi que en un draft quitar una carta del mazo la devolvia a una
+     * banda donde ya estaba: <b>el pool crecia una carta</b> cada vez. Ahora
+     * los dos son iguales, y los drafts de antes se arreglan al abrirlos:
+     * lo que esta en el principal se descuenta de la banda.
+     *
+     * <p>No se deduce del contenido — con copias repetidas no hay forma de
+     * saberlo —, se apunta: los drafts nuevos nacen marcados
+     * ({@link #markSplit}) y los que no lo estan son de antes.
+     */
+    private void splitIfNeeded() {
+        if (kind != Kind.DRAFT || NeoSettings.getBool(key("split"), false)) {
+            return;
+        }
+        final DeckGroup g = group(name, kind);
+        if (g == null || g.getHumanDeck() == null) {
+            return;
+        }
+        final Deck mine = g.getHumanDeck();
+        final forge.deck.CardPool side = mine.get(forge.deck.DeckSection.Sideboard);
+        if (side != null) {
+            for (final java.util.Map.Entry<forge.item.PaperCard, Integer> e : mine.getMain()) {
+                if (DraftDeckContext.isBasic(e.getKey())) {
+                    continue;
+                }
+                int left = e.getValue();
+                final int exact = Math.min(left, side.count(e.getKey()));
+                side.remove(e.getKey(), exact);
+                left -= exact;
+                // El motor montaba a veces con OTRA impresion de la misma carta.
+                final String wanted = DraftDeckContext.normalizedName(e.getKey().getName());
+                for (final forge.item.PaperCard other : new java.util.ArrayList<>(side.toFlatList())) {
+                    if (left <= 0) {
+                        break;
+                    }
+                    if (DraftDeckContext.normalizedName(other.getName()).equals(wanted)) {
+                        side.remove(other, 1);
+                        left--;
+                    }
+                }
+            }
+            try {
+                kind.storage().add(g);
+            } catch (final RuntimeException e) {
+                System.err.println("[neo] no se ha podido pasar el draft al formato nuevo: " + e);
+                return;
+            }
+        }
+        markSplit(name, kind);
     }
 
     /** El evento de un draft guardado, con lo que llevara jugado. */
@@ -133,12 +209,60 @@ public final class DraftRun {
         return Math.max(0, opponents().size() - wins);
     }
 
-    public boolean isEliminated() {
-        return losses >= MAX_LOSSES;
+    /**
+     * Si este evento se juega con las reglas de Arena: dos derrotas y se borra.
+     * Apagado de fabrica.
+     */
+    public boolean isArena() {
+        return arena;
     }
 
+    /** El modo solo se elige antes de jugar la primera partida de la tanda. */
+    public boolean canChangeArena() {
+        return wins + losses == 0;
+    }
+
+    public void setArena(final boolean on) {
+        if (!canChangeArena()) {
+            return;
+        }
+        arena = on;
+        NeoSettings.setBool(key("arena"), on);
+        NeoSettings.save();
+    }
+
+    public boolean isEliminated() {
+        return isArena() && losses >= MAX_LOSSES;
+    }
+
+    /**
+     * La tanda se ha acabado sin eliminacion: en Arena, al ganar a todos; si
+     * no, al haber jugado contra todos, gane o pierda.
+     */
     public boolean isCompleted() {
-        return !isEliminated() && wins >= opponents().size();
+        if (isEliminated()) {
+            return false;
+        }
+        final int size = opponents().size();
+        return isArena() ? wins >= size : wins + losses >= size;
+    }
+
+    /** Vuelve a empezar la tanda con el mismo mazo y los mismos rivales. */
+    public void restart() {
+        wins = 0;
+        losses = 0;
+        NeoSettings.setInt(key("wins"), 0);
+        NeoSettings.setInt(key("losses"), 0);
+        NeoSettings.save();
+    }
+
+    /** Los eventos guardados de ese tipo, con su marcador. */
+    public static List<DraftRun> saved(final Kind kind) {
+        final List<DraftRun> out = new ArrayList<>();
+        for (final DeckGroup g : kind.storage()) {
+            out.add(new DraftRun(g.getName(), kind));
+        }
+        return out;
     }
 
     public boolean isOver() {
@@ -170,11 +294,10 @@ public final class DraftRun {
     }
 
     /**
-     * Anota el resultado de una partida.
+     * Anota el resultado de una partida de la tanda.
      *
-     * <p>Si con esto se acaba el evento por derrotas, el draft <b>se borra</b>:
-     * es lo que se pidio y es lo que hace que arriesgar en los picks tenga
-     * consecuencia.
+     * <p>Solo en modo Arena, si con esto se acaba el evento por derrotas, el
+     * draft <b>se borra</b>. Fuera de Arena no se borra nunca solo.
      *
      * @return true si el evento sigue vivo
      */
@@ -194,7 +317,7 @@ public final class DraftRun {
         return !isCompleted();
     }
 
-    /** Borra el draft y su marcador. Sin vuelta atras, como en Arena. */
+    /** Borra el draft y su marcador. Sin vuelta atras. */
     public void discard() {
         // Comprobar que existe antes: el almacen de Forge lanza NPE al borrar
         // algo que no esta, y aqui se llega tambien desde una limpieza.
@@ -207,6 +330,8 @@ public final class DraftRun {
         }
         NeoSettings.set(key("wins"), null);
         NeoSettings.set(key("losses"), null);
+        NeoSettings.set(key("split"), null);
+        NeoSettings.set(key("arena"), null);
         if (name.equals(NeoSettings.get(currentKey(kind), null))) {
             NeoSettings.set(currentKey(kind), null);
         }

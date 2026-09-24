@@ -162,7 +162,7 @@ public class QuestSetupScreen extends BorderPane {
         final Label state = new Label(NeoText.get("questNew.worldDefault"));
         state.getStyleClass().add("home-subtitle");
         state.setWrapText(true);
-        state.setMaxWidth(880);
+        state.setMaxWidth(UiScale.px(880));
 
         final Button toggle = new Button(NeoText.get("questNew.worldOpen"));
         toggle.getStyleClass().add("btn-secondary");
@@ -200,7 +200,7 @@ public class QuestSetupScreen extends BorderPane {
         scroll.getStyleClass().add("dialog-scroll");
         scroll.setFitToWidth(true);
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        scroll.setPrefViewportHeight(190);
+        scroll.setPrefViewportHeight(UiScale.px(190));
 
         paintWorlds();
         return new VBox(8, worldSearch, scroll);
@@ -236,20 +236,20 @@ public class QuestSetupScreen extends BorderPane {
         final Label name = new Label(isMain ? NeoText.get("questNew.worldMain") : w.getName());
         name.getStyleClass().add("duel-name");
         name.setWrapText(true);
-        name.setMaxWidth(210);
+        name.setMaxWidth(UiScale.px(210));
         name.setMinHeight(Region.USE_PREF_SIZE);
 
         final Label what = new Label(isMain && sets.isEmpty()
                 ? NeoText.get("questNew.worldAll") : sets);
         what.getStyleClass().add("caption");
         what.setWrapText(true);
-        what.setMaxWidth(210);
+        what.setMaxWidth(UiScale.px(210));
         what.setMinHeight(Region.USE_PREF_SIZE);
 
         final VBox tile = new VBox(2, name, what);
         tile.getStyleClass().add("set-tile");
         tile.setPadding(new Insets(8, 10, 8, 10));
-        tile.setPrefWidth(230);
+        tile.setPrefWidth(UiScale.px(230));
         final boolean chosenNow = isMain ? world == null : w.getName().equals(world);
         tile.pseudoClassStateChanged(PICKED, chosenNow);
         tile.setOnMouseClicked(e -> {
@@ -285,7 +285,7 @@ public class QuestSetupScreen extends BorderPane {
             final VBox tile = new VBox(4, name, desc);
             tile.getStyleClass().add("mode-tile");
             tile.setPadding(new Insets(14, 18, 14, 18));
-            tile.setPrefWidth(330);
+            tile.setPrefWidth(UiScale.px(330));
             tile.pseudoClassStateChanged(PICKED, m == modalidad);
             tile.setOnMouseClicked(e -> {
                 modalidad = m;

@@ -47,9 +47,6 @@ import javafx.util.Duration;
  */
 public class NeoApp extends Application implements SettingsPanel.Host {
 
-    /** Cuantas cartas caben a lo ancho en el campo de batalla. */
-    private static final int CARDS_ACROSS = 11;
-
     TableScreen table;
     HomeScreen home;
     Scene scene;
@@ -127,8 +124,10 @@ public class NeoApp extends Application implements SettingsPanel.Host {
 
         // El tamano de carta sale del ancho disponible, descontando la
         // columna lateral. Asi nunca se desborda, sea cual sea la pantalla.
-        sideWidth = Math.max(240, winW * 0.19);
-        cardWidth = clamp((winW - sideWidth - 60) / CARDS_ACROSS, 78, 150);
+        // Y el tope crece con el alto, como el texto: ver UiScale.cardWidth.
+        UiScale.setScreenHeight(winH);
+        sideWidth = UiScale.sideWidth(winW);
+        cardWidth = UiScale.cardWidth(winW, winH);
 
         // La escala que el usuario dejo guardada manda sobre la automatica.
         // Esto y las animaciones salen de NUESTRO fichero de ajustes, que no
@@ -148,6 +147,8 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                         || Boolean.getBoolean("neo.blindMana"));
 
         FpsMeter.startIfAsked();
+        // La red contra la pantalla en blanco de JavaFX (ver PrismGuard).
+        forge.neo.platform.PrismGuard.install(s -> System.out.println("[neo] " + s));
 
         scene = new Scene(new StackPane(), winW, winH);
         final var css = NeoApp.class.getResource("/forge/neo/neo.css");
@@ -1057,6 +1058,14 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             } else {
                 draft.showDraftRun(run);
             }
+        } else if (args.contains("--limited-ui-test")) {
+            // El limitado entero manejado como una persona: ver LimitedUiTest.
+            new LimitedUiTest(this, draft).run();
+        } else if (args.contains("--draft-events")) {
+            // La lista de drafts guardados, sin pasar por el menu.
+            draft.showEvents(forge.neo.draft.DraftRun.Kind.DRAFT);
+        } else if (args.contains("--sealed-events")) {
+            draft.showEvents(forge.neo.draft.DraftRun.Kind.SEALED);
         } else if (args.contains("--draft-new")) {
             // La pantalla de "de que expansion", sin pasar por el menu.
             draft.showDraftSetup();
@@ -2944,9 +2953,5 @@ public class NeoApp extends Application implements SettingsPanel.Host {
 
     static String orDefault(final String v, final String def) {
         return v == null ? def : v;
-    }
-
-    private static double clamp(final double v, final double lo, final double hi) {
-        return Math.max(lo, Math.min(hi, v));
     }
 }

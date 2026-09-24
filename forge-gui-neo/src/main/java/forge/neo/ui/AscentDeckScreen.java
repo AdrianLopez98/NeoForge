@@ -2,10 +2,14 @@ package forge.neo.ui;
 
 import java.util.List;
 
+import forge.deck.Deck;
+import forge.deck.DeckSection;
+import forge.game.card.CardView;
 import forge.item.PaperCard;
 import forge.neo.NeoText;
 import forge.neo.ascent.AscentDecks;
 import forge.neo.ascent.AscentRun;
+import forge.neo.card.CardNode;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
@@ -47,7 +51,8 @@ public class AscentDeckScreen extends StackPane {
         final Parchment paper = new Parchment(run.getSeed() + 91L, Color.web("#E4D3AC"));
         StackPane.setMargin(paper, new Insets(10));
 
-        final List<PaperCard> cards = AscentDecks.sortedByCost(AscentDecks.load(run));
+        final Deck deck = AscentDecks.load(run);
+        final List<PaperCard> cards = AscentDecks.sortedByCost(deck);
 
         final Label title = new Label(NeoText.get("ascent.map.deck").toUpperCase());
         title.getStyleClass().add("ascent-act");
@@ -76,11 +81,53 @@ public class AscentDeckScreen extends StackPane {
         chrome.setCenter(grid);
         chrome.setBottom(buttons);
         BorderPane.setMargin(grid, new Insets(0, 28, 0, 28));
+        final VBox commander = commanderColumn(deck, cardWidth);
+        if (commander != null) {
+            chrome.setLeft(commander);
+            BorderPane.setMargin(grid, new Insets(0, 28, 0, 0));
+        }
 
         getChildren().addAll(paper, chrome);
         // Click derecho = la carta grande. Es lo unico que se puede hacer aqui,
         // y es justo para lo que se entra.
         CardZoom.install(this);
+    }
+
+    /**
+     * El comandante, <b>aparte</b> y mas grande, o {@code null} si el mazo no
+     * lo tiene (Estandar).
+     *
+     * <p>Pedido en itch.io (24-09-2026): <i>"es confuso, sobre todo si dejas
+     * que el juego lo elija por ti"</i>. Y tenia razon de mas: el comandante
+     * vive en su propia seccion del mazo y la rejilla solo ensenya la principal,
+     * asi que no es que se confundiera entre las demas — es que <b>no salia</b>.
+     * Con un comandante elegido al azar no habia forma de saber cual era sin
+     * entrar en una partida.
+     *
+     * <p>Columna a la izquierda y no una carta mas al principio de la rejilla:
+     * en la rejilla se ordena por coste y se mezclaria justo con lo que tiene
+     * que distinguirse (principio 3 del las notas de diseño, el estado se ve).
+     */
+    private static VBox commanderColumn(final Deck deck, final double cardWidth) {
+        if (deck == null || !deck.has(DeckSection.Commander)) {
+            return null;
+        }
+        final List<PaperCard> commanders = deck.getCommanders();
+        if (commanders.isEmpty()) {
+            return null;
+        }
+        final Label label = new Label(NeoText.get("commander.yours").toUpperCase());
+        label.getStyleClass().add("ascent-hint");
+        final VBox column = new VBox(10, label);
+        column.setAlignment(Pos.TOP_CENTER);
+        column.setPadding(new Insets(4, 22, 0, 28));
+        for (final PaperCard c : commanders) {
+            final CardNode node = new CardNode(cardWidth * 1.35);
+            node.setRotationEnabled(false);
+            node.setCard(CardView.getCardForUi(c));
+            column.getChildren().add(node);
+        }
+        return column;
     }
 
     /** Cuantas cartas, cuantas tierras y a cuanto sale el coste medio. */

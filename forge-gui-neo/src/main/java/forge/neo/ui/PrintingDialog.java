@@ -51,7 +51,7 @@ public class PrintingDialog extends VBox {
                 : NeoText.get("printing.hint"));
         hint.getStyleClass().add("dialog-text");
         hint.setWrapText(true);
-        hint.setMaxWidth(720);
+        hint.setMaxWidth(UiScale.px(720));
 
         final FlowPane grid = new FlowPane(10, 10);
         grid.setAlignment(Pos.CENTER);
@@ -65,7 +65,7 @@ public class PrintingDialog extends VBox {
         scroll.getStyleClass().add("dialog-scroll");
         scroll.setFitToWidth(true);
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        scroll.setPrefViewportHeight(Math.min(520, cardWidth * CardNode.ASPECT * 2 + 60));
+        scroll.setPrefViewportHeight(Math.min(UiScale.px(520), cardWidth * CardNode.ASPECT * 2 + 60));
         VBox.setVgrow(scroll, Priority.ALWAYS);
 
         final Label count = new Label(printings.size() == 1

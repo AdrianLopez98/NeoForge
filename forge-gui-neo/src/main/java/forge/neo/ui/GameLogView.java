@@ -98,8 +98,8 @@ public class GameLogView extends VBox {
         scroll.getStyleClass().add("dialog-scroll");
         scroll.setFitToWidth(true);
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        scroll.setPrefViewportWidth(620);
-        scroll.setPrefViewportHeight(460);
+        scroll.setPrefViewportWidth(UiScale.px(620));
+        scroll.setPrefViewportHeight(UiScale.px(460));
         VBox.setVgrow(scroll, Priority.ALWAYS);
 
         // Abrir mirando el final, que es lo que se viene a leer: "que acaba de

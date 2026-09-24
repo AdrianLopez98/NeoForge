@@ -50,18 +50,27 @@ public final class DraftCheck {
             }
         }
 
+        // Lo que el jugador fue poniendo en el mazo durante el draft (la tira
+        // de la pantalla de picks) tiene que llegar al mazo guardado.
+        final List<PaperCard> planned = new java.util.ArrayList<>(
+                draft.picked().subList(0, Math.min(23, draft.picked().size())));
+        draft.planMain(planned);
         final DeckGroup group = draft.save("neo-draftcheck");
         final Deck mine = group.getHumanDeck();
-        final int pool = mine.get(DeckSection.Sideboard).countAll();
-        final int main = mine.getMain().countAll();
+        final int pool = poolTotal(mine) + basicsIn(mine);
+        // El mazo sale VACIO (23-09-2026): montarlo es cosa del jugador. Y el
+        // boton "Montar solo" tiene que seguir dando un mazo jugable.
+        final int emptyAtSave = mine.getMain().countAll();
+        final int main = autoBuildSaved(DraftRun.of("neo-draftcheck")).getMain().countAll();
 
         System.out.println();
         System.out.printf(Locale.ROOT,
-                "  Picks: %d | pool: %d cartas | mazo montado: %d | rivales: %d mazos | %ds%n",
-                picks, pool, main, group.getAiDecks().size(),
+                "  Picks: %d | pool: %d cartas | mazo al guardar: %d | montado solo: %d"
+                + " | rivales: %d mazos | %ds%n",
+                picks, pool, emptyAtSave, main, group.getAiDecks().size(),
                 (System.currentTimeMillis() - t0) / 1000);
 
-        final boolean ok = picks >= 40 && pool >= 40 && main >= 40
+        final boolean ok = picks >= 40 && pool == picks && emptyAtSave == planned.size() && main >= 40
                 && group.getAiDecks().size() == 7;
         System.out.println(ok
                 ? "  OK - el draft se completa y deja ocho mazos"
@@ -73,7 +82,11 @@ public final class DraftCheck {
         checkSetDraft("SPM", 3);
         checkRivals(draft, group);
         checkEditor();
+        checkOldFormat();
         checkRun();
+        if (!Boolean.getBoolean("neo.draftcheck.noGames")) {
+            checkGames();
+        }
         checkCubeDraft();
         checkRanking();
 
@@ -289,7 +302,8 @@ public final class DraftCheck {
         final boolean ok = foreign == 0 && rounds == 3 && seen > 100
                 && draft.productName().contains(code)
                 && rivals == expectedRivals
-                && group.getHumanDeck().getMain().countAll() >= 40
+                && group.getHumanDeck().getMain().countAll() == 0
+                && group.getHumanDeck().get(DeckSection.Sideboard).countAll() >= 40
                 && !run.isOver() && run.nextOpponent() != null;
         System.out.println();
         System.out.printf(Locale.ROOT,
@@ -386,6 +400,8 @@ public final class DraftCheck {
         draft.save(name);
 
         final DraftRun run = DraftRun.of(name);
+        autoBuildSaved(run);
+        final int poolAtStart = poolTotal(run.getDeck());
         final DraftDeckContext context = new DraftDeckContext(run);
         final forge.neo.deck.DeckEditor editor =
                 forge.neo.deck.DeckEditor.copyOf(context, run.getDeck());
@@ -427,7 +443,9 @@ public final class DraftCheck {
             if (c.getRules().getType().isBasicLand()) {
                 continue;
             }
-            if (run.getDeck().get(DeckSection.Sideboard).count(c) == 0) {
+            // Mazo y banda son disjuntos: lo tuyo es la suma de los dos.
+            if (run.getDeck().get(DeckSection.Sideboard).count(c) == 0
+                    && run.getDeck().getMain().count(c) == 0) {
                 intruders++;
                 if (firstIntruder == null) {
                     firstIntruder = c.getName() + " [" + c.getEdition() + "]";
@@ -475,9 +493,23 @@ public final class DraftCheck {
                     || human.getMain().count(inDeck) == editor.getDeck().getMain().count(inDeck);
             ok &= swamp == null || human.getMain().count(swamp) >= added;
             // Y el pool sigue entero: editar el mazo no toca lo que draftaste.
-            ok &= human.get(DeckSection.Sideboard).countAll()
-                    == run.getDeck().get(DeckSection.Sideboard).countAll();
+            // Antes del 23-09-2026 quitar una carta del mazo de un draft la
+            // DUPLICABA en la banda, y esta comprobacion comparaba el mazo
+            // guardado consigo mismo, asi que no lo veia.
+            ok &= poolTotal(human) == poolAtStart;
         }
+
+        // 4. vaciar y volver a montar no crea ni destruye cartas
+        final int cleared = editor.clearToPool();
+        final boolean clearOk = editor.mainCount() == 0 && poolTotal(editor.getDeck()) == poolAtStart;
+        final int rebuilt = editor.autoBuildFromPool();
+        final boolean rebuildOk = rebuilt >= 40 && editor.isPlayable()
+                && poolTotal(editor.getDeck()) == poolAtStart;
+        System.out.printf(Locale.ROOT,
+                "  Vaciar: %d cartas al pool (%s) | montar solo: %d cartas (%s) | pool %d%n",
+                cleared, clearOk ? "bien" : "MAL", rebuilt, rebuildOk ? "bien" : "MAL",
+                poolTotal(editor.getDeck()));
+        ok &= clearOk && rebuildOk;
 
         System.out.println();
         System.out.printf(Locale.ROOT,
@@ -489,6 +521,156 @@ public final class DraftCheck {
                 : "  FALLO - revisa DraftDeckContext");
 
         borrar(name);
+    }
+
+    /**
+     * Un draft guardado con el formato de antes del 23-09-2026 — banda con el
+     * pool ENTERO y el mazo como copia — se pasa al de ahora al abrirlo, una
+     * sola vez, sin perder ni ganar cartas.
+     */
+    private static void checkOldFormat() {
+        final String name = "neo-oldformatcheck";
+        borrar(name);
+        final NeoDraft draft = NeoDraft.start(LimitedPoolType.Full);
+        if (draft == null) {
+            System.out.println("  FALLO: no se ha podido montar el draft de prueba del formato viejo.");
+            return;
+        }
+        while (!draft.isDone()) {
+            final List<PaperCard> pack = draft.currentCards();
+            if (pack.isEmpty()) {
+                break;
+            }
+            draft.pick(pack.get(0));
+        }
+        final DeckGroup group = draft.save(name);
+        final Deck human = group.getHumanDeck();
+        final int poolSize = poolTotal(human);
+
+        // Como lo dejaba el codigo viejo: el mazo es una COPIA, la banda intacta.
+        final forge.deck.CardPool built = LimitedAutoBuild.build(
+                LimitedAutoBuild.poolOf(human), null);
+        human.getMain().clear();
+        if (built != null) {
+            human.getMain().addAll(built);
+        }
+        forge.model.FModel.getDecks().getDraft().add(group);
+        forge.neo.NeoSettings.set("draft." + name + ".split", null);
+        forge.neo.NeoSettings.save();
+
+        final DraftRun run = DraftRun.of(name);           // aqui se pasa
+        final int afterFirst = poolTotal(run.getDeck());
+        final int mainAfter = run.getDeck().getMain().countAll();
+        final int afterSecond = poolTotal(DraftRun.of(name).getDeck());   // y no otra vez
+
+        final boolean ok = built != null && afterFirst == poolSize && afterSecond == poolSize
+                && mainAfter == built.countAll();
+        System.out.printf(Locale.ROOT,
+                "  Formato viejo: pool %d -> %d al abrirlo -> %d la segunda vez | mazo %d%n",
+                poolSize, afterFirst, afterSecond, mainAfter);
+        System.out.println(ok
+                ? "  OK - un draft de antes se pasa al formato nuevo sin perder cartas"
+                : "  FALLO - revisa DraftRun.splitIfNeeded");
+        borrar(name);
+    }
+
+    /**
+     * Las partidas de un evento, JUGADAS (el motor contesta por el humano), con
+     * los mismos parametros que manda el marcador ({@code NeoAppDraft
+     * .playEventMatch}): la tanda o una libre contra un rival, una libre
+     * contra tres al azar a la vez, y al mejor de tres con banquillo.
+     *
+     * <p>Es lo que no se ve comprobando reglas: que el motor arranque una
+     * partida de Draft a cuatro con mazos de 40, y que el Bo3 entre partidas
+     * se lleve bien con el pool en la banda.
+     */
+    private static void checkGames() {
+        final String name = "neo-gamescheck";
+        borrar(name);
+        final NeoDraft draft = NeoDraft.start(LimitedPoolType.Full);
+        if (draft == null) {
+            System.out.println("  FALLO: no se ha podido montar el draft de las partidas.");
+            return;
+        }
+        while (!draft.isDone()) {
+            final List<PaperCard> pack = draft.currentCards();
+            if (pack.isEmpty()) {
+                break;
+            }
+            draft.pick(pack.get(0));
+        }
+        draft.save(name);
+        final DraftRun run = DraftRun.of(name);
+        final Deck mine = autoBuildSaved(run);
+        final List<Deck> rivals = run.opponents();
+
+        final forge.neo.match.NeoGame.Result one = play(mine, List.of(rivals.get(0)), 1);
+        final List<Deck> shuffled = new java.util.ArrayList<>(rivals);
+        java.util.Collections.shuffle(shuffled);
+        final forge.neo.match.NeoGame.Result three = play(mine, shuffled.subList(0, 3), 1);
+        final forge.neo.match.NeoGame.Result bo3 = play(mine, List.of(rivals.get(1)), 3);
+
+        final boolean ok = done(one) && done(three) && done(bo3)
+                && existe(name) && poolTotal(run.getDeck()) == poolTotal(mine);
+        System.out.printf(Locale.ROOT,
+                "  Partidas: 1v1 %s | 1 contra 3 %s | Bo3 %s%n",
+                describe(one), describe(three), describe(bo3));
+        System.out.println(ok
+                ? "  OK - el mazo del evento se juega: uno contra uno, contra varios y al mejor de tres"
+                : "  FALLO - revisa NeoAppDraft.playEventMatch / NeoGame con mazos de limitado");
+        borrar(name);
+    }
+
+    private static boolean done(final forge.neo.match.NeoGame.Result r) {
+        return r != null && r.completed && r.turns > 0;
+    }
+
+    private static String describe(final forge.neo.match.NeoGame.Result r) {
+        return r == null ? "REVENTADA" : (r.completed ? "acabada" : "SIN ACABAR")
+                + " en " + r.turns + " turnos, gana " + r.winner;
+    }
+
+    private static forge.neo.match.NeoGame.Result play(final Deck mine, final List<Deck> rivals,
+                                                       final int games) {
+        try {
+            return forge.neo.match.NeoGame.play(mine, rivals.size(),
+                    forge.neo.match.NeoMatchUI.Mode.AUTO_PLAY, 240, false, null, null, true,
+                    forge.neo.match.NeoFormat.DRAFT, rivals, games);
+        } catch (final Exception e) {
+            System.out.println("  FALLO: la partida ha reventado: " + e);
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    /**
+     * Pulsa "Montar solo" sobre el evento guardado y lo guarda, como haria el
+     * jugador. Devuelve el mazo ya releido del almacen.
+     */
+    static Deck autoBuildSaved(final DraftRun run) {
+        final forge.neo.deck.DeckEditor editor = forge.neo.deck.DeckEditor.copyOf(
+                new DraftDeckContext(run), run.getDeck());
+        editor.autoBuildFromPool();
+        editor.save();
+        return run.getDeck();
+    }
+
+    private static int basicsIn(final Deck deck) {
+        int n = 0;
+        for (final forge.deck.CardPool section : new forge.deck.CardPool[] {
+                deck.get(DeckSection.Sideboard), deck.getMain()}) {
+            for (final java.util.Map.Entry<PaperCard, Integer> e : section) {
+                if (DraftDeckContext.isBasic(e.getKey())) {
+                    n += e.getValue();
+                }
+            }
+        }
+        return n;
+    }
+
+    /** Las cartas del pool que no son basicas, mazo y banda juntos. */
+    static int poolTotal(final Deck deck) {
+        return LimitedAutoBuild.poolOf(deck).size();
     }
 
     /** La primera carta del mazo que no sea una tierra basica. */
@@ -556,7 +738,27 @@ public final class DraftCheck {
         draft.save(name);
 
         final DraftRun run = DraftRun.of(name);
-        boolean ok = run.opponents().size() == 7
+        // De fabrica NO es Arena: la tanda de Forge, que no borra nada.
+        boolean ok = !run.isArena() && run.canChangeArena();
+
+        // --- la tanda: se juega contra todos, gane o pierda, y se repite ---
+        for (int i = 0; i < run.opponents().size(); i++) {
+            run.record(i % 2 == 0);
+        }
+        final boolean gauntletOk = run.isCompleted() && !run.isEliminated() && existe(name)
+                && run.getWins() + run.getLosses() == run.opponents().size()
+                && !run.canChangeArena();
+        run.restart();
+        final boolean restartOk = run.getWins() == 0 && run.getLosses() == 0 && !run.isOver()
+                && run.canChangeArena();
+        System.out.printf(Locale.ROOT,
+                "  Tanda: acaba tras %d partidas sin borrar nada: %s | se repite: %s%n",
+                run.opponents().size(), gauntletOk ? "si" : "NO", restartOk ? "si" : "NO");
+        ok &= gauntletOk && restartOk;
+
+        // --- modo Arena: dos derrotas y se borra ---
+        run.setArena(true);
+        ok &= run.isArena() && run.opponents().size() == 7
                 && !run.isOver()
                 && run.nextOpponent() != null;
 
@@ -583,6 +785,12 @@ public final class DraftCheck {
         if (existe(name)) {
             forge.model.FModel.getDecks().getDraft().delete(name);
         }
+        // Y su marca de formato (DraftRun.markSplit): no dejar rastro en el
+        // neo.properties del jugador.
+        for (final String field : new String[] {"split", "arena", "wins", "losses"}) {
+            forge.neo.NeoSettings.set("draft." + name + "." + field, null);
+        }
+        forge.neo.NeoSettings.save();
     }
 
     private static boolean existe(final String name) {

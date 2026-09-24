@@ -35,22 +35,11 @@ import forge.util.storage.IStorage;
  * que no quiero"</i>. Un mazo que no se puede tocar convierte 45 decisiones en
  * ninguna.
  *
- * <p><b>Donde vive el pool</b>, que es lo unico raro de aqui:
- *
- * <ul>
- *   <li>En un <b>draft</b>, la banda ({@code Sideboard}) es el pool ENTERO —
- *       las 45 cartas — y el mazo principal es una copia de lo que se juega.
- *       Lo deja asi {@link NeoDraft#save}.</li>
- *   <li>En un <b>sellado</b>, mazo y banda son <b>disjuntos</b>: lo que entro
- *       en el mazo salio de la banda ({@link NeoSealed}). El pool es la suma
- *       de los dos.</li>
- * </ul>
- *
- * <p>No es bonito que sean distintos, pero es un dato <b>seguro</b>: lo
- * garantiza quien escribe cada mazo, y asi los eventos ya guardados se abren
- * bien sin adivinar nada ni migrar ficheros. Deducirlo del contenido — "si la
- * banda contiene todo el mazo, es un draft" — fallaria justo con un pool que
- * tenga copias repetidas.
+ * <p><b>Donde vive el pool</b>: mazo y banda son <b>disjuntos</b>, y el pool
+ * es la suma de los dos. Hasta el 23-09-2026 el draft era distinto (banda =
+ * pool entero, mazo = copia) y eso hacia crecer el pool al quitar cartas;
+ * los drafts de antes se pasan al formato nuevo al abrirlos
+ * ({@code DraftRun.splitIfNeeded}).
  *
  * <p>Las <b>tierras basicas</b> no salen de ningun sobre: en limitado se ponen
  * las que hagan falta. Van al catalogo aparte y sin techo.
@@ -88,9 +77,7 @@ public final class DraftDeckContext implements DeckContext {
         }
 
         count(deck.get(DeckSection.Sideboard));
-        if (run.getKind() == DraftRun.Kind.SEALED) {
-            count(deck.getMain());
-        }
+        count(deck.getMain());
 
         pool.addAll(owned.keySet());
         pool.sort(java.util.Comparator.comparing(PaperCard::getName)
@@ -264,6 +251,17 @@ public final class DraftDeckContext implements DeckContext {
     @Override
     public boolean poolInSideboard() {
         return true;
+    }
+
+    @Override
+    public boolean canAutoBuild() {
+        return true;
+    }
+
+    @Override
+    public CardPool autoBuild(final List<PaperCard> cards) {
+        final Deck deck = run == null ? null : run.getDeck();
+        return LimitedAutoBuild.build(cards, deck == null ? null : landSet(deck));
     }
 
     @Override

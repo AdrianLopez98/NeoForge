@@ -213,7 +213,7 @@ public class PauseMenu extends StackPane {
         final Label sub = new Label(detail);
         sub.getStyleClass().add("home-subtitle");
         sub.setWrapText(true);
-        sub.setMaxWidth(340);
+        sub.setMaxWidth(UiScale.px(340));
 
         box.getChildren().addAll(title, sub,
                 item(yesLabel, "btn-primary", onYes),

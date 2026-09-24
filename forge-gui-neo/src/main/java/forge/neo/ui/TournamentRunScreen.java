@@ -261,7 +261,7 @@ public class TournamentRunScreen extends BorderPane {
             box.getStyleClass().add("bracket-yours");
         }
         box.setPadding(new Insets(8, 12, 8, 12));
-        box.setPrefWidth(160);
+        box.setPrefWidth(UiScale.px(160));
         return box;
     }
 
@@ -273,7 +273,7 @@ public class TournamentRunScreen extends BorderPane {
         final VBox box = new VBox(3, q1, q2);
         box.getStyleClass().add("bracket-match");
         box.setPadding(new Insets(8, 12, 8, 12));
-        box.setPrefWidth(160);
+        box.setPrefWidth(UiScale.px(160));
         return box;
     }
 

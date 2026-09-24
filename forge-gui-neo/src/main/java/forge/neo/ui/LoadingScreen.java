@@ -63,6 +63,7 @@ public final class LoadingScreen extends StackPane implements IProgressBar {
         status.getStyleClass().add("loading-status");
 
         bar.getStyleClass().add("loading-bar");
+        bar.setPrefWidth(UiScale.px(360));
         bar.setMaxWidth(Double.MAX_VALUE);
         // Indeterminada de salida: hasta que el motor no dice cuantas partes
         // hay, fingir un 0% seria mentir sobre algo que aun no sabemos.
@@ -79,7 +80,7 @@ public final class LoadingScreen extends StackPane implements IProgressBar {
         final VBox box = new VBox(title, status, bar, hint);
         box.setAlignment(Pos.CENTER);
         box.getStyleClass().add("loading-box");
-        box.setMaxWidth(420);
+        box.setMaxWidth(UiScale.px(420));
 
         final ImageView logo = NeoLogo.view(148);
         final VBox all = logo == null

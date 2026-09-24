@@ -121,7 +121,7 @@ public class AscentEventScreen extends StackPane {
         final Label text = new Label(NeoText.get(event.getTextKey()));
         text.getStyleClass().add("ascent-event-text");
         text.setWrapText(true);
-        text.setMaxWidth(760);
+        text.setMaxWidth(UiScale.px(760));
 
         final Label life = new Label(NeoText.get("ascent.life") + "  "
                 + run.getLife() + " / " + run.getMaxLife()
@@ -151,6 +151,7 @@ public class AscentEventScreen extends StackPane {
 
         final Button b = new Button(NeoText.get(choice.getLabelKey(), choice.getLabelArgs()));
         b.getStyleClass().addAll("ascent-button", "ascent-event-option");
+        b.setMinWidth(UiScale.px(520));
         final boolean can = choice.isAvailable(run);
         b.setDisable(!can);
         b.setOnAction(e -> choose(choice));
@@ -195,7 +196,7 @@ public class AscentEventScreen extends StackPane {
                 NeoText.get(outcome.getMessageKey(), outcome.getArgs()));
         what.getStyleClass().add("ascent-event-text");
         what.setWrapText(true);
-        what.setMaxWidth(760);
+        what.setMaxWidth(UiScale.px(760));
 
         final Label state = new Label(NeoText.get("ascent.life") + "  "
                 + run.getLife() + " / " + run.getMaxLife()

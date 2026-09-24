@@ -138,7 +138,7 @@ public class QuestBazaarScreen extends StackPane {
         final Label fluff = new Label(stall.getFluff());
         fluff.getStyleClass().add("home-subtitle");
         fluff.setWrapText(true);
-        fluff.setMaxWidth(880);
+        fluff.setMaxWidth(UiScale.px(880));
         fluff.setMinHeight(Region.USE_PREF_SIZE);
 
         final VBox box = new VBox(8, name, fluff);
@@ -170,7 +170,7 @@ public class QuestBazaarScreen extends StackPane {
         final Label what = new Label(NeoQuestBazaar.descriptionOf(item));
         what.getStyleClass().add("home-subtitle");
         what.setWrapText(true);
-        what.setMaxWidth(620);
+        what.setMaxWidth(UiScale.px(620));
         what.setMinHeight(Region.USE_PREF_SIZE);
 
         final Label cost = new Label(NeoText.get("shop.credits.short", price));
@@ -220,7 +220,7 @@ public class QuestBazaarScreen extends StackPane {
         final Label warn = new Label(NeoText.get("bazaar.worldWarn"));
         warn.getStyleClass().add("home-subtitle");
         warn.setWrapText(true);
-        warn.setMaxWidth(880);
+        warn.setMaxWidth(UiScale.px(880));
         warn.setMinHeight(Region.USE_PREF_SIZE);
 
         final Button toggle = new Button(NeoText.get("questNew.worldOpen"));
@@ -237,7 +237,7 @@ public class QuestBazaarScreen extends StackPane {
         scroll.getStyleClass().add("dialog-scroll");
         scroll.setFitToWidth(true);
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        scroll.setPrefViewportHeight(170);
+        scroll.setPrefViewportHeight(UiScale.px(170));
 
         paintWorlds();
 
@@ -288,19 +288,19 @@ public class QuestBazaarScreen extends StackPane {
         final Label name = new Label(w.getName());
         name.getStyleClass().add("duel-name");
         name.setWrapText(true);
-        name.setMaxWidth(210);
+        name.setMaxWidth(UiScale.px(210));
         name.setMinHeight(Region.USE_PREF_SIZE);
 
         final Label what = new Label(here ? NeoText.get("bazaar.worldHere") : sets);
         what.getStyleClass().add("caption");
         what.setWrapText(true);
-        what.setMaxWidth(210);
+        what.setMaxWidth(UiScale.px(210));
         what.setMinHeight(Region.USE_PREF_SIZE);
 
         final VBox tile = new VBox(2, name, what);
         tile.getStyleClass().add("set-tile");
         tile.setPadding(new Insets(8, 10, 8, 10));
-        tile.setPrefWidth(230);
+        tile.setPrefWidth(UiScale.px(230));
         tile.pseudoClassStateChanged(SELECTED, here);
         tile.setOnMouseClicked(e -> {
             if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY

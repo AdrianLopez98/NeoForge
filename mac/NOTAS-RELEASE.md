@@ -1,13 +1,15 @@
-**NeoForge para macOS 1.0.9 (beta).**
+**NeoForge para macOS 3.7 (beta).** Desde esta version el numero es el mismo que en itch.io.
 
-Novedades, todas de avisos en Discord:
-- **El arte sin conexion baja en una hora, no en un dia y medio.** Ahora va por la CDN de Scryfall en vez de por su API (dos peticiones por segundo). La primera vez baja el indice de cartas de Scryfall (~75 MB).
-- **Nueva opcion: todas las cartas y todos los artes** — cada edicion y cada arte alternativo (~95.000 imagenes, ~7 GB). Ajustes → Arte de las cartas.
-- **Boton «Equipar {coste}»** al ampliar un equipo tuyo: se cierra la carta y eliges la criatura.
-- **Con los equipos y auras apilados detras de la carta**, el visor del «+N» ya deja usarlos (volver a equipar), no solo mirarlos.
-- Arreglado: el **mana negro flotante** parecia incoloro.
-- Arreglado: **Ascenso** no respetaba el ajuste de pago automatico de mana.
-- Arreglado: con **OK mantenido** en una cadena larga de disparos, la interfaz se adelantaba al motor y podia preguntar «¿dejar tu fase principal?» a mitad.
+Novedades, casi todas pedidas en itch.io y Discord:
+- **Draft y sellado como en Forge:** el mazo ya no se monta solo — el pool llega entero y tu decides, con **«Montar solo»** y **«Vaciar el mazo»** en el editor.
+- **Montar el mazo mientras drafteas:** la tira de picks tiene mazo y banquillo (un clic cambia la carta de lado), se ordena por pick, color, coste o tipo, y enseña la curva.
+- **Lista de drafts y sellados guardados**, y tres formas de jugarlos: la tanda contra todos, una partida libre contra el rival que elijas o contra varios a la vez. «Dos derrotas y se borra» pasa a ser un **modo Arena** opcional.
+- **Ver el mazo:** la pila se abre al pasar el raton, y Cmd+rueda cambia el tamaño de las cartas.
+- **Pantallas grandes (2K/4K):** las medidas crecen con la pantalla y las rejillas llenan el hueco.
+- **Menu:** el idioma pasa a un desplegable, la letra de las casillas es mas grande y en el pie sale la version («Neo Forge 3.7 · Forge …»).
+- Arreglado: la **descarga de todo el arte** se quedaba en «1 min» al acabar, sin decir «Listo»; ahora lo dice, y cuantas imagenes no se pudieron bajar.
+- Arreglado: en la **Aventura**, la ventana podia quedarse en blanco tras varios duelos (fallo de JavaFX, ahora se recupera solo).
+- Arreglado: el ultimo pick del draft acababa siempre en el banquillo.
 
 Descarga el `.dmg` de tu Mac:
 

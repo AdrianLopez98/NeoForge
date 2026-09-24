@@ -50,8 +50,8 @@ public class NetChatView extends VBox {
         scroll.getStyleClass().add("dialog-scroll");
         scroll.setFitToWidth(true);
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        scroll.setPrefViewportWidth(520);
-        scroll.setPrefViewportHeight(340);
+        scroll.setPrefViewportWidth(UiScale.px(520));
+        scroll.setPrefViewportHeight(UiScale.px(340));
         VBox.setVgrow(scroll, Priority.ALWAYS);
         // Pegado abajo: lo ultimo que se ha dicho es lo que importa.
         lines.heightProperty().addListener((o, a, b) -> scroll.setVvalue(1.0));
@@ -85,7 +85,7 @@ public class NetChatView extends VBox {
         final Label l = new Label(text);
         l.getStyleClass().add("dialog-text");
         l.setWrapText(true);
-        l.setMaxWidth(500);
+        l.setMaxWidth(UiScale.px(500));
         l.setMinHeight(Region.USE_PREF_SIZE);
         lines.getChildren().add(l);
         while (lines.getChildren().size() > 200) {

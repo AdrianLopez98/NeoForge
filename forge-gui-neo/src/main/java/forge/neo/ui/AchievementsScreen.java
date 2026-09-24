@@ -321,10 +321,10 @@ public class AchievementsScreen extends BorderPane {
      */
     private double tileWidth() {
         if (viewportWidth <= 0) {
-            return MIN_TILE;
+            return UiScale.px(MIN_TILE);
         }
         final double gap = grid.getHgap();
-        final int columns = Math.max(1, (int) ((viewportWidth + gap) / (MIN_TILE + gap)));
+        final int columns = Math.max(1, (int) ((viewportWidth + gap) / (UiScale.px(MIN_TILE) + gap)));
         return (viewportWidth - (columns - 1) * gap) / columns;
     }
 

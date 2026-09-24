@@ -47,7 +47,7 @@ public class TutorialScreen extends BorderPane {
                         NeoTutorial.lessons().size()));
         subtitle.getStyleClass().add("home-subtitle");
         subtitle.setWrapText(true);
-        subtitle.setMaxWidth(760);
+        subtitle.setMaxWidth(UiScale.px(760));
 
         final VBox header = new VBox(4, title, subtitle);
         header.setAlignment(Pos.CENTER);
@@ -59,7 +59,7 @@ public class TutorialScreen extends BorderPane {
         final FlowPane tiles = new FlowPane(16, 16);
         tiles.setAlignment(Pos.CENTER);
         tiles.setPadding(new Insets(10, 40, 10, 40));
-        tiles.setPrefWrapLength(900);
+        tiles.setPrefWrapLength(UiScale.px(900));
 
         int n = 1;
         for (final TutorialLesson lesson : lessons) {
@@ -126,8 +126,8 @@ public class TutorialScreen extends BorderPane {
         box.getStyleClass().add("mode-tile");
         box.setAlignment(Pos.TOP_LEFT);
         box.setPadding(new Insets(18, 20, 16, 20));
-        box.setPrefWidth(270);
-        box.setMinHeight(150);
+        box.setPrefWidth(UiScale.px(270));
+        box.setMinHeight(UiScale.px(150));
         box.setOnMouseClicked(e -> onPlay.accept(lesson));
         return box;
     }

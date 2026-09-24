@@ -138,7 +138,7 @@ public class SettingsPanel extends VBox {
         final Label note = new Label();
         note.getStyleClass().add("home-subtitle");
         note.setWrapText(true);
-        note.setMaxWidth(560);
+        note.setMaxWidth(UiScale.px(560));
         note.setMinHeight(Region.USE_PREF_SIZE);
         note.setText(noteFor(langs, forge.neo.NeoLanguage.current(), false));
 
@@ -1020,7 +1020,7 @@ public class SettingsPanel extends VBox {
         final Label note = new Label(NeoText.get("settings.nextGame"));
         note.getStyleClass().add("settings-note");
         note.setWrapText(true);
-        note.setMaxWidth(560);
+        note.setMaxWidth(UiScale.px(560));
         note.setMinHeight(Region.USE_PREF_SIZE);
         // -Dneo.settings.notes=true las nace visibles TODAS: es la unica
         // forma de capturar esta pantalla con sus notas puestas, porque de
@@ -1059,7 +1059,7 @@ public class SettingsPanel extends VBox {
     private static HBox row(final String caption, final Region control) {
         final Label label = new Label(caption);
         label.getStyleClass().add("settings-label");
-        label.setMinWidth(190);
+        label.setMinWidth(UiScale.px(190));
         final HBox box = new HBox(14, label, control);
         box.setAlignment(Pos.CENTER_LEFT);
         box.setPadding(new Insets(4, 0, 4, 0));
@@ -1102,12 +1102,12 @@ public class SettingsPanel extends VBox {
                                   final java.util.function.Function<Double, String> format) {
         final Slider slider = new Slider(min, max, clamp(value, min, max));
         slider.setBlockIncrement(step);
-        slider.setPrefWidth(240);
+        slider.setPrefWidth(UiScale.px(240));
         slider.getStyleClass().add("settings-slider");
 
         final Label readout = new Label(format.apply(slider.getValue()));
         readout.getStyleClass().add("settings-value");
-        readout.setMinWidth(52);
+        readout.setMinWidth(UiScale.px(52));
 
         slider.valueProperty().addListener((o, was, is) -> {
             final double v = Math.round(is.doubleValue() / step) * step;

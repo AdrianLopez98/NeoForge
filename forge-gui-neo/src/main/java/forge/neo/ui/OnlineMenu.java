@@ -91,13 +91,13 @@ public class OnlineMenu extends BorderPane {
         final Label desc = new Label(NeoText.get("lobby.host.desc"));
         desc.getStyleClass().add("mode-tile-desc");
         desc.setWrapText(true);
-        desc.setMaxWidth(300);
+        desc.setMaxWidth(UiScale.px(300));
         desc.setMinHeight(Region.USE_PREF_SIZE);
 
         final Label addr = new Label(NeoText.get("lobby.address", NeoOnline.shareAddress()));
         addr.getStyleClass().add("mode-tile-note");
         addr.setWrapText(true);
-        addr.setMaxWidth(300);
+        addr.setMaxWidth(UiScale.px(300));
         addr.setMinHeight(Region.USE_PREF_SIZE);
 
         final CheckBox upnp = new CheckBox(NeoText.get("lobby.upnp"));
@@ -105,12 +105,12 @@ public class OnlineMenu extends BorderPane {
         // por defecto de JavaFX no conoce nuestros colores.
         upnp.getStyleClass().add("neo-check");
         upnp.setWrapText(true);
-        upnp.setMaxWidth(300);
+        upnp.setMaxWidth(UiScale.px(300));
         upnp.setSelected(false);
         final Label upnpNote = new Label(NeoText.get("lobby.upnp.note"));
         upnpNote.getStyleClass().add("mode-tile-note");
         upnpNote.setWrapText(true);
-        upnpNote.setMaxWidth(300);
+        upnpNote.setMaxWidth(UiScale.px(300));
         upnpNote.setMinHeight(Region.USE_PREF_SIZE);
 
         // El cortafuegos de Windows pregunta la primera vez que se abre el
@@ -119,7 +119,7 @@ public class OnlineMenu extends BorderPane {
         final Label firewall = new Label(NeoText.get("lobby.firewall"));
         firewall.getStyleClass().add("mode-tile-note");
         firewall.setWrapText(true);
-        firewall.setMaxWidth(300);
+        firewall.setMaxWidth(UiScale.px(300));
         firewall.setMinHeight(Region.USE_PREF_SIZE);
 
         final Button go = new Button(NeoText.get("lobby.host"));
@@ -131,7 +131,7 @@ public class OnlineMenu extends BorderPane {
         box.getStyleClass().add("mode-tile");
         box.setAlignment(Pos.TOP_LEFT);
         box.setPadding(new Insets(20, 22, 18, 22));
-        box.setPrefWidth(340);
+        box.setPrefWidth(UiScale.px(340));
         box.setMaxHeight(Region.USE_PREF_SIZE);
         return box;
     }
@@ -144,7 +144,7 @@ public class OnlineMenu extends BorderPane {
         final Label desc = new Label(NeoText.get("lobby.join.desc"));
         desc.getStyleClass().add("mode-tile-desc");
         desc.setWrapText(true);
-        desc.setMaxWidth(300);
+        desc.setMaxWidth(UiScale.px(300));
         desc.setMinHeight(Region.USE_PREF_SIZE);
 
         final TextField field = new TextField();
@@ -170,7 +170,7 @@ public class OnlineMenu extends BorderPane {
         box.getStyleClass().add("mode-tile");
         box.setAlignment(Pos.TOP_LEFT);
         box.setPadding(new Insets(20, 22, 18, 22));
-        box.setPrefWidth(340);
+        box.setPrefWidth(UiScale.px(340));
         box.setMaxHeight(Region.USE_PREF_SIZE);
         return box;
     }

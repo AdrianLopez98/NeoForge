@@ -110,6 +110,17 @@ public class DeckBuilderScreen extends StackPane {
     private final Button generate = new Button(NeoText.get("deck.generate"));
     private final Button importer = new Button(NeoText.get("deck.import"));
 
+    /**
+     * Los dos botones de limitado: "Montar solo" y "Vaciar el mazo".
+     *
+     * <p>Salen de un informe de itch.io (23-09-2026): el draft y el sellado
+     * montaban el mazo solos y no habia forma de vaciarlo — habia que sacar
+     * las cartas una a una. Ahora el mazo sale vacio y montarlo solo es una
+     * opcion, no una imposicion. Solo existen donde el pool es la banda.
+     */
+    private final Button autoBuild = new Button(NeoText.get("deck.autoBuild"));
+    private final Button clearMain = new Button(NeoText.get("deck.clearMain"));
+
     /** Filtros de la barra: colores marcados y "solo lo que cabe". */
     private final List<Byte> colours = new ArrayList<>();
 
@@ -217,6 +228,11 @@ public class DeckBuilderScreen extends StackPane {
         this.onlyLegal = editor.onlyFitsByDefault();
 
         getStyleClass().addAll("table-root", "deck-builder");
+        // La base de letra del editor: 13 px, crecidos en 2K como el resto del
+        // texto (su CSS va en em sobre ella). Fija, el editor entero se leia
+        // diminuto en 2K (24-09-2026). Va en `layout` y no en la raiz porque
+        // NeoApp.applyScale reescribe el estilo de la raiz de la escena.
+        UiScale.fixedFont(layout, 13);
 
         editView = columns();
         layout.setTop(header());
@@ -314,8 +330,8 @@ public class DeckBuilderScreen extends StackPane {
         // El mazo tiene ancho fijo: es una lista de texto y no gana nada con mas
         // sitio, mientras que el catalogo siempre agradece una columna mas.
         right.prefWidthProperty().bind(widthProperty().multiply(.28).add(18));
-        right.setMinWidth(310);
-        right.setMaxWidth(430);
+        right.setMinWidth(UiScale.px(310));
+        right.setMaxWidth(UiScale.px(430));
         return row;
     }
 
@@ -347,7 +363,7 @@ public class DeckBuilderScreen extends StackPane {
         HBox.setHgrow(gap, Priority.ALWAYS);
         resultCount.getStyleClass().add("dialog-counter");
 
-        search.setMinWidth(130);
+        search.setMinWidth(UiScale.px(130));
         filterToggle.setId("builder-filters");
         filterToggle.getStyleClass().add("segment");
         filterToggle.setMinWidth(Region.USE_PREF_SIZE);
@@ -614,7 +630,7 @@ public class DeckBuilderScreen extends StackPane {
         details.setAnimated(false);
         details.getStyleClass().add("builder-statistics");
         final VBox box = new VBox(8, heading, commanderRow, scroll, curve, details);
-        scroll.setMinHeight(60);
+        scroll.setMinHeight(UiScale.px(60));
         box.setId("builder-deck-panel");
         box.getStyleClass().add("deck-panel");
         box.setPadding(new Insets(12, 14, 12, 14));
@@ -670,6 +686,16 @@ public class DeckBuilderScreen extends StackPane {
         export.getStyleClass().add("btn-secondary");
         export.setOnAction(e -> exportList());
 
+        final boolean limitedPool = editor.canAutoBuild();
+        autoBuild.getStyleClass().add("btn-secondary");
+        autoBuild.setOnAction(e -> autoBuildDeck());
+        autoBuild.setVisible(limitedPool);
+        autoBuild.setManaged(limitedPool);
+        clearMain.getStyleClass().add("btn-secondary");
+        clearMain.setOnAction(e -> clearMainDeck());
+        clearMain.setVisible(limitedPool);
+        clearMain.setManaged(limitedPool);
+
         cleanup.getStyleClass().add("btn-secondary");
         cleanup.setOnAction(e -> removeIllegal());
         cleanup.setVisible(false);
@@ -685,12 +711,13 @@ public class DeckBuilderScreen extends StackPane {
         // Ningun boton se encoge por debajo de su texto: cuando la fila no cabe,
         // JavaFX lo corta con puntos suspensivos y queda un pie ilegible.
         for (final Button b : new Button[] {back, cleanup, commander, spellButton, generate,
-                importer, export, save}) {
+                autoBuild, clearMain, importer, export, save}) {
             b.setMinWidth(Region.USE_PREF_SIZE);
         }
 
         final FlowPane actions =
-                new FlowPane(8, 8, cleanup, commander, spellButton, generate, importer, export);
+                new FlowPane(8, 8, cleanup, commander, spellButton, generate, autoBuild, clearMain,
+                        importer, export);
         actions.setAlignment(Pos.CENTER_RIGHT);
         actions.setMinWidth(0);
         HBox.setHgrow(actions, Priority.ALWAYS);
@@ -1160,6 +1187,7 @@ public class DeckBuilderScreen extends StackPane {
         }
         cleanup.setVisible(!illegal.isEmpty());
         cleanup.setManaged(!illegal.isEmpty());
+        clearMain.setDisable(main == 0);
 
         deckList.getChildren().clear();
         for (final Map.Entry<String, Integer> group : editor.typeCounts().entrySet()) {
@@ -1203,7 +1231,7 @@ public class DeckBuilderScreen extends StackPane {
     private Region deckRow(final PaperCard card, final int amount) {
         final Label qty = new Label(String.valueOf(amount));
         qty.getStyleClass().add("deck-row-qty");
-        qty.setMinWidth(22);
+        qty.setMinWidth(UiScale.px(22));
 
         final Label name = new Label(CardText.nameOf(card));
         name.getStyleClass().add("deck-row-name");
@@ -1238,8 +1266,8 @@ public class DeckBuilderScreen extends StackPane {
         final StackPane row = new StackPane(new DeckArtStrip(card), content);
         name.setMinWidth(0);
         name.setTooltip(new javafx.scene.control.Tooltip(CardText.nameOf(card)));
-        row.setMinHeight(44);
-        row.setPrefHeight(44);
+        row.setMinHeight(UiScale.px(44));
+        row.setPrefHeight(UiScale.px(44));
         row.getStyleClass().add("deck-row");
         row.setAlignment(Pos.CENTER_LEFT);
         row.setPadding(Insets.EMPTY);
@@ -1473,8 +1501,8 @@ public class DeckBuilderScreen extends StackPane {
             name.getStyleClass().add("builder-commander-name");
             final StackPane node = new StackPane(new DeckArtStrip(card), name);
             node.getStyleClass().add("builder-commander");
-            node.setMinHeight(58);
-            node.setPrefHeight(58);
+            node.setMinHeight(UiScale.px(58));
+            node.setPrefHeight(UiScale.px(58));
             node.setMaxWidth(Double.MAX_VALUE);
             HBox.setHgrow(node, Priority.ALWAYS);
             node.setOnMouseClicked(e -> {
@@ -1751,6 +1779,46 @@ public class DeckBuilderScreen extends StackPane {
             message(NeoText.get("deck.generate.failed.title"),
                     NeoText.get("deck.generate.failed.body"));
         }
+    }
+
+    /**
+     * "Montar solo": el motor monta 40 cartas con tu pool.
+     *
+     * <p>Sustituye el mazo, asi que con algo ya puesto pregunta (principio 6),
+     * igual que "Generar mazo".
+     */
+    private void autoBuildDeck() {
+        if (editor.mainCount() > 0) {
+            confirmYesNo(NeoText.get("deck.autoBuild.confirm.title"),
+                    NeoText.get("deck.autoBuild.confirm.body", editor.mainCount()),
+                    this::doAutoBuild);
+        } else {
+            doAutoBuild();
+        }
+    }
+
+    private void doAutoBuild() {
+        final int added = editor.autoBuildFromPool();
+        refreshDeck();
+        refreshCatalogue();
+        if (added < 0) {
+            message(NeoText.get("deck.generate.failed.title"),
+                    NeoText.get("deck.autoBuild.failed.body"));
+        }
+    }
+
+    /** "Vaciar el mazo": todo vuelve al pool, para empezar de cero. */
+    private void clearMainDeck() {
+        if (editor.mainCount() == 0) {
+            return;
+        }
+        confirmYesNo(NeoText.get("deck.clearMain.confirm.title"),
+                NeoText.get("deck.clearMain.confirm.body", editor.mainCount()),
+                () -> {
+                    editor.clearToPool();
+                    refreshDeck();
+                    refreshCatalogue();
+                });
     }
 
     /** Diálogo de sí/no genérico, para acciones que no se pueden deshacer. */
@@ -2093,8 +2161,8 @@ public class DeckBuilderScreen extends StackPane {
             return;
         }
         final javafx.scene.image.ImageView view = new javafx.scene.image.ImageView(image);
-        view.setFitWidth(20);
-        view.setFitHeight(28);
+        view.setFitWidth(UiScale.px(20));
+        view.setFitHeight(UiScale.px(28));
         view.setPreserveRatio(false);
         view.setSmooth(true);
         sleeveButton.setGraphic(view);
@@ -2114,13 +2182,13 @@ public class DeckBuilderScreen extends StackPane {
         final Label hint = new Label(NeoText.get("deck.sleeve.hint"));
         hint.getStyleClass().add("dialog-text");
         hint.setWrapText(true);
-        hint.setMaxWidth(560);
+        hint.setMaxWidth(UiScale.px(560));
         hint.setMinHeight(Region.USE_PREF_SIZE);
 
         final String current = editor.getSleeve();
         final FlowPane grid = new FlowPane(10, 10);
         grid.setAlignment(Pos.TOP_LEFT);
-        grid.setPrefWrapLength(560);
+        grid.setPrefWrapLength(UiScale.px(560));
         grid.getChildren().add(sleeveTile(null, NeoText.get("deck.sleeve.yours"), current));
         for (final forge.neo.look.LookItem item : forge.neo.look.NeoLook.sleeves()) {
             grid.getChildren().add(sleeveTile(item, null, current));
@@ -2130,7 +2198,7 @@ public class DeckBuilderScreen extends StackPane {
         scroll.getStyleClass().add("dialog-scroll");
         scroll.setFitToWidth(true);
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        scroll.setPrefViewportHeight(360);
+        scroll.setPrefViewportHeight(UiScale.px(360));
 
         final Button close = new Button(NeoText.get("common.back"));
         close.getStyleClass().add("btn-secondary");
@@ -2153,7 +2221,7 @@ public class DeckBuilderScreen extends StackPane {
                               final String current) {
         final StackPane face = new StackPane();
         face.getStyleClass().add("look-tile");
-        face.setPrefSize(72, 100);
+        face.setPrefSize(UiScale.px(72), UiScale.px(100));
         face.setMinSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
         face.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
         face.pseudoClassStateChanged(PICKED,
@@ -2162,8 +2230,8 @@ public class DeckBuilderScreen extends StackPane {
         final javafx.scene.image.Image image = item == null ? null : item.image();
         if (image != null) {
             final javafx.scene.image.ImageView view = new javafx.scene.image.ImageView(image);
-            view.setFitWidth(66);
-            view.setFitHeight(94);
+            view.setFitWidth(UiScale.px(66));
+            view.setFitHeight(UiScale.px(94));
             view.setPreserveRatio(false);
             view.setSmooth(true);
             face.getChildren().add(view);
@@ -2171,7 +2239,7 @@ public class DeckBuilderScreen extends StackPane {
             final Label label = new Label(caption == null ? "?" : caption);
             label.getStyleClass().add("home-subtitle");
             label.setWrapText(true);
-            label.setMaxWidth(62);
+            label.setMaxWidth(UiScale.px(62));
             label.setMinHeight(Region.USE_PREF_SIZE);
             label.setAlignment(Pos.CENTER);
             face.getChildren().add(label);
@@ -2197,7 +2265,7 @@ public class DeckBuilderScreen extends StackPane {
         final Label text = new Label(body);
         text.getStyleClass().add("dialog-text");
         text.setWrapText(true);
-        text.setMaxWidth(460);
+        text.setMaxWidth(UiScale.px(460));
         text.setMinHeight(Region.USE_PREF_SIZE);
 
         final Button ok = new Button(NeoText.get("banner.understood"));
@@ -2225,6 +2293,11 @@ public class DeckBuilderScreen extends StackPane {
         for (final javafx.scene.Node node : lookupAll(".deck-art-strip")) {
             if (node instanceof DeckArtStrip strip) strip.refresh();
         }
+    }
+
+    /** El editor de detras. Herramienta de prueba. */
+    public DeckEditor editorForTest() {
+        return editor;
     }
 
     /** Pulsa "Generar mazo" (para la captura de prueba). */

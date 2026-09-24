@@ -65,6 +65,50 @@ public final class AscentRun {
     }
 
     // ------------------------------------------------------------------
+    //  La run de las maquetas, que no se guarda
+    // ------------------------------------------------------------------
+
+    /**
+     * Encendido por {@link #demo}: a partir de ahi nada de Ascenso toca el
+     * disco. Es para todo el proceso y no se apaga: las maquetas son procesos
+     * de usar y tirar ({@code run.cmd ui --ascent-reward --snapshot=...}).
+     */
+    private static volatile boolean demoMode;
+    /** La run de la maqueta, que en modo demo hace de {@code neo.properties}. */
+    private static AscentRun demoRun;
+
+    /**
+     * La run de las maquetas ({@code --ascent-reward}, {@code --ascent-shop}...),
+     * <b>sin guardar nada</b>.
+     *
+     * <p>Antes montaban la suya con {@link #begin}, que escribe en
+     * {@code neo.properties} y deja un {@code .dck} en {@code decks/ascenso/}:
+     * el jugador abria Ascenso y se encontraba una run a medias que nunca
+     * empezo (24-09-2026, dos veces seguidas en una auditoria de capturas).
+     * Y con una run de verdad era peor: la maqueta le regalaba creditos, le
+     * quitaba vida y le cerraba un nodo, y eso SI se guardaba.
+     *
+     * <p>Ahora: si hay una run guardada se usa <b>una copia en memoria</b> (se
+     * ve lo mismo que antes y no se toca); si no, se monta una nueva en
+     * memoria. Desde aqui {@link #save} solo apunta la run en memoria,
+     * {@link #current} devuelve esa y el mazo vive en
+     * {@link AscentDecks#keepInMemory() memoria} — asi que da igual lo que
+     * se pulse despues en la maqueta, incluido empezar otra run.
+     */
+    public static synchronized AscentRun demo(final Mode mode, final int maxLife) {
+        final AscentRun saved = current();
+        demoMode = true;
+        AscentDecks.keepInMemory();
+        demoRun = saved != null ? saved : begin(mode, 0, maxLife, null);
+        return demoRun;
+    }
+
+    /** Si estamos en una maqueta: nada de Ascenso se guarda. */
+    public static boolean isDemo() {
+        return demoMode;
+    }
+
+    // ------------------------------------------------------------------
     //  Empezar, cargar, guardar, abandonar
     // ------------------------------------------------------------------
 
@@ -97,6 +141,9 @@ public final class AscentRun {
 
     /** La run en curso, o {@code null} si no hay ninguna. */
     public static AscentRun current() {
+        if (demoMode) {
+            return demoRun;
+        }
         if (!NeoSettings.getBool(ACTIVE, false)) {
             return null;
         }
@@ -124,6 +171,10 @@ public final class AscentRun {
 
     /** Vuelca la run a {@code neo.properties}. */
     public void save() {
+        if (demoMode) {
+            demoRun = this;
+            return;
+        }
         NeoSettings.setBool(ACTIVE, true);
         NeoSettings.set(PREFIX + "mode", mode.name());
         NeoSettings.set(PREFIX + "seed", String.valueOf(seed));
@@ -225,6 +276,10 @@ public final class AscentRun {
      */
     public void discard() {
         AscentDecks.remove(deckName);
+        if (demoMode) {
+            demoRun = null;
+            return;
+        }
         for (final String k : new String[]{"mode", "seed", "act", "life", "maxLife",
                 "credits", "ascension", "deck", "node", "cleared", "relics"}) {
             NeoSettings.set(PREFIX + k, null);

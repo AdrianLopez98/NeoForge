@@ -86,6 +86,8 @@ public class SealedScreen extends BorderPane {
         scroll.setFitToWidth(true);
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         VBox.setVgrow(scroll, Priority.ALWAYS);
+        // La pagina es lo que quepa, no 24 fijas: ver Pager.fitTo.
+        pager.fitTo(scroll, grid, UiScale.px(210), UiScale.px(50), 8);
 
         buildCounts();
 
@@ -216,13 +218,13 @@ public class SealedScreen extends BorderPane {
         final Label name = new Label(edition.getName());
         name.getStyleClass().add("duel-name");
         name.setWrapText(true);
-        name.setMaxWidth(190);
+        name.setMaxWidth(UiScale.px(190));
         name.setMinHeight(Region.USE_PREF_SIZE);
 
         final VBox box = new VBox(2, code, name);
         box.getStyleClass().add("set-tile");
         box.setPadding(new Insets(8, 10, 8, 10));
-        box.setPrefWidth(210);
+        box.setPrefWidth(UiScale.px(210));
         box.pseudoClassStateChanged(PICKED, edition.equals(chosen));
         box.setOnMouseClicked(e -> {
             if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY) {

@@ -63,6 +63,7 @@ public class BattlefieldPane extends Pane {
     private javafx.scene.control.Button scrollButton(String text, int direction) {
         var button = new javafx.scene.control.Button(text);
         button.getStyleClass().add("arena-scroll");
+        UiScale.fixedFont(button, 18);
         button.setAccessibleText(direction < 0 ? "Scroll left" : "Scroll right");
         button.setManaged(false);
         button.setVisible(false);
@@ -682,8 +683,9 @@ public class BattlefieldPane extends Pane {
         next.setVisible(scrollMax > .5);
         previous.setDisable(scrollX <= .5);
         next.setDisable(scrollX >= scrollMax - .5);
-        previous.resizeRelocate(2, 2, 24, 24);
-        next.resizeRelocate(Math.max(26, availW - 26), 2, 24, 24);
+        final double b = UiScale.px(24);
+        previous.resizeRelocate(2, 2, b, b);
+        next.resizeRelocate(Math.max(b + 2, availW - b - 2), 2, b, b);
         // El recorte se abre por debajo lo que asome lo enganchado. Se hace
         // aqui y no al recibir las cartas porque depende del tamano de carta,
         // que solo se sabe una vez repartido el ancho de la fila.

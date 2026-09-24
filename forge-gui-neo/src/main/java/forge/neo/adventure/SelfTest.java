@@ -59,7 +59,8 @@ final class SelfTest {
             NeoDuelBridge.log("autoprueba (" + mode + "): lanzando desde el hilo de libGDX");
             Gdx.app.postRunnable("editor".equals(mode) ? SelfTest::editor
                     : "starter".equals(mode) ? SelfTest::starter
-                    : "questlog".equals(mode) ? SelfTest::questLog : SelfTest::duel);
+                    : "questlog".equals(mode) ? SelfTest::questLog
+                    : "duels".equals(mode) ? () -> duels(1) : SelfTest::duel);
         }, "neo-adventure-selftest");
         t.setDaemon(true);
         t.start();
@@ -144,7 +145,38 @@ final class SelfTest {
         t.start();
     }
 
+    /**
+     * {@code -Dneo.adventure.selftest=duels} (+ {@code neo.adventure.duels=N}, 5
+     * de fabrica): N duelos seguidos, con la VRAM de JavaFX apuntada al empezar
+     * cada uno (la pone NeoDuelBridge) y al volver. Es la prueba de la pantalla
+     * en blanco del 23-09-2026, que salia "cada 3-5 duelos".
+     */
+    private static void duels(final int n) {
+        final int total = Integer.getInteger("neo.adventure.duels", 5);
+        duel(() -> {
+            NeoDuelBridge.log("autoprueba duels: " + n + " de " + total + " terminado | "
+                    + forge.neo.platform.PrismGuard.vram() + " | reparaciones "
+                    + forge.neo.platform.PrismGuard.repairs());
+            if (n < total) {
+                new Thread(() -> {
+                    try {
+                        Thread.sleep(3000);
+                    } catch (final InterruptedException e) {
+                        return;
+                    }
+                    Gdx.app.postRunnable(() -> duels(n + 1));
+                }, "neo-adventure-selftest-duels").start();
+            } else {
+                NeoDuelBridge.log("autoprueba duels: FIN");
+            }
+        });
+    }
+
     private static void duel() {
+        duel(null);
+    }
+
+    private static void duel(final Runnable after) {
         final EnumSet<GameType> variants = EnumSet.of(GameType.Adventure);
         final Deck mine = DeckgenUtil.getRandomColorDeck(false);
         final Deck theirs = DeckgenUtil.getRandomColorDeck(true);
@@ -177,6 +209,9 @@ final class SelfTest {
                     NeoDuelBridge.log("autoprueba: VUELTA AL ADVENTURE en el hilo "
                             + Thread.currentThread().getName() + ", GuiBase = "
                             + forge.gui.GuiBase.getInterface().getClass().getSimpleName());
+                    if (after != null) {
+                        after.run();
+                    }
                 });
     }
 

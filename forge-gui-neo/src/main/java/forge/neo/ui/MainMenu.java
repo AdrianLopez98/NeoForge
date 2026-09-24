@@ -97,14 +97,37 @@ public class MainMenu extends BorderPane {
         final javafx.scene.image.ImageView mark = forge.neo.NeoLogo.view(76);
         final HBox header = mark == null ? new HBox(words) : new HBox(16, mark, words);
         header.setAlignment(Pos.CENTER);
-        header.setPadding(new Insets(20, 20, 14, 20));
 
-        final VBox top = new VBox(0, languageBar(), header);
+        // Idioma, cabecera y Discord en UNA sola fila (24-09-2026, pedido en
+        // itch.io). La fila de botones de idioma ocupaba tres lineas encima de
+        // todo, y en 1080p la rejilla ya no entraba entera: se cortaba en la
+        // cuarta fila. Ahora el idioma es un desplegable — sigue en la primera
+        // pantalla y con la bandera y el nombre en su idioma, que es lo que lo
+        // hace encontrable para quien no entiende el que esta puesto.
+        //
+        // Tres columnas con el mismo ancho a los lados para que el logo quede
+        // centrado de verdad sobre la rejilla, sea cual sea lo que mide cada
+        // lado.
+        final javafx.scene.layout.GridPane top = new javafx.scene.layout.GridPane();
+        for (final double pct : new double[] {30, 40, 30}) {
+            final javafx.scene.layout.ColumnConstraints c =
+                    new javafx.scene.layout.ColumnConstraints();
+            c.setPercentWidth(pct);
+            top.getColumnConstraints().add(c);
+        }
+        final Region language = languagePicker();
+        final HBox discord = new HBox(discordButton());
+        discord.setAlignment(Pos.CENTER_RIGHT);
+        top.add(language, 0, 0);
+        top.add(header, 1, 0);
+        top.add(discord, 2, 0);
+        javafx.scene.layout.GridPane.setValignment(language, javafx.geometry.VPos.CENTER);
+        top.setPadding(new Insets(12, 30, 8, 30));
 
         final FlowPane modes = new FlowPane(16, 16);
         modes.setAlignment(Pos.CENTER);
         modes.setPadding(new Insets(10, 40, 10, 40));
-        modes.setPrefWrapLength(900);
+        modes.setPrefWrapLength(UiScale.px(900));
 
         // El tutorial, EL PRIMERO de todos y con la misma pinta que un modo.
         //
@@ -253,8 +276,9 @@ public class MainMenu extends BorderPane {
         // DEL MOTOR, y para reportarlo en Card-Forge hay que decir contra que
         // version pasa — el instalador oficial lo lleva en el nombre del
         // fichero y aqui no habia forma de saberlo. Se sella al compilar, asi
-        // que se actualiza solo con cada actualizar.bat. Ver NeoVersion.
-        final String engine = forge.neo.NeoVersion.engineLabel();
+        // que se actualiza solo con cada actualizar.bat. Delante va la nuestra
+        // (pedido el 24-09-2026), que sale del pom. Ver NeoVersion.
+        final String engine = forge.neo.NeoVersion.label();
         final Region gap = new Region();
         HBox.setHgrow(gap, Priority.ALWAYS);
         final HBox footer = new HBox(10);
@@ -265,77 +289,89 @@ public class MainMenu extends BorderPane {
                     new javafx.scene.control.TextField(engine);
             copiable.setEditable(false);
             copiable.getStyleClass().add("home-version");
+            // Medido con la letra por defecto, que es la de 1080p: en 2K la del
+            // campo es un tercio mas grande y la fecha salia cortada.
             copiable.setPrefWidth(new javafx.scene.text.Text(engine)
-                    .getLayoutBounds().getWidth() + 18);
+                    .getLayoutBounds().getWidth() * UiScale.growth() + UiScale.px(18));
             footer.getChildren().add(copiable);
         }
         footer.getChildren().addAll(gap, settings, quit);
         footer.getStyleClass().add("home-footer");
-        footer.setPadding(new Insets(16, 30, 22, 30));
+        footer.setPadding(new Insets(12, 30, 16, 30));
         footer.setAlignment(Pos.CENTER_RIGHT);
         setBottom(footer);
     }
 
     /**
-     * La fila de idiomas de la primera pantalla.
+     * El desplegable de idioma de la primera pantalla.
      *
      * <p>Cambiar de idioma pide reiniciar — los nombres de carta se precargan
-     * antes de leer las cartas, ver {@link forge.neo.NeoLanguage} — asi que en
-     * vez de un aviso que hay que entender, la casilla elegida se marca y lo
-     * dice con el icono. Es la unica pantalla donde el idioma se puede tocar
-     * ANTES de que importe.
+     * antes de leer las cartas, ver {@link forge.neo.NeoLanguage} — asi que al
+     * elegir otro, el boton pasa a ensenyarlo y debajo sale el aviso. Es la
+     * unica pantalla donde el idioma se puede tocar ANTES de que importe.
+     *
+     * <p>Fue una fila con los diez idiomas a la vista hasta el 24-09-2026: tres
+     * lineas de botones que casi nadie toca mas de una vez, y que dejaban la
+     * rejilla sin sitio en 1080p. El menu reusa el estilo del de click derecho
+     * ({@code card-menu}).
      */
-    private static Region languageBar() {
+    private static Region languagePicker() {
         final java.util.List<forge.neo.NeoLanguage.Option> langs =
                 forge.neo.NeoLanguage.available();
         final String current = forge.neo.NeoLanguage.current();
 
-        final Label globe = new Label(NeoText.get("menu.language"));
-        globe.getStyleClass().add("caption");
-
-        final javafx.scene.layout.FlowPane row = new javafx.scene.layout.FlowPane(4, 4);
-        row.setAlignment(Pos.CENTER_LEFT);
+        final Button button = new Button();
+        button.getStyleClass().add("segment");
+        button.setMinWidth(Region.USE_PREF_SIZE);
+        button.setGraphicTextGap(6);
+        button.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("menu.language")));
+        button.setAccessibleText(NeoText.get("menu.language"));
 
         final Label note = new Label();
         note.getStyleClass().add("home-subtitle");
+        note.setWrapText(true);
         note.setVisible(false);
         note.setManaged(false);
 
+        final javafx.scene.control.ContextMenu menu = new javafx.scene.control.ContextMenu();
+        menu.getStyleClass().add("card-menu");
+        final javafx.scene.control.ToggleGroup group = new javafx.scene.control.ToggleGroup();
         for (final forge.neo.NeoLanguage.Option option : langs) {
-            final Button b = new Button(option.getLabel());
-            b.getStyleClass().add("segment");
-            // La bandera AL LADO del nombre, no en vez de el. Sola no basta: a
-            // este tamanyo hay banderas que se parecen mucho, y el nombre
-            // escrito en su propio idioma sigue siendo lo que identifica de
-            // verdad. La bandera es lo que hace que la fila se recorra con la
-            // vista en vez de leyendola. Ver FlagIcon.
-            final javafx.scene.Node flag = FlagIcon.of(option.getId(), 12);
-            if (flag != null) {
-                b.setGraphic(flag);
-                b.setGraphicTextGap(6);
-            }
-            // Sin esto JavaFX los encoge por debajo de su texto en cuanto la
-            // fila va justa, y salen botones que ponen "..." y nada mas.
-            b.setMinWidth(Region.USE_PREF_SIZE);
-            b.pseudoClassStateChanged(SELECTED, option.getId().equals(current));
-            b.setOnAction(e -> {
+            final javafx.scene.control.RadioMenuItem item =
+                    new javafx.scene.control.RadioMenuItem(option.getLabel());
+            // La bandera AL LADO del nombre, no en vez de el: a este tamanyo hay
+            // banderas que se parecen mucho, y el nombre escrito en su propio
+            // idioma es lo que identifica de verdad. Ver FlagIcon.
+            item.setGraphic(FlagIcon.of(option.getId(), UiScale.px(12)));
+            item.setToggleGroup(group);
+            item.setSelected(option.getId().equals(current));
+            item.setOnAction(e -> {
                 forge.neo.NeoLanguage.set(option.getId());
-                for (final javafx.scene.Node n : row.getChildren()) {
-                    n.pseudoClassStateChanged(SELECTED, n == b);
-                }
+                showLanguage(button, option);
                 note.setText(NeoText.get("menu.language.restart", option.getLabel()));
                 note.setVisible(true);
                 note.setManaged(true);
             });
-            row.getChildren().add(b);
+            menu.getItems().add(item);
+            if (option.getId().equals(current)) {
+                showLanguage(button, option);
+            }
         }
+        if (button.getText() == null || button.getText().isEmpty()) {
+            button.setText(NeoText.get("menu.language"));
+        }
+        button.setOnAction(e -> menu.show(button, javafx.geometry.Side.BOTTOM, 0, 4));
 
-        final Region gap = new Region();
-        HBox.setHgrow(gap, Priority.ALWAYS);
-        final HBox bar = new HBox(12, globe, row, gap, note, discordButton());
-        bar.setAlignment(Pos.CENTER_LEFT);
-        bar.setPadding(new Insets(14, 30, 6, 30));
-        return bar;
+        final VBox box = new VBox(6, button, note);
+        box.setAlignment(Pos.CENTER_LEFT);
+        return box;
+    }
+
+    /** El boton del desplegable ensenya el idioma elegido y la flecha. */
+    private static void showLanguage(final Button button,
+                                     final forge.neo.NeoLanguage.Option option) {
+        button.setText(option.getLabel() + "  ▾");
+        button.setGraphic(FlagIcon.of(option.getId(), UiScale.px(12)));
     }
 
     /** La invitacion permanente al servidor de Discord de Neo Forge. */
@@ -382,9 +418,6 @@ public class MainMenu extends BorderPane {
         });
         return b;
     }
-
-    private static final javafx.css.PseudoClass SELECTED =
-            javafx.css.PseudoClass.getPseudoClass("selected");
 
     /**
      * La letra pequenya del tutorial.
@@ -452,18 +485,27 @@ public class MainMenu extends BorderPane {
     private static String sealedNote() {
         final forge.neo.draft.DraftRun run =
                 forge.neo.draft.DraftRun.current(forge.neo.draft.DraftRun.Kind.SEALED);
-        if (run == null) {
-            return NeoText.get("menu.sealed.none");
-        }
-        return NeoText.get("menu.draft.running", run.getWins(), run.getLosses());
+        return limitedNote(run, forge.neo.draft.DraftRun.Kind.SEALED, "menu.sealed.none");
     }
 
     private static String draftNote() {
-        final forge.neo.draft.DraftRun run = forge.neo.draft.DraftRun.current();
-        if (run == null) {
-            return NeoText.get("menu.draft.none");
+        return limitedNote(forge.neo.draft.DraftRun.current(),
+                forge.neo.draft.DraftRun.Kind.DRAFT, "menu.draft.none");
+    }
+
+    /**
+     * Como va el ultimo evento abierto; y si ese ya no esta (se borro), cuantos
+     * hay guardados. Decir "empieza uno nuevo" con otros guardados mandaria al
+     * jugador a buscar algo que el menu le dice que no existe.
+     */
+    private static String limitedNote(final forge.neo.draft.DraftRun current,
+                                      final forge.neo.draft.DraftRun.Kind kind,
+                                      final String noneKey) {
+        if (current != null) {
+            return NeoText.get("menu.draft.running", current.getWins(), current.getLosses());
         }
-        return NeoText.get("menu.draft.running", run.getWins(), run.getLosses());
+        final int saved = forge.neo.draft.DraftRun.saved(kind).size();
+        return saved == 0 ? NeoText.get(noneKey) : NeoText.get("menu.limited.saved", saved);
     }
 
     /** Si hay un torneo a medias o recien terminado, la casilla lo dice. */
@@ -515,13 +557,20 @@ public class MainMenu extends BorderPane {
 
         final Label note = new Label(footnote);
         note.getStyleClass().add("mode-tile-note");
+        // Con la letra mas grande, la nota larga del tutorial en aleman se
+        // cortaba con "..." en vez de bajar de linea.
+        note.setWrapText(true);
 
         final VBox box = new VBox(6, title, desc, note);
         box.getStyleClass().add("mode-tile");
         box.setAlignment(Pos.TOP_LEFT);
         box.setPadding(new Insets(18, 20, 16, 20));
-        box.setPrefWidth(270);
-        box.setMinHeight(140);
+        box.setPrefWidth(UiScale.px(270));
+        // 104 y no 140: el texto mas largo (Aventura, tres lineas y la nota)
+        // cabe de sobra, y con 140 las cuatro filas de casillas no entraban en
+        // una pantalla de 1080p (24-09-2026). Lo que importa es que todas midan
+        // lo mismo; si un idioma alarga una, esa crece sola.
+        box.setMinHeight(UiScale.px(104));
 
         if (enabled) {
             box.setOnMouseClicked(e -> action.run());

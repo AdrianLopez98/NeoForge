@@ -260,12 +260,13 @@ final class NeoWindow {
 
     /** Ancho de carta de la mesa, con la misma cuenta que NeoApp. */
     static double cardWidth() {
-        final double w = Screen.getPrimary().getVisualBounds().getWidth();
-        return Math.max(78, Math.min(150, (w - sideWidth() - 60) / 11));
+        final var bounds = Screen.getPrimary().getVisualBounds();
+        UiScale.setScreenHeight(bounds.getHeight());
+        return UiScale.cardWidth(bounds.getWidth(), bounds.getHeight());
     }
 
     static double sideWidth() {
-        return Math.max(240, Screen.getPrimary().getVisualBounds().getWidth() * 0.19);
+        return UiScale.sideWidth(Screen.getPrimary().getVisualBounds().getWidth());
     }
 
     private static void applyScale() {

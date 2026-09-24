@@ -64,6 +64,18 @@ public interface PackSource {
     /** De que son los sobres, para la cabecera. Puede ser null. */
     String productName();
 
+    /**
+     * Que picks quiere el jugador en el mazo principal, segun los va
+     * repartiendo durante el draft. El resto va al banquillo.
+     *
+     * <p>Lo pidio en itch.io quien juega limitado a diario (23-09-2026): Forge
+     * y Arena dejan montar el mazo MIENTRAS se draftea, para ver cuantos
+     * jugables llevas y donde estan los huecos. Por defecto no hace nada: el
+     * draft en red guarda su pool de otra forma.
+     */
+    default void planMain(final List<PaperCard> main) {
+    }
+
     // ------------------------------------------------------------------
     // Solo el draft en red contesta a esto
     // ------------------------------------------------------------------
