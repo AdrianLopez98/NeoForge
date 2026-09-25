@@ -305,8 +305,12 @@ public final class SafeActions {
                         highlights, autoPass);
             }
             // Antes del barrido y en este hilo: mayAutoPass solo lee el veredicto.
+            // Dos huecos del motor de la misma familia — evalua antes de que
+            // exista la eleccion de la que depende —: el mana de color elegido
+            // (HiddenMana) y los objetivos que se comparan con X (XTargets).
             hiddenMana = "true".equalsIgnoreCase(autoPass)
-                    && HiddenMana.evaluate(getPlayer()).holds();
+                    && (HiddenMana.evaluate(getPlayer()).holds()
+                        || XTargets.evaluate(getPlayer()).holds());
             try {
                 return super.chooseSpellAbilityToPlay();
             } catch (final RuntimeException e) {
@@ -315,7 +319,10 @@ public final class SafeActions {
             }
         }
 
-        /** Hay algo pagable con maná que el motor no cuenta (ver {@link HiddenMana}). */
+        /**
+         * Hay algo que hacer que el motor no ha visto: pagable con maná que no
+         * cuenta ({@link HiddenMana}) o con objetivo en X ({@link XTargets}).
+         */
         private volatile boolean hiddenMana;
 
         /**

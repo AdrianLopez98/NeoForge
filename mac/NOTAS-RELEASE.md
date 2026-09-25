@@ -1,15 +1,16 @@
-**NeoForge para macOS 3.7 (beta).** Desde esta version el numero es el mismo que en itch.io.
+**NeoForge para macOS 3.8 (beta).** El mismo numero que en itch.io.
 
-Novedades, casi todas pedidas en itch.io y Discord:
-- **Draft y sellado como en Forge:** el mazo ya no se monta solo — el pool llega entero y tu decides, con **«Montar solo»** y **«Vaciar el mazo»** en el editor.
-- **Montar el mazo mientras drafteas:** la tira de picks tiene mazo y banquillo (un clic cambia la carta de lado), se ordena por pick, color, coste o tipo, y enseña la curva.
-- **Lista de drafts y sellados guardados**, y tres formas de jugarlos: la tanda contra todos, una partida libre contra el rival que elijas o contra varios a la vez. «Dos derrotas y se borra» pasa a ser un **modo Arena** opcional.
-- **Ver el mazo:** la pila se abre al pasar el raton, y Cmd+rueda cambia el tamaño de las cartas.
-- **Pantallas grandes (2K/4K):** las medidas crecen con la pantalla y las rejillas llenan el hueco.
-- **Menu:** el idioma pasa a un desplegable, la letra de las casillas es mas grande y en el pie sale la version («Neo Forge 3.7 · Forge …»).
-- Arreglado: la **descarga de todo el arte** se quedaba en «1 min» al acabar, sin decir «Listo»; ahora lo dice, y las imagenes que Scryfall no tiene (Alchemy, caras traseras, variantes de mas) quedan apuntadas y no vuelven a contar como pendientes.
-- Arreglado: en la **Aventura**, la ventana podia quedarse en blanco tras varios duelos (fallo de JavaFX, ahora se recupera solo).
-- Arreglado: el ultimo pick del draft acababa siempre en el banquillo.
+Novedades, casi todas pedidas en itch.io, GitHub y Discord:
+- **Macros (REC):** ya graban los OK del stack, asi que un combo hecho solo de disparos se puede grabar y repetir.
+- **Control total y pasar turno:** los atajos vuelven a funcionar. Control total no hacia nada, y pasar turno te volvia a parar en cuanto podias responder.
+- **Arrollar como manda la regla:** no se puede pasar dano al jugador hasta que todos los bloqueadores tienen el letal.
+- **Reparto de dano:** botones − / + bajo cada criatura.
+- **Ordenar disparos o cartas:** cada una lleva su numero (1, 2, 3...), para ver el orden que estas poniendo.
+- **El monarca y la iniciativa** se ven en la barra de cada jugador, tambien en la del rival.
+- **Logros:** letra mas grande en toda la pantalla.
+- **Quest de Commander:** los rivales juegan mazos montados a partir de listas reales de Commander.
+- **Ascenso:** el comandante elegido se ve marcado, y un segundo clic lo suelta.
+- Arreglado: el juego **pasaba solo** teniendo una habilidad cuyo objetivo depende de X (Chthonian Nightmare y similares).
 
 Descarga el `.dmg` de tu Mac:
 

@@ -1342,6 +1342,9 @@ final class NeoAppDebug {
         theirs.add(forge.game.card.CounterEnumType.EXPERIENCE, 2);
         theirs.add(forge.game.card.CounterEnumType.RAD, 1);
         app.table.getOpponentBar().setCounters(theirs, 0, 10, "Paige", 2, null);
+        // El rival es el monarca: del rival no se veia (PlayerBar.setTitles).
+        app.table.getOpponentBar().setTitles(java.util.List.of(
+                forge.util.Localizer.getInstance().getMessage("lblTheMonarch")));
 
         // --- marcadores, resaltado y desplazamiento, sobre cartas reales ---
         final List<forge.neo.card.CardNode> field = app.table.selfFieldNodes();

@@ -250,6 +250,12 @@ public final class NeoMain {
                 banner("Auto-pass: el mana que el motor no cuenta");
                 forge.neo.match.DevotionCheck.run();
                 break;
+            case "xtargetcheck":
+                // Que el auto-pass no pase con Chthonian Nightmare: el motor
+                // cuenta sus objetivos con X = 0. Ver XTargets.
+                banner("Auto-pass: los objetivos que dependen de X");
+                forge.neo.match.XTargetCheck.run();
+                break;
             case "attackcheck":
                 // Que el piloto automatico no se quede dando OK para siempre a
                 // un ataque obligado (Juggernaut). Colgo questcheck 90 minutos
