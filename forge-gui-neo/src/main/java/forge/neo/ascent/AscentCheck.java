@@ -1822,7 +1822,7 @@ public final class AscentCheck {
      */
     private static void tierrasEnElPremio() {
         for (final AscentRun.Mode mode : AscentRun.Mode.values()) {
-            final AscentRun run = demoRun(mode);
+            final AscentRun run = demoRunSinCincoColores(mode);
             if (run == null) {
                 fail("tierras (" + mode + "): no se ha podido montar la run");
                 continue;
@@ -1871,8 +1871,9 @@ public final class AscentCheck {
                 // Lo que separa los dos modos: meter una basica de OTRO color.
                 final PaperCard ajena = offColourBasic(colores);
                 if (ajena == null) {
-                    fail("tierras (" + mode + "): el mazo ya juega los cinco colores,"
-                            + " asi que no se puede comprobar si ensancha");
+                    fail("tierras (" + mode + "): ni tras varios intentos sale un mazo"
+                            + " de menos de cinco colores, asi que no se puede comprobar"
+                            + " si ensancha");
                     continue;
                 }
                 AscentRewards.takeLands(run, ajena);
@@ -2037,6 +2038,39 @@ public final class AscentCheck {
             fail("monton (COMMANDER): " + copiasMal + " tierras no basicas entrarian con 2"
                     + " copias; el mazo seria ilegal y la run se perderia por eso");
         }
+    }
+
+    /**
+     * Como {@link #demoRun}, pero con un mazo que <b>no</b> juegue los cinco
+     * colores.
+     *
+     * <p>El mazo de salida sale al azar, y de vez en cuando cae uno de cinco
+     * colores (un comandante WUBRG, o un Estandar que los junta todos). Con
+     * ese mazo no hay basica "de otro color" que meter, y la mitad de
+     * {@link #tierrasEnElPremio} — si la tierra ensancha o no tus colores —
+     * no tiene nada que probar. Eso ponia la bateria en rojo por pura suerte
+     * (24-09-2026: 152 bien / 1 mal, y a la siguiente 153 / 0).
+     *
+     * <p>Asi que se vuelve a tirar, con otra run entera, hasta que salga uno
+     * con algun color libre. Si tras {@code INTENTOS} siguen saliendo todos
+     * de cinco, se devuelve el ultimo igualmente y la prueba falla con su
+     * mensaje: eso ya no es mala suerte, es que el generador se ha torcido.
+     */
+    private static AscentRun demoRunSinCincoColores(final AscentRun.Mode mode) {
+        final int intentos = 20;
+        AscentRun run = null;
+        for (int i = 0; i < intentos; i++) {
+            if (run != null) {
+                run.discard();
+            }
+            run = demoRun(mode);
+            if (run == null || offColourBasic(AscentRewards.colorsOf(run)) != null) {
+                return run;
+            }
+        }
+        System.out.println("  [aviso] tierras (" + mode + "): " + intentos
+                + " mazos seguidos de cinco colores");
+        return run;
     }
 
     /** Una basica de un color que el mazo NO juega, para la prueba de arriba. */

@@ -24,6 +24,7 @@ import forge.game.spellability.StackItemView;
 import forge.interfaces.IGameController;
 import forge.player.AutoYieldStore;
 import forge.gamemodes.match.YieldController;
+import forge.localinstance.properties.ForgePreferences.FPref;
 import forge.game.event.GameEvent;
 import forge.game.event.GameEventLandPlayed;
 import forge.game.event.GameEventSpellAbilityCast;
@@ -997,13 +998,31 @@ public class NeoMatchUI extends NetworkGuiGame {
         final String prompt = lastPrompt;
         final boolean passNow = !payingMana && !isSelecting() && getSelectionMax() <= 0
                 && prompt != null && isRoutinePriorityPrompt(prompt);
-        respondLater(() -> {
-            YieldController.endTurn(gc, me);
-            if (passNow) {
-                gc.selectButtonOk();
-            }
-        });
+        respondLater(() -> armPassTurn(gc, me, passNow));
         return true;
+    }
+
+    /**
+     * Lo que hace "pasar turno", sin las comprobaciones de la tecla (el
+     * comprobador lo llama sin ventana: {@code YieldCheck}).
+     *
+     * <p>El "hasta final de turno" se le pone al controlador <b>sentado</b>
+     * ({@link #seated}), no al de la interfaz. Hasta el 25-09-2026 se le ponia
+     * al de la interfaz, y ahi fallaban dos cosas a la vez: el motor no lo
+     * leia — quien decide si la prioridad se pasa sola es el sentado —, asi
+     * que con algo que hacer (un instantaneo, una habilidad) te volvia a parar
+     * a la primera; y como el motor lo cancela al final de cada turno
+     * ({@code PhaseHandler} → {@code autoPassCancel}) tambien sobre el sentado,
+     * en el de la interfaz la marca se quedaba puesta para siempre.
+     *
+     * <p>El OK si va al de la interfaz: es un click, y los clicks entran por
+     * ahi. Los dos comparten el {@code InputProxy}, asi que llega al mismo aviso.
+     */
+    void armPassTurn(final IGameController gc, final PlayerView me, final boolean passNow) {
+        YieldController.endTurn(seated(gc), me);
+        if (passNow) {
+            gc.selectButtonOk();
+        }
     }
 
     /**
@@ -1026,7 +1045,13 @@ public class NeoMatchUI extends NetworkGuiGame {
             return null;
         }
         final boolean willRecord = !gc.macros().isRecording();
-        respondLater(() -> gc.macros().setRememberedActions());
+        respondLater(() -> {
+            if (willRecord) {
+                holdAutoPassForMacro(gc);
+            }
+            gc.macros().setRememberedActions();
+            syncMacroAutoPass(gc);
+        });
         return willRecord;
     }
 
@@ -1039,7 +1064,11 @@ public class NeoMatchUI extends NetworkGuiGame {
         if (gc == null || gc.macros() == null) {
             return false;
         }
-        respondLater(() -> gc.macros().repeatRememberedActions());
+        respondLater(() -> {
+            holdAutoPassForMacro(gc);
+            gc.macros().repeatRememberedActions();
+            syncMacroAutoPass(gc);
+        });
         return true;
     }
 
@@ -1052,9 +1081,130 @@ public class NeoMatchUI extends NetworkGuiGame {
         if (gc == null || gc.macros() == null) {
             return false;
         }
-        respondLater(() -> gc.macros().nextRememberedAction());
+        respondLater(() -> {
+            holdAutoPassForMacro(gc);
+            gc.macros().nextRememberedAction();
+            syncMacroAutoPass(gc);
+        });
         return true;
     }
+
+    /**
+     * El pase automatico, apagado mientras se graba o se reproduce una macro.
+     *
+     * <p>Reportado el 25-09-2026: la macro no grababa las confirmaciones del
+     * stack, y en el Forge de escritorio si. No es cosa de la macro: el motor
+     * solo apunta un pase cuando se pulsa OK de verdad
+     * ({@code InputPassPriority.passPriority}), y con
+     * {@code YIELD_AUTO_PASS_NO_ACTIONS} encendido — que en NeoForge viene de
+     * fabrica y en Forge no — los disparos en los que no tienes nada que hacer
+     * se resuelven sin pregunta ({@code chooseSpellAbilityToPlay} devuelve null
+     * sin crear el input). Un combo hecho solo de disparos se quedaba con la
+     * macro vacia o con huecos, y la reproduccion se descuadraba.
+     *
+     * <p>Asi que mientras dura la macro se juega como en Forge: cada resolucion
+     * pide su OK y queda grabada. Y al reproducir tambien, o unos pases saldrian
+     * solos y los grabados caerian sobre el disparo que no es.
+     *
+     * <p>Es el override en memoria del {@code YieldController}, el mismo de
+     * {@link #toggleFullControl}: no escribe en {@code %APPDATA%\Forge}. Lo que
+     * habia se guarda en {@link #macroAutoPassSaved} y lo devuelve
+     * {@link #syncMacroAutoPass} cuando ya no se graba ni se reproduce.
+     */
+    void holdAutoPassForMacro(final IGameController ui) {
+        final IGameController gc = seated(ui);
+        final YieldController y = gc.getYieldController();
+        if (y == null || macroAutoPassSaved != null) {
+            return;
+        }
+        // Las dos sugerencias de "no puedes responder, ¿paso solo?" tambien
+        // fuera: con el pase apagado podrian salir, y su OK ACEPTA la
+        // sugerencia (InputPassPriority.onOk), no pasa — o sea que tampoco se
+        // graba. Vienen en NEVER de fabrica, pero %APPDATA%\Forge es compartido.
+        for (final FPref scope : MACRO_SCOPES) {
+            macroScopesSaved.put(scope, y.getStringPref(scope));
+            y.setPref(scope, "NEVER");
+        }
+        macroAutoPassSaved = y.getStringPref(FPref.YIELD_AUTO_PASS_NO_ACTIONS);
+        y.setPref(FPref.YIELD_AUTO_PASS_NO_ACTIONS, "false");
+        gc.setYieldPref(FPref.YIELD_AUTO_PASS_NO_ACTIONS, "false");
+    }
+
+    private static final FPref[] MACRO_SCOPES = {
+            FPref.YIELD_DECLINE_SCOPE_STACK_YIELD, FPref.YIELD_DECLINE_SCOPE_NO_ACTIONS};
+    private final java.util.Map<FPref, String> macroScopesSaved =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * Si ya no hay macro en marcha, devuelve el pase automatico como estaba.
+     *
+     * <p>Se mira al volver de cada orden de macro y en cada
+     * {@code updateButtons}: la reproduccion acaba sola, en el hilo de interfaz
+     * y sin avisar a nadie, pero al acabar llama a
+     * {@code InputQueue.updateObservers}, que vuelve a pintar el input — o sea
+     * que pasa por {@code updateButtons}. Hilo de interfaz siempre:
+     * {@code setYieldPref} puede pasar la prioridad que esta esperando, y eso es
+     * un click, no algo que se haga a mitad de montar un input.
+     */
+    void syncMacroAutoPass(final IGameController gc) {
+        if (gc == null || gc.macros() == null) {
+            return;
+        }
+        if (gc.macros().isRecording() || gc.macros().isReplaying()) {
+            // Y al reves: si algo lo devolvio antes de tiempo, se vuelve a apagar.
+            holdAutoPassForMacro(gc);
+            return;
+        }
+        final String saved = macroAutoPassSaved;
+        if (saved == null) {
+            return;
+        }
+        macroAutoPassSaved = null;
+        final IGameController engine = seated(gc);
+        final YieldController y = engine.getYieldController();
+        if (y == null) {
+            macroScopesSaved.clear();
+            return;
+        }
+        macroScopesSaved.forEach(y::setPref);
+        macroScopesSaved.clear();
+        y.setPref(FPref.YIELD_AUTO_PASS_NO_ACTIONS, saved);
+        // En local, con "true" pasa ya la prioridad que se quedo esperando;
+        // en red se lo cuenta al anfitrion.
+        engine.setYieldPref(FPref.YIELD_AUTO_PASS_NO_ACTIONS, saved);
+    }
+
+    /**
+     * El controlador al que le pregunta <b>el motor</b> por este asiento.
+     *
+     * <p>No es el que tiene la interfaz ({@code getGameController}): en
+     * {@code openView} se sienta un relevo ({@link ManaColor}) que comparte
+     * interfaz, {@code InputQueue} e {@code InputProxy}, pero tiene SU PROPIO
+     * {@code YieldController}. Y quien decide si la prioridad se pasa sola
+     * ({@code chooseSpellAbilityToPlay}) es el sentado, con el suyo. Lo que se
+     * le cambiara al de la interfaz — el pase automatico, "hasta final de
+     * turno" — no lo leia nadie. Visto el 25-09-2026 midiendo la macro: la
+     * interfaz decia pase apagado y el sentado lo tenia encendido.
+     *
+     * <p>Lo usan la macro, "control total" y "pasar turno": todo lo que toca
+     * el estado del pase. Los clics siguen yendo al de la interfaz, que es por
+     * donde entran todos en Forge.
+     * Sin relevo (un invitado de red, un observador) devuelve el mismo.
+     */
+    static IGameController seated(final IGameController gc) {
+        if (gc instanceof forge.player.PlayerControllerHuman human && human.getPlayer() != null
+                && human.getPlayer().getController() instanceof forge.player.PlayerControllerHuman sat
+                && sat.getInputQueue() == human.getInputQueue()) {
+            return sat;
+        }
+        return gc;
+    }
+
+    /**
+     * El pase automatico de antes de la macro, o null si no hay macro en marcha.
+     * Mientras no es null, lo que manda en el controlador es "false".
+     */
+    private volatile String macroAutoPassSaved;
 
     /** Si el motor esta grabando una macro ahora mismo. */
     public boolean isMacroRecording() {
@@ -1218,12 +1368,33 @@ public class NeoMatchUI extends NetworkGuiGame {
         if (!interactive() || finished.get()) {
             return null;
         }
-        final IGameController gc = getGameController();
+        return flipFullControl(getGameController());
+    }
+
+    /**
+     * Lo que hace "control total", sin las comprobaciones de la tecla (el
+     * comprobador lo llama sin ventana: {@code YieldCheck}).
+     *
+     * <p>Sobre el controlador <b>sentado</b> ({@link #seated}). Hasta el
+     * 25-09-2026 se cambiaba el pase en el de la interfaz, que el motor no
+     * consulta: la tecla decia "control total" y la prioridad se seguia
+     * pasando sola igual, porque el sentado seguia leyendo el pase de
+     * {@code FModel}, encendido.
+     */
+    Boolean flipFullControl(final IGameController ui) {
+        final IGameController gc = seated(ui);
         if (gc == null || gc.getYieldController() == null) {
             return null;
         }
-        final forge.localinstance.properties.ForgePreferences.FPref pref =
-                forge.localinstance.properties.ForgePreferences.FPref.YIELD_AUTO_PASS_NO_ACTIONS;
+        final FPref pref = FPref.YIELD_AUTO_PASS_NO_ACTIONS;
+        // Con una macro en marcha el pase esta apagado a proposito
+        // (holdAutoPassForMacro): se cambia el que se devolvera al acabar.
+        final String saved = macroAutoPassSaved;
+        if (saved != null) {
+            final boolean wasOn = Boolean.parseBoolean(saved);
+            macroAutoPassSaved = String.valueOf(!wasOn);
+            return wasOn;
+        }
         // Se pregunta al controlador y no a una marca nuestra: el pase puede
         // venir apagado desde Ajustes (NeoSettings.AUTO_PASS), y entonces el
         // primer toque tiene que ENCENDERLO, no volver a apagarlo.
@@ -2440,6 +2611,10 @@ public class NeoMatchUI extends NetworkGuiGame {
         // descartando y la segunda partida naceria muerta.
         finished.set(false);
         closeNotified.set(false);
+        // Una macro a medias de la partida anterior apago el pase en SU
+        // controlador; el de esta nace con el de siempre.
+        macroAutoPassSaved = null;
+        macroScopesSaved.clear();
         // "Otra partida" reusa este NeoMatchUI: una pregunta pendiente de la
         // anterior seria un dialogo fantasma sobre la mesa nueva.
         uiRunLater(() -> table.forgetEngineDialogs());
@@ -3417,6 +3592,11 @@ public class NeoMatchUI extends NetworkGuiGame {
         // Cancelar encendido, que es lo que para la reproduccion
         // (PlayerControllerHuman.selectButtonCancel).
         final IGameController macroGc = getGameController();
+        // La reproduccion acaba sola: al acabar, el pase automatico vuelve.
+        if (macroAutoPassSaved != null && macroGc != null && macroGc.macros() != null
+                && !macroGc.macros().isRecording() && !macroGc.macros().isReplaying()) {
+            respondLater(() -> syncMacroAutoPass(macroGc));
+        }
         if (!macroButtonsOverride && macroGc != null && macroGc.macros() != null
                 && macroGc.macros().isReplaying()) {
             macroButtonsOverride = true;
@@ -4458,6 +4638,18 @@ public class NeoMatchUI extends NetworkGuiGame {
                                   final int min, final int max,
                                   final FSerializableFunction<T, String> display,
                                   final List<TriggerSubject.Subject> about) {
+        return askChoice(title, options, min, max, display, about, false);
+    }
+
+    /**
+     * @param ordered la respuesta es una SECUENCIA (ordenar disparos, cartas al
+     *                fondo de la biblioteca): cada opcion marcada lleva su numero
+     */
+    private <T> List<T> askChoice(final String title, final List<T> options,
+                                  final int min, final int max,
+                                  final FSerializableFunction<T, String> display,
+                                  final List<TriggerSubject.Subject> about,
+                                  final boolean ordered) {
         if (options == null || options.isEmpty()) {
             return new ArrayList<>();
         }
@@ -4472,7 +4664,7 @@ public class NeoMatchUI extends NetworkGuiGame {
             final ChoiceDialog<T> dialog = new ChoiceDialog<>(
                     title, options, lo, hi,
                     display == null ? String::valueOf : display::apply,
-                    handCardWidth(), reply::accept);
+                    handCardWidth(), null, ordered, reply::accept);
             if (about != null && !about.isEmpty()) {
                 dialog.setContext(subjectRow(about));
             }
@@ -5297,7 +5489,8 @@ public class NeoMatchUI extends NetworkGuiGame {
         final String heading = top == null || top.isBlank() ? title
                 : (title == null || title.isBlank() ? top : title + " — " + top);
 
-        final List<T> picked = askChoice(heading, source, pickMin, Math.max(pickMin, pickMax), null);
+        final List<T> picked = askChoice(heading, source, pickMin, Math.max(pickMin, pickMax), null,
+                List.of(), true);
         final List<T> ordered = new ArrayList<>(already);
         if (picked != null) {
             ordered.addAll(picked);

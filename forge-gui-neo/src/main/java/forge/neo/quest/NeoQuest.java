@@ -760,11 +760,11 @@ public final class NeoQuest {
      * Contra que clase de rival estas jugando ahora.
      *
      * <p><b>Esto es lo que hace que la aventura sea una aventura.</b> El motor
-     * escala los rivales con tus VICTORIAS, no con el reloj: al empezar un
-     * Commander te toca la version floja del mazo generado, y segun ganas te va
-     * sustituyendo cartas por las de la version experta (30% en medio, 60% en
-     * dificil, el mazo entero en experto). En Estandar hace lo mismo eligiendo
-     * los duelos de la carpeta por dificultad.
+     * escala los rivales con tus VICTORIAS, no con el reloj. En Commander los
+     * mazos de cada nivel los monta {@link NeoCommanderDuels} (el reparto de
+     * Forge, 30% / 60% / entero de la version experta, nunca llegaba a usar esa
+     * version). En Estandar el motor elige los duelos de la carpeta por
+     * dificultad.
      *
      * <p>Los umbrales son del motor ({@code DifficultyPrefs.WINS_*AI}) y
      * dependen de la dificultad que elegiste. Aqui solo se LEEN, para poder
@@ -847,10 +847,22 @@ public final class NeoQuest {
         // son cuatro.
         final int stamp = wins() * 1000 + losses();
         if (currentDuels == null || duelsStamp != stamp) {
-            currentDuels = q.getDuelsManager().generateDuels();
+            currentDuels = generateDuels(q);
             duelsStamp = stamp;
         }
         return currentDuels == null ? new ArrayList<>() : new ArrayList<>(currentDuels);
+    }
+
+    /**
+     * Los duelos nuevos. En una Quest de Commander los monta
+     * {@link NeoCommanderDuels} y no el motor: el de Forge da mazos al azar en
+     * todos los niveles (ver alli por que).
+     */
+    public static List<QuestEventDuel> generateDuels(final QuestController q) {
+        if (q.getDuelsManager() instanceof forge.gamemodes.quest.QuestEventCommanderDuelManager cmd) {
+            return NeoCommanderDuels.generate(cmd);
+        }
+        return q.getDuelsManager().generateDuels();
     }
 
     /**

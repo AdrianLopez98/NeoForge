@@ -277,6 +277,13 @@ public final class NeoMain {
                 banner("Macros: grabar y repetir como el Forge de escritorio");
                 forge.neo.match.MacroCheck.run();
                 break;
+            case "yieldcheck":
+                // "Pasar turno" y "control total": que lleguen al controlador
+                // que consulta el motor (el relevo de ManaColor), no solo al
+                // de la interfaz. Ver YieldCheck.
+                banner("Pase automatico: pasar turno y control total");
+                forge.neo.match.YieldCheck.run();
+                break;
             case "manacheck":
                 // Que una tierra de dos colores pregunte cual da. La mesa que
                 // lo provoca (dos montanyas + una dual, y un coste de {R}{G})

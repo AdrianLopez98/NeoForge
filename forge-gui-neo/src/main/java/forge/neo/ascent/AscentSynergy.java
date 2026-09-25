@@ -119,6 +119,50 @@ public final class AscentSynergy {
     }
 
     /**
+     * Cada carta de la matriz con <b>cuantos mazos de Commander la llevan</b>,
+     * sumando los de todos los comandantes, de mas a menos.
+     *
+     * <p>Es la lista de <i>staples</i>: lo que la gente mete en su mazo sea cual
+     * sea el comandante (Sol Ring, Command Tower, Cultivate...). Sirve para
+     * rellenar un mazo con cartas que se juegan de verdad cuando el pozo de su
+     * comandante no llega, en vez de con cartas al azar del color. Filtrar por
+     * identidad de color es cosa de quien la usa.
+     *
+     * <p>Se calcula una vez y se queda: son unos cientos de miles de sumas.
+     * Vacia si la matriz no esta.
+     */
+    public static List<Map.Entry<PaperCard, Integer>> popularity() {
+        List<Map.Entry<PaperCard, Integer>> p = popularity;
+        if (p != null) {
+            return p;
+        }
+        final Map<String, List<Map.Entry<PaperCard, Integer>>> m = matrix();
+        if (m == null) {
+            return List.of();
+        }
+        synchronized (AscentSynergy.class) {
+            if (popularity != null) {
+                return popularity;
+            }
+            final Map<String, Map.Entry<PaperCard, Integer>> sum = new java.util.HashMap<>();
+            for (final List<Map.Entry<PaperCard, Integer>> pool : m.values()) {
+                for (final Map.Entry<PaperCard, Integer> e : pool) {
+                    sum.merge(e.getKey().getName(),
+                            new java.util.AbstractMap.SimpleImmutableEntry<>(e.getKey(), e.getValue()),
+                            (a, b) -> new java.util.AbstractMap.SimpleImmutableEntry<>(
+                                    a.getKey(), a.getValue() + b.getValue()));
+                }
+            }
+            final List<Map.Entry<PaperCard, Integer>> out = new ArrayList<>(sum.values());
+            out.sort((a, b) -> Integer.compare(b.getValue(), a.getValue()));
+            popularity = java.util.Collections.unmodifiableList(out);
+            return popularity;
+        }
+    }
+
+    private static volatile List<Map.Entry<PaperCard, Integer>> popularity;
+
+    /**
      * La matriz de Commander, cargada la primera vez que hace falta.
      *
      * <p>Sincronizado porque el premio se pide desde el hilo de interfaz y el
