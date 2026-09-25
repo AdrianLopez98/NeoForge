@@ -87,6 +87,16 @@ public final class DamageCheck {
                 "toque mortal + arrollar: con 1 en cada bloqueador, el resto al jugador",
                 "toque mortal + arrollar: el jugador seguia cerrado");
 
+        // Lo que usa NeoForge Android: waiting() y load().
+        r = DamageRules.combat(13, lethal, defender, true);
+        check(r.waiting(2) && !r.waiting(1),
+                "waiting(): el jugador espera a los bloqueadores; un bloqueador sin orden, no",
+                "waiting() no dice bien quien espera su turno");
+        r.load(new int[] {1, 6, 0});
+        check(!r.waiting(2) && r.add(2, 1),
+                "load(): con un reparto cargado a mano, el jugador ya acepta",
+                "load() no dejo el reparto como se cargo");
+
         check(!DamageRules.combat(2, lethal, defender, true).add(0, -1),
                 "no se puede bajar de 0",
                 "se pudo bajar de 0");
