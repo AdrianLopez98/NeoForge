@@ -34,6 +34,8 @@ public final class QuestCheck {
         boolean ok = true;
         ok &= checkOne(NeoQuest.Modalidad.COMMANDER);
         System.out.println();
+        ok &= checkCommanderRivals();
+        System.out.println();
         ok &= checkOne(NeoQuest.Modalidad.ESTANDAR);
         System.out.println();
         ok &= checkShop();
@@ -56,6 +58,126 @@ public final class QuestCheck {
         System.out.println(ok
                 ? "  OK - la aventura arranca, guarda, compra sobres y los rivales suben contigo"
                 : "  FALLO - revisa el bucle de la aventura");
+    }
+
+    /**
+     * Los mazos de los rivales de una Quest de Commander, nivel por nivel.
+     *
+     * <p>Existe por un informe de itch.io (24-09-2026): en el ultimo nivel los
+     * rivales seguian con artefactos de "paga 7 y roba una carta". Forge monta
+     * esos mazos al azar en todos los niveles; {@link NeoCommanderDuels} los
+     * monta con la matriz de mazos reales. Aqui se mira, para unos cuantos
+     * comandantes:
+     * <ul>
+     *   <li>que el mazo sea legal (100 cartas, el motor lo dice),</li>
+     *   <li>que casi todo salga de la matriz — si no, el montador ha rellenado
+     *       al azar, que es justo lo que se queria quitar,</li>
+     *   <li>y que facil y medio respeten su techo de rareza y de bracket.</li>
+     * </ul>
+     * Se ensenya al lado lo que daba Forge para el mismo comandante, para ver
+     * la diferencia en el registro.
+     */
+    private static boolean checkCommanderRivals() {
+        System.out.println("  --- Rivales de una Quest de Commander ---");
+        boolean ok = true;
+        final List<PaperCard> commanders = new java.util.ArrayList<>();
+        for (final String name : new String[] {
+                "Krenko, Mob Boss", "Meren of Clan Nel Toth", "Atraxa, Praetors' Voice"}) {
+            final PaperCard pc = FModel.getMagicDb().getCommonCards().getUniqueByName(name);
+            if (pc != null && forge.neo.ascent.AscentSynergy.knows(pc)) {
+                commanders.add(pc);
+            }
+        }
+        if (commanders.isEmpty()) {
+            System.out.println("  la matriz de sinergias no conoce a ninguno: FALLO");
+            return false;
+        }
+        final forge.gamemodes.quest.QuestEventDifficulty[] tiers =
+                forge.gamemodes.quest.QuestEventDifficulty.values();
+        for (final PaperCard cmd : commanders) {
+            final java.util.Set<String> matrix = new java.util.HashSet<>();
+            for (final java.util.Map.Entry<PaperCard, Integer> e
+                    : forge.neo.ascent.AscentSynergy.poolOf(cmd)) {
+                matrix.add(e.getKey().getName());
+            }
+            for (final java.util.Map.Entry<PaperCard, Integer> e
+                    : forge.neo.ascent.AscentSynergy.popularity()) {
+                matrix.add(e.getKey().getName());
+            }
+            System.out.printf(Locale.ROOT, "  %s%n", cmd.getName());
+
+            final Deck old = forge.deck.DeckgenUtil.generateRandomCommanderDeck(
+                    cmd, forge.deck.DeckFormat.Commander, true, false);
+            System.out.printf(Locale.ROOT, "    %-8s %s%n", "(Forge)", describe(old, matrix));
+
+            for (final forge.gamemodes.quest.QuestEventDifficulty tier : tiers) {
+                final long t0 = System.nanoTime();
+                final Deck d = NeoCommanderDuels.deckFor(cmd, tier);
+                final long ms = (System.nanoTime() - t0) / 1_000_000;
+                if (d == null) {
+                    System.out.printf(Locale.ROOT, "    %-8s sin mazo: FALLO%n", tier);
+                    ok = false;
+                    continue;
+                }
+                final String problem = forge.deck.DeckFormat.Commander.getDeckConformanceProblem(d);
+                final int bracket = forge.deck.CommanderBracketCalculator.getBracket(d);
+                final CardRarity cap = tier == forge.gamemodes.quest.QuestEventDifficulty.EASY
+                        ? CardRarity.Uncommon
+                        : tier == forge.gamemodes.quest.QuestEventDifficulty.MEDIUM
+                                ? CardRarity.Rare : CardRarity.MythicRare;
+                final int maxBracket = tier == forge.gamemodes.quest.QuestEventDifficulty.EASY
+                        || tier == forge.gamemodes.quest.QuestEventDifficulty.MEDIUM ? 2
+                        : tier == forge.gamemodes.quest.QuestEventDifficulty.HARD ? 3 : 5;
+                int overRarity = 0;
+                for (final PaperCard c : d.getMain().toFlatList()) {
+                    if (!c.getRules().getType().isBasicLand()
+                            && NeoCommanderDuels.lowestRarity(c).ordinal() > cap.ordinal()) {
+                        overRarity++;
+                    }
+                }
+                final double fromMatrix = matrixShare(d, matrix);
+                final boolean good = problem == null && bracket <= maxBracket
+                        && overRarity == 0 && fromMatrix >= 0.9;
+                System.out.printf(Locale.ROOT, "    %-8s %s, %d fuera de rareza, %d ms%s%n",
+                        tier, describe(d, matrix), overRarity, ms,
+                        good ? "" : "  <- FALLO" + (problem == null ? "" : " (" + problem + ")"));
+                ok &= good;
+            }
+        }
+        System.out.println(ok ? "  OK" : "  FALLO");
+        return ok;
+    }
+
+    /** Resumen de un mazo de Commander para el registro. */
+    private static String describe(final Deck d, final java.util.Set<String> matrix) {
+        int rares = 0;
+        int lands = 0;
+        for (final PaperCard c : d.getMain().toFlatList()) {
+            if (c.getRules().getType().isLand()) {
+                lands++;
+            } else if (NeoCommanderDuels.lowestRarity(c).ordinal() >= CardRarity.Rare.ordinal()) {
+                rares++;
+            }
+        }
+        return String.format(Locale.ROOT, "%d cartas, %d tierras, %d raras/miticas, bracket %d, %.0f%% de la matriz",
+                d.getMain().countAll(), lands, rares,
+                forge.deck.CommanderBracketCalculator.getBracket(d), 100 * matrixShare(d, matrix));
+    }
+
+    /** Que parte de lo que no es tierra basica sale de la matriz de sinergias. */
+    private static double matrixShare(final Deck d, final java.util.Set<String> matrix) {
+        int total = 0;
+        int in = 0;
+        for (final PaperCard c : d.getMain().toFlatList()) {
+            if (c.getRules().getType().isBasicLand()) {
+                continue;
+            }
+            total++;
+            if (matrix.contains(c.getName())) {
+                in++;
+            }
+        }
+        return total == 0 ? 0 : (double) in / total;
     }
 
     /**
@@ -1593,7 +1715,7 @@ public final class QuestCheck {
         ok &= mine != null && problem == null;
 
         // ---- LO IMPORTANTE: con que rival te encuentras al empezar ----
-        final List<QuestEventDuel> duels = NeoQuest.engine().getDuelsManager().generateDuels();
+        final List<QuestEventDuel> duels = NeoQuest.generateDuels(NeoQuest.engine());
         System.out.printf(Locale.ROOT, "  Con 0 victorias: rivales %s, %d duelos disponibles%n",
                 NeoQuest.tierLabel(), duels == null ? 0 : duels.size());
         for (final QuestEventDuel d : duels == null ? List.<QuestEventDuel>of() : duels) {

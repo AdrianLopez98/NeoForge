@@ -53,6 +53,8 @@ public class DamageDialog extends VBox {
     private final List<CardView> targets = new ArrayList<>();
     private final List<Integer> amounts = new ArrayList<>();
     private final List<Label> valueLabels = new ArrayList<>();
+    private final List<Button> minusButtons = new ArrayList<>();
+    private final List<Button> plusButtons = new ArrayList<>();
 
     private final int total;
     private final boolean overrideOrder;
@@ -188,10 +190,31 @@ public class DamageDialog extends VBox {
         value.getStyleClass().add("damage-value");
         valueLabels.add(value);
 
-        final VBox box = new VBox(6, face, value);
+        // − y + a los lados del numero (pedido en itch.io): el click derecho
+        // para quitar no se descubre, y sin el solo quedaba "Reiniciar" y
+        // volver a repartirlo todo por un click de mas.
+        final Button minus = stepButton("−", () -> add(index, -1));
+        final Button plus = stepButton("+", () -> add(index, 1));
+        minusButtons.add(minus);
+        plusButtons.add(plus);
+        final HBox stepper = new HBox(6, minus, value, plus);
+        stepper.setAlignment(Pos.CENTER);
+
+        // El click va en la carta, no en la caja entera: si no, pulsar un
+        // boton sumaria dos veces.
+        face.setOnMouseClicked(e -> add(index, e.getButton() == MouseButton.SECONDARY ? -1 : 1));
+
+        final VBox box = new VBox(6, face, stepper);
         box.setAlignment(Pos.CENTER);
-        box.setOnMouseClicked(e -> add(index, e.getButton() == MouseButton.SECONDARY ? -1 : 1));
         return box;
+    }
+
+    private static Button stepButton(final String text, final Runnable action) {
+        final Button b = new Button(text);
+        b.getStyleClass().add("damage-step");
+        b.setFocusTraversable(false);
+        b.setOnAction(e -> action.run());
+        return b;
     }
 
     private String defenderName() {
@@ -301,6 +324,12 @@ public class DamageDialog extends VBox {
             l.pseudoClassStateChanged(LETHAL, isLethal);
         }
         final int left = total - spent();
+        // Los botones dicen de antemano si el click va a hacer algo: las
+        // mismas tres condiciones que comprueba add().
+        for (int i = 0; i < targets.size(); i++) {
+            minusButtons.get(i).setDisable(amounts.get(i) <= 0);
+            plusButtons.get(i).setDisable(left <= 0 || (!overrideOrder && !canAssignTo(i)));
+        }
         remaining.setText(left == 0 ? NeoText.get("damage.done")
                 : NeoText.get("damage.left", left));
         accept.setDisable(left != 0);

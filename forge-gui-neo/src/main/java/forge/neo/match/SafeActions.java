@@ -12,6 +12,7 @@ import forge.game.player.Player;
 import forge.game.spellability.SpellAbility;
 import forge.gamemodes.match.DeclineScope;
 import forge.gamemodes.match.YieldController;
+import forge.interfaces.IMacroSystem;
 import forge.localinstance.properties.ForgePreferences.FPref;
 import forge.model.FModel;
 import forge.player.PlayerControllerHuman;
@@ -255,9 +256,33 @@ public final class SafeActions {
      */
     public static class Guarded extends PlayerControllerHuman {
 
+        /** El controlador al que se releva: el que tiene la interfaz en la mano. */
+        private final PlayerControllerHuman owner;
+
         public Guarded(final Player player, final LobbyPlayer lobby,
                        final PlayerControllerHuman owner) {
             super(player, lobby, owner);
+            this.owner = owner;
+        }
+
+        /**
+         * La macro es UNA, la del controlador relevado.
+         *
+         * <p>Reportado el 25-09-2026: la macro no grababa las confirmaciones del
+         * stack. El constructor de relevo comparte interfaz, {@code InputQueue}
+         * e {@code InputProxy}, pero NO la macro: cada {@code PlayerControllerHuman}
+         * crea la suya. Y cada lado graba en la suya — el click de la mesa
+         * entra por el relevado ({@code IGameController.selectCard}), y el OK de
+         * pasar, confirmar, adivinar, ordenar el stack o elegir color lo graba
+         * el input o la pregunta que crea <b>el motor</b>, o sea este. Asi que
+         * se pulsaba grabar en una macro y la mitad de lo que se hacia iba a
+         * otra que nadie estaba grabando, desde el dia en que se sento el
+         * relevo (29-08, {@link ManaColor}) — antes de que existieran las
+         * macros en NeoForge.
+         */
+        @Override
+        public IMacroSystem macros() {
+            return owner.macros();
         }
 
         /**

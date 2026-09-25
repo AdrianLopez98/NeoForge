@@ -88,12 +88,31 @@ public class ChoiceDialog<T> extends VBox {
                         final Function<T, String> display, final double cardWidth,
                         final List<T> preselected,
                         final Consumer<List<T>> onDone) {
+        this(title, options, min, max, display, cardWidth, preselected, false, onDone);
+    }
+
+    /**
+     * Con el ORDEN a la vista: cada opcion marcada lleva su numero (1, 2, 3...).
+     *
+     * <p>Para cuando lo que se contesta es una secuencia y no un conjunto:
+     * ordenar disparos simultaneos, cartas al fondo de la biblioteca. El
+     * dialogo ya devolvia las opciones en el orden en que se clicaban, pero no
+     * lo ensenyaba — reportado desde itch.io el 24-09-2026: <i>"doesn't show
+     * which one we choose to be first and so on"</i>. Con dos opciones
+     * marcadas se ven igual, y no hay forma de saber cual resuelve antes.
+     */
+    public ChoiceDialog(final String title, final List<T> options, final int min, final int max,
+                        final Function<T, String> display, final double cardWidth,
+                        final List<T> preselected, final boolean ordered,
+                        final Consumer<List<T>> onDone) {
         // min/max negativos significan "no hay nada que elegir, solo enseñar":
         // es lo que manda IGuiGame.reveal(). Sin esto sale un dialogo de
         // eleccion absurdo con el contador a "0 de 0".
         this.readOnly = min < 0 || max <= 0;
         this.min = readOnly ? 0 : min;
         this.max = readOnly ? 0 : Math.max(min, max);
+        // Con una sola que elegir no hay orden que ensenyar.
+        this.ordered = ordered && !readOnly && this.max > 1;
 
         getStyleClass().add("dialog");
         setSpacing(12);
@@ -122,11 +141,16 @@ public class ChoiceDialog<T> extends VBox {
                 }
                 node.setOpacity(0.95);
             }
-            items.getChildren().add(node);
+            items.getChildren().add(this.ordered ? withBadge(node) : node);
             nodesInOrder.add(node);
             optionsInOrder.add(option);
         }
 
+        if (this.ordered) {
+            // La pastilla sobresale de la esquina; sin este margen el visor
+            // la corta en la primera fila y en la primera columna.
+            items.setPadding(new Insets(8, 4, 4, 8));
+        }
         scroll = new ScrollPane(items);
         scroll.getStyleClass().add("dialog-scroll");
         scroll.setFitToWidth(true);
@@ -202,9 +226,9 @@ public class ChoiceDialog<T> extends VBox {
                         break;
                     }
                 }
-                if (idx >= 0 && items.getChildren().get(idx) instanceof Region node) {
+                if (idx >= 0) {
                     used.add(idx);
-                    toggle(option, node);
+                    toggle(option, nodesInOrder.get(idx));
                 }
             }
         }
@@ -366,11 +390,12 @@ public class ChoiceDialog<T> extends VBox {
             // sola columna un dialogo de seis opciones no cabe en la ventana.
             if (!anyCard) {
                 final double each = (wrap - 30) / 2;
-                for (final javafx.scene.Node n : items.getChildren()) {
-                    if (n instanceof Region r) {
-                        r.setMaxWidth(each);
-                        r.setPrefWidth(each);
-                    }
+                // nodesInOrder y no items: con el orden a la vista cada opcion
+                // va dentro de su envoltorio con la pastilla, y el ancho lo
+                // tiene que recibir el boton, no la caja.
+                for (final Region r : nodesInOrder) {
+                    r.setMaxWidth(each);
+                    r.setPrefWidth(each);
                 }
             }
             // Lo que va encima de las opciones sale de ese mismo alto: sin
@@ -408,7 +433,49 @@ public class ChoiceDialog<T> extends VBox {
         requestLayout();
     }
 
+    private final boolean ordered;
+    /** La pastilla de cada opcion, solo con {@link #ordered}. */
+    private final java.util.Map<Region, Label> badges = new java.util.HashMap<>();
+
+    /**
+     * La opcion dentro de una caja con su pastilla de orden en la esquina.
+     *
+     * <p>La pastilla no coge el raton: el click tiene que seguir llegando a la
+     * carta o al boton de debajo.
+     */
+    private Region withBadge(final Region node) {
+        final Label badge = new Label();
+        badge.getStyleClass().add("choice-order");
+        badge.setMouseTransparent(true);
+        badge.setVisible(false);
+        badges.put(node, badge);
+        final javafx.scene.layout.StackPane box = new javafx.scene.layout.StackPane(node, badge);
+        javafx.scene.layout.StackPane.setAlignment(badge, Pos.TOP_LEFT);
+        javafx.scene.layout.StackPane.setMargin(badge, new Insets(-6, 0, 0, -6));
+        return box;
+    }
+
+    /** Numera las marcadas en el orden en que se clicaron: el que se devuelve. */
+    private void renumber() {
+        if (!ordered) {
+            return;
+        }
+        for (final Label badge : badges.values()) {
+            badge.setVisible(false);
+        }
+        int i = 1;
+        for (final Region node : selected.keySet()) {
+            final Label badge = badges.get(node);
+            if (badge != null) {
+                badge.setText(String.valueOf(i));
+                badge.setVisible(true);
+            }
+            i++;
+        }
+    }
+
     private void updateState() {
+        renumber();
         if (readOnly) {
             accept.setDisable(false);
             accept.setText(NeoText.get("banner.understood"));

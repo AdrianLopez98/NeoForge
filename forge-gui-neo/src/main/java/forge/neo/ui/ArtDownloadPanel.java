@@ -147,14 +147,25 @@ public final class ArtDownloadPanel extends VBox {
                 // Lo primero: sin esto, lo recien bajado no se ve hasta
                 // reiniciar. Ver ArtDownload.afterDownload.
                 ArtDownload.afterDownload();
+                // Las que fallaron se comprueban con Scryfall antes de decir
+                // "Listo" (ArtUnavailable.record): decir "apuntadas" antes de
+                // apuntarlas es lo que hizo volver el informe de itch.io.
+                final java.util.concurrent.CompletableFuture<forge.neo.card.ArtUnavailable.Result> noting =
+                        skipped == 0 ? null : forge.neo.card.ArtUnavailable.last();
                 onUi(() -> {
                     bar.setProgress(1);
-                    status.setText(skipped == 0 ? NeoText.get("artdl.done")
-                            : NeoText.get("artdl.doneSkipped", group(skipped)));
+                    status.setText(noting == null ? NeoText.get("artdl.done")
+                            : NeoText.get("artdl.checking", group(skipped)));
                     startButton.setDisable(true);
                     stopButton.setVisible(false);
                     stopButton.setManaged(false);
                 });
+                if (noting != null) {
+                    noting.thenAccept(r -> onUi(() -> status.setText(
+                            r.unchecked > 0 ? NeoText.get("artdl.doneRetry", group(r.noted), group(r.unchecked))
+                                    : r.noted > 0 ? NeoText.get("artdl.doneSkipped", group(r.noted))
+                                    : NeoText.get("artdl.done"))));
+                }
             }
         });
     }

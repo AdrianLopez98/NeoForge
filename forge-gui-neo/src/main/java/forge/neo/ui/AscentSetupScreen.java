@@ -123,6 +123,13 @@ public class AscentSetupScreen extends StackPane {
         // 10.824 comandantes — o sea la mitad de esta pantalla.
         if ("commander".equalsIgnoreCase(System.getProperty("neo.ascent.setupMode", ""))) {
             mode = AscentRun.Mode.COMMANDER;
+            // -Dneo.ascent.setupCommander=N deja marcado el N-esimo de la
+            // lista, para poder capturar como se ve el elegido.
+            final int preset = Integer.getInteger("neo.ascent.setupCommander", -1);
+            final List<PaperCard> pool = AscentSeedDeck.commanderPool();
+            if (preset >= 0 && preset < pool.size()) {
+                commander = pool.get(preset);
+            }
         }
         rebuild();
 
@@ -239,7 +246,14 @@ public class AscentSetupScreen extends StackPane {
         grid.setAlignment(Pos.CENTER);
         refreshCommanders();
 
-        final VBox box = new VBox(10, tools, grid, pager());
+        // Lo que esta elegido, por escrito: el cerco no se ve si pasas de
+        // pagina o buscas otra cosa, y esto si.
+        final Label chosen = new Label(commander == null
+                ? NeoText.get("ascent.setup.chosenRandom")
+                : NeoText.get("ascent.setup.chosen", forge.neo.card.CardText.nameOf(commander)));
+        chosen.getStyleClass().add("ascent-info-title");
+
+        final VBox box = new VBox(10, tools, chosen, grid, pager());
         box.setAlignment(Pos.CENTER);
         return box;
     }
@@ -258,12 +272,19 @@ public class AscentSetupScreen extends StackPane {
             node.setRotationEnabled(false);
             node.setCard(CardView.getCardForUi(c));
             node.setCursor(javafx.scene.Cursor.HAND);
-            node.setOpacity(commander != null && commander.getName().equals(c.getName()) ? 1 : 0.82);
+            // El elegido se marca con el mismo cerco que una carta elegida en
+            // la mesa; y con uno elegido, los demas se apagan para que salte a
+            // la vista. Antes solo cambiaba la opacidad de 0,82 a 1 y clicar
+            // parecia no hacer nada (reportado jugando el 24-09-2026).
+            final boolean chosen = commander != null && commander.getName().equals(c.getName());
+            node.setHighlighted(chosen);
+            node.setOpacity(commander == null || chosen ? 1 : 0.55);
             node.setOnMouseClicked(e -> {
                 if (e.getButton() != javafx.scene.input.MouseButton.PRIMARY) {
                     return;
                 }
-                commander = c;
+                // Un segundo clic sobre el elegido lo suelta y vuelve al azar.
+                commander = chosen ? null : c;
                 rebuild();
             });
             grid.getChildren().add(node);

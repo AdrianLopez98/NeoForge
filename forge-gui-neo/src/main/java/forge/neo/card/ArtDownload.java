@@ -105,18 +105,12 @@ public final class ArtDownload extends GuiDownloadService {
         };
     }
 
-    /**
-     * Apunta las que no se bajaron, en un hilo aparte: {@code finish} llega en
-     * el hilo de interfaz y la primera tanda pueden ser 95.000 ficheros que
-     * mirar en el disco.
-     */
+    /** Ver {@link ArtUnavailable#recordLater}. */
     private static void recordLater(final Map<String, String> asked) {
         if (asked == null || asked.isEmpty()) {
             return;
         }
-        final Thread t = new Thread(() -> ArtUnavailable.record(asked), "neo-arte-no-disponibles");
-        t.setDaemon(true);
-        t.start();
+        ArtUnavailable.recordLater(asked);
     }
 
     private final Scope scope;

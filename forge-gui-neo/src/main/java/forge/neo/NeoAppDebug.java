@@ -722,6 +722,30 @@ final class NeoAppDebug {
     }
 
     /**
+     * Maqueta: ordenar disparos simultaneos, con el ORDEN a la vista.
+     *
+     * <p>Tres de cuatro ya marcados y a proposito <b>no</b> en el orden de la
+     * pantalla (3.o, 1.o, 4.o), para que se vea que el numero es el orden de
+     * los clics — el que se devuelve al motor — y no la posicion.
+     */
+    void mockOrder() {
+        final List<String> triggers = List.of(
+                "Landfall — Whenever a land you control enters, create a 1/1 green Insect "
+                        + "creature token. [Zone Changer: Hedge Maze (37)]",
+                "When Hedge Maze enters, surveil 1. [Zone Changer: Hedge Maze (37)]",
+                "Whenever a land enters under your control, you gain 1 life. [Zone Changer: Hedge Maze (37)]",
+                "Landfall — Target creature gets +2/+2 until end of turn. [Zone Changer: Hedge Maze (37)]");
+        app.table.getOverlay().show(new forge.neo.ui.ChoiceDialog<>(
+                "Select order for simultaneous abilities — Resolve first", triggers, 4, 4,
+                s -> s, app.table.zoomCardWidth() * 0.62,
+                List.of(triggers.get(2), triggers.get(0), triggers.get(3)), true,
+                picked -> {
+                    app.table.getOverlay().hide();
+                    System.out.println("[maqueta] orden elegido: " + picked);
+                }));
+    }
+
+    /**
      * Maqueta: el banquillo entre partida y partida de un Bo3 (draft/sellado
      * con banquillo — la auditoría del motor, apartado C5).
      *

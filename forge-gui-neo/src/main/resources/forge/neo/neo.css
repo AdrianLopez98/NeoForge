@@ -1214,6 +1214,25 @@
     -fx-effect: dropshadow(gaussian, -neo-accent, 12, 0.5, 0, 0);
 }
 
+/* El numero de orden de una opcion marcada (ordenar disparos, cartas al fondo
+   de la biblioteca). Circulo lleno de acento: se lee de un vistazo encima de una
+   carta o de un parrafo, que es donde va. */
+.choice-order {
+    -fx-background-color: -neo-accent;
+    -fx-background-radius: 999;
+    -fx-border-color: -neo-table;
+    -fx-border-radius: 999;
+    -fx-border-width: 2;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-font-size: 1.05em;
+    -fx-alignment: center;
+    -fx-min-width: 1.9em;
+    -fx-min-height: 1.9em;
+    -fx-padding: 0 4 0 4;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.6), 6, 0.3, 0, 1);
+}
+
 /* Retrato resaltado cuando hay que elegir jugador. */
 .player-bar:selectable {
     -fx-border-color: -neo-accent;
@@ -1359,6 +1378,30 @@
 .damage-value:lethal {
     -fx-text-fill: #0B0E13;
     -fx-background-color: -neo-danger;
+}
+
+/* − y + a los lados del dano asignado */
+.damage-step {
+    -fx-font-size: 1.15em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -neo-text;
+    -fx-background-color: -neo-panel-hi;
+    -fx-background-radius: 4;
+    -fx-border-color: -neo-line;
+    -fx-border-radius: 4;
+    -fx-padding: 0 0 1 0;
+    -fx-min-width: 1.8em;
+    -fx-pref-width: 1.8em;
+    -fx-cursor: hand;
+}
+
+.damage-step:hover {
+    -fx-border-color: -neo-accent;
+    -fx-text-fill: -neo-accent;
+}
+
+.damage-step:disabled {
+    -fx-opacity: 0.35;
 }
 
 .damage-defender {

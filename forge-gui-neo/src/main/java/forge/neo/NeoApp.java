@@ -416,7 +416,8 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 || args.contains("--mock-command") || optionOf(args, "--mock-command") != null
                 || args.contains("--mock-face") || optionOf(args, "--mock-face") != null
                 || args.contains("--mock-piles") || optionOf(args, "--mock-piles") != null
-                || args.contains("--mock-sideboard") || args.contains("--mock-relics")
+                || args.contains("--mock-sideboard") || args.contains("--mock-order")
+                || args.contains("--mock-relics")
                 || args.contains("--mock-boss-relics") || args.contains("--mock-multiboard")
                 || args.contains("--mock-foil") || optionOf(args, "--mock-foil") != null
                 || args.contains("--dialog-guard-test");
@@ -655,6 +656,9 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 }
                 if (args.contains("--dialog-guard-test")) {
                     debug.dialogGuardTest();
+                }
+                if (args.contains("--mock-order")) {
+                    debug.mockOrder();
                 }
                 if (args.contains("--mock-sideboard")) {
                     debug.mockSideboard();
