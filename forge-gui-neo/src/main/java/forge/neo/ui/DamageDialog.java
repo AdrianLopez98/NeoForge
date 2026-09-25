@@ -37,9 +37,8 @@ import javafx.scene.layout.VBox;
  *       que quieres el 95% de las veces: normalmente basta con Aceptar.</li>
  * </ul>
  *
- * <p>Regla que aplica: salvo que el motor diga {@code overrideOrder}, no se
- * puede repartir al segundo bloqueador hasta que el primero tenga dano letal.
- * Es la regla de Magic, y validarla aqui evita que el motor rechace el reparto.
+ * <p>Las reglas del reparto (orden, arrollar, que se borra al quitar) viven
+ * en {@link DamageRules}, sin pantalla, para poder comprobarlas sin ventana.
  *
  * <p><b>El estado va por indice, no por {@code CardView}.</b> La igualdad de las
  * vistas del motor es por id ({@code TrackableObject.hashCode} devuelve el id),
@@ -51,12 +50,12 @@ public class DamageDialog extends VBox {
 
     /** Los objetivos, en orden. Un {@code null} es el defensor (arrollar). */
     private final List<CardView> targets = new ArrayList<>();
-    private final List<Integer> amounts = new ArrayList<>();
+    /** Se crea cuando ya estan todos los objetivos: necesita su letal. */
+    private DamageRules rules;
     private final List<Label> valueLabels = new ArrayList<>();
     private final List<Button> minusButtons = new ArrayList<>();
     private final List<Button> plusButtons = new ArrayList<>();
 
-    private final int total;
     private final boolean overrideOrder;
     private final boolean deathtouch;
     private final boolean infect;
@@ -71,7 +70,6 @@ public class DamageDialog extends VBox {
                         final boolean maySkip, final boolean trample, final int poisonToLose,
                         final double cardWidth,
                         final Consumer<Map<CardView, Integer>> onDone) {
-        this.total = damage;
         this.overrideOrder = overrideOrder;
         this.defender = defender;
         this.poisonToLose = poisonToLose;
@@ -137,9 +135,7 @@ public class DamageDialog extends VBox {
         final Button reset = new Button(NeoText.get("damage.reset"));
         reset.getStyleClass().add("btn-secondary");
         reset.setOnAction(e -> {
-            for (int i = 0; i < amounts.size(); i++) {
-                amounts.set(i, 0);
-            }
+            rules.reset();
             update();
         });
 
@@ -159,6 +155,13 @@ public class DamageDialog extends VBox {
 
         getChildren().addAll(heading, help, board, footer);
 
+        final int[] lethal = new int[targets.size()];
+        final boolean[] isDefender = new boolean[targets.size()];
+        for (int i = 0; i < targets.size(); i++) {
+            lethal[i] = lethalFor(i);
+            isDefender[i] = targets.get(i) == null;
+        }
+        rules = DamageRules.combat(damage, lethal, isDefender, overrideOrder);
         autoAssign();
     }
 
@@ -166,7 +169,6 @@ public class DamageDialog extends VBox {
     private VBox addTarget(final CardView card, final double cardWidth) {
         final int index = targets.size();
         targets.add(card);
-        amounts.add(0);
 
         final Region face;
         if (card != null) {
@@ -229,40 +231,10 @@ public class DamageDialog extends VBox {
 
     // ---------------------------------------------------------------
 
-    private int spent() {
-        int n = 0;
-        for (final int v : amounts) {
-            n += v;
-        }
-        return n;
-    }
-
     private void add(final int index, final int delta) {
-        final int want = amounts.get(index) + delta;
-        if (want < 0) {
-            return;
+        if (rules.add(index, delta)) {
+            update();
         }
-        if (delta > 0 && spent() + delta > total) {
-            return;
-        }
-        if (delta > 0 && !overrideOrder && !canAssignTo(index)) {
-            return;
-        }
-        amounts.set(index, want);
-        update();
-    }
-
-    /**
-     * Solo se puede repartir a un objetivo si todos los anteriores de la fila
-     * ya tienen dano letal. Es la regla de ordenacion de bloqueadores de Magic.
-     */
-    private boolean canAssignTo(final int index) {
-        for (int i = 0; i < index; i++) {
-            if (amounts.get(i) < lethalFor(i)) {
-                return false;
-            }
-        }
-        return true;
     }
 
     /** Cuanto dano hace falta para matar al objetivo de esa posicion. */
@@ -292,27 +264,15 @@ public class DamageDialog extends VBox {
         }
     }
 
-    /** Reparto letal en orden: lo que quiere el jugador casi siempre. */
     private void autoAssign() {
-        int left = total;
-        for (int i = 0; i < targets.size(); i++) {
-            final int lethal = Math.max(0, Math.min(lethalFor(i), left));
-            amounts.set(i, lethal);
-            left -= lethal;
-        }
-        // Lo que sobre va al ultimo objetivo: en Magic el exceso hay que
-        // asignarlo igual, no se puede dejar dano sin repartir.
-        if (left > 0 && !targets.isEmpty()) {
-            final int last = targets.size() - 1;
-            amounts.set(last, amounts.get(last) + left);
-        }
+        rules.autoAssign();
         update();
     }
 
     private void update() {
         for (int i = 0; i < targets.size(); i++) {
-            final int v = amounts.get(i);
-            final int lethal = lethalFor(i);
+            final int v = rules.amount(i);
+            final int lethal = rules.lethal(i);
             final Label l = valueLabels.get(i);
             final StringBuilder sb = new StringBuilder(String.valueOf(v));
             final boolean isLethal = lethal > 0 && v >= lethal;
@@ -323,12 +283,12 @@ public class DamageDialog extends VBox {
             l.setText(sb.toString());
             l.pseudoClassStateChanged(LETHAL, isLethal);
         }
-        final int left = total - spent();
-        // Los botones dicen de antemano si el click va a hacer algo: las
-        // mismas tres condiciones que comprueba add().
+        final int left = rules.left();
+        // Los botones dicen de antemano si el click va a hacer algo: lo mismo
+        // que comprueba DamageRules.add().
         for (int i = 0; i < targets.size(); i++) {
-            minusButtons.get(i).setDisable(amounts.get(i) <= 0);
-            plusButtons.get(i).setDisable(left <= 0 || (!overrideOrder && !canAssignTo(i)));
+            minusButtons.get(i).setDisable(rules.amount(i) <= 0);
+            plusButtons.get(i).setDisable(!rules.canAdd(i));
         }
         remaining.setText(left == 0 ? NeoText.get("damage.done")
                 : NeoText.get("damage.left", left));
@@ -344,7 +304,7 @@ public class DamageDialog extends VBox {
     private Map<CardView, Integer> result() {
         final Map<CardView, Integer> out = new HashMap<>();
         for (int i = 0; i < targets.size(); i++) {
-            out.put(targets.get(i), amounts.get(i));
+            out.put(targets.get(i), rules.amount(i));
         }
         return out;
     }

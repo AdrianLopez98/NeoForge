@@ -80,6 +80,14 @@ public final class NeoMain {
             return;
         }
 
+        // Las reglas del reparto de dano de combate (arrollar, orden): Java
+        // puro, sin motor ni ventana. Ver forge.neo.ui.DamageCheck.
+        if ("damagecheck".equals(cmd)) {
+            banner("Reparto de dano: arrollar y orden de bloqueadores");
+            forge.neo.ui.DamageCheck.run();
+            return;
+        }
+
         // El reescalado de las cartas: Java puro, sin ventana. Ver ImageScaleCheck.
         if ("imagecheck".equals(cmd)) {
             banner("Cartas nitidas: el reescalado Lanczos");
