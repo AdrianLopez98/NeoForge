@@ -1,16 +1,9 @@
-**NeoForge para macOS 3.8 (beta).** El mismo numero que en itch.io.
+**NeoForge para macOS 3.9 (beta).** El mismo numero que en itch.io.
 
-Novedades, casi todas pedidas en itch.io, GitHub y Discord:
-- **Macros (REC):** ya graban los OK del stack, asi que un combo hecho solo de disparos se puede grabar y repetir.
-- **Control total y pasar turno:** los atajos vuelven a funcionar. Control total no hacia nada, y pasar turno te volvia a parar en cuanto podias responder.
-- **Arrollar como manda la regla:** no se puede pasar dano al jugador hasta que todos los bloqueadores tienen el letal.
-- **Reparto de dano:** botones − / + bajo cada criatura.
-- **Ordenar disparos o cartas:** cada una lleva su numero (1, 2, 3...), para ver el orden que estas poniendo.
-- **El monarca y la iniciativa** se ven en la barra de cada jugador, tambien en la del rival.
-- **Logros:** letra mas grande en toda la pantalla.
-- **Quest de Commander:** los rivales juegan mazos montados a partir de listas reales de Commander.
-- **Ascenso:** el comandante elegido se ve marcado, y un segundo clic lo suelta.
-- Arreglado: el juego **pasaba solo** teniendo una habilidad cuyo objetivo depende de X (Chthonian Nightmare y similares).
+Novedades:
+- **Quest de Commander: empieza eligiendo solo el comandante.** Al lado de los preconstruidos hay una pestana nueva, *Elegir comandante* (o que lo elija el juego), y se te monta un mazo **flojo a proposito** alrededor de el: casi todo comunes, como mucho 12 infrecuentes y 3 raras, ninguna mitica. Pega con el comandante, pero hay que mejorarlo con lo que ganes.
+- **Quest de Commander: ya no se ofrece el mundo.** En Commander el mundo no cambiaba los rivales (Forge los saca de todos los comandantes), solo la tienda, y ofrecerlo hacia creer otra cosa.
+- **Nueva Quest:** las rejillas de preconstruidos y de comandantes ensenan filas enteras, sin la segunda cortada por la mitad.
 
 Descarga el `.dmg` de tu Mac:
 
