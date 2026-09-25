@@ -668,6 +668,9 @@ public class TableBinder {
         // el motor solo la publica como una carta dentro de su zona de mando.
         bar.setCounters(countersOf(p), shardsOf(p), poisonToLose(gv), controllerOf(p),
                 forge.neo.match.PlayerSpeed.of(p), forge.neo.match.PlayerSpeed.rawText(p));
+        // Y si es el monarca o tiene la iniciativa: del rival no se veia (ver
+        // PlayerBar.setTitles).
+        bar.setTitles(PlayerTitles.of(p));
 
         // Las reliquias de Ascenso del RIVAL, en su barra.
         //

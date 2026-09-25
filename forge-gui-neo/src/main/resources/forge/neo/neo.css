@@ -2818,6 +2818,14 @@
     -fx-text-fill: #A9CDEE;
 }
 
+/* Monarca, iniciativa: lo que un jugador "tiene" de la mesa. Dorado, que es
+   lo que se busca con la vista cuando se pregunta "quien es el monarca". */
+.player-counter-title {
+    -fx-background-color: #D9B44A;
+    -fx-border-color: #D9B44A;
+    -fx-text-fill: #10141A;
+}
+
 .player-counter-control {
     -fx-background-color: -neo-warn;
     -fx-border-color: -neo-warn;

@@ -684,6 +684,36 @@ public class PlayerBar extends HBox {
         playerCounters.setManaged(any);
     }
 
+    /**
+     * Lo que este jugador <b>tiene</b> de la mesa: ser el monarca, tener la
+     * iniciativa. Van las primeras de la fila de pastillas.
+     *
+     * <p>El motor los publica como una carta de efecto en SU zona de mando
+     * ("The Monarch", "The Initiative"), y del rival la zona de mando es solo
+     * un contador: si el monarca era el rival, no habia forma de saberlo sin
+     * abrirsela. Reportado jugando el 25-09-2026. Es lo mismo que le pasaba a
+     * la velocidad ({@link #addSpeedPill}).
+     *
+     * <p>Se puede llamar antes o despues de {@link #setCounters}: quita las
+     * suyas y las vuelve a poner delante.
+     *
+     * @param titles los textos ya traducidos; vacia si no tiene nada
+     */
+    public void setTitles(final java.util.List<String> titles) {
+        playerCounters.getChildren().removeIf(n -> n.getStyleClass().contains("player-counter-title"));
+        if (titles != null) {
+            int at = 0;
+            for (final String t : titles) {
+                final Label pill = new Label(t);
+                pill.getStyleClass().addAll("player-counter", "player-counter-title");
+                playerCounters.getChildren().add(at++, pill);
+            }
+        }
+        final boolean any = !playerCounters.getChildren().isEmpty();
+        playerCounters.setVisible(any);
+        playerCounters.setManaged(any);
+    }
+
     private static final javafx.css.PseudoClass COUNTER_LETHAL =
             javafx.css.PseudoClass.getPseudoClass("lethal");
 
