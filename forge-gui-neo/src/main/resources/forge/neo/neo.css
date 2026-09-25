@@ -2340,6 +2340,21 @@
 .achv-tier.achv-tier-mythic   { -fx-background-color: #E06A2C; }
 .achv-tier.achv-tier-special  { -fx-background-color: -neo-accent; }
 
+/* Letra mas grande en toda la pantalla (pedido en GitHub el 25-09-2026: "a
+   lot of space actually overall, the default font size is quite small").
+   Con dos clases para ganar a las compartidas SOLO aqui: .segment, .caption y
+   .home-subtitle salen en muchas pantallas mas — y las fichas .achv-* las
+   reutiliza tambien NetDecksScreen. */
+.achievements .achv-name     { -fx-font-size: 1.3em; }
+.achievements .achv-desc     { -fx-font-size: 1.1em; }
+.achievements .achv-progress { -fx-font-size: 1.0em; }
+.achievements .achv-tier     { -fx-font-size: 0.9em; }
+.achievements .achv-tabs .segment { -fx-font-size: 1.0em; -fx-padding: 7 16 7 16; }
+.achievements .caption      { -fx-font-size: 0.9em; }
+.achievements .home-subtitle { -fx-font-size: 1.02em; }
+.achievements .neo-check    { -fx-font-size: 1.0em; }
+.achievements .text-input   { -fx-font-size: 1.0em; }
+
 /* Casilla de filtro generica (la del panel de la tienda es la misma idea). */
 .neo-check {
     -fx-text-fill: -neo-text;

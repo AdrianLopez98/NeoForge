@@ -84,7 +84,9 @@ public class AchievementsScreen extends BorderPane {
     public AchievementsScreen(final double cardWidth, final Runnable onBack) {
         this.cardWidth = cardWidth;
         this.groups = NeoAchievements.all();
-        getStyleClass().addAll("table-root", "home");
+        // "achievements" solo sirve para la letra mas grande de esta pantalla
+        // (neo.css, seccion de Logros), sin tocar las clases compartidas.
+        getStyleClass().addAll("table-root", "home", "achievements");
 
         pager = new Pager(PAGE, this::paint);
 
@@ -177,6 +179,7 @@ public class AchievementsScreen extends BorderPane {
         tools.setAlignment(Pos.CENTER_LEFT);
 
         tabs.setAlignment(Pos.CENTER_LEFT);
+        tabs.getStyleClass().add("achv-tabs");
         tabs.setMinHeight(Region.USE_PREF_SIZE);
 
         grid.setAlignment(Pos.TOP_LEFT);
