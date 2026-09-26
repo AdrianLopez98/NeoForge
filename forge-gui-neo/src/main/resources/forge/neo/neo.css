@@ -468,6 +468,17 @@
     -fx-padding: 1 8 1 8;
 }
 
+/* Lo que da el motor APARTE del sobre en el botin de la Quest (la rara al
+   azar...): ambar, para que no se lea como una carta mas del sobre. */
+.bonus-badge {
+    -fx-font-size: 0.72em;
+    -fx-font-weight: bold;
+    -fx-text-fill: #0B0E13;
+    -fx-background-color: -neo-warn;
+    -fx-background-radius: 8;
+    -fx-padding: 1 8 1 8;
+}
+
 /* ---------- draft ---------- */
 
 /* El marcador del evento: un punto por rival, dos huecos de derrota.
@@ -1072,6 +1083,65 @@
 /* Punto ambar en el que tiene el turno. */
 .opponent-tab:active {
     -fx-text-fill: -neo-warn;
+}
+
+/* Partida por equipos (NeoTeams): el de tu lado, en verde "permitido".
+   Va despues de :active a proposito: que sea su turno ya lo dice la barra,
+   y lo que la pestanya tiene que decir antes de clicarla es de que lado es. */
+.opponent-tab:ally {
+    -fx-text-fill: -neo-valid;
+}
+.opponent-tab:ally:selected {
+    -fx-border-color: transparent transparent -neo-valid transparent;
+}
+
+/* "ALIADO" junto al nombre, como la pastilla de TURNO pero en verde. */
+.ally-mark {
+    -fx-font-size: 0.692em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -neo-table-deep;
+    -fx-background-color: -neo-valid;
+    -fx-background-radius: 3;
+    -fx-padding: 1 6 1 6;
+}
+
+/* El desplegable "Equipo" de cada asiento en la pantalla de inicio, como el
+   de Forge. Con la piel de .segment: el ComboBox de fabrica de JavaFX es gris
+   claro y en la mesa oscura parece otra aplicacion. */
+.team-combo {
+    -fx-background-color: -neo-panel;
+    -fx-background-radius: 5;
+    -fx-border-color: -neo-line;
+    -fx-border-radius: 5;
+    -fx-border-width: 1;
+    -fx-font-size: 0.88em;
+    -fx-cursor: hand;
+}
+.team-combo:hover {
+    -fx-border-color: -neo-text-dim;
+}
+.team-combo > .list-cell {
+    -fx-text-fill: -neo-text;
+    -fx-padding: 4 4 4 10;
+}
+.team-combo > .arrow-button {
+    -fx-background-color: transparent;
+}
+.team-combo > .arrow-button > .arrow {
+    -fx-background-color: -neo-text-dim;
+}
+.team-combo .list-view {
+    -fx-background-color: -neo-panel;
+    -fx-border-color: -neo-line;
+}
+.team-combo .list-view .list-cell {
+    -fx-background-color: -neo-panel;
+    -fx-text-fill: -neo-text;
+}
+.team-combo .list-view .list-cell:hover,
+.team-combo .list-view .list-cell:selected {
+    -fx-background-color: -neo-accent;
+    -fx-text-fill: #0B0E13;
 }
 
 /* =====================================================================

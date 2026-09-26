@@ -50,6 +50,19 @@ public final class NeoQuestRewards implements IWinLoseView<IButton> {
      * que se calcula al final contra la foto de antes.
      */
     private final Set<String> fresh = new HashSet<>();
+
+    /**
+     * Las cartas que da el MOTOR aparte del sobre: la rara al azar (50% de las
+     * victorias), el bote de cada 80, la de la racha. Salen de cualquier
+     * expansion, asi que mezcladas con las del sobre de premio parecia que el
+     * sobre traia una carta de otra coleccion (reportado el 25-09-2026: una
+     * rara de Jumpstart "dentro" de un sobre de las Tortugas Ninja).
+     *
+     * <p>Por IDENTIDAD, no por nombre: la misma carta puede llegar por las dos
+     * vias y solo una de las dos copias es premio aparte.
+     */
+    private final Set<PaperCard> bonus =
+            java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
     private boolean won;
 
     private NeoQuestRewards() {
@@ -162,6 +175,11 @@ public final class NeoQuestRewards implements IWinLoseView<IButton> {
         return card != null && fresh.contains(NeoQuestShop.key(card));
     }
 
+    /** true si esa carta la ha dado el motor aparte del sobre (ver {@code bonus}). */
+    public boolean isBonus(final PaperCard card) {
+        return card != null && bonus.contains(card);
+    }
+
     /** Cuantas cartas no tenias. */
     public int getNewCount() {
         return fresh.size();
@@ -177,10 +195,16 @@ public final class NeoQuestRewards implements IWinLoseView<IButton> {
                                        final List<PaperCard> cards) {
         final NeoQuestRewards view = new NeoQuestRewards();
         view.won = won;
-        view.messages.addAll(messages);
+        for (final String m : messages) {
+            view.messages.add(QuestRewardText.translate(m));
+        }
         view.cards.addAll(cards);
         for (int i = 0; i < cards.size(); i += 2) {
             view.fresh.add(NeoQuestShop.key(cards.get(i)));
+        }
+        // Y la primera, como la rara al azar que el motor da aparte del sobre.
+        if (!cards.isEmpty()) {
+            view.bonus.add(cards.get(0));
         }
         return view;
     }
@@ -242,20 +266,25 @@ public final class NeoQuestRewards implements IWinLoseView<IButton> {
     @Override
     public void showCards(final String title, final List<PaperCard> shown) {
         if (title != null && !title.isBlank()) {
-            messages.add(title);
+            messages.add(QuestRewardText.translate(title));
         }
         if (shown != null) {
             cards.addAll(shown);
+            // Todo lo que llega por aqui lo reparte el motor, no el sobre de
+            // premio (ese lo anyadimos nosotros despues, en apply).
+            bonus.addAll(shown);
         }
     }
 
     @Override
     public void showMessage(final String message, final String title, final FSkinProp icon) {
         if (title != null && !title.isBlank()) {
-            messages.add(title);
+            messages.add(QuestRewardText.translate(title));
         }
         if (message != null && !message.isBlank()) {
-            messages.add(message);
+            // Las frases de creditos las escribe Forge en ingles pegadas a los
+            // numeros: ver QuestRewardText.
+            messages.add(QuestRewardText.translate(message));
         }
     }
 

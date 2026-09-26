@@ -28,6 +28,8 @@ public class OpponentTabs extends HBox {
             javafx.css.PseudoClass.getPseudoClass("selected");
     private static final javafx.css.PseudoClass ACTIVE =
             javafx.css.PseudoClass.getPseudoClass("active");
+    private static final javafx.css.PseudoClass ALLY =
+            javafx.css.PseudoClass.getPseudoClass("ally");
 
     private final List<PlayerView> players = new ArrayList<>();
     private Consumer<PlayerView> onSelect;
@@ -49,9 +51,11 @@ public class OpponentTabs extends HBox {
      * @param opponents todos los rivales
      * @param selected  el que se esta viendo
      * @param activeTurn quien tiene el turno, para marcarlo
+     * @param me         el jugador de abajo: la pestanya de quien va en su
+     *                   equipo dice "aliado" (ver NeoTeams)
      */
     public void setOpponents(final List<PlayerView> opponents, final PlayerView selected,
-                             final PlayerView activeTurn) {
+                             final PlayerView activeTurn, final PlayerView me) {
         players.clear();
         players.addAll(opponents);
         getChildren().clear();
@@ -65,10 +69,12 @@ public class OpponentTabs extends HBox {
         }
 
         for (final PlayerView p : opponents) {
-            final Label tab = new Label(NeoText.get("tabs.opponent",
+            final boolean ally = forge.neo.match.NeoTeams.isAlly(me, p);
+            final Label tab = new Label(NeoText.get(ally ? "tabs.ally" : "tabs.opponent",
                     forge.neo.match.PlayerName.of(p), p.getLife(),
                     p.getZoneSize(ZoneType.Battlefield)));
             tab.getStyleClass().add("opponent-tab");
+            tab.pseudoClassStateChanged(ALLY, ally);
             tab.pseudoClassStateChanged(SELECTED, p.equals(selected));
             tab.pseudoClassStateChanged(ACTIVE, p.equals(activeTurn));
             tab.setOnMouseClicked(e -> {

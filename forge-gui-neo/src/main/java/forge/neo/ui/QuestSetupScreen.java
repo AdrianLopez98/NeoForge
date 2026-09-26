@@ -6,6 +6,10 @@ import java.util.List;
 import java.util.Locale;
 
 import forge.deck.Deck;
+import forge.game.card.CardView;
+import forge.item.PaperCard;
+import forge.neo.ascent.AscentSeedDeck;
+import forge.neo.card.CardNode;
 import forge.neo.quest.NeoQuest;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -30,7 +34,10 @@ import javafx.scene.layout.VBox;
  *       entera, asi que va primero y con su explicacion al lado.</li>
  *   <li><b>Con que mazo empiezas</b> — un preconstruido. Es lo que hace que la
  *       aventura tenga cuesta arriba: un mazo de verdad, jugable y modesto, que
- *       vas a ir mejorando con lo que salga de los sobres.</li>
+ *       vas a ir mejorando con lo que salga de los sobres. En Commander hay una
+ *       segunda pestanya: <b>eliges solo el comandante</b> y se monta alrededor
+ *       un mazo mas flojo aun que un precon, casi todo comunes (ver
+ *       {@link forge.neo.quest.NeoCommanderDuels#starter}).</li>
  *   <li><b>Como de dura</b> — cambia cuanto tardan los rivales en subir de
  *       nivel y con cuantos creditos empiezas.</li>
  * </ol>
@@ -42,8 +49,14 @@ public class QuestSetupScreen extends BorderPane {
 
     /** Que hacer cuando el jugador termina de elegir. */
     public interface Actions {
+        /**
+         * @param starter   el preconstruido, o {@code null} si se empieza por comandante
+         * @param commander el comandante del mazo a generar (ya sorteado si se
+         *                  pidio "al azar"), o {@code null} si hay preconstruido
+         */
         void start(String name, NeoQuest.Modalidad modalidad,
-                   NeoQuest.Dificultad dificultad, Deck starter, String world);
+                   NeoQuest.Dificultad dificultad, Deck starter, PaperCard commander,
+                   String world);
 
         void back();
     }
@@ -51,6 +64,15 @@ public class QuestSetupScreen extends BorderPane {
     private NeoQuest.Modalidad modalidad = NeoQuest.Modalidad.COMMANDER;
     private NeoQuest.Dificultad dificultad = NeoQuest.Dificultad.NORMAL;
     private Deck starter;
+
+    /**
+     * Si en Commander se empieza eligiendo comandante en vez de preconstruido.
+     * En Estandar vale siempre false: no hay comandante que elegir.
+     */
+    private boolean fromCommander;
+
+    /** El comandante elegido en esa pestanya; {@code null} = que salga uno al azar. */
+    private PaperCard commander;
 
     /**
      * En que mundo se juega. Null = el principal, o sea todas las cartas.
@@ -71,6 +93,22 @@ public class QuestSetupScreen extends BorderPane {
     private final Pager pager;
     private List<Deck> filtered = new ArrayList<>();
 
+    /** El paso 2 entero: las pestanyas (solo en Commander) y el selector que toque. */
+    private final VBox deckStep = new VBox(8);
+    private final HBox tabRow = new HBox(8);
+    private final Region preconPicker;
+    private final Region commanderPicker;
+
+    private final TextField cmdSearch = new TextField();
+    private final FlowPane cmdGrid = new FlowPane(12, 12);
+    private final Pager cmdPager;
+    /** Los ~10.800 comandantes. Se leen al abrir la pestanya, no al abrir la pantalla. */
+    private List<PaperCard> allCommanders;
+    private List<PaperCard> cmdFiltered = new ArrayList<>();
+
+    /** El paso 4. En Commander se esconde: ver {@link #syncWorld()}. */
+    private Region worldSection;
+
     public QuestSetupScreen(final double cardWidth, final Actions actions) {
         this.cardWidth = cardWidth;
         getStyleClass().addAll("table-root", "home");
@@ -85,12 +123,15 @@ public class QuestSetupScreen extends BorderPane {
         setTop(head);
 
         pager = new Pager(24, this::paintDecks);
+        cmdPager = new Pager(24, this::paintCommanders);
+        preconPicker = deckPicker();
+        commanderPicker = commanderPicker();
 
         final VBox content = new VBox(14);
         content.setPadding(new Insets(4, 30, 10, 30));
         content.getChildren().addAll(
                 section(NeoText.get("questNew.step1"), modeRow),
-                section(NeoText.get("questNew.step2"), deckPicker()),
+                section(NeoText.get("questNew.step2"), deckStep),
                 section(NeoText.get("questNew.step3"), diffRow),
                 // El mundo va EL ULTIMO y es opcional, a proposito.
                 //
@@ -100,7 +141,7 @@ public class QuestSetupScreen extends BorderPane {
                 // sobre expansiones que la mayoria no quiere contestar. De
                 // fabrica se juega con TODO — todas las expansiones y los 238
                 // rivales — y quien quiera limitarse, baja y lo elige.
-                section(NeoText.get("questNew.step4"), worldPicker()));
+                worldSection = section(NeoText.get("questNew.step4"), worldPicker()));
 
         final ScrollPane sp = new ScrollPane(content);
         sp.getStyleClass().add("dialog-scroll");
@@ -111,19 +152,39 @@ public class QuestSetupScreen extends BorderPane {
         buildModes();
         buildDifficulties();
         reloadDecks();
+        // Para capturar la pestanya de comandante sin raton:
+        // run.cmd ui --quest-new -Dneo.quest.setupTab=commander
+        fromCommander = "commander".equalsIgnoreCase(System.getProperty("neo.quest.setupTab", ""));
+        syncDeckStep();
+        syncWorld();
 
         // --- pie ---
         final TextField name = new TextField(suggestName());
         name.getStyleClass().add("text-input");
         name.setPrefColumnCount(18);
+        nameField = name;
 
         final Button go = new Button(NeoText.get("questNew.start"));
+        goButton = go;
         go.getStyleClass().add("btn-primary");
         go.setMinWidth(Region.USE_PREF_SIZE);
         go.setOnAction(e -> {
             final String n = name.getText() == null || name.getText().isBlank()
                     ? suggestName() : name.getText().trim();
-            actions.start(n, modalidad, dificultad, starter, world);
+            if (fromCommander) {
+                // "Al azar" se sortea aqui, del mismo pozo que ensenya la
+                // rejilla: asi el que llama recibe siempre un comandante.
+                final PaperCard cmd = commander != null ? commander
+                        : AscentSeedDeck.randomCommander();
+                // Montar el mazo tarda un momento (la primera vez carga la
+                // matriz): que se vea que ha pillado el clic, y que no se
+                // pueda tocar nada mas — start() ya se ha llevado los valores,
+                // y cambiar las reglas en ese rato no haria nada (principio 1).
+                setBuilding(true);
+                actions.start(n, modalidad, dificultad, null, cmd, world);
+            } else {
+                actions.start(n, modalidad, dificultad, starter, null, world);
+            }
         });
 
         final Button back = new Button(NeoText.get("common.back"));
@@ -295,6 +356,8 @@ public class QuestSetupScreen extends BorderPane {
                 // anterior daria una aventura ilegal desde el primer duelo.
                 starter = null;
                 reloadDecks();
+                syncDeckStep();
+                syncWorld();
             });
             modeRow.getChildren().add(tile);
         }
@@ -345,7 +408,14 @@ public class QuestSetupScreen extends BorderPane {
         sp.getStyleClass().add("dialog-scroll");
         sp.setFitToWidth(true);
         sp.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        sp.setPrefHeight(cardWidth * 2.4);
+        // Dos filas de casillas (carta + nombre + comandante), y la pagina es
+        // lo que quepa ENTERO: con 24 fijas la segunda fila salia cortada por
+        // la mitad, que parece un fallo (visto el 25-09-2026).
+        // La casilla mide la carta, el nombre (tres lineas como mucho: ver
+        // clampLines) y el comandante (dos).
+        final double tileH = cardWidth * PRECON_CARD * 1.4 + UiScale.px(122);
+        sp.setPrefHeight(tileH * 2 + UiScale.px(28));
+        pager.fitTo(sp, deckGrid, cardWidth * PRECON_CARD + UiScale.px(20) + 2, tileH, 4);
 
         return new VBox(8, tools, sp, pager);
     }
@@ -378,19 +448,229 @@ public class QuestSetupScreen extends BorderPane {
         final int to = Math.min(filtered.size(), pager.to());
         for (int i = from; i < to; i++) {
             final Deck d = filtered.get(i);
-            final DeckTile tile = new DeckTile(d, cardWidth * 0.85);
+            final DeckTile tile = new DeckTile(d, cardWidth * PRECON_CARD);
             tile.pseudoClassStateChanged(PICKED, starter != null
                     && starter.getName().equals(d.getName()));
             tile.setOnMouseClicked(e -> pick(d));
             deckGrid.getChildren().add(tile);
+            // Ya en la escena, para que el tamanyo de letra (en em) este resuelto.
+            tile.applyCss();
+            clampLines(tile, ".deck-tile-name", 3);
+            clampLines(tile, ".deck-tile-sub", 2);
+        }
+    }
+
+    /**
+     * Corta un texto de la casilla a {@code lines} lineas, con puntos
+     * suspensivos.
+     *
+     * <p>Los nombres de Secret Lair ("Angels: They're Just Like Us, but Cooler
+     * and with Wings [SLD] [2023]") salian en cinco lineas, esa casilla
+     * estiraba su fila entera y en 1080p ya no cabian dos filas y la
+     * dificultad. El nombre completo sigue en el pie al elegirlo.
+     */
+    private static void clampLines(final Region tile, final String selector, final int lines) {
+        for (final javafx.scene.Node n : tile.lookupAll(selector)) {
+            if (n instanceof Label l) {
+                l.setMaxHeight(Math.ceil(l.getFont().getSize() * 1.34 * lines) + 1);
+            }
         }
     }
 
     private void pick(final Deck deck) {
         this.starter = deck;
-        chosen.setText(NeoText.get("questNew.chosen", deck.getName()));
+        syncChosen();
         paintDecks();
     }
+
+    private Button goButton;
+    private TextField nameField;
+
+    /** Mientras se monta el mazo: todo quieto menos "Volver". */
+    private void setBuilding(final boolean on) {
+        getCenter().setDisable(on);
+        nameField.setDisable(on);
+        goButton.setDisable(on);
+        goButton.setText(NeoText.get(on ? "questNew.building" : "questNew.start"));
+    }
+
+    /**
+     * El mazo no ha salido: se vuelve a dejar tocar la pantalla y se dice.
+     * Mejor que empezar la Quest sin el mazo que se habia elegido y sin avisar.
+     */
+    public void buildFailed() {
+        setBuilding(false);
+        chosen.setText(NeoText.get("questNew.buildFailed"));
+    }
+
+    /** Lo que se ha elegido, por escrito en el pie: el cerco no se ve si pasas de pagina. */
+    private void syncChosen() {
+        if (fromCommander) {
+            chosen.setText(commander == null ? NeoText.get("questNew.chosenCommanderRandom")
+                    : NeoText.get("questNew.chosenCommander",
+                            forge.neo.card.CardText.nameOf(commander)));
+        } else {
+            chosen.setText(starter == null ? "" : NeoText.get("questNew.chosen", starter.getName()));
+        }
+    }
+
+    /**
+     * El mundo, solo fuera de Commander.
+     *
+     * <p>En una Quest de Commander el mundo <b>no cambia los rivales</b>: Forge
+     * los saca de {@code QuestEventCommanderDuelManager}, que ignora el mundo, y
+     * nuestro {@link forge.neo.quest.NeoCommanderDuels} parte de la misma lista.
+     * Solo limitaba la tienda y los premios, y ofrecerlo hacia creer otra cosa
+     * (reportado el 25-09-2026: Aetherdrift elegido y un rival de Avatar). Forge
+     * hace lo mismo a su manera: al marcar Commander pone "Random Commander".
+     */
+    private void syncWorld() {
+        final boolean show = modalidad != NeoQuest.Modalidad.COMMANDER;
+        if (!show && world != null) {
+            world = null;
+            paintWorlds();
+            if (worldState != null) {
+                worldState.setText(NeoText.get("questNew.worldDefault"));
+            }
+        }
+        worldSection.setVisible(show);
+        worldSection.setManaged(show);
+    }
+
+    /** Monta el paso 2: pestanyas en Commander, y el selector que toque. */
+    private void syncDeckStep() {
+        if (modalidad != NeoQuest.Modalidad.COMMANDER) {
+            fromCommander = false;
+        }
+        deckStep.getChildren().clear();
+        if (modalidad == NeoQuest.Modalidad.COMMANDER) {
+            buildTabs();
+            deckStep.getChildren().add(tabRow);
+        }
+        if (fromCommander) {
+            if (allCommanders == null) {
+                reloadCommanders();
+            }
+            deckStep.getChildren().add(commanderPicker);
+        } else {
+            deckStep.getChildren().add(preconPicker);
+        }
+        syncChosen();
+    }
+
+    private void buildTabs() {
+        tabRow.getChildren().setAll(
+                tab(NeoText.get("questNew.tab.precon"), !fromCommander, false),
+                tab(NeoText.get("questNew.tab.commander"), fromCommander, true));
+        tabRow.setAlignment(Pos.CENTER_LEFT);
+    }
+
+    private Button tab(final String text, final boolean on, final boolean toCommander) {
+        final Button b = new Button(text);
+        b.getStyleClass().add(on ? "btn-primary" : "btn-secondary");
+        b.setMinWidth(Region.USE_PREF_SIZE);
+        b.setOnAction(e -> {
+            if (fromCommander != toCommander) {
+                fromCommander = toCommander;
+                syncDeckStep();
+            }
+        });
+        return b;
+    }
+
+    // ---------------------------------------------------------------
+    // Elegir comandante (como en Ascenso)
+    // ---------------------------------------------------------------
+
+    private Region commanderPicker() {
+        cmdSearch.setPromptText(NeoText.get("questNew.cmdSearch"));
+        cmdSearch.getStyleClass().add("text-input");
+        cmdSearch.setPrefColumnCount(22);
+        cmdSearch.textProperty().addListener((o, was, is) -> reloadCommanders());
+
+        final Button random = new Button(NeoText.get("questNew.cmdRandom"));
+        random.getStyleClass().add("btn-secondary");
+        random.setMinWidth(Region.USE_PREF_SIZE);
+        random.setOnAction(e -> {
+            commander = null;
+            paintCommanders();
+            syncChosen();
+        });
+
+        final HBox tools = new HBox(10, cmdSearch, random);
+        tools.setAlignment(Pos.CENTER_LEFT);
+
+        final Label hint = new Label(NeoText.get("questNew.cmdHint"));
+        hint.getStyleClass().add("home-subtitle");
+        hint.setWrapText(true);
+
+        cmdGrid.setAlignment(Pos.TOP_LEFT);
+        final ScrollPane sp = new ScrollPane(cmdGrid);
+        sp.getStyleClass().add("dialog-scroll");
+        sp.setFitToWidth(true);
+        sp.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        // Dos filas ENTERAS de cartas (5:7) mas el hueco entre ellas: con el
+        // alto de la rejilla de precons la segunda salia con el pie cortado.
+        sp.setPrefHeight(cardWidth * 0.85 * 1.4 * 2 + UiScale.px(40));
+        cmdPager.fitTo(sp, cmdGrid, cardWidth * 0.85, cardWidth * 0.85 * 1.4, 4);
+
+        return new VBox(8, tools, hint, sp, cmdPager);
+    }
+
+    private void reloadCommanders() {
+        if (allCommanders == null) {
+            allCommanders = AscentSeedDeck.commanderPool();
+        }
+        final String q = cmdSearch.getText() == null ? ""
+                : cmdSearch.getText().trim().toLowerCase(Locale.ROOT);
+        cmdFiltered = new ArrayList<>();
+        for (final PaperCard c : allCommanders) {
+            // Por el nombre en ingles y por el traducido.
+            if (q.isEmpty() || c.getName().toLowerCase(Locale.ROOT).contains(q)
+                    || forge.neo.card.CardText.nameOf(c).toLowerCase(Locale.ROOT).contains(q)) {
+                cmdFiltered.add(c);
+            }
+        }
+        cmdPager.reset();
+        cmdPager.setTotal(cmdFiltered.size());
+        paintCommanders();
+    }
+
+    private void paintCommanders() {
+        cmdGrid.getChildren().clear();
+        final int from = cmdPager.from();
+        final int to = Math.min(cmdFiltered.size(), cmdPager.to());
+        for (int i = from; i < to; i++) {
+            final PaperCard c = cmdFiltered.get(i);
+            final CardNode node = new CardNode(cardWidth * 0.85);
+            node.setRotationEnabled(false);
+            node.setCard(CardView.getCardForUi(c));
+            node.setCursor(javafx.scene.Cursor.HAND);
+            // Igual que en Ascenso: el elegido con el cerco de carta elegida y
+            // los demas apagados, para que clicar se note.
+            final boolean picked = commander != null && commander.getName().equals(c.getName());
+            node.setHighlighted(picked);
+            node.setOpacity(commander == null || picked ? 1 : 0.55);
+            node.setOnMouseClicked(e -> {
+                if (e.getButton() != javafx.scene.input.MouseButton.PRIMARY) {
+                    return;
+                }
+                // Un segundo clic sobre el elegido lo suelta y vuelve al azar.
+                commander = picked ? null : c;
+                paintCommanders();
+                syncChosen();
+            });
+            cmdGrid.getChildren().add(node);
+        }
+    }
+
+    /**
+     * Lo ancha que es la carta de cada preconstruido, en anchos de carta. Un
+     * pelo menos que la de los comandantes: la casilla lleva debajo el nombre y
+     * el comandante, y asi caben dos filas ENTERAS en 1080p sin echar la
+     * dificultad fuera de la pantalla.
+     */
+    private static final double PRECON_CARD = 0.78;
 
     private static final javafx.css.PseudoClass PICKED =
             javafx.css.PseudoClass.getPseudoClass("picked");

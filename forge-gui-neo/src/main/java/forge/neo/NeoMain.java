@@ -256,6 +256,19 @@ public final class NeoMain {
                 banner("Auto-pass: los objetivos que dependen de X");
                 forge.neo.match.XTargetCheck.run();
                 break;
+            case "leakcheck":
+                // Varias partidas seguidas en la misma escena, y que las
+                // acabadas se suelten. La pantalla en blanco de la Aventura
+                // (25-09-2026) era una mesa retenida por duelo. Ver LeakCheck.
+                banner("Memoria: las mesas de partidas acabadas se sueltan");
+                try {
+                    forge.neo.match.LeakCheck.run();
+                } catch (final RuntimeException e) {
+                    throw e;
+                } catch (final Exception e) {
+                    throw new IllegalStateException(e);
+                }
+                break;
             case "attackcheck":
                 // Que el piloto automatico no se quede dando OK para siempre a
                 // un ataque obligado (Juggernaut). Colgo questcheck 90 minutos

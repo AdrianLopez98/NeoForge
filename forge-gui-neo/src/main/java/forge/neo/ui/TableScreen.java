@@ -1343,7 +1343,8 @@ public class TableScreen extends Pane {
     /** Pestanyas de rival, para partidas de mas de dos. */
     public void setOpponents(final List<PlayerView> opponents,
                              final PlayerView selected,
-                             final PlayerView activeTurn) {
+                             final PlayerView activeTurn,
+                             final PlayerView me) {
         if (isMultiBoard()) {
             // Viendolos todos, las pestanyas no eligen nada. Y hay que
             // apagarlas de verdad, no solo darles alto 0: siguen siendo un nodo
@@ -1354,7 +1355,7 @@ public class TableScreen extends Pane {
             opponentTabs.setVisible(false);
             opponentTabs.setManaged(false);
         } else {
-            opponentTabs.setOpponents(opponents, selected, activeTurn);
+            opponentTabs.setOpponents(opponents, selected, activeTurn, me);
         }
         requestLayout();
     }
@@ -2536,6 +2537,17 @@ public class TableScreen extends Pane {
                     new javafx.animation.KeyFrame(javafx.util.Duration.seconds(1),
                             e -> guardEngineDialog()));
             dialogGuard.setCycleCount(javafx.animation.Animation.INDEFINITE);
+            // Solo mientras la mesa se ve. Una partida que acaba con una
+            // pregunta pendiente no siempre pasa por forgetEngineDialogs, y un
+            // Timeline en marcha retiene la mesa entera para siempre (la fuga
+            // de la pantalla en blanco, 25-09-2026: ver CombatOverlay.sync).
+            sceneProperty().addListener((o, was, is) -> {
+                if (is == null) {
+                    dialogGuard.stop();
+                } else if (!engineDialogs.isEmpty()) {
+                    dialogGuard.playFromStart();
+                }
+            });
         }
         dialogGuard.playFromStart();
     }

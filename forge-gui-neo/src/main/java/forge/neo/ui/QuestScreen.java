@@ -95,7 +95,7 @@ public class QuestScreen extends BorderPane {
         final Label title = new Label(NeoText.get("quest.title", safe(NeoQuest.name())));
         title.getStyleClass().add("home-title");
 
-        final Label rank = new Label(NeoQuest.rank()
+        final Label rank = new Label(NeoQuest.rankLabel()
                 + "   ·   " + NeoQuest.modalidad().getLabel());
         rank.getStyleClass().add("home-subtitle");
 
@@ -396,7 +396,7 @@ public class QuestScreen extends BorderPane {
                 ? difficultyLabel(duel.getDifficulty()) : NeoText.get("quest.surprise"));
         badge.getStyleClass().addAll("duel-badge", styleFor(duel.getDifficulty()));
 
-        final Label name = new Label(duel.getTitle());
+        final Label name = new Label(NeoQuest.titleOf(duel));
         name.getStyleClass().add("duel-name");
         name.setWrapText(true);
         name.setMaxWidth(UiScale.px(200));

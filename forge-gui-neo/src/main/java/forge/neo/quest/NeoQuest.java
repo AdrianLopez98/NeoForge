@@ -484,9 +484,80 @@ public final class NeoQuest {
         return FModel.getQuest().getLevel();
     }
 
-    /** El titulo del nivel ("Level 3 - Mana Adept"...). Lo escribe el motor. */
+    /** El titulo del nivel ("Level 3 - Mana Adept"...). Lo escribe el motor, en ingles. */
     public static String rank() {
         return FModel.getQuest().getRank();
+    }
+
+    /**
+     * El mismo titulo, en el idioma del jugador.
+     *
+     * <p>Los rangos son una lista fija de Forge ({@code QuestController.RANK_TITLES}),
+     * 27 frases en ingles que ninguna tabla de Forge traduce. Aqui van en
+     * {@code quest.rank.N}; hasta el 20 llevan "Nivel N" delante, igual que alli, y
+     * de ahi en adelante son solo la frase. Pasado el ultimo se queda en el ultimo,
+     * que es lo que hace {@code getRank}.
+     */
+    public static String rankLabel() {
+        final int level = Math.max(0, level());
+        final int last = QuestController.RANK_TITLES.length - 1;
+        final int i = Math.min(level, last);
+        final String title = forge.neo.NeoText.get("quest.rank." + i);
+        if (title.startsWith("quest.rank.")) {
+            return rank(); // sin traduccion: lo del motor antes que la clave
+        }
+        return i <= 20 ? forge.neo.NeoText.get("quest.rankLevel", i, title) : title;
+    }
+
+    /**
+     * El nombre del mundo para ensenyarlo. El principal se llama "Main world" en
+     * Forge; el resto son nombres propios (Zendikar, Jamuraa) y se quedan.
+     */
+    public static String worldLabel(final QuestWorld world) {
+        if (world == null || QuestWorld.MAINWORLDNAME.equals(world.getName())) {
+            return forge.neo.NeoText.get("questNew.worldMain");
+        }
+        return world.getName();
+    }
+
+    /**
+     * Si es el rival SORPRESA: el que no ensenya quien es. Forge lo marca de tres
+     * maneras segun el gestor de duelos, y se miran las tres.
+     */
+    public static boolean isSurprise(final forge.gamemodes.quest.QuestEvent event) {
+        if (!(event instanceof QuestEventDuel duel)) {
+            return false;
+        }
+        return !duel.showDifficulty() || duel.getIsRandomMatch()
+                || "Random Opponent".equalsIgnoreCase(duel.getTitle());
+    }
+
+    /** El titulo de un rival para ensenyarlo: el sorpresa, traducido. */
+    public static String titleOf(final forge.gamemodes.quest.QuestEvent event) {
+        if (event == null) {
+            return "";
+        }
+        return isSurprise(event) ? forge.neo.NeoText.get("quest.surpriseTitle")
+                : event.getTitle() == null ? "" : event.getTitle();
+    }
+
+    /**
+     * La descripcion de un rival para ensenyarla. La del sorpresa y la de los
+     * mazos de Commander generados las escribe el codigo en ingles ("Generated X
+     * commander deck."), asi que se traducen; las de los ficheros de duelo de
+     * Forge son texto de ambientacion suyo y se dejan.
+     */
+    public static String descriptionOf(final forge.gamemodes.quest.QuestEvent event) {
+        if (event == null) {
+            return "";
+        }
+        if (isSurprise(event)) {
+            return forge.neo.NeoText.get("quest.surpriseDesc");
+        }
+        if (event instanceof forge.gamemodes.quest.QuestEventCommanderDuel) {
+            return forge.neo.NeoText.get("quest.generatedDesc", event.getTitle());
+        }
+        return event.getDescription() == null ? "" : event.getDescription();
     }
 
     public static int wins() {
