@@ -154,10 +154,10 @@ et}) y no se tocan.
         this.onEdit = onEdit;
         this.onDownload = onDownload;
         this.opponents = clamp(
-                NeoSettings.getInt(NeoSettings.OPPONENTS, format.getDefaultOpponents()), 1, 3);
+                NeoSettings.opponents(format), 1, 3);
         this.aiProfile = NeoSettings.get(NeoSettings.AI_PROFILE, "Default");
         this.teams = forge.neo.match.NeoTeams.fromSetting(
-                NeoSettings.get(NeoSettings.TEAMS, ""), opponents);
+                NeoSettings.teams(format), opponents);
 
         for (final Deck d : decks) {
             if (format.isMine(d)) {
@@ -523,7 +523,7 @@ et}) y no se tocan.
                         String.valueOf(opponents),
                         v -> {
                             opponents = Integer.parseInt(v);
-                            NeoSettings.setInt(NeoSettings.OPPONENTS, opponents);
+                            NeoSettings.setOpponents(format, opponents);
                             resizeTeams();
                             rebuildOpponentRow();
                             updateSummary();
@@ -648,7 +648,7 @@ et}) y no se tocan.
                 return;
             }
             teams[seat] = picked - 1;
-            NeoSettings.set(NeoSettings.TEAMS, forge.neo.match.NeoTeams.toSetting(teams));
+            NeoSettings.setTeams(format, forge.neo.match.NeoTeams.toSetting(teams));
             refreshOpponentLabels();
             updateSummary();
         });
@@ -683,7 +683,7 @@ et}) y no se tocan.
             out[i] = teams[i];
         }
         teams = out;
-        NeoSettings.set(NeoSettings.TEAMS, forge.neo.match.NeoTeams.toSetting(teams));
+        NeoSettings.setTeams(format, forge.neo.match.NeoTeams.toSetting(teams));
     }
 
     /** Si la partida va por equipos: alguien comparte equipo con alguien. */
@@ -768,9 +768,9 @@ et}) y no se tocan.
             return;
         }
         NeoSettings.set(NeoSettings.DECK, selected.getName());
-        NeoSettings.setInt(NeoSettings.OPPONENTS, opponents);
+        NeoSettings.setOpponents(format, opponents);
         NeoSettings.set(NeoSettings.AI_PROFILE, aiProfile);
-        NeoSettings.set(NeoSettings.TEAMS, forge.neo.match.NeoTeams.toSetting(teams));
+        NeoSettings.setTeams(format, forge.neo.match.NeoTeams.toSetting(teams));
         NeoSettings.save();
         onStart.start(selected, opponents, aiProfile, watch, resolvedOpponentDecks(),
                 hasTeams() ? teams.clone() : null);
