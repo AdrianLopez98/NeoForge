@@ -79,6 +79,12 @@ public final class NeoSettings {
      */
     public static final String FOIL_EFFECT = "foilEffect";
     /**
+     * Las chapitas de palabras clave de combate sobre las cartas de la mesa
+     * (volar, toque mortal...). Encendido de fabrica: es lo que se mira al
+     * bloquear. Ver {@code forge.neo.card.KeywordIcon}.
+     */
+    public static final String KEYWORD_BADGES = "keywordBadges";
+    /**
      * Pintar las cartas con su copia reducida por area en vez de encogerlas al
      * pintar (ver {@code forge.neo.card.Resample}). Encendido de fabrica: es
      * el arreglo de un fallo reportado, no una preferencia. Se deja apagable

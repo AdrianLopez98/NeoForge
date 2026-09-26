@@ -96,6 +96,24 @@ public class CardNode extends StackPane {
     }
 
     /**
+     * Si las cartas de la mesa ensenyan sus iconos de habilidad (volar, toque
+     * mortal, arrollar...), como el Forge de siempre. Encendido de fabrica.
+     *
+     * <p>Pedido desde Reddit el 26-09-2026. Es un ajuste porque ocupa una
+     * esquina de la carta: quien juega con la mesa grande y se sabe las cartas
+     * puede preferir el arte limpio. Ver {@link KeywordIcon}.
+     */
+    private static volatile boolean keywordBadges = true;
+
+    public static void setKeywordBadgesEnabled(final boolean on) {
+        keywordBadges = on;
+    }
+
+    public static boolean areKeywordBadgesEnabled() {
+        return keywordBadges;
+    }
+
+    /**
      * Si el reflejo de la foil se MUEVE, o se queda quieto como antes.
      *
      * <p>No es un ajuste del menu — el interruptor que ve el jugador sigue
@@ -245,6 +263,19 @@ public class CardNode extends StackPane {
     private final HBox counters = new HBox(3);
     private final VBox markers = new VBox(2);
 
+    /**
+     * Los iconos de habilidad, en columna por el lado derecho como en el Forge
+     * de siempre. Ver {@link #refreshKeywords()}.
+     */
+    private final VBox keywords = new VBox(0);
+
+    /**
+     * Lo que se pinto la ultima vez en {@link #keywords}, para no rehacer las
+     * iconos en cada aviso del motor (llegan decenas por turno y la carta se
+     * repinta con cada uno).
+     */
+    private String shownKeywords = "";
+
     /** Danyo marcado y P/T, en la misma esquina y en este orden. */
     private final HBox ptRow = new HBox(3, damageBadge, ptBadge);
 
@@ -366,11 +397,19 @@ public class CardNode extends StackPane {
         StackPane.setAlignment(markers, Pos.TOP_RIGHT);
         markers.setMouseTransparent(true);
         markers.setVisible(false);
+        // El alto de verdad de los marcadores solo se sabe tras aplicarles el
+        // CSS (relleno, letra): se recoloca la columna de iconos entonces.
+        markers.layoutBoundsProperty().addListener((o, a, b) -> placeKeywords());
+
+        keywords.setFillWidth(false);
+        StackPane.setAlignment(keywords, Pos.TOP_LEFT);
+        keywords.setMouseTransparent(true);
+        keywords.setVisible(false);
 
         relicFace.setVisible(false);
 
         getChildren().addAll(fallback, relicFace, art, foilTint, foilShine, border,
-                counters, markers, ptRow, rankBadge);
+                counters, markers, keywords, ptRow, rankBadge);
         setClip(clip);
 
         setCardWidth(width);
@@ -574,6 +613,10 @@ public class CardNode extends StackPane {
             ((Label) n).setMaxWidth(Math.max(36, w * 0.68));
         }
 
+        // Los iconos de habilidad van en proporcion a la carta: el tamano forma parte de
+        // lo que se compara para decidir si rehacerlas.
+        refreshKeywords();
+
         // El avance esta en proporcion al tamano de carta, asi que cambia con el.
         applyAdvance(false);
     }
@@ -761,6 +804,7 @@ public class CardNode extends StackPane {
             fallback.setVisible(true);
             relicFace.setVisible(false);
             setFoil(false);
+            refreshKeywords();
             return;
         }
         final CardStateView st = forcedFace != null ? forcedFace : card.getCurrentState();
@@ -895,6 +939,9 @@ public class CardNode extends StackPane {
 
         // --- marcadores del motor ---
         refreshMarkers(st);
+
+        // --- palabras clave de combate ---
+        refreshKeywords();
 
         // --- estado ---
         // Girar y enderezar CON animacion. setTapped ya se corta solo cuando el
@@ -1143,6 +1190,103 @@ public class CardNode extends StackPane {
     }
 
     /**
+     * {@code -Dneo.kwbadges.all=true}: toda criatura de la mesa con TODOS los
+     * iconos de habilidad de la skin a la vez. Es la unica forma de ver el peor
+     * caso (y cada icono) sin buscar una carta que no existe.
+     */
+    private static final boolean KEYWORDS_ALL_TEST = Boolean.getBoolean("neo.kwbadges.all");
+
+    /**
+     * Por debajo de este ancho de carta no se pintan: el icono saldria de
+     * menos de 7 px y seria una mancha. A ese tamano ya no se lee nada de la
+     * carta y lo que toca es acercar la mesa (Ctrl + rueda).
+     */
+    private static final double KEYWORD_MIN_CARD_WIDTH = 50;
+
+    /**
+     * Los iconos de habilidad (volar, toque mortal, arrollar...), <b>como los
+     * pinta el Forge de siempre</b>: los mismos iconos de su skin, en columna
+     * por el lado derecho y pegados unos a otros. Ver {@link KeywordIcon}.
+     *
+     * <p>La geometria es la de {@code CardPanel} (forge-gui-desktop): lado =
+     * ancho/7, columna empezando en ancho/2 + ancho/3. Lo unico que cambia es
+     * el margen de arriba: alli son 25 px fijos para cartas de ~190 px, y aqui
+     * las cartas de la mesa van de 60 a 200, asi que va en proporcion (el
+     * mismo 13 % de ancho).
+     *
+     * <p>Solo en el campo de batalla y <b>con arte</b>: la carta dibujada de
+     * respaldo lleva el nombre y el tipo a todo lo ancho y se los comeria.
+     *
+     * <p>Se rehacen <b>solo si algo ha cambiado</b> (los iconos o el tamano):
+     * esto corre en cada {@link #refresh()} y la mesa se repinta entera con
+     * cada aviso del motor.
+     */
+    private void refreshKeywords() {
+        final boolean inPlay = card != null && ZoneType.Battlefield == card.getZone();
+        final List<forge.localinstance.skin.FSkinProp> icons = inPlay && keywordBadges && badgesVisible
+                && cardWidth >= KEYWORD_MIN_CARD_WIDTH && art.getImage() != null
+                ? (KEYWORDS_ALL_TEST && card.getCurrentState() != null
+                        && card.getCurrentState().isCreature()
+                        ? KeywordIcon.all() : KeywordIcon.of(card))
+                : Collections.<forge.localinstance.skin.FSkinProp>emptyList();
+        final int w = (int) Math.round(cardWidth);
+        final double size = w / 7;
+        final StringBuilder sig = new StringBuilder();
+        for (final forge.localinstance.skin.FSkinProp p : icons) {
+            sig.append(p.name()).append('|');
+        }
+        final String signature = icons.isEmpty() ? "" : sig.append('@').append(w).toString();
+        if (signature.equals(shownKeywords)) {
+            return;
+        }
+        shownKeywords = signature;
+        keywords.getChildren().clear();
+        if (icons.isEmpty()) {
+            keywords.setVisible(false);
+            return;
+        }
+        for (final forge.localinstance.skin.FSkinProp p : icons) {
+            final javafx.scene.image.ImageView v = KeywordIcon.view(p, size);
+            if (v != null) {
+                keywords.getChildren().add(v);
+            }
+        }
+        keywords.setTranslateX(w / 2 + w / 3);
+        placeKeywords();
+        keywords.setVisible(!keywords.getChildren().isEmpty());
+    }
+
+    /**
+     * La altura a la que empieza la columna de iconos: la de Forge (13 % del
+     * ancho) o, si la carta lleva marcadores arriba a la derecha ("Preparada",
+     * nivel de Clase, velocidad...), justo debajo de ellos.
+     *
+     * <p>En el Forge Swing se pisan; aqui no, porque "Preparada" es justo lo
+     * que dice que hay algo que hacer AHORA y un icono encima lo tapaba. No se
+     * van a la izquierda porque ahi viven los contadores: seria cambiar un
+     * solape por otro.
+     *
+     * <p>El alto se pide con {@code prefHeight} y no se lee de los limites: el
+     * {@code StackPane} estira la caja de marcadores al alto entero de la
+     * carta. Y se le da el ancho al que parten linea, o un nombre de
+     * habitacion que baja a dos renglones se mediria como uno.
+     */
+    private void placeKeywords() {
+        double top = Math.round(cardWidth * 0.13);
+        if (markers.isVisible() && !markers.getChildren().isEmpty()) {
+            final double wrap = Math.max(36, cardWidth * 0.68) + 8;
+            double bottom = markers.prefHeight(wrap);
+            // Y en cuanto estan colocados, donde acaba de verdad el ultimo: la
+            // estimacion se queda corta por el borde de la pastilla.
+            for (final javafx.scene.Node n : markers.getChildren()) {
+                bottom = Math.max(bottom, n.getBoundsInParent().getMaxY());
+            }
+            top = Math.max(top, Math.ceil(bottom) + 3);
+        }
+        keywords.setTranslateY(top);
+    }
+
+    /**
      * Los marcadores que el motor pinta sobre la carta.
      *
      * <p>Es lo que hace visibles varias mecanicas modernas que <b>no son
@@ -1207,6 +1351,7 @@ public class CardNode extends StackPane {
         if (lines.isEmpty() || !countersVisible || !badgesVisible) {
             markers.getChildren().clear();
             markers.setVisible(false);
+            placeKeywords();
             return;
         }
         markers.getChildren().clear();
@@ -1225,9 +1370,11 @@ public class CardNode extends StackPane {
             // con puntos suspensivos dejaria un marcador que no dice nada.
             l.setWrapText(true);
             l.setMaxWidth(Math.max(36, cardWidth * 0.68));
+            l.boundsInParentProperty().addListener((o, a, b) -> placeKeywords());
             markers.getChildren().add(l);
         }
         markers.setVisible(!markers.getChildren().isEmpty());
+        placeKeywords();
     }
 
     /**

@@ -132,7 +132,9 @@ public final class ManaColor {
     /**
      * El controlador humano de siempre, pero preguntando el color.
      *
-     * <p>Se sobrescribe <b>un</b> metodo. Todo lo demas —- prioridad, objetivos,
+     * <p>Se sobrescriben <b>dos</b> metodos, los dos del color del mana: {@code
+     * chooseColor} y {@code specifyManaCombo} (el reparto de varios manas de una
+     * vez, ver {@link ManaCombo}). Todo lo demas —- prioridad, objetivos,
      * bloqueos, conceder— es el de Forge sin tocar.
      *
      * <p><b>Hereda de {@link AttackCosts.Confirming} — que hereda de
@@ -153,9 +155,22 @@ public final class ManaColor {
             super(player, lobby, owner);
         }
 
+        /** Juntar en un dialogo los repartos de varios manas. Ver {@link ManaCombo}. */
+        private final ManaCombo combo = new ManaCombo();
+
         @Override
         public byte chooseColor(final String message, final SpellAbility sa, final ColorSet colors) {
             final ColorSet options = widen(sa, colors);
+            // Un punto de un reparto que ya se ha preguntado entero.
+            final Byte queued = combo.next(sa, options);
+            if (queued != null) {
+                return queued;
+            }
+            // El primero de un reparto de varios: se pregunta entero, ya hecho.
+            final Byte first = combo.start(getGui(), getInputQueue().getInput(), message, sa, options);
+            if (first != null) {
+                return first;
+            }
             if (DEBUG) {
                 final int was = colors == null ? 0 : colors.countColors();
                 System.out.printf("[mana] chooseColor %s: %d -> %d color(es)%s%n",
@@ -164,6 +179,14 @@ public final class ManaColor {
                         options.countColors() > was ? "  <-- ENSANCHADO, ahora pregunta" : "");
             }
             return super.chooseColor(message, sa, options);
+        }
+
+        @Override
+        public java.util.Map<Byte, Integer> specifyManaCombo(final SpellAbility sa, final ColorSet colorSet,
+                                                            final int manaAmount, final boolean different) {
+            final java.util.Map<Byte, Integer> split = combo.specify(getGui(), getInputQueue().getInput(),
+                    sa, colorSet, manaAmount, different);
+            return split != null ? split : super.specifyManaCombo(sa, colorSet, manaAmount, different);
         }
     }
 }

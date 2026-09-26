@@ -141,6 +141,8 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 NeoSettings.getBool(NeoSettings.ANIMATIONS, true));
         forge.neo.card.CardNode.setFoilEffectEnabled(
                 NeoSettings.getBool(NeoSettings.FOIL_EFFECT, true));
+        forge.neo.card.CardNode.setKeywordBadgesEnabled(
+                NeoSettings.getBool(NeoSettings.KEYWORD_BADGES, true));
         forge.neo.ui.HandFan.setFanned(NeoSettings.handFan());
         // -Dneo.blindMana fuerza el apanyo sin tocar los ajustes del jugador:
         // es lo unico que permite probar el bucle entero con --filter-land.

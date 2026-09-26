@@ -126,8 +126,12 @@ public final class ArtDownloadPanel extends VBox {
                         startButton.setDisable(true);
                         return;
                     }
+                    // Si son pocas, cuales: un numero que no baja nunca sin
+                    // decir de que cartas habla no deja hacer nada con el.
+                    final java.util.List<String> names = ArtDownload.missingNames(10);
                     status.setText(NeoText.get("artdl.missing", group(pending),
-                            group(ArtDownload.megabytes(pending))));
+                            group(ArtDownload.megabytes(pending)))
+                            + (names.isEmpty() ? "" : "\n" + String.join(", ", names)));
                     startButton.setDisable(false);
                 });
             }
@@ -154,17 +158,22 @@ public final class ArtDownloadPanel extends VBox {
                         skipped == 0 ? null : forge.neo.card.ArtUnavailable.last();
                 onUi(() -> {
                     bar.setProgress(1);
-                    status.setText(noting == null ? NeoText.get("artdl.done")
-                            : NeoText.get("artdl.checking", group(skipped)));
+                    // Mientras se comprueban las que fallaron, "Listo" a
+                    // secas: de las que no hay no se habla.
+                    status.setText(NeoText.get("artdl.done"));
                     startButton.setDisable(true);
                     stopButton.setVisible(false);
                     stopButton.setManaged(false);
                 });
                 if (noting != null) {
                     noting.thenAccept(r -> onUi(() -> status.setText(
+                            // Las no disponibles ya estan apuntadas y no
+                            // vuelven a contar: no se habla de ellas (pedido
+                            // el 26-09-2026: "que ponga que lo tienes todo").
+                            // Solo se avisa si quedan por comprobar, porque
+                            // esas SI hay que volver a pedirlas.
                             r.unchecked > 0 ? NeoText.get("artdl.doneRetry", group(r.noted), group(r.unchecked))
-                                    : r.noted > 0 ? NeoText.get("artdl.doneSkipped", group(r.noted))
-                                    : NeoText.get("artdl.done"))));
+                                    : NeoText.get("artdl.none"))));
                 }
             }
         });

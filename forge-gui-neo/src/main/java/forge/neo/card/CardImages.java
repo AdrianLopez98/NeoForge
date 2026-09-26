@@ -316,8 +316,9 @@ public final class CardImages {
     /**
      * Cartas para las que <b>no hay imagen que pedir</b>, y se sabe de antemano.
      *
-     * <p>Las de Alchemy (las {@code A-...}) no tienen numero de coleccionista
-     * ni edicion de papel: no existen impresas. {@code ImageFetcher} lo
+     * <p>Algunas de Alchemy no tienen numero de coleccionista ni edicion de
+     * papel: no existen impresas. (Las rebalanceadas que SI lo tienen, como
+     * {@code AFR A-9}, se pueden bajar: ver {@link RebalancedArt}.) {@code ImageFetcher} lo
      * comprueba, escribe <i>"does not have a collector number, skipping
      * scryfall download"</i> y <b>se vuelve sin avisar a nadie</b>. Se pregunta
      * aqui la misma condicion para no montar una descarga que ya sabemos que no
@@ -573,6 +574,12 @@ public final class CardImages {
     }
 
     private static void requestDownload(final String imageKey) {
+        // Las rebalanceadas de Arena (A-...) ya no estan en la API de Scryfall
+        // ni en su indice, pero sus fotos siguen en la CDN: se piden directas
+        // con el identificador que llevamos nosotros. Ver RebalancedArt.
+        if (requestRebalanced(imageKey)) {
+            return;
+        }
         GuiBase.getInterface().invokeInEdtLater(() -> {
             try {
                 GuiBase.getInterface().getImageFetcher().fetchImage(imageKey, () -> resolveAfterDownload(imageKey));
@@ -582,6 +589,40 @@ public final class CardImages {
                 giveUpForNow(imageKey);
             }
         });
+    }
+
+    /**
+     * Pide una rebalanceada a la CDN, si la tabla la conoce.
+     *
+     * <p>Al mismo fichero que dejaria {@code ImageFetcher.fetchImage}
+     * ({@link #downloadedFile} lo busca ahi), para que Forge y la cache de
+     * siempre la encuentren luego sin saber nada de esto.
+     *
+     * @return {@code false} si no es una rebalanceada que tengamos: que siga
+     *         el camino normal
+     */
+    private static boolean requestRebalanced(final String imageKey) {
+        final String url = RebalancedArt.cdnUrl(imageKey);
+        if (url == null
+                || !(GuiBase.getInterface().getImageFetcher() instanceof forge.neo.platform.NeoImageFetcher neo)
+                || !forge.model.FModel.getPreferences().getPrefBoolean(
+                        forge.localinstance.properties.ForgePreferences.FPref.UI_ENABLE_ONLINE_IMAGE_FETCHER)) {
+            return false;
+        }
+        final String name = toFilename(imageKey);
+        if (name == null || name.isEmpty()) {
+            return false;
+        }
+        final File dest = new File(forge.localinstance.properties.ForgeConstants.CACHE_CARD_PICS_DIR, name + ".jpg");
+        neo.fetchDirect(url, dest.getPath(), ok -> {
+            if (ok) {
+                resolveAfterDownload(imageKey);
+            } else {
+                PENDING.remove(imageKey);
+                giveUpForNow(imageKey);
+            }
+        });
+        return true;
     }
 
     /**

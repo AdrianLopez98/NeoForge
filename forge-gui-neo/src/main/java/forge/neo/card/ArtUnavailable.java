@@ -301,13 +301,12 @@ public final class ArtUnavailable {
                 System.out.println("[arte] se deja de comprobar: el servidor no contesta claro");
                 break;
             }
-            if (v == Verdict.THERE && writable(p)) {
-                // Esta: la proxima tanda la baja.
-                unchecked++;
-                continue;
-            }
-            // (y si esta pero su nombre no puede ser un fichero en este
-            // sistema, no se bajara nunca: cuenta como no disponible)
+            // Si el servidor dice que ESTA pero, pedida en esta misma tanda,
+            // no ha aparecido donde se busca, reintentar no la trae: se
+            // quedaba como "3 cards missing" para siempre (reportado el
+            // 26-09-2026, y la misma historia que "+2 Mace"). Se apunta como
+            // las demas; caduca a los 30 dias igual. (Y si su
+            // nombre no puede ser un fichero en este sistema, tampoco.)
             all.put(key(p), today);
             added++;
             if (++sinceSave >= SAVE_EVERY) {
@@ -324,17 +323,6 @@ public final class ArtUnavailable {
     }
 
     private static final int SAVE_EVERY = 25;
-
-    /** Si esa ruta puede ser un fichero aqui (en Windows no valen {@code " : ? *}...). */
-    private static boolean writable(final String key) {
-        try {
-            java.nio.file.Paths.get(java.net.URLDecoder.decode(key, StandardCharsets.UTF_8.name()));
-            return true;
-        } catch (final IllegalArgumentException
-                | java.io.UnsupportedEncodingException e) {
-            return false;
-        }
-    }
 
     /** Lo que dice el servidor de una imagen. */
     enum Verdict {

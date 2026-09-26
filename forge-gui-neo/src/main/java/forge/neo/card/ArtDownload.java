@@ -85,15 +85,21 @@ public final class ArtDownload extends GuiDownloadService {
      * que el motor espera. Nada que copiar ni que mantener alineado.
      */
     public static GuiDownloadService everyPrinting() {
-        return new forge.gui.download.GuiDownloadFilteredCardImages(c -> true) {
+        return everyPrinting(c -> true);
+    }
+
+    /** Lo mismo, solo con las cartas que pase el filtro. Lo usa el comprobador. */
+    public static GuiDownloadService everyPrinting(final java.util.function.Predicate<PaperCard> which) {
+        return new forge.gui.download.GuiDownloadFilteredCardImages(which) {
             private Map<String, String> asked;
 
             // Las que ya se sabe que Scryfall no tiene no se vuelven a pedir,
             // y las que fallen en esta tanda se apuntan. Ver ArtUnavailable.
             @Override
             protected Map<String, String> getNeededFiles() throws UnsupportedEncodingException {
-                asked = super.getNeededFiles();
+                asked = fixForge(super.getNeededFiles());
                 ArtUnavailable.filter(asked);
+                lastAsked = asked;
                 return asked;
             }
 
@@ -103,6 +109,72 @@ public final class ArtDownload extends GuiDownloadService {
                 super.finish();
             }
         };
+    }
+
+    /**
+     * Dos arreglos a la lista del descargador de Forge, que no se pueden hacer
+     * en su clase (regla de oro):
+     *
+     * <ul>
+     *   <li><b>Escapar {@code %} y {@code +}</b> en la ruta. El servicio la
+     *       URL-decodifica antes de escribir, y Forge no la escapa: "+2 Mace" se
+     *       guardaba como " 2 Mace" y salia como que faltaba <b>para siempre</b>
+     *       — y como Scryfall si la sirve, {@link ArtUnavailable} no la apuntaba
+     *       nunca. Reportado el 26-09-2026 ("3 cards missing"). Lo mismo que
+     *       {@link #add} hace con las nuestras.</li>
+     *   <li>Las <b>rebalanceadas</b> ({@code A-...}) por la CDN con la tabla de
+     *       {@link RebalancedArt}: Forge las pide a la API, que ya no las
+     *       tiene.</li>
+     * </ul>
+     */
+    private static Map<String, String> fixForge(final Map<String, String> in) {
+        final Map<String, String> out = new LinkedHashMap<>();
+        for (final Map.Entry<String, String> e : in.entrySet()) {
+            final String path = e.getKey();
+            String url = e.getValue();
+            final String file = new File(path).getName();
+            if (file.startsWith("A-")) {
+                final String name = file.replaceFirst("\\.(full|fullborder|artcrop).*$", "")
+                        .replaceFirst("\\d+$", "");
+                for (final PaperCard p : FModel.getMagicDb().getCommonCards().getAllCards(name)) {
+                    final String cdn = RebalancedArt.cdnUrl(p, false);
+                    if (cdn != null) {
+                        url = cdn;
+                        break;
+                    }
+                }
+            }
+            out.put(path.replace("%", "%25").replace("+", "%2B"), url);
+        }
+        return out;
+    }
+
+    /**
+     * La ultima lista pedida por cualquiera de los dos descargadores, para que
+     * la pantalla pueda decir CUALES faltan cuando son pocas.
+     */
+    private static volatile Map<String, String> lastAsked;
+
+    /**
+     * Los nombres de las que faltan, si son {@code max} o menos; si no, vacio.
+     * "3 cartas" sin decir cuales no deja hacer nada con el aviso.
+     */
+    public static List<String> missingNames(final int max) {
+        final Map<String, String> asked = lastAsked;
+        if (asked == null || asked.isEmpty() || asked.size() > max) {
+            return java.util.Collections.emptyList();
+        }
+        final List<String> out = new java.util.ArrayList<>();
+        for (final String key : asked.keySet()) {
+            String file;
+            try {
+                file = new File(java.net.URLDecoder.decode(key, StandardCharsets.UTF_8.name())).getName();
+            } catch (final UnsupportedEncodingException | IllegalArgumentException e) {
+                file = new File(key).getName();
+            }
+            out.add(file.replaceFirst("(\\.(full|fullborder|artcrop))?\\.(jpg|png)$", ""));
+        }
+        return out;
     }
 
     /** Ver {@link ArtUnavailable#recordLater}. */
@@ -162,6 +234,7 @@ public final class ArtDownload extends GuiDownloadService {
     protected Map<String, String> getNeededFiles() throws UnsupportedEncodingException {
         asked = list(true);
         ArtUnavailable.filter(asked);
+        lastAsked = asked;
         this.count = asked.size();
         return asked;
     }
@@ -217,7 +290,10 @@ public final class ArtDownload extends GuiDownloadService {
         int cdn = 0;
         for (final Map.Entry<String, Want> e : wants.entrySet()) {
             final Want w = e.getValue();
-            String url = resolve ? cdnUrl(w.card, w.back) : null;
+            String url = RebalancedArt.cdnUrl(w.card, w.back);
+            if (url == null && resolve) {
+                url = cdnUrl(w.card, w.back);
+            }
             if (url != null) {
                 cdn++;
             } else {
@@ -302,12 +378,10 @@ public final class ArtDownload extends GuiDownloadService {
         if (name == null || name.isEmpty()) {
             return;
         }
-        // Las REBALANCEADAS de Arena no se piden: Scryfall no las sirve por
-        // ese nombre ("A-Divide by Zero") y cada una seria una peticion tirada
-        // y una carta contada como fallo. El motor las trae, pero el deck
-        // builder ya las deja fuera por lo mismo, y el propio comprobador de
-        // arte las descuenta desde que existe.
-        if (name.startsWith("A-") || c.isRebalanced()) {
+        // Las REBALANCEADAS de Arena (A-...) solo si tenemos su foto en la
+        // tabla de RebalancedArt: Scryfall ya no las da ni por la API ni en su
+        // indice, asi que pedirlas por nombre seria una peticion tirada.
+        if (RebalancedArt.isRebalanced(c) && RebalancedArt.cdnUrl(c, back) == null) {
             return;
         }
         final File dest = destination(name);
@@ -500,7 +574,9 @@ public final class ArtDownload extends GuiDownloadService {
 
     /** Lo que ocupara, en MB, para poder decirlo antes de empezar. */
     public static int megabytes(final int howMany) {
-        return (int) Math.round(howMany * KB_PER_CARD / 1024.0);
+        // Hacia arriba: "3 cartas, unos 0 MB" parecia un fallo (reportado el
+        // 26-09-2026). Si hay algo que bajar, ocupa al menos 1.
+        return howMany <= 0 ? 0 : (int) Math.ceil(howMany * KB_PER_CARD / 1024.0);
     }
 
     /** Las cartas que la lista mirara, para el comprobador. */

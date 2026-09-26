@@ -57,6 +57,14 @@ import javafx.scene.layout.VBox;
  * ningun "casi siempre" — entre {R}{R} y {W}{W} no hay respuesta por defecto, y
  * ofrecer una es justo lo que estaba mal. Lo unico que se da hecho es el minimo
  * legal cuando el motor exige que todos reciban algo ({@code atLeastOne}).
+ *
+ * <p><b>La excepcion es el mana de "X en cualquier combinacion"</b> ({@link
+ * #forMana}): Selvala y compania. Ahi SI hay una respuesta casi segura —lo que
+ * pide el coste que estas pagando—, asi que sale ya repartido y con el Aceptar
+ * encendido, y se retoca sin tener que vaciar nada: con todo repartido, clicar
+ * un color le pasa uno del que mas tiene; clic derecho quita uno, la rueda sube
+ * y baja, y doble clic lo pone todo en ese color. Ver {@code
+ * forge.neo.match.ManaCombo}.
  */
 public class AmountDialog extends VBox {
 
@@ -70,6 +78,11 @@ public class AmountDialog extends VBox {
 
     private final int total;
     private final boolean atLeastOne;
+    /** El reparto que se ofrece hecho, o null. Solo en el de mana. */
+    private final Map<Object, Integer> suggested;
+    /** El de mana: sale repartido, y clicar con todo repartido pasa uno. */
+    private final boolean mana;
+    private final List<Region> faces = new ArrayList<>();
 
     private final Label remaining = new Label();
     private final Button accept = new Button(NeoText.get("common.accept"));
@@ -78,8 +91,32 @@ public class AmountDialog extends VBox {
                         final int amount, final boolean atLeastOne, final String amountLabel,
                         final double cardWidth,
                         final Consumer<Map<Object, Integer>> onDone) {
+        this(effectSource, targetsIn, amount, atLeastOne, amountLabel, cardWidth, null, null, onDone);
+    }
+
+    /**
+     * El reparto de "X manas en cualquier combinacion de colores", ya hecho.
+     *
+     * @param suggested el reparto que se ofrece (tiene que sumar {@code amount})
+     * @param note      de donde sale la sugerencia ("para pagar {3}{G}{U}"), o null
+     */
+    public static AmountDialog forMana(final CardView effectSource, final Map<Object, Integer> targets,
+                                       final int amount, final Map<Object, Integer> suggested,
+                                       final String note, final double cardWidth,
+                                       final Consumer<Map<Object, Integer>> onDone) {
+        return new AmountDialog(effectSource, targets, amount, false,
+                NeoText.get("amount.thing"), cardWidth,
+                suggested == null ? new HashMap<>() : suggested, note, onDone);
+    }
+
+    private AmountDialog(final CardView effectSource, final Map<Object, Integer> targetsIn,
+                         final int amount, final boolean atLeastOne, final String amountLabel,
+                         final double cardWidth, final Map<Object, Integer> suggested,
+                         final String note, final Consumer<Map<Object, Integer>> onDone) {
         this.total = amount;
         this.atLeastOne = atLeastOne;
+        this.suggested = suggested;
+        this.mana = suggested != null;
 
         getStyleClass().add("dialog");
         setSpacing(14);
@@ -98,8 +135,15 @@ public class AmountDialog extends VBox {
         from.setVisible(!source.isEmpty());
         from.setManaged(!source.isEmpty());
 
-        final Label help = new Label(NeoText.get("amount.help"));
+        final Label hint = new Label(note == null ? "" : note);
+        hint.getStyleClass().add("amount-note");
+        hint.setWrapText(true);
+        hint.setVisible(note != null);
+        hint.setManaged(note != null);
+
+        final Label help = new Label(NeoText.get(mana ? "amount.mana.help" : "amount.help"));
         help.getStyleClass().add("dialog-counter");
+        help.setWrapText(true);
 
         // Fila de objetivos. FlowPane y no HBox porque un reparto puede tener
         // muchos objetivos y lo que no cabe tiene que bajar, no salirse.
@@ -119,20 +163,22 @@ public class AmountDialog extends VBox {
         accept.getStyleClass().add("btn-primary");
         accept.setOnAction(e -> onDone.accept(result()));
 
-        final Button auto = new Button(NeoText.get("amount.auto"));
+        final Button auto = new Button(NeoText.get(mana ? "amount.mana.suggest" : "amount.auto"));
         // La clase suelta es para el piloto de pruebas: este dialogo deja el
         // Aceptar apagado hasta que cuadre el reparto, asi que sin una salida
         // que sepa pulsar se quedaria plantado aqui para siempre.
         auto.getStyleClass().addAll("btn-secondary", "amount-auto");
+        // En el de mana, "lo sugerido" es mucho mejor reparto que el
+        // automatico (que lo amontona todo en el primer color).
         auto.setOnAction(e -> {
-            applySplit(autoSplit(targetsIn, amount, atLeastOne));
+            applySplit(mana ? suggested : autoSplit(targetsIn, amount, atLeastOne));
             update();
         });
 
-        final Button reset = new Button(NeoText.get("amount.reset"));
+        final Button reset = new Button(NeoText.get(mana ? "amount.mana.clear" : "amount.reset"));
         reset.getStyleClass().add("btn-secondary");
         reset.setOnAction(e -> {
-            startingAllocation();
+            zeroAllocation();
             update();
         });
 
@@ -141,10 +187,20 @@ public class AmountDialog extends VBox {
         final HBox footer = new HBox(10, remaining, gap, reset, auto, accept);
         footer.setAlignment(Pos.CENTER_LEFT);
 
-        getChildren().addAll(heading, from, help, row, footer);
+        getChildren().addAll(heading, from, hint, help, row, footer);
 
         startingAllocation();
         update();
+
+        if (mana) {
+            // Casi siempre es abrir y aceptar: que Intro o Espacio basten.
+            accept.setDefaultButton(true);
+            sceneProperty().addListener((obs, was, now) -> {
+                if (now != null) {
+                    javafx.application.Platform.runLater(accept::requestFocus);
+                }
+            });
+        }
     }
 
     // ---------------------------------------------------------------
@@ -159,8 +215,23 @@ public class AmountDialog extends VBox {
         maxima.add(cap);
 
         final Region face = faceOf(target, cardWidth);
-        face.setOnMouseClicked(e -> add(index, 1));
+        face.setOnMouseClicked(e -> {
+            if (e.getButton() == javafx.scene.input.MouseButton.SECONDARY) {
+                add(index, -1);
+            } else if (mana && e.getClickCount() == 2) {
+                allTo(index);
+            } else if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY) {
+                add(index, 1);
+            }
+        });
+        face.setOnScroll(e -> {
+            if (e.getDeltaY() != 0) {
+                add(index, e.getDeltaY() > 0 ? 1 : -1);
+                e.consume();
+            }
+        });
         face.setCursor(javafx.scene.Cursor.HAND);
+        faces.add(face);
 
         final Label value = new Label("0");
         value.getStyleClass().add("amount-value");
@@ -256,14 +327,51 @@ public class AmountDialog extends VBox {
             return;
         }
         if (delta > 0 && spent() + delta > total) {
-            return;
+            // Con todo repartido, en el de mana clicar un color le pasa uno del
+            // que mas tiene: retocar la sugerencia sin tener que vaciar antes.
+            final int from = mana ? richestOtherThan(index) : -1;
+            if (from < 0) {
+                return;
+            }
+            amounts.set(from, amounts.get(from) - delta);
         }
         amounts.set(index, want);
         update();
     }
 
-    /** El minimo legal: nada, o uno a cada objetivo si el motor lo exige. */
+    /** El que mas lleva, sin contar este; -1 si nadie tiene nada que ceder. */
+    private int richestOtherThan(final int index) {
+        final int floor = atLeastOne ? 1 : 0;
+        int best = -1;
+        for (int i = 0; i < amounts.size(); i++) {
+            if (i != index && amounts.get(i) > floor
+                    && (best < 0 || amounts.get(i) > amounts.get(best))) {
+                best = i;
+            }
+        }
+        return best;
+    }
+
+    /** Todo a este (doble clic en el de mana), respetando su tope. */
+    private void allTo(final int index) {
+        zeroAllocation();
+        amounts.set(index, Math.min(total, maxima.get(index)));
+        update();
+    }
+
+    /** Como se abre: la sugerencia en el de mana; si no, el minimo legal. */
     private void startingAllocation() {
+        if (mana && !suggested.isEmpty()) {
+            applySplit(suggested);
+            if (spent() == total) {
+                return;
+            }
+        }
+        zeroAllocation();
+    }
+
+    /** El minimo legal: nada, o uno a cada objetivo si el motor lo exige. */
+    private void zeroAllocation() {
         final boolean one = atLeastOne && total >= amounts.size();
         for (int i = 0; i < amounts.size(); i++) {
             amounts.set(i, one ? Math.min(1, maxima.get(i)) : 0);
@@ -282,7 +390,12 @@ public class AmountDialog extends VBox {
         for (int i = 0; i < targets.size(); i++) {
             valueLabels.get(i).setText(String.valueOf(amounts.get(i)));
             minusButtons.get(i).setDisable(amounts.get(i) <= (atLeastOne ? 1 : 0));
-            plusButtons.get(i).setDisable(left <= 0 || amounts.get(i) >= maxima.get(i));
+            plusButtons.get(i).setDisable(amounts.get(i) >= maxima.get(i)
+                    || (left <= 0 && !(mana && richestOtherThan(i) >= 0)));
+            // Lo que no lleva nada se apaga: el reparto se lee de un vistazo.
+            if (mana) {
+                faces.get(i).setOpacity(amounts.get(i) > 0 ? 1.0 : 0.45);
+            }
         }
         remaining.setText(left == 0 ? NeoText.get("amount.done") : NeoText.get("amount.left", left));
         accept.setDisable(left != 0);

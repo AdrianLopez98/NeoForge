@@ -1183,6 +1183,28 @@ final class NeoAppDebug {
      * dialogo: repartir contadores entre varias criaturas.
      */
     void mockAmount(final List<String> args) {
+        if ("selvala".equals(NeoApp.optionOf(args, "--mock-amount"))) {
+            // Selvala con fuerza 7 pagando {3}{G}{U}: sale ya repartido
+            // (G G U + el resto al verde) y con el Aceptar encendido.
+            final java.util.Map<Object, Integer> targets = new java.util.LinkedHashMap<>();
+            final java.util.Map<Object, Integer> start = new java.util.LinkedHashMap<>();
+            for (final forge.card.MagicColor.Color c : new forge.card.MagicColor.Color[] {
+                    forge.card.MagicColor.Color.WHITE, forge.card.MagicColor.Color.BLUE,
+                    forge.card.MagicColor.Color.BLACK, forge.card.MagicColor.Color.RED,
+                    forge.card.MagicColor.Color.GREEN}) {
+                targets.put(c, 7);
+                start.put(c, 0);
+            }
+            start.put(forge.card.MagicColor.Color.BLUE, 1);
+            start.put(forge.card.MagicColor.Color.GREEN, 6);
+            final CardView source = app.table.selfFieldNodes().isEmpty()
+                    ? null : app.table.selfFieldNodes().get(0).getCard();
+            app.table.getOverlay().show(forge.neo.ui.AmountDialog.forMana(
+                    source, targets, 7, start,
+                    NeoText.get("amount.mana.forCostOf", "{3}{G}{U}", "Hydroid Krasis"),
+                    132, map -> app.table.getOverlay().hide()));
+            return;
+        }
         final boolean entities = "cartas".equals(NeoApp.optionOf(args, "--mock-amount"));
         final java.util.Map<Object, Integer> targets = new java.util.LinkedHashMap<>();
         final int amount = entities ? 4 : 2;

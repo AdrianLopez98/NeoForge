@@ -40,6 +40,10 @@ import forge.neo.tutorial.TutorialState;
  *       es de mana combinado se quedan como estaban.
  * </ol>
  *
+ * <p>Y la otra cara del mana combinado ({@link ManaCombo}): que <i>Selvala</i>
+ * con una criatura de fuerza 6 reparta sus seis manas en UNA pregunta —y ya
+ * repartida con lo que pide el coste— en vez de seis.
+ *
  * <p>Se ejecuta con {@code run.cmd manacheck}.
  */
 public final class ManaCheck {
@@ -67,6 +71,16 @@ public final class ManaCheck {
     private static final String FOREST = "Forest|Set:M21";
     /** Cuesta {R}{G}: hacen falta los DOS colores a la vez. */
     private static final String SPELL = "Burning-Tree Emissary|Set:GTC";
+    /** {G},{T}: X manas en cualquier combinacion, X = la mayor fuerza. */
+    private static final String SELVALA = "Selvala, Heart of the Wilds|Set:CN2";
+    /** 6/6: Selvala da seis. */
+    private static final String BIG = "Colossal Dreadmaw|Set:M21";
+
+    /** El texto con el que pregunta el motor cada color del mana combinado. */
+    private static String selectMana() {
+        // Se pide cada vez: al cargar la clase el idioma puede no estar puesto.
+        return forge.util.Localizer.getInstance().getMessage("lblSelectManaProduce");
+    }
 
     public static void run() {
         passed = 0;
@@ -141,7 +155,7 @@ public final class ManaCheck {
                 "activephase=MAIN1",
                 "humanlife=20",
                 "ailife=20",
-                "humanbattlefield=" + MOUNTAIN + ";" + MOUNTAIN + ";" + DUAL,
+                "humanbattlefield=" + MOUNTAIN + ";" + MOUNTAIN + ";" + DUAL + ";" + SELVALA + ";" + BIG,
                 "humanhand=" + SPELL,
                 "humanlibrary=" + FOREST + ";" + FOREST + ";" + FOREST,
                 "humangraveyard=",
@@ -196,10 +210,15 @@ public final class ManaCheck {
         // tope de tiempo y el aviso de run() lo dice con sawTable.
         SpellAbility combo = null;
         SpellAbility plain = null;
+        SpellAbility selvala = null;
+        boolean big = false;
         for (final Card c : me.getCardsIn(ZoneType.Battlefield)) {
+            big |= c.getName().equals("Colossal Dreadmaw");
             for (final SpellAbility sa : c.getManaAbilities()) {
                 final AbilityManaPart mp = sa.getManaPart();
-                if (mp != null && mp.isComboMana() && combo == null) {
+                if (c.getName().startsWith("Selvala")) {
+                    selvala = sa;
+                } else if (mp != null && mp.isComboMana() && combo == null) {
                     combo = sa;
                 } else if (mp != null && !mp.isComboMana() && plain == null
                         && c.getName().equals("Mountain")) {
@@ -208,7 +227,15 @@ public final class ManaCheck {
             }
         }
 
-        if (combo == null) {
+        // La posicion se pone carta a carta (ver arriba): hasta que no esten
+        // las tres que se prueban, se vuelve a mirar.
+        if (combo == null || selvala == null || !big) {
+            return;
+        }
+        // Y hasta que Selvala no cuente al 6/6. La fuerza se lee desde este
+        // hilo con la partida viva, y entre dos lecturas llego a cambiar (visto
+        // el 26-09-2026: una corrida de cuatro en rojo por eso).
+        if (ManaCombo.batchable(selvala, selectMana()) != 6) {
             return;
         }
         sawDual = true;
@@ -259,7 +286,97 @@ public final class ManaCheck {
         check("Sin habilidad (elegir color de una proteccion) no toca nada",
                 ManaColor.widen(null, ColorSet.fromMask(MagicColor.RED)).countColors() == 1);
 
+        // --- 4. Selvala: X manas en UNA pregunta ---
+        selvala(ui, selvala, combo, notes);
+
         checked.set(true);
+    }
+
+    /**
+     * El reparto de Selvala.
+     *
+     * <p>La partida va en modo automatico, asi que {@code askManaCombo} no
+     * ensenya el dialogo: devuelve la sugerencia. Eso es justo lo que se quiere
+     * mirar — que sugerencia sale y que el motor recibe un color por llamada
+     * sin preguntar mas.
+     */
+    private static void selvala(final NeoMatchUI ui, final SpellAbility selvala,
+                                final SpellAbility dual, final List<String> notes) {
+        final String msg = selectMana();
+        final int x = ManaCombo.batchable(selvala, msg);
+        notes.add("Selvala da " + x + " (la mayor fuerza en mesa)");
+        check("Selvala reparte seis manas: se junta en una pregunta", x == 6);
+        check("Una dual (un mana) no se junta", ManaCombo.batchable(dual, msg) <= 1);
+        check("Otro chooseColor (una proteccion) no se junta",
+                ManaCombo.batchable(selvala, "Choose a color") == 0);
+
+        final ColorSet all = ColorSet.fromMask(MagicColor.ALL_COLORS);
+        final ColorSet green = ColorSet.fromMask(MagicColor.GREEN);
+
+        // Pagando {3}{G}{U}: G y U, y el sobrante al verde (el color de Selvala).
+        final var paying = ManaCombo.suggest(6, all, cost("3 G U"), null, green);
+        notes.add("Pagando {3}{G}{U} sugiere " + paying);
+        check("Pagando {3}{G}{U}: 1 azul y 5 verdes",
+                n(paying, MagicColor.Color.BLUE) == 1 && n(paying, MagicColor.Color.GREEN) == 5
+                        && sum(paying) == 6);
+
+        // Con {W}{W}{B} pide mas blanco: el sobrante va al blanco.
+        final var white = ManaCombo.suggest(6, all, cost("1 W W B"), null, green);
+        check("Pagando {1}{W}{W}{B}: el sobrante al color que mas pide (5 W, 1 B)",
+                n(white, MagicColor.Color.WHITE) == 5 && n(white, MagicColor.Color.BLACK) == 1);
+
+        // Hibrido: al color que ya se pide.
+        final var hybrid = ManaCombo.suggest(3, all, cost("W/U U"), null, green);
+        check("Un hibrido {W/U} con {U} al lado se paga en azul",
+                n(hybrid, MagicColor.Color.BLUE) == 3);
+
+        // Mas coste que mana: lo que haya, sin pasarse.
+        final var tight = ManaCombo.suggest(2, all, cost("R R G"), null, green);
+        check("Si no llega para todo, no se pasa del total", sum(tight) == 2);
+
+        // Sin coste, con un reparto anterior: el mismo.
+        final java.util.Map<MagicColor.Color, Integer> before = new java.util.LinkedHashMap<>();
+        before.put(MagicColor.Color.RED, 3);
+        before.put(MagicColor.Color.GREEN, 3);
+        final var again = ManaCombo.suggest(6, all, null, before, green);
+        check("Sin coste: como la ultima vez (3 R, 3 G)",
+                n(again, MagicColor.Color.RED) == 3 && n(again, MagicColor.Color.GREEN) == 3);
+
+        // Y sin nada: todo a su color.
+        final var fresh = ManaCombo.suggest(6, all, null, null, green);
+        check("Sin coste ni historia: todo verde", n(fresh, MagicColor.Color.GREEN) == 6);
+
+        // La cola: una pregunta y cinco respuestas calladas.
+        final ManaCombo combo = new ManaCombo();
+        // Con el total fijo (6), no releido: la cola es lo que se prueba aqui.
+        final Byte first = combo.start(ui, null, selvala, all, 6);
+        int answered = first == null ? 0 : 1;
+        while (combo.next(selvala, all) != null) {
+            answered++;
+        }
+        check("El motor recibe sus seis colores con una sola pregunta", answered == 6);
+        check("Y la cola queda vacia", combo.next(selvala, all) == null);
+
+        // Una cola a medias no se la come otra habilidad.
+        combo.start(ui, null, selvala, all, 6);
+        check("Una cola a medias no contesta a otra habilidad", combo.next(dual, all) == null);
+        check("...y se tira", combo.next(selvala, all) == null);
+    }
+
+    private static forge.game.mana.ManaCostBeingPaid cost(final String c) {
+        return new forge.game.mana.ManaCostBeingPaid(new forge.card.mana.ManaCost(c));
+    }
+
+    private static int n(final java.util.Map<MagicColor.Color, Integer> m, final MagicColor.Color c) {
+        return m.getOrDefault(c, 0);
+    }
+
+    private static int sum(final java.util.Map<MagicColor.Color, Integer> m) {
+        int t = 0;
+        for (final int v : m.values()) {
+            t += v;
+        }
+        return t;
     }
 
     private static void check(final String what, final boolean ok) {

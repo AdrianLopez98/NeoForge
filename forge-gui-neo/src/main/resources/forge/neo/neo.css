@@ -2723,6 +2723,13 @@
     -fx-alignment: center;
 }
 
+/* "Para pagar {3}{G}{U}: ya viene repartido" (mana en cualquier combinacion). */
+.amount-note {
+    -fx-font-size: 0.95em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -neo-valid;
+}
+
 .amount-entity {
     -fx-background-color: linear-gradient(to bottom, #2A323D 0%, #1A2029 100%);
     -fx-background-radius: 5;

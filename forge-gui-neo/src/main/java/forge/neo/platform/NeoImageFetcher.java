@@ -220,6 +220,32 @@ public class NeoImageFetcher extends ImageFetcher {
     }
 
     /**
+     * Baja UNA url a UN fichero, sin pasar por {@code fetchImage}.
+     *
+     * <p>Para las rebalanceadas de Arena ({@code forge.neo.card.RebalancedArt}):
+     * Forge solo sabe pedirlas por la API, que ya no las tiene, y aqui se sabe
+     * la url exacta de la CDN. Pasa por {@link #doFetch}, asi que el trato con
+     * Scryfall es el mismo de siempre.
+     *
+     * @param whenDone se llama SIEMPRE al terminar, con si ha ido bien
+     */
+    public void fetchDirect(final String url, final String destPath,
+                            final java.util.function.Consumer<Boolean> whenDone) {
+        ThreadUtil.getServicePool().submit(() -> {
+            boolean ok = false;
+            try {
+                ok = doFetch(url, destPath, null);
+            } catch (final IOException | RuntimeException e) {
+                System.err.println("[neo-img] fallo al descargar " + destPath + " desde " + url + ": " + e);
+            }
+            if (DEBUG) {
+                System.out.println("[neo-img] directa " + (ok ? "OK " : "sin exito ") + destPath);
+            }
+            whenDone.accept(ok);
+        });
+    }
+
+    /**
      * Apunta cuando se acaba el corte, con el mismo numero que usa el motor.
      *
      * <p>El respaldo de 30 s es el {@code DEFAULT_COOLDOWN_SECONDS} de

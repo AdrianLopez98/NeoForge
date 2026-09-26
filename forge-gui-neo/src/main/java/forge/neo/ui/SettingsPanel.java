@@ -222,6 +222,22 @@ public class SettingsPanel extends VBox {
                     }
                 }));
 
+        // --- palabras clave en las cartas de la mesa ---
+        //
+        // Pedido desde Reddit el 26-09-2026: volar, toque mortal, arrollar...
+        // en chapitas sobre la carta, sin tener que ampliarla. Encendido de
+        // fabrica; apagable para quien prefiera el arte limpio.
+        getChildren().add(toggleRow(NeoText.get("settings.keywordBadges"),
+                forge.neo.card.CardNode.areKeywordBadgesEnabled(),
+                on -> {
+                    forge.neo.card.CardNode.setKeywordBadgesEnabled(on);
+                    NeoSettings.setBool(NeoSettings.KEYWORD_BADGES, on);
+                    NeoSettings.save();
+                    if (getScene() != null && getScene().getRoot() != null) {
+                        forge.neo.card.CardNode.refreshAllIn(getScene().getRoot());
+                    }
+                }));
+
         // --- brillo de las foil (la auditoría del motor, apartado D5) ---
         getChildren().add(toggleRow(NeoText.get("settings.foilEffect"),
                 NeoSettings.getBool(NeoSettings.FOIL_EFFECT, true),

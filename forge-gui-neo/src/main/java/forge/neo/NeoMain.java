@@ -761,8 +761,11 @@ public final class NeoMain {
      */
     private static void checkEveryPrintingRuns() {
         final String name = System.getProperty("neo.art.everyCard", "Skullclamp");
+        // Por NUESTRO envoltorio, no por la clase de Forge a pelo: es donde se
+        // arregla la ruta ("+2 Mace" se guardaba como " 2 Mace"). Con
+        // -Dneo.art.everyCard="+2 Mace" se prueba justo eso.
         final forge.gui.download.GuiDownloadService service =
-                new forge.gui.download.GuiDownloadFilteredCardImages(c -> name.equals(c.getName()));
+                forge.neo.card.ArtDownload.everyPrinting(c -> name.equals(c.getName()));
         System.out.println("  todas las impresiones de " + name + " (descargador de Forge)...");
         final boolean ok = forge.neo.platform.NeoDownloads.runAndWait(service, 300);
         forge.neo.card.ArtDownload.afterDownload();

@@ -5465,6 +5465,58 @@ public class NeoMatchUI extends NetworkGuiGame {
     }
 
     /**
+     * "X manas en cualquier combinacion de colores", en un dialogo y ya
+     * repartido. Lo pide {@link ManaCombo} (Selvala y compania).
+     *
+     * <p>Sin jugador delante se devuelve la sugerencia tal cual: es un reparto
+     * legal, y es lo que el jugador habria aceptado casi siempre.
+     *
+     * @param costText   lo que falta por pagar, o null si no se esta pagando
+     * @param payingCard de quien es ese coste, o null
+     * @param asLastTime si la sugerencia es "como la ultima vez"
+     * @return el reparto, o null si algo fue mal (y entonces pregunta Forge)
+     */
+    Map<forge.card.MagicColor.Color, Integer> askManaCombo(final CardView source, final forge.card.ColorSet options,
+                                                final int amount,
+                                                final Map<forge.card.MagicColor.Color, Integer> suggested,
+                                                final String costText, final CardView payingCard,
+                                                final boolean asLastTime) {
+        if (!interactive()) {
+            return suggested;
+        }
+        final Map<Object, Integer> targets = new java.util.LinkedHashMap<>();
+        final Map<Object, Integer> start = new java.util.LinkedHashMap<>();
+        for (final Map.Entry<forge.card.MagicColor.Color, Integer> e : suggested.entrySet()) {
+            targets.put(e.getKey(), amount);
+            start.put(e.getKey(), e.getValue());
+        }
+        final String note;
+        if (costText != null) {
+            final String what = payingCard == null
+                    ? "" : forge.neo.card.CardText.nameOf(payingCard);
+            note = what.isEmpty() ? NeoText.get("amount.mana.forCost", costText)
+                    : NeoText.get("amount.mana.forCostOf", costText, what);
+        } else {
+            note = asLastTime ? NeoText.get("amount.mana.lastTime") : null;
+        }
+        final Map<Object, Integer> picked = askUser(reply -> {
+            final AmountDialog dialog = AmountDialog.forMana(
+                    source, targets, amount, start, note, handCardWidth(), reply::accept);
+            table.getOverlay().show(dialog);
+        }, null);
+        if (picked == null) {
+            return null;
+        }
+        final Map<forge.card.MagicColor.Color, Integer> out = new java.util.LinkedHashMap<>();
+        for (final Map.Entry<Object, Integer> e : picked.entrySet()) {
+            if (e.getKey() instanceof forge.card.MagicColor.Color c && e.getValue() != null) {
+                out.put(c, e.getValue());
+            }
+        }
+        return out;
+    }
+
+    /**
      * "Elige cuales, y en que orden."
      *
      * <p><b>Esto devolvia la lista entera sin preguntar, y era un fallo caro
