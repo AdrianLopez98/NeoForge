@@ -4,6 +4,12 @@ Novedades:
 - **Quest de Commander: empieza eligiendo solo el comandante.** Al lado de los preconstruidos hay una pestana nueva, *Elegir comandante* (o que lo elija el juego), y se te monta un mazo **flojo a proposito** alrededor de el: casi todo comunes, como mucho 12 infrecuentes y 3 raras, ninguna mitica. Pega con el comandante, pero hay que mejorarlo con lo que ganes.
 - **Quest de Commander: ya no se ofrece el mundo.** En Commander el mundo no cambiaba los rivales (Forge los saca de todos los comandantes), solo la tienda, y ofrecerlo hacia creer otra cosa.
 - **Nueva Quest:** las rejillas de preconstruidos y de comandantes ensenan filas enteras, sin la segunda cortada por la mitad.
+- **Partidas por equipos**, como en el lobby de Forge: un desplegable *Equipo* en cada asiento (el tuyo tambien), en la pantalla de mazos y en la partida en red. Tu y una IA contra otras dos, o tu y una IA contra un amigo y la suya. El aliado sale marcado en la mesa, "cada oponente" no le toca, y si caes pero tu aliado gana, ganas. De fabrica, todos contra todos.
+- **Cada formato recuerda sus rivales:** Estandar vuelve a abrir 1 contra 1 aunque la ultima partida fuera un Commander a cuatro.
+- **Ejercer y alistar** preguntan si o no, carta a carta (antes Aceptar sin marcar era "no ejercer").
+- **La Quest en tu idioma** (rangos, creditos, rival sorpresa) y la rara de premio marcada como tal.
+- **Sesiones largas mas ligeras:** cada partida dejaba su mesa en memoria; en la Aventura acababa en pantalla en blanco. Arreglado en todos los modos.
+- **Forge al dia** (26-09): promos de MagicFest 2027 y 53 cartas corregidas.
 
 Descarga el `.dmg` de tu Mac:
 
