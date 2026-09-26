@@ -81,9 +81,35 @@ final class NeoAppQuest {
             public void start(final String name,
                               final forge.neo.quest.NeoQuest.Modalidad modalidad,
                               final forge.neo.quest.NeoQuest.Dificultad dificultad,
-                              final forge.deck.Deck starter, final String world) {
-                forge.neo.quest.NeoQuest.start(name, modalidad, dificultad, starter, world);
-                showQuestHome();
+                              final forge.deck.Deck starter,
+                              final forge.item.PaperCard commander, final String world) {
+                if (commander == null) {
+                    forge.neo.quest.NeoQuest.start(name, modalidad, dificultad, starter, world);
+                    showQuestHome();
+                    return;
+                }
+                // Empezar por comandante: el mazo se monta fuera del hilo de
+                // interfaz (la primera vez carga la matriz de sinergias y
+                // tarda), y la Quest se crea despues, de vuelta en el hilo de
+                // siempre. Si no sale el mazo, la pantalla lo dice y se queda.
+                final QuestSetupScreen from = setup;
+                final Thread t = new Thread(() -> {
+                    final forge.deck.Deck deck =
+                            forge.neo.quest.NeoCommanderDuels.starter(commander);
+                    Platform.runLater(() -> {
+                        if (app.scene.getRoot() != from) {
+                            return; // se ha salido de la pantalla mientras tanto
+                        }
+                        if (deck == null) {
+                            from.buildFailed();
+                            return;
+                        }
+                        forge.neo.quest.NeoQuest.start(name, modalidad, dificultad, deck, world);
+                        showQuestHome();
+                    });
+                }, "neo-quest-starter");
+                t.setDaemon(true);
+                t.start();
             }
 
             @Override
@@ -184,6 +210,7 @@ final class NeoAppQuest {
         reward = new forge.neo.ui.QuestRewardScreen(rewards.isWon(), opponent,
                 rewards.getMessages(), rewards.getCards(), rewards::isNew,
                 app.cardWidth, this::showQuestHome);
+        reward.setBonus(rewards::isBonus);
         app.scene.setRoot(reward);
         app.applyScale();
 
@@ -497,6 +524,7 @@ final class NeoAppQuest {
                 "Alternate win condition: <u>Milled</u>! Bonus: 40 credits.",
                 "You have not lost once! Bonus: 25 credits.",
                 "You've earned 99 credits in total.",
+                "You've won a random rare.",
                 forge.neo.NeoText.get("quest.prizePack", 15, 14)), cards);
     }
 

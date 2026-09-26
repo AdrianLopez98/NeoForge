@@ -85,6 +85,21 @@ public final class CardHaul {
                                final List<String> notes, final double minCard,
                                final double availW, final double availH,
                                final Runnable onDone) {
+        return panel(title, subtitle, cards, isNew, null, notes, minCard, availW, availH, onDone);
+    }
+
+    /**
+     * Y con las cartas que llegan APARTE marcadas ({@code isBonus}): en el botin
+     * de la Quest, la rara al azar y compania, que no salen del sobre de premio
+     * y pueden ser de cualquier expansion. Sin la marca parecia que el sobre
+     * traia una carta de otra coleccion.
+     */
+    public static Region panel(final String title, final String subtitle,
+                               final List<PaperCard> cards, final Predicate<PaperCard> isNew,
+                               final Predicate<PaperCard> isBonus,
+                               final List<String> notes, final double minCard,
+                               final double availW, final double availH,
+                               final Runnable onDone) {
 
         final Label heading = new Label(title);
         heading.getStyleClass().add("dialog-title");
@@ -166,7 +181,14 @@ public final class CardHaul {
 
                 final VBox cell = new VBox(4, node);
                 cell.setAlignment(Pos.TOP_CENTER);
-                if (isNew != null && isNew.test(card)) {
+                final boolean fresh = isNew != null && isNew.test(card);
+                if (isBonus != null && isBonus.test(card)) {
+                    final Label badge = new Label(fresh
+                            ? NeoText.get("haul.new") + "  ·  " + NeoText.get("haul.bonus")
+                            : NeoText.get("haul.bonus"));
+                    badge.getStyleClass().add("bonus-badge");
+                    cell.getChildren().add(badge);
+                } else if (fresh) {
                     final Label badge = new Label(NeoText.get("haul.new"));
                     badge.getStyleClass().add("new-badge");
                     cell.getChildren().add(badge);

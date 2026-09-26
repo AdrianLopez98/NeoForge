@@ -32,6 +32,12 @@ public final class NeoSettings {
     public static final String DECK = "lastDeck";
     /** Numero de rivales de IA. */
     public static final String OPPONENTS = "opponents";
+    /**
+     * El equipo de cada asiento, el tuyo primero ("0,1,0,1"). Vacio = cada uno
+     * en el suyo, todos contra todos, que es como viene de fabrica. Ver
+     * {@code forge.neo.match.NeoTeams}.
+     */
+    public static final String TEAMS = "teams";
     /** Perfil de IA (Cautious / Default / Reckless / Experimental). */
     public static final String AI_PROFILE = "aiProfile";
     /** Escala de interfaz; vacio o "auto" para automatica. */

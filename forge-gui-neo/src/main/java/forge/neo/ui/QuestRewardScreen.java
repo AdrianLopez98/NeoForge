@@ -62,6 +62,14 @@ public class QuestRewardScreen extends StackPane {
      * coleccion antes de repartir.
      */
     private final Predicate<PaperCard> isNew;
+
+    /** Las que da el motor aparte del sobre (ver {@code NeoQuestRewards.isBonus}). */
+    private Predicate<PaperCard> isBonus;
+
+    public void setBonus(final Predicate<PaperCard> isBonus) {
+        this.isBonus = isBonus;
+    }
+
     private final double cardWidth;
     private final Runnable onDone;
     private boolean built;
@@ -79,7 +87,7 @@ public class QuestRewardScreen extends StackPane {
     protected void layoutChildren() {
         if (!built && getWidth() > 0 && getHeight() > 0) {
             built = true;
-            getChildren().add(CardHaul.panel(title, subtitle, cards, isNew, notes,
+            getChildren().add(CardHaul.panel(title, subtitle, cards, isNew, isBonus, notes,
                     cardWidth, getWidth(), getHeight(), onDone));
         }
         super.layoutChildren();

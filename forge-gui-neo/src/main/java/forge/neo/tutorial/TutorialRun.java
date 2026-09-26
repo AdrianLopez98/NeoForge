@@ -100,6 +100,19 @@ public final class TutorialRun {
         this.poller = new Timeline(new KeyFrame(POLL, e -> onPoll()));
         poller.setCycleCount(Animation.INDEFINITE);
         poller.play();
+        // Y se para cuando la mesa sale de la pantalla, se salga por donde se
+        // salga: por el menu de pausa no se pasa por leave(), y un Timeline en
+        // marcha retiene la mesa entera de la leccion para siempre (la fuga de
+        // la pantalla en blanco del 25-09-2026, ver CombatOverlay.sync).
+        // Y si vuelve (hoy nada saca la mesa y la devuelve, pero si algun dia
+        // pasa, la leccion no puede quedarse sin su repaso), se reanuda.
+        table.sceneProperty().addListener((o, was, is) -> {
+            if (is == null) {
+                poller.stop();
+            } else if (!closing) {
+                poller.play();
+            }
+        });
 
         // -Dneo.tutorial.step=N empieza por el paso N. Solo para comprobar con
         // capturas: un paso concreto no se puede fotografiar si para llegar a

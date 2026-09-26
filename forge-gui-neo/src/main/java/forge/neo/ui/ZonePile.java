@@ -238,11 +238,13 @@ public class ZonePile extends VBox {
      */
     public void setSleeveImage(final javafx.scene.image.Image image) {
         if (image == null) {
-            back.setFill(null);
+            SceneFill.set(back, null);
             back.getStyleClass().remove("zone-pile-sleeve");
             return;
         }
-        back.setFill(new javafx.scene.paint.ImagePattern(image, 0, 0, 1, 1, true));
+        // Solo mientras se ve: la imagen es compartida y, puesta a pelo, retenia
+        // la mesa entera de cada partida (ver SceneFill).
+        SceneFill.set(back, new javafx.scene.paint.ImagePattern(image, 0, 0, 1, 1, true));
         if (!back.getStyleClass().contains("zone-pile-sleeve")) {
             back.getStyleClass().add("zone-pile-sleeve");
         }

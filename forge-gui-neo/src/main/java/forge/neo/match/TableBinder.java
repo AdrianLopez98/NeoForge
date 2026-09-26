@@ -209,6 +209,7 @@ public class TableBinder {
         if (bottom == null) {
             bottom = players.get(0);
         }
+        bottomNow = bottom;
         // Commander se juega hasta a cuatro. Se muestra UN rival cada vez y se
         // cambia con pestanyas: partir la pantalla en cuatro dejaria las cartas
         // ilegibles.
@@ -277,7 +278,7 @@ public class TableBinder {
             warnedNoRoom = false;
         }
 
-        table.setOpponents(opponents, top, gv.getPlayerTurn());
+        table.setOpponents(opponents, top, gv.getPlayerTurn(), bottom);
 
         if (seats > 1) {
             // Viendolos a todos no hay "rival a la vista" que pueda cambiar, y
@@ -324,6 +325,13 @@ public class TableBinder {
      */
     /** Ya se ha avisado de que no caben todas las mesas. Una vez por partida. */
     private boolean warnedNoRoom;
+
+    /**
+     * El jugador de abajo en este repintado: de quien son "aliados" los de
+     * arriba. Observando no hay jugador local y abajo va el primero, asi
+     * que no vale {@code self}.
+     */
+    private PlayerView bottomNow;
 
     /** El rival que se esta pintando arriba ahora mismo. */
     private PlayerView shownOpponent;
@@ -650,6 +658,12 @@ public class TableBinder {
         bar.setPlayerName(PlayerName.of(p));
         bar.setLife(p.getLife());
         bar.setActiveTurn(p.equals(gv.getPlayerTurn()));
+        // Por equipos, el de tu lado se sienta arriba como un rival mas: la
+        // marca es lo unico que dice que no hay que atacarle. Lo decide el
+        // motor (NeoTeams.isAlly); en todos contra todos no sale nunca.
+        if (opponent) {
+            bar.setAlly(NeoTeams.isAlly(bottomNow, p));
+        }
         bar.setZones(
                 p.getZoneSize(ZoneType.Hand),
                 p.getZoneSize(ZoneType.Library),

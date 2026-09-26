@@ -31,7 +31,7 @@ import java.util.function.Consumer;
  * <p>Dos cosas, y las dos hacen falta:
  *
  * <ul>
- * <li>{@link #beforeJavaFx}: mas presupuesto (1 GB), para que el paso 1 no llegue.
+ * <li>{@link #beforeJavaFx}: mas presupuesto (2 GB), para que el paso 1 no llegue.
  *     Si alguien ya lo ha puesto con {@code -Dprism.maxvram}, manda el suyo.</li>
  * <li>{@link #install}: si aun asi llega, dos veces por segundo se mira EN EL HILO
  *     DE RENDER, entre fotograma y fotograma, si queda un shader de efecto puesto.
@@ -49,8 +49,25 @@ public final class PrismGuard {
     private PrismGuard() {
     }
 
-    /** Presupuesto de video de JavaFX si nadie ha dicho otro. De fabrica: 512 MB. */
-    static final String MAX_VRAM = "1g";
+    /**
+     * Presupuesto de video de JavaFX si nadie ha dicho otro. De fabrica: 512 MB.
+     *
+     * <p>No reserva nada por adelantado ni cambia lo que se usa normalmente:
+     * medido el 26-09-2026, {@code leakcheck} se queda en 709 MB con 1 GB y en
+     * 707 con 2 GB. El techo solo cuenta en una partida que de verdad necesite
+     * MAS: con el techo justo no se puede crear la textura (la pantalla en
+     * blanco); con algo de margen se usa, y en una tarjeta muy justa como
+     * mucho iria a tirones en ese momento.
+     *
+     * <p><b>Es un techo, no un requisito</b>: no deja fuera a nadie con menos.
+     * En una tarjeta de 1 GB una partida normal cabe igual; solo si una muy
+     * cargada pidiera mas de lo que hay, Windows pasa parte a la memoria del
+     * sistema y como mucho va mas lento en ese momento — en vez de quedarse
+     * sin textura. En la Steam Deck ni eso: no tiene memoria de video propia,
+     * ese "1 GB" es lo reservado de fabrica y la grafica sigue tirando de la
+     * compartida. Por eso 2 GB (1 GB hasta el 26-09-2026, y 1,2 unas horas).
+     */
+    static final String MAX_VRAM = "2g";
 
     private static ScheduledExecutorService timer;
     private static volatile boolean broken;
@@ -100,7 +117,7 @@ public final class PrismGuard {
     }
 
     /**
-     * "VRAM de JavaFX: 312 de 1024 MB", o null si no se puede saber. Desde
+     * "VRAM de JavaFX: 312 de 2048 MB", o null si no se puede saber. Desde
      * cualquier hilo: solo lee dos contadores.
      */
     public static String vram() {

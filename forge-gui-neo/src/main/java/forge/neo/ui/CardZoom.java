@@ -1099,6 +1099,15 @@ public final class CardZoom {
             });
             getChildren().addAll(previous, overlay);
             scene.setRoot(this);
+            // Si se cambia de pantalla con la ampliacion abierta, close() no
+            // llega a correr y el filtro de Escape se quedaba en la escena
+            // agarrado a la pantalla de debajo. Se quita al salir de la
+            // escena, pase lo que pase (la fuga del 25-09-2026).
+            sceneProperty().addListener((o, was, is) -> {
+                if (is == null) {
+                    scene.removeEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, escape);
+                }
+            });
         }
 
         private int size;

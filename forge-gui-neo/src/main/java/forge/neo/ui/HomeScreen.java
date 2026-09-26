@@ -42,9 +42,11 @@ public class HomeScreen extends javafx.scene.layout.StackPane {
         /**
          * @param opponentDecks un mazo por rival; un hueco a null significa
          *                      "el que sea", y lo elige la propia pantalla
+         * @param teams         el equipo de cada asiento, el tuyo primero, o
+         *                      null si es todos contra todos (ver NeoTeams)
          */
         void start(Deck deck, int opponents, String aiProfile, boolean watch,
-                   List<Deck> opponentDecks);
+                   List<Deck> opponentDecks, int[] teams);
     }
 
     /**
@@ -121,6 +123,18 @@ et}) y no se tocan.
     private final List<Button> opponentButtons = new ArrayList<>();
     private Region opponentRow;
 
+    /**
+     * El equipo de cada asiento: el 0 eres tu, el {@code i + 1} el rival
+     * {@code i}. Ver {@link forge.neo.match.NeoTeams}.
+     *
+     * <p>Como en el lobby de Forge: un desplegable "Equipo" <b>por jugador,
+     * el tuyo incluido</b>, junto a lo demas de ese asiento, y de fabrica cada
+     * uno en el suyo — todos contra todos, la partida de siempre.
+     */
+    private int[] teams = new int[0];
+    private final List<javafx.scene.control.ComboBox<Integer>> teamBoxes = new ArrayList<>();
+    private Label opponentCaption;
+
     private final Label summary = new Label();
     private final Button play = new Button(NeoText.get("home.play"));
     private final Button edit = new Button(NeoText.get("home.edit"));
@@ -142,6 +156,8 @@ et}) y no se tocan.
         this.opponents = clamp(
                 NeoSettings.getInt(NeoSettings.OPPONENTS, format.getDefaultOpponents()), 1, 3);
         this.aiProfile = NeoSettings.get(NeoSettings.AI_PROFILE, "Default");
+        this.teams = forge.neo.match.NeoTeams.fromSetting(
+                NeoSettings.get(NeoSettings.TEAMS, ""), opponents);
 
         for (final Deck d : decks) {
             if (format.isMine(d)) {
@@ -508,6 +524,7 @@ et}) y no se tocan.
                         v -> {
                             opponents = Integer.parseInt(v);
                             NeoSettings.setInt(NeoSettings.OPPONENTS, opponents);
+                            resizeTeams();
                             rebuildOpponentRow();
                             updateSummary();
                         }),
@@ -566,14 +583,25 @@ et}) y no se tocan.
         final HBox row = (HBox) opponentRow;
         row.getChildren().clear();
         opponentButtons.clear();
+        teamBoxes.clear();
 
         while (opponentDecks.size() < opponents) {
             opponentDecks.add(null);
         }
 
-        final Label caption = new Label(NeoText.get("home.against"));
-        caption.getStyleClass().add("caption");
-        row.getChildren().add(caption);
+        // Con un solo rival no hay equipos que hacer: tu y el, uno contra uno,
+        // y la fila se queda como estaba antes de que hubiera equipos.
+        final boolean withTeams = opponents > 1;
+        if (withTeams) {
+            // Tu asiento tambien lleva su "Equipo", como en el lobby de Forge.
+            final Label you = new Label(NeoText.get("home.you"));
+            you.getStyleClass().add("caption");
+            row.getChildren().add(seat(you, teamBox(0)));
+        }
+
+        opponentCaption = new Label();
+        opponentCaption.getStyleClass().add("caption");
+        row.getChildren().add(opponentCaption);
 
         for (int i = 0; i < opponents; i++) {
             final int index = i;
@@ -582,9 +610,50 @@ et}) y no se tocan.
             b.setMinWidth(Region.USE_PREF_SIZE);
             b.setOnAction(e -> pickOpponentDeck(index));
             opponentButtons.add(b);
-            row.getChildren().add(b);
+            row.getChildren().add(withTeams ? seat(b, teamBox(i + 1)) : b);
         }
         refreshOpponentLabels();
+    }
+
+    /**
+     * Lo de un asiento, junto: quien es (o con que mazo juega) y su equipo.
+     * Van pegados porque son del mismo jugador; entre asientos queda el hueco
+     * de la fila.
+     */
+    private static HBox seat(final javafx.scene.Node who,
+                             final javafx.scene.control.ComboBox<Integer> team) {
+        final Label caption = new Label(forge.util.Localizer.getInstance().getMessage("lblTeam"));
+        caption.getStyleClass().add("caption");
+        final HBox box = new HBox(4, who, caption, team);
+        box.setAlignment(Pos.CENTER_LEFT);
+        box.setPadding(new Insets(0, 8, 0, 0));
+        return box;
+    }
+
+    /**
+     * El desplegable de equipo del asiento {@code seat}: 1 a 8, como el de
+     * Forge ({@code PlayerPanel.populateTeamsComboBoxes}). Se guarda en cuanto
+     * se toca, igual que el resto de esta pantalla.
+     */
+    private javafx.scene.control.ComboBox<Integer> teamBox(final int seat) {
+        final javafx.scene.control.ComboBox<Integer> box = new javafx.scene.control.ComboBox<>();
+        box.getStyleClass().add("team-combo");
+        for (int t = 1; t <= forge.neo.match.NeoTeams.MAX_TEAMS; t++) {
+            box.getItems().add(t);
+        }
+        box.setValue(seat < teams.length ? teams[seat] + 1 : seat + 1);
+        box.setOnAction(e -> {
+            final Integer picked = box.getValue();
+            if (picked == null || seat >= teams.length) {
+                return;
+            }
+            teams[seat] = picked - 1;
+            NeoSettings.set(NeoSettings.TEAMS, forge.neo.match.NeoTeams.toSetting(teams));
+            refreshOpponentLabels();
+            updateSummary();
+        });
+        teamBoxes.add(box);
+        return box;
     }
 
     private void refreshOpponentLabels() {
@@ -593,6 +662,38 @@ et}) y no se tocan.
             opponentButtons.get(i).setText(NeoText.get("home.aiDeck", i + 1,
                     d == null ? NeoText.get("home.random") : shorten(d.getName())));
         }
+        if (opponentCaption != null) {
+            // "Juegan contra ti" deja de ser verdad en cuanto hay alguien en
+            // tu equipo.
+            opponentCaption.setText(NeoText.get(hasTeams() ? "home.atTable" : "home.against"));
+        }
+    }
+
+    /**
+     * Ajusta los equipos al numero de rivales, conservando lo ya elegido. Un
+     * asiento nuevo entra en su propio equipo, como en Forge.
+     *
+     * <p>Aqui NO se corrige un reparto de un solo equipo: a medio elegir es
+     * normal pasar por ahi (Forge tampoco lo impide). Lo que se impide es
+     * jugarlo — ver {@link #updateSummary}.
+     */
+    private void resizeTeams() {
+        final int[] out = forge.neo.match.NeoTeams.freeForAll(opponents);
+        for (int i = 0; i < out.length && i < teams.length; i++) {
+            out[i] = teams[i];
+        }
+        teams = out;
+        NeoSettings.set(NeoSettings.TEAMS, forge.neo.match.NeoTeams.toSetting(teams));
+    }
+
+    /** Si la partida va por equipos: alguien comparte equipo con alguien. */
+    private boolean hasTeams() {
+        return opponents > 1 && !forge.neo.match.NeoTeams.isFreeForAll(teams);
+    }
+
+    /** Si el reparto no se puede jugar: todos en el mismo equipo. */
+    private boolean notEnoughTeams() {
+        return opponents > 1 && !forge.neo.match.NeoTeams.isEnoughTeams(teams);
     }
 
     /** Los nombres de los preconstruidos son largos; en un boton no caben. */
@@ -660,14 +761,19 @@ et}) y no se tocan.
      * el jugador no cambiara nada.
      */
     private void launch(final StartHandler onStart, final boolean watch) {
-        if (selected == null) {
+        // Todos en el mismo equipo: JUGAR ya esta apagado (updateSummary), pero
+        // VER no, y con un solo equipo el motor da la partida por acabada
+        // antes de empezar.
+        if (selected == null || notEnoughTeams()) {
             return;
         }
         NeoSettings.set(NeoSettings.DECK, selected.getName());
         NeoSettings.setInt(NeoSettings.OPPONENTS, opponents);
         NeoSettings.set(NeoSettings.AI_PROFILE, aiProfile);
+        NeoSettings.set(NeoSettings.TEAMS, forge.neo.match.NeoTeams.toSetting(teams));
         NeoSettings.save();
-        onStart.start(selected, opponents, aiProfile, watch, resolvedOpponentDecks());
+        onStart.start(selected, opponents, aiProfile, watch, resolvedOpponentDecks(),
+                hasTeams() ? teams.clone() : null);
     }
 
     /**
@@ -815,11 +921,33 @@ et}) y no se tocan.
             return;
         }
 
-        final String problem =
+        String problem =
                 forge.neo.deck.DeckProblem.translate(format.getGameType()
                         .getDeckFormat().getDeckConformanceProblem(selected));
+        // Todos en el mismo equipo no se puede jugar, y se dice aqui con el
+        // mismo texto con el que lo dice Forge al darle a empezar.
+        if (problem == null && notEnoughTeams()) {
+            problem = forge.util.Localizer.getInstance().getMessage("lblNotEnoughTeams");
+        }
 
-        if (problem == null) {
+        if (problem == null && hasTeams()) {
+            // "2 contra 2" en vez de "partida a 4": con equipos, lo que hay que
+            // saber de un vistazo es como va el reparto. El tuyo primero.
+            final java.util.Map<Integer, Integer> sizes = new java.util.LinkedHashMap<>();
+            for (final int t : teams) {
+                sizes.merge(t, 1, Integer::sum);
+            }
+            final StringBuilder split = new StringBuilder();
+            for (final int n : sizes.values()) {
+                if (split.length() > 0) {
+                    split.append(NeoText.get("home.teams.vs"));
+                }
+                split.append(n);
+            }
+            summary.setText(NeoText.get("home.summary.teams",
+                    format.getLabel(), selected.getName(), selected.getMain().countAll(),
+                    split.toString(), aiProfile));
+        } else if (problem == null) {
             summary.setText(NeoText.get("home.summary",
                     format.getLabel(), selected.getName(), selected.getMain().countAll(),
                     opponents + 1, aiProfile));

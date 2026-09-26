@@ -724,6 +724,11 @@ public class NeoMatchUI extends NetworkGuiGame {
         if (!isDeclaringAttackers() || isHighlighted(player)) {
             return;
         }
+        // Mirar la mesa de un aliado no es elegirle de defensor: el motor no
+        // le deja ser atacado y solo contestaria con un "accion incorrecta".
+        if (NeoTeams.isAlly(localPlayerView(), player)) {
+            return;
+        }
         if (CLICK_DEBUG) {
             System.out.printf("[click] pestanya %s -> nuevo defensor%n",
                     PlayerName.of(player));
@@ -2956,7 +2961,14 @@ public class NeoMatchUI extends NetworkGuiGame {
             return false;
         }
         final GameView gv = getGameView();
-        final String winner = gv == null ? null : gv.getWinningPlayerName();
+        // Por equipos gana un EQUIPO, no un jugador: se dice "Equipo 2", con la
+        // palabra de Forge (lblTeam) y el numero como en el desplegable.
+        final int winningTeam = NeoTeams.winningTeam(gv);
+        final String winner = gv == null ? null
+                : winningTeam >= 0
+                        ? forge.util.Localizer.getInstance().getMessage("lblTeam")
+                                + " " + (winningTeam + 1)
+                        : gv.getWinningPlayerName();
         final int turns = gv == null ? 0 : gv.getTurn();
         // En red siempre es la ultima: NetHostedMatch juega partidas sueltas.
         // Y en el invitado isMatchOver() es una copia por deltas que puede
@@ -3019,6 +3031,20 @@ public class NeoMatchUI extends NetworkGuiGame {
         for (final PlayerView p : getLocalPlayers()) {
             if (!live(p).getHasLost()) {
                 return true;
+            }
+        }
+        // Por equipos se gana en equipo: si te han matado pero tu aliado
+        // sigue en pie cuando se acaba, la partida la ha ganado tu lado
+        // (GameEndReason.AllOpposingTeamsLost). En todos contra todos nadie
+        // es aliado de nadie y esto no cambia nada.
+        final GameView gv = getGameView();
+        if (NeoTeams.winningTeam(gv) >= 0) {
+            for (final PlayerView p : getLocalPlayers()) {
+                for (final PlayerView other : gv.getPlayers()) {
+                    if (NeoTeams.isAlly(live(p), other) && !other.getHasLost()) {
+                        return true;
+                    }
+                }
             }
         }
         return false;

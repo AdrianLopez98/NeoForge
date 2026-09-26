@@ -296,6 +296,33 @@ public final class LobbyCheck {
                     ai != null && ai.getName() != null && !ai.getName().isBlank());
             ok &= check("y es una IA", ai != null && ai.getType() == LobbySlotType.AI);
 
+            // ---- 4-ter. por equipos, si se pide ----
+            //
+            // -Dneo.lobby.check.teams=true: tu y una IA contra el invitado y
+            // otra IA, con el desplegable "Equipo" de la sala (LobbyScreen
+            // .teamCell), que manda el teamUpdate de Forge. Va detras de una
+            // bandera para que la prueba de siempre siga siendo la de siempre.
+            final boolean teams = Boolean.getBoolean("neo.lobby.check.teams");
+            int ai2Seat = -1;
+            if (teams) {
+                lobby.addSlot();
+                ai2Seat = lobby.getNumberOfSlots() - 1;
+                lobby.applyToSlot(ai2Seat, NeoLobby.aiSeatEvent(lobby));
+                if (hostDeck != null) {
+                    lobby.applyToSlot(ai2Seat, UpdateLobbyPlayerEvent.deckUpdate(hostDeck));
+                }
+                lobby.applyToSlot(ai2Seat, UpdateLobbyPlayerEvent.isReadyUpdate(true));
+                lobby.applyToSlot(hostSeat, UpdateLobbyPlayerEvent.teamUpdate(0));
+                lobby.applyToSlot(aiSeat, UpdateLobbyPlayerEvent.teamUpdate(0));
+                lobby.applyToSlot(guestSeat, UpdateLobbyPlayerEvent.teamUpdate(1));
+                lobby.applyToSlot(ai2Seat, UpdateLobbyPlayerEvent.teamUpdate(1));
+                ok &= check("equipos puestos en la sala (0,0 contra 1,1)",
+                        lobby.getSlot(hostSeat).getTeam() == 0
+                                && lobby.getSlot(aiSeat).getTeam() == 0
+                                && lobby.getSlot(guestSeat).getTeam() == 1
+                                && lobby.getSlot(ai2Seat).getTeam() == 1);
+            }
+
             System.out.printf(Locale.ROOT, "  Lobby listo: %s%n", NeoLobby.describe(lobby));
             ok &= check("todos listos", lobby.findFirstUnreadySlot() == null);
 
@@ -316,8 +343,12 @@ public final class LobbyCheck {
             final int seated = hostUi.getGameView() == null ? 0
                     : hostUi.getGameView().getPlayers().size();
             System.out.printf(Locale.ROOT, "  Jugadores en la mesa: %d%n", seated);
-            ok &= check("la partida ha arrancado CON la IA dentro (2 humanos + 1 IA)",
-                    seated == 3);
+            ok &= check(teams ? "la partida ha arrancado con las dos IA (2 humanos + 2 IA)"
+                            : "la partida ha arrancado CON la IA dentro (2 humanos + 1 IA)",
+                    seated == (teams ? 4 : 3));
+            if (teams) {
+                ok &= checkTeamsReachedGame(hostUi);
+            }
 
             // AQUI y no al final: GameLobby.onMatchOver() vacia el mapa de
             // controladores, asi que preguntando despues de la partida la
@@ -707,6 +738,31 @@ public final class LobbyCheck {
         final forge.gamemodes.net.event.MessageEvent m = sent.get();
         return check("lo que escribe el anfitrion en el chat lleva su nombre",
                 m != null && m.getSource() != null && !m.getSource().isBlank());
+    }
+
+    /**
+     * Que los equipos de la sala han llegado a la partida: cada humano tiene
+     * exactamente un aliado (su IA) y dos rivales. Se pregunta con
+     * {@code NeoTeams.isAlly}, lo mismo que usa la mesa para pintar "ALIADO".
+     */
+    private static boolean checkTeamsReachedGame(final NeoMatchUI hostUi) {
+        final forge.game.GameView gv = hostUi.getGameView();
+        if (gv == null) {
+            return check("hay partida para mirar los equipos", false);
+        }
+        boolean good = true;
+        for (final forge.game.player.PlayerView p : gv.getPlayers()) {
+            int allies = 0;
+            for (final forge.game.player.PlayerView o : gv.getPlayers()) {
+                if (forge.neo.match.NeoTeams.isAlly(p, o)) {
+                    allies++;
+                }
+            }
+            System.out.printf(Locale.ROOT, "  %s: %d aliado(s), %d rival(es)%n",
+                    p.getName(), allies, p.getOpponents().size());
+            good &= allies == 1 && p.getOpponents().size() == 2;
+        }
+        return check("en la partida, cada uno con 1 aliado y 2 rivales", good);
     }
 
     private static boolean checkGuestSettingsReachedHost(final GameLobby lobby, final int guestSeat) {

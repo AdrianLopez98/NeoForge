@@ -94,6 +94,8 @@ public class CombatOverlay extends Pane {
         setMouseTransparent(true);
         getChildren().add(canvas);
         canvas.setEffect(new DropShadow(6, Color.rgb(0, 0, 0, 0.85)));
+        // Fuera de la pantalla no se pinta: ver sync().
+        sceneProperty().addListener((o, was, is) -> sync());
     }
 
     public void setLocator(final Locator locator) {
@@ -182,9 +184,20 @@ public class CombatOverlay extends Pane {
         return dragSource != null;
     }
 
-    /** Arranca o para el repintado segun haya algo que dibujar. */
+    /**
+     * Arranca o para el repintado segun haya algo que dibujar Y la mesa este
+     * en pantalla.
+     *
+     * <p>Lo de la pantalla no es un detalle: un {@code AnimationTimer} en marcha
+     * vive en la lista global de JavaFX, y con el a esta capa y a TODA su mesa
+     * — la partida, las cartas, las imagenes y sus texturas. Una partida que
+     * acababa con alguna flecha puesta (el ataque letal, lo normal al ganar)
+     * dejaba su mesa viva y repintandose para siempre. En la Aventura, una por
+     * duelo, hasta llenar la memoria de video y dejar la pantalla en blanco
+     * (itch.io, 23 y 25-09-2026; encontrado con un volcado del heap).
+     */
     private void sync() {
-        final boolean want = !links.isEmpty() || dragSource != null;
+        final boolean want = (!links.isEmpty() || dragSource != null) && getScene() != null;
         if (want && !running) {
             running = true;
             pulse.start();

@@ -71,6 +71,17 @@ public class PlayerBar extends HBox {
     private final Label turnMark = new Label(NeoText.get("bar.turn"));
 
     /**
+     * "ALIADO", junto al nombre, cuando la partida va por equipos y este
+     * jugador es de tu lado (ver {@code forge.neo.match.NeoTeams}).
+     *
+     * <p>El aliado se sienta arriba, en el sitio de los rivales, con la misma
+     * barra y la misma mesa: sin esta marca no hay forma de saber de un
+     * vistazo a quien no hay que atacar (las notas de diseño: el estado se ve, no se
+     * lee en un detalle).
+     */
+    private final Label allyMark = new Label(NeoText.get("bar.ally"));
+
+    /**
      * El dano de comandante que has recibido, y del que mas te ha pegado.
      *
      * <p>Va SIEMPRE a la vista y no escondido en un detalle, porque es un
@@ -124,7 +135,11 @@ public class PlayerBar extends HBox {
         commanderDamage.setVisible(false);
         commanderDamage.setManaged(false);
 
-        final HBox nameRow = new HBox(8, name, turnMark, commanderDamage);
+        allyMark.getStyleClass().add("ally-mark");
+        allyMark.setVisible(false);
+        allyMark.setManaged(false);
+
+        final HBox nameRow = new HBox(8, name, allyMark, turnMark, commanderDamage);
         nameRow.setAlignment(Pos.CENTER_LEFT);
 
 
@@ -343,11 +358,13 @@ public class PlayerBar extends HBox {
      */
     public void setAvatarImage(final javafx.scene.image.Image image) {
         if (image == null) {
-            avatar.setFill(null);
+            SceneFill.set(avatar, null);
             avatar.getStyleClass().remove("avatar-image");
             return;
         }
-        avatar.setFill(new javafx.scene.paint.ImagePattern(image, 0, 0, 1, 1, true));
+        // Solo mientras se ve: la imagen es compartida y, puesta a pelo, retenia
+        // la mesa entera de cada partida (ver SceneFill).
+        SceneFill.set(avatar, new javafx.scene.paint.ImagePattern(image, 0, 0, 1, 1, true));
         if (!avatar.getStyleClass().contains("avatar-image")) {
             avatar.getStyleClass().add("avatar-image");
         }
@@ -593,6 +610,16 @@ public class PlayerBar extends HBox {
 
     private static final javafx.css.PseudoClass ACTIVE =
             javafx.css.PseudoClass.getPseudoClass("active");
+
+    /** Si este jugador juega de tu lado. Ver {@link #allyMark}. */
+    public void setAlly(final boolean ally) {
+        allyMark.setVisible(ally);
+        allyMark.setManaged(ally);
+        pseudoClassStateChanged(ALLY, ally);
+    }
+
+    private static final javafx.css.PseudoClass ALLY =
+            javafx.css.PseudoClass.getPseudoClass("ally");
 
     public void setZones(final int handSize, final int librarySize, final int graveSize,
                          final int exileSize, final int commandSize) {

@@ -36,6 +36,10 @@ public final class QuestCheck {
         System.out.println();
         ok &= checkCommanderRivals();
         System.out.println();
+        ok &= checkCommanderStarter();
+        System.out.println();
+        ok &= checkRewardText();
+        System.out.println();
         ok &= checkOne(NeoQuest.Modalidad.ESTANDAR);
         System.out.println();
         ok &= checkShop();
@@ -77,6 +81,113 @@ public final class QuestCheck {
      * Se ensenya al lado lo que daba Forge para el mismo comandante, para ver
      * la diferencia en el registro.
      */
+    /**
+     * Las lineas del botin que Forge escribe en ingles: todas las formas que
+     * salen de QuestWinLoseController se reconocen (y se traducen), y una que
+     * no es suya se deja tal cual.
+     */
+    private static boolean checkRewardText() {
+        System.out.println("  --- Lineas del botin, traducidas ---");
+        boolean ok = true;
+        final String[] samples = {
+                "Easy opponent: 25 credits.", "Very hard opponent: 100 credits.",
+                "Random Opponent Bonus: 25 credits.", "Random Opponent Bonus: 1 credit.",
+                "Bonus for previous wins: 0 credits.", "Bonus for previous wins: 1 credit.",
+                "Alternate win condition: <u>Milled</u>! Bonus: 40 credits.",
+                "Alternate win condition: Poison! Bonus: 40 credits.",
+                "Mulliganed to zero and still won! Bonus: 100 credits.",
+                "Won on turn zero! Bonus: 100 credits.", "Won in one turn! Bonus: 50 credits.",
+                "Won by turn 5! Bonus: 20 credits.", "Life total difference: 12 credits.",
+                "You have not lost once! Bonus: 25 credits.", "Estates bonus (10%): 5 credits.",
+                "You've earned 50 credits in total.", "Could be worse: 120 credits in total.",
+                "A respectable 300 credits in total.", "An impressive 600 credits in total.",
+                "Spectacular match! 800 credits in total.", "You've won a random rare.",
+                "You've won a random rare for winning against a very hard deck."};
+        for (final String s : samples) {
+            final boolean seen = QuestRewardText.recognizes(s);
+            if (!seen) {
+                System.out.println("  NO RECONOCIDA: " + s);
+            }
+            ok &= seen;
+        }
+        final String other = "Something Forge adds tomorrow: 7 credits.";
+        ok &= other.equals(QuestRewardText.translate(other));
+        System.out.printf(Locale.ROOT, "  %d formas reconocidas; \"%s\" -> \"%s\"%n", samples.length,
+                samples[0], QuestRewardText.translate(samples[0]));
+        System.out.println(ok ? "  OK" : "  FALLO");
+        return ok;
+    }
+
+    private static boolean checkCommanderStarter() {
+        System.out.println("  --- Quest de Commander empezando por comandante ---");
+        boolean ok = true;
+        final List<PaperCard> commanders = new java.util.ArrayList<>();
+        for (final String name : new String[] {"Krenko, Mob Boss", "Meren of Clan Nel Toth"}) {
+            final PaperCard pc = FModel.getMagicDb().getCommonCards().getUniqueByName(name);
+            if (pc != null) {
+                commanders.add(pc);
+            }
+        }
+        // Y uno que la matriz NO conozca: se deja elegir, y tiene que salir
+        // igual un mazo legal (de staples de su color).
+        for (final PaperCard c : forge.neo.ascent.AscentSeedDeck.commanderPool()) {
+            if (!forge.neo.ascent.AscentSynergy.knows(c)) {
+                commanders.add(c);
+                break;
+            }
+        }
+        for (final PaperCard cmd : commanders) {
+            final long t0 = System.nanoTime();
+            final Deck d = NeoCommanderDuels.starter(cmd);
+            final long ms = (System.nanoTime() - t0) / 1_000_000;
+            if (d == null) {
+                System.out.printf(Locale.ROOT, "  %-30s sin mazo: FALLO%n", cmd.getName());
+                ok = false;
+                continue;
+            }
+            final String problem = forge.deck.DeckFormat.Commander.getDeckConformanceProblem(d);
+            final int bracket = forge.deck.CommanderBracketCalculator.getBracket(d);
+            final java.util.Map<CardRarity, Integer> byRarity = new java.util.EnumMap<>(CardRarity.class);
+            for (final PaperCard c : d.getMain().toFlatList()) {
+                if (!c.getRules().getType().isBasicLand()) {
+                    byRarity.merge(NeoCommanderDuels.lowestRarity(c), 1, Integer::sum);
+                }
+            }
+            final int commons = byRarity.getOrDefault(CardRarity.Common, 0);
+            final int uncommons = byRarity.getOrDefault(CardRarity.Uncommon, 0);
+            final int rares = byRarity.getOrDefault(CardRarity.Rare, 0);
+            final int mythics = byRarity.getOrDefault(CardRarity.MythicRare, 0);
+            final boolean good = problem == null && bracket <= 2
+                    && uncommons <= NeoCommanderDuels.STARTER_UNCOMMONS
+                    && rares <= NeoCommanderDuels.STARTER_RARES && mythics == 0
+                    && commons > uncommons + rares
+                    && cmd.getName().equals(d.getName());
+            System.out.printf(Locale.ROOT,
+                    "  %-30s %s | %d comunes, %d infrec., %d raras, %d miticas | bracket %d | %d ms%s%n",
+                    cmd.getName(), forge.neo.ascent.AscentSynergy.knows(cmd) ? "matriz" : "staples",
+                    commons, uncommons, rares, mythics, bracket, ms,
+                    good ? "" : "  <- FALLO" + (problem == null ? "" : " (" + problem + ")"));
+            ok &= good;
+        }
+
+        // Y la Quest arranca con el: en la coleccion, elegido y legal.
+        if (!commanders.isEmpty()) {
+            final Deck d = NeoCommanderDuels.starter(commanders.get(0));
+            final String name = "neo-check-starter";
+            NeoQuest.delete(name);
+            NeoQuest.start(name, NeoQuest.Modalidad.COMMANDER, NeoQuest.Dificultad.NORMAL, d, null);
+            final Deck mine = NeoQuest.currentDeck();
+            final String problem = NeoQuest.problemWith(mine);
+            System.out.printf(Locale.ROOT, "  Quest empezada con %s -> %s%n",
+                    mine == null ? "(ningun mazo)" : mine.getName(),
+                    problem == null ? "legal" : problem);
+            ok &= mine != null && problem == null && d != null && d.getName().equals(mine.getName());
+            NeoQuest.delete(name);
+        }
+        System.out.println(ok ? "  OK" : "  FALLO");
+        return ok;
+    }
+
     private static boolean checkCommanderRivals() {
         System.out.println("  --- Rivales de una Quest de Commander ---");
         boolean ok = true;

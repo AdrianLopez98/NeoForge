@@ -1175,6 +1175,7 @@ public class LobbyScreen extends BorderPane
 
         if (!open) {
             row.getChildren().add(deckCell(l, index, slot));
+            row.getChildren().add(teamCell(l, index, slot));
 
             final Region gap = new Region();
             HBox.setHgrow(gap, Priority.ALWAYS);
@@ -1282,6 +1283,41 @@ public class LobbyScreen extends BorderPane
         b.setDisable(!l.mayEdit(index) || noPoolYet);
         b.setOnAction(e -> pickDeck(index));
         return b;
+    }
+
+    /**
+     * El equipo de este asiento: el desplegable "Equipo" 1-8 de cada jugador
+     * en el lobby de Forge ({@code PlayerPanel.teamComboBox}), y como alli, lo
+     * cambia quien puede editar el asiento ({@code mayEdit}).
+     *
+     * <p>No hay nada nuestro detras: el cambio viaja como el
+     * {@code UpdateLobbyPlayerEvent.teamUpdate} de Forge, y al empezar es
+     * {@code GameLobby.startGame} quien lo lee, pone {@code setTeamNumber} y
+     * se niega con su propio aviso si todos van en el mismo equipo. De
+     * fabrica cada asiento esta en el suyo (todos contra todos), asi que una
+     * sala en la que nadie lo toca juega exactamente igual que antes.
+     */
+    private HBox teamCell(final GameLobby l, final int index, final LobbySlot slot) {
+        final Label caption = new Label(forge.util.Localizer.getInstance().getMessage("lblTeam"));
+        caption.getStyleClass().add("mode-tile-note");
+        final javafx.scene.control.ComboBox<Integer> box = new javafx.scene.control.ComboBox<>();
+        box.getStyleClass().add("team-combo");
+        for (int t = 1; t <= forge.neo.match.NeoTeams.MAX_TEAMS; t++) {
+            box.getItems().add(t);
+        }
+        // Antes del oyente: poner el valor no puede mandar nada por el cable.
+        box.setValue(Math.max(0, slot.getTeam()) + 1);
+        box.setDisable(!l.mayEdit(index));
+        box.setOnAction(e -> {
+            final Integer picked = box.getValue();
+            if (picked != null && picked - 1 != slot.getTeam()) {
+                send(index, UpdateLobbyPlayerEvent.teamUpdate(picked - 1));
+            }
+        });
+        final HBox cell = new HBox(6, caption, box);
+        cell.setAlignment(Pos.CENTER_LEFT);
+        cell.setMinWidth(Region.USE_PREF_SIZE);
+        return cell;
     }
 
     private Button readyButton(final GameLobby l, final int index, final LobbySlot slot) {

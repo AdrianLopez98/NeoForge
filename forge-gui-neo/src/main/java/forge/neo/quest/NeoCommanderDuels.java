@@ -2,6 +2,7 @@ package forge.neo.quest;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -185,6 +186,108 @@ public final class NeoCommanderDuels {
         }
     }
 
+    /** Cuantas infrecuentes puede llevar como mucho el mazo de salida. */
+    static final int STARTER_UNCOMMONS = 12;
+
+    /** Y cuantas raras. Ninguna mitica. */
+    static final int STARTER_RARES = 3;
+
+    /**
+     * El mazo <b>de salida</b> de una Quest que empieza eligiendo comandante en
+     * vez de preconstruido (pedido el 25-09-2026).
+     *
+     * <p>Flojo a proposito, igual que la semilla de Ascenso: la Quest consiste
+     * en mejorarlo con lo que salga de los sobres, y un mazo bueno de entrada se
+     * carga eso. Pero <b>coherente</b>: sale de la misma matriz que los rivales,
+     * o sea de lo que la gente juega con ese comandante. Casi todo comunes, como
+     * mucho {@value #STARTER_UNCOMMONS} infrecuentes y {@value #STARTER_RARES}
+     * raras, y bracket 2.
+     *
+     * <p>Con un comandante que la matriz no conoce sale de los staples de su
+     * color — flojo igual, pero sin tema. Se deja elegir de todos modos: es lo
+     * mismo que hace Ascenso.
+     *
+     * @return el mazo, con el nombre del comandante, o {@code null} si no ha salido
+     */
+    public static Deck starter(final PaperCard cmd) {
+        if (cmd == null) {
+            return null;
+        }
+        try {
+            final Map<CardRarity, Integer> quota = new EnumMap<>(CardRarity.class);
+            quota.put(CardRarity.Uncommon, STARTER_UNCOMMONS);
+            quota.put(CardRarity.Rare, STARTER_RARES);
+            final Deck deck = build(cmd, CardRarity.Rare, 2, quota);
+            enforceStarterRarity(deck, cmd);
+            deck.setName(cmd.getName());
+            return deck;
+        } catch (final RuntimeException e) {
+            System.out.println("[quest] no se ha podido montar el mazo de salida de "
+                    + cmd.getName() + ": " + e);
+            return null;
+        }
+    }
+
+    /**
+     * Los cupos, sobre el mazo YA montado.
+     *
+     * <p>Los de {@link #build} son sobre los candidatos, y casi siempre bastan.
+     * Pero si con los candidatos no le llega, el montador de Forge rellena con
+     * cartas AL AZAR de toda la base ({@code CardThemedDeckBuilder.addRandomCards}),
+     * sin mirar rareza. Lo que se pase se cambia por basicas de su identidad:
+     * un mazo algo mas flojo es justo lo que se pide aqui; una mitica colada no.
+     */
+    static void enforceStarterRarity(final Deck deck, final PaperCard cmd) {
+        final Map<CardRarity, Integer> left = new EnumMap<>(CardRarity.class);
+        left.put(CardRarity.Uncommon, STARTER_UNCOMMONS);
+        left.put(CardRarity.Rare, STARTER_RARES);
+        left.put(CardRarity.MythicRare, 0);
+        final List<PaperCard> out = new ArrayList<>();
+        for (final PaperCard c : deck.getMain().toFlatList()) {
+            if (c.getRules().getType().isBasicLand()) {
+                continue;
+            }
+            final CardRarity r = lowestRarity(c);
+            final Integer n = left.get(r);
+            if (n == null) {
+                continue;
+            }
+            if (n <= 0) {
+                out.add(c);
+            } else {
+                left.put(r, n - 1);
+            }
+        }
+        if (out.isEmpty()) {
+            return;
+        }
+        final List<PaperCard> basics = basicsFor(cmd.getRules().getColorIdentity());
+        for (int i = 0; i < out.size(); i++) {
+            deck.getMain().remove(out.get(i));
+            deck.getMain().add(basics.get(i % basics.size()));
+        }
+        System.out.println("[quest] mazo de salida de " + cmd.getName() + ": "
+                + out.size() + " carta(s) por encima del cupo cambiadas por basicas");
+    }
+
+    private static List<PaperCard> basicsFor(final ColorSet identity) {
+        final String[][] byColour = {
+                {"W", "Plains"}, {"U", "Island"}, {"B", "Swamp"}, {"R", "Mountain"}, {"G", "Forest"}};
+        final List<PaperCard> out = new ArrayList<>();
+        for (final String[] b : byColour) {
+            if (identity.hasAnyColor(forge.card.MagicColor.fromName(b[0].charAt(0)))) {
+                final PaperCard pc = FModel.getMagicDb().getCommonCards().getCard(b[1]);
+                if (pc != null) {
+                    out.add(pc);
+                }
+            }
+        }
+        if (out.isEmpty()) {
+            out.add(FModel.getMagicDb().getCommonCards().getCard("Wastes"));
+        }
+        return out;
+    }
+
     /**
      * Monta el mazo con el montador de Forge, pasandole solo cartas de la
      * matriz: primero las de su comandante, despues los staples de su color.
@@ -193,6 +296,18 @@ public final class NeoCommanderDuels {
      * ({@code prepareWeightedRandomizedCardPool}).
      */
     static Deck build(final PaperCard cmd, final CardRarity maxRarity, final int maxBracket) {
+        return build(cmd, maxRarity, maxBracket, null);
+    }
+
+    /**
+     * Y con <b>cupos por rareza</b>: cuantas cartas de cada una pueden entrar
+     * como mucho en el pozo del que monta el mazo. Lo que no sale en el mapa no
+     * tiene tope. Es un techo sobre los CANDIDATOS: el montador elige de ahi, y
+     * solo si no le llega rellena al azar sin mirar rareza — por eso el mazo de
+     * salida lo vuelve a comprobar despues ({@link #enforceStarterRarity}).
+     */
+    static Deck build(final PaperCard cmd, final CardRarity maxRarity, final int maxBracket,
+                      final Map<CardRarity, Integer> quota) {
         final DeckFormat format = DeckFormat.Commander;
         final ColorSet identity = cmd.getRules().getColorIdentity();
         final Set<String> seen = new HashSet<>();
@@ -200,9 +315,9 @@ public final class NeoCommanderDuels {
 
         final List<PaperCard> candidates = new ArrayList<>();
         addWeighted(candidates, seen, AscentSynergy.poolOf(cmd), OWN_POOL,
-                format, identity, maxRarity);
+                format, identity, maxRarity, quota);
         addWeighted(candidates, seen, AscentSynergy.popularity(), CANDIDATES,
-                format, identity, maxRarity);
+                format, identity, maxRarity, quota);
 
         final List<PaperCard> pool = limitToBracket(candidates, cmd, maxBracket);
         final CardThemedCommanderDeckBuilder gen =
@@ -221,7 +336,8 @@ public final class NeoCommanderDuels {
     /** Anyade del pozo lo que pasa los filtros, en orden al azar con peso, hasta {@code upTo}. */
     private static void addWeighted(final List<PaperCard> out, final Set<String> seen,
             final List<Map.Entry<PaperCard, Integer>> source, final int upTo,
-            final DeckFormat format, final ColorSet identity, final CardRarity maxRarity) {
+            final DeckFormat format, final ColorSet identity, final CardRarity maxRarity,
+            final Map<CardRarity, Integer> quota) {
         final List<Map.Entry<PaperCard, Integer>> shuffled = new ArrayList<>(source);
         final Map<Map.Entry<PaperCard, Integer>, Double> key = new IdentityHashMap<>();
         for (final Map.Entry<PaperCard, Integer> e : shuffled) {
@@ -239,6 +355,15 @@ public final class NeoCommanderDuels {
                     || c.getRules().getAiHints().getRemAIDecks()
                     || lowestRarity(c).ordinal() > maxRarity.ordinal()) {
                 continue;
+            }
+            if (quota != null) {
+                final Integer left = quota.get(lowestRarity(c));
+                if (left != null) {
+                    if (left <= 0) {
+                        continue;
+                    }
+                    quota.put(lowestRarity(c), left - 1);
+                }
             }
             seen.add(c.getName());
             out.add(c);

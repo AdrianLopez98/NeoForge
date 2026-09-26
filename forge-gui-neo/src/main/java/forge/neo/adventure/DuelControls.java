@@ -34,14 +34,21 @@ import java.util.Set;
  * ({@code TableScreen.enablePauseButton}), no solo con Escape: aqui no hay
  * tutorial que lo ensenye.
  */
-final class DuelControls {
+public final class DuelControls {
 
     private DuelControls() {
     }
 
     private static final Set<NeoShortcuts.Action> HELD = EnumSet.noneOf(NeoShortcuts.Action.class);
 
-    static void install(final Scene scene, final TableScreen table, final NeoMatchUI ui) {
+    /** La mesa y la partida del duelo en curso. Solo desde el hilo de JavaFX. */
+    private static TableScreen currentTable;
+    private static NeoMatchUI currentUi;
+    /** La escena que ya tiene puesta la guardia de los botones. */
+    private static Scene guarded;
+
+    /** Publico solo para {@code forge.neo.match.LeakCheck}, que monta los duelos igual. */
+    public static void install(final Scene scene, final TableScreen table, final NeoMatchUI ui) {
         scene.setOnKeyPressed(ev -> {
             if (ev.getCode() == KeyCode.ESCAPE) {
                 if (table.isZoomShowing()) {
@@ -68,8 +75,22 @@ final class DuelControls {
         // show up every time i am pressing space... seems no problem in ascent
         // or classic neo forge"), y el "no pasa en los otros modos" es la
         // pista entera: alli la pone NeoApp, y esta escena es otra.
-        TableKeys.guardFocusedButtons(scene, () -> table,
-                ev -> shortcut(ev, scene, table, ui), HELD::clear);
+        //
+        // UNA sola vez por escena, leyendo la mesa del duelo de AHORA. La escena
+        // es la misma en todos los duelos (NeoWindow la reutiliza) y un filtro
+        // no se quita solo: poniendolo en cada duelo con la mesa capturada, cada
+        // filtro retenia SU mesa, su partida, sus cartas y sus imagenes para
+        // siempre. Medido el 25-09-2026: 4 duelos, 4 TableScreen vivas, y la
+        // VRAM de JavaFX subiendo duelo a duelo hasta la pantalla en blanco
+        // (itch.io, "10-15 battles"). Ver PrismGuard.
+        currentTable = table;
+        currentUi = ui;
+        if (guarded != scene) {
+            guarded = scene;
+            TableKeys.guardFocusedButtons(scene, () -> currentTable,
+                    ev -> currentTable != null && shortcut(ev, scene, currentTable, currentUi),
+                    HELD::clear);
+        }
         // Y el boton, porque aqui Escape no lo ensenya nadie: al duelo de la
         // Aventura se llega desde el mapa de Forge, sin pasar por nuestro
         // tutorial. Reportado en Reddit el 22-09-2026: "I don't seem to find a
