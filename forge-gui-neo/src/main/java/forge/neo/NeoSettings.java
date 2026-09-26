@@ -30,7 +30,7 @@ public final class NeoSettings {
 
     /** Ultimo mazo elegido, por nombre. */
     public static final String DECK = "lastDeck";
-    /** Numero de rivales de IA. */
+    /** Numero de rivales de IA; se guarda POR FORMATO, ver {@link #opponents}. */
     public static final String OPPONENTS = "opponents";
     /**
      * El equipo de cada asiento, el tuyo primero ("0,1,0,1"). Vacio = cada uno
@@ -784,6 +784,34 @@ public final class NeoSettings {
 
     public static void setInt(final String key, final int value) {
         set(key, String.valueOf(value));
+    }
+
+    /**
+     * Cuantos rivales se eligieron la ultima vez EN ESTE FORMATO, o los de
+     * fabrica del formato (Estandar 1, Commander 3...) si nunca se toco.
+     *
+     * <p>Hasta el 26-09-2026 era un solo ajuste para todos, y el de fabrica
+     * del formato solo valia mientras no se hubiera jugado nada: una partida
+     * de Commander a cuatro dejaba Estandar tambien a cuatro. Reportado tal
+     * cual: <i>"Estandar por defecto es 1v1"</i>. Por eso la clave lleva el
+     * formato, y por eso NO se lee la vieja ({@link #OPPONENTS} a secas): lo
+     * que diga es de cualquier formato, justo el fallo.
+     */
+    public static int opponents(final forge.neo.match.NeoFormat format) {
+        return getInt(OPPONENTS + "." + format.name(), format.getDefaultOpponents());
+    }
+
+    public static void setOpponents(final forge.neo.match.NeoFormat format, final int n) {
+        setInt(OPPONENTS + "." + format.name(), n);
+    }
+
+    /** Los equipos de este formato. Por formato por lo mismo que {@link #opponents}. */
+    public static String teams(final forge.neo.match.NeoFormat format) {
+        return get(TEAMS + "." + format.name(), "");
+    }
+
+    public static void setTeams(final forge.neo.match.NeoFormat format, final String teams) {
+        set(TEAMS + "." + format.name(), teams);
     }
 
     /** Escala guardada, o {@code null} si es automatica. */
