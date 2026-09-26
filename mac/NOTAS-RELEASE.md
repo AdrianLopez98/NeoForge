@@ -9,6 +9,10 @@ Novedades:
 - **Ejercer y alistar** preguntan si o no, carta a carta (antes Aceptar sin marcar era "no ejercer").
 - **La Quest en tu idioma** (rangos, creditos, rival sorpresa) y la rara de premio marcada como tal.
 - **Sesiones largas mas ligeras:** cada partida dejaba su mesa en memoria; en la Aventura acababa en pantalla en blanco. Arreglado en todos los modos.
+- **Iconos de habilidad en las cartas de la mesa:** volar, toque mortal, arrollar, proteccion... en la propia carta, sin ampliarla. Los mismos iconos que el Forge de siempre, y sin tapar marcadores como *Preparada*. Se apagan en Ajustes.
+- **Las rebalanceadas de Arena (A-...) vuelven a tener arte**, aunque Scryfall las haya quitado de su indice.
+- **Mana en cualquier combinacion (Selvala):** un solo reparto, ya hecho segun lo que pide el coste, en vez de un dialogo por cada punto.
+- **"Todas las cartas y todos los artes"** ya baja las pocas que se quedaban siempre sin bajar, y si falta alguna dice cual.
 - **Forge al dia** (26-09): promos de MagicFest 2027 y 53 cartas corregidas.
 
 Descarga el `.dmg` de tu Mac:
