@@ -1,12 +1,11 @@
-**NeoForge para macOS 4.0 (beta).** El mismo numero que en itch.io.
+**NeoForge para macOS 4.1 (beta).** El mismo numero que en itch.io.
 
 Novedades:
-- **Enciclopedia de cartas:** una casilla nueva en el menu con todas las cartas para mirarlas, sin mazo. Buscar por nombre, tipo o texto; filtros de color (o identidad), tipo, rareza y coste; **expansion** con sus impresiones, **"Lo ultimo"**, **formato**, orden por **lo mas nuevo**, y **las que tienes o te faltan** de tu Quest. La rueda pasa por todos los resultados.
-- **Vender en la Quest por lotes y con filtros:** elegir varias (clic, Mayus+clic para un tramo), los filtros del constructor, "Solo lo que no usan mis mazos" y "Vender todo lo que no va en un mazo", que pregunta antes.
-- **Volver, siempre abajo a la derecha**, con la accion principal al lado, en las 22 pantallas que lo tenian cada una en un sitio.
-- **Aventura: lo ultimo conseguido primero.** Boton *Lo ultimo primero* en el editor: premios, tienda, sobres y cofres, desde esta version.
-- **La mano tactil de Android, tambien aqui** (Ajustes -> *Mano tactil*, apagada de fabrica): apoyar el dedo amplia, deslizar pasa de carta, subirla a la mesa la juega. Para pantallas tactiles.
-- **La partida en red, tambien con Android:** un movil y un Mac con la misma version pueden jugar en la misma sala.
+- **Colecciones de mazos:** tus propias pestanas en la pantalla de mazos, ademas de "Mis mazos", "Los de Forge" y "De internet". Con **+** se crea una, **Mover** en la esquina de un mazo lo lleva ahi (o lo copia, si es un preconstruido), y clic derecho en la pestana la renombra o la borra, sin borrar ningun mazo. Son carpetas normales: el Forge de siempre las ve.
+- **Companeros (Lurrus, Kaheera, Yorion...):** clic derecho -> *Hacerlo companero* en el constructor, y se reconocen al importar de Moxfield o Arena.
+- **"Lo ultimo" de la Enciclopedia** es lo ultimo que ha llegado a Forge, adelantos incluidos, con un orden nuevo *Llegada a Forge*.
+- **Todos los artes de una carta** en la Enciclopedia: clic derecho -> *Ver sus artes*.
+- **Las cartas planeadas (Plot) se pueden lanzar** desde el exilio.
 
 Descarga el `.dmg` de tu Mac:
 
