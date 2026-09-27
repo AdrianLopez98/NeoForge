@@ -97,7 +97,53 @@ public final class DeckImporter {
             // lo hay, se lo ponemos nosotros.
             deck.setName(name);
         }
+        if (deck != null) {
+            companionsBackToSideboard(deck, text);
+        }
         return new Result(deck, accepted, unknown, problems);
+    }
+
+    /**
+     * Lo que venia bajo un encabezado {@code Companion} vuelve al banquillo.
+     *
+     * <p>El parser de Forge, en Commander y sin zona de mando en la lista, sube
+     * al comandante una legendaria del banquillo — y Lurrus o Kaheera lo son.
+     * Con el encabezado de Arena no hay duda de lo que querias.
+     */
+    private static void companionsBackToSideboard(final Deck deck, final String text) {
+        if (!deck.has(DeckSection.Commander) || text == null) {
+            return;
+        }
+        final java.util.Set<String> named = new java.util.HashSet<>();
+        boolean inside = false;
+        for (final String raw : text.split("\r?\n")) {
+            final String line = raw.trim();
+            if (line.isEmpty()) {
+                continue;
+            }
+            if (line.toLowerCase(java.util.Locale.ROOT).matches("companion:?")) {
+                inside = true;
+                continue;
+            }
+            if (DeckRecognizer.isDeckSectionName(line)) {
+                inside = false;
+                continue;
+            }
+            if (inside) {
+                named.add(cardName(line).toLowerCase(java.util.Locale.ROOT));
+            }
+        }
+        if (named.isEmpty()) {
+            return;
+        }
+        final forge.deck.CardPool zone = deck.get(DeckSection.Commander);
+        for (final forge.item.PaperCard c : new java.util.ArrayList<>(zone.toFlatList())) {
+            if (DeckEditor.isCompanionCard(c)
+                    && named.contains(c.getName().toLowerCase(java.util.Locale.ROOT))) {
+                zone.remove(c, 1);
+                deck.getOrCreate(DeckSection.Sideboard).add(c, 1);
+            }
+        }
     }
 
     /**
@@ -120,6 +166,14 @@ public final class DeckImporter {
      *
      * <p>Si el texto ya trae encabezados propios <i>y uno de ellos es el del
      * comandante</i>, se deja tal cual.
+     *
+     * <p><b>Y el companero</b> (27-09-2026, itch.io). Arena lo exporta bajo su
+     * propio encabezado, {@code Companion}, que Forge no conoce: lo leia como
+     * una carta que no existe. Se traduce a {@code Sideboard}, que es donde lo
+     * busca el motor, y ese banquillo nunca se convierte en comandante. Y si el
+     * banquillo de Moxfield trae comandante <i>y</i> companero, el companero se
+     * queda en el banquillo: los dos a la zona de mando hacia que el segundo
+     * sustituyera al primero.
      */
     static String withSectionHeaders(final String text) {
         if (text == null || text.isBlank()) {
@@ -129,12 +183,23 @@ public final class DeckImporter {
 
         // Si ya hay encabezados explicitos, casi siempre se deja tal cual.
         final String[] lines = text.split("\r?\n");
+        final java.util.Set<Integer> companionHeaders = new java.util.HashSet<>();
+        for (int i = 0; i < lines.length; i++) {
+            if (lines[i].trim().toLowerCase(java.util.Locale.ROOT).matches("companion:?")) {
+                lines[i] = "Sideboard";
+                companionHeaders.add(i);
+            }
+        }
         int sideAt = -1;
         boolean anySection = false;
         boolean hasCommander = false;
         for (int i = 0; i < lines.length; i++) {
             if (!DeckRecognizer.isDeckSectionName(lines[i].trim())) {
                 continue;
+            }
+            anySection = true;
+            if (companionHeaders.contains(i)) {
+                continue; // el banquillo del companero no es la zona de mando
             }
             anySection = true;
             final String word = lines[i].toLowerCase(java.util.Locale.ROOT)
@@ -152,9 +217,10 @@ public final class DeckImporter {
             if (!hasCommander && sideAt >= 0 && cardLinesAfter(lines, sideAt) <= 2
                     && cardLinesAfter(lines, sideAt) > 0) {
                 lines[sideAt] = "Commander";
+                keepCompanionInSideboard(lines, sideAt, newline);
                 return String.join(newline, lines);
             }
-            return text;
+            return companionHeaders.isEmpty() ? text : String.join(newline, lines);
         }
 
         // Partir en bloques separados por lineas en blanco.
@@ -182,6 +248,96 @@ public final class DeckImporter {
         }
         sb.append("Commander").append(newline).append(commander).append(newline);
         return sb.toString();
+    }
+
+    /**
+     * Si el banquillo de dos cartas que va a ser zona de mando trae un
+     * comandante y un companero, el companero vuelve al banquillo.
+     *
+     * <p>Con una sola carta no se toca: un Lurrus solo en el banquillo de
+     * Moxfield es, en un mazo de Commander, casi siempre el comandante. Si el
+     * mazo no tiene zona de mando, el editor lo pone de companero al importar.
+     */
+    private static void keepCompanionInSideboard(final String[] lines, final int header,
+                                                 final String newline) {
+        final List<Integer> cards = new java.util.ArrayList<>();
+        for (int i = header + 1; i < lines.length; i++) {
+            final String line = lines[i].trim();
+            if (line.isEmpty()) {
+                continue;
+            }
+            if (DeckRecognizer.isDeckSectionName(line)) {
+                break;
+            }
+            cards.add(i);
+        }
+        if (cards.size() != 2) {
+            return;
+        }
+        final boolean first = isCompanionLine(lines[cards.get(0)]);
+        final boolean second = isCompanionLine(lines[cards.get(1)]);
+        if (first == second) {
+            return;
+        }
+        final int companion = first ? cards.get(0) : cards.get(1);
+        final int commander = first ? cards.get(1) : cards.get(0);
+        final String companionLine = lines[companion];
+        // Comandante primero, luego el banquillo con el companero.
+        lines[cards.get(0)] = lines[commander];
+        lines[cards.get(1)] = "Sideboard" + newline + companionLine;
+    }
+
+    /**
+     * Las cartas de una lista importada que hay que poner de companero.
+     *
+     * <p>Las del banquillo con la palabra clave, y ademas — si el mazo de
+     * destino no tiene zona de mando — las que el importador tomo por
+     * comandante: un banquillo de una carta se lee como comandante (Moxfield),
+     * y en Estandar o en la Aventura eso solo puede ser un companero. Salia
+     * "no se pudo hacer comandante" (itch.io, 27-09-2026).
+     */
+    public static List<forge.item.PaperCard> companionsOf(final Deck deck,
+                                                          final boolean hasCommandZone) {
+        final List<forge.item.PaperCard> out = new java.util.ArrayList<>();
+        if (deck == null) {
+            return out;
+        }
+        if (deck.has(DeckSection.Sideboard)) {
+            for (final java.util.Map.Entry<forge.item.PaperCard, Integer> e
+                    : deck.get(DeckSection.Sideboard)) {
+                if (DeckEditor.isCompanionCard(e.getKey())) {
+                    out.add(e.getKey());
+                }
+            }
+        }
+        if (!hasCommandZone) {
+            for (final forge.item.PaperCard c : deck.getCommanders()) {
+                if (DeckEditor.isCompanionCard(c)) {
+                    out.add(c);
+                }
+            }
+        }
+        return out;
+    }
+
+    /** Si la linea ("1 Lurrus of the Dream-Den (IKO) 226") es una carta con Companion. */
+    static boolean isCompanionLine(final String line) {
+        final String name = cardName(line);
+        if (name.isEmpty()) {
+            return false;
+        }
+        final forge.item.PaperCard card =
+                forge.StaticData.instance().getCommonCards().getCard(name);
+        return DeckEditor.isCompanionCard(card);
+    }
+
+    /** El nombre de una linea de lista: sin cantidad, sin "(SET) 123" y sin "*F*". */
+    private static String cardName(final String line) {
+        return line.trim()
+                .replaceFirst("^\\d+\\s*[xX]?\\s+", "")
+                .replaceFirst("\\s+\\(.*$", "")
+                .replaceFirst("\\s+\\*.*$", "")
+                .trim();
     }
 
     /** Cuantas lineas con algo escrito hay tras ese encabezado, hasta el siguiente. */

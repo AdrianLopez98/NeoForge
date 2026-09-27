@@ -1728,6 +1728,7 @@ public class NeoMatchUI extends NetworkGuiGame {
         // no se cierra NUNCA: no falla, se queda ahi. Avisar cuesta un
         // Platform.runLater; ser el ultimo de la cola costaba una leccion.
         tellTheSpy(event);
+        rememberPlotted(event);
         // Y aqui se para, si el jugador esta leyendo una carta o tiene el menu
         // puesto: ANTES de tocar la mesa, para que lo que venga detras se vea
         // entrar cuando vuelva a mirar. Ver holdWhileReading.
@@ -2521,17 +2522,87 @@ public class NeoMatchUI extends NetworkGuiGame {
         }
         final PlayerView me = localPlayer();
         final var flash = me == null ? null : me.getFlashback();
-        if (flash == null) {
-            return false;
-        }
-        for (final CardView cv : flash) {
-            // Por id: los CardView que llegan por la red son copias, y la
-            // identidad de objeto no vale (ver las trampas conocidas).
-            if (cv != null && cv.getId() == card.getId()) {
-                return true;
+        if (flash != null) {
+            for (final CardView cv : flash) {
+                // Por id: los CardView que llegan por la red son copias, y la
+                // identidad de objeto no vale (ver las trampas conocidas).
+                if (cv != null && cv.getId() == card.getId()) {
+                    return true;
+                }
             }
         }
-        return false;
+        // Lo que esa lista se deja: lo planeado. Ver plotted.
+        return isPlottedCastable(card);
+    }
+
+    /**
+     * <b>Las cartas planeadas</b> (Plot, de OTJ): id de la carta → turno en
+     * que se planeo. Solo las del juego {@link #plottedGame}.
+     *
+     * <p>Existe por un olvido del motor. Lanzar una carta planeada lo sabe
+     * hacer ({@code GameActionUtil}: "Plotted", sin coste, a velocidad de
+     * conjuro, en un turno posterior), pero la lista de "se puede lanzar
+     * desde fuera de la mano" que publica — {@code PlayerView.getFlashback()},
+     * que sale de {@code PlayerZone.OwnCardsActivationFilter} — conoce el
+     * presagio y la aventura y <b>no lo planeado</b>. Como el visor del exilio
+     * solo deja clicar lo que esta en esa lista, la carta se veia y no habia
+     * forma de jugarla (itch.io, 27-09-2026: Sunbird's Invocation planeada con
+     * Make Your Own Luck). Regla de oro: no se toca el filtro, se completa
+     * desde aqui — y si lo arreglan rio arriba, esto deja de hacer falta solo.
+     *
+     * <p>El {@code CardView} no dice si una carta esta planeada, asi que se
+     * apunta al vuelo con {@code GameEventCardPlotted}. En red el invitado no
+     * recibe eventos: ahi sigue sin marcarse (ver las trampas conocidas).
+     */
+    private final Map<Integer, Integer> plotted = new java.util.concurrent.ConcurrentHashMap<>();
+    private volatile int plottedGame = Integer.MIN_VALUE;
+
+    private void rememberPlotted(final GameEvent event) {
+        // Al SALIR del exilio deja de estar planeada: la carta nueva que hace
+        // el motor al cambiar de zona no hereda la marca, pero si el id. Sin
+        // esto, si mas tarde volvia a acabar exiliada salia lanzable para
+        // siempre y el click no hacia nada.
+        if (event instanceof GameEventCardChangeZone move && move.card() != null
+                && move.from() != null && move.from().zoneType() == ZoneType.Exile) {
+            plotted.remove(move.card().getId());
+            return;
+        }
+        if (!(event instanceof forge.game.event.GameEventCardPlotted ev) || ev.card() == null) {
+            return;
+        }
+        final GameView gv = getGameView();
+        if (gv == null) {
+            return;
+        }
+        if (gv.getId() != plottedGame) {
+            plotted.clear();
+            plottedGame = gv.getId();
+        }
+        plotted.put(ev.card().getId(), gv.getTurn());
+    }
+
+    /**
+     * Si esta carta planeada se puede lanzar ya, leyendo solo la vista.
+     *
+     * <p>Son las condiciones del motor ({@code GameActionUtil}, rama
+     * "Plotted") traducidas a lo que se ve: tuya, en el exilio, planeada en un
+     * turno ANTERIOR y a velocidad de conjuro (tu turno, fase principal, stack
+     * vacio). Es solo para marcarla y dejarla clicar: el click manda el
+     * {@code selectCard} de siempre y quien decide de verdad es el motor.
+     */
+    boolean isPlottedCastable(final CardView card) {
+        final GameView gv = getGameView();
+        if (gv == null || gv.getId() != plottedGame || plotted.isEmpty()
+                || card.getZone() != ZoneType.Exile || !isLocalPlayer(card.getOwner())
+                || isSelecting() || payingMana) {
+            return false;
+        }
+        final Integer turn = plotted.get(card.getId());
+        final PhaseType phase = gv.getPhase();
+        return turn != null && gv.getTurn() > turn
+                && isLocalPlayer(gv.getPlayerTurn())
+                && phase != null && phase.isMain()
+                && (gv.getStack() == null || gv.getStack().isEmpty());
     }
 
     /** Atajo: correr algo en el hilo de interfaz si lo hay. */

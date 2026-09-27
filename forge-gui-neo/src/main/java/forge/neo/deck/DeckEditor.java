@@ -927,6 +927,12 @@ public final class DeckEditor {
             return false;
         }
         deck.getMain().remove(card, deck.getMain().count(card));
+        // Y si era el companero, deja de serlo: la misma carta en el banquillo
+        // y en la zona de mando son dos copias, y en singleton el mazo no vale.
+        final PaperCard companion = companion();
+        if (companion != null && normalized(companion.getName()).equals(normalized(card.getName()))) {
+            removeCompanion();
+        }
         final CardPool pool = deck.getOrCreate(DeckSection.Commander);
         if (usesSignatureSpell()) {
             // Aqui NO se vacia la zona: se sustituye la carta DEL MISMO HUECO.
@@ -991,7 +997,14 @@ public final class DeckEditor {
                 if (!seen.add(normalized(card.getName()))) {
                     continue;
                 }
-                if (overCopies(card)) {
+                // Y el companero, ademas, como una carta del mazo: el motor
+                // juzga el banquillo por identidad y por el pozo. Ponerlo antes
+                // que el comandante y elegir luego uno de otro color dejaba el
+                // mazo sin guardar y sin nada marcado (27-09-2026).
+                final boolean badCompanion = isCompanionCard(card) && usesCompanion()
+                        && (!inCardPool(card) || (pool != null && !pool.getFilterRules().test(card))
+                                || (identity != null && !identity.test(card)));
+                if (overCopies(card) || badCompanion) {
                     out.add(card);
                 }
             }
@@ -1205,6 +1218,149 @@ public final class DeckEditor {
         dirty = true;
     }
 
+    // ---------------------------------------------------------------
+    // Companero (la palabra clave Companion)
+
+    /**
+     * Si esta carta tiene la palabra clave <i>Companion</i> (Lurrus, Yorion,
+     * Kaheera...).
+     *
+     * <p>Se mira el renglon {@code K:Companion:} del script, que es el mismo
+     * que lee el motor. Con {@code startsWith} y los dos puntos: hay otra
+     * palabra clave que contiene la palabra, <i>Doctor's companion</i>, y esa
+     * es de parejas de comandantes, no de esto.
+     */
+    public static boolean isCompanionCard(final PaperCard card) {
+        if (card == null || card.getRules() == null) {
+            return false;
+        }
+        for (final String k : card.getRules().getMainPart().getKeywords()) {
+            if (k.startsWith("Companion:")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Si este mazo puede llevar companero.
+     *
+     * <p>El companero vive <b>en el banquillo</b>: es donde lo busca el motor
+     * al empezar la partida ({@code Match} llama a
+     * {@code Player.assignCompanion} si el mazo trae banquillo), comprueba la
+     * condicion y deja elegirlo. Asi que basta con que el formato admita
+     * banquillo. En limitado no: ahi el banquillo es el pool entero, y el motor
+     * ya ofrece solo cualquier companero que haya en el si el mazo cumple.
+     *
+     * <p>Hasta el 27-09-2026 no habia forma de ponerlo (informe de itch.io:
+     * Lurrus pegado en una lista salia como "no se pudo hacer comandante").
+     */
+    public boolean usesCompanion() {
+        if (format.poolInSideboard()) {
+            return false;
+        }
+        final org.apache.commons.lang3.Range<Integer> side = deckFormat().getSideRange();
+        return side != null && side.getMaximum() > 0;
+    }
+
+    /**
+     * El que se eligio en esta sesion. Un banquillo de verdad (15 cartas en
+     * construido, los precons de la Aventura) puede traer mas de una carta con
+     * la palabra clave; el motor ofrece todas las que cumplan, pero la fila
+     * ensenya una y tiene que ser la que acabas de poner.
+     */
+    private PaperCard chosenCompanion;
+
+    /** El companero que lleva el mazo, o null. */
+    public PaperCard companion() {
+        if (!usesCompanion() || !deck.has(DeckSection.Sideboard)) {
+            return null;
+        }
+        if (chosenCompanion != null && deck.get(DeckSection.Sideboard).count(chosenCompanion) > 0) {
+            return chosenCompanion;
+        }
+        for (final Map.Entry<PaperCard, Integer> e : deck.get(DeckSection.Sideboard)) {
+            if (isCompanionCard(e.getKey())) {
+                return e.getKey();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Pone esta carta de companero, sustituyendo al que hubiera.
+     *
+     * <p><b>La condicion del companero no se mira aqui</b> ("todos los
+     * permanentes cuestan 2 o menos"). La comprueba el motor al empezar cada
+     * partida con el mazo de ese momento, y si no se cumple simplemente no lo
+     * ofrece: escribirla aqui seria duplicar diez reglas del motor, y el mazo
+     * cambia despues de elegirlo.
+     *
+     * <p>Lo que si se mira es lo de cualquier carta ({@link #rejectionReason}):
+     * que la tengas, que no pase de copias y que quepa en la identidad del
+     * comandante — el motor tambien juzga el banquillo con esas reglas, y un
+     * companero de otro color dejaba el mazo sin poder guardarse.
+     *
+     * <p>Si la carta estaba en el principal, <b>se saca de ahi</b>: es el gesto
+     * de "este Lurrus no va en el mazo, va fuera", y en singleton contarla dos
+     * veces haria el mazo ilegal.
+     *
+     * @return null si se ha puesto; si no, el motivo, para ensenyarlo
+     */
+    public String setCompanion(final PaperCard card) {
+        if (!usesCompanion() || !isCompanionCard(card)) {
+            return forge.neo.NeoText.get("deck.notCompanion",
+                    forge.neo.card.CardText.nameOf(card));
+        }
+        final CardPool side = deck.getOrCreate(DeckSection.Sideboard);
+        // El de antes se quita solo si el banquillo era SOLO el: en un
+        // banquillo de verdad (15 cartas) ese Yorion lo puso el jugador, y
+        // borrarlo en silencio seria perderle una carta. Ahi se quedan los dos
+        // y al empezar el motor pregunta cual.
+        PaperCard previous = companion();
+        if (previous != null && side.countAll() == 1) {
+            side.remove(previous, 1);
+        } else {
+            previous = null;
+        }
+        PaperCard fromMain = null;
+        final String key = normalized(card.getName());
+        for (final Map.Entry<PaperCard, Integer> e : deck.getMain()) {
+            if (normalized(e.getKey().getName()).equals(key)) {
+                fromMain = e.getKey();
+                break;
+            }
+        }
+        if (fromMain != null) {
+            deck.getMain().remove(fromMain, 1);
+        }
+        final String no = rejectionReason(card);
+        if (no != null) {
+            // Todo como estaba: un "no" no puede costarte el companero de antes.
+            if (fromMain != null) {
+                deck.getMain().add(fromMain, 1);
+            }
+            if (previous != null) {
+                side.add(previous, 1);
+            }
+            return no;
+        }
+        side.add(card, 1);
+        chosenCompanion = card;
+        dirty = true;
+        return null;
+    }
+
+    /** Quita el companero del mazo (vuelve al catalogo, no al principal). */
+    public void removeCompanion() {
+        final PaperCard current = companion();
+        if (current == null) {
+            return;
+        }
+        deck.get(DeckSection.Sideboard).remove(current, 1);
+        dirty = true;
+    }
+
     /** Reserva vacia compartida: {@code countOf} se llama miles de veces. */
     private static final CardPool NO_COMMANDER = new CardPool();
 
@@ -1274,6 +1430,21 @@ public final class DeckEditor {
             cmd.remove(from, asCommander);
             cmd.add(to, asCommander);
             changed += asCommander;
+        }
+
+        // El companero vive en el banquillo. Solo el: el resto del banquillo
+        // no se ve en ninguna pantalla y cambiarle el arte seria a ciegas.
+        if (isCompanionCard(from) && deck.has(DeckSection.Sideboard)) {
+            final CardPool side = deck.get(DeckSection.Sideboard);
+            final int asCompanion = side.count(from);
+            if (asCompanion > 0) {
+                side.remove(from, asCompanion);
+                side.add(to, asCompanion);
+                changed += asCompanion;
+                if (from.equals(chosenCompanion)) {
+                    chosenCompanion = to;
+                }
+            }
         }
 
         if (changed > 0) {

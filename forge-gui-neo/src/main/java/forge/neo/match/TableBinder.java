@@ -777,6 +777,16 @@ public class TableBinder {
                 return true;
             }
         }
+        // Y lo planeado, que esa lista del motor se deja (NeoMatchUI.plotted).
+        final NeoMatchUI ui = matchUi;
+        final var cards = ui == null || zone != ZoneType.Exile ? null : owner.getCards(zone);
+        if (cards != null) {
+            for (final CardView cv : cards) {
+                if (cv != null && ui.isPlayableOutside(cv)) {
+                    return true;
+                }
+            }
+        }
         return false;
     }
 

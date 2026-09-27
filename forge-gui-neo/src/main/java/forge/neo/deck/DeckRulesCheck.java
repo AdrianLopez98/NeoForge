@@ -50,6 +50,7 @@ public final class DeckRulesCheck {
         importKeepsWhatDoesNotFit();
         decksCanBeDeleted();
         renamingDoesNotLeaveACopy();
+        collectionsKeepDecksApart();
         otherFormatsFilterThePool();
         generatesADeckForTheCommander();
         generatesARandomOpponentDeck();
@@ -58,6 +59,7 @@ public final class DeckRulesCheck {
         newestFirstOrdersByAcquisition();
         oathbreakerHasTwoSlots();
         oathbreakerDoesNotChangeCommander();
+        companionGoesToTheSideboard();
 
         System.out.println();
         System.out.printf("  %d comprobaciones OK, %d fallos%n", passed, failed);
@@ -684,6 +686,120 @@ public final class DeckRulesCheck {
     }
 
     /**
+     * Las colecciones de mazos ({@link DeckCollections}, pedidas en itch.io el
+     * 27-09-2026) no pierden ni duplican mazos.
+     *
+     * <p>Lo que se vigila es lo que no se ve en una captura: que editar y
+     * renombrar un mazo DENTRO de una coleccion no lo copie a "Mis mazos"
+     * (el constructor guardaba siempre en la carpeta del formato), que mover
+     * no deje el original detras, y que borrar una coleccion devuelva sus
+     * mazos en vez de llevarselos.
+     */
+    private static void collectionsKeepDecksApart() {
+        final NeoFormat format = NeoFormat.ESTANDAR;
+        final String col = "__neocheck-coleccion__";
+        final String col2 = "__neocheck-coleccion-b__";
+        final String a = "__neocheck-col-a__";
+        final String b = "__neocheck-col-b__";
+        for (final String c : new String[] {col, col2}) {
+            if (DeckCollections.storage(format, c) != null) {
+                DeckCollections.delete(format, c);
+            }
+        }
+        for (final String n : new String[] {a, b, a + " (2)"}) {
+            if (format.storage().contains(n)) {
+                format.storage().delete(n);
+            }
+        }
+
+        check("Colecciones: Estandar las admite", DeckCollections.isSupported(format));
+        check("Colecciones: draft no", !DeckCollections.isSupported(NeoFormat.DRAFT));
+        check("Colecciones: un nombre con barra no vale",
+                DeckCollections.problem(format, "a/b", null) != null);
+        check("Colecciones: se crea", DeckCollections.create(format, col)
+                && DeckCollections.list(format).contains(col));
+        check("Colecciones: el mismo nombre en mayusculas es el mismo",
+                DeckCollections.problem(format, col.toUpperCase(java.util.Locale.ROOT), null) != null);
+
+        // Un mazo nuevo montado con la pestanya de la coleccion abierta.
+        final DeckEditor inside = DeckEditor.createNew(new CollectionContext(format, col), a);
+        inside.add(card("Mountain"), 20);
+        inside.save();
+        check("Colecciones: el mazo nuevo se guarda en la coleccion",
+                DeckCollections.storage(format, col).contains(a));
+        check("Colecciones: y NO en Mis mazos", !format.storage().contains(a));
+
+        // Abrirlo y renombrarlo como lo hace el constructor.
+        final DeckEditor reopened = DeckEditor.copyOf(new CollectionContext(format, col),
+                DeckCollections.storage(format, col).get(a));
+        check("Colecciones: al abrirlo se sabe que esta guardado",
+                a.equals(reopened.getSavedAs()));
+        reopened.setName(b);
+        reopened.save();
+        check("Colecciones: renombrar dentro lo renombra",
+                DeckCollections.storage(format, col).contains(b)
+                        && !DeckCollections.storage(format, col).contains(a));
+        check("Colecciones: y no aparece ninguna copia en Mis mazos",
+                !format.storage().contains(a) && !format.storage().contains(b));
+
+        // Mover a otra coleccion y de vuelta a Mis mazos.
+        DeckCollections.create(format, col2);
+        final Deck deck = DeckCollections.storage(format, col).get(b);
+        check("Colecciones: mover a otra coleccion",
+                DeckCollections.move(format, deck, col, true, col2) == null);
+        check("Colecciones: y no se queda en la de antes",
+                !DeckCollections.storage(format, col).contains(b)
+                        && DeckCollections.storage(format, col2).contains(b));
+        check("Colecciones: el .dck esta en su carpeta",
+                new java.io.File(forge.localinstance.properties.ForgeConstants.DECK_CONSTRUCTED_DIR,
+                        col2 + java.io.File.separator + b + ".dck").isFile());
+
+        // Un mazo que no es tuyo se copia; el de origen ni se toca.
+        final Deck precon = NeoFormat.precons().isEmpty() ? null : NeoFormat.precons().get(0);
+        if (precon != null) {
+            check("Colecciones: un preconstruido se copia a la coleccion",
+                    DeckCollections.move(format, precon, null, false, col) == null
+                            && DeckCollections.storage(format, col).contains(precon.getName()));
+            DeckCollections.storage(format, col).delete(precon.getName());
+        }
+
+        // Dos con el mismo nombre en el mismo sitio: no se pisa.
+        final DeckEditor clash = DeckEditor.createNew(format, b);
+        clash.add(card("Mountain"), 20);
+        clash.save();
+        check("Colecciones: mover encima de otro con el mismo nombre se niega",
+                DeckCollections.move(format, DeckCollections.storage(format, col2).get(b),
+                        col2, true, null) != null
+                        && DeckCollections.storage(format, col2).contains(b));
+
+        // Borrar la coleccion devuelve sus mazos (con " (2)" si choca).
+        final int moved = DeckCollections.delete(format, col2);
+        check("Colecciones: borrarla devuelve sus mazos a Mis mazos",
+                moved == 1 && format.storage().contains(b + " (2)")
+                        && format.storage().contains(b));
+        check("Colecciones: y la carpeta ya no esta",
+                !DeckCollections.list(format).contains(col2));
+
+        // Renombrar la coleccion se lleva sus mazos.
+        DeckCollections.storage(format, col).add(new Deck(a));
+        check("Colecciones: renombrarla",
+                DeckCollections.rename(format, col, col2)
+                        && DeckCollections.storage(format, col2).contains(a)
+                        && DeckCollections.storage(format, col) == null);
+
+        DeckCollections.delete(format, col2);
+        for (final String n : new String[] {a, b, b + " (2)"}) {
+            if (format.storage().contains(n)) {
+                format.storage().delete(n);
+            }
+        }
+        check("Colecciones: la prueba no deja nada detras",
+                !DeckCollections.list(format).contains(col) && !DeckCollections.list(format).contains(col2)
+                        && !format.storage().contains(a) && !format.storage().contains(b)
+                        && !format.storage().contains(b + " (2)"));
+    }
+
+    /**
      * Renombrar renombra; no deja una copia con el nombre viejo.
      *
      * <p>Guardar es {@code storage().add(deck)}, asi que con el nombre nuevo se
@@ -1128,6 +1244,104 @@ public final class DeckRulesCheck {
             out.add(c.getName());
         }
         return out;
+    }
+
+    /**
+     * El companero (Lurrus, Kaheera...) va al BANQUILLO, que es donde lo busca
+     * el motor al empezar ({@code Player.assignCompanion}).
+     *
+     * <p>Informe de itch.io del 27-09-2026: no habia forma de ponerlo. El
+     * editor no ensenyaba banquillo y el importador, con Lurrus solo en el
+     * banquillo de Moxfield, lo tomaba por comandante: en un mazo sin zona de
+     * mando salia "no se pudo hacer comandante" y ya.
+     */
+    private static void companionGoesToTheSideboard() {
+        final PaperCard kaheera = card("Kaheera, the Orphanguard");
+        final PaperCard lions = card("Savannah Lions");
+        check("Companero: se reconoce la palabra clave",
+                DeckEditor.isCompanionCard(kaheera) && !DeckEditor.isCompanionCard(lions));
+        check("Companero: 'Doctor's companion' no es esto",
+                !DeckEditor.isCompanionCard(card("Rose Tyler")));
+
+        // 1. A mano, en un construido.
+        final DeckEditor vintage = DeckEditor.createNew(NeoFormat.VINTAGE, "companero");
+        check("Companero: un construido lo admite", vintage.usesCompanion());
+        vintage.add(kaheera, 1);
+        check("Companero: se pone", vintage.setCompanion(kaheera) == null);
+        check("Companero: va al banquillo y sale del principal",
+                vintage.companion() == kaheera
+                        && vintage.getDeck().getMain().countByName(kaheera.getName()) == 0
+                        && vintage.getDeck().get(forge.deck.DeckSection.Sideboard).count(kaheera) == 1);
+        check("Companero: una carta sin la palabra clave no",
+                vintage.setCompanion(lions) != null && vintage.companion() == kaheera);
+        vintage.removeCompanion();
+        check("Companero: y se quita", vintage.companion() == null);
+
+        // 2. Importando: Moxfield lo deja solo en el banquillo -> el
+        // importador lo toma por comandante; sin zona de mando es companero.
+        final String moxfield = String.join(System.lineSeparator(),
+                "4 Savannah Lions", "", "SIDEBOARD:", "1 Kaheera, the Orphanguard");
+        final DeckImporter.Result mox = DeckImporter.importCommander(moxfield, "prueba");
+        check("Companero: importado sin zona de mando, sale como companero",
+                DeckImporter.companionsOf(mox.deck, false).contains(kaheera));
+        check("Companero: y con zona de mando, un Lurrus solo sigue siendo comandante",
+                DeckImporter.companionsOf(mox.deck, true).isEmpty());
+
+        // 3. Arena: encabezado "Companion", que Forge no conoce.
+        final String arena = String.join(System.lineSeparator(),
+                "Companion", "1 Kaheera, the Orphanguard (IKO) 16", "",
+                "Deck", "4 Savannah Lions");
+        final DeckImporter.Result ar = DeckImporter.importCommander(arena, "prueba");
+        System.out.printf(java.util.Locale.ROOT,
+                "        (Arena: comandantes=%s principal=%d banquillo=%s desconocidas=%s)%n",
+                ar.deck == null ? "-" : ar.deck.getCommanders(),
+                ar.deck == null ? -1 : DeckImporter.sectionSize(ar.deck, forge.deck.DeckSection.Main),
+                ar.deck == null || !ar.deck.has(forge.deck.DeckSection.Sideboard) ? "-"
+                        : ar.deck.get(forge.deck.DeckSection.Sideboard).toFlatList(),
+                ar.problems);
+        check("Companero: el encabezado 'Companion' de Arena no es una carta desconocida",
+                ar.unknown == 0);
+        check("Companero: y lo deja en el banquillo, no de comandante",
+                ar.deck != null && ar.deck.getCommanders().isEmpty()
+                        && DeckImporter.companionsOf(ar.deck, true).contains(
+                                ar.deck.get(forge.deck.DeckSection.Sideboard).toFlatList().get(0)));
+
+        // 4. Moxfield con comandante Y companero en el banquillo.
+        final String both = String.join(System.lineSeparator(),
+                "1 Sol Ring", "", "SIDEBOARD:",
+                "1 Kaheera, the Orphanguard", "1 Yarok, the Desecrated");
+        final DeckImporter.Result mixed = DeckImporter.importCommander(both, "prueba");
+        check("Companero: comandante y companero juntos se separan",
+                mixed.deck != null && mixed.deck.getCommanders().size() == 1
+                        && mixed.deck.getCommanders().get(0).getName().equals("Yarok, the Desecrated")
+                        && DeckImporter.companionsOf(mixed.deck, true).size() == 1);
+
+        // 5. En Commander, la identidad cuenta tambien para el companero (el
+        // motor juzga el banquillo con ella).
+        final DeckEditor cmd = DeckEditor.createNew(NeoFormat.COMMANDER, "companero");
+        cmd.setCommander(card("Krenko, Mob Boss"));
+        check("Companero: en Commander, uno fuera de la identidad no entra",
+                cmd.setCompanion(kaheera) != null && cmd.companion() == null);
+        check("Companero: en limitado no hay hueco (el banquillo es el pool)",
+                !DeckEditor.createNew(NeoFormat.DRAFT, "companero").usesCompanion());
+        // 6. Companero puesto antes que el comandante, y luego un comandante de
+        //    otro color: se marca y "quitar lo que no cabe" lo quita.
+        final DeckEditor late = DeckEditor.createNew(NeoFormat.COMMANDER, "companero");
+        check("Companero: sin comandante todavia, se pone", late.setCompanion(kaheera) == null);
+        late.setCommander(card("Krenko, Mob Boss"));
+        check("Companero: con un comandante de otro color sale como lo que no cabe",
+                late.illegalCards().contains(kaheera));
+        late.removeIllegal();
+        check("Companero: y se quita con lo que no cabe", late.companion() == null);
+
+        // 7. En un banquillo de verdad, cambiar de companero no borra el otro.
+        final DeckEditor real = DeckEditor.createNew(NeoFormat.VINTAGE, "companero");
+        real.getDeck().getOrCreate(forge.deck.DeckSection.Sideboard).add(card("Yorion, Sky Nomad"), 1);
+        real.getDeck().getOrCreate(forge.deck.DeckSection.Sideboard).add(card("Swords to Plowshares"), 1);
+        check("Companero: en un banquillo de verdad se pone el nuevo",
+                real.setCompanion(kaheera) == null && real.companion() == kaheera);
+        check("Companero: y el Yorion del jugador sigue ahi",
+                real.getDeck().get(forge.deck.DeckSection.Sideboard).countByName("Yorion, Sky Nomad") == 1);
     }
 
     /**

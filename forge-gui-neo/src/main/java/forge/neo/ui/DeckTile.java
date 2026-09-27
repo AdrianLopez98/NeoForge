@@ -123,6 +123,40 @@ public final class DeckTile extends VBox {
         if (bin != null) {
             bin.setVisible(isHover() || selected);
         }
+        if (mover != null) {
+            mover.setVisible(isHover() || selected);
+        }
+    }
+
+    private Button mover;
+
+    /**
+     * Pone "Mover" en la esquina de enfrente de la papelera: llevar el mazo a
+     * otra coleccion ({@code forge.neo.deck.DeckCollections}).
+     *
+     * <p>Se ve cuando se ve la papelera y por lo mismo — en el elegido para que
+     * se descubra, al pasar por encima para no tener que elegirlo antes. Le
+     * pasa el propio boton a quien lo llama, que es donde se ancla el menu.
+     */
+    public void setOnMove(final java.util.function.Consumer<javafx.scene.Node> onMove) {
+        if (onMove == null || !(getChildren().get(0) instanceof StackPane box)) {
+            return;
+        }
+        mover = new Button(NeoText.get("home.collection.move"));
+        mover.getStyleClass().addAll("deck-tile-bin", "deck-tile-move");
+        mover.setFocusTraversable(false);
+        mover.setVisible(false);
+        mover.setOnAction(e -> onMove.accept(mover));
+        mover.addEventHandler(javafx.scene.input.MouseEvent.MOUSE_CLICKED,
+                javafx.event.Event::consume);
+
+        StackPane.setAlignment(mover, Pos.TOP_LEFT);
+        StackPane.setMargin(mover, new Insets(6));
+        box.getChildren().add(mover);
+
+        if (bin == null) {
+            hoverProperty().addListener((o, was, now) -> updateBin());
+        }
     }
 
     /** Si el mazo lleva comandante de verdad, no una portada de repuesto. */

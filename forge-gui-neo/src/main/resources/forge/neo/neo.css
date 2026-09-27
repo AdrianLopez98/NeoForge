@@ -1568,6 +1568,14 @@
     -fx-text-fill: white;
 }
 
+/* "Mover" a otra coleccion: mismo boton que la papelera, pero no se pone rojo
+   al pasar por encima — mover no destruye nada. */
+.deck-tile-bin.deck-tile-move:hover {
+    -fx-background-color: rgba(74,155,224,0.92);
+    -fx-border-color: -neo-accent;
+    -fx-text-fill: white;
+}
+
 .deck-tile-name {
     -fx-font-size: 1.0em;
     -fx-font-weight: bold;
@@ -3410,6 +3418,8 @@
 .deck-art-shade { -fx-background-color: linear-gradient(to right, rgba(8,14,21,.92) 0%, rgba(8,14,21,.72) 55%, rgba(8,14,21,.28) 100%); }
 .deck-builder .builder-commander { -fx-border-color: #aa844f; -fx-border-radius: 4; -fx-padding: 1; }
 .deck-builder .builder-commander-name { -fx-text-fill: #f1d6a6; -fx-font-size: 1em; -fx-font-weight: bold; -fx-padding: 8 12; }
+.deck-builder .builder-commander:invalid { -fx-border-color: #db695b; }
+.deck-builder .builder-commander:invalid .builder-commander-name { -fx-text-fill: -neo-danger; }
 .deck-builder .builder-statistics > .title { -fx-background-color: #202c39; -fx-padding: 8; }
 .deck-builder .builder-statistics > .title > .text { -fx-fill: #d6c7ad; -fx-font-size: 0.7692em; }
 .deck-builder .builder-statistics > .content { -fx-background-color: #101721; -fx-border-color: #384555; }

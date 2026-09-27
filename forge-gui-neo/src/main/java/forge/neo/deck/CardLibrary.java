@@ -45,8 +45,15 @@ public final class CardLibrary {
     /** Que se hace con la coleccion. */
     public enum Ownership { ALL, OWNED, MISSING }
 
-    /** Como se ordena. */
-    public enum Sort { NAME, COST, NEWEST, TYPE }
+    /**
+     * Como se ordena.
+     *
+     * <p>{@code NEWEST} es la primera IMPRESION de la carta (la fecha de su
+     * expansion); {@code ADDED}, cuando llego a Forge. No es lo mismo: los
+     * adelantos de una expansion que aun no ha salido llegan a Forge semanas
+     * antes, y son justo lo que se viene a buscar con "Lo ultimo".
+     */
+    public enum Sort { NAME, COST, NEWEST, TYPE, ADDED }
 
     /** Lo que se pide. Todo es opcional: una consulta vacia devuelve todo. */
     public static final class Query {
@@ -81,6 +88,13 @@ public final class CardLibrary {
      * reiniciar, asi que no se queda viejo.
      */
     private final Map<String, String> shown = new HashMap<>();
+    /**
+     * Nombre en minusculas -> cuando llego a Forge ("AAAA-MM-DD", que se
+     * ordena bien como texto). Sale de {@code cartas-en-forge.txt}, que genera
+     * {@code tools/fechas-cartas.py} con el historial de git: las copias no
+     * tienen git, asi que viaja dentro del jar.
+     */
+    private final Map<String, String> added = readAdded();
 
     private CardLibrary(final CardIndex index, final Collection<PaperCard> printings) {
         this.index = index;
@@ -182,6 +196,26 @@ public final class CardLibrary {
         return fallback;
     }
 
+    /**
+     * Todas las impresiones de una carta — o sea, todos sus artes —, de la
+     * expansion mas nueva a la mas vieja. Es lo que ensenya "Ver sus artes".
+     */
+    public List<PaperCard> printingsOf(final PaperCard card) {
+        if (card == null) {
+            return List.of();
+        }
+        final CardEdition.Collection all = FModel.getMagicDb().getEditions();
+        final List<PaperCard> out =
+                new ArrayList<>(FModel.getMagicDb().getCommonCards().getAllCards(card.getName()));
+        out.sort(Comparator.comparing((PaperCard p) -> {
+            final CardEdition ed = all.get(p.getEdition());
+            return ed == null ? new Date(0) : dateOf(ed);
+        }).reversed().thenComparing(PaperCard::getEdition)
+                .thenComparing(PaperCard::getCollectorNumber)
+                .thenComparingInt(PaperCard::getArtIndex));
+        return out;
+    }
+
     /** Cuantas cartas distintas trae una expansion. */
     public int countIn(final String setCode) {
         final Map<String, PaperCard> cards = bySet.get(setCode);
@@ -191,6 +225,46 @@ public final class CardLibrary {
     /** Cuando se imprimio la carta por primera vez, o null si no se sabe. */
     public Date firstPrinted(final PaperCard card) {
         return card == null ? null : firstPrinted.get(key(card));
+    }
+
+    /**
+     * Cuando llego la carta a Forge ("AAAA-MM-DD"), o null si la tabla no la
+     * trae — o sea, si es mas nueva que la ultima vez que se genero.
+     */
+    public String addedToForge(final PaperCard card) {
+        if (card == null) {
+            return null;
+        }
+        final String name = key(card);
+        String date = added.get(name);
+        // Las partidas ("Fire // Ice"): su script se llama como su mitad izquierda.
+        final int split = name.indexOf(" // ");
+        if (date == null && split > 0) {
+            date = added.get(name.substring(0, split));
+        }
+        return date;
+    }
+
+    private static Map<String, String> readAdded() {
+        final Map<String, String> out = new HashMap<>();
+        try (java.io.InputStream in = CardLibrary.class.getResourceAsStream("cartas-en-forge.txt")) {
+            if (in == null) {
+                return out;
+            }
+            final java.io.BufferedReader r = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8));
+            String line;
+            while ((line = r.readLine()) != null) {
+                final int tab = line.indexOf('\t');
+                if (tab > 0) {
+                    out.putIfAbsent(line.substring(tab + 1).toLowerCase(Locale.ROOT),
+                            line.substring(0, tab));
+                }
+            }
+        } catch (final java.io.IOException e) {
+            // Sin tabla, "Lo ultimo" ordena por nombre: feo, pero no rompe nada.
+        }
+        return out;
     }
 
     /** Busca, filtra y ordena. */
@@ -243,6 +317,12 @@ public final class CardLibrary {
                         Comparator.nullsLast(Comparator.<Date>reverseOrder())).thenComparing(byName);
             case TYPE:
                 return Comparator.comparing(DeckEditor::groupOf).thenComparing(byName);
+            case ADDED:
+                // Lo que la tabla no trae va PRIMERO: es lo que llego despues
+                // de generarla (actualizar.bat la rehace, pero si algun dia no,
+                // lo nuevo no puede irse al fondo, que es lo que se busca).
+                return Comparator.comparing(this::addedToForge,
+                        Comparator.nullsFirst(Comparator.<String>reverseOrder())).thenComparing(byName);
             default:
                 return byName;
         }

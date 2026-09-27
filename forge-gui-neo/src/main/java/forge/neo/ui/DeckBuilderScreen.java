@@ -79,6 +79,14 @@ public class DeckBuilderScreen extends StackPane {
     private List<PaperCard> basicHits = new ArrayList<>();
     private final VBox deckList = new VBox(2);
     private final HBox commanderRow = new HBox(10);
+    /**
+     * El companero (Lurrus, Yorion...), debajo del comandante.
+     *
+     * <p>Vive en el banquillo, que esta lista no ensenya: sin su fila, ponerlo
+     * seria invisible y no habria donde clicar para quitarlo. Solo ocupa sitio
+     * cuando hay uno.
+     */
+    private final HBox companionRow = new HBox(10);
     private final ManaCurvePane curve = new ManaCurvePane();
     private final Label title = new Label();
     private final Label status = new Label();
@@ -665,7 +673,8 @@ public class DeckBuilderScreen extends StackPane {
         details.setExpanded(false);
         details.setAnimated(false);
         details.getStyleClass().add("builder-statistics");
-        final VBox box = new VBox(8, heading, commanderRow, scroll, curve, details);
+        companionRow.setAlignment(Pos.CENTER_LEFT);
+        final VBox box = new VBox(8, heading, commanderRow, companionRow, scroll, curve, details);
         scroll.setMinHeight(UiScale.px(60));
         box.setId("builder-deck-panel");
         box.getStyleClass().add("deck-panel");
@@ -1216,6 +1225,7 @@ public class DeckBuilderScreen extends StackPane {
         status.pseudoClassStateChanged(INVALID, problem != null);
 
         refreshCommanderRow();
+        refreshCompanionRow();
 
         // Las que ya no caben se marcan en la propia lista. Es informacion, no
         // una accion: no se toca el mazo por nuestra cuenta.
@@ -1401,6 +1411,7 @@ public class DeckBuilderScreen extends StackPane {
                 printingAction(card),
                 foilAction(card),
                 commander,
+                companionAction(card),
                 new CardActionMenu.Action(NeoText.get("deck.removeOne"),
                         have > 1 ? NeoText.get("deck.willKeep", have - 1) : null, have > 0,
                         () -> {
@@ -1415,6 +1426,81 @@ public class DeckBuilderScreen extends StackPane {
                             refreshDeck();
                             refreshCatalogue();
                         }) : null));
+    }
+
+    /**
+     * "Hacerlo companero", solo sobre las cartas con la palabra clave y en los
+     * mazos que admiten banquillo. En las demas no sale: apagada diria que
+     * cualquier carta podria serlo.
+     */
+    private CardActionMenu.Action companionAction(final PaperCard card) {
+        if (!editor.usesCompanion() || !DeckEditor.isCompanionCard(card)
+                || card.equals(editor.companion())) {
+            return null;
+        }
+        // Lurrus de comandante: ofrecerlo acabaria en "solo una copia", que no
+        // explica nada. Para pasarlo a companero, primero se quita de ahi.
+        for (final PaperCard c : editor.commanders()) {
+            if (c.getName().equals(card.getName())) {
+                return null;
+            }
+        }
+        return new CardActionMenu.Action(NeoText.get("deck.makeCompanion"),
+                NeoText.get("deck.makeCompanion.detail"), true,
+                () -> {
+                    final String no = editor.setCompanion(card);
+                    refreshDeck();
+                    refreshCatalogue();
+                    if (no != null) {
+                        message(NeoText.get("deck.notCompanion.title"), no);
+                    }
+                });
+    }
+
+    /** El menu del companero: leerlo, su arte y quitarlo. */
+    private void companionMenu(final PaperCard card) {
+        showCardMenu(card, CardActionMenu.actions(
+                printingAction(card),
+                foilAction(card),
+                new CardActionMenu.Action(NeoText.get("deck.dropCompanion"), null, true,
+                        () -> {
+                            editor.removeCompanion();
+                            refreshDeck();
+                            refreshCatalogue();
+                        })));
+    }
+
+    private void refreshCompanionRow() {
+        companionRow.getChildren().clear();
+        final PaperCard card = editor.companion();
+        companionRow.setVisible(card != null);
+        companionRow.setManaged(card != null);
+        if (card == null) {
+            return;
+        }
+        final Label tag = new Label(NeoText.get("deck.companion"));
+        tag.getStyleClass().add("caption");
+        tag.setMinWidth(Region.USE_PREF_SIZE);
+        final Label name = new Label(CardText.nameOf(card));
+        name.setWrapText(true);
+        name.getStyleClass().add("builder-commander-name");
+        final StackPane node = new StackPane(new DeckArtStrip(card), name);
+        node.getStyleClass().add("builder-commander");
+        // Deja de caber si se elige despues un comandante de otro color: se
+        // marca como las del mazo, y "Quitar lo que no cabe" lo incluye.
+        node.pseudoClassStateChanged(INVALID, editor.illegalCards().contains(card));
+        node.setMinHeight(UiScale.px(44));
+        node.setPrefHeight(UiScale.px(44));
+        node.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(node, Priority.ALWAYS);
+        node.setOnMouseClicked(e -> {
+            if (e.getButton() == MouseButton.SECONDARY) {
+                companionMenu(card);
+            } else if (e.getButton() == MouseButton.PRIMARY) {
+                zoom(card);
+            }
+        });
+        companionRow.getChildren().addAll(tag, node);
     }
 
     /**
@@ -1668,7 +1754,16 @@ public class DeckBuilderScreen extends StackPane {
      */
     private void applyImportedDeck(final Deck deck, final int unknown, final List<String> problems) {
         final List<String> badCommanders = new ArrayList<>();
+        // El companero puede venir en tres sitios: su propio encabezado
+        // ("Companion", Arena), el banquillo (Moxfield) o - cuando el banquillo
+        // es de una carta - tomado por comandante (DeckImporter). En un mazo sin
+        // zona de mando lo tercero es seguro que era un companero: salia como
+        // "no se pudo hacer comandante" (itch.io, 27-09-2026).
+        final List<PaperCard> companions = DeckImporter.companionsOf(deck, editor.usesCommander());
         for (final PaperCard c : deck.getCommanders()) {
+            if (companions.contains(c)) {
+                continue;
+            }
             if (!editor.setCommander(c)) {
                 badCommanders.add(CardText.nameOf(c));
             }
@@ -1685,13 +1780,31 @@ public class DeckBuilderScreen extends StackPane {
         for (final Map.Entry<PaperCard, Integer> e : deck.getMain()) {
             added += editor.addAnyway(e.getKey(), e.getValue());
         }
+        // Despues del principal: setCompanion saca la carta del principal si
+        // estaba, y al reves se colaria dos veces. Se queda el primero que valga.
+        final List<String> badCompanions = new ArrayList<>();
+        boolean companionSet = false;
+        for (final PaperCard c : companions) {
+            if (companionSet) {
+                break;
+            }
+            final String no = editor.setCompanion(c);
+            if (no == null) {
+                companionSet = true;
+            } else {
+                badCompanions.add(CardText.nameOf(c) + " - " + oneLine(no));
+            }
+        }
 
         refreshDeck();
         refreshCatalogue();
 
         final List<PaperCard> illegal = editor.illegalCards();
-        if (unknown == 0 && illegal.isEmpty() && badCommanders.isEmpty()) {
-            message(NeoText.get("deck.import.ok"), NeoText.get("deck.import.added", added));
+        final PaperCard companion = editor.companion();
+        if (unknown == 0 && illegal.isEmpty() && badCommanders.isEmpty() && badCompanions.isEmpty()) {
+            message(NeoText.get("deck.import.ok"), NeoText.get("deck.import.added", added)
+                    + (companion == null ? "" : "\n\n" + NeoText.get("deck.import.companion",
+                            CardText.nameOf(companion))));
             return;
         }
 
@@ -1705,9 +1818,17 @@ public class DeckBuilderScreen extends StackPane {
             sb.append('\n').append(NeoText.get("deck.import.commander",
                     String.join(", ", newCommanders))).append('\n');
         }
+        if (companion != null) {
+            sb.append('\n').append(NeoText.get("deck.import.companion",
+                    CardText.nameOf(companion))).append('\n');
+        }
         if (!badCommanders.isEmpty()) {
             sb.append('\n').append(NeoText.get("deck.import.badCommander")).append(":\n");
             appendSome(sb, badCommanders);
+        }
+        if (!badCompanions.isEmpty()) {
+            sb.append('\n').append(NeoText.get("deck.import.badCompanion")).append(":\n");
+            appendSome(sb, badCompanions);
         }
         if (unknown > 0) {
             sb.append('\n').append(NeoText.get("deck.import.unknown", unknown))
@@ -2082,6 +2203,10 @@ public class DeckBuilderScreen extends StackPane {
                             refreshCatalogue();
                         }
                     }));
+        }
+        final CardActionMenu.Action companion = companionAction(card);
+        if (companion != null) {
+            actions.add(companion);
         }
         // Lo propio del contexto: en la Aventura, mandar a autovender y sacar.
         for (final forge.neo.deck.DeckContext.Action extra : editor.contextActions(card)) {

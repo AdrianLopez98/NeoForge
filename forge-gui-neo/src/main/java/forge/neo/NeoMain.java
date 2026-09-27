@@ -297,6 +297,13 @@ public final class NeoMain {
                 banner("Lo alto de la biblioteca: mirarla y jugarla");
                 forge.neo.match.TopOfLibraryCheck.run();
                 break;
+            case "plotcheck":
+                // Lanzar una carta planeada (Plot): el motor la sabe lanzar
+                // pero no la publica como lanzable desde el exilio. Reportado
+                // en itch.io el 27-09-2026. Ver PlotCheck y NeoMatchUI.plotted.
+                banner("Lo planeado: lanzarlo desde el exilio");
+                forge.neo.match.PlotCheck.run();
+                break;
             case "readingcheck":
                 // La pausa mientras lees una carta: que el motor se pare DE
                 // VERDAD (no solo la pantalla), que vuelva al cerrarla y que

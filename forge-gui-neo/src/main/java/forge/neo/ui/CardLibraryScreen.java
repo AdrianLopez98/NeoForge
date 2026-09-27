@@ -53,7 +53,7 @@ import javafx.util.StringConverter;
  * nuevo". Buscar lo hace {@link CardLibrary}, sin JavaFX, que es lo que
  * prueba {@code librarycheck}.
  */
-public class CardLibraryScreen extends BorderPane {
+public class CardLibraryScreen extends StackPane {
 
     private static final PseudoClass SELECTED = PseudoClass.getPseudoClass("selected");
 
@@ -92,6 +92,19 @@ public class CardLibraryScreen extends BorderPane {
     private Pager pager;
 
     private CardLibrary library;
+
+    /** La pantalla de siempre, y encima la capa de sus dialogos (menu, artes). */
+    private final BorderPane layout = new BorderPane();
+    private final Overlay overlay = new Overlay();
+
+    /**
+     * El arte elegido para cada carta (nombre en minusculas), si se ha
+     * cambiado con "Ver sus artes". Para toda la sesion: volver al menu y
+     * entrar otra vez no deberia deshacerlo. No toca los mazos ni el arte
+     * preferido de Forge: aqui solo se mira.
+     */
+    private static final java.util.Map<String, PaperCard> chosenArt =
+            new java.util.concurrent.ConcurrentHashMap<>();
     private List<PaperCard> results = Collections.emptyList();
     /** Los nombres de la coleccion elegida, o null si aun no se ha leido. */
     private Set<String> owned;
@@ -114,17 +127,21 @@ public class CardLibraryScreen extends BorderPane {
         this.baseWidth = cardWidth;
         getStyleClass().addAll("table-root", "deck-builder", "library");
 
-        setTop(header(onBack));
-        setCenter(body());
+        layout.setTop(header(onBack));
+        layout.setCenter(body());
         // La ayuda a la izquierda y Volver abajo a la derecha, en la misma
         // barra: el sitio de Volver en todas las pantallas (las notas de diseño,
         // principio 12).
         final Label hint = new Label(NeoText.get("library.hint"));
         hint.getStyleClass().add("home-summary");
         hint.setMinWidth(0);
-        setBottom(BackBar.of(onBack, hint));
+        layout.setBottom(BackBar.of(onBack, hint));
+        getChildren().addAll(layout, overlay);
         rebuildGrid();
-        CardZoom.install(this);
+        // El clic derecho en la rejilla abre el menu de la carta (ver tile);
+        // el de ampliar vale DENTRO de los dialogos: en "Ver sus artes" pasa
+        // de un arte a otro a tamanyo de lectura, que es como se ven bien.
+        CardZoom.install(overlay);
 
         summary.setText(NeoText.get("library.loading"));
         resultCount.setText(NeoText.get("library.loading"));
@@ -200,7 +217,12 @@ public class CardLibraryScreen extends BorderPane {
         final Button latest = new Button(NeoText.get("library.latest"));
         latest.getStyleClass().add("segment");
         latest.setMinWidth(Region.USE_PREF_SIZE);
-        latest.setOnAction(e -> selectSet(library == null ? null : library.latestRelease()));
+        // "Lo ultimo" es lo ultimo que ha llegado a FORGE, no la ultima
+        // expansion: asi salen tambien los adelantos de lo que aun no ha
+        // salido, que Forge trae semanas antes. Antes elegia la ultima
+        // expansion publicada y ensenyaba The Hobbit con Reality Fracture ya
+        // en el desplegable (itch.io, 27-09-2026).
+        latest.setOnAction(e -> showLatest());
 
         format.getItems().add(null);
         for (final GameFormat f : FModel.getFormats().getSanctionedList()) {
@@ -235,6 +257,7 @@ public class CardLibraryScreen extends BorderPane {
                 switch (s) {
                     case COST: return NeoText.get("sort.cost");
                     case NEWEST: return NeoText.get("sort.newest");
+                    case ADDED: return NeoText.get("sort.added");
                     case TYPE: return NeoText.get("sort.type");
                     default: return NeoText.get("sort.name");
                 }
@@ -429,6 +452,13 @@ public class CardLibraryScreen extends BorderPane {
         refilter();
     }
 
+    /** Todas las expansiones, de lo que llego a Forge ayer a lo de siempre. */
+    private void showLatest() {
+        selectSet(null);
+        // Cada combo ya refiltra al cambiar.
+        sort.getSelectionModel().select(CardLibrary.Sort.ADDED);
+    }
+
     private void selectSet(final CardEdition edition) {
         for (final SetChoice c : set.getItems()) {
             if (c.edition() == edition) {
@@ -441,7 +471,9 @@ public class CardLibraryScreen extends BorderPane {
     /**
      * Solo pruebas: {@code -Dneo.library.query=elf}, {@code .set=DSK},
      * {@code .format=Modern}, {@code .sort=NEWEST}, {@code .own=OWNED},
-     * {@code .latest=true}. Para capturar un estado sin ratón.
+     * {@code .latest=true}, {@code .arts=Sol Ring} (y {@code .menu=true}, o {@code .pick=N} para
+     * dejar puesto su arte N sin dialogo).
+     * Para capturar un estado sin ratón.
      */
     private void applyStartupFlags() {
         final String q = System.getProperty("neo.library.query");
@@ -453,7 +485,28 @@ public class CardLibraryScreen extends BorderPane {
             selectSet(FModel.getMagicDb().getEditions().get(code));
         }
         if (Boolean.getBoolean("neo.library.latest")) {
-            selectSet(library.latestRelease());
+            showLatest();
+        }
+        // -Dneo.library.arts=Sol Ring abre "Ver sus artes"; con
+        // -Dneo.library.menu=true, el menu del clic derecho en su lugar.
+        final String arts = System.getProperty("neo.library.arts");
+        if (arts != null) {
+            final PaperCard card = FModel.getMagicDb().getCommonCards().getCard(arts);
+            if (card != null) {
+                Platform.runLater(() -> {
+                    // .pick=N: como elegir el arte N de la lista, sin dialogo.
+                    final Integer pick = Integer.getInteger("neo.library.pick");
+                    final List<PaperCard> all = library.printingsOf(card);
+                    if (pick != null && pick >= 0 && pick < all.size()) {
+                        chosenArt.put(card.getName().toLowerCase(java.util.Locale.ROOT), all.get(pick));
+                        paint();
+                    } else if (Boolean.getBoolean("neo.library.menu")) {
+                        showCardMenu(card);
+                    } else {
+                        showArts(card);
+                    }
+                });
+            }
         }
         final String f = System.getProperty("neo.library.format");
         if (f != null) {
@@ -564,7 +617,7 @@ public class CardLibraryScreen extends BorderPane {
         final CardNode node = new CardNode(cardWidth());
         node.setRotationEnabled(false);
         node.setBadgesVisible(false);
-        node.setCard(CardView.getCardForUi(results.get(index)));
+        node.setCard(CardView.getCardForUi(shown(index)));
 
         final StackPane box = new StackPane(node);
         box.getStyleClass().add("catalogue-tile");
@@ -575,10 +628,78 @@ public class CardLibraryScreen extends BorderPane {
             if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY) {
                 final List<PaperCard> list = results;
                 CardZoom.show(node, list.size(), index,
-                        i -> CardView.getCardForUi(list.get(i)));
+                        i -> CardView.getCardForUi(shown(list, i)));
+            } else if (e.getButton() == javafx.scene.input.MouseButton.SECONDARY) {
+                showCardMenu(shown(index));
             }
         });
         return box;
+    }
+
+    // ---------------------------------------------------------------
+    // Los artes de una carta
+    // ---------------------------------------------------------------
+
+    private PaperCard shown(final int index) {
+        return shown(results, index);
+    }
+
+    /**
+     * La impresion que se ensenya: la elegida en "Ver sus artes", si hay, y si
+     * no la de siempre. Con una expansion elegida solo vale si es DE esa
+     * expansion — lo que se viene a mirar ahi es su impresion.
+     */
+    private PaperCard shown(final List<PaperCard> list, final int index) {
+        final PaperCard base = list.get(index);
+        final PaperCard art = chosenArt.get(base.getName().toLowerCase(java.util.Locale.ROOT));
+        if (art == null) {
+            return base;
+        }
+        final SetChoice filter = set.getValue();
+        return filter == null || filter.edition() == null
+                || filter.edition().getCode().equals(art.getEdition()) ? art : base;
+    }
+
+    /** Clic derecho: la carta en grande y lo que se puede hacer con ella. */
+    private void showCardMenu(final PaperCard card) {
+        if (library == null) {
+            return;
+        }
+        final int arts = library.printingsOf(card).size();
+        final String key = card.getName().toLowerCase(java.util.Locale.ROOT);
+        final List<CardActionMenu.Action> actions = new ArrayList<>();
+        actions.add(new CardActionMenu.Action(NeoText.get("library.arts"),
+                arts > 1 ? NeoText.get("deck.arts", arts) : NeoText.get("printing.only"),
+                arts > 1, () -> showArts(card)));
+        if (chosenArt.containsKey(key)) {
+            actions.add(new CardActionMenu.Action(NeoText.get("library.arts.reset"), () -> {
+                chosenArt.remove(key);
+                paint();
+            }));
+        }
+        overlay.setOnBackgroundClick(overlay::hide);
+        overlay.show(new CardActionMenu(card, actions, cardWidth(), action -> {
+            overlay.hide();
+            action.run.run();
+        }, overlay::hide));
+    }
+
+    /**
+     * Todos los artes de la carta. Clic en uno: se queda puesto en la
+     * enciclopedia. Clic derecho: se amplia, y la rueda pasa al siguiente.
+     */
+    private void showArts(final PaperCard current) {
+        final List<PaperCard> printings = library.printingsOf(current);
+        final double w = Math.max(cardWidth(), UiScale.px(150));
+        final double tall = Math.max(UiScale.px(420), getHeight() * 0.62);
+        overlay.setOnBackgroundClick(overlay::hide);
+        overlay.show(new PrintingDialog(current, printings, w, picked -> {
+            overlay.hide();
+            chosenArt.put(picked.getName().toLowerCase(java.util.Locale.ROOT), picked);
+            paint();
+        }, overlay::hide,
+                NeoText.get("library.arts.title", forge.neo.card.CardText.nameOf(current)),
+                NeoText.get("library.arts.hint"), tall));
     }
 
     private static Label caption(final String text) {

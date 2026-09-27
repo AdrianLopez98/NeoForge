@@ -7,10 +7,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import forge.game.Game;
 import forge.game.card.Card;
+import forge.game.phase.PhaseHandler;
+import forge.game.phase.PhaseType;
 import forge.game.player.Player;
 import forge.game.zone.ZoneType;
+import forge.gamemodes.match.input.InputPassPriority;
 import forge.neo.tutorial.TutorialLesson;
 import forge.neo.tutorial.TutorialState;
+import forge.player.PlayerControllerHuman;
 
 /**
  * Que al clicar una carta que no se puede lanzar se diga <b>por que</b>.
@@ -35,6 +39,29 @@ import forge.neo.tutorial.TutorialState;
  *
  * <p>La mesa se monta con el dialecto de los puzzles, igual que
  * {@code FilterCheck}.
+ *
+ * <h2>Se mira con el motor parado, y con el asiento de la interfaz</h2>
+ *
+ * <p>La primera version miraba desde un hilo aparte, cuando cayera, y
+ * preguntaba con {@code player.getController()}. Fallaba a veces en la
+ * bateria (28-09-2026, "1 bien, 1 mal") y nunca suelta. La causa: el motor
+ * <b>presta el asiento del humano a una IA</b> durante unos milisegundos en
+ * cada prioridad ({@code AvailableActions}, y nuestros {@code HiddenMana} y
+ * {@code XTargets}, todos con {@code runWithController}). Si la lectura caia
+ * dentro, el controlador era un {@code PlayerControllerAi}, {@link CantPlay}
+ * contestaba {@code null} -- bien hecho: no es un humano -- y la prueba lo
+ * tomaba por "no explica nada". Con la bateria cargando la maquina esas
+ * ventanas duran mas y se pisan mas.
+ *
+ * <p>Dos cosas, y las dos hacen falta:
+ * <ol>
+ *   <li>Preguntar con {@code ui.getGameController()}, que es <b>lo mismo que
+ *       usa el juego</b> ({@code NeoMatchUI.flashIncorrectAction}) y no cambia
+ *       con los prestamos. La prueba no estaba probando el camino de verdad.</li>
+ *   <li>Mirar solo con el piloto retenido en tu fase principal
+ *       ({@code setAutoPlayHold}, como {@code PlotCheck}): el motor esta
+ *       esperando tu prioridad y nadie mas toca la partida.</li>
+ * </ol>
  */
 public final class CantPlayCheck {
 
@@ -61,19 +88,41 @@ public final class CantPlayCheck {
         final String[] razonHechizo = {null};
         final String[] razonTierra = {"(no se llego a mirar)"};
         final boolean[] tierraJugable = {false};
+        // Si el hilo se rinde, se suelta el piloto: una prueba colgada hasta el
+        // tope de tiempo no dice nada que no diga ya "no se llego a mirar".
+        final AtomicBoolean rendido = new AtomicBoolean(false);
+        // Si el piloto llego a retenerse. Solo entonces hay que empujarle al
+        // soltarlo: empujar a ciegas pulsaria OK dos veces en el mismo prompt.
+        final AtomicBoolean retenido = new AtomicBoolean(false);
 
         NeoGame.playTutorial(lesson, new TutorialState(lesson.getState()),
                 NeoMatchUI.Mode.AUTO_PLAY, 30, null, false, ui -> {
+                    ui.setAutoPlayHold(() -> {
+                        final boolean hold = !mirado.get() && !rendido.get() && myMain(ui);
+                        if (hold) {
+                            retenido.set(true);
+                        }
+                        return hold;
+                    });
                     final Thread poller = new Thread(() -> {
-                        for (int i = 0; i < 200 && !mirado.get(); i++) {
-                            try {
-                                mirar(ui, mirado, razonHechizo, razonTierra, tierraJugable);
-                                Thread.sleep(120L);
-                            } catch (final InterruptedException e) {
-                                Thread.currentThread().interrupt();
-                                return;
-                            } catch (final RuntimeException e) {
-                                // Partida a medio montar: se reintenta.
+                        try {
+                            for (int i = 0; i < 400 && !mirado.get(); i++) {
+                                try {
+                                    mirar(ui, mirado, razonHechizo, razonTierra, tierraJugable);
+                                    Thread.sleep(50L);
+                                } catch (final InterruptedException e) {
+                                    Thread.currentThread().interrupt();
+                                    return;
+                                } catch (final RuntimeException e) {
+                                    // Partida a medio montar: se reintenta.
+                                }
+                            }
+                        } finally {
+                            rendido.set(!mirado.get());
+                            ui.setAutoPlayHold(null);
+                            // El piloto se quedo sin contestar mientras se miraba.
+                            if (retenido.get()) {
+                                ui.nudgeAutoPlay();
                             }
                         }
                     }, "cantplaycheck");
@@ -112,20 +161,14 @@ public final class CantPlayCheck {
     private static void mirar(final NeoMatchUI ui, final AtomicBoolean mirado,
                               final String[] razonHechizo, final String[] razonTierra,
                               final boolean[] tierraJugable) {
-        if (ui == null || ui.getGameView() == null) {
+        // Solo con el motor parado en tu prioridad: ver la cabecera.
+        if (!myMain(ui) || !(ui.getGameController() instanceof PlayerControllerHuman gc)
+                || !(gc.getInputQueue().getInput() instanceof InputPassPriority)) {
             return;
         }
         final Game game = ui.getGameView().getGame();
-        if (game == null) {
-            return;
-        }
-        Player me = null;
-        for (final Player p : game.getPlayers()) {
-            if (!p.isAI()) {
-                me = p;
-            }
-        }
-        if (me == null || me.getCardsIn(ZoneType.Hand).isEmpty()) {
+        final Player me = human(game);
+        if (me.getCardsIn(ZoneType.Hand).isEmpty()) {
             return;
         }
         Card hechizo = null;
@@ -140,10 +183,36 @@ public final class CantPlayCheck {
         if (hechizo == null || tierra == null || !game.getStack().isEmpty()) {
             return;
         }
-        razonHechizo[0] = CantPlay.reason(me.getController(), hechizo.getView());
+        // ui.getGameController() y NO me.getController(): ver la cabecera.
+        razonHechizo[0] = CantPlay.reason(ui.getGameController(), hechizo.getView());
         tierraJugable[0] = !tierra.getAllPossibleAbilities(me, true).isEmpty();
-        razonTierra[0] = CantPlay.reason(me.getController(), tierra.getView());
+        razonTierra[0] = CantPlay.reason(ui.getGameController(), tierra.getView());
         mirado.set(true);
+    }
+
+    /** Tu turno, fase principal, pila vacia: donde se retiene el piloto. */
+    private static boolean myMain(final NeoMatchUI ui) {
+        if (ui == null || ui.getGameView() == null || ui.getGameView().getGame() == null) {
+            return false;
+        }
+        final Game game = ui.getGameView().getGame();
+        final Player me = human(game);
+        if (me == null) {
+            return false;
+        }
+        final PhaseHandler ph = game.getPhaseHandler();
+        return ph.isPlayerTurn(me) && ph.getPhase() == PhaseType.MAIN1
+                && game.getStack().isEmpty();
+    }
+
+    private static Player human(final Game game) {
+        Player me = null;
+        for (final Player p : game.getPlayers()) {
+            if (!p.isAI()) {
+                me = p;
+            }
+        }
+        return me;
     }
 
     private static TutorialLesson position() {

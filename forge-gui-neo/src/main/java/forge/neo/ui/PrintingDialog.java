@@ -37,18 +37,31 @@ public class PrintingDialog extends VBox {
     public PrintingDialog(final PaperCard current, final List<PaperCard> printings,
                           final double cardWidth, final Consumer<PaperCard> onPick,
                           final Runnable onCancel) {
+        this(current, printings, cardWidth, onPick, onCancel,
+                NeoText.get("printing.title", CardText.nameOf(current)),
+                printings.size() == 1 ? NeoText.get("printing.only") : NeoText.get("printing.hint"),
+                Math.min(UiScale.px(520), cardWidth * CardNode.ASPECT * 2 + 60));
+    }
+
+    /**
+     * Con titulo, ayuda y alto propios. Lo usa la enciclopedia, donde no se
+     * cambia el arte de un mazo sino que se MIRAN: ahi caben mas filas, y
+     * con el clic derecho se amplia cada una.
+     */
+    public PrintingDialog(final PaperCard current, final List<PaperCard> printings,
+                          final double cardWidth, final Consumer<PaperCard> onPick,
+                          final Runnable onCancel, final String title, final String help,
+                          final double viewportHeight) {
         getStyleClass().add("dialog");
         setSpacing(12);
         setPadding(new Insets(20, 24, 18, 24));
         setMaxWidth(Region.USE_PREF_SIZE);
         setMaxHeight(Region.USE_PREF_SIZE);
 
-        final Label heading = new Label(NeoText.get("printing.title", CardText.nameOf(current)));
+        final Label heading = new Label(title);
         heading.getStyleClass().add("dialog-title");
 
-        final Label hint = new Label(printings.size() == 1
-                ? NeoText.get("printing.only")
-                : NeoText.get("printing.hint"));
+        final Label hint = new Label(help);
         hint.getStyleClass().add("dialog-text");
         hint.setWrapText(true);
         hint.setMaxWidth(UiScale.px(720));
@@ -65,7 +78,7 @@ public class PrintingDialog extends VBox {
         scroll.getStyleClass().add("dialog-scroll");
         scroll.setFitToWidth(true);
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        scroll.setPrefViewportHeight(Math.min(UiScale.px(520), cardWidth * CardNode.ASPECT * 2 + 60));
+        scroll.setPrefViewportHeight(viewportHeight);
         VBox.setVgrow(scroll, Priority.ALWAYS);
 
         final Label count = new Label(printings.size() == 1
@@ -105,7 +118,13 @@ public class PrintingDialog extends VBox {
         box.setAlignment(Pos.TOP_CENTER);
         box.getStyleClass().add("catalogue-tile");
         box.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
-        box.setOnMouseClicked(e -> onPick.accept(printing));
+        // Solo el izquierdo: el derecho amplia la carta (CardZoom) y no puede
+        // elegirla a la vez.
+        box.setOnMouseClicked(e -> {
+            if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY) {
+                onPick.accept(printing);
+            }
+        });
 
         if (isCurrent) {
             final Label mark = new Label(NeoText.get("printing.current"));

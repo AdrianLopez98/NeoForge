@@ -140,6 +140,66 @@ public final class LibraryCheck {
         check("el Black Lotus salio en 1993", alpha != null && lib.firstPrinted(alpha) != null
                 && 1900 + lib.firstPrinted(alpha).getYear() == 1993);
 
+        // "Lo ultimo": por llegada a FORGE, no por expansion. La tabla la
+        // genera tools/fechas-cartas.py con el historial de git.
+        final CardLibrary.Query aq = new CardLibrary.Query();
+        aq.sort = CardLibrary.Sort.ADDED;
+        final List<PaperCard> arrived = lib.find(aq);
+        final List<String> undated = new java.util.ArrayList<>();
+        boolean addedOrdered = true;
+        boolean datedSeen = false;
+        String prevAdded = null;
+        for (final PaperCard c : arrived) {
+            final String d = lib.addedToForge(c);
+            if (d == null) {
+                // Las que no trae la tabla, todas delante.
+                addedOrdered &= !datedSeen;
+                undated.add(c.getName());
+                continue;
+            }
+            datedSeen = true;
+            if (prevAdded != null && d.compareTo(prevAdded) > 0) {
+                addedOrdered = false;
+            }
+            prevAdded = d;
+        }
+        check("\"lo ultimo\" va de lo que llego a Forge ayer a lo de siempre", addedOrdered);
+        // Unas pocas sin fecha es lo normal si ha llegado algo despues de
+        // generar la tabla; muchas es que el nombre no casa (partidas, caras).
+        check("casi todas las cartas saben cuando llegaron a Forge (" + undated.size()
+                + " sin fecha" + (undated.isEmpty() ? "" : ": "
+                + String.join(", ", undated.subList(0, Math.min(8, undated.size())))) + ")",
+                undated.size() < arrived.size() / 200);
+        final PaperCard solRing = FModel.getMagicDb().getCommonCards().getCard("Sol Ring");
+        final PaperCard split = FModel.getMagicDb().getCommonCards().getCard("Fire // Ice");
+        check("el Sol Ring llego hace mucho y las partidas tambien tienen fecha",
+                solRing != null && lib.addedToForge(solRing) != null
+                        && lib.addedToForge(solRing).compareTo("2014") < 0
+                        && split != null && lib.addedToForge(split) != null);
+        // "Ver sus artes": todas las impresiones, de la mas nueva a la mas vieja.
+        final List<PaperCard> arts = lib.printingsOf(solRing);
+        boolean sameCard = !arts.isEmpty();
+        boolean artsOrdered = true;
+        Date prevArt = null;
+        final CardEdition.Collection eds = FModel.getMagicDb().getEditions();
+        for (final PaperCard p : arts) {
+            sameCard &= "Sol Ring".equals(p.getName());
+            final CardEdition ed = eds.get(p.getEdition());
+            final Date d = ed == null || ed.getDate() == null ? new Date(0) : ed.getDate();
+            if (prevArt != null && d.after(prevArt)) {
+                artsOrdered = false;
+            }
+            prevArt = d;
+        }
+        check("los artes del Sol Ring: todos (" + arts.size() + "), solo suyos y de lo nuevo a lo viejo",
+                arts.size() == FModel.getMagicDb().getCommonCards().getAllCards("Sol Ring").size()
+                        && arts.size() > 50 && sameCard && artsOrdered);
+        if (!arrived.isEmpty()) {
+            final PaperCard top = arrived.get(0);
+            System.out.println("  [info] lo ultimo en Forge: " + top.getName()
+                    + " (" + lib.addedToForge(top) + ", " + top.getEdition() + ")");
+        }
+
         // Coleccion: por NOMBRE.
         final Set<String> owned = Set.of("sol ring", "lightning bolt");
         final CardLibrary.Query oq = new CardLibrary.Query();

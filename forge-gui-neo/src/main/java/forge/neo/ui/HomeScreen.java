@@ -56,7 +56,11 @@ public class HomeScreen extends javafx.scene.layout.StackPane {
      * misma pantalla en los dos casos: montar y retocar son lo mismo.
      */
     public interface EditHandler {
-        void edit(Deck deck);
+        /**
+         * @param where donde se guarda: el formato, o la coleccion en la que
+         *              vive el mazo (o la pestanya abierta, si es nuevo)
+         */
+        void edit(Deck deck, forge.neo.deck.DeckContext where);
     }
 
     private final List<Deck> decks;
@@ -84,10 +88,36 @@ et}) y no se tocan.
      */
     private final List<Deck> net = new ArrayList<>();
 
+    /**
+     * Y las colecciones que te hayas montado: "Sets de 2010", "Estandar de
+     * ahora"... Cada una es una carpeta dentro de la del formato (ver
+     * {@link forge.neo.deck.DeckCollections}) y va en su propia pestanya,
+     * entre "Mis mazos" y los de Forge. Pedido en itch.io el 27-09-2026.
+     *
+     * <p>"Mis mazos" son los que estan sueltos, fuera de toda coleccion: un
+     * mazo esta en un sitio o en otro, nunca en los dos.
+     */
+    private final java.util.Map<String, List<Deck>> collections = new java.util.TreeMap<>(
+            String.CASE_INSENSITIVE_ORDER);
+
     /** Que pestanya se esta mirando. */
-    private enum Tab { MINE, STOCK, NET }
+    private enum Tab { MINE, STOCK, NET, COLLECTION }
 
     private Tab showing = Tab.MINE;
+
+    /** Con {@code showing == COLLECTION}, cual. */
+    private String collection;
+
+    /**
+     * La ultima pestanya que se miro, mientras dure la sesion.
+     *
+     * <p>Al volver del constructor la pantalla se rehace entera, y abrirla
+     * por la pestanya del ultimo mazo elegido te sacaba de la coleccion en la
+     * que estabas — justo despues de montar un mazo nuevo en ella.
+     */
+    private static forge.neo.match.NeoFormat lastViewFormat;
+    private static Tab lastViewTab;
+    private static String lastViewCollection;
 
     /** Cuantos mazos por pagina. Con cientos de golpe, la rejilla se arrastra. */
     private static final int MAX_TILES = 60;
@@ -96,6 +126,9 @@ et}) y no se tocan.
     private final FlowPane grid = new FlowPane(18, 18);
     private final Label gridCount = new Label();
     private final java.util.EnumMap<Tab, Button> tabButtons = new java.util.EnumMap<>(Tab.class);
+    private final java.util.Map<String, Button> collectionButtons = new java.util.LinkedHashMap<>();
+    /** La fila de pestanyas. Se parte en dos lineas si no cabe (principio 5). */
+    private final FlowPane tabRow = new FlowPane(8, 6);
     private final Pager pager = new Pager(MAX_TILES, this::fillGrid);
 
     /**
@@ -170,9 +203,19 @@ et}) y no se tocan.
         if (forge.neo.deck.NetDecks.isSupported(format.getGameType())) {
             net.addAll(forge.neo.deck.NetDecks.cached(format.getGameType()));
         }
+        // Las colecciones, despues del reparto: format.isMine solo mira la
+        // carpeta de arriba, y estos no estan ahi. Entran tambien en `decks`
+        // para que cuenten como rivales al azar y para volver a encontrarlos.
+        if (forge.neo.deck.DeckCollections.isSupported(format)) {
+            for (final String name : forge.neo.deck.DeckCollections.list(format)) {
+                final List<Deck> in = forge.neo.deck.DeckCollections.decks(format, name);
+                collections.put(name, new ArrayList<>(in));
+                decks.addAll(in);
+            }
+        }
         // Si no tienes ninguno propio, se abre por el catalogo de Forge: una
         // pestanya vacia como primera impresion no ayuda a nadie.
-        showing = mine.isEmpty() ? Tab.STOCK : Tab.MINE;
+        showing = mine.isEmpty() && collections.isEmpty() ? Tab.STOCK : Tab.MINE;
 
         getStyleClass().addAll("table-root", "home");
 
@@ -210,9 +253,29 @@ et}) y no se tocan.
             maybeShowDeleteTest();
             return;
         }
-        if (initial != null) {
+        // Para capturar una coleccion concreta: -Dneo.home.collection=Nombre
+        final String forcedCollection = System.getProperty("neo.home.collection");
+        if (forcedCollection != null && collections.containsKey(forcedCollection)) {
+            showCollection(forcedCollection);
+            select(source().isEmpty() ? null : source().get(0));
+            return;
+        }
+        if (lastViewFormat == format && lastViewTab != null
+                && (lastViewTab == Tab.COLLECTION
+                        ? collections.containsKey(lastViewCollection)
+                        : tabButtons.containsKey(lastViewTab))) {
+            // Se vuelve a la pestanya que estabas mirando en esta sesion.
+            showing = lastViewTab;
+            collection = lastViewTab == Tab.COLLECTION ? lastViewCollection : null;
+            markTabs();
+            fillGrid();
+            if (initial == null || !source().contains(initial)) {
+                initial = source().isEmpty() ? null : source().get(0);
+            }
+        } else if (initial != null) {
             // Se abre por la pestanya donde de verdad esta ese mazo.
             showing = tabOf(initial);
+            collection = collectionOf(initial);
             markTabs();
             fillGrid();
         } else if (!decks.isEmpty()) {
@@ -240,12 +303,12 @@ et}) y no se tocan.
         // ademas en una pantalla de 1280 de ancho no caben en la misma fila:
         // metidos en el pie salian todos los botones cortados.
         unshrinkable(newDeck).getStyleClass().add("btn-secondary");
-        newDeck.setOnAction(e -> onEdit.edit(null));
+        newDeck.setOnAction(e -> onEdit.edit(null, contextFor(null)));
 
         unshrinkable(edit).getStyleClass().add("btn-secondary");
         edit.setOnAction(e -> {
             if (selected != null) {
-                onEdit.edit(selected);
+                onEdit.edit(selected, contextFor(selected));
             }
         });
 
@@ -284,6 +347,7 @@ et}) y no se tocan.
         if (!net.isEmpty()) {
             tabButtons.put(Tab.NET, tab(NeoText.get("home.tab.net", net.size()), Tab.NET));
         }
+        rebuildTabRow();
 
         // "Buscar mazo o comandante" solo donde hay comandantes. En Estandar,
         // en draft y en sellado no los hay, y nombrarlos ahi es prometer algo
@@ -299,12 +363,19 @@ et}) y no se tocan.
 
         gridCount.getStyleClass().add("dialog-counter");
 
-        final Region gap = new Region();
-        HBox.setHgrow(gap, Priority.ALWAYS);
-        final HBox bar = new HBox(8);
-        bar.getChildren().addAll(tabButtons.values());
-        bar.getChildren().addAll(gap, pager, search, gridCount);
-        bar.setAlignment(Pos.CENTER_LEFT);
+        // Las pestanyas a la izquierda, partiendose en dos lineas si hay muchas
+        // colecciones; paginador y buscador a la derecha, siempre enteros.
+        tabRow.setAlignment(Pos.CENTER_LEFT);
+        tabRow.setMinWidth(0);
+        final HBox right = new HBox(8, pager, search, gridCount);
+        right.setAlignment(Pos.CENTER_RIGHT);
+        right.setMinWidth(Region.USE_PREF_SIZE);
+        final BorderPane bar = new BorderPane();
+        bar.setCenter(tabRow);
+        bar.setRight(right);
+        BorderPane.setAlignment(tabRow, Pos.CENTER_LEFT);
+        BorderPane.setAlignment(right, Pos.TOP_RIGHT);
+        BorderPane.setMargin(right, new Insets(0, 0, 0, 12));
         bar.setPadding(new Insets(0, 30, 8, 30));
 
         final ScrollPane scroll = new ScrollPane(grid);
@@ -327,6 +398,7 @@ et}) y no se tocan.
         b.pseudoClassStateChanged(SELECTED, showing == which);
         b.setOnAction(e -> {
             showing = which;
+            collection = null;
             markTabs();
             pager.reset();
             fillGrid();
@@ -334,27 +406,354 @@ et}) y no se tocan.
         return b;
     }
 
+    /**
+     * Rehace la fila de pestanyas: Mis mazos, las colecciones, el "+", los de
+     * Forge y los de internet.
+     *
+     * <p>Las colecciones van pegadas a "Mis mazos" porque son eso mismo —
+     * mazos tuyos — repartidos en cajones.
+     */
+    private void rebuildTabRow() {
+        collectionButtons.clear();
+        tabRow.getChildren().clear();
+        tabRow.getChildren().add(tabButtons.get(Tab.MINE));
+        for (final java.util.Map.Entry<String, List<Deck>> e : collections.entrySet()) {
+            final Button b = collectionTab(e.getKey(), e.getValue().size());
+            collectionButtons.put(e.getKey(), b);
+            tabRow.getChildren().add(b);
+        }
+        if (forge.neo.deck.DeckCollections.isSupported(format)) {
+            final Button add = new Button("+");
+            add.getStyleClass().add("segment");
+            add.setMinWidth(Region.USE_PREF_SIZE);
+            add.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("home.collection.new")));
+            add.setAccessibleText(NeoText.get("home.collection.new"));
+            add.setOnAction(e -> askNewCollection(null));
+            tabRow.getChildren().add(add);
+        }
+        tabRow.getChildren().add(tabButtons.get(Tab.STOCK));
+        if (tabButtons.containsKey(Tab.NET)) {
+            tabRow.getChildren().add(tabButtons.get(Tab.NET));
+        }
+        markTabs();
+    }
+
+    /**
+     * La pestanya de una coleccion. Clic la abre; clic derecho, renombrar o
+     * borrar — y el tooltip lo dice, porque un clic derecho no se adivina.
+     */
+    private Button collectionTab(final String name, final int count) {
+        final Button b = new Button(NeoText.get("home.tab.collection", name, count));
+        b.getStyleClass().add("segment");
+        b.setMnemonicParsing(false);
+        b.setMinWidth(Region.USE_PREF_SIZE);
+        b.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("home.collection.tabHint")));
+        b.setOnAction(e -> showCollection(name));
+        b.setOnContextMenuRequested(e -> {
+            final javafx.scene.control.ContextMenu menu = new javafx.scene.control.ContextMenu();
+            menu.getStyleClass().add("card-menu");
+            final javafx.scene.control.MenuItem rename =
+                    new javafx.scene.control.MenuItem(NeoText.get("home.collection.rename"));
+            rename.setOnAction(a -> askRenameCollection(name));
+            final javafx.scene.control.MenuItem delete =
+                    new javafx.scene.control.MenuItem(NeoText.get("home.collection.delete"));
+            delete.setOnAction(a -> confirmDeleteCollection(name));
+            menu.getItems().addAll(rename, delete);
+            menu.show(b, e.getScreenX(), e.getScreenY());
+            e.consume();
+        });
+        return b;
+    }
+
+    private void showCollection(final String name) {
+        showing = Tab.COLLECTION;
+        collection = name;
+        markTabs();
+        pager.reset();
+        fillGrid();
+    }
+
     /** Los mazos de la pestanya que se esta mirando. */
     private List<Deck> source() {
         switch (showing) {
             case STOCK: return stock;
             case NET: return net;
+            case COLLECTION:
+                final List<Deck> in = collection == null ? null : collections.get(collection);
+                return in == null ? mine : in;
             default: return mine;
         }
     }
 
     /** En que pestanya vive este mazo. */
     private Tab tabOf(final Deck deck) {
+        if (collectionOf(deck) != null) {
+            return Tab.COLLECTION;
+        }
         if (format.isMine(deck)) {
             return Tab.MINE;
         }
         return net.contains(deck) ? Tab.NET : Tab.STOCK;
     }
 
+    /**
+     * La coleccion en la que esta este mazo, o null si no esta en ninguna.
+     *
+     * <p>Por objeto, no por nombre: "Mono rojo" puede estar a la vez suelto
+     * y en una coleccion, y son dos mazos distintos.
+     */
+    private String collectionOf(final Deck deck) {
+        for (final java.util.Map.Entry<String, List<Deck>> e : collections.entrySet()) {
+            for (final Deck d : e.getValue()) {
+                if (d == deck) {
+                    return e.getKey();
+                }
+            }
+        }
+        return null;
+    }
+
+    /** Si el mazo es tuyo: suelto en "Mis mazos" o dentro de una coleccion. */
+    private boolean isOwn(final Deck deck) {
+        return collectionOf(deck) != null || mine.stream().anyMatch(d -> d == deck);
+    }
+
+    /**
+     * Donde guarda el constructor: la coleccion del mazo, o — si es nuevo —
+     * la que tengas abierta. Un preconstruido de Forge o uno de internet se
+     * guardan en "Mis mazos", como siempre.
+     */
+    private forge.neo.deck.DeckContext contextFor(final Deck deck) {
+        final String in = deck == null
+                ? (showing == Tab.COLLECTION ? collection : null)
+                : collectionOf(deck);
+        return in == null ? format : new forge.neo.deck.CollectionContext(format, in);
+    }
+
     private void markTabs() {
         for (final java.util.Map.Entry<Tab, Button> e : tabButtons.entrySet()) {
             e.getValue().pseudoClassStateChanged(SELECTED, e.getKey() == showing);
         }
+        for (final java.util.Map.Entry<String, Button> e : collectionButtons.entrySet()) {
+            e.getValue().pseudoClassStateChanged(SELECTED,
+                    showing == Tab.COLLECTION && e.getKey().equalsIgnoreCase(collection));
+        }
+        lastViewFormat = format;
+        lastViewTab = showing;
+        lastViewCollection = collection;
+    }
+
+    // ---------------------------------------------------------------
+    // Colecciones
+
+    /**
+     * El menu de "Mover": a "Mis mazos", a cada coleccion y a una nueva.
+     *
+     * <p>Si el mazo no es tuyo el menu dice <b>Copiar</b>, porque es lo que
+     * pasa: el preconstruido sigue en "Los de Forge" y en la coleccion queda
+     * una copia tuya.
+     */
+    private void showMoveMenu(final Deck deck, final javafx.scene.Node anchor) {
+        final boolean own = isOwn(deck);
+        final String here = collectionOf(deck);
+        final javafx.scene.control.ContextMenu menu = new javafx.scene.control.ContextMenu();
+        menu.getStyleClass().add("card-menu");
+
+        final javafx.scene.control.MenuItem title = new javafx.scene.control.MenuItem(
+                NeoText.get(own ? "home.collection.moveTo" : "home.collection.copyTo"));
+        title.setDisable(true);
+        menu.getItems().add(title);
+
+        if (here != null || !own) {
+            final javafx.scene.control.MenuItem toMine = new javafx.scene.control.MenuItem(
+                    NeoText.get("home.collection.toMine"));
+            toMine.setOnAction(e -> moveDeck(deck, null));
+            menu.getItems().add(toMine);
+        }
+        for (final String name : collections.keySet()) {
+            if (name.equalsIgnoreCase(here)) {
+                continue;
+            }
+            final javafx.scene.control.MenuItem item = new javafx.scene.control.MenuItem(name);
+            item.setMnemonicParsing(false);
+            item.setOnAction(e -> moveDeck(deck, name));
+            menu.getItems().add(item);
+        }
+        menu.getItems().add(new javafx.scene.control.SeparatorMenuItem());
+        final javafx.scene.control.MenuItem create = new javafx.scene.control.MenuItem(
+                NeoText.get("home.collection.newEllipsis"));
+        create.setOnAction(e -> askNewCollection(deck));
+        menu.getItems().add(create);
+
+        menu.show(anchor, javafx.geometry.Side.BOTTOM, 0, 4);
+    }
+
+    /** Lleva el mazo a {@code to} ({@code null} = "Mis mazos") y repinta. */
+    private void moveDeck(final Deck deck, final String to) {
+        final boolean own = isOwn(deck);
+        final String from = collectionOf(deck);
+        final String problem = forge.neo.deck.DeckCollections.move(format, deck, from, own, to);
+        if (problem != null) {
+            showProblem(NeoText.get(problem, deck.getName()));
+            return;
+        }
+        final forge.util.storage.IStorage<Deck> dst = to == null ? format.storage()
+                : forge.neo.deck.DeckCollections.storage(format, to);
+        final Deck moved = dst == null ? null : dst.get(deck.getName());
+        if (moved == null) {
+            return;
+        }
+        if (own) {
+            mine.removeIf(d -> d == deck);
+            if (from != null && collections.containsKey(from)) {
+                collections.get(from).removeIf(d -> d == deck);
+            }
+            decks.removeIf(d -> d == deck);
+        }
+        (to == null ? mine : collections.computeIfAbsent(to, k -> new ArrayList<>())).add(moved);
+        decks.add(moved);
+        if (selected == deck) {
+            selected = moved;
+        }
+        retitleTabs();
+        fillGrid();
+    }
+
+    /**
+     * Pide el nombre de una coleccion nueva. Con {@code thenMove}, al crearla
+     * se mete ahi ese mazo — es el "Nueva coleccion..." del menu de Mover.
+     */
+    private void askNewCollection(final Deck thenMove) {
+        overlay.setOnBackgroundClick(overlay::hide);
+        overlay.show(TextDialog.line(NeoText.get("home.collection.new"),
+                NeoText.get("home.collection.hint"), "",
+                name -> {
+                    overlay.hide();
+                    final String n = name == null ? "" : name.trim();
+                    final String problem = forge.neo.deck.DeckCollections.problem(format, n, null);
+                    if (problem != null) {
+                        showProblem(NeoText.get(problem, n));
+                        return;
+                    }
+                    if (!forge.neo.deck.DeckCollections.create(format, n)) {
+                        showProblem(NeoText.get("home.collection.error.disk", n));
+                        return;
+                    }
+                    collections.put(n, new ArrayList<>());
+                    rebuildTabRow();
+                    showCollection(n);
+                    if (thenMove != null) {
+                        moveDeck(thenMove, n);
+                    }
+                },
+                overlay::hide));
+    }
+
+    private void askRenameCollection(final String from) {
+        overlay.setOnBackgroundClick(overlay::hide);
+        overlay.show(TextDialog.line(NeoText.get("home.collection.rename"),
+                NeoText.get("home.collection.hint"), from,
+                name -> {
+                    overlay.hide();
+                    final String n = name == null ? "" : name.trim();
+                    if (n.equals(from)) {
+                        return;
+                    }
+                    final String problem = forge.neo.deck.DeckCollections.problem(format, n, from);
+                    if (problem != null) {
+                        showProblem(NeoText.get(problem, n));
+                        return;
+                    }
+                    if (!forge.neo.deck.DeckCollections.rename(format, from, n)) {
+                        showProblem(NeoText.get("home.collection.error.disk", n));
+                        return;
+                    }
+                    // Se vuelven a leer: el almacen viejo apuntaba a la carpeta
+                    // de antes, y los mazos que colgaban de el tambien.
+                    final List<Deck> old = collections.remove(from);
+                    if (old != null) {
+                        decks.removeAll(old);
+                    }
+                    final List<Deck> now = forge.neo.deck.DeckCollections.decks(format, n);
+                    collections.put(n, new ArrayList<>(now));
+                    decks.addAll(now);
+                    if (selected != null && old != null && old.contains(selected)) {
+                        selected = findByName(now, selected.getName());
+                    }
+                    rebuildTabRow();
+                    showCollection(n);
+                },
+                overlay::hide));
+    }
+
+    /**
+     * Borrar una coleccion <b>no borra ningun mazo</b>: vuelven a "Mis mazos".
+     * Se pregunta igual, porque deshacerla a mano es ir moviendolos uno a uno.
+     */
+    private void confirmDeleteCollection(final String name) {
+        final int count = collections.getOrDefault(name, List.of()).size();
+        overlay.setOnBackgroundClick(overlay::hide);
+        overlay.show(new ConfirmDialog(
+                NeoText.get("home.collection.delete.ask", name),
+                NeoText.get("home.collection.delete.detail", count),
+                java.util.List.of(NeoText.get("home.collection.delete.yes"),
+                        NeoText.get("common.cancel")), 1,
+                choice -> {
+                    overlay.hide();
+                    if (choice == null || choice != 0) {
+                        return;
+                    }
+                    final List<Deck> old = collections.remove(name);
+                    final int moved = forge.neo.deck.DeckCollections.delete(format, name);
+                    if (old != null) {
+                        decks.removeAll(old);
+                    }
+                    reloadMine();
+                    // Si ha fallado, la carpeta sigue ahi con lo que no se
+                    // haya podido sacar: se vuelve a leer tal cual este.
+                    for (final String still : forge.neo.deck.DeckCollections.list(format)) {
+                        if (still.equalsIgnoreCase(name)) {
+                            final List<Deck> left = forge.neo.deck.DeckCollections.decks(format, still);
+                            collections.put(still, new ArrayList<>(left));
+                            decks.addAll(left);
+                        }
+                    }
+                    if (selected != null && old != null && old.contains(selected)) {
+                        selected = findByName(mine, selected.getName());
+                    }
+                    showing = Tab.MINE;
+                    collection = null;
+                    rebuildTabRow();
+                    retitleTabs();
+                    pager.reset();
+                    fillGrid();
+                    if (moved < 0) {
+                        showProblem(NeoText.get("home.collection.error.delete", name));
+                    }
+                }));
+    }
+
+    /** "Mis mazos" otra vez desde el almacen del formato, que es la verdad. */
+    private void reloadMine() {
+        decks.removeAll(mine);
+        mine.clear();
+        format.storage().forEach(mine::add);
+        decks.addAll(mine);
+    }
+
+    private static Deck findByName(final List<Deck> in, final String name) {
+        for (final Deck d : in) {
+            if (d.getName().equals(name)) {
+                return d;
+            }
+        }
+        return null;
+    }
+
+    private void showProblem(final String message) {
+        overlay.setOnBackgroundClick(overlay::hide);
+        overlay.show(new ConfirmDialog(NeoText.get("home.collection.error.title"), message,
+                java.util.List.of(NeoText.get("common.accept")), 0, choice -> overlay.hide()));
     }
 
     /**
@@ -394,8 +793,16 @@ et}) y no se tocan.
             // La papelera, solo en los tuyos. Un preconstruido de Forge volveria
             // a salir al arrancar (se lee de res/) y uno de internet se rehace
             // con la siguiente descarga: ahi el boton seria mentira.
-            if (format.canDelete(deck)) {
+            if (format.canDelete(deck) || collectionOf(deck) != null) {
                 tile.setOnDelete(() -> confirmDelete(deck));
+            }
+            // Mover a otra coleccion (o copiar, si no es tuyo). Solo donde hay
+            // colecciones: draft y sellado no las tienen.
+            if (forge.neo.deck.DeckCollections.isSupported(format)) {
+                tile.setOnMove(anchor -> {
+                    select(deck);
+                    showMoveMenu(deck, anchor);
+                });
             }
             tiles.add(tile);
             grid.getChildren().add(tile);
@@ -405,7 +812,11 @@ et}) y no se tocan.
             final Label empty = new Label(showing == Tab.MINE
                     ? NeoText.get("home.empty.mine", NeoText.get("home.newDeck"))
                     : showing == Tab.NET ? NeoText.get("home.empty.net")
+                    : showing == Tab.COLLECTION ? NeoText.get("home.empty.collection",
+                            NeoText.get("home.collection.move"), NeoText.get("home.newDeck"))
                     : NeoText.get("home.empty.stock"));
+            empty.setWrapText(true);
+            empty.setMaxWidth(UiScale.px(560));
             empty.getStyleClass().add("home-subtitle");
             grid.getChildren().add(empty);
         }
@@ -452,7 +863,7 @@ et}) y no se tocan.
         final javafx.animation.PauseTransition t =
                 new javafx.animation.PauseTransition(javafx.util.Duration.millis(at));
         t.setOnFinished(e -> {
-            if (selected != null && format.canDelete(selected)) {
+            if (selected != null && (format.canDelete(selected) || collectionOf(selected) != null)) {
                 confirmDelete(selected);
             }
         });
@@ -472,11 +883,24 @@ et}) y no se tocan.
                     if (choice == null || choice != 0) {
                         return;
                     }
-                    if (!format.delete(deck)) {
+                    final String in = collectionOf(deck);
+                    if (in != null) {
+                        final forge.util.storage.IStorage<Deck> s =
+                                forge.neo.deck.DeckCollections.storage(format, in);
+                        if (s == null) {
+                            return;
+                        }
+                        s.delete(deck.getName());
+                        if (s.contains(deck.getName())) {
+                            return;
+                        }
+                        collections.get(in).removeIf(d -> d == deck);
+                    } else if (!format.delete(deck)) {
                         return;
+                    } else {
+                        mine.removeIf(d -> d == deck);
                     }
-                    decks.remove(deck);
-                    mine.remove(deck);
+                    decks.removeIf(d -> d == deck);
                     stock.remove(deck);
                     net.remove(deck);
                     if (deck.equals(selected)) {
@@ -500,6 +924,11 @@ et}) y no se tocan.
         final Button netTab = tabButtons.get(Tab.NET);
         if (netTab != null) {
             netTab.setText(NeoText.get("home.tab.net", net.size()));
+        }
+        for (final java.util.Map.Entry<String, Button> e : collectionButtons.entrySet()) {
+            final List<Deck> in = collections.get(e.getKey());
+            e.getValue().setText(NeoText.get("home.tab.collection", e.getKey(),
+                    in == null ? 0 : in.size()));
         }
     }
 
@@ -716,7 +1145,10 @@ et}) y no se tocan.
     }
 
     private void pickOpponentDeck(final int index) {
-        picker = new DeckPickerDialog(NeoText.get("home.pickRival", index + 1), mine, stock,
+        // "Los tuyos" del selector del rival son todos: sueltos y en colecciones.
+        final List<Deck> own = new ArrayList<>(mine);
+        collections.values().forEach(own::addAll);
+        picker = new DeckPickerDialog(NeoText.get("home.pickRival", index + 1), own, stock,
                 tileWidth * 0.72,
                 chosen -> {
                     overlay.hide();

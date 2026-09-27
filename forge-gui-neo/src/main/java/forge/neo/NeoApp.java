@@ -2747,10 +2747,19 @@ public class NeoApp extends Application implements SettingsPanel.Host {
      * un mazo recien guardado aparezca sin reiniciar.
      */
     private void showDeckBuilder(final Deck deck) {
+        showDeckBuilder(deck, lastFormat);
+    }
+
+    /**
+     * Lo mismo, guardando en {@code where}: el formato, o una de sus
+     * colecciones ({@link forge.neo.deck.CollectionContext}) si el mazo vive en
+     * una — o si se crea con esa pestanya abierta.
+     */
+    private void showDeckBuilder(final Deck deck, final forge.neo.deck.DeckContext where) {
         final NeoFormat format = lastFormat;
         final forge.neo.deck.DeckEditor editor = deck == null
-                ? forge.neo.deck.DeckEditor.createNew(format, nextDeckName(format))
-                : forge.neo.deck.DeckEditor.copyOf(format, deck);
+                ? forge.neo.deck.DeckEditor.createNew(where, nextDeckName(where))
+                : forge.neo.deck.DeckEditor.copyOf(where, deck);
 
         builder = new DeckBuilderScreen(editor, cardWidth, () -> {
             builder = null;
@@ -2793,7 +2802,7 @@ public class NeoApp extends Application implements SettingsPanel.Host {
     DraftScreen draftScreen;
 
     /** Un nombre libre para un mazo nuevo: "Mazo nuevo", "Mazo nuevo 2"... */
-    private static String nextDeckName(final NeoFormat format) {
+    private static String nextDeckName(final forge.neo.deck.DeckContext format) {
         final String base = forge.neo.NeoText.get("deck.newDeck");
         if (!format.storage().contains(base)) {
             return base;
