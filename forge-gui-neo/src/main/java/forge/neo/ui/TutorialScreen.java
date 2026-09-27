@@ -93,7 +93,9 @@ public class TutorialScreen extends BorderPane {
 
         final Region gap = new Region();
         HBox.setHgrow(gap, Priority.ALWAYS);
-        final HBox footer = new HBox(10, back, again, gap, play);
+        // Volver, abajo a la derecha y junto a la accion principal: el mismo
+        // sitio en todas las pantallas (las notas de diseño, principio 12).
+        final HBox footer = new HBox(10, again, gap, back, play);
         footer.getStyleClass().add("home-footer");
         footer.setPadding(new Insets(14, 30, 20, 30));
         footer.setAlignment(Pos.CENTER_LEFT);

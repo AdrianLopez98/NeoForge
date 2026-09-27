@@ -208,6 +208,7 @@ public final class DiscordCheck {
         expect("MainMenu", "discord.menu");
         expect("HomeScreen", "discord.menu");
         expect("AchievementsScreen", "discord.menu");
+        expect("CardLibraryScreen", "discord.menu");
         expect("DeckBuilderScreen", "discord.deck");
         expect("AscentMapScreen", "discord.ascent");
         expect("AscentRewardScreen", "discord.ascent");

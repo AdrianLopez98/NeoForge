@@ -55,6 +55,7 @@ public final class DeckRulesCheck {
         generatesARandomOpponentDeck();
         ascentCardsStayOutOfTheCatalogue();
         adventureIgnoresTheBanList();
+        newestFirstOrdersByAcquisition();
         oathbreakerHasTwoSlots();
         oathbreakerDoesNotChangeCommander();
 
@@ -1086,6 +1087,50 @@ public final class DeckRulesCheck {
     }
 
     /**
+     * <b>Lo ultimo primero</b> (pedido en itch.io el 27-09-2026): el catalogo
+     * de la Aventura ordenado por cuando entro cada carta.
+     *
+     * <p>Lo que se rompe sin verse es el ORDEN respecto al corte: la busqueda
+     * se queda con las N primeras, y ordenar despues del corte dejaria fuera
+     * justo lo ultimo que ha entrado en una coleccion grande. Por eso se pide
+     * con un tope menor que el pool.
+     */
+    private static void newestFirstOrdersByAcquisition() {
+        final List<PaperCard> pool = List.of(card("Counterspell"), card("Lightning Bolt"),
+                card("Llanowar Elves"), card("Serra Angel"), card("Sol Ring"));
+        final DeckEditor adv = new DeckEditor(new AdventureLike(pool, java.util.Map.of(
+                "Sol Ring", 300L, "Lightning Bolt", 100L, "Llanowar Elves", 200L)),
+                new Deck("__neocheck-newest__"));
+        check("Lo ultimo primero: el contexto de la Aventura lo ofrece", adv.tracksAcquisition());
+        // Por el nombre que SE VE, que en otro idioma es otro orden.
+        final List<PaperCard> sorted = new java.util.ArrayList<>(pool);
+        sorted.sort(java.util.Comparator.comparing((PaperCard c) ->
+                forge.neo.card.CardText.nameOf(c).toLowerCase(java.util.Locale.ROOT)));
+        final List<String> byName = names(adv.find("", false, null, 3, false).cards);
+        check("Lo ultimo primero: apagado, por nombre -> " + byName,
+                byName.equals(names(sorted.subList(0, 3))));
+        adv.setNewestFirst(true);
+        final List<String> newest = names(adv.find("", false, null, 3, false).cards);
+        check("Lo ultimo primero: encendido, por hora y ANTES del corte -> " + newest,
+                newest.equals(List.of("Sol Ring", "Llanowar Elves", "Lightning Bolt")));
+        final List<String> all = names(adv.find("", false, null, 10, false).cards);
+        final List<String> undated = new java.util.ArrayList<>(names(sorted));
+        undated.retainAll(List.of("Counterspell", "Serra Angel"));
+        check("Lo ultimo primero: lo que no tiene hora va detras, por nombre -> " + all,
+                all.subList(3, 5).equals(undated));
+        final DeckEditor cmd = new DeckEditor(NeoFormat.COMMANDER, new Deck("__neocheck-newest2__"));
+        check("Lo ultimo primero: fuera de una coleccion no se ofrece", !cmd.tracksAcquisition());
+    }
+
+    private static List<String> names(final List<PaperCard> cards) {
+        final List<String> out = new java.util.ArrayList<>();
+        for (final PaperCard c : cards) {
+            out.add(c.getName());
+        }
+        return out;
+    }
+
+    /**
      * Un contexto como el de la Aventura: coleccion cerrada, reglas de
      * Commander y <b>sin</b> pozo de cartas del formato.
      *
@@ -1096,9 +1141,25 @@ public final class DeckRulesCheck {
     private static final class AdventureLike implements DeckContext {
 
         private final List<PaperCard> pool;
+        private final java.util.Map<String, Long> acquired;
 
         AdventureLike(final List<PaperCard> pool) {
+            this(pool, java.util.Map.of());
+        }
+
+        AdventureLike(final List<PaperCard> pool, final java.util.Map<String, Long> acquired) {
             this.pool = pool;
+            this.acquired = acquired;
+        }
+
+        @Override
+        public boolean tracksAcquisition() {
+            return true;
+        }
+
+        @Override
+        public long acquiredAt(final PaperCard card) {
+            return acquired.getOrDefault(card.getName(), 0L);
         }
 
         @Override

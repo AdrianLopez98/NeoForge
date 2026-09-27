@@ -228,6 +228,23 @@ public interface DeckContext {
     }
 
     /**
+     * Si aqui se sabe cuando conseguiste cada carta, para ordenar la coleccion
+     * por lo ultimo. Por defecto no: fuera de una coleccion no hay nada que
+     * "conseguir".
+     *
+     * <p>Existe por la Aventura (pedido en itch.io el 27-09-2026), cuyo
+     * registro lo lleva {@code AcquiredLedger}.
+     */
+    default boolean tracksAcquisition() {
+        return false;
+    }
+
+    /** Cuando entro esa carta (milisegundos), o 0 si no se sabe. */
+    default long acquiredAt(PaperCard card) {
+        return 0;
+    }
+
+    /**
      * Acciones propias de este contexto en el menu de click derecho de una
      * carta del catalogo. Por defecto, ninguna.
      *

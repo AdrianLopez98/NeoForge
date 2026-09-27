@@ -1098,6 +1098,10 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             }
         } else if (args.contains("--achievements")) {
             showAchievements();
+        } else if (args.contains("--library")) {
+            // La enciclopedia; con -Dneo.library.* (ver CardLibraryScreen)
+            // sale ya filtrada, para capturarla.
+            showLibrary();
         } else if (args.contains("--net-decks")) {
             showNetDecks(lastFormat);
         } else if (args.contains("--look")) {
@@ -1239,6 +1243,10 @@ public class NeoApp extends Application implements SettingsPanel.Host {
 
         if (args.contains("--drag-test")) {
             debug.dragTest();
+        }
+
+        if (args.contains("--touch-hand-test")) {
+            debug.touchHandTest();
         }
 
         // Escape sintetico, para poder capturar los ajustes del menu sin tocar
@@ -2363,6 +2371,11 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             }
 
             @Override
+            public void library() {
+                showLibrary();
+            }
+
+            @Override
             public void look() {
                 showLook();
             }
@@ -2406,6 +2419,12 @@ public class NeoApp extends Application implements SettingsPanel.Host {
         applyScale();
     }
 
+
+    /** La enciclopedia: todas las cartas, para mirarlas. Ver CardLibraryScreen. */
+    private void showLibrary() {
+        scene.setRoot(new forge.neo.ui.CardLibraryScreen(cardWidth, this::showMainMenu));
+        applyScale();
+    }
 
     /** Los logros que se ha ido apuntando el motor. Se leen, no se juegan. */
     private forge.neo.ui.AchievementsScreen achievements;

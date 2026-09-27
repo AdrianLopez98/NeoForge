@@ -143,6 +143,17 @@ final class AdventureDeckContext implements DeckContext {
         return mine == null ? List.of() : new ArrayList<>(mine);
     }
 
+    /** Lo apunta {@link AcquiredLedger}: el Adventure no lo guarda. */
+    @Override
+    public boolean tracksAcquisition() {
+        return true;
+    }
+
+    @Override
+    public long acquiredAt(final PaperCard card) {
+        return AcquiredLedger.acquiredAt(card);
+    }
+
     @Override
     public boolean onlyFitsByDefault() {
         return false;

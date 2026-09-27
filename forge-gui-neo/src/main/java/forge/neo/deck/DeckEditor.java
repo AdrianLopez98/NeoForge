@@ -220,6 +220,24 @@ public final class DeckEditor {
         return format.onlyFitsByDefault();
     }
 
+    /** Si se puede ordenar el catalogo por lo ultimo conseguido (ver DeckContext). */
+    public boolean tracksAcquisition() {
+        return format.tracksAcquisition();
+    }
+
+    /**
+     * El catalogo, de lo ultimo conseguido a lo primero.
+     *
+     * <p>Se ordena AQUI, dentro de {@link #find}, y no en la pantalla: la
+     * busqueda se corta en las mil primeras, y con una coleccion mas grande
+     * ordenar despues del corte dejaria fuera justo lo que acaba de entrar.
+     */
+    public void setNewestFirst(final boolean on) {
+        newestFirst = on;
+    }
+
+    private boolean newestFirst;
+
     /** Lo que el contexto anyade al menu de una carta del catalogo (ver DeckContext). */
     public List<DeckContext.Action> contextActions(final PaperCard card) {
         return format.catalogueActions(card, countOf(card));
@@ -1346,11 +1364,19 @@ public final class DeckEditor {
             hits.add(card);
         }
 
-        // Lo que empieza por lo buscado va primero: si escribes "sol" quieres
-        // ver el Sol Ring arriba, no un Consul's Lieutenant.
-        hits.sort(Comparator
-                .comparingInt((PaperCard c) -> displayName(c).startsWith(q) ? 0 : 1)
-                .thenComparing(DeckEditor::displayName));
+        if (newestFirst && format.tracksAcquisition()) {
+            // Lo que no tiene hora (lo de antes de llevar la cuenta) va detras,
+            // por nombre.
+            hits.sort(Comparator
+                    .comparingLong((PaperCard c) -> -format.acquiredAt(c))
+                    .thenComparing(DeckEditor::displayName));
+        } else {
+            // Lo que empieza por lo buscado va primero: si escribes "sol" quieres
+            // ver el Sol Ring arriba, no un Consul's Lieutenant.
+            hits.sort(Comparator
+                    .comparingInt((PaperCard c) -> displayName(c).startsWith(q) ? 0 : 1)
+                    .thenComparing(DeckEditor::displayName));
+        }
 
         final int total = hits.size();
         return new SearchResult(

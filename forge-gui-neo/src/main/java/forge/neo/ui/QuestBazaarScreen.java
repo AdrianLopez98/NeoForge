@@ -63,6 +63,9 @@ public class QuestBazaarScreen extends StackPane {
         final BorderPane frame = new BorderPane();
         frame.setTop(header());
         frame.setCenter(body());
+        // Volver, abajo a la derecha: el mismo sitio en todas las pantallas
+        // (las notas de diseño, principio 12). Antes iba en la cabecera.
+        frame.setBottom(BackBar.of(actions::back));
         getChildren().add(frame);
 
         reload();
@@ -82,14 +85,9 @@ public class QuestBazaarScreen extends StackPane {
         money.getStyleClass().add("stat-tile");
         money.setPadding(new Insets(8, 18, 8, 18));
 
-        final Button back = new Button(NeoText.get("common.back"));
-        back.getStyleClass().add("btn-secondary");
-        back.setMinWidth(Region.USE_PREF_SIZE);
-        back.setOnAction(e -> actions.back());
-
         final Region gap = new Region();
         HBox.setHgrow(gap, Priority.ALWAYS);
-        final HBox row = new HBox(14, new VBox(2, title, sub), gap, money, back);
+        final HBox row = new HBox(14, new VBox(2, title, sub), gap, money);
         row.setAlignment(Pos.CENTER_LEFT);
         row.setPadding(new Insets(18, 28, 8, 30));
         return row;

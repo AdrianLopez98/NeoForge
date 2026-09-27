@@ -100,6 +100,8 @@ public class TableScreen extends Pane {
     /** Hueco entre dos mesas de rival contiguas. */
     private static final double SEAT_GAP = 10;
     private final HandFan hand;
+    /** La carta de la mano que se esta mirando con el dedo. Ver {@link #installDragGestures}. */
+    private final CardNode handPeek;
     private final CommandZone commandZone;
     private final PhaseRail phaseRail = new PhaseRail();
     private final CardDetailPanel detail;
@@ -237,6 +239,13 @@ public class TableScreen extends Pane {
         this.cardWidth = cardWidth;
         this.sideWidth = sideWidth;
         this.hand = new HandFan(cardWidth * 1.12);
+        this.handPeek = new CardNode(cardWidth * 2.4);
+        handPeek.setHoverEnabled(false);
+        handPeek.setRotationEnabled(false);
+        handPeek.setMouseTransparent(true);
+        handPeek.setManaged(false);
+        handPeek.setVisible(false);
+        handPeek.getStyleClass().add("hand-peek");
         this.commandZone = new CommandZone(cardWidth * 1.12);
         this.detail = new CardDetailPanel(sideWidth - 52);
         this.opponentField = new PlayerField(cardWidth * 0.92, true);
@@ -346,7 +355,7 @@ public class TableScreen extends Pane {
         getChildren().addAll(opponentTabs, opponentBar, viewport,
                 selfBar, hand, commandZone, phaseRail, side, combatOverlay, logButton, menuButton, chatButton, macroRecordButton, macroPlayButton, cooldownBadge,
                 promptBanner, notices, turnBanner, playerDetails, zoomBadge, macroBadge, spotlight,
-                overlay, menuOverlay, zoomOverlay);
+                handPeek, overlay, menuOverlay, zoomOverlay);
 
         // Se cierra con un click en cualquier sitio, como en Arena.
         //
@@ -2884,6 +2893,9 @@ public class TableScreen extends Pane {
         for (final CardNode n : extraNodes) {
             n.refresh();
         }
+        if (handPeek.isVisible()) {
+            handPeek.refresh();
+        }
         detail.refresh();
     }
 
@@ -3135,6 +3147,11 @@ public class TableScreen extends Pane {
 
     private double pressX;
     private double pressY;
+    /**
+     * La mano tactil: la carta que se esta ensenyando en grande mientras el
+     * dedo sigue apoyado en la mano, o null si no hay gesto de esos en curso.
+     */
+    private CardNode peeking;
     private CardNode lastDropNode;
     private boolean swallowNextClick;
 
@@ -3201,9 +3218,44 @@ public class TableScreen extends Pane {
             swallowNextClick = false;
             pressX = e.getSceneX();
             pressY = e.getSceneY();
+            hidePeek();
+            if (dragFromHand && e.getButton() == javafx.scene.input.MouseButton.PRIMARY
+                    && touchHandFor(e) && !isModalShowing() && !overlay.isPeeking()) {
+                // La mano tactil: apoyar el dedo es MIRAR. La carta sale en
+                // grande y todavia no es un arrastre de nada.
+                showPeek(dragNode);
+                dragNode = null;
+                dragFromHand = false;
+            }
         });
 
         addEventFilter(MouseEvent.MOUSE_DRAGGED, e -> {
+            if (peeking != null) {
+                if (!isOverBoard(e.getSceneX(), e.getSceneY()) || isModalShowing()) {
+                    // Por la mano se va pasando de carta en carta, sin soltar.
+                    // Solo a la altura de la mano: en cuanto el dedo sube por
+                    // encima (la barra del jugador, camino de la mesa) la carta
+                    // se queda fija, o un gesto un poco en diagonal acabaria
+                    // jugando la de al lado.
+                    final javafx.geometry.Bounds hb = hand.localToScene(hand.getLayoutBounds());
+                    final CardNode under = e.getSceneY() >= hb.getMinY()
+                            ? handCardAt(e.getSceneX()) : null;
+                    if (under != null && under != peeking) {
+                        showPeek(under);
+                    }
+                    e.consume();
+                    return;
+                }
+                // Ha subido a la mesa: desde aqui es el arrastre de siempre,
+                // con la carta que se estaba mirando — no la que se toco
+                // primero, que puede estar tres cartas mas alla.
+                dragNode = peeking;
+                dragFromHand = true;
+                hidePeek();
+                dragActive = true;
+                dragNode.setDragging(true);
+                combatOverlay.startDrag(dragNode.getCard());
+            }
             if (dragNode == null || isModalShowing()) {
                 return;
             }
@@ -3226,6 +3278,23 @@ public class TableScreen extends Pane {
         });
 
         addEventFilter(MouseEvent.MOUSE_RELEASED, e -> {
+            if (peeking != null) {
+                // Soltar en la mano no juega nada: es lo que se pidio en
+                // Android y la mitad que hace util el gesto. La excepcion es
+                // cuando PREGUNTA el motor (descartar, elegir de la mano): eso
+                // se contesta tocando, que obligar a arrastrar a la mesa para
+                // "descarta una carta" seria un acertijo.
+                final CardNode shown = peeking;
+                final boolean tap = Math.hypot(e.getSceneX() - pressX,
+                        e.getSceneY() - pressY) < DRAG_SLOP;
+                hidePeek();
+                swallowNextClick = true;
+                if (tap && shown.isSelectable() && !isModalShowing()) {
+                    cardClicked(shown);
+                }
+                e.consume();
+                return;
+            }
             if (!dragActive) {
                 dragNode = null;
                 return;
@@ -3263,6 +3332,14 @@ public class TableScreen extends Pane {
             e.consume();
         });
 
+        // Con el dedo, JavaFX saca ademas un desplazamiento del mismo gesto, y
+        // la mano rodaria por debajo del dedo mientras se pasa de carta.
+        addEventFilter(javafx.scene.input.ScrollEvent.ANY, e -> {
+            if (peeking != null && e.isDirect()) {
+                e.consume();
+            }
+        });
+
         // Tras un arrastre, JavaFX manda ademas un click en el nodo de origen.
         // Sin tragarselo, soltar una carta la jugaria dos veces.
         addEventFilter(MouseEvent.MOUSE_CLICKED, e -> {
@@ -3295,8 +3372,95 @@ public class TableScreen extends Pane {
      * VERDAD sobre la mesa, y cualquier otro sitio cancela.
      */
     private boolean isOverBoard(final double sceneX, final double sceneY) {
+        // Y dentro del VISOR: con la mesa acercada, el tablero escalado se
+        // extiende por debajo de su recorte, y un punto sobre la mano caia
+        // "dentro" de el — devolver una carta a la mano la jugaba igual.
+        final Point2D v = viewport.sceneToLocal(sceneX, sceneY);
+        if (v == null || v.getX() < 0 || v.getY() < 0
+                || v.getX() > viewport.getWidth() || v.getY() > viewport.getHeight()) {
+            return false;
+        }
         final Point2D p = board.sceneToLocal(sceneX, sceneY);
         return board.getBoundsInLocal().contains(p);
+    }
+
+    /**
+     * Si este gesto va por la mano tactil (Ajustes, <i>Mano tactil</i>).
+     *
+     * <p>"Solo con el dedo" se distingue por {@code isSynthesized()}: JavaFX
+     * marca asi el raton que fabrica a partir de un toque en la pantalla, asi
+     * que en un portatil tactil el raton sigue como siempre y el dedo va como
+     * en Android.
+     */
+    private static boolean touchHandFor(final MouseEvent e) {
+        final String mode = forge.neo.NeoSettings.touchHand();
+        return forge.neo.NeoSettings.TOUCH_HAND_ALWAYS.equals(mode)
+                || forge.neo.NeoSettings.TOUCH_HAND_FINGER.equals(mode) && e.isSynthesized();
+    }
+
+    /**
+     * La carta de la mano que hay bajo ese punto, mirando solo a lo ancho.
+     *
+     * <p>Por la posicion de reparto y no por lo que se pinta: la carta que se
+     * esta tocando va ampliada por el hover y taparia a sus vecinas. Y de
+     * derecha a izquierda, porque en la mano la de la derecha va encima: la
+     * que se ve es la ultima que contiene el punto. Fuera de los extremos, la
+     * del extremo — el dedo se sale un poco y no por eso deja de mirar.
+     */
+    private CardNode handCardAt(final double sceneX) {
+        final List<CardNode> cards = hand.getCards();
+        if (cards.isEmpty()) {
+            return null;
+        }
+        final double x = hand.sceneToLocal(sceneX, 0).getX();
+        for (int i = cards.size() - 1; i >= 0; i--) {
+            final CardNode c = cards.get(i);
+            if (x >= c.getLayoutX() && x <= c.getLayoutX() + c.getWidth()) {
+                return c;
+            }
+        }
+        final CardNode first = cards.get(0);
+        return x < first.getLayoutX() ? first : cards.get(cards.size() - 1);
+    }
+
+    /**
+     * La carta en grande, encima de la mano y centrada sobre la que se toca.
+     *
+     * <p>La pinta la mesa y no la mano: la mano no sabe cuanto sitio hay por
+     * encima (la barra, la mesa), y en Android la primera version salio
+     * cortada justo por eso. Tan grande como quepa entre el rail de fases y
+     * la mano, con techo en un tercio del ancho: es para LEER la carta.
+     */
+    private void showPeek(final CardNode over) {
+        if (over == null || over.getCard() == null) {
+            return;
+        }
+        peeking = over;
+        final double contentW = getWidth() - side.getWidth();
+        final double handTop = hand.getBoundsInParent().getMinY();
+        final double top = phaseRail.getBoundsInParent().getMaxY() + PAD;
+        double pw = Math.min(contentW / 3, Math.max(over.getWidth() * 2.2, UiScale.px(260)));
+        if (pw * CardNode.ASPECT > handTop - top - PAD) {
+            pw = Math.max(over.getWidth(), (handTop - top - PAD) / CardNode.ASPECT);
+        }
+        final double ph = pw * CardNode.ASPECT;
+        final javafx.geometry.Bounds b = over.localToScene(over.getBoundsInLocal());
+        final double centre = sceneToLocal(b.getCenterX(), b.getCenterY()).getX();
+        final double x = Math.max(PAD, Math.min(contentW - pw - PAD, centre - pw / 2));
+        handPeek.setCard(over.getCard());
+        handPeek.setCardWidth(pw);
+        handPeek.resizeRelocate(x, Math.max(top, handTop - ph - PAD), pw, ph);
+        handPeek.setVisible(true);
+    }
+
+    private void hidePeek() {
+        peeking = null;
+        handPeek.setVisible(false);
+    }
+
+    /** La carta que la mano tactil tiene en grande ahora mismo, o null. Para las pruebas. */
+    public CardView peekedHandCard() {
+        return peeking == null ? null : peeking.getCard();
     }
 
     /** true si el objetivo del evento cuelga de ese nodo. */

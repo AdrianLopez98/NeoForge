@@ -68,12 +68,7 @@ public class LookScreen extends BorderPane {
 
         final Region gap = new Region();
         HBox.setHgrow(gap, Priority.ALWAYS);
-        final Button back = new Button(NeoText.get("common.back"));
-        back.getStyleClass().add("btn-secondary");
-        back.setMinWidth(Region.USE_PREF_SIZE);
-        back.setOnAction(e -> onBack.run());
-
-        final HBox header = new HBox(14, titles, gap, back);
+        final HBox header = new HBox(14, titles, gap);
         header.setAlignment(Pos.CENTER_LEFT);
         header.setPadding(new Insets(22, 30, 6, 30));
 
@@ -89,6 +84,9 @@ public class LookScreen extends BorderPane {
 
         content.setPadding(new Insets(4, 30, 24, 30));
         setCenter(content);
+        // Volver, abajo a la derecha: el mismo sitio en todas las pantallas
+        // (las notas de diseño, principio 12). Antes iba en la cabecera.
+        setBottom(BackBar.of(onBack));
 
         // -Dneo.look.tab=N abre una pestanya concreta: es la unica forma de
         // capturar las de dentro sin poder clicar.

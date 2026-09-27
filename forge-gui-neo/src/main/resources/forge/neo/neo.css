@@ -3386,6 +3386,10 @@
 .deck-builder .colour-filter { -fx-min-width: 2.5455em; -fx-min-height: 2.7273em; -fx-padding: 5 6; -fx-background-radius: 20; -fx-border-radius: 20; }
 .deck-builder .colour-filter:selected { -fx-border-width: 2; }
 .deck-builder .builder-advanced { -fx-padding: 12; -fx-background-color: #141e2a; -fx-background-radius: 6; -fx-border-color: #394653; -fx-border-radius: 6; }
+/* Los mismos filtros fuera del constructor (CardFilterBar: vender en la tienda). */
+.card-filter .colour-filter { -fx-min-width: 2.5455em; -fx-min-height: 2.7273em; -fx-padding: 5 6; -fx-background-radius: 20; -fx-border-radius: 20; }
+.card-filter .colour-filter:selected { -fx-border-width: 2; }
+.card-filter.builder-advanced { -fx-padding: 12; -fx-background-color: #141e2a; -fx-background-radius: 6; -fx-border-color: #394653; -fx-border-radius: 6; }
 .deck-builder .builder-pagebar { -fx-padding: 7 0 2 0; -fx-border-color: #303a46 transparent transparent transparent; }
 .deck-builder .dialog-counter { -fx-font-size: 0.7692em; -fx-text-fill: #b4bfca; }
 .deck-builder .catalogue-tile { -fx-background-color: transparent; -fx-background-radius: 8; -fx-padding: 3; }
@@ -3488,4 +3492,9 @@
 .home-version:focused {
     -fx-background-color: transparent;
     -fx-border-color: transparent;
+}
+
+/* La mano tactil: la carta que se mira con el dedo apoyado (TableScreen.showPeek). */
+.hand-peek {
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.75), 30, 0.35, 0, 8);
 }

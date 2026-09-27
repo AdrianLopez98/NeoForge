@@ -62,6 +62,9 @@ public class NetDecksScreen extends BorderPane {
 
         setTop(header(onBack));
         setCenter(body());
+        // Volver, abajo a la derecha: el mismo sitio en todas las pantallas
+        // (las notas de diseño, principio 12). Antes iba en la cabecera.
+        setBottom(BackBar.of(onBack));
         fill();
     }
 
@@ -72,14 +75,9 @@ public class NetDecksScreen extends BorderPane {
         final Label subtitle = new Label(NeoText.get("net.subtitle", format.getLabel()));
         subtitle.getStyleClass().add("home-subtitle");
 
-        final Button back = new Button(NeoText.get("common.back"));
-        back.getStyleClass().add("btn-secondary");
-        back.setMinWidth(Region.USE_PREF_SIZE);
-        back.setOnAction(e -> onBack.run());
-
         final Region gap = new Region();
         HBox.setHgrow(gap, Priority.ALWAYS);
-        final HBox row = new HBox(14, new VBox(2, title, subtitle), gap, back);
+        final HBox row = new HBox(14, new VBox(2, title, subtitle), gap);
         row.setAlignment(Pos.CENTER_LEFT);
         row.setPadding(new Insets(18, 28, 8, 30));
         return row;

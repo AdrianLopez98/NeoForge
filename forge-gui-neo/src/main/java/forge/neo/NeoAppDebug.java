@@ -1008,6 +1008,97 @@ final class NeoAppDebug {
         wait.play();
     }
 
+    /**
+     * La mano tactil ({@code NeoSettings.touchHand}), con toques de mentira.
+     *
+     * <p>Como {@link #dragTest()}, pero con los eventos marcados como
+     * {@code synthesized} — que es como llega el raton que JavaFX fabrica a
+     * partir de un dedo — asi que se lanza con {@code -Dneo.touchHand=finger}
+     * y comprueba justo lo que distingue al dedo del raton. Lo que tiene que
+     * salir: apoyar ensenya la carta; deslizar la cambia; soltar en la mano
+     * NO suelta nada; subir a la mesa si.
+     *
+     * <p>Con {@code -Dneo.touchHandTest.stay=true} se queda con el dedo
+     * apoyado en la ultima carta, para capturar la vista con {@code --snapshot}.
+     */
+    void touchHandTest() {
+        if (!app.table.hasDropHandler()) {
+            app.table.setOnCardDropped((source, fromHand, target) ->
+                    System.out.printf("[touch-hand-test] soltada %s (mano=%s) sobre %s%n",
+                            nameOf(source), fromHand, nameOf(target)));
+        }
+        final PauseTransition wait = new PauseTransition(
+                Duration.seconds(Integer.getInteger("neo.dragTest.delay", 2)));
+        wait.setOnFinished(e -> {
+            final List<javafx.scene.Node> hand = new ArrayList<>(app.table.handNodes());
+            final List<javafx.scene.Node> to = new ArrayList<>(app.table.opponentFieldNodes());
+            if (hand.size() < 2 || to.isEmpty()) {
+                System.out.println("[touch-hand-test] no hay cartas con las que probar");
+                Platform.exit();
+                return;
+            }
+            final javafx.scene.Node first = hand.get(0);
+            final javafx.scene.Node last = hand.get(hand.size() - 1);
+            final javafx.geometry.Point2D a = centreOf(first);
+            final javafx.geometry.Point2D b = centreOf(last);
+
+            touch(first, javafx.scene.input.MouseEvent.MOUSE_PRESSED, a);
+            System.out.println("[touch-hand-test] apoyar: en grande " + nameOf(app.table.peekedHandCard())
+                    + " (esperado " + nameOf(((CardNode) first).getCard()) + ")");
+            for (int i = 1; i <= 4; i++) {
+                touch(first, javafx.scene.input.MouseEvent.MOUSE_DRAGGED,
+                        a.add(b.subtract(a).multiply(i / 4.0)));
+            }
+            System.out.println("[touch-hand-test] deslizar: en grande " + nameOf(app.table.peekedHandCard())
+                    + " (esperado " + nameOf(((CardNode) last).getCard()) + ")");
+            if (Boolean.getBoolean("neo.touchHandTest.stay")) {
+                return;
+            }
+            touch(first, javafx.scene.input.MouseEvent.MOUSE_RELEASED, b);
+            System.out.println("[touch-hand-test] soltar en la mano: en grande "
+                    + nameOf(app.table.peekedHandCard()) + " (esperado null, y NINGUNA soltada)");
+
+            touch(first, javafx.scene.input.MouseEvent.MOUSE_PRESSED, a);
+            touch(first, javafx.scene.input.MouseEvent.MOUSE_RELEASED, a);
+            System.out.println("[touch-hand-test] toque corto: NINGUNA soltada ni jugada");
+
+            System.out.println("[touch-hand-test] mano -> campo del rival (SI debe soltar "
+                    + nameOf(((CardNode) first).getCard()) + ")");
+            // Como una persona: primero sube el dedo, y ya fuera de la mano
+            // va hacia donde lo quiere soltar.
+            final javafx.geometry.Point2D end = centreOf(to.get(0));
+            final javafx.geometry.Bounds hb = first.getParent().localToScene(
+                    first.getParent().getLayoutBounds());
+            final javafx.geometry.Point2D up = new javafx.geometry.Point2D(a.getX(), hb.getMinY() - 12);
+            touch(first, javafx.scene.input.MouseEvent.MOUSE_PRESSED, a);
+            for (int i = 1; i <= 3; i++) {
+                touch(first, javafx.scene.input.MouseEvent.MOUSE_DRAGGED,
+                        a.add(up.subtract(a).multiply(i / 3.0)));
+            }
+            for (int i = 1; i <= 6; i++) {
+                touch(first, javafx.scene.input.MouseEvent.MOUSE_DRAGGED,
+                        up.add(end.subtract(up).multiply(i / 6.0)));
+            }
+            touch(first, javafx.scene.input.MouseEvent.MOUSE_RELEASED, end);
+            System.out.println("[touch-hand-test] fin");
+            Platform.exit();
+        });
+        wait.play();
+    }
+
+    /** Como {@link #fire}, pero como llega un toque de la pantalla: {@code synthesized}. */
+    static void touch(final javafx.scene.Node target,
+                      final javafx.event.EventType<javafx.scene.input.MouseEvent> type,
+                      final javafx.geometry.Point2D scenePoint) {
+        javafx.event.Event.fireEvent(target, new javafx.scene.input.MouseEvent(
+                type, scenePoint.getX(), scenePoint.getY(),
+                scenePoint.getX(), scenePoint.getY(),
+                javafx.scene.input.MouseButton.PRIMARY, 1,
+                false, false, false, false,
+                true, false, false,
+                true, false, false, null));
+    }
+
     static String nameOf(final Object entity) {
         if (entity instanceof CardView cv && cv.getCurrentState() != null) {
             return cv.getCurrentState().getName();

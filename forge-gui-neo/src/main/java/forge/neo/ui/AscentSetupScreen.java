@@ -143,6 +143,10 @@ public class AscentSetupScreen extends StackPane {
 
     private void rebuild() {
         body.getChildren().clear();
+        // Un hueco elastico arriba y otro antes de los botones: el contenido
+        // sigue centrado y los botones quedan al pie del pergamino, donde
+        // estan en todas las pantallas (las notas de diseño, principio 12).
+        body.getChildren().add(stretch());
 
         final Label title = new Label(NeoText.get("ascent.setup.title"));
         title.getStyleClass().add("ascent-act");
@@ -169,7 +173,13 @@ public class AscentSetupScreen extends StackPane {
             }
         }
 
-        body.getChildren().add(footer());
+        body.getChildren().addAll(stretch(), footer());
+    }
+
+    private static Region stretch() {
+        final Region r = new Region();
+        VBox.setVgrow(r, javafx.scene.layout.Priority.ALWAYS);
+        return r;
     }
 
     /**
@@ -563,8 +573,11 @@ public class AscentSetupScreen extends StackPane {
         back.getStyleClass().add("ascent-button");
         back.setOnAction(e -> actions.back());
 
+        // Volver, abajo a la derecha y junto a la accion principal: el mismo
+        // sitio en todas las pantallas (las notas de diseño, principio 12).
         final HBox row = new HBox(12, back, start);
-        row.setAlignment(Pos.CENTER);
+        row.setAlignment(Pos.CENTER_RIGHT);
+        row.setMaxWidth(Double.MAX_VALUE);
         row.setPadding(new Insets(8, 0, 0, 0));
 
         if (!runInProgress) {
@@ -577,7 +590,8 @@ public class AscentSetupScreen extends StackPane {
         warn.setWrapText(true);
         warn.setMaxWidth(UiScale.px(620));
         final VBox box = new VBox(6, warn, row);
-        box.setAlignment(Pos.CENTER);
+        box.setAlignment(Pos.CENTER_RIGHT);
+        box.setMaxWidth(Double.MAX_VALUE);
         return box;
     }
 

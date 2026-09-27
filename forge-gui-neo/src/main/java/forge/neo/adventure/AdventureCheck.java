@@ -57,6 +57,7 @@ public final class AdventureCheck {
         check("DeckEditScene lleva el bloque NEOFORGE",
                 source("DeckEditScene").contains("NeoDeckBridge.open("));
         duelHasAWayOut();
+        ledgerKeepsOrder();
         System.out.println();
         System.out.println(ok + " comprobaciones OK, " + bad + " fallos");
         System.exit(bad == 0 ? 0 : 1);
@@ -87,6 +88,36 @@ public final class AdventureCheck {
             check("\"" + key + "\" esta en los diez idiomas"
                     + (missing.isEmpty() ? "" : " -> falta en " + missing),
                     missing.isEmpty());
+        }
+    }
+
+    /**
+     * El registro de "cuando conseguiste cada carta" ({@link AcquiredLedger}).
+     *
+     * <p>Lo que se rompe sin avisar es lo de la carga: si cargar una partida
+     * contara como conseguir, TODA la coleccion saldria "nueva" cada vez, y el
+     * orden no serviria de nada — sin un solo error.
+     */
+    private static void ledgerKeepsOrder() {
+        final AcquiredLedger.Book book = new AcquiredLedger.Book();
+        book.update(java.util.Map.of("sol ring", 1, "island", 10), true, 100);
+        check("registro: lo que habia al cargar no tiene hora",
+                book.stampOf("sol ring") == 0 && book.stampOf("island") == 0);
+        book.update(java.util.Map.of("sol ring", 1, "island", 10, "counterspell", 1), false, 200);
+        check("registro: una carta nueva lleva su hora", book.stampOf("counterspell") == 200);
+        book.update(java.util.Map.of("sol ring", 2, "island", 10, "counterspell", 1), false, 300);
+        check("registro: otra copia de una que ya tenias tambien cuenta",
+                book.stampOf("sol ring") == 300 && book.stampOf("counterspell") == 200);
+        book.update(java.util.Map.of("sol ring", 2, "island", 10), false, 400);
+        book.update(java.util.Map.of("sol ring", 2, "island", 10, "counterspell", 1), false, 500);
+        check("registro: vendida y vuelta a conseguir, es nueva", book.stampOf("counterspell") == 500);
+        book.update(java.util.Map.of("sol ring", 5, "island", 30, "counterspell", 3), true, 600);
+        check("registro: cargar otra partida no pone horas",
+                book.stampOf("sol ring") == 300 && book.stampOf("island") == 0);
+        for (final String key : new String[] {"deck.newest", "deck.newest.tip"}) {
+            final List<String> missing = languagesWithout(key);
+            check("\"" + key + "\" esta en los diez idiomas"
+                    + (missing.isEmpty() ? "" : " -> falta en " + missing), missing.isEmpty());
         }
     }
 

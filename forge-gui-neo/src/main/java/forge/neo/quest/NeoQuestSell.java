@@ -260,6 +260,122 @@ public final class NeoQuestSell {
         return price * qty;
     }
 
+    // ===============================================================
+    // Vender por lotes (informe de itch.io, 27-09-2026: "de una en una y sin
+    // filtros es un tedio")
+    // ===============================================================
+
+    /**
+     * Cuantas copias de cada IMPRESION usan tus mazos.
+     *
+     * <p>El <b>mayor</b> de todos los mazos, no la suma: en la aventura los
+     * mazos comparten la coleccion, y un Sol Ring en tres mazos es un Sol Ring.
+     * Es la misma cuenta que hace el motor al vender
+     * ({@code QuestUtilCards.removeCard}): quita la carta de cada mazo que lleve
+     * mas copias de las que te quedan. O sea que vender hasta este numero no
+     * toca ningun mazo, y por debajo si.
+     *
+     * <p>Se cuentan todas las secciones, tambien la de mando: el motor no quita
+     * al comandante de su sitio, pero venderle su unica copia seria dejar un
+     * mazo que ya no es tuyo.
+     */
+    public static Map<PaperCard, Integer> usedByDecks() {
+        final Map<PaperCard, Integer> used = new java.util.HashMap<>();
+        if (!NeoQuest.isActive()) {
+            return used;
+        }
+        for (final forge.deck.Deck deck : NeoQuest.decks()) {
+            final Map<PaperCard, Integer> here = new java.util.HashMap<>();
+            for (final Map.Entry<forge.deck.DeckSection, forge.deck.CardPool> section : deck) {
+                for (final Map.Entry<PaperCard, Integer> e : section.getValue()) {
+                    here.merge(e.getKey(), e.getValue(), Integer::sum);
+                }
+            }
+            here.forEach((card, n) -> used.merge(card, n, Math::max));
+        }
+        return used;
+    }
+
+    /**
+     * Cuantas copias de esa impresion se pueden vender sin tocar un mazo.
+     *
+     * @param used lo de {@link #usedByDecks()}, que se calcula una vez por
+     *             pantalla y no una por carta
+     */
+    public static int notInDecks(final PaperCard card, final Map<PaperCard, Integer> used) {
+        return Math.max(0, owned(card) - used.getOrDefault(card, 0));
+    }
+
+    /**
+     * Lo que venderia el boton gordo: <b>toda copia que no use un mazo</b>.
+     * No vende nada.
+     */
+    public static Map<PaperCard, Integer> notInDecksPlan() {
+        final Map<PaperCard, Integer> plan = new java.util.LinkedHashMap<>();
+        if (!NeoQuest.isActive()) {
+            return plan;
+        }
+        final Map<PaperCard, Integer> used = usedByDecks();
+        for (final Map.Entry<PaperCard, Integer> e : NeoQuest.collection()) {
+            if (e.getKey() == null) {
+                continue;
+            }
+            final int n = e.getValue() - used.getOrDefault(e.getKey(), 0);
+            if (n > 0) {
+                plan.put(e.getKey(), n);
+            }
+        }
+        return plan;
+    }
+
+    /** Cuanto daria un lote, sin venderlo. */
+    public static Sold preview(final Map<PaperCard, Integer> plan) {
+        return sellMany(plan, false);
+    }
+
+    /**
+     * Vende un lote: N copias de cada carta, con UN solo guardado al final.
+     *
+     * <p>Llamar a {@link #sellOne} en bucle guardaria la aventura entera por
+     * cada carta, y el boton gordo puede ser un millar.
+     */
+    public static Sold sell(final Map<PaperCard, Integer> plan) {
+        return sellMany(plan, true);
+    }
+
+    private static Sold sellMany(final Map<PaperCard, Integer> plan, final boolean commit) {
+        final Sold sold = new Sold();
+        if (plan == null || plan.isEmpty() || !NeoQuest.isActive()) {
+            return sold;
+        }
+        final double multiplier = QuestSpellShop.updateMultiplier();
+        final int limit = NeoQuest.engine().getCards().getSellPriceLimit();
+        // Copia: vender cambia la coleccion y el plan puede venir de ella.
+        for (final Map.Entry<PaperCard, Integer> e : new ArrayList<>(plan.entrySet())) {
+            final PaperCard card = e.getKey();
+            final int qty = Math.min(e.getValue() == null ? 0 : e.getValue(), owned(card));
+            if (card == null || qty <= 0) {
+                continue;
+            }
+            final int price = Math.max(Math.min((int) (multiplier * value(card)), limit), 1);
+            sold.cards.add(card);
+            sold.copies += qty;
+            sold.credits += price * qty;
+            if (commit) {
+                NeoQuest.engine().getCards().removeCard(card, qty);
+                NeoQuest.engine().getAssets().addCredits((long) price * qty);
+                NeoQuest.engine().getAssets().getShopList().add(card, qty);
+            }
+        }
+        if (commit && !sold.isEmpty()) {
+            NeoQuest.save();
+            System.out.printf(java.util.Locale.ROOT,
+                    "[tienda] vendido un lote: %d copias de %d cartas -> +%d cr., quedan %d%n",
+                    sold.copies, sold.cards.size(), sold.credits, NeoQuest.credits());
+        }
+        return sold;
+    }
+
     private static int value(final PaperCard card) {
         final Integer v = QuestSpellShop.getCardValue(card);
         return v == null || v <= 0 ? 1 : v;

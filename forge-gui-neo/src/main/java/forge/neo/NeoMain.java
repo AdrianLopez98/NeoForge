@@ -213,6 +213,12 @@ public final class NeoMain {
                 banner("Reglas del deck builder");
                 forge.neo.deck.DeckRulesCheck.run();
                 break;
+            case "librarycheck":
+                // La enciclopedia: que cada filtro ensenye lo que dice y nada
+                // mas (una rara en Pauper, una reliquia de Ascenso...).
+                banner("Enciclopedia: expansiones, formatos y coleccion");
+                forge.neo.deck.LibraryCheck.run();
+                break;
             case "draftcheck":
                 // El ciclo de un draft entero (3 sobres x 15 picks, los siete
                 // rivales eligiendo a la vez) no se ve en una captura.

@@ -13,7 +13,6 @@ import forge.neo.card.CardNode;
 import forge.neo.quest.NeoQuest;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
@@ -55,6 +54,8 @@ public class QuestCollectionScreen extends BorderPane {
     private final Pager pager;
     private final Label summary = new Label();
     private final Label resultCount = new Label();
+    /** La ayuda del pie: va a la izquierda de Volver, en la misma barra. */
+    private final Label hint = new Label(NeoText.get("haul.hint"));
 
     /** Todas tus cartas, una entrada por carta, con cuantas tienes. */
     private final List<Entry> all = new ArrayList<>();
@@ -88,6 +89,9 @@ public class QuestCollectionScreen extends BorderPane {
         load();
         setTop(header(onBack));
         setCenter(body());
+        // Volver, abajo a la derecha: el mismo sitio en todas las pantallas
+        // (las notas de diseño, principio 12). Antes iba en la cabecera.
+        setBottom(BackBar.of(onBack, hint));
         reload();
 
         CardZoom.install(this);
@@ -122,14 +126,9 @@ public class QuestCollectionScreen extends BorderPane {
 
         summary.getStyleClass().add("home-subtitle");
 
-        final Button back = new Button(NeoText.get("common.back"));
-        back.getStyleClass().add("btn-secondary");
-        back.setMinWidth(Region.USE_PREF_SIZE);
-        back.setOnAction(e -> onBack.run());
-
         final Region gap = new Region();
         HBox.setHgrow(gap, Priority.ALWAYS);
-        final HBox row = new HBox(14, new VBox(2, title, summary), gap, back);
+        final HBox row = new HBox(14, new VBox(2, title, summary), gap);
         row.setAlignment(Pos.CENTER_LEFT);
         row.setPadding(new Insets(18, 28, 8, 30));
         return row;
@@ -164,13 +163,9 @@ public class QuestCollectionScreen extends BorderPane {
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         VBox.setVgrow(scroll, Priority.ALWAYS);
 
-        final Label hint = new Label(NeoText.get("haul.hint"));
         hint.getStyleClass().add("home-subtitle");
 
-        final HBox footer = new HBox(14, hint);
-        footer.setAlignment(Pos.CENTER_LEFT);
-
-        final VBox content = new VBox(12, tools, scroll, pager, footer);
+        final VBox content = new VBox(12, tools, scroll, pager);
         content.setPadding(new Insets(4, 30, 18, 30));
         return content;
     }

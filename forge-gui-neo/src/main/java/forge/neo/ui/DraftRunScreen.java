@@ -185,13 +185,15 @@ public class DraftRunScreen extends BorderPane {
 
         // ---- los botones de siempre: volver, editar y la tanda ----
         final HBox buttons = new HBox(12);
-        buttons.setAlignment(Pos.CENTER);
+        // Volver, abajo a la derecha y junto a la accion principal: el mismo
+        // sitio en todas las pantallas (las notas de diseño, principio 12).
+        // Por eso Volver se anyade DESPUES de editar y antes de la tanda.
+        buttons.setAlignment(Pos.CENTER_RIGHT);
 
         final Button back = new Button(NeoText.get("common.back"));
         back.getStyleClass().add("btn-secondary");
         back.setMinWidth(Region.USE_PREF_SIZE);
         back.setOnAction(e -> actions.back());
-        buttons.getChildren().add(back);
 
         if (!eliminated) {
             final Button edit = new Button(NeoText.get(count(run.getDeck()) == 0
@@ -203,6 +205,7 @@ public class DraftRunScreen extends BorderPane {
             edit.setOnAction(e -> actions.editDeck(run));
             buttons.getChildren().add(edit);
         }
+        buttons.getChildren().add(back);
 
         if (eliminated) {
             final Button again = new Button(NeoText.get("draft.another"));

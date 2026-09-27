@@ -84,7 +84,9 @@ public class LimitedEventsScreen extends BorderPane {
 
         final Region gap = new Region();
         HBox.setHgrow(gap, Priority.ALWAYS);
-        final HBox footer = new HBox(12, back, gap, create);
+        // Volver, abajo a la derecha y junto a la accion principal: el mismo
+        // sitio en todas las pantallas (las notas de diseño, principio 12).
+        final HBox footer = new HBox(12, gap, back, create);
         footer.setAlignment(Pos.CENTER_LEFT);
         footer.getStyleClass().add("home-footer");
         footer.setPadding(new Insets(14, 30, 22, 30));

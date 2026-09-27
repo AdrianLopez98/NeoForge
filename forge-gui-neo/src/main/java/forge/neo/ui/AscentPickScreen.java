@@ -105,8 +105,14 @@ public class AscentPickScreen extends StackPane {
         back.getStyleClass().add("ascent-button");
         back.setOnAction(e -> actions.back());
 
-        final HBox row = new HBox(12, back, deck, abandon, cont);
-        row.setAlignment(Pos.CENTER);
+        // Volver a la derecha, junto a Continuar, como en todas las pantallas
+        // (las notas de diseño, principio 12); "Abandonar", que no se deshace, al
+        // otro extremo (principio 6b).
+        final Region apart = new Region();
+        HBox.setHgrow(apart, javafx.scene.layout.Priority.ALWAYS);
+        final HBox row = new HBox(12, abandon, apart, deck, back, cont);
+        row.setMaxWidth(Double.MAX_VALUE);
+        row.setAlignment(Pos.CENTER_LEFT);
         row.setPadding(new Insets(14, 0, 0, 0));
         body.getChildren().add(row);
 

@@ -468,6 +468,9 @@ public class DeckBuilderScreen extends StackPane {
         final HBox caption = new HBox(10,
                 label(editor.getFormat().catalogueLabel()), pickingBadge,
                 gap, legal);
+        if (editor.tracksAcquisition()) {
+            caption.getChildren().add(caption.getChildren().indexOf(legal), newestButton());
+        }
         caption.setAlignment(Pos.CENTER_LEFT);
 
         // Las basicas van FUERA del scroll, en una franja al pie de la columna.
@@ -502,6 +505,39 @@ public class DeckBuilderScreen extends StackPane {
     }
 
     private Region filterRow;
+
+    /**
+     * Lo que se eligio la ultima vez: la Aventura abre un editor nuevo cada
+     * vez, y quien ordena por lo ultimo lo quiere asi en la siguiente.
+     */
+    private static boolean newestFirstChosen;
+
+    /**
+     * "Lo ultimo primero": la coleccion ordenada por cuando entro cada carta.
+     *
+     * <p>Pedido en itch.io el 27-09-2026 para la Aventura, que es donde las
+     * cartas se consiguen de una en una (premios, tiendas, sobres) y lo que se
+     * quiere al abrir el editor es ver que ha caido. Un boton y no una lista
+     * de ordenes: es la unica pregunta que el nombre no contesta. El rotulo
+     * de ayuda dice desde cuando se lleva la cuenta, porque lo de antes sale
+     * por nombre y sin eso pareceria que ordena mal.
+     */
+    private Button newestButton() {
+        final Button b = new Button(NeoText.get("deck.newest"));
+        b.setId("builder-newest");
+        b.getStyleClass().add("segment");
+        b.setMinWidth(Region.USE_PREF_SIZE);
+        b.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("deck.newest.tip")));
+        editor.setNewestFirst(newestFirstChosen);
+        b.pseudoClassStateChanged(SELECTED, newestFirstChosen);
+        b.setOnAction(e -> {
+            newestFirstChosen = !newestFirstChosen;
+            editor.setNewestFirst(newestFirstChosen);
+            b.pseudoClassStateChanged(SELECTED, newestFirstChosen);
+            refreshCatalogue();
+        });
+        return b;
+    }
 
     /**
      * Una rareza del filtro.
@@ -723,7 +759,9 @@ public class DeckBuilderScreen extends StackPane {
         HBox.setHgrow(actions, Priority.ALWAYS);
         save.setId("builder-save");
         back.setId("builder-back");
-        final HBox row = new HBox(14, back, actions, save);
+        // Volver, abajo a la derecha y junto a la accion principal: el mismo
+        // sitio en todas las pantallas (las notas de diseño, principio 12).
+        final HBox row = new HBox(14, actions, back, save);
         row.setAlignment(Pos.CENTER_LEFT);
         row.getStyleClass().add("home-footer");
         row.setPadding(new Insets(14, 26, 18, 26));

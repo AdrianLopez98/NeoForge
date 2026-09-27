@@ -222,6 +222,40 @@ public class SettingsPanel extends VBox {
                     }
                 }));
 
+        // --- la mano tactil de Android ---
+        //
+        // Pedido en itch.io el 27-09-2026 por quien juega en una Surface: en la
+        // pantalla tactil no hay "pasar el raton", asi que tocar una carta de la
+        // mano la jugaba sin poder leerla. Apagado de fabrica: cambia lo que
+        // hace tocar la mano. Se lee en cada gesto, sin reiniciar nada.
+        final String[] touchValues = {NeoSettings.TOUCH_HAND_OFF,
+                NeoSettings.TOUCH_HAND_FINGER, NeoSettings.TOUCH_HAND_ALWAYS};
+        final String[] touchLabels = {NeoText.get("settings.touchHand.off"),
+                NeoText.get("settings.touchHand.finger"),
+                NeoText.get("settings.touchHand.always")};
+        final String touchNow = NeoSettings.touchHand();
+        String touchCurrent = touchLabels[0];
+        for (int i = 0; i < touchValues.length; i++) {
+            if (touchValues[i].equals(touchNow)) {
+                touchCurrent = touchLabels[i];
+            }
+        }
+        getChildren().add(choiceRow(NeoText.get("settings.touchHand"), touchLabels, touchCurrent,
+                v -> {
+                    for (int i = 0; i < touchLabels.length; i++) {
+                        if (touchLabels[i].equals(v)) {
+                            NeoSettings.set(NeoSettings.TOUCH_HAND, touchValues[i]);
+                        }
+                    }
+                    NeoSettings.save();
+                }));
+        final Label touchNote = new Label(NeoText.get("settings.touchHand.note"));
+        touchNote.getStyleClass().add("settings-note");
+        touchNote.setWrapText(true);
+        touchNote.setMaxWidth(UiScale.px(560));
+        touchNote.setMinHeight(Region.USE_PREF_SIZE);
+        getChildren().add(touchNote);
+
         // --- palabras clave en las cartas de la mesa ---
         //
         // Pedido desde Reddit el 26-09-2026: volar, toque mortal, arrollar...

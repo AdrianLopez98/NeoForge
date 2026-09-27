@@ -303,7 +303,11 @@ public class AscentMapScreen extends StackPane {
 
         final Region gap = new Region();
         HBox.setHgrow(gap, javafx.scene.layout.Priority.ALWAYS);
-        final HBox bar = new HBox(10, back, deck, gap, hint, abandon);
+        // Volver abajo a la derecha, como en todas las pantallas (las notas de diseño
+        // 10b, principio 12) — y por eso "Abandonar" se va a la IZQUIERDA:
+        // lo que no se deshace no puede estar donde va la inercia de volver
+        // (principio 6b). Pregunta antes igual, pero mejor no llegar ahi.
+        final HBox bar = new HBox(10, abandon, hint, gap, deck, back);
         bar.getStyleClass().add("ascent-bar");
         bar.setAlignment(Pos.CENTER_LEFT);
         // ⚠️ 38 abajo y no 16, exactamente por lo mismo que la barra de arriba

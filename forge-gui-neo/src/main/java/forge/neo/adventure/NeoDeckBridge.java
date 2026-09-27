@@ -29,6 +29,9 @@ public final class NeoDeckBridge {
 
     /** Lo llama DeckEditScene.enter() desde el hilo de libGDX. */
     public static void open(final Runnable backToAdventure) {
+        // Lo que acabas de ganar tiene que contar ya como "lo ultimo", no
+        // dentro de tres segundos.
+        AcquiredLedger.syncNow();
         final AdventureDeckContext context = new AdventureDeckContext(Current.player());
         lastContext = context;
         final Deck deck = context.currentDeck();

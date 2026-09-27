@@ -72,6 +72,12 @@ public class QuestScreen extends BorderPane {
     }
 
     private final double cardWidth;
+    /**
+     * La carta del comandante rival, como parte de la de la mesa. 0,88 y no
+     * 0,95 desde que Volver bajo a su barra (principio 12): con 0,95 el boton
+     * JUGAR de los duelos se quedaba bajo el borde en 1080p.
+     */
+    private static final double DUEL_CARD = 0.88;
 
     public QuestScreen(final double cardWidth, final Actions actions) {
         this.cardWidth = cardWidth;
@@ -79,6 +85,9 @@ public class QuestScreen extends BorderPane {
 
         setTop(header(actions));
         setCenter(body(actions));
+        // Volver, abajo a la derecha: el mismo sitio en todas las pantallas
+        // (las notas de diseño, principio 12). Antes iba en la cabecera.
+        setBottom(BackBar.of(actions::back));
 
         // Click derecho sobre cualquier carta: a tamanyo de lectura, igual que
         // en la mesa. Aqui las cartas son pequenyas — el comandante del rival
@@ -104,14 +113,9 @@ public class QuestScreen extends BorderPane {
         nueva.setMinWidth(Region.USE_PREF_SIZE);
         nueva.setOnAction(e -> actions.newAdventure());
 
-        final Button back = new Button(NeoText.get("common.back"));
-        back.getStyleClass().add("btn-secondary");
-        back.setMinWidth(Region.USE_PREF_SIZE);
-        back.setOnAction(e -> actions.back());
-
         final Region gap = new Region();
         HBox.setHgrow(gap, Priority.ALWAYS);
-        final HBox row = new HBox(10, new VBox(2, title, rank), gap, nueva, back);
+        final HBox row = new HBox(10, new VBox(2, title, rank), gap, nueva);
         row.setAlignment(Pos.CENTER_LEFT);
         row.setPadding(new Insets(20, 28, 6, 30));
         return row;
@@ -119,7 +123,9 @@ public class QuestScreen extends BorderPane {
 
     private Region body(final Actions actions) {
         final VBox content = new VBox(16);
-        content.setPadding(new Insets(8, 30, 22, 30));
+        // 8 abajo y no 22: debajo va la barra de Volver, que trae su propio
+        // aire. Con los 22, en 1080p los JUGAR de los duelos quedaban cortados.
+        content.setPadding(new Insets(8, 30, 8, 30));
         content.getChildren().addAll(
                 stats(actions),
                 deckRow(actions),
@@ -420,7 +426,7 @@ public class QuestScreen extends BorderPane {
         against.getStyleClass().add("caption");
         box.getChildren().add(against);
         if (face != null) {
-            final CardNode node = new CardNode(cardWidth * 0.95);
+            final CardNode node = new CardNode(cardWidth * DUEL_CARD);
             node.setRotationEnabled(false);
             node.setCard(face);
             box.getChildren().add(node);
@@ -430,7 +436,7 @@ public class QuestScreen extends BorderPane {
             final Label unknown = new Label("?");
             unknown.getStyleClass().add("duel-unknown");
             unknown.setAlignment(Pos.CENTER);
-            unknown.setPrefSize(cardWidth * 0.95, cardWidth * 0.95 * CardNode.ASPECT);
+            unknown.setPrefSize(cardWidth * DUEL_CARD, cardWidth * DUEL_CARD * CardNode.ASPECT);
             box.getChildren().add(unknown);
         }
         box.getChildren().add(name);

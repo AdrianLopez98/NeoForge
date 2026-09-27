@@ -1,19 +1,12 @@
-**NeoForge para macOS 3.9 (beta).** El mismo numero que en itch.io.
+**NeoForge para macOS 4.0 (beta).** El mismo numero que en itch.io.
 
 Novedades:
-- **Quest de Commander: empieza eligiendo solo el comandante.** Al lado de los preconstruidos hay una pestana nueva, *Elegir comandante* (o que lo elija el juego), y se te monta un mazo **flojo a proposito** alrededor de el: casi todo comunes, como mucho 12 infrecuentes y 3 raras, ninguna mitica. Pega con el comandante, pero hay que mejorarlo con lo que ganes.
-- **Quest de Commander: ya no se ofrece el mundo.** En Commander el mundo no cambiaba los rivales (Forge los saca de todos los comandantes), solo la tienda, y ofrecerlo hacia creer otra cosa.
-- **Nueva Quest:** las rejillas de preconstruidos y de comandantes ensenan filas enteras, sin la segunda cortada por la mitad.
-- **Partidas por equipos**, como en el lobby de Forge: un desplegable *Equipo* en cada asiento (el tuyo tambien), en la pantalla de mazos y en la partida en red. Tu y una IA contra otras dos, o tu y una IA contra un amigo y la suya. El aliado sale marcado en la mesa, "cada oponente" no le toca, y si caes pero tu aliado gana, ganas. De fabrica, todos contra todos.
-- **Cada formato recuerda sus rivales:** Estandar vuelve a abrir 1 contra 1 aunque la ultima partida fuera un Commander a cuatro.
-- **Ejercer y alistar** preguntan si o no, carta a carta (antes Aceptar sin marcar era "no ejercer").
-- **La Quest en tu idioma** (rangos, creditos, rival sorpresa) y la rara de premio marcada como tal.
-- **Sesiones largas mas ligeras:** cada partida dejaba su mesa en memoria; en la Aventura acababa en pantalla en blanco. Arreglado en todos los modos.
-- **Iconos de habilidad en las cartas de la mesa:** volar, toque mortal, arrollar, proteccion... en la propia carta, sin ampliarla. Los mismos iconos que el Forge de siempre, y sin tapar marcadores como *Preparada*. Se apagan en Ajustes.
-- **Las rebalanceadas de Arena (A-...) vuelven a tener arte**, aunque Scryfall las haya quitado de su indice.
-- **Mana en cualquier combinacion (Selvala):** un solo reparto, ya hecho segun lo que pide el coste, en vez de un dialogo por cada punto.
-- **"Todas las cartas y todos los artes"** ya baja las pocas que se quedaban siempre sin bajar, y si falta alguna dice cual.
-- **Forge al dia** (26-09): promos de MagicFest 2027 y 53 cartas corregidas.
+- **Enciclopedia de cartas:** una casilla nueva en el menu con todas las cartas para mirarlas, sin mazo. Buscar por nombre, tipo o texto; filtros de color (o identidad), tipo, rareza y coste; **expansion** con sus impresiones, **"Lo ultimo"**, **formato**, orden por **lo mas nuevo**, y **las que tienes o te faltan** de tu Quest. La rueda pasa por todos los resultados.
+- **Vender en la Quest por lotes y con filtros:** elegir varias (clic, Mayus+clic para un tramo), los filtros del constructor, "Solo lo que no usan mis mazos" y "Vender todo lo que no va en un mazo", que pregunta antes.
+- **Volver, siempre abajo a la derecha**, con la accion principal al lado, en las 22 pantallas que lo tenian cada una en un sitio.
+- **Aventura: lo ultimo conseguido primero.** Boton *Lo ultimo primero* en el editor: premios, tienda, sobres y cofres, desde esta version.
+- **La mano tactil de Android, tambien aqui** (Ajustes -> *Mano tactil*, apagada de fabrica): apoyar el dedo amplia, deslizar pasa de carta, subirla a la mesa la juega. Para pantallas tactiles.
+- **La partida en red, tambien con Android:** un movil y un Mac con la misma version pueden jugar en la misma sala.
 
 Descarga el `.dmg` de tu Mac:
 

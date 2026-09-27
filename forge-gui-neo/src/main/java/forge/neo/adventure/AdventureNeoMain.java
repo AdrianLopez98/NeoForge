@@ -40,6 +40,7 @@ public final class AdventureNeoMain {
                 + ", arrancando el Adventure de Forge");
         SelfTest.arm();
         StarterDeck.arm();
+        AcquiredLedger.arm();
         WindowPlacement.arm();
         // Al cerrar la ventana del Adventure, se cierra todo. Y pase lo que
         // pase: si su bucle revienta (el libro de misiones en espanyol,

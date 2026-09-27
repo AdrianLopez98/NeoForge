@@ -186,8 +186,20 @@ public final class NeoAchievements {
      * asi la pantalla ensenya lo que acabas de ganar sin reiniciar.
      */
     public static List<Group> all() {
+        return all(PLAYABLE);
+    }
+
+    /**
+     * Lo mismo, con otra lista de modos.
+     *
+     * <p>Para NeoForge Android (27-09-2026): alli SI se juegan el Sellado y la
+     * Aventura de Forge, asi que sus logros se pueden ganar y sus pestanyas
+     * tienen que salir. La lista es lo unico que cambia entre las dos
+     * aplicaciones; como se lee y se gradua un logro sigue estando solo aqui.
+     */
+    public static List<Group> all(final GameType... playable) {
         final List<Group> out = new ArrayList<>();
-        for (final GameType type : PLAYABLE) {
+        for (final GameType type : playable) {
             add(out, FModel.getAchievements(type));
         }
         add(out, AltWinAchievements.instance);

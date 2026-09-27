@@ -161,6 +161,30 @@ public final class NeoSettings {
         }
         return getBool(HAND_FAN, true);
     }
+
+    /**
+     * La mano tactil de la version de Android: apoyar para mirar, deslizar
+     * para pasar de carta, subir a la mesa para jugar. Ver
+     * {@code TableScreen.installDragGestures}.
+     *
+     * <p>Tres valores: {@link #TOUCH_HAND_OFF}, {@link #TOUCH_HAND_FINGER}
+     * (solo cuando el gesto viene de una pantalla tactil) y
+     * {@link #TOUCH_HAND_ALWAYS} (tambien con el raton). <b>Apagado de
+     * fabrica</b> (la auditoría del motor 1.1): cambia lo que hace tocar una carta de la
+     * mano, y eso no se le cambia a nadie sin que lo pida.
+     */
+    public static final String TOUCH_HAND = "touchHand";
+    public static final String TOUCH_HAND_OFF = "off";
+    public static final String TOUCH_HAND_FINGER = "finger";
+    public static final String TOUCH_HAND_ALWAYS = "always";
+
+    /** {@code -Dneo.touchHand=off|finger|always} lo fuerza sin escribir en las preferencias. */
+    public static String touchHand() {
+        final String forced = System.getProperty("neo.touchHand");
+        final String v = forced != null && !forced.isEmpty() ? forced
+                : get(TOUCH_HAND, TOUCH_HAND_OFF);
+        return TOUCH_HAND_FINGER.equals(v) || TOUCH_HAND_ALWAYS.equals(v) ? v : TOUCH_HAND_OFF;
+    }
     /** Ventana a pantalla completa. */
     public static final String FULLSCREEN = "fullscreen";
     /** Pagar el mana automaticamente al lanzar, en vez de clicar tierras. */

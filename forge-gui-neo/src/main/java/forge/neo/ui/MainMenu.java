@@ -60,6 +60,9 @@ public class MainMenu extends BorderPane {
 
         void puzzles();
 
+        /** La enciclopedia: todas las cartas, para mirarlas. */
+        void library();
+
         void look();
 
         void achievements();
@@ -233,6 +236,16 @@ public class MainMenu extends BorderPane {
         // situaciones preparadas con un objetivo. Forge trae cientos.
         modes.getChildren().add(tile(NeoText.get("menu.puzzles"), NeoText.get("menu.puzzles.desc"),
                 NeoText.get("menu.puzzles.note"), true, actions::puzzles));
+
+        // La enciclopedia (pedida en itch.io, 27-09-2026). Tampoco es un modo
+        // de juego, pero es una pregunta que no hacia ninguna pantalla — "que
+        // cartas existen" — y el constructor solo la contesta a traves de un
+        // mazo. Va con Personalizar y Logros: las casillas de mirar, no de jugar.
+        modes.getChildren().add(tile(NeoText.get("menu.library"),
+                NeoText.get("menu.library.desc"),
+                NeoText.get("menu.library.note",
+                        forge.model.FModel.getMagicDb().getCommonCards().getUniqueCards().size()),
+                true, actions::library));
 
         // Personalizar no es un modo de juego, pero va aqui y no escondido en
         // Ajustes: lo que se toca ahi se VE, y lo que se ve se busca en la

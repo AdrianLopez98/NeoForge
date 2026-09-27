@@ -74,6 +74,11 @@ public class Pager extends HBox {
         page = 0;
     }
 
+    /** Va a la pagina en la que cae el elemento {@code index}. */
+    public void goToItem(final int index) {
+        go(Math.max(0, index) / pageSize);
+    }
+
     private void go(final int target) {
         final int last = Math.max(0, pageCount() - 1);
         final int clamped = Math.max(0, Math.min(last, target));
@@ -123,6 +128,21 @@ public class Pager extends HBox {
 
     /** El alto de casilla mas grande visto hasta ahora (ver {@link #fitTo}). Solo crece. */
     private double fitTileH;
+    /** Lo mismo con el ancho: una estimacion corta cuenta una columna de mas. Solo crece. */
+    private double fitTileW;
+    /** Lo que se reserva para la barra vertical (ver {@link #setScrollbarReserve}). */
+    private double scrollbarReserve = 16;
+
+    /**
+     * Cuanto ancho se guarda para la barra de desplazamiento vertical.
+     *
+     * <p>16 de fabrica. Una rejilla cuyo visor NO tiene barra (la pagina ya es
+     * lo que cabe) pone 0: si no, cuenta una columna menos de las que mete el
+     * {@code FlowPane} y las filas salen desiguales — diez arriba, ocho abajo.
+     */
+    public void setScrollbarReserve(final double px) {
+        this.scrollbarReserve = Math.max(0, px);
+    }
     /** Filas como mucho, mientras el visor no cambie (ver {@link #fitTo}). Solo baja. */
     private int fitRowCap = Integer.MAX_VALUE;
     private double fitViewW;
@@ -152,6 +172,7 @@ public class Pager extends HBox {
                       final javafx.scene.layout.FlowPane grid,
                       final double tileW, final double tileH, final int min) {
         fitTileH = tileH;
+        fitTileW = tileW;
         final Runnable fit = () -> {
             final javafx.geometry.Bounds b = scroll.getViewportBounds();
             if (b.getWidth() <= 0 || b.getHeight() <= 0) {
@@ -160,6 +181,9 @@ public class Pager extends HBox {
             for (final javafx.scene.Node n : grid.getChildren()) {
                 if (n instanceof Region r && r.getHeight() > fitTileH) {
                     fitTileH = r.getHeight();
+                }
+                if (n instanceof Region r && r.getWidth() > fitTileW) {
+                    fitTileW = r.getWidth();
                 }
             }
             // Solo un cambio de tamanyo DE VERDAD reinicia el tope de filas. La
@@ -175,8 +199,8 @@ public class Pager extends HBox {
             // Las columnas, con el ancho del ULTIMO cambio de verdad y sitio para
             // la barra: con el ancho de cada momento, la barra que aparece y
             // desaparece haria bailar el numero de columnas.
-            final int cols = Math.max(1, (int) ((fitViewW - 16 - pad.getLeft() - pad.getRight()
-                    + grid.getHgap()) / (tileW + grid.getHgap())));
+            final int cols = Math.max(1, (int) ((fitViewW - scrollbarReserve - pad.getLeft() - pad.getRight()
+                    + grid.getHgap()) / (fitTileW + grid.getHgap())));
             final int rows = Math.max(1, (int) ((b.getHeight() - pad.getTop() - pad.getBottom()
                     + grid.getVgap()) / (fitTileH + grid.getVgap())));
             int shownRows = Math.min(rows, fitRowCap);

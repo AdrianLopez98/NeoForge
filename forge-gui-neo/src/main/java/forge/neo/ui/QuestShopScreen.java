@@ -153,9 +153,21 @@ public class QuestShopScreen extends StackPane {
     private final Button sellOne = new Button();
     private final Button sellSpare = new Button();
     private final Button sellAll = new Button();
+    private final Button sellFree = new Button();
+    private final Button sellUnused = new Button();
+    private final CheckBox sellFreeOnly = new CheckBox();
+    private final Label sellCount = new Label();
+    private final Button sellPickAll = new Button();
+    private final Button sellPickNone = new Button();
+    private CardFilterBar sellFilters;
     private List<PaperCard> sellAllCards = new ArrayList<>();
     private List<PaperCard> sellShown = new ArrayList<>();
-    private PaperCard chosenSell;
+    /** Lo elegido, en el orden en que se eligio. Puede ser de varias paginas. */
+    private final java.util.Set<PaperCard> sellPicked = new java.util.LinkedHashSet<>();
+    /** Donde empieza un tramo de Mayus+clic. */
+    private PaperCard sellAnchor;
+    /** Cuantas copias de cada impresion usan tus mazos. */
+    private java.util.Map<PaperCard, Integer> sellUsed = new java.util.HashMap<>();
 
     public QuestShopScreen(final double cardWidth, final Actions actions) {
         this.cardWidth = cardWidth;
@@ -168,6 +180,9 @@ public class QuestShopScreen extends StackPane {
 
         frame.setTop(header());
         frame.setCenter(body());
+        // Volver, abajo a la derecha: el mismo sitio en todas las pantallas
+        // (las notas de diseño, principio 12). Antes iba en la cabecera.
+        frame.setBottom(BackBar.of(actions::back));
         getChildren().addAll(frame, overlay);
         reload();
 
@@ -179,6 +194,16 @@ public class QuestShopScreen extends StackPane {
                 tabBar.getChildren().get(i).pseudoClassStateChanged(SELECTED, i == forced);
             }
             showPage();
+            // Y en la de vender, con N cartas ya elegidas y los filtros
+            // desplegados: es el estado que hay que ver y el que no sale solo.
+            final int picks = Integer.getInteger("neo.shop.sellPick", 0);
+            if (tab == Tab.SELL && picks > 0) {
+                sellPicked.addAll(sellShown.subList(0, Math.min(picks, sellShown.size())));
+                sellFilters.advanced().setVisible(true);
+                sellFilters.advanced().setManaged(true);
+                markPicked();
+                refreshSell();
+            }
         }
 
         // Click derecho: la carta a tamanyo de lectura. Lo que sale de un sobre
@@ -202,14 +227,9 @@ public class QuestShopScreen extends StackPane {
         money.getStyleClass().add("stat-tile");
         money.setPadding(new Insets(8, 18, 8, 18));
 
-        final Button back = new Button(NeoText.get("common.back"));
-        back.getStyleClass().add("btn-secondary");
-        back.setMinWidth(Region.USE_PREF_SIZE);
-        back.setOnAction(e -> actions.back());
-
         final Region gap = new Region();
         HBox.setHgrow(gap, Priority.ALWAYS);
-        final HBox row = new HBox(14, new VBox(2, title, sub), gap, money, back);
+        final HBox row = new HBox(14, new VBox(2, title, sub), gap, money);
         row.setAlignment(Pos.CENTER_LEFT);
         row.setPadding(new Insets(18, 28, 8, 30));
         return row;
@@ -799,48 +819,74 @@ public class QuestShopScreen extends StackPane {
      * mazo — en Commander, cada segunda copia — y sin poder venderlas el dinero
      * solo entra ganando duelos.
      *
-     * <p>Dos formas, y las dos hacen falta:
+     * <p>Hasta el 27-09-2026 era de una en una y sin filtros. Un informe de
+     * itch.io lo dijo tal cual — <i>"selling cards is tedious"</i> — y pedia
+     * cuatro cosas, que son las cuatro de ahora:
      *
      * <ul>
-     *   <li><b>Las repetidas, de golpe</b>: un boton que vende todo lo que
-     *       sobra segun las reglas de tu modalidad. Es lo que se usa el 90% de
-     *       las veces, y dice cuanto va a dar ANTES de darle.</li>
-     *   <li><b>Una carta concreta</b>: la eliges y vendes las copias que
-     *       quieras, incluida la ultima. Quien quiera deshacerse de algo
-     *       manda.</li>
+     *   <li><b>Elegir varias</b>: un clic elige o suelta, Mayus+clic elige un
+     *       tramo, y "Elegir las N" elige todo lo que deja el filtro.</li>
+     *   <li><b>Los filtros del constructor</b> ({@link CardFilterBar}): color,
+     *       tipo, rareza y coste, con los mismos botones.</li>
+     *   <li><b>Sin las de tus mazos</b>: ensenya solo lo que se puede vender
+     *       sin tocar un mazo. Se cuenta por impresion y con el mayor de tus
+     *       mazos, que es como lo cuenta el motor al vender
+     *       ({@link NeoQuestSell#usedByDecks()}).</li>
+     *   <li><b>El boton gordo</b>: vender todo lo que no va en ningun mazo.
+     *       Pregunta antes, y la respuesta marcada es la segura.</li>
      * </ul>
      *
      * <p>Y como todo lo que gasta o cobra en esta pantalla: <b>elegir no
      * vende</b>. Vender es de lo poco que no se deshace — lo unico que hay es
-     * que la carta vuelve al mostrador, mas cara.
+     * que la carta vuelve al mostrador, mas cara. Por eso vender un lote de
+     * varias cartas tambien pregunta: el boton dice cuantas, pero no cuales.
      */
     private Region buildSellPage() {
+        sellFilters = new CardFilterBar(() -> {
+            sellPager.reset();
+            reloadSell();
+        });
+
         sellSearch.setPromptText(NeoText.get("shop.searchCard"));
         sellSearch.getStyleClass().add("text-input");
-        sellSearch.setPrefColumnCount(20);
+        sellSearch.setPrefColumnCount(18);
         sellSearch.textProperty().addListener((o, was, is) -> {
             sellPager.reset();
             reloadSell();
         });
 
+        for (final CheckBox box : new CheckBox[] {sellSpareOnly, sellFreeOnly}) {
+            box.getStyleClass().add("shop-filter");
+            box.setMinWidth(Region.USE_PREF_SIZE);
+            box.setOnAction(e -> {
+                sellPager.reset();
+                reloadSell();
+            });
+        }
         sellSpareOnly.setText(NeoText.get("shop.sell.spareOnly"));
-        sellSpareOnly.getStyleClass().add("shop-filter");
-        sellSpareOnly.setOnAction(e -> {
-            sellPager.reset();
-            reloadSell();
-        });
+        sellFreeOnly.setText(NeoText.get("shop.sell.freeOnly"));
 
         final Label cap = new Label(NeoText.get("shop.sell.caption"));
         cap.getStyleClass().add("caption");
 
-        // --- vender las repetidas de golpe ---
+        // --- los dos botones de golpe, sobre toda la coleccion ---
         sellAll.getStyleClass().add("btn-secondary");
         sellAll.setMinWidth(Region.USE_PREF_SIZE);
         sellAll.setOnAction(e -> takeSellAll());
 
-        final Region gapTools = new Region();
-        HBox.setHgrow(gapTools, Priority.ALWAYS);
-        final HBox tools = new HBox(12, sellSearch, sellSpareOnly, gapTools, sellAll);
+        sellUnused.getStyleClass().add("btn-danger");
+        sellUnused.setMinWidth(Region.USE_PREF_SIZE);
+        sellUnused.setOnAction(e -> askSellUnused());
+
+        final Region gapHead = new Region();
+        HBox.setHgrow(gapHead, Priority.ALWAYS);
+        final HBox head = new HBox(12, cap, gapHead, sellAll, sellUnused);
+        head.setAlignment(Pos.CENTER_LEFT);
+
+        // Un FlowPane y no un HBox: con los colores y las dos casillas, a 1280
+        // de ancho no cabe en una fila, y recortar un filtro es esconderlo.
+        final FlowPane tools = new FlowPane(12, 8, sellSearch, sellFilters.bar(),
+                sellSpareOnly, sellFreeOnly);
         tools.setAlignment(Pos.CENTER_LEFT);
 
         sellGrid.setAlignment(Pos.TOP_LEFT);
@@ -850,7 +896,32 @@ public class QuestShopScreen extends StackPane {
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         VBox.setVgrow(scroll, Priority.ALWAYS);
 
-        // --- la carta elegida ---
+        // --- cuantas hay, cuantas elegidas, y el paginador ---
+        sellCount.getStyleClass().add("dialog-counter");
+        sellCount.setMinWidth(Region.USE_PREF_SIZE);
+        sellPickAll.getStyleClass().add("segment");
+        sellPickAll.setMinWidth(Region.USE_PREF_SIZE);
+        sellPickAll.setOnAction(e -> {
+            sellPicked.addAll(sellShown);
+            markPicked();
+            refreshSell();
+        });
+        sellPickNone.getStyleClass().add("segment");
+        sellPickNone.setMinWidth(Region.USE_PREF_SIZE);
+        sellPickNone.setText(NeoText.get("shop.sell.pickNone"));
+        sellPickNone.setOnAction(e -> {
+            sellPicked.clear();
+            sellAnchor = null;
+            markPicked();
+            refreshSell();
+        });
+        final Region gapPages = new Region();
+        HBox.setHgrow(gapPages, Priority.ALWAYS);
+        final HBox pageBar = new HBox(10, sellCount, sellPickAll, sellPickNone,
+                gapPages, sellPager);
+        pageBar.setAlignment(Pos.CENTER_LEFT);
+
+        // --- lo elegido ---
         sellName.getStyleClass().add("quest-deck-name");
         sellPrice.getStyleClass().add("shop-price");
         sellNote.getStyleClass().add("caption");
@@ -860,27 +931,37 @@ public class QuestShopScreen extends StackPane {
         sellOne.getStyleClass().add("btn-primary");
         sellOne.setMinWidth(Region.USE_PREF_SIZE);
         sellOne.setText(NeoText.get("shop.sell.one"));
-        sellOne.setOnAction(e -> takeSell(1));
+        sellOne.managedProperty().bind(sellOne.visibleProperty());
+        sellOne.setOnAction(e -> takeSell(Mode.ONE));
 
         sellSpare.getStyleClass().add("btn-secondary");
         sellSpare.setMinWidth(Region.USE_PREF_SIZE);
-        sellSpare.setOnAction(e -> takeSell(
-                chosenSell == null ? 0 : NeoQuestSell.spareCopies(chosenSell)));
+        sellSpare.setOnAction(e -> takeSell(Mode.SPARE));
+
+        sellFree.getStyleClass().add("btn-secondary");
+        sellFree.setMinWidth(Region.USE_PREF_SIZE);
+        sellFree.setOnAction(e -> takeSell(Mode.FREE));
 
         final Region gap = new Region();
         HBox.setHgrow(gap, Priority.ALWAYS);
-        final HBox row = new HBox(12, new VBox(2, sellName, sellPrice, sellNote),
-                gap, sellSpare, sellOne);
+        final VBox info = new VBox(2, sellName, sellPrice, sellNote);
+        info.setMinWidth(0);
+        final HBox row = new HBox(12, info, gap, sellSpare, sellFree, sellOne);
         row.setAlignment(Pos.CENTER_LEFT);
         row.getStyleClass().add("stat-tile");
         row.setPadding(new Insets(14, 18, 14, 18));
 
-        return new VBox(12, cap, tools, scroll, sellPager, row);
+        return new VBox(10, head, tools, sellFilters.advanced(), scroll, pageBar, row);
     }
+
+    /** Cuantas copias de cada carta elegida vende cada boton. */
+    private enum Mode { ONE, SPARE, FREE }
 
     private void reloadSell() {
         // La coleccion se lee entera cada vez porque vender la cambia, y con
-        // una copia vieja se podrian vender cartas que ya no estan.
+        // una copia vieja se podrian vender cartas que ya no estan. Lo de los
+        // mazos, igual: se calcula una vez aqui y no una por carta.
+        sellUsed = NeoQuestSell.usedByDecks();
         sellAllCards = new ArrayList<>();
         for (final java.util.Map.Entry<PaperCard, Integer> e : NeoQuest.collection()) {
             if (e.getKey() != null && e.getValue() > 0) {
@@ -897,6 +978,12 @@ public class QuestShopScreen extends StackPane {
             if (sellSpareOnly.isSelected() && NeoQuestSell.spareCopies(c) <= 0) {
                 continue;
             }
+            if (sellFreeOnly.isSelected() && NeoQuestSell.notInDecks(c, sellUsed) <= 0) {
+                continue;
+            }
+            if (sellFilters != null && !sellFilters.test(c)) {
+                continue;
+            }
             // Por el nombre que se VE, como en el resto de la aplicacion.
             final String shown = forge.neo.card.CardText.nameOf(c).toLowerCase(Locale.ROOT);
             if (q.isEmpty() || shown.contains(q)
@@ -905,8 +992,11 @@ public class QuestShopScreen extends StackPane {
             }
         }
         sellPager.setTotal(sellShown.size());
-        if (chosenSell != null && !sellShown.contains(chosenSell)) {
-            chosenSell = null;
+        // Lo que el filtro esconde deja de estar elegido: vender cartas que no
+        // se ven es justo la sorpresa que no puede dar un boton de vender.
+        sellPicked.retainAll(new java.util.HashSet<>(sellShown));
+        if (sellAnchor != null && !sellPicked.contains(sellAnchor)) {
+            sellAnchor = null;
         }
         paintSell();
         refreshSell();
@@ -916,8 +1006,8 @@ public class QuestShopScreen extends StackPane {
     private void paintSell() {
         sellGrid.getChildren().clear();
         if (sellShown.isEmpty()) {
-            final Label empty = new Label(NeoText.get(sellSpareOnly.isSelected()
-                    ? "shop.sell.noSpare" : "shop.sell.empty"));
+            final Label empty = new Label(NeoText.get(
+                    sellAllCards.isEmpty() ? "shop.sell.empty" : "shop.sell.noMatch"));
             empty.getStyleClass().add("home-subtitle");
             sellGrid.getChildren().add(empty);
             return;
@@ -936,77 +1026,211 @@ public class QuestShopScreen extends StackPane {
         final int price = NeoQuestSell.priceOf(card);
         final int have = NeoQuestSell.owned(card);
         final int spare = NeoQuestSell.spareCopies(card);
+        final int inDecks = sellUsed.getOrDefault(card, 0);
 
         // Cuantas tienes y cuantas SOBRAN, en la propia carta. Sin eso hay que
         // clicarlas una a una para saber cual esta repetida, que es justo lo
         // que se viene a hacer a esta pantalla.
         final Label cost = new Label(NeoText.get("shop.sell.tile", price, have));
         cost.getStyleClass().add(spare > 0 ? "set-price-ok" : "set-price-no");
-
         final VBox tile = new VBox(2, node, cost);
+        // Y si la usa un mazo, tambien: venderla la saca de ahi.
+        if (inDecks > 0) {
+            final Label used = new Label(NeoText.get("shop.sell.inDecks", inDecks));
+            used.getStyleClass().add("set-note");
+            tile.getChildren().add(used);
+        }
         tile.setAlignment(Pos.CENTER);
         tile.getStyleClass().add("set-tile");
         tile.setPadding(new Insets(6, 6, 6, 6));
-        tile.pseudoClassStateChanged(PICKED, card.equals(chosenSell));
+        tile.setUserData(card);
+        tile.pseudoClassStateChanged(PICKED, sellPicked.contains(card));
         tile.setOnMouseClicked(ev -> {
-            if (ev.getButton() == javafx.scene.input.MouseButton.PRIMARY) {
-                chosenSell = card;
-                paintSell();
-                refreshSell();
+            if (ev.getButton() != javafx.scene.input.MouseButton.PRIMARY) {
+                return;
             }
+            if (ev.isShiftDown() && sellAnchor != null && sellShown.contains(sellAnchor)) {
+                // Un tramo, en el orden en que se ven. Tambien entre paginas:
+                // el ancla puede estar en la anterior.
+                final int a = sellShown.indexOf(sellAnchor);
+                final int b = sellShown.indexOf(card);
+                sellPicked.addAll(sellShown.subList(Math.min(a, b), Math.max(a, b) + 1));
+            } else if (!sellPicked.remove(card)) {
+                sellPicked.add(card);
+                sellAnchor = card;
+            }
+            markPicked();
+            refreshSell();
         });
         return tile;
     }
 
+    /** Enciende y apaga el marco de las elegidas sin rehacer las cartas. */
+    private void markPicked() {
+        for (final javafx.scene.Node n : sellGrid.getChildren()) {
+            if (n.getUserData() instanceof PaperCard) {
+                n.pseudoClassStateChanged(PICKED, sellPicked.contains((PaperCard) n.getUserData()));
+            }
+        }
+    }
+
+    /** Cuantas copias de ESA carta vende cada boton. */
+    private int howMany(final PaperCard card, final Mode mode) {
+        switch (mode) {
+            case ONE:
+                return 1;
+            case SPARE:
+                return NeoQuestSell.spareCopies(card);
+            case FREE:
+            default:
+                return NeoQuestSell.notInDecks(card, sellUsed);
+        }
+    }
+
+    /** El lote que venderia un boton con lo elegido ahora. */
+    private java.util.Map<PaperCard, Integer> planFor(final Mode mode) {
+        final java.util.Map<PaperCard, Integer> plan = new java.util.LinkedHashMap<>();
+        for (final PaperCard c : sellPicked) {
+            final int n = howMany(c, mode);
+            if (n > 0) {
+                plan.put(c, n);
+            }
+        }
+        return plan;
+    }
+
     private void refreshSell() {
-        // El boton de golpe dice lo que va a dar ANTES de pulsarlo: si no, es
-        // un boton que se lleva parte de tu coleccion a cambio de una sorpresa.
+        // Los botones de golpe dicen lo que van a dar ANTES de pulsarlos: si
+        // no, son botones que se llevan parte de tu coleccion a cambio de una
+        // sorpresa.
         final NeoQuestSell.Sold spare = NeoQuestSell.preview();
         sellAll.setText(spare.isEmpty() ? NeoText.get("shop.sell.allNone")
                 : NeoText.get("shop.sell.all", spare.getCopies(), spare.getCredits()));
         sellAll.setDisable(opening || spare.isEmpty());
 
-        if (chosenSell == null) {
+        final NeoQuestSell.Sold unused = NeoQuestSell.preview(NeoQuestSell.notInDecksPlan());
+        sellUnused.setText(unused.isEmpty() ? NeoText.get("shop.sell.unusedNone")
+                : NeoText.get("shop.sell.unused", unused.getCopies(), unused.getCredits()));
+        sellUnused.setDisable(opening || unused.isEmpty());
+
+        sellCount.setText(NeoText.get("shop.sell.count", sellShown.size(), sellPicked.size()));
+        sellPickAll.setText(NeoText.get("shop.sell.pickAll", sellShown.size()));
+        sellPickAll.setDisable(sellShown.isEmpty() || sellPicked.size() == sellShown.size());
+        sellPickNone.setDisable(sellPicked.isEmpty());
+
+        final int spareCount = count(planFor(Mode.SPARE));
+        final int freeCount = count(planFor(Mode.FREE));
+        sellSpare.setText(NeoText.get("shop.sell.spare", spareCount));
+        sellSpare.setDisable(opening || spareCount <= 0);
+        sellFree.setText(NeoText.get("shop.sell.free", freeCount));
+        sellFree.setDisable(opening || freeCount <= 0);
+
+        if (sellPicked.isEmpty()) {
             sellName.setText(NeoText.get("shop.sell.pick"));
             sellPrice.setText("");
-            sellNote.setText("");
+            sellNote.setText(NeoText.get("shop.sell.hint"));
+            sellOne.setVisible(true);
             sellOne.setDisable(true);
-            sellSpare.setDisable(true);
-            sellSpare.setText(NeoText.get("shop.sell.spare", 0));
             return;
         }
-        final int price = NeoQuestSell.priceOf(chosenSell);
-        final int have = NeoQuestSell.owned(chosenSell);
-        final int extra = NeoQuestSell.spareCopies(chosenSell);
-        sellName.setText(forge.neo.card.CardText.nameOf(chosenSell)
-                + "  ·  " + chosenSell.getEdition());
+
+        if (sellPicked.size() > 1) {
+            // "Vender una" de cada no esta: con varias elegidas es el boton que
+            // se llevaria la ultima copia de cartas que no se estan mirando.
+            sellOne.setVisible(false);
+            sellName.setText(NeoText.get("shop.sell.picked", sellPicked.size()));
+            sellPrice.setText(NeoText.get("shop.sell.pickedWorth",
+                    NeoQuestSell.preview(planFor(Mode.FREE)).getCredits()));
+            sellNote.setText(NeoText.get("shop.sell.hint"));
+            return;
+        }
+
+        final PaperCard card = sellPicked.iterator().next();
+        final int price = NeoQuestSell.priceOf(card);
+        final int have = NeoQuestSell.owned(card);
+        final int extra = NeoQuestSell.spareCopies(card);
+        final int inDecks = sellUsed.getOrDefault(card, 0);
+        sellOne.setVisible(true);
+        sellName.setText(forge.neo.card.CardText.nameOf(card) + "  ·  " + card.getEdition());
         sellPrice.setText(NeoText.get("shop.sell.price", price, have));
-        // Avisar cuando vender deja la carta a cero, y decir tambien que se
-        // pierde ESE ARTE: en la aventura el arte es contenido, y si esta era
-        // tu unica copia de esa impresion, deja de poder ponerse en un mazo.
-        sellNote.setText(have <= 1 ? NeoText.get("shop.sell.lastCopy")
+        // Si la usa un mazo, eso primero: es lo que se rompe. Si no, avisar
+        // cuando vender deja la carta a cero, y decir tambien que se pierde
+        // ESE ARTE: en la aventura el arte es contenido, y si esta era tu unica
+        // copia de esa impresion, deja de poder ponerse en un mazo.
+        sellNote.setText(inDecks > 0 ? NeoText.get("shop.sell.usedHere", inDecks)
+                : have <= 1 ? NeoText.get("shop.sell.lastCopy")
                 : extra > 0 ? NeoText.get("shop.sell.hasSpare", extra)
                 : NeoText.get("shop.sell.noSpareHere"));
         sellOne.setDisable(opening || have <= 0);
-        sellSpare.setText(NeoText.get("shop.sell.spare", extra));
-        sellSpare.setDisable(opening || extra <= 0);
     }
 
-    private void takeSell(final int quantity) {
-        if (chosenSell == null || quantity <= 0 || opening) {
+    private static int count(final java.util.Map<PaperCard, Integer> plan) {
+        int n = 0;
+        for (final int v : plan.values()) {
+            n += v;
+        }
+        return n;
+    }
+
+    private void takeSell(final Mode mode) {
+        if (sellPicked.isEmpty() || opening) {
             return;
         }
-        final PaperCard card = chosenSell;
-        final int got = NeoQuestSell.sellOne(card, quantity);
-        if (got <= 0) {
+        final java.util.Map<PaperCard, Integer> plan = planFor(mode);
+        if (plan.isEmpty()) {
+            return;
+        }
+        // Una carta: el boton ya dice cual y cuantas, y asi ha sido siempre.
+        // Varias: el boton dice cuantas copias pero no CUALES, y eso se
+        // pregunta.
+        if (sellPicked.size() == 1) {
+            sellPlan(plan);
+            return;
+        }
+        final NeoQuestSell.Sold p = NeoQuestSell.preview(plan);
+        askToSell(NeoText.get("shop.sell.confirm.body", p.getCards().size(), p.getCredits()),
+                p.getCopies(), () -> sellPlan(plan));
+    }
+
+    /** El boton gordo: todo lo que no va en un mazo. Siempre pregunta. */
+    private void askSellUnused() {
+        if (opening) {
+            return;
+        }
+        final java.util.Map<PaperCard, Integer> plan = NeoQuestSell.notInDecksPlan();
+        final NeoQuestSell.Sold p = NeoQuestSell.preview(plan);
+        if (p.isEmpty()) {
+            return;
+        }
+        askToSell(NeoText.get("shop.sell.confirm.unused", p.getCopies(), p.getCards().size(),
+                p.getCredits(), NeoQuest.decks().size()), p.getCopies(), () -> sellPlan(plan));
+    }
+
+    /**
+     * Pregunta antes de vender un lote. La respuesta marcada es CANCELAR: lo
+     * que no se deshace no puede ser lo que sale de un Intro por inercia.
+     */
+    private void askToSell(final String body, final int copies, final Runnable go) {
+        overlay.setOnBackgroundClick(overlay::hide);
+        overlay.show(new ConfirmDialog(NeoText.get("shop.sell.confirm.title", copies), body,
+                List.of(NeoText.get("shop.sell.confirm.go"), NeoText.get("common.cancel")), 1,
+                choice -> {
+                    overlay.hide();
+                    if (choice == 0) {
+                        go.run();
+                    }
+                }));
+    }
+
+    private void sellPlan(final java.util.Map<PaperCard, Integer> plan) {
+        final NeoQuestSell.Sold sold = NeoQuestSell.sell(plan);
+        if (sold.isEmpty()) {
             return;
         }
         // Ni overlay ni panel: no se ha ABIERTO nada, se ha vendido. Ensenyar
         // aqui el mismo panel de "esto es lo que te llevas" seria mentir sobre
-        // lo que acaba de pasar.
-        if (NeoQuestSell.owned(card) <= 0) {
-            chosenSell = null;
-        }
+        // lo que acaba de pasar. Lo que ya no tienes deja de estar elegido
+        // (lo hace reloadSell); lo que te queda, sigue.
         reloadSell();
         if (onOpened != null) {
             onOpened.run();
@@ -1021,7 +1245,6 @@ public class QuestShopScreen extends StackPane {
         if (sold.isEmpty()) {
             return;
         }
-        chosenSell = null;
         reloadSell();
         if (onOpened != null) {
             onOpened.run();

@@ -81,8 +81,10 @@ public class TournamentSetupScreen extends StackPane {
         back.setMinWidth(Region.USE_PREF_SIZE);
         back.setOnAction(e -> actions.back());
 
+        // Volver, abajo a la derecha y junto a la accion principal: el mismo
+        // sitio en todas las pantallas (las notas de diseño, principio 12).
         final HBox buttons = new HBox(12, back, startButton);
-        buttons.setAlignment(Pos.CENTER);
+        buttons.setAlignment(Pos.CENTER_RIGHT);
         buttons.setPadding(new Insets(10, 30, 26, 30));
 
         final BorderPane layout = new BorderPane();

@@ -926,6 +926,48 @@ public final class QuestCheck {
                     "  Pedir 100 con %d en la mano deja %d%n", left,
                     forge.neo.quest.NeoQuestSell.owned(artA));
             ok &= forge.neo.quest.NeoQuestSell.owned(artA) == 0;
+
+            // ---- vender por lotes sin tocar los mazos (27-09-2026) ----
+            //
+            // Tres copias de un arte y un mazo que lleva dos: se puede vender
+            // UNA sin tocar el mazo. Lo que se rompe si la cuenta esta mal es
+            // justo lo que no se ve: el motor quita del mazo lo vendido
+            // (QuestUtilCards.removeCard), y el mazo se queda corto en silencio.
+            NeoQuest.engine().getCards().addSingleCard(artB, 2);
+            final forge.deck.Deck test = new forge.deck.Deck("neo-sellcheck");
+            test.getMain().add(artB, 2);
+            NeoQuest.engine().getMyDecks().add(test);
+            final java.util.Map<PaperCard, Integer> used =
+                    forge.neo.quest.NeoQuestSell.usedByDecks();
+            final int free = forge.neo.quest.NeoQuestSell.notInDecks(artB, used);
+            final java.util.Map<PaperCard, Integer> plan =
+                    forge.neo.quest.NeoQuestSell.notInDecksPlan();
+            System.out.printf(Locale.ROOT,
+                    "  Lote: tienes %d de \"%s\", un mazo usa %d -> libres %d, el boton gordo vende %d%n",
+                    forge.neo.quest.NeoQuestSell.owned(artB), artB.getName(),
+                    used.getOrDefault(artB, 0), free, plan.getOrDefault(artB, 0));
+            ok &= used.getOrDefault(artB, 0) == 2 && free == 1 && plan.getOrDefault(artB, 0) == 1;
+
+            // El boton gordo de verdad: despues no queda nada libre, y cada
+            // mazo sigue entero.
+            final long bulkMoney = NeoQuest.credits();
+            final forge.neo.quest.NeoQuestSell.Sold bulk =
+                    forge.neo.quest.NeoQuestSell.sell(plan);
+            boolean decksIntact = true;
+            for (final java.util.Map.Entry<PaperCard, Integer> e : used.entrySet()) {
+                decksIntact &= forge.neo.quest.NeoQuestSell.owned(e.getKey()) >= e.getValue();
+            }
+            final forge.deck.Deck reread = NeoQuest.engine().getMyDecks().get("neo-sellcheck");
+            decksIntact &= reread != null && reread.getMain().count(artB) == 2;
+            final boolean nothingLeft = forge.neo.quest.NeoQuestSell
+                    .preview(forge.neo.quest.NeoQuestSell.notInDecksPlan()).isEmpty();
+            System.out.printf(Locale.ROOT,
+                    "  Vender todo lo que no va en un mazo: %d copias por %d cr. | mazos %s | queda libre: %s%n",
+                    bulk.getCopies(), bulk.getCredits(), decksIntact ? "enteros" : "ROTOS",
+                    nothingLeft ? "nada" : "ALGO");
+            ok &= decksIntact && nothingLeft
+                    && NeoQuest.credits() == bulkMoney + bulk.getCredits();
+            NeoQuest.deleteDeck("neo-sellcheck");
         }
 
         // ---- y lo comprado sobrevive a guardar ----
