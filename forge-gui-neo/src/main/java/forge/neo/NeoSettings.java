@@ -491,6 +491,21 @@ public final class NeoSettings {
     }
 
     /**
+     * Si se pregunta a itch.io por una version nueva al arrancar. Ver
+     * {@code forge.neo.update.NeoUpdate}.
+     *
+     * <p><b>Encendido de fabrica</b>, que es para lo que se pidio (28-09-2026):
+     * quien baja el zip a mano no se entera de los arreglos. Se puede apagar
+     * porque preguntar le ensenya tu IP a itch.io. Sin internet no hace nada,
+     * este o no encendido.
+     */
+    public static final String UPDATE_CHECK = "updateCheck";
+
+    public static boolean updateCheck() {
+        return getBool(UPDATE_CHECK, true);
+    }
+
+    /**
      * Si el panel de detalle esta encendido.
      *
      * <p>{@code -Dneo.hoverDetail=true} lo enciende sin escribir en las

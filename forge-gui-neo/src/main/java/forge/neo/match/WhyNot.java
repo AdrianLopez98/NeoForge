@@ -1,11 +1,28 @@
 package forge.neo.match;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
+import org.apache.commons.lang3.tuple.Pair;
+
+import com.google.common.collect.Multimap;
+
+import forge.game.GameEntity;
 import forge.game.GameLogEntry;
 import forge.game.GameLogEntryType;
 import forge.game.GameView;
+import forge.game.card.Card;
+import forge.game.combat.AttackConstraints;
+import forge.game.combat.AttackRequirement;
+import forge.game.combat.AttackRestriction;
+import forge.game.combat.AttackRestrictionType;
+import forge.game.combat.Combat;
+import forge.game.combat.GlobalAttackRestrictions;
+import forge.game.player.Player;
+import forge.game.staticability.StaticAbility;
+import forge.game.staticability.StaticAbilityMustAttack;
 import forge.neo.NeoText;
 
 /**
@@ -37,6 +54,14 @@ import forge.neo.NeoText;
  * <p>Lo que NUNCA hace es adivinar cual de tus criaturas tiene la culpa. Un
  * aviso que senyala a la carta equivocada es peor que no avisar: te manda a
  * arreglar algo que ya esta bien.
+ *
+ * <p><b>El ataque, desde el 28-09-2026, ya no solo se cita: se afirma</b>
+ * ({@link #explainAttack}). Y no es deducir: {@code validateAttackers} compara
+ * tu declaracion con {@code AttackConstraints.getLegalAttackers()}, y aqui se
+ * lee <i>ese mismo calculo</i>. Las criaturas que faltan son exactamente las
+ * que el motor echa de menos. Salio de un informe de itch.io: pajaros con goad
+ * para toda la partida (Rendmaw, Creaking Nest), un "No attack" que no hacia
+ * nada, y un registro que no citaba el goad porque era de otro turno.
  */
 public final class WhyNot {
 
@@ -184,5 +209,211 @@ public final class WhyNot {
             return out;
         }
         return out;
+    }
+
+    // ---------------------------------------------------------------
+    // Que ataque espera el motor
+    // ---------------------------------------------------------------
+
+    /**
+     * Por que no vale el ataque que acabas de declarar, y cual si valdria.
+     *
+     * <p>Se llama con el {@code Combat} tal como lo ha rechazado el
+     * {@code PhaseHandler} (con tus atacantes aun puestos) y <b>desde el hilo
+     * del motor</b>, que es el unico que puede leer el {@code Game}.
+     *
+     * <p>Dos casos, los mismos dos que distingue {@code countViolations}:
+     * <ul>
+     *   <li><b>Una restriccion rota</b> (-1): "solo puede atacar sola", "como
+     *       mucho dos criaturas"... Se nombra cual y de que carta.</li>
+     *   <li><b>Una obligacion sin cumplir</b>: goad, "ataca cada combate si
+     *       puede", "al menos una criatura ataca a X". Se nombran las criaturas
+     *       que el motor pone en su ataque y tu no.</li>
+     * </ul>
+     * Y en los dos, la ultima linea es <b>un ataque que el motor acepta</b>:
+     * lo que se espera del jugador, dicho como algo que puede hacer.
+     *
+     * @return las lineas ya traducidas, o vacio si no hay nada que afirmar
+     *         (partida en red sin {@code Game}, o una excepcion): quien llama
+     *         cae entonces al aviso generico
+     */
+    public static List<String> explainAttack(final Combat combat) {
+        return explainAttack(combat, WhyNot::translatedName);
+    }
+
+    /**
+     * Lo mismo, nombrando las cartas como las nombre la mesa que lo ensenya.
+     *
+     * <p>Android pinta en la mesa el nombre INGLES (el del arte) y el escritorio
+     * el traducido: un aviso que dice "Destructor" junto a una baldosa que dice
+     * "Juggernaut" no te lleva a la carta.
+     */
+    public static List<String> explainAttack(final Combat combat,
+                                             final java.util.function.Function<Card, String> naming) {
+        final Namer name = naming == null ? WhyNot::translatedName : naming::apply;
+        final List<String> out = new ArrayList<>();
+        try {
+            if (combat == null || combat.getAttackConstraints() == null) {
+                return out;
+            }
+            final AttackConstraints constraints = combat.getAttackConstraints();
+            final Map<Card, GameEntity> yours = new LinkedHashMap<>(combat.getAttackersAndDefenders());
+
+            // --- 1. Restricciones: lo que tu ataque tiene de MAS ---
+            final GlobalAttackRestrictions global = constraints.getGlobalRestrictions();
+            if (global != null && !global.isLegal(yours)) {
+                final Integer max = global.getMax();
+                if (max != null && yours.size() > max) {
+                    out.add(max == 0 ? NeoText.get("why.atk.noneCan") : NeoText.get("why.atk.max", max));
+                }
+                for (final Map.Entry<GameEntity, Integer> e : global.getDefenderMax().entrySet()) {
+                    final long count = yours.values().stream().filter(d -> d == e.getKey()).count();
+                    if (count > e.getValue()) {
+                        out.add(e.getValue() == 0
+                                ? NeoText.get("why.atk.defNone", entityName(name, e.getKey()))
+                                : NeoText.get("why.atk.defMax", entityName(name, e.getKey()), e.getValue()));
+                    }
+                }
+            }
+            for (final Map.Entry<Card, GameEntity> e : yours.entrySet()) {
+                final AttackRestriction r = constraints.getRestrictions().get(e.getKey());
+                if (r == null) {
+                    continue;
+                }
+                if (r.getTypes().contains(AttackRestrictionType.NEVER)) {
+                    out.add(NeoText.get("why.atk.r.NEVER", cardName(name, e.getKey())));
+                } else if (!r.canAttack(e.getValue())) {
+                    out.add(NeoText.get("why.atk.cantDefender", cardName(name, e.getKey()), entityName(name, e.getValue())));
+                }
+                for (final AttackRestrictionType t : r.getViolation(yours)) {
+                    out.add(NeoText.get("why.atk.r." + t.name(), cardName(name, e.getKey())));
+                }
+            }
+
+            // --- 2. Obligaciones: lo que a tu ataque le FALTA ---
+            final Pair<Map<Card, GameEntity>, Integer> best = constraints.getLegalAttackers();
+            final Map<Card, GameEntity> ideal = best.getLeft();
+            if (out.isEmpty()) {
+                // Criaturas obligadas, agrupadas por a quien tienen que atacar
+                // (null = a quien quieras).  LinkedHashMap: el orden del motor.
+                final Map<GameEntity, List<Card>> missing = new LinkedHashMap<>();
+                for (final Map.Entry<Card, GameEntity> e : ideal.entrySet()) {
+                    final Card c = e.getKey();
+                    final AttackRequirement req = constraints.getRequirements().get(c);
+                    if (req == null || !req.hasRequirement()) {
+                        continue; // va en el ataque de apoyo, no por obligacion
+                    }
+                    final GameEntity target = specificTarget(req, e.getValue());
+                    final GameEntity declared = yours.get(c);
+                    if (declared != null && (target == null || declared.equals(target))) {
+                        continue; // ya lo cumples
+                    }
+                    missing.computeIfAbsent(target, k -> new ArrayList<>()).add(c);
+                }
+                for (final Map.Entry<GameEntity, List<Card>> e : missing.entrySet()) {
+                    out.add(e.getKey() == null
+                            ? NeoText.get("why.atk.must", groupNames(name, e.getValue()))
+                            : NeoText.get("why.atk.mustTo", entityName(name, e.getKey()), groupNames(name, e.getValue())));
+                }
+                // "Al menos una criatura tiene que atacar a X": no es de ninguna
+                // criatura, es del jugador.  El motor no lo publica fuera de
+                // AttackConstraints, asi que se pregunta igual que lo pregunta el.
+                final Multimap<GameEntity, StaticAbility> playerReqs =
+                        StaticAbilityMustAttack.mustAttackSpecific(combat.getAttackingPlayer(), combat.getDefenders());
+                for (final GameEntity d : playerReqs.keySet()) {
+                    if (!yours.containsValue(d) && ideal.containsValue(d)) {
+                        out.add(NeoText.get("why.atk.mustPlayer", entityName(name, d)));
+                    }
+                }
+            }
+
+            // --- 3. Lo que SI vale, dicho como algo que se puede hacer ---
+            if (out.isEmpty() && ideal.equals(yours)) {
+                return out; // nada que decir que no sea mentira
+            }
+            out.add(ideal.isEmpty()
+                    ? NeoText.get("why.atk.validNone")
+                    : NeoText.get("why.atk.valid", describeAttack(name, ideal)));
+        } catch (final RuntimeException e) {
+            // Explicar mejor no vale una excepcion en el hilo del motor.
+            out.clear();
+        }
+        return out;
+    }
+
+    /**
+     * A quien tiene que atacar esa criatura, o null si le vale cualquiera.
+     *
+     * <p>El goad y "ataca si puede" suman lo mismo a todos los defensores; solo
+     * un "ataca a X si puede" hace que uno pese mas que los demas.
+     */
+    private static GameEntity specificTarget(final AttackRequirement req, final GameEntity chosen) {
+        final List<Pair<GameEntity, Integer>> sorted = req.getSortedRequirements();
+        if (sorted.isEmpty()) {
+            return null;
+        }
+        final int min = sorted.get(0).getRight();
+        final int max = sorted.get(sorted.size() - 1).getRight();
+        return min == max ? null : chosen;
+    }
+
+    /** "Bird Token x4 -> Liliana; Erebos -> Paige", agrupando por defensor. */
+    private static String describeAttack(final Namer name, final Map<Card, GameEntity> attack) {
+        final Map<GameEntity, List<Card>> byDefender = new LinkedHashMap<>();
+        for (final Map.Entry<Card, GameEntity> e : attack.entrySet()) {
+            byDefender.computeIfAbsent(e.getValue(), k -> new ArrayList<>()).add(e.getKey());
+        }
+        final StringBuilder sb = new StringBuilder();
+        for (final Map.Entry<GameEntity, List<Card>> e : byDefender.entrySet()) {
+            if (sb.length() > 0) {
+                sb.append("; ");
+            }
+            sb.append(groupNames(name, e.getValue())).append(" → ").append(entityName(name, e.getKey()));
+        }
+        return sb.toString();
+    }
+
+    /** "Bird Token x4, Erebos": las fichas repetidas no se listan cuatro veces. */
+    private static String groupNames(final Namer name, final List<Card> cards) {
+        final Map<String, Integer> counts = new LinkedHashMap<>();
+        for (final Card c : cards) {
+            counts.merge(cardName(name, c), 1, Integer::sum);
+        }
+        final StringBuilder sb = new StringBuilder();
+        for (final Map.Entry<String, Integer> e : counts.entrySet()) {
+            if (sb.length() > 0) {
+                sb.append(", ");
+            }
+            sb.append(e.getKey());
+            if (e.getValue() > 1) {
+                sb.append(" ×").append(e.getValue());
+            }
+        }
+        return sb.toString();
+    }
+
+    /** Como nombra las cartas la mesa que ensenya el aviso. */
+    private interface Namer {
+        String of(Card c);
+    }
+
+    private static String cardName(final Namer name, final Card c) {
+        final String n = name.of(c);
+        return n == null || n.isBlank() ? c.getName() : n;
+    }
+
+    private static String translatedName(final Card c) {
+        final String t = c.getTranslatedName();
+        return t == null || t.isBlank() ? c.getName() : t;
+    }
+
+    private static String entityName(final Namer name, final GameEntity e) {
+        if (e instanceof Card) {
+            return cardName(name, (Card) e);
+        }
+        if (e instanceof Player) {
+            return ((Player) e).getName();
+        }
+        return String.valueOf(e);
     }
 }

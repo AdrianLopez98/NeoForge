@@ -4830,6 +4830,20 @@ public class NeoMatchUI extends NetworkGuiGame {
         return index == null ? defaultOption : index;
     }
 
+    /**
+     * Una pregunta de varios botones con la carta delante, para los arreglos
+     * con asiento que necesitan mas de un si o un no ({@link ExploreChoice}).
+     * Sin jugador delante devuelve {@code defaultOption}, como {@link #confirm}.
+     */
+    public int askWithCard(final CardView card, final String question,
+                           final List<String> options, final int defaultOption) {
+        if (interactive()) {
+            return askCard(card, null, question, options, defaultOption);
+        }
+        trace("askWithCard: %s -> %d", question, defaultOption);
+        return defaultOption;
+    }
+
     /** Dialogo de botones. Devuelve el indice elegido. */
     private int askOption(final String title, final String message,
                           final List<String> options, final int defaultOption) {
@@ -5867,6 +5881,16 @@ public class NeoMatchUI extends NetworkGuiGame {
         // ensenya lo que el registro tenga escrito de hace poco. Es una cita, y
         // se presenta como tal.
         if (ATTACK_INVALID.equals(message.trim())) {
+            // Primero lo que el MOTOR calcula (WhyNot.explainAttack): que
+            // criaturas faltan y un ataque que si vale.  Solo sin Game (el
+            // cliente de una partida en red) se cae a citar el registro.
+            final forge.game.Game game = gv == null ? null : gv.getGame();
+            final java.util.List<String> engine = WhyNot.explainAttack(game == null ? null : game.getCombat());
+            if (!engine.isEmpty()) {
+                trace("por que no se puede: ataque | motor=%s", engine);
+                showWhy(NeoText.get("why.atk.head") + "\n" + String.join("\n", engine));
+                return;
+            }
             final java.util.List<String> quoted = WhyNot.recentCompulsion(gv, 3);
             trace("por que no se puede: ataque | registro=%d lineas", quoted.size());
             showWhy(quoted.isEmpty()

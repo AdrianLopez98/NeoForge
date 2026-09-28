@@ -296,6 +296,16 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             }
         });
 
+        // Si hay una version nueva en itch.io (pedido el 28-09-2026). En su
+        // propio hilo y sin esperarla: sin internet no pasa nada, y el menu se
+        // entera cuando llegue. No en las capturas (--snapshot): una prueba no
+        // sale a la red ni puede salir distinta segun lo que haya subido ese
+        // dia — salvo con -Dneo.update.fake, que es para capturar el aviso.
+        // Ver forge.neo.update.NeoUpdate.
+        if (snapshotPath == null || System.getProperty("neo.update.fake") != null) {
+            forge.neo.update.NeoUpdate.start();
+        }
+
         // En un Mac, Ctrl+clic es el clic derecho. Fuera de un Mac no hace nada.
         forge.neo.platform.NeoOs.installMacMouse(scene);
         // Sin esto JavaFX se queda con Escape para salir de pantalla completa y

@@ -1519,6 +1519,58 @@
 .discord-button:pressed { -fx-background-color: #4752c4; }
 .discord-button .discord-logo { -fx-fill: white; }
 
+/* itch.io, al lado de Discord (28-09-2026), con su rojo. El puntito ambar sale
+   cuando hay una version nueva (NeoUpdate): el color de "decision pendiente". */
+.itch-button {
+    -fx-background-color: #FA5C5C;
+    -fx-background-radius: 8;
+    -fx-padding: 7 10;
+    -fx-cursor: hand;
+}
+.itch-button:hover { -fx-background-color: #fb7676; }
+.itch-button:pressed { -fx-background-color: #d94a4a; }
+.itch-button .itch-logo { -fx-fill: white; }
+.itch-dot {
+    -fx-fill: -neo-warn;
+    -fx-stroke: -neo-table;
+    -fx-stroke-width: 2;
+}
+
+/* El aviso de version nueva, en el pie del menu, al lado del numero. */
+.update-banner {
+    -fx-background-color: rgba(224,166,60,0.12);
+    -fx-background-radius: 6;
+    -fx-border-color: -neo-warn;
+    -fx-border-radius: 6;
+    -fx-border-width: 1;
+    -fx-padding: 3 4 3 12;
+    -fx-spacing: 10;
+}
+.update-banner-text {
+    -fx-text-fill: -neo-text;
+    -fx-font-weight: bold;
+    -fx-font-size: 0.9em;
+}
+.update-open {
+    -fx-background-color: #FA5C5C;
+    -fx-background-radius: 4;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-font-size: 0.9em;
+    -fx-padding: 4 12;
+    -fx-cursor: hand;
+}
+.update-open:hover { -fx-background-color: #fb7676; }
+.update-open:pressed { -fx-background-color: #d94a4a; }
+.update-later {
+    -fx-background-color: transparent;
+    -fx-text-fill: -neo-text-dim;
+    -fx-font-size: 0.9em;
+    -fx-padding: 4 8;
+    -fx-cursor: hand;
+}
+.update-later:hover { -fx-text-fill: -neo-text; }
+
 .home-footer {
     -fx-background-color: rgba(11,14,19,0.75);
     -fx-border-color: -neo-line transparent transparent transparent;

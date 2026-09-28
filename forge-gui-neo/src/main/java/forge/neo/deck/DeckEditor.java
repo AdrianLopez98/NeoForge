@@ -852,9 +852,18 @@ public final class DeckEditor {
      * <p>Se quita lo que HAYA, nunca más: las tierras básicas del catálogo no
      * están en la banda (no salieron de ningún sobre) y ahí esto no hace nada,
      * que es justo lo correcto.
+     *
+     * <p>Y las básicas NO se sacan nunca, aunque haya una igual en la banda:
+     * {@link #backToPool} no las devuelve, así que una básica de sobre con la
+     * misma impresión que la del catálogo entraba en el mazo y al quitarla (o
+     * al volver a pulsar "Montar solo") desaparecía del evento. Las del mazo
+     * son siempre del catálogo; las de los sobres se quedan en la banda.
      */
     private void takeFromPool(final PaperCard card, final int amount) {
         if (card == null || amount <= 0 || !format.poolInSideboard()) {
+            return;
+        }
+        if (card.getRules() != null && card.getRules().getType().isBasicLand()) {
             return;
         }
         final CardPool side = deck.get(DeckSection.Sideboard);

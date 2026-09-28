@@ -37,7 +37,7 @@ import forge.player.PlayerControllerHuman;
  * modo. Los comprobadores no cambian.
  *
  * <p>Va en la misma silla que los otros arreglos con asiento (ver por que en
- * {@link ManaColor}): {@code ManaColor.Asking} hereda de este y este de
+ * {@link ManaColor}): {@link ExploreChoice.Asking} hereda de este y este de
  * {@link TriggerSubject.Telling}.
  */
 public final class AttackCosts {

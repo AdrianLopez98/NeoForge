@@ -103,6 +103,14 @@ public final class NeoMain {
             return;
         }
 
+        // El aviso de version nueva: comparar, leer a itch.io, los canales y
+        // que sin linea no pase nada. Sin motor. Ver forge.neo.update.UpdateCheck.
+        if ("updatecheck".equals(cmd)) {
+            banner("Version nueva: itch.io, sin romper el offline");
+            forge.neo.update.UpdateCheck.run();
+            return;
+        }
+
         // La Aventura (el Adventure de Forge) en su propio proceso, lanzado desde
         // el menu. Va ANTES del cerrojo de instancia unica: el NeoForge que la
         // abre sigue vivo, y con el cerrojo este proceso se cerraria solo. En el
