@@ -1,11 +1,11 @@
-**NeoForge para macOS 4.1 (beta).** El mismo numero que en itch.io.
+**NeoForge para macOS 4.2 (beta).** El mismo numero que en itch.io.
 
 Novedades:
-- **Colecciones de mazos:** tus propias pestanas en la pantalla de mazos, ademas de "Mis mazos", "Los de Forge" y "De internet". Con **+** se crea una, **Mover** en la esquina de un mazo lo lleva ahi (o lo copia, si es un preconstruido), y clic derecho en la pestana la renombra o la borra, sin borrar ningun mazo. Son carpetas normales: el Forge de siempre las ve.
-- **Companeros (Lurrus, Kaheera, Yorion...):** clic derecho -> *Hacerlo companero* en el constructor, y se reconocen al importar de Moxfield o Arena.
-- **"Lo ultimo" de la Enciclopedia** es lo ultimo que ha llegado a Forge, adelantos incluidos, con un orden nuevo *Llegada a Forge*.
-- **Todos los artes de una carta** en la Enciclopedia: clic derecho -> *Ver sus artes*.
-- **Las cartas planeadas (Plot) se pueden lanzar** desde el exilio.
+- **Aviso de version nueva:** al abrir el juego se pregunta a itch.io si hay una version mas nueva para tu Mac, y si la hay sale en el pie del menu con un boton *Descargar en itch.io* (y *Ahora no*, que calla esa version hasta la siguiente). Sin internet no pasa nada. Se apaga en Ajustes -> Actualizaciones. Esta es la primera version que avisa.
+- **Boton de itch.io** al lado del de Discord, arriba a la derecha del menu.
+- **Explorar en un solo clic:** la carta revelada y tres botones (*Al cementerio*, *Dejarla encima*, *Dejarla encima y no volver a preguntar este turno*).
+- **Un ataque que no vale dice que falta:** la restriccion que rompes o las criaturas obligadas a atacar (goad...), y un ataque que si vale.
+- **Sellado y draft:** las tierras basicas de un sobre ya no desaparecen del evento al quitarlas del mazo.
 
 Descarga el `.dmg` de tu Mac:
 
