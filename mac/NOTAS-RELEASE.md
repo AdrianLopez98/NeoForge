@@ -1,11 +1,10 @@
-**NeoForge para macOS 4.2 (beta).** El mismo numero que en itch.io.
+**NeoForge para macOS 4.3 (beta).** El mismo numero que en itch.io.
 
 Novedades:
-- **Aviso de version nueva:** al abrir el juego se pregunta a itch.io si hay una version mas nueva para tu Mac, y si la hay sale en el pie del menu con un boton *Descargar en itch.io* (y *Ahora no*, que calla esa version hasta la siguiente). Sin internet no pasa nada. Se apaga en Ajustes -> Actualizaciones. Esta es la primera version que avisa.
-- **Boton de itch.io** al lado del de Discord, arriba a la derecha del menu.
-- **Explorar en un solo clic:** la carta revelada y tres botones (*Al cementerio*, *Dejarla encima*, *Dejarla encima y no volver a preguntar este turno*).
-- **Un ataque que no vale dice que falta:** la restriccion que rompes o las criaturas obligadas a atacar (goad...), y un ataque que si vale.
-- **Sellado y draft:** las tierras basicas de un sobre ya no desaparecen del evento al quitarlas del mazo.
+- **Cartas nuevas de Forge** (actualizacion del 28-09-2026), y con ellas el arreglo de **Omnipresence**: lanzar gratis ya no se deshace sin avisar.
+- **Mayhem (Caos):** una carta descartada este turno sale marcada en tu cementerio y se lanza clicandola, como el flashback.
+- **Draft y sellado en red:** ya se pueden repartir los sobres. Antes el boton *Listo* pedia un mazo que en limitado solo sale del pool, y la sala se quedaba parada. Tambien: *Repartir* no se puede pulsar dos veces, y *Empezar* espera a que todos tengan mazo.
+- **Objetivos en el cementerio o el exilio:** la zona se abre sola al elegir (adaptado a un cambio del motor de Forge).
 
 Descarga el `.dmg` de tu Mac:
 
