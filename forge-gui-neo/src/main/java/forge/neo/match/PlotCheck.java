@@ -79,6 +79,9 @@ public final class PlotCheck {
         private final AtomicBoolean engineListsIt = new AtomicBoolean();
         private final AtomicBoolean reexiled = new AtomicBoolean();
         private final AtomicBoolean markedAfterReexile = new AtomicBoolean();
+        /** Lo mismo, con OutsideCasts.plotted: lo que usa Android. */
+        private final AtomicBoolean sharedSameTurn = new AtomicBoolean();
+        private final AtomicBoolean sharedLater = new AtomicBoolean();
     }
 
     public static void run() {
@@ -130,6 +133,11 @@ public final class PlotCheck {
         check(seen.markedLater.get(),
                 "y la interfaz la marca como lanzable, asi que el visor del exilio deja clicarla",
                 "la interfaz NO la marca: se veria en el exilio y no habria forma de lanzarla");
+        check(!seen.sharedSameTurn.get() && seen.sharedLater.get(),
+                "OutsideCasts.plotted dice lo mismo (lo que usa Android): no ese turno, si despues",
+                "OutsideCasts.plotted no coincide con el motor: Android la marcaria mal"
+                        + " (mismo turno: " + seen.sharedSameTurn.get()
+                        + ", despues: " + seen.sharedLater.get() + ")");
         check(seen.leftExile.get(),
                 "clicarla (el mismo selectCard que el visor) la saca del exilio",
                 "el click no la saco del exilio");
@@ -197,6 +205,9 @@ public final class PlotCheck {
             if (ph.getTurn() == seen.plotTurn.get() && marked) {
                 seen.markedSameTurn.set(true);
             }
+            if (ph.getTurn() == seen.plotTurn.get() && OutsideCasts.plotted(exiled, me)) {
+                seen.sharedSameTurn.set(true);
+            }
             for (final CardView cv : me.getView().getFlashback()) {
                 if (cv != null && cv.getId() == exiled.getId()) {
                     seen.engineListsIt.set(true);
@@ -245,6 +256,7 @@ public final class PlotCheck {
                         && game.getStack().isEmpty() && exiled != null) {
                     seen.engineCanCast.set(!exiled.getAllPossibleAbilities(me, true).isEmpty());
                     seen.markedLater.set(ui.isPlottedCastable(exiled.getView()));
+                    seen.sharedLater.set(OutsideCasts.plotted(exiled, me));
                     seen.stage.set(CASTING);
                     seen.since.set(now);
                     // El MISMO metodo que llama el visor al clicar la carta.

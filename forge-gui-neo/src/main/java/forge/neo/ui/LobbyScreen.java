@@ -416,7 +416,12 @@ public class LobbyScreen extends BorderPane
         startEvent.setText(NeoText.get(
                 view != null && view.getFormat() == forge.gamemodes.net.EventFormat.SEALED
                         ? "net.event.startSealed" : "net.event.startDraft"));
-        startEvent.setDisable(failed || l.findFirstUnreadySlot() != null);
+        if (running) {
+            dealing = false;
+        }
+        // Apagado mientras reparte: la fase nueva llega un momento despues y,
+        // entretanto, el boton se volvia a encender y dejaba repartir dos veces.
+        startEvent.setDisable(failed || dealing || l.findFirstUnreadySlot() != null);
         dropEvent.setVisible(view != null || limited);
         dropEvent.setManaged(view != null || limited);
     }
@@ -617,15 +622,20 @@ public class LobbyScreen extends BorderPane
      * Repartir sobres (o pools). <b>Hilo de fondo</b>: abre los sobres de todo
      * el pod, que con ocho asientos son 24 sobres.
      */
+    /** "Repartir" pulsado y la sala aun sin publicar la fase nueva. */
+    private volatile boolean dealing;
+
     private void launchEvent() {
         final GameLobby l = lobby;
         if (!(l instanceof forge.gamemodes.net.server.ServerGameLobby server)) {
             return;
         }
         startEvent.setDisable(true);
+        dealing = true;
         final Thread t = new Thread(() -> {
             final String why = forge.neo.net.NeoNetEvent.start(server);
             if (why != null) {
+                dealing = false;
                 setNotice(NeoText.get("net.event.cannot." + why));
             }
             Platform.runLater(this::refresh);
@@ -1181,7 +1191,11 @@ public class LobbyScreen extends BorderPane
             HBox.setHgrow(gap, Priority.ALWAYS);
             row.getChildren().add(gap);
 
-            row.getChildren().add(readyButton(l, index, slot));
+            final Button ready = readyButton(l, index, slot);
+            if (isMe(l, index, slot)) {
+                myReadyButton = ready;
+            }
+            row.getChildren().add(ready);
         } else {
             final Region gap = new Region();
             HBox.setHgrow(gap, Priority.ALWAYS);
@@ -1320,6 +1334,9 @@ public class LobbyScreen extends BorderPane
         return cell;
     }
 
+    /** El boton "Listo" de mi asiento, el ultimo pintado. Lo pulsa el piloto de prueba. */
+    private Button myReadyButton;
+
     private Button readyButton(final GameLobby l, final int index, final LobbySlot slot) {
         final boolean ready = slot.isReady();
         final Button b = new Button(NeoText.get(ready ? "lobby.ready" : "lobby.notReady"));
@@ -1328,9 +1345,12 @@ public class LobbyScreen extends BorderPane
         // Sin mazo no se puede estar listo: el motor lo rechazaria al empezar y
         // el aviso saldria mucho despues, cuando ya nadie sabe de que va. Pero
         // solo donde hace falta mazo: en Momir esperar uno que no va a llegar
-        // deja la sala muerta con el boton apagado y sin explicacion.
+        // deja la sala muerta con el boton apagado y sin explicacion. Y en
+        // limitado tampoco: ahi el mazo sale del pool, DESPUES de repartir
+        // (NeoNetEvent.readyNeedsDeck, como hace Forge).
         b.setDisable(!l.mayEdit(index)
-                || (NeoLobby.needsDeck(format) && slot.getDeck() == null));
+                || (forge.neo.net.NeoNetEvent.readyNeedsDeck(l, format)
+                        && slot.getDeck() == null));
         b.setOnAction(e -> send(index, UpdateLobbyPlayerEvent.isReadyUpdate(!ready)));
         return b;
     }
@@ -1597,12 +1617,34 @@ public class LobbyScreen extends BorderPane
                 // montar dos partidas sobre el mismo lobby.
                 startButton.setDisable(failed || l.isMatchActive()
                         || l.findFirstUnreadySlot() != null
+                        || someoneWithoutDeck(l)
                         || NeoLobby.activeSlots(l).size() < NeoLobby.MIN_SEATS);
             }
             if (l.isMatchActive() && started.compareAndSet(false, true)) {
                 actions.gameStarting();
             }
         });
+    }
+
+    /**
+     * Alguien sentado sin mazo en un modo que lo pide.
+     *
+     * <p>Fuera de limitado no pasa: sin mazo no se puede marcar "listo". Pero
+     * en limitado si (NeoNetEvent.readyNeedsDeck, como Forge), y el "listo" de
+     * antes de repartir se mantiene despues: sin esto, Empezar se encendia
+     * mientras los demas aun montaban su mazo con el pool, y pulsarlo solo
+     * daba el aviso del motor ("Please specify deck").
+     */
+    private boolean someoneWithoutDeck(final GameLobby l) {
+        if (!NeoLobby.needsDeck(format)) {
+            return false;
+        }
+        for (final LobbySlot s : NeoLobby.activeSlots(l)) {
+            if (s.getDeck() == null) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Lo ultimo que se apunto en el registro, para no repetirlo. */
@@ -1722,24 +1764,48 @@ public class LobbyScreen extends BorderPane
                     if (l == null) {
                         return;
                     }
+                    final boolean limited = forge.neo.net.NeoNetEvent.isLimited(l);
                     for (int i = 0; i < l.getNumberOfSlots(); i++) {
                         final LobbySlot s = l.getSlot(i);
                         if (s == null || s.getType() == LobbySlotType.OPEN || !isMe(l, i, s)) {
                             continue;
                         }
                         if (s.getDeck() == null && NeoLobby.needsDeck(format)) {
-                            final List<Deck> mine = new ArrayList<>(format.decks());
+                            // En limitado, el mazo montado con el pool (40+
+                            // cartas: el pool en bruto no vale). Si aun no
+                            // lo hay, se sigue: el "listo" no lo pide.
+                            final List<Deck> mine = limited ? builtPools(l)
+                                    : new ArrayList<>(format.decks());
                             if (!mine.isEmpty()) {
                                 System.out.println("[lobby-auto] mi mazo: " + mine.get(0).getName());
                                 sendDeck(i, mine.get(0));
+                                return;
                             }
-                            return;
+                            if (!limited) {
+                                return;
+                            }
                         }
                         if (!s.isReady()) {
-                            System.out.println("[lobby-auto] listo");
-                            send(i, UpdateLobbyPlayerEvent.isReadyUpdate(true));
+                            // Por el BOTON, no por send(): lo que hay que probar
+                            // es que se deja pulsar. fire() no hace nada si esta
+                            // apagado (ButtonBase.fire).
+                            final Button rb = myReadyButton;
+                            if (rb == null || rb.isDisabled()) {
+                                System.out.println("[lobby-auto] el boton Listo esta APAGADO");
+                                return;
+                            }
+                            System.out.println("[lobby-auto] pulso Listo");
+                            rb.fire();
                             return;
                         }
+                    }
+                    // Repartir con alguien mas sentado: si no, el draft seria
+                    // del anfitrion con siete IA y no probaria la red.
+                    if (host && startEvent.isVisible() && !startEvent.isDisabled()
+                            && NeoLobby.activeSlots(l).size() >= NeoLobby.MIN_SEATS) {
+                        System.out.println("[lobby-auto] pulso " + startEvent.getText());
+                        startEvent.fire();
+                        return;
                     }
                     if (host && !startButton.isDisabled()) {
                         System.out.println("[lobby-auto] EMPEZAR");
@@ -1748,6 +1814,19 @@ public class LobbyScreen extends BorderPane
                 }));
         t.setCycleCount(javafx.animation.Animation.INDEFINITE);
         t.play();
+    }
+
+    /** Los mazos del pool ya montados (40 o mas en el principal). Piloto de prueba. */
+    private static List<Deck> builtPools(final GameLobby l) {
+        final List<Deck> out = new ArrayList<>();
+        for (final Deck d : forge.neo.net.NeoNetEvent.poolsFor(
+                forge.neo.net.NeoNetEvent.activeEventId(l),
+                forge.neo.net.NeoNetEvent.conformance(l))) {
+            if (d.getMain().countAll() >= 40) {
+                out.add(d);
+            }
+        }
+        return out;
     }
 
     /**

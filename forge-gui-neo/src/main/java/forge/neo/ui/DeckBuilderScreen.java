@@ -1966,6 +1966,18 @@ public class DeckBuilderScreen extends StackPane {
         }
     }
 
+    /**
+     * Piloto de prueba ({@code --lobby-auto}): "Montar solo", guardar y volver.
+     * Por los mismos metodos que los botones.
+     */
+    public void autoBuildSaveLeaveForTest() {
+        doAutoBuild();
+        save();
+        System.out.println("[lobby-auto] mazo montado: " + editor.getName()
+                + " (" + editor.mainCount() + " cartas)");
+        leave();
+    }
+
     /** "Vaciar el mazo": todo vuelve al pool, para empezar de cero. */
     private void clearMainDeck() {
         if (editor.mainCount() == 0) {

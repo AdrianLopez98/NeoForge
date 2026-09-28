@@ -219,7 +219,32 @@ final class NeoAppNet {
         tick.setCycleCount(javafx.animation.Animation.INDEFINITE);
         tick.play();
         netDraftTick = tick;
+
+        if (pilot) {
+            // Piloto de prueba: la primera carta de cada sobre, por el mismo
+            // pick() que llama la pantalla al clicarla.
+            final forge.neo.draft.PackSource source = screen.getDraftSource();
+            final javafx.animation.Timeline auto = new javafx.animation.Timeline(
+                    new javafx.animation.KeyFrame(javafx.util.Duration.millis(400), e -> {
+                        if (source.isDone() || source.currentCards().isEmpty()) {
+                            return;
+                        }
+                        final forge.item.PaperCard c = source.currentCards().get(0);
+                        System.out.println("[lobby-auto] pick " + source.round() + "-"
+                                + source.pickNumber() + ": " + c.getName());
+                        source.pick(c);
+                        refreshNetDraft();
+                    }));
+            auto.setCycleCount(javafx.animation.Animation.INDEFINITE);
+            auto.play();
+            pilotPicks = auto;
+        }
     }
+
+    /** --lobby-auto: pilotar tambien el draft y el constructor. */
+    boolean pilot;
+
+    private javafx.animation.Timeline pilotPicks;
 
     private javafx.animation.Timeline netDraftTick;
 
@@ -245,6 +270,10 @@ final class NeoAppNet {
     }
 
     private void stopNetDraft() {
+        if (pilotPicks != null) {
+            pilotPicks.stop();
+            pilotPicks = null;
+        }
         if (netDraftTick != null) {
             netDraftTick.stop();
             netDraftTick = null;
@@ -281,6 +310,13 @@ final class NeoAppNet {
         });
         app.scene.setRoot(app.builder);
         app.applyScale();
+        if (pilot) {
+            final forge.neo.ui.DeckBuilderScreen b = app.builder;
+            final javafx.animation.PauseTransition wait =
+                    new javafx.animation.PauseTransition(javafx.util.Duration.seconds(2));
+            wait.setOnFinished(e -> Platform.runLater(b::autoBuildSaveLeaveForTest));
+            wait.play();
+        }
     }
 
     /**

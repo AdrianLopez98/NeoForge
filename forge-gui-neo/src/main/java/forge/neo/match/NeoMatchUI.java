@@ -54,8 +54,6 @@ import forge.neo.ui.GameOverScreen;
 import forge.neo.ui.TableScreen;
 import forge.neo.platform.UiDispatcher;
 import forge.neo.ui.PromptBanner;
-import forge.player.PlayerZoneUpdate;
-import forge.player.PlayerZoneUpdates;
 import forge.trackable.TrackableCollection;
 import forge.util.FSerializableFunction;
 import forge.util.ITriggerEvent;
@@ -2531,8 +2529,69 @@ public class NeoMatchUI extends NetworkGuiGame {
                 }
             }
         }
-        // Lo que esa lista se deja: lo planeado. Ver plotted.
-        return isPlottedCastable(card);
+        // Lo que esa lista se deja: lo planeado (ver plotted) y el caos.
+        return isPlottedCastable(card) || isMayhemCastable(card);
+    }
+
+    /**
+     * Si esta carta del cementerio se puede lanzar ya con <b>Caos</b> (Mayhem,
+     * de SPM): <i>"puedes lanzarla desde tu cementerio si la descartaste este
+     * turno"</i>.
+     *
+     * <p>El mismo olvido que lo planeado: el motor sabe lanzarla
+     * ({@code GameActionUtil}, rama "Mayhem") pero el filtro de
+     * {@code PlayerView.getFlashback()} ({@code PlayerZone.OwnCardsActivationFilter})
+     * conoce flashback, retrace, jump-start, escape y disturb, y <b>no el
+     * caos</b>. La carta se veia en el cementerio y no habia forma de jugarla
+     * (itch.io, 28-09-2026: <i>"I don't see an option when looking at the
+     * graveyard. It is definitely the same turn it was discarded"</i>).
+     *
+     * <p>Que se descarto no lo publica ni el {@code CardView} ni ningun
+     * evento, asi que se pregunta a la carta del motor con las mismas tres
+     * condiciones que {@code GameActionUtil} ({@link OutsideCasts#mayhem},
+     * que es lo que usa tambien Android). Por eso solo vale en partida
+     * local: el invitado en red no tiene {@code Game} (igual que lo
+     * planeado). Es solo para marcarla y dejarla clicar: quien decide de
+     * verdad, al clicar, es el motor.
+     */
+    boolean isMayhemCastable(final CardView card) {
+        final GameView gv = getGameView();
+        if (gv == null || card.getZone() != ZoneType.Graveyard
+                || !isLocalPlayer(card.getOwner()) || isSelecting() || payingMana) {
+            return false;
+        }
+        final Game game = gv.getGame();
+        if (game == null) {
+            return false;
+        }
+        try {
+            final forge.game.player.Player owner = game.getPlayer(card.getOwner());
+            if (owner == null) {
+                return false;
+            }
+            forge.game.card.Card c = null;
+            for (final forge.game.card.Card g : owner.getCardsIn(ZoneType.Graveyard)) {
+                if (g.getId() == card.getId()) {
+                    c = g;
+                    break;
+                }
+            }
+            if (!OutsideCasts.mayhem(c)) {
+                return false;
+            }
+            // "Timing rules still apply": un instantaneo (o con destello)
+            // cuando sea; lo demas, a velocidad de conjuro.
+            if (c.isInstant() || c.hasKeyword(forge.game.keyword.Keyword.FLASH)) {
+                return true;
+            }
+            final PhaseType phase = gv.getPhase();
+            return isLocalPlayer(gv.getPlayerTurn()) && phase != null && phase.isMain()
+                    && (gv.getStack() == null || gv.getStack().isEmpty());
+        } catch (final RuntimeException e) {
+            // Se lee el motor desde el hilo de interfaz: si justo esta moviendo
+            // el cementerio, se contesta que no y el siguiente refresco lo arregla.
+            return false;
+        }
     }
 
     /**
@@ -4320,6 +4379,10 @@ public class NeoMatchUI extends NetworkGuiGame {
         selectables = list;
         noPickWarned.set(false);
         trace("setSelectables: %d elegibles (min %d, max %d)", list.size(), min, max);
+        // Un maximo de 0 es "solo resaltar": quien llama ensenya lo suyo.
+        if (max > 0 && showSelectionZone(list)) {
+            selectionZoneShown.set(true);
+        }
     }
 
     @Override
@@ -4327,6 +4390,14 @@ public class NeoMatchUI extends NetworkGuiGame {
         super.clearSelectables();
         selectables = List.of();
         noPickWarned.set(false);
+        // Se cierra solo lo que abrio la eleccion: si el jugador tenia abierta
+        // una zona por su cuenta, no se la quitamos de delante.
+        if (selectionZoneShown.getAndSet(false) && interactive()) {
+            final UiDispatcher ui = uiDispatcher();
+            if (ui != null) {
+                ui.runLater(() -> table.hideZoneViewer());
+            }
+        }
     }
 
     /**
@@ -6151,41 +6222,71 @@ public class NeoMatchUI extends NetworkGuiGame {
     // Zonas que hay que ABRIR para poder contestar
     // ---------------------------------------------------------------
 
+    /** El visor de zona lo abrio {@link #setSelectables}: lo cierra {@link #clearSelectables}. */
+    private final AtomicBoolean selectionZoneShown = new AtomicBoolean();
+
     /**
-     * "Abre estas zonas, que el jugador tiene que clicar dentro."
+     * "El jugador tiene que clicar dentro de estas zonas."
      *
      * <p><b>Esto no es decoracion: es el unico camino para contestar a media
      * Magic.</b> Cuando un hechizo tiene por objetivo una carta que no esta en
      * la mesa — <i>"devuelve como objetivo una carta de criatura de tu
      * cementerio"</i>, y con ella Regrowth, Eternal Witness, Regenerar y
      * cientos mas — el motor <b>no</b> levanta ningun dialogo. Lo que hace es
-     * {@code TargetSelection.chooseTargets} → {@code openZones(...)} y despues
      * un {@code InputSelectTargets}, que marca las cartas con
      * {@code setSelectables} y <b>se queda esperando un click sobre ellas</b>,
      * alli donde esten.
      *
-     * <p>Devolviendo null aqui — que es lo que se hacia — esas cartas no se
-     * pintaban en ningun sitio, no habia forma de clicarlas, OK no se activaba
-     * nunca y el jugador veia esto: <i>"lance la carta que devuelve algo del
-     * cementerio, le di a OK y no paso nada, y tenia criaturas en el
-     * cementerio"</i>. No era un fallo del motor ni del jugador: era una
-     * peticion que la interfaz no ensenyaba.
+     * <p>Sin abrir la zona, esas cartas no se pintaban en ningun sitio, no
+     * habia forma de clicarlas, OK no se activaba nunca y el jugador veia esto:
+     * <i>"lance la carta que devuelve algo del cementerio, le di a OK y no paso
+     * nada, y tenia criaturas en el cementerio"</i>.
      *
-     * <p>Se ignoran la mesa y la mano porque esas ya estan pintadas y ya se
-     * clican. Lo demas se abre en el visor de zona, que desde ahora sabe marcar
-     * y elegir. No bloquea: solo publica el panel y vuelve — quien espera es el
-     * {@code showAndWait} del input, despues, y en el hilo del motor.
+     * <p>Hasta el 28-09-2026 lo pedia el motor con {@code openZones} desde
+     * {@code TargetSelection}, y lo cerraba con {@code restoreOldZones}. Desde
+     * el <i>"IGuiGame cleanup"</i> de Forge (#12056) esas llamadas ya no
+     * existen: la interfaz abre ella misma las zonas de lo que se le marca, y
+     * un maximo de 0 significa "solo resaltar, no abras nada". Es lo que hace
+     * ahora {@code CMatchUI.setSelectables}.
      *
-     * @return lo que se ha abierto, para que {@link #restoreOldZones} lo cierre
+     * <p>Se ignoran la mesa, la mano y el stack porque ya estan pintados y ya
+     * se clican. Lo demas se abre en el visor de zona, que sabe marcar y
+     * elegir. No bloquea: solo publica el panel y vuelve.
+     */
+    private boolean showSelectionZone(final Iterable<CardView> cards) {
+        if (!interactive() || cards == null) {
+            return false;
+        }
+        for (final CardView c : cards) {
+            final ZoneType zone = c == null ? null : c.getZone();
+            if (zone == null || c.getOwner() == null || zone == ZoneType.Battlefield
+                    || zone == ZoneType.Hand || zone == ZoneType.Stack) {
+                continue;
+            }
+            // Se abre UNA. Con objetivos repartidos entre varias zonas, el visor
+            // se cierra con un click y la pila de cada zona lo vuelve a abrir,
+            // que tambien deja elegir: no queda nada inalcanzable.
+            final PlayerView owner = c.getOwner();
+            final UiDispatcher ui = uiDispatcher();
+            if (ui != null) {
+                ui.runLater(() -> table.showZone(owner, zone));
+            }
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Lo que queda de {@code openZones}: el aviso de que hay objetivos validos
+     * en el exilio ({@code FControlGameEventHandler}). No se cierra solo: no va
+     * atado a ninguna eleccion.
      */
     @Override
-    public PlayerZoneUpdates openZones(final PlayerView controller, final Collection<ZoneType> zones,
-                                       final Map<PlayerView, Object> players,
-                                       final boolean backupLastZones) {
+    public void openZones(final PlayerView controller, final Collection<ZoneType> zones,
+                          final Map<PlayerView, Object> players) {
         if (!interactive() || zones == null || players == null) {
-            return null;
+            return;
         }
-        final PlayerZoneUpdates opened = new PlayerZoneUpdates();
         for (final ZoneType zone : zones) {
             if (zone == null || zone == ZoneType.Battlefield || zone == ZoneType.Hand
                     || zone == ZoneType.Stack) {
@@ -6193,54 +6294,13 @@ public class NeoMatchUI extends NetworkGuiGame {
             }
             for (final PlayerView owner : players.keySet()) {
                 if (owner != null && owner.getZoneSize(zone) > 0) {
-                    opened.add(new PlayerZoneUpdate(owner, zone));
+                    final UiDispatcher ui = uiDispatcher();
+                    if (ui != null) {
+                        ui.runLater(() -> table.showZone(owner, zone));
+                    }
+                    return;
                 }
             }
         }
-        if (opened.isEmpty()) {
-            return null;
-        }
-        // Se abre UNA. Con objetivos repartidos entre varias zonas, el visor
-        // se cierra con un click y la pila de cada zona lo vuelve a abrir, que
-        // desde ahora tambien deja elegir: no queda nada inalcanzable.
-        final PlayerZoneUpdate first = opened.iterator().next();
-        final ZoneType firstZone = first.getZones().isEmpty()
-                ? null : first.getZones().iterator().next();
-        if (firstZone == null) {
-            return null;
-        }
-        final UiDispatcher ui = uiDispatcher();
-        if (ui != null) {
-            ui.runLater(() -> table.showZone(first.getPlayer(), firstZone));
-        }
-        return opened;
     }
-
-    /**
-     * Se acabo la eleccion: se cierra lo que abrimos.
-     *
-     * <p>Solo si lo que hay puesto es nuestro visor. Si el jugador ya lo cerro
-     * y abrio otra cosa, cerrarlo a ciegas le quitaria de delante algo que si
-     * habia pedido.
-     */
-    @Override
-    public void restoreOldZones(final PlayerView playerView, final PlayerZoneUpdates zonesToRestore) {
-        if (zonesToRestore == null || !interactive()) {
-            return;
-        }
-        final UiDispatcher ui = uiDispatcher();
-        if (ui != null) {
-            ui.runLater(() -> table.hideZoneViewer());
-        }
-    }
-
-    @Override
-    public Iterable<PlayerZoneUpdate> tempShowZones(final PlayerView controller,
-                                                    final Iterable<PlayerZoneUpdate> zones) {
-        return zones;
-    }
-
-    @Override
-    public void hideZones(final PlayerView playerView, final Iterable<PlayerZoneUpdate> zones) { }
 }
-

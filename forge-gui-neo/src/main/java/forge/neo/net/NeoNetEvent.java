@@ -134,6 +134,14 @@ public final class NeoNetEvent {
         if (event == null) {
             return "noEvent";
         }
+        // Ya repartido: no se hace nada. Un segundo "Repartir" (doble clic, o
+        // el boton que se reencendia antes de que la sala publicase el cambio
+        // de fase) reventaba en populateParticipants con un
+        // IllegalStateException. Visto el 28-09-2026 en un draft de dos
+        // sesiones de verdad.
+        if (event.getPhase() != forge.gamemodes.net.EventPhase.LOBBY_GATHER) {
+            return null;
+        }
         // El motor NO lo comprueba al arrancar el evento, y la mezcla es mala:
         // se reparten los sobres y luego resulta que falta gente por sentarse.
         if (lobby.findFirstUnreadySlot() != null) {
@@ -160,6 +168,26 @@ public final class NeoNetEvent {
      */
     public static NetworkEventView viewOf(final GameLobby lobby) {
         return lobby == null || lobby.getData() == null ? null : lobby.getData().getEventView();
+    }
+
+    /**
+     * Si para marcar "listo" hace falta tener mazo elegido.
+     *
+     * <p><b>En limitado, no</b> — igual que Forge ({@code VLobby.setReady}:
+     * <i>"deck is produced by the draft/sealed flow"</i>). Hasta el 28-09-2026
+     * lo pediamos siempre y la sala se quedaba muerta (itch.io: <i>"any way to
+     * play draft online? im stuck in deal the packs"</i>): montar el evento
+     * pasa la sala a limitado y quita los mazos, en limitado el mazo solo sale
+     * del pool, el pool sale de repartir... y "Repartir" espera a que todos
+     * esten listos. La bateria no lo veia porque marca el "listo" directo en
+     * el asiento, sin pasar por el boton.
+     *
+     * <p>Si luego alguien le da a Empezar sin mazo, lo para el motor
+     * ({@code GameLobby.startGame}: "Please specify deck"), como en Forge.
+     */
+    public static boolean readyNeedsDeck(final GameLobby lobby,
+                                         final forge.neo.match.NeoFormat format) {
+        return NeoLobby.needsDeck(format) && !isLimited(lobby);
     }
 
     /** Si esta sala esta jugando un evento de limitado. */

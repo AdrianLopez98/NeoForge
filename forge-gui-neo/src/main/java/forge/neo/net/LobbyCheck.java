@@ -668,7 +668,10 @@ public final class LobbyCheck {
         boolean read = true;
         for (final String[] sample : samples) {
             final NetPhrases.Phrase p = NetPhrases.read(null, sample[0]);
-            final boolean one = p.kind().name().equals(sample[1]) && !p.text().equals(sample[0])
+            // Reconocido = lo casa una regla. No "el texto ha cambiado": jugando
+            // en ingles la frase traducida es identica a la del servidor.
+            final boolean one = p.kind().name().equals(sample[1])
+                    && NetPhrases.keyOf(sample[0]) != null
                     && (sample[1].equals("HOST_HINT") || p.text().contains("Pepe Luis"));
             if (!one) {
                 System.out.printf(Locale.ROOT, "        no se lee: [%s] -> %s [%s]%n",

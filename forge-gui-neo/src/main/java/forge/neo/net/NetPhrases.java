@@ -113,6 +113,21 @@ public final class NetPhrases {
         return new Phrase(Kind.PLAIN, msg, null);
     }
 
+    /**
+     * La clave del aviso que reconoce este mensaje del servidor, o null si no
+     * es ninguno. Para el comprobador: que el texto cambie no vale como
+     * prueba, porque en ingles la frase traducida es la misma del servidor.
+     */
+    public static String keyOf(final String message) {
+        final String trimmed = message == null ? "" : message.trim();
+        for (final Rule r : RULES) {
+            if (r.pattern().matcher(trimmed).matches()) {
+                return r.key();
+            }
+        }
+        return null;
+    }
+
     /** Las claves de texto que usa la tabla, para comprobar que existen. */
     public static List<String> keys() {
         return RULES.stream().map(Rule::key).toList();

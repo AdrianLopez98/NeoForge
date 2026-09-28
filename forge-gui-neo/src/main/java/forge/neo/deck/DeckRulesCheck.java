@@ -320,9 +320,12 @@ public final class DeckRulesCheck {
                 editor.add(card("Lightning Bolt"), 1) == 1);
         check("Commander: una carta azul NO entra",
                 editor.add(card("Counterspell"), 1) == 0);
+        // Contra el texto del idioma en uso, no contra el castellano: la
+        // bateria se pasa en el idioma que tenga puesto el jugador.
         check("Commander: y dice que es por la identidad de color",
-                String.valueOf(editor.rejectionReason(card("Counterspell")))
-                        .contains("identidad de color"));
+                String.valueOf(editor.rejectionReason(card("Counterspell"))).equals(
+                        forge.neo.NeoText.get("reject.identity",
+                                forge.neo.card.CardText.nameOf(card("Counterspell")))));
     }
 
     /** Las tierras basicas no tienen limite en ningun formato. */
@@ -451,25 +454,29 @@ public final class DeckRulesCheck {
      * de acabar diciendo otra cosa.
      */
     private static void deckProblemsAreTranslated() {
+        // Se compara con NUESTRO texto del idioma en uso, no con "distinto del
+        // ingles": jugando en ingles la frase traducida puede ser identica a
+        // la del motor, y la comprobacion salia en rojo sin que nada fallara
+        // (28-09-2026, con el juego puesto en ingles).
         final String menos = DeckProblem.translate("should have at least 60 cards");
         check("Problema del mazo: 'al menos 60' se traduce",
-                !menos.equals("should have at least 60 cards") && menos.contains("60"));
+                menos.equals(forge.neo.NeoText.get("deck.problem.atLeast", "60")));
 
         final String mas = DeckProblem.translate("should have no more than 100 cards");
         check("Problema del mazo: 'no mas de 100' se traduce",
-                !mas.equals("should have no more than 100 cards") && mas.contains("100"));
+                mas.equals(forge.neo.NeoText.get("deck.problem.atMost", "100")));
 
         final String copias =
                 DeckProblem.translate("must not contain more than 4 copies of the card Lightning Bolt");
         check("Problema del mazo: las copias de mas se traducen y dicen la carta",
-                copias.contains("4") && copias.contains("Lightning Bolt")
-                        && !copias.startsWith("must not"));
+                copias.equals(forge.neo.NeoText.get("deck.problem.copies", "4", "Lightning Bolt"))
+                        && copias.contains("Lightning Bolt"));
 
         final String id = DeckProblem.translate(
                 "contains one or more cards that do not match the commanders color identity:"
                 + System.lineSeparator() + "Lightning Bolt");
         check("Problema del mazo: la identidad de color se traduce",
-                !id.startsWith("contains one or more"));
+                id.startsWith(forge.neo.NeoText.get("deck.problem.identity")));
         check("Problema del mazo: y NO se come la lista de cartas",
                 id.contains("Lightning Bolt"));
 
@@ -477,10 +484,10 @@ public final class DeckRulesCheck {
         // cuanto abres un mazo nuevo y no se van hasta llenar los dos huecos.
         final String sinOath = DeckProblem.translate("is missing an oathbreaker");
         check("Problema del mazo: 'sin oathbreaker' se traduce",
-                !sinOath.equals("is missing an oathbreaker"));
+                sinOath.equals(forge.neo.NeoText.get("deck.problem.noOathbreaker")));
         final String sinSpell = DeckProblem.translate("is missing a signature spell");
         check("Problema del mazo: 'sin hechizo insignia' se traduce",
-                !sinSpell.equals("is missing a signature spell"));
+                sinSpell.equals(forge.neo.NeoText.get("deck.problem.noSignature")));
 
         // Lo que no conocemos, intacto. Ni traducido a medias ni tragado.
         final String raro = "contains the nonexisting card Blorble";
@@ -493,7 +500,7 @@ public final class DeckRulesCheck {
         final DeckEditor editor = DeckEditor.createNew(NeoFormat.ESTANDAR, "idioma-problema");
         final String real = editor.problem();
         check("Problema del mazo: el editor lo devuelve ya traducido",
-                real != null && !real.startsWith("should have"));
+                real != null && real.equals(forge.neo.NeoText.get("deck.problem.atLeast", "60")));
     }
 
     /** Cambiar de comandante detecta lo que se ha quedado fuera. */

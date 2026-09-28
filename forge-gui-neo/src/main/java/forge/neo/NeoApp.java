@@ -951,6 +951,7 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             final String joinAt = optionOf(args, "--lobby-join");
             net.startLobby(joinAt == null, joinAt, false);
             if (args.contains("--lobby-auto") && net.lobbyScreen != null) {
+                net.pilot = true;
                 net.lobbyScreen.autoDriveForTest();
             }
             // -Dneo.lobby.event=draft|sealed|draft-run: monta un evento sin

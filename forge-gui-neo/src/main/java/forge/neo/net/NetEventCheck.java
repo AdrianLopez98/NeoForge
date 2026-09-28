@@ -128,6 +128,15 @@ public final class NetEventCheck {
             final Robot robot = new Robot(lobby);
             FServerManager.getInstance().setDraftHandler(robot);
 
+            // Lo que decide si el boton "Listo" se deja pulsar SIN mazo. Aqui
+            // el "listo" se pone directo en el asiento, asi que sin esta
+            // comprobacion la bateria pasaba con la sala muerta para una
+            // persona (itch.io, 28-09-2026: "stuck in deal the packs").
+            check("en limitado se puede marcar listo sin mazo (como Forge)",
+                    lobby.getSlot(0).getDeck() == null
+                            && !NeoNetEvent.readyNeedsDeck(lobby,
+                                    forge.neo.match.NeoFormat.ESTANDAR));
+
             lobby.applyToSlot(0, forge.gamemodes.net.event.UpdateLobbyPlayerEvent
                     .isReadyUpdate(true));
             final String why = NeoNetEvent.start(lobby);
@@ -136,6 +145,15 @@ public final class NetEventCheck {
                 System.out.println("        motivo: " + why);
                 return;
             }
+            // Un segundo "Repartir" (doble clic) reventaba en
+            // populateParticipants: visto en un draft de dos sesiones reales.
+            String again;
+            try {
+                again = NeoNetEvent.start(lobby);
+            } catch (final RuntimeException e) {
+                again = String.valueOf(e);
+            }
+            check("repartir otra vez no hace nada (doble clic)", again == null);
             check("el pod se rellena con IA (8 asientos)",
                     lobby.getCurrentEvent() != null
                             && lobby.getCurrentEvent().getParticipants().size() == 8);

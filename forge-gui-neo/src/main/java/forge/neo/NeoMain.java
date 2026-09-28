@@ -312,6 +312,13 @@ public final class NeoMain {
                 banner("Lo planeado: lanzarlo desde el exilio");
                 forge.neo.match.PlotCheck.run();
                 break;
+            case "mayhemcheck":
+                // Lanzar con Caos (Mayhem) desde el cementerio: el mismo
+                // olvido del motor que lo planeado. Reportado en itch.io el
+                // 28-09-2026. Ver MayhemCheck y OutsideCasts.
+                banner("El caos: lanzarlo desde el cementerio");
+                forge.neo.match.MayhemCheck.run();
+                break;
             case "readingcheck":
                 // La pausa mientras lees una carta: que el motor se pare DE
                 // VERDAD (no solo la pantalla), que vuelva al cerrarla y que
