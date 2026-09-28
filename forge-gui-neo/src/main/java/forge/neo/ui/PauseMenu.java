@@ -32,6 +32,18 @@ public class PauseMenu extends StackPane {
         void restart();
 
         void quitToMenu();
+
+        /**
+         * Si hay ordenes de disparos guardados con "Usar siempre este orden".
+         * Solo entonces sale el boton de olvidarlos.
+         */
+        default boolean hasSavedOrders() {
+            return false;
+        }
+
+        /** Olvida esos ordenes: es el "Reset Saved Orders" del menu de Forge. */
+        default void forgetSavedOrders() {
+        }
     }
 
     private final VBox root = new VBox(10);
@@ -144,6 +156,13 @@ public class PauseMenu extends StackPane {
         root.getChildren().addAll(title,
                 item(NeoText.get("pause.resume"), "btn-primary", actions::resume),
                 item(NeoText.get("common.settings"), "btn-secondary", this::showSettings));
+
+        if (actions.hasSavedOrders()) {
+            root.getChildren().add(item(NeoText.get("pause.forgetOrders"), "btn-secondary", () -> {
+                actions.forgetSavedOrders();
+                showMain();
+            }));
+        }
 
         // Reiniciar NO se ofrece en una run: reiniciar el duelo es volver a
         // barajar tu mano, o sea la trampa que el modo entero tiene que impedir.

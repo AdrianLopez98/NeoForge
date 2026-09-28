@@ -1920,6 +1920,20 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 table.getMenuOverlay().hide();
                 leaveMatch(forge.neo.match.NeoMatchUI.Exit.MENU);
             }
+
+            @Override
+            public boolean hasSavedOrders() {
+                final forge.neo.match.NeoMatchUI ui = binder == null ? null : binder.getMatchUi();
+                return ui != null && ui.hasSavedOrders();
+            }
+
+            @Override
+            public void forgetSavedOrders() {
+                final forge.neo.match.NeoMatchUI ui = binder == null ? null : binder.getMatchUi();
+                if (ui != null) {
+                    ui.forgetSavedOrders();
+                }
+            }
         }, this, runAtStake, net.isNetMatch());
         // El tutorial tiene un paso para esto, y ni abrir el menu ni entrar en
         // Ajustes llega al motor: se cuenta desde aqui.

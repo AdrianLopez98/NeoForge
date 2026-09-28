@@ -222,6 +222,19 @@ public class SettingsPanel extends VBox {
                     }
                 }));
 
+        // --- la mano ordenada ---
+        //
+        // "Order hand by CMC and color" de Forge (itch.io, 28-09-2026).
+        getChildren().add(toggleRow(NeoText.get("settings.orderHand"),
+                NeoSettings.orderHand(),
+                on -> {
+                    NeoSettings.setBool(NeoSettings.ORDER_HAND, on);
+                    NeoSettings.save();
+                    if (getScene() != null && getScene().getRoot() != null) {
+                        TableScreen.reorderHandsIn(getScene().getRoot());
+                    }
+                }));
+
         // --- la mano tactil de Android ---
         //
         // Pedido en itch.io el 27-09-2026 por quien juega en una Surface: en la

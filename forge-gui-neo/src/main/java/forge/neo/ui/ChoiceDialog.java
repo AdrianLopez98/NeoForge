@@ -50,6 +50,8 @@ public class ChoiceDialog<T> extends VBox {
     private final Label counter = new Label();
     private final Button accept = new Button();
     private final Button selectAll = new Button();
+    private final Button auto = new Button();
+    private final javafx.scene.control.CheckBox remember = new javafx.scene.control.CheckBox();
 
     /**
      * Las opciones y su nodo, en el orden en que se pintan.
@@ -195,7 +197,31 @@ public class ChoiceDialog<T> extends VBox {
         //
         // Solo cuando hay varias que elegir y de verdad ahorra clicks: con dos
         // o tres opciones es un boton de mas para leer.
-        final boolean worthIt = !readOnly && max > 1 && options.size() > 3;
+        // "Auto": aceptar el orden propuesto de un golpe, como el boton del
+        // mismo nombre de Forge. Pedido en itch.io el 28-09-2026: "Is there no
+        // way to auto sort simultaneous triggered abilities? I think normal
+        // Forge had an auto button for that". Solo cuando hay que ordenarlas
+        // TODAS (disparos simultaneos): si se puede dejar alguna fuera, "todas
+        // en este orden" no es la unica respuesta razonable y no se adivina.
+        final boolean autoFits = this.ordered && this.min == options.size();
+        auto.getStyleClass().add("btn-secondary");
+        auto.setText(NeoText.get("choice.auto"));
+        auto.setVisible(autoFits);
+        auto.setManaged(autoFits);
+        auto.setOnAction(e -> {
+            for (final Region node : new ArrayList<>(selected.keySet())) {
+                unmark(node);
+            }
+            selected.clear();
+            for (int i = 0; i < nodesInOrder.size(); i++) {
+                selected.put(nodesInOrder.get(i), optionsInOrder.get(i));
+            }
+            accept.fire();
+        });
+
+        // Con "Auto" a la vista, "marcar todas" sobra: hace lo mismo con un
+        // click de mas.
+        final boolean worthIt = !readOnly && max > 1 && options.size() > 3 && !autoFits;
         selectAll.getStyleClass().add("btn-secondary");
         selectAll.setText(NeoText.get("choice.selectAllInOrder"));
         selectAll.setVisible(worthIt);
@@ -204,7 +230,11 @@ public class ChoiceDialog<T> extends VBox {
 
         final Region gap = new Region();
         HBox.setHgrow(gap, Priority.ALWAYS);
-        final HBox footer = new HBox(10, counter, gap, selectAll, accept);
+        remember.setText(NeoText.get("choice.rememberOrder"));
+        remember.getStyleClass().add("dialog-counter");
+        remember.setVisible(false);
+        remember.setManaged(false);
+        final HBox footer = new HBox(10, counter, remember, gap, selectAll, auto, accept);
         footer.setAlignment(Pos.CENTER_LEFT);
 
         getChildren().addAll(heading, scroll, footer);
@@ -407,6 +437,26 @@ public class ChoiceDialog<T> extends VBox {
             scroll.setPrefViewportHeight(Math.min(room, needed));
         }
         super.layoutChildren();
+    }
+
+    /**
+     * Ofrece "usar siempre este orden en esta partida".
+     *
+     * <p>Solo cuando el motor lo ofrece ({@code rememberOption} de
+     * {@code IGuiGame.order}, que hoy es ordenar disparos simultaneos): la
+     * memoria es suya ({@code PlayerControllerHuman.orderedSALookup}) y dura la
+     * partida. Marcada de fabrica, como en Forge. Se olvida desde el menu de
+     * Escape.
+     */
+    public void offerRemember(final boolean initial) {
+        remember.setSelected(initial);
+        remember.setVisible(true);
+        remember.setManaged(true);
+    }
+
+    /** Si el jugador quiere que este orden se aplique solo la proxima vez. */
+    public boolean remember() {
+        return remember.isVisible() && remember.isSelected();
     }
 
     /** Lo que va entre el titulo y las opciones. Ver {@link #setContext}. */

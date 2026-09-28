@@ -119,6 +119,16 @@ public final class DuelControls {
                 table.getMenuOverlay().hide();
                 ui.leaveMatch(NeoMatchUI.Exit.MENU);
             }
+
+            @Override
+            public boolean hasSavedOrders() {
+                return ui.hasSavedOrders();
+            }
+
+            @Override
+            public void forgetSavedOrders() {
+                ui.forgetSavedOrders();
+            }
         }, host(table, ui));
         table.getMenuOverlay().show(menu);
     }

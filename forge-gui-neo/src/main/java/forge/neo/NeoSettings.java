@@ -154,6 +154,26 @@ public final class NeoSettings {
         return pct / 100.0;
     }
 
+    /**
+     * La mano ordenada por coste y color, como "Order hand by CMC and color"
+     * de Forge ({@code FPref.UI_ORDER_HAND}). Pedido en itch.io el 28-09-2026:
+     * <i>"an option for hand ordering like the vanilla forge option"</i>.
+     *
+     * <p>Clave nuestra y no la de Forge: las preferencias de Forge se comparten
+     * con la instalacion antigua y no se escriben a lo loco (las notas de diseño).
+     * Apagado de fabrica, como alli. {@code -Dneo.orderHand=true} lo fuerza
+     * sin escribir nada, para las capturas.
+     */
+    public static final String ORDER_HAND = "orderHand";
+
+    public static boolean orderHand() {
+        final String forced = System.getProperty("neo.orderHand");
+        if (forced != null && !forced.isEmpty()) {
+            return Boolean.parseBoolean(forced);
+        }
+        return getBool(ORDER_HAND, false);
+    }
+
     public static boolean handFan() {
         final String forced = System.getProperty("neo.handFan");
         if (forced != null && !forced.isEmpty()) {

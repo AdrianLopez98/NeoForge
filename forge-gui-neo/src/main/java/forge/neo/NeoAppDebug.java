@@ -735,14 +735,18 @@ final class NeoAppDebug {
                 "When Hedge Maze enters, surveil 1. [Zone Changer: Hedge Maze (37)]",
                 "Whenever a land enters under your control, you gain 1 life. [Zone Changer: Hedge Maze (37)]",
                 "Landfall — Target creature gets +2/+2 until end of turn. [Zone Changer: Hedge Maze (37)]");
-        app.table.getOverlay().show(new forge.neo.ui.ChoiceDialog<>(
+        final forge.neo.ui.ChoiceDialog<String> dialog = new forge.neo.ui.ChoiceDialog<>(
                 "Select order for simultaneous abilities — Resolve first", triggers, 4, 4,
                 s -> s, app.table.zoomCardWidth() * 0.62,
                 List.of(triggers.get(2), triggers.get(0), triggers.get(3)), true,
                 picked -> {
                     app.table.getOverlay().hide();
                     System.out.println("[maqueta] orden elegido: " + picked);
-                }));
+                });
+        // Con "Auto" y "Usar siempre este orden", como sale jugando (el motor
+        // ofrece recordarlo al ordenar disparos: NeoMatchUI.orderRemembering).
+        dialog.offerRemember(true);
+        app.table.getOverlay().show(dialog);
     }
 
     /**
@@ -997,12 +1001,40 @@ final class NeoAppDebug {
             System.out.println("[drag-test] mano -> rail de fases (NO debe soltar nada)");
             simulateDrag(from.get(0), centreOf(app.table.getPhaseRail()));
 
+            // Cambiar de sitio: la CUARTA de la mano, soltada a la izquierda de
+            // la primera, pasa a ser la primera (indice 0). En la maqueta sale
+            // el indice; en una partida viva (--live) el motor la mueve y se
+            // imprime la mano tal como queda.
+            if (from.size() >= 4) {
+                if (!app.table.hasHandReorderHandler()) {
+                    app.table.setOnHandReorder((card, index) -> System.out.printf(
+                            "[drag-test] cambio de sitio: %s -> %d%n", nameOf(card), index));
+                }
+                System.out.println("[drag-test] mano: la cuarta a la primera (esperado indice 0, "
+                        + nameOf(((CardNode) from.get(3)).getCard()) + ")");
+                final javafx.geometry.Point2D left = centreOf(from.get(0))
+                        .subtract(((CardNode) from.get(0)).getWidth() * 0.45, 0);
+                simulateDrag(from.get(3), left);
+                final PauseTransition after = new PauseTransition(Duration.seconds(1.5));
+                after.setOnFinished(ev -> {
+                    final StringBuilder sb = new StringBuilder("[drag-test] mano ahora:");
+                    for (final javafx.scene.Node n : app.table.handNodes()) {
+                        sb.append(' ').append(nameOf(((CardNode) n).getCard())).append(" |");
+                    }
+                    System.out.println(sb);
+                });
+                after.play();
+            }
+
             System.out.println("[drag-test] click corto (no debe contar como arrastre)");
             final javafx.geometry.Point2D p = centreOf(from.get(0));
             fire(from.get(0), javafx.scene.input.MouseEvent.MOUSE_PRESSED, p);
             fire(from.get(0), javafx.scene.input.MouseEvent.MOUSE_RELEASED, p);
             if (!Boolean.getBoolean("neo.dragTest.stay")) {
-                Platform.exit();
+                // Un poco despues, para que salga como queda la mano.
+                final PauseTransition bye = new PauseTransition(Duration.seconds(2.5));
+                bye.setOnFinished(ev -> Platform.exit());
+                bye.play();
             }
         });
         wait.play();

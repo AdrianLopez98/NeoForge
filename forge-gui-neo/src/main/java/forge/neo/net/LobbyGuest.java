@@ -229,12 +229,13 @@ public final class LobbyGuest {
             final PlayerView live = gui.liveSeat();
             System.out.printf(Locale.ROOT,
                     "%sok=%s deltas=%d decisiones=%d turnos=%d miMazo=%d miMazoCrudo=%d"
-                            + " miNombre=%s rivalNombre=%s fin=%s motivo=%s%n",
+                            + " miNombre=%s rivalNombre=%s fin=%s finishGame=%s motivo=%s%n",
                     RESULT_PREFIX, ok, gui.deltas.get(), gui.getDecisionCount(), turns,
                     gui.maxLive.get(), gui.maxRaw.get(),
                     forge.neo.match.PlayerName.of(live),
                     forge.neo.match.PlayerName.of(otherThan(gui, live)),
                     gui.ended.getCount() == 0,
+                    gui.finishGameCalled(),
                     why.isEmpty() ? "-" : why);
             System.out.flush();
             if (guest != null) {

@@ -417,6 +417,11 @@ public final class LobbyCheck {
                 // --- el aviso que cierra la mesa ---
                 ok &= check("al invitado le llega afterGameEnd (es lo unico que le saca de la mesa)",
                         res.contains("fin=true"));
+                // Sin finishGame no hay pantalla de victoria o derrota, y con
+                // un servidor que espera la respuesta la mesa no se cierra
+                // nunca (itch.io, 28-09-2026). Ver NeoMatchUI.finishIfGuest.
+                ok &= check("al invitado le llega finishGame (la pantalla de victoria o derrota)",
+                        res.contains("finishGame=true"));
             }
 
             // ---- 8. las frases del motor, en cualquier idioma ----

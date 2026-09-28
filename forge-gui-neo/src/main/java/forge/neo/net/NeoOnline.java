@@ -119,11 +119,21 @@ public final class NeoOnline implements IOnlineLobby, IOnlineChatInterface {
      * ({@code NetConnectUtil.ensurePlayerName}), y ese dialogo sale en mitad de
      * la conexion. Aqui ya tenemos uno elegido en Personalizacion, asi que se
      * usa ese y la pregunta no llega a hacerse.
+     *
+     * <p>Manda el de Personalizacion aunque Forge ya tenga uno: casi siempre
+     * tiene {@code "Human"}, que lo escribe el propio motor en la primera
+     * partida local ({@code GamePlayerUtil.setPlayerName}). Antes solo se
+     * copiaba si estaba vacio, y en red saliais todos "Human" — y un servidor
+     * que no admite nombres repetidos echaba al segundo (itch.io, 28-09-2026).
      */
     private static void ensureName() {
+        final String mine = NeoLook.playerName();
         final String current = FModel.getPreferences().getPref(FPref.PLAYER_NAME);
-        if (current == null || current.isBlank()) {
-            FModel.getPreferences().setPref(FPref.PLAYER_NAME, NeoLook.playerName());
+        if (!mine.isBlank() && !mine.equals(current)) {
+            FModel.getPreferences().setPref(FPref.PLAYER_NAME, mine);
+            FModel.getPreferences().save();
+        } else if (current == null || current.isBlank()) {
+            FModel.getPreferences().setPref(FPref.PLAYER_NAME, "Human");
         }
     }
 

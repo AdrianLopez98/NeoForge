@@ -291,6 +291,10 @@ public class TableScreen extends Pane {
         applyDetailSetting();
 
         commandZone.setOnCardHover(this::hovered);
+        // Un click en el comandante lo lanza, como una carta de la mano.
+        // CommandZone tenia su setOnCardClick desde el principio, pero nadie lo
+        // conectaba: solo se podia lanzar ARRASTRANDOLO (itch.io, 28-09-2026).
+        commandZone.setOnCardClick(this::cardClicked);
 
         promptBanner = new PromptBanner(cardWidth * 1.55);
         turnBanner = new TurnBanner();
@@ -1155,10 +1159,36 @@ public class TableScreen extends Pane {
         selfField.setLibrary(size, top != null && mayView.test(top) ? top : null);
     }
 
+    /** La ultima mano que llego, para volver a pintarla al cambiar el ajuste. */
+    private List<CardView> lastHand = List.of();
+
+    /** La mano ordenada por el ajuste. Ver {@link forge.neo.card.HandOrder}. */
+    private static List<CardView> orderedHand(final List<CardView> cards) {
+        return forge.neo.card.HandOrder.sorted(cards);
+    }
+
+    /**
+     * Vuelve a pintar la mano de las mesas que haya debajo de {@code root}: los
+     * ajustes se cambian con la partida detras, y un ajuste que no se nota
+     * hasta el siguiente aviso del motor parece que no funciona.
+     */
+    public static void reorderHandsIn(final javafx.scene.Node root) {
+        if (root instanceof TableScreen t) {
+            t.setHand(t.lastHand);
+            return;
+        }
+        if (root instanceof javafx.scene.Parent parent) {
+            for (final javafx.scene.Node child : parent.getChildrenUnmodifiable()) {
+                reorderHandsIn(child);
+            }
+        }
+    }
+
     public void setHand(final List<CardView> cards) {
+        lastHand = cards == null ? List.of() : List.copyOf(cards);
         hand.clearCards();
         extraNodes.clear();
-        for (final CardView cv : cards) {
+        for (final CardView cv : forge.neo.NeoSettings.orderHand() ? orderedHand(lastHand) : lastHand) {
             final CardNode n = new CardNode(cardWidth * 1.12);
             n.setCard(cv);
             n.hoverProperty().addListener((o, was, is) -> {
@@ -1542,8 +1572,15 @@ public class TableScreen extends Pane {
         //
         // Con una o dos cosas en el stack no se estira: una caja de 285 px con
         // una linea dentro llama la atencion hacia donde no hay nada.
-        VBox.setVgrow(stackBox,
-                list.size() > visibleRows() ? Priority.ALWAYS : Priority.NEVER);
+        //
+        // Y cuando se estira, se lo lleva TODO, hasta los botones. El hueco de
+        // la columna (sideSpace) tambien es ALWAYS, y un VBox reparte lo libre
+        // A PARTES IGUALES entre los ALWAYS: la caja se quedaba a media columna
+        // con un stack de 41 dentro (itch.io, 28-09-2026: "Stack should fill
+        // the box probably?"). Mientras el stack desborda, el hueco no crece.
+        final boolean overflow = list.size() > visibleRows();
+        VBox.setVgrow(stackBox, overflow ? Priority.ALWAYS : Priority.NEVER);
+        VBox.setVgrow(sideSpace, overflow ? Priority.NEVER : Priority.ALWAYS);
 
         final Label title = new Label(list.isEmpty()
                 ? NeoText.get("table.stack")
@@ -1574,6 +1611,10 @@ public class TableScreen extends Pane {
         scroll.setFitToWidth(true);
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         scroll.setPrefViewportHeight(viewportHeight(list));
+        // Y la lista crece con la caja: sin esto la caja se estiraba y la
+        // lista se quedaba en su alto de siempre, con la caja vacia debajo.
+        scroll.setMaxHeight(Double.MAX_VALUE);
+        VBox.setVgrow(scroll, Priority.ALWAYS);
         stackBox.getChildren().add(scroll);
     }
 
@@ -3329,6 +3370,19 @@ public class TableScreen extends Pane {
             if (!cancelled && onDrop != null && source != null) {
                 onDrop.onDrop(source, fromHand, target);
             }
+            // Soltarla DENTRO de la mano la cambia de sitio, como en Forge
+            // (CHand → IGameController.reorderHand). Pedido el 28-09-2026: "si
+            // cojo la cuarta de la mano y la llevo la primera, que se quede la
+            // primera". Es la misma soltada que antes no hacia nada (soltar
+            // fuera de la mesa es arrepentirse), asi que no le quita nada a
+            // jugar arrastrando.
+            if (cancelled && fromHand && source != null && onHandReorder != null
+                    && isOverHand(e.getSceneX(), e.getSceneY())) {
+                final int index = handDropIndex(e.getSceneX(), source);
+                if (index >= 0) {
+                    onHandReorder.accept(source, index);
+                }
+            }
             e.consume();
         });
 
@@ -3407,6 +3461,54 @@ public class TableScreen extends Pane {
      * que se ve es la ultima que contiene el punto. Fuera de los extremos, la
      * del extremo — el dedo se sale un poco y no por eso deja de mirar.
      */
+    /** Quien mueve una carta de sitio en la mano. Ver {@link #setOnHandReorder}. */
+    private java.util.function.BiConsumer<CardView, Integer> onHandReorder;
+
+    /**
+     * Que hacer al soltar una carta de la mano dentro de la propia mano: el
+     * indice es el sitio en el que queda (las cartas que tendra a su izquierda),
+     * que es lo que espera {@code Zone.reorder}.
+     */
+    public void setOnHandReorder(final java.util.function.BiConsumer<CardView, Integer> handler) {
+        this.onHandReorder = handler;
+    }
+
+    /** Si ya hay quien atienda el cambio de sitio. Lo usa {@code --drag-test}. */
+    public boolean hasHandReorderHandler() {
+        return onHandReorder != null;
+    }
+
+    private boolean isOverHand(final double sceneX, final double sceneY) {
+        final javafx.geometry.Bounds b = hand.localToScene(hand.getLayoutBounds());
+        return b != null && b.contains(sceneX, sceneY);
+    }
+
+    /**
+     * A que sitio de la mano va una carta soltada en {@code sceneX}, o -1 si
+     * no cambia de sitio. Con la mano ORDENADA por el ajuste tampoco: el orden
+     * lo pone el ajuste, y moverla a mano se desharia en el siguiente repintado.
+     */
+    private int handDropIndex(final double sceneX, final CardView source) {
+        if (forge.neo.NeoSettings.orderHand()) {
+            return -1;
+        }
+        final List<CardNode> cards = hand.getCards();
+        final double x = hand.sceneToLocal(sceneX, 0).getX();
+        int current = -1;
+        int index = 0;
+        for (int i = 0; i < cards.size(); i++) {
+            final CardNode c = cards.get(i);
+            if (c.getCard() != null && c.getCard().getId() == source.getId()) {
+                current = i;
+                continue;
+            }
+            if (c.getLayoutX() + c.getWidth() / 2 < x) {
+                index++;
+            }
+        }
+        return current < 0 || index == current ? -1 : index;
+    }
+
     private CardNode handCardAt(final double sceneX) {
         final List<CardNode> cards = hand.getCards();
         if (cards.isEmpty()) {

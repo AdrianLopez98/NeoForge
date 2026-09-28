@@ -620,6 +620,13 @@ public class NeoMatchUI extends NetworkGuiGame {
             // "Equipar" desde la carta ampliada. Ver equipLabel.
             table.setEquipAction(this::equipLabel, this::equipFromZoom);
             table.setOnCardDropped(this::onCardDropped);
+            // Cambiar de sitio una carta de la mano: el motor la mueve en su
+            // zona, asi que el orden aguanta cada repintado y vale en red.
+            table.setOnHandReorder((card, index) -> {
+                if (interactive() && !finished.get()) {
+                    respondLater(() -> getGameController().reorderHand(card, index));
+                }
+            });
 
             // Gastar mana flotante clicando su pip.
             table.setOnManaClicked(color ->
@@ -1522,8 +1529,21 @@ public class NeoMatchUI extends NetworkGuiGame {
             respondLater(() -> getGameController().selectCard(source, null, null));
             return;
         }
+        // UN PERMANENTE ARRASTRADO SOLO SIGNIFICA ALGO EN COMBATE (atacar o
+        // bloquear). Fuera de ahi, soltarlo no hace nada. Antes contaba como un
+        // click, y un click en un permanente ACTIVA su habilidad: un gesto de
+        // subir una carta de la mano que empezaba un pelo por encima, sobre una
+        // carta de la mesa, la activaba — y una habilidad de girar no se
+        // deshace (itch.io, 28-09-2026: "I tried to swipe up to play a card and
+        // hit an existing card while dragging, and it activated that instead").
+        // Principio 6: lo que no se deshace, que no pase. Clicarla sigue
+        // activandola; arrastrar el comandante desde la zona de mando sigue
+        // lanzandolo (no esta en la mesa).
+        final boolean onBattlefield = source.getZone() == ZoneType.Battlefield;
         if (target == null) {
-            onCardClicked(source);
+            if (!onBattlefield) {
+                onCardClicked(source);
+            }
             return;
         }
         final GameView gv = getGameView();
@@ -1537,7 +1557,11 @@ public class NeoMatchUI extends NetworkGuiGame {
         // Two inputs mean target-then-creature only during combat. Elsewhere
         // the first could resolve a prompt and send the second to a new input.
         if (!attacking && !blocking) {
-            onCardClicked(source);
+            if (!onBattlefield) {
+                onCardClicked(source);
+            } else {
+                trace("arrastre de %s fuera de combate: no se hace nada", source.getName());
+            }
             return;
         }
         if (attacking) {
@@ -1744,6 +1768,41 @@ public class NeoMatchUI extends NetworkGuiGame {
         }
         animateEvent(event);
         trace("evento: %s", event.getClass().getSimpleName());
+        finishIfGuest(event);
+    }
+
+    /**
+     * <b>El invitado de una partida en red se entera aqui de que se acabo.</b>
+     *
+     * <p>El anfitrion NO le llama a {@code finishGame}: a un
+     * {@code RemoteClientGuiGame} le reenvia los eventos
+     * ({@code HostedMatch}, la rama del {@code GameEventForwarder}) y cuenta con
+     * que el cliente los pase por {@code AbstractGuiGame.handleGameEvent}, cuyo
+     * {@code FControlGameEventHandler} convierte {@code GameEventGameFinished}
+     * en {@code finishGame()}. Las dos GUIs oficiales no sobrescriben
+     * {@code handleGameEvent} y les llega solo; nosotros si, y sin
+     * {@code super}. Resultado: el invitado no veia NUNCA la pantalla de
+     * victoria o derrota. Con un anfitrion de Forge salia de la mesa cuando el
+     * otro volvia a la sala ({@code afterGameEnd}); con un servidor que espera
+     * la respuesta de los jugadores se quedaba mirando la mesa hasta rendirse
+     * (itch.io, 28-09-2026: <i>"the win screen in multiplayer doesn't pop
+     * up"</i>, con el registro del servidor en {@code PLAYING -> POSTGAME}).
+     *
+     * <p>Solo esa parte del manejador de Forge, y en el hilo de interfaz como
+     * alli: el resto de la mesa del invitado ya se mueve por los deltas.
+     * Invitado = la vista no trae la partida ({@code getGame()} es
+     * {@code transient}; ver {@link #listenToTheEngine}).
+     */
+    private void finishIfGuest(final GameEvent event) {
+        if (!(event instanceof forge.game.event.GameEventGameFinished)) {
+            return;
+        }
+        final GameView gv = getGameView();
+        if (gv == null || gv.getGame() != null || finished.get()) {
+            return;
+        }
+        log("fin de partida recibido por la red");
+        forge.gui.GuiBase.getInterface().invokeInEdtLater(this::finishGame);
     }
 
     /**
@@ -3012,8 +3071,16 @@ public class NeoMatchUI extends NetworkGuiGame {
     /** Para no avisar dos veces de que la partida se acabo. */
     private final AtomicBoolean closeNotified = new AtomicBoolean(false);
 
+    /** Si ha llegado {@code finishGame}. Lo mira {@code LobbyGuest}: ver {@link #finishIfGuest}. */
+    private volatile boolean finishGameCalled;
+
+    public boolean finishGameCalled() {
+        return finishGameCalled;
+    }
+
     @Override
     public void finishGame() {
+        finishGameCalled = true;
         finished.set(true);
         // Se acabo: lo que el motor estuviera esperando ya no lo espera nadie.
         // Sin esto, el vigilante de la mesa podria reponer una pregunta muerta
@@ -5705,6 +5772,9 @@ public class NeoMatchUI extends NetworkGuiGame {
                                              final boolean rememberOption) {
         final List<T> source = sourceChoices == null ? List.of() : sourceChoices;
         final List<T> already = destChoices == null ? new ArrayList<>() : new ArrayList<>(destChoices);
+        if (rememberOption && interactive()) {
+            return orderRemembering(title, top, source, already);
+        }
         if (source.isEmpty()) {
             return new IGuiGame.OrderResult<>(already, false);
         }
@@ -5730,6 +5800,82 @@ public class NeoMatchUI extends NetworkGuiGame {
             ordered.addAll(picked);
         }
         return new IGuiGame.OrderResult<>(ordered, false);
+    }
+
+    /**
+     * Ordenar disparos simultaneos, como lo hace Forge ({@code DualListBox}).
+     *
+     * <p>Pedido en itch.io el 28-09-2026: <i>"Is there no way to auto sort
+     * simultaneous triggered abilities? I think normal Forge had an auto button
+     * for that"</i>. Lo que trae Forge, y lo que se copia:
+     * <ul>
+     *   <li><b>"Auto"</b>: todas en el orden en que vienen, de un click.
+     *   <li><b>"Usar siempre este orden"</b>, marcada de fabrica: el motor lo
+     *       recuerda el resto de la partida y ya no pregunta cuando vuelvan a
+     *       coincidir los mismos disparos. La memoria es suya
+     *       ({@code PlayerControllerHuman.orderedSALookup}); nosotros solo le
+     *       devolvemos el {@code rememberDecision}.
+     *   <li><b>Si no se marco</b>, la vez siguiente el motor manda el orden de
+     *       la anterior en {@code destChoices} y la fuente vacia — "reordena si
+     *       quieres". Antes eso se devolvia tal cual sin preguntar (fuente
+     *       vacia = nada que elegir), o sea que se recordaba igual, en silencio.
+     *       Ahora sale el dialogo con ese orden ya puesto, como en Forge.
+     *   <li>"Olvidar los ordenes guardados" en el menu de Escape
+     *       ({@link #forgetSavedOrders}), que es el "Reset Saved Orders" de su
+     *       menu Game.
+     * </ul>
+     */
+    private <T> IGuiGame.OrderResult<T> orderRemembering(final String title, final String top,
+                                                         final List<T> source, final List<T> already) {
+        final List<T> all = new ArrayList<>(already);
+        all.addAll(source);
+        if (all.isEmpty()) {
+            return new IGuiGame.OrderResult<>(all, false);
+        }
+        final String heading = top == null || top.isBlank() ? title
+                : (title == null || title.isBlank() ? top : title + " — " + top);
+        final java.util.concurrent.atomic.AtomicBoolean keep =
+                new java.util.concurrent.atomic.AtomicBoolean();
+        final List<T> picked = askUser(reply -> {
+            final List<ChoiceDialog<T>> self = new ArrayList<>(1);
+            final ChoiceDialog<T> dialog = new ChoiceDialog<>(
+                    heading, all, all.size(), all.size(), String::valueOf,
+                    handCardWidth(), already.isEmpty() ? null : already, true,
+                    chosen -> {
+                        keep.set(!self.isEmpty() && self.get(0).remember());
+                        reply.accept(chosen);
+                    });
+            self.add(dialog);
+            dialog.offerRemember(true);
+            table.getOverlay().show(dialog);
+        }, null);
+        if (picked == null || picked.size() != all.size()) {
+            return new IGuiGame.OrderResult<>(all, false);
+        }
+        if (keep.get()) {
+            savedOrders = true;
+        }
+        return new IGuiGame.OrderResult<>(picked, keep.get());
+    }
+
+    /** Si el motor tiene algun orden de disparos guardado en esta partida. */
+    private volatile boolean savedOrders;
+
+    public boolean hasSavedOrders() {
+        return savedOrders;
+    }
+
+    /**
+     * Olvida los ordenes guardados con "Usar siempre este orden": la proxima
+     * vez vuelve a preguntar. Es el "Reset Saved Orders" de Forge, y la valvula
+     * de escape (principio 7) de una casilla que viene marcada de fabrica.
+     */
+    public void forgetSavedOrders() {
+        savedOrders = false;
+        final IGameController controller = getGameController();
+        if (controller != null) {
+            controller.sendYieldUpdate(new forge.gamemodes.match.YieldUpdate.ClearAbilityOrders());
+        }
     }
 
     @Override
