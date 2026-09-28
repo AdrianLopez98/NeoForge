@@ -1,10 +1,12 @@
-**NeoForge para macOS 4.3 (beta).** El mismo numero que en itch.io.
+**NeoForge para macOS 4.4 (beta).** El mismo numero que en itch.io.
 
 Novedades:
-- **Cartas nuevas de Forge** (actualizacion del 28-09-2026), y con ellas el arreglo de **Omnipresence**: lanzar gratis ya no se deshace sin avisar.
-- **Mayhem (Caos):** una carta descartada este turno sale marcada en tu cementerio y se lanza clicandola, como el flashback.
-- **Draft y sellado en red:** ya se pueden repartir los sobres. Antes el boton *Listo* pedia un mazo que en limitado solo sale del pool, y la sala se quedaba parada. Tambien: *Repartir* no se puede pulsar dos veces, y *Empezar* espera a que todos tengan mazo.
-- **Objetivos en el cementerio o el exilio:** la zona se abre sola al elegir (adaptado a un cambio del motor de Forge).
+- **Ordenar como en Forge:** el dialogo de ordenar (disparos simultaneos, cartas al fondo de la biblioteca) tiene boton **Auto**, y los disparos traen la casilla **"Usar siempre este orden en esta partida"**. Se olvida desde Escape → *Olvidar los ordenes guardados*.
+- **La mano:** nuevo ajuste para tenerla **ordenada por coste y color**, como la opcion de Forge, y una carta se puede **cambiar de sitio arrastrandola** dentro de la mano.
+- **Clicar el comandante lo lanza**, como una carta de la mano (antes solo arrastrandolo).
+- **En red:** sales con el nombre de *Personalizar* y no como "Human", y el invitado ya ve la **pantalla de victoria o derrota**.
+- **Sin activaciones sin querer:** arrastrar un permanente fuera de combate ya no activa su habilidad.
+- **El stack largo** llena la columna hasta los botones.
 
 Descarga el `.dmg` de tu Mac:
 
