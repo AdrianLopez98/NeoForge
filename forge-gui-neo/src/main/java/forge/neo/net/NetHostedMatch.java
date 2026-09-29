@@ -42,6 +42,23 @@ public class NetHostedMatch extends HostedMatch {
         // el que jugar un Bo3, y a cuatro nadie espera una segunda.
         rules.setGamesPerMatch(1);
         NeoGame.applyNeoRules(rules);
-        startMatch(rules, appliedVariants, players, guis, null);
+        startMatch(rules, appliedVariants, players, guis == null ? null : safeGuis(guis), null);
+    }
+
+    /**
+     * La GUI de cada invitado, cambiada por {@link SafeRemoteGuiGame} (el
+     * {@code null} que Forge 2.0.16 no comprueba al acabar la partida). La que
+     * viene la acaba de crear el lobby para esta partida y no tiene nada dentro;
+     * una en pausa (invitado desconectado) se deja como esta.
+     */
+    static Map<RegisteredPlayer, IGuiGame> safeGuis(final Map<RegisteredPlayer, IGuiGame> guis) {
+        final Map<RegisteredPlayer, IGuiGame> out = new java.util.HashMap<>(guis);
+        for (final Map.Entry<RegisteredPlayer, IGuiGame> e : out.entrySet()) {
+            if (e.getValue() instanceof forge.gamemodes.net.server.RemoteClientGuiGame remote
+                    && !(remote instanceof SafeRemoteGuiGame) && !remote.isPaused()) {
+                e.setValue(new SafeRemoteGuiGame(remote.getClient()));
+            }
+        }
+        return out;
     }
 }

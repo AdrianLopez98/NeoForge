@@ -104,7 +104,7 @@ public final class RefreshArtCheck {
         try {
             old.setLastModified(1000L);
             fresh.setLastModified(future);
-            final ArtHdScan.Result r = ArtHdScan.run(null, null);
+            final ArtHdScan.Result r = ArtHdScan.run(CardImages.HD_STORE, null, null);
             System.out.println("  barrido: " + r.sets() + " expansiones, " + r.checked()
                     + " impresiones en HD, " + r.updated() + " actualizadas"
                     + (r.stoppedByNetwork() ? " (parado: sin respuesta)" : ""));

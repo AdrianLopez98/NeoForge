@@ -39,6 +39,7 @@ public final class AdventureNeoMain {
         NeoDuelBridge.log("puente " + (NeoDuelBridge.enabled() ? "ENCENDIDO" : "apagado")
                 + ", arrancando el Adventure de Forge");
         SelfTest.arm();
+        SceneTrace.arm();
         StarterDeck.arm();
         AcquiredLedger.arm();
         WindowPlacement.arm();

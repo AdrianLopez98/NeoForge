@@ -3211,6 +3211,15 @@ public class NeoMatchUI extends NetworkGuiGame {
         // Seguir cerrando siempre en QUIT es lo unico seguro en los dos casos
         // hasta que exista un AUTO_PLAY de Bo3 de verdad que lo necesite.
         if (mode != Mode.OBSERVE) {
+            // Solo pruebas: la autoprueba de la Aventura juega un Bo3 ENTERO
+            // sin manos (-Dneo.adventure.auto), que es como se reproduce lo que
+            // pasa al acabar un evento. Fuera de esa bandera, QUIT como siempre.
+            final GameView now = getGameView();
+            if (Boolean.getBoolean("neo.adventure.auto") && ending == Ending.QUEST
+                    && now != null && !now.isMatchOver()) {
+                respondLater(() -> getGameController().nextGameDecision(NextGameDecision.CONTINUE));
+                return;
+            }
             respondLater(() -> getGameController().nextGameDecision(NextGameDecision.QUIT));
         }
     }
@@ -6009,13 +6018,44 @@ public class NeoMatchUI extends NetworkGuiGame {
             pool.addAll(sideboard.toFlatList());
         }
         final int size = current.size();
+        // Cualquier tamanyo LEGAL del formato, como Forge, no exactamente el de
+        // antes. Con el mismo numero fijo, una carta de ante ganada que el
+        // motor ya habia metido en el mazo (Match.executeOwnershipChanges) no
+        // se podia volver a sacar: habia que elegir las 41 para seguir. Lo
+        // reportaron jugando eventos de la Aventura (Jumpstart), 29-09-2026.
+        final int[] range = legalMainRange(size, pool.size());
         final List<PaperCard> picked = askUser(reply -> {
             final ChoiceDialog<PaperCard> dialog = new ChoiceDialog<>(
-                    NeoText.get("sideboard.title"), pool, size, size,
+                    NeoText.get("sideboard.title"), pool, range[0], range[1],
                     PaperCard::getName, handCardWidth(), current, reply::accept);
             table.getOverlay().show(dialog);
         }, null);
         return picked;
+    }
+
+    /**
+     * Cuantas cartas puede llevar el mazo al volver del banquillo: lo que el
+     * formato de ESTA partida da por legal ({@code DeckFormat.getMainRange}:
+     * 40 o mas en limitado), sin pasar del pool. Si el mazo de ahora ya estaba
+     * fuera de ese margen, se admite tambien su tamanyo, para no dejar al
+     * jugador sin forma de seguir.
+     */
+    private int[] legalMainRange(final int current, final int pool) {
+        int lo = current;
+        int hi = current;
+        try {
+            final GameView gv = getGameView();
+            final forge.deck.DeckFormat format = gv == null || gv.getGameType() == null
+                    ? null : gv.getGameType().getDeckFormat();
+            final org.apache.commons.lang3.Range<Integer> r = format == null ? null : format.getMainRange();
+            if (r != null) {
+                lo = Math.min(current, r.getMinimum());
+                hi = Math.max(current, Math.min(pool, r.getMaximum()));
+            }
+        } catch (final RuntimeException e) {
+            // Sin formato que consultar: el tamanyo de antes, como siempre.
+        }
+        return new int[] {Math.max(0, lo), Math.max(lo, Math.min(pool, hi))};
     }
 
     /**

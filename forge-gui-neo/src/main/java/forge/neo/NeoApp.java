@@ -986,6 +986,9 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             // El resumen del final. Es el unico que NO se puede provocar de
             // ninguna manera razonable: hay que perder una run entera.
             ascent.showMock("over");
+        } else if (args.contains("--ascent-relics")) {
+            // Las reliquias de la run, con su texto. La maqueta le pone cinco.
+            ascent.showMock("relics");
         } else if (args.contains("--ascent-deck")) {
             // El visor del mazo de la run, de solo lectura.
             ascent.showMock("deck");

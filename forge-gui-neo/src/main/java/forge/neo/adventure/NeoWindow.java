@@ -77,11 +77,17 @@ final class NeoWindow {
             GuiBase.setInterface(adventureGui);
         }
         Platform.runLater(() -> {
-            final int[] client = stage == null ? adventureClient : stageClient();
-            final boolean maximized = stage == null ? adventureMaximized : stage.isMaximized();
-            // Si en el duelo se cambio la pantalla completa (Ajustes del menu de
-            // pausa), el Adventure vuelve como quedo la nuestra.
-            final boolean full = stage == null ? adventureFullscreen : stage.isFullScreen();
+            // El Adventure vuelve SIEMPRE en el modo con el que se abrio: Forge
+            // fija la escala de su interfaz al arrancar (Utils.SCREEN_HEIGHT) y
+            // no la rehace. Si en el duelo se activaba la pantalla completa, el
+            // Adventure volvia a 2160 de alto dibujando para 1949: textos y
+            // botones cortados (29-09-2026). Asi que la pantalla completa del
+            // duelo es solo de la mesa. Posicion y tamanyo si siguen a los de
+            // nuestra ventana, pero solo si esta en el mismo modo.
+            final boolean full = adventureFullscreen;
+            final boolean sameMode = stage != null && stage.isFullScreen() == adventureFullscreen;
+            final int[] client = sameMode ? stageClient() : adventureClient;
+            final boolean maximized = sameMode ? stage.isMaximized() : adventureMaximized;
             final Lwjgl3Window window = adventureWindow;
             Gdx.app.postRunnable(() -> {
                 if (window != null) {

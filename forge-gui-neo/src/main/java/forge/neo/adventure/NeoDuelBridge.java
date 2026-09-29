@@ -49,7 +49,31 @@ public final class NeoDuelBridge {
         // salia "cada 3-5 duelos", y asi se ve si algo se va acumulando.
         final String vram = forge.neo.platform.PrismGuard.vram();
         log("empieza el duelo contra " + enemyName + " (" + players.size() + " asientos, "
-                + rules.getGameType() + ")" + (vram == null ? "" : " | " + vram));
+                + rules.getGameType() + ", al mejor de " + rules.getGamesPerMatch() + ")"
+                + (vram == null ? "" : " | " + vram));
+        final boolean trace = Boolean.getBoolean("neo.adventure.trace");
+        if (trace) {
+            // Diagnostico de la pantalla negra de los eventos: QUIEN entra en
+            // el duelo. Ver SceneTrace.
+            log("traza: entra en el duelo desde:" + SceneTrace.caller());
+        }
+        // Antes de GameEnd, una pantalla de Forge para que sus avisos de fin de
+        // duelo (frase del jefe, cartas del ante) se vean: sin ella salia negro.
+        // Ver DialogBackdrop.
+        final Runnable withBackdrop = () -> {
+            DialogBackdrop.open();
+            backToAdventure.run();
+        };
+        final Runnable back = !trace ? withBackdrop : () -> {
+            log("traza: vuelta al Adventure: GameEnd y salida del duelo...");
+            try {
+                withBackdrop.run();
+                log("traza: vuelta hecha");
+            } catch (final Throwable e) {
+                log("traza: la vuelta ha fallado: " + e + SceneTrace.caller());
+                throw e;
+            }
+        };
         NeoWindow.takeOver();
 
         Platform.runLater(() -> {
@@ -96,7 +120,7 @@ public final class NeoDuelBridge {
                     e.printStackTrace();
                 } finally {
                     gui.shutdown();
-                    NeoWindow.giveBack(backToAdventure);
+                    NeoWindow.giveBack(back);
                 }
             }, "Game-neo-adventure");
             engine.setDaemon(true);

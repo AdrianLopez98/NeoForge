@@ -115,8 +115,12 @@ public class TournamentSetupScreen extends StackPane {
         }
         final DeckPickerDialog picker = new DeckPickerDialog(NeoText.get("tournament.pickDeck"),
                 mine, stock, 150,
-                d -> {
+                picked -> {
                     overlay.hide();
+                    // null es el boton "Al azar": se tira ahora, porque el
+                    // torneo juega todo el cuadro con el mismo mazo y el boton
+                    // tiene que decir cual. Antes se ignoraba y no hacia nada.
+                    final Deck d = picked != null ? picked : DeckPickerDialog.anyOf(mine, stock);
                     if (d != null) {
                         chosen = d;
                         refreshDeckButton();

@@ -992,9 +992,22 @@ public class SettingsPanel extends VBox {
             artHdStatus.setText(NeoText.get("settings.art.hd.start"));
             final Thread t = new Thread(() -> {
                 final forge.neo.card.ArtHdScan.Result r = forge.neo.card.ArtHdScan.run(
-                        (done, sets, name, updated) -> javafx.application.Platform.runLater(() ->
-                                artHdStatus.setText(NeoText.get("settings.art.hd.progress",
-                                        Math.min(done + 1, Math.max(sets, 1)), sets, name, updated))),
+                        forge.neo.card.CardImages.HD_STORE,
+                        new forge.neo.card.ArtHdScan.Progress() {
+                            @Override
+                            public void update(final int done, final int sets, final String name, final int updated) {
+                                javafx.application.Platform.runLater(() ->
+                                        artHdStatus.setText(NeoText.get("settings.art.hd.progress",
+                                                Math.min(done + 1, Math.max(sets, 1)), sets, name, updated)));
+                            }
+
+                            // Scryfall ha pedido esperar: se dice, o parece colgado.
+                            @Override
+                            public void waiting(final long seconds) {
+                                javafx.application.Platform.runLater(() ->
+                                        artHdStatus.setText(NeoText.get("settings.art.hd.waiting", seconds)));
+                            }
+                        },
                         null);
                 javafx.application.Platform.runLater(() -> {
                     artHd.setDisable(false);

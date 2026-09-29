@@ -1403,8 +1403,14 @@ public class LobbyScreen extends BorderPane
 
         final DeckPickerDialog picker = new DeckPickerDialog(
                 NeoText.get("lobby.pickDeckTitle"), mine, stock, tileWidth * 0.72,
-                chosen -> {
+                picked -> {
                     overlay.hide();
+                    // null es el boton "Al azar". En la pantalla de inicio el azar
+                    // se tira al empezar; aqui el asiento necesita un mazo YA
+                    // (se ensenya a todos y sin el no se puede estar listo), asi
+                    // que se tira ahora entre los que ofrecia el selector.
+                    // Antes se ignoraba y el boton no hacia nada (Discord).
+                    final Deck chosen = picked != null ? picked : DeckPickerDialog.anyOf(mine, stock);
                     if (chosen != null) {
                         sendDeck(index, chosen);
                         // Una IA no tiene nada mas que decidir: con mazo, lista.

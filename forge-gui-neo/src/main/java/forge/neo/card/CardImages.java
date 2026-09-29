@@ -845,6 +845,20 @@ public final class CardImages {
         return downloadedFile(imageKey);
     }
 
+    /** Lo que necesita {@link ArtHdScan} del escritorio: un fichero por cara. */
+    public static final ArtHdScan.Store HD_STORE = new ArtHdScan.Store() {
+        @Override
+        public java.util.List<File> files(final String imageKey) {
+            final File f = cachedFile(imageKey);
+            return f == null ? java.util.List.of() : java.util.List.of(f);
+        }
+
+        @Override
+        public boolean replace(final String imageKey, final String url, final File file) {
+            return replaceFromCdn(imageKey, url, file);
+        }
+    };
+
     /**
      * Baja {@code url} (la CDN de Scryfall) ENCIMA de {@code file}, por el
      * {@code .tmp} de siempre: si no llega entera, el fichero no se toca. Si la

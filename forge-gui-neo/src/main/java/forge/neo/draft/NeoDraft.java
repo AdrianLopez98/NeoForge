@@ -100,6 +100,32 @@ public final class NeoDraft implements PackSource {
     }
 
     /**
+     * Empieza un draft con sobres de VARIAS expansiones ({@link PackMix}): un
+     * codigo por sobre, en el orden en que se abren. Es la misma llamada que la
+     * de una expansion — {@code createDraft} ya recibe un codigo por sobre —
+     * con otra lista. El bloque (de donde salen las tierras basicas) es el de
+     * la mezcla si vino de un bloque de Forge, o el de su primera expansion.
+     *
+     * @return null si la mezcla esta vacia o el motor no ha podido abrirla
+     */
+    public static NeoDraft start(final PackMix mix) {
+        if (mix == null || mix.isEmpty()) {
+            return null;
+        }
+        final CardBlock block = mix.block() != null && mix.block().getLandSet() != null
+                ? mix.block() : blockFor(mix.first());
+        final BoosterDraft d = BoosterDraft.createDraft(LimitedPoolType.Block, block, mix.codes());
+        if (d == null) {
+            return null;
+        }
+        final NeoDraft neo = new NeoDraft(d);
+        neo.productName = mix.entries().size() == 1
+                ? mix.first().getName() + " (" + mix.first().getCode() + ")"
+                : mix.label();
+        return neo;
+    }
+
+    /**
      * El bloque al que pertenece una expansion.
      *
      * <p>Se busca primero entre los que Forge trae escritos

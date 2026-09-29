@@ -85,6 +85,9 @@ public class AscentMapScreen extends StackPane {
          */
         void deck();
 
+        /** Mirar tus reliquias, con lo que hace cada una. Solo mirar. */
+        void relics();
+
         /** Abandonar la run. Pregunta antes: no se puede deshacer. */
         void abandon();
 
@@ -293,6 +296,13 @@ public class AscentMapScreen extends StackPane {
         deck.getStyleClass().add("ascent-button");
         deck.setOnAction(e -> actions.deck());
 
+        // Las reliquias, con su texto: las pastillas de arriba solo dicen el
+        // nombre, y con muchas se salen por la derecha. Ver AscentRelicsScreen.
+        final Button relicsButton = new Button(NeoText.get("ascent.over.relics", run.relics().size()));
+        relicsButton.getStyleClass().add("ascent-button");
+        relicsButton.setDisable(run.relics().isEmpty());
+        relicsButton.setOnAction(e -> actions.relics());
+
         final Button abandon = new Button(NeoText.get("ascent.map.abandon"));
         abandon.getStyleClass().addAll("ascent-button", "ascent-button-danger");
         abandon.setOnAction(e -> confirmAbandon());
@@ -307,7 +317,7 @@ public class AscentMapScreen extends StackPane {
         // 10b, principio 12) — y por eso "Abandonar" se va a la IZQUIERDA:
         // lo que no se deshace no puede estar donde va la inercia de volver
         // (principio 6b). Pregunta antes igual, pero mejor no llegar ahi.
-        final HBox bar = new HBox(10, abandon, hint, gap, deck, back);
+        final HBox bar = new HBox(10, abandon, hint, gap, relicsButton, deck, back);
         bar.getStyleClass().add("ascent-bar");
         bar.setAlignment(Pos.CENTER_LEFT);
         // ⚠️ 38 abajo y no 16, exactamente por lo mismo que la barra de arriba

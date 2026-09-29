@@ -114,8 +114,17 @@ public class DeckPickerDialog extends VBox {
     }
 
     /**
-     * @param onPicked recibe el mazo elegido, o {@code null} para "al azar"
+     * Uno cualquiera de los que ofrecia el selector, para quien recibe
+     * {@code null} ("al azar") y necesita un mazo en el acto — la sala en red y
+     * el torneo. {@code null} si no habia ninguno.
      */
+    public static Deck anyOf(final List<Deck> mine, final List<Deck> stock) {
+        final List<Deck> all = new java.util.ArrayList<>(mine);
+        all.addAll(stock);
+        return all.isEmpty() ? null
+                : all.get(java.util.concurrent.ThreadLocalRandom.current().nextInt(all.size()));
+    }
+
     /** Si alguno de esos mazos lleva comandante. */
     private static boolean anyCommander(final List<Deck> decks) {
         if (decks == null) {

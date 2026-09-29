@@ -182,6 +182,41 @@ public class PhaseRail extends VBox {
     }
 
     private final javafx.scene.layout.TilePane phases = new javafx.scene.layout.TilePane();
+
+    /** Cuantos huecos hay ahora mismo delante de la ultima fila (ver alignLastRowRight). */
+    private int spacersNow = -1;
+
+    /**
+     * Si las fases no caben en una fila, la ULTIMA fila va pegada a la
+     * derecha. Con sitio para 11 de las 12, Cleanup bajaba sola a la primera
+     * columna, JUSTO DEBAJO de Untap, y al poner una parada en Untap se clicaba
+     * Cleanup sin querer (reportado el 29-09-2026, en Commander cambiando de
+     * mesa). Pegada a la derecha queda debajo de "Fin del turno", que es la
+     * fase de antes. Se rellena con huecos invisibles, y solo se toca la lista
+     * cuando cambia el numero de huecos: esto corre dentro del layout.
+     */
+    private void alignLastRowRight(final int columns) {
+        final int n = STOPS.length;
+        final int rest = n % columns;
+        final int spacers = n > columns && rest > 0 ? columns - rest : 0;
+        if (spacers == spacersNow) {
+            return;
+        }
+        spacersNow = spacers;
+        final java.util.List<javafx.scene.Node> nodes = new java.util.ArrayList<>();
+        int i = 0;
+        for (final PhaseType p : STOPS) {
+            if (i++ == n - rest && spacers > 0) {
+                for (int k = 0; k < spacers; k++) {
+                    final javafx.scene.layout.Region gap = new javafx.scene.layout.Region();
+                    gap.setMouseTransparent(true);
+                    nodes.add(gap);
+                }
+            }
+            nodes.add(labels.get(p));
+        }
+        phases.getChildren().setAll(nodes);
+    }
     private final Label title = new Label(NeoText.get("phase.caption"));
 
     /**
@@ -261,6 +296,7 @@ public class PhaseRail extends VBox {
         phases.setPrefColumns(columns);
         phases.setPrefTileWidth(Math.max(1, Math.floor((available - 3 * (columns - 1) - 4) / columns)));
         phases.setPrefTileHeight(tallest);
+        alignLastRowRight(columns);
         return 14 + header.prefHeight(width) + (dayNight.isManaged() ? dayNight.prefHeight(width) + 2 : 0)
                 + Math.ceil(STOPS.length / (double) columns) * (tallest + 3);
     }}

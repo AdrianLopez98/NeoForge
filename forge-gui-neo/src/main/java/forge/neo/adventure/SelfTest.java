@@ -60,6 +60,7 @@ final class SelfTest {
             Gdx.app.postRunnable("editor".equals(mode) ? SelfTest::editor
                     : "starter".equals(mode) ? SelfTest::starter
                     : "questlog".equals(mode) ? SelfTest::questLog
+                    : "anteduel".equals(mode) ? SelfTest::anteDuel
                     : "duels".equals(mode) ? () -> duels(1) : SelfTest::duel);
         }, "neo-adventure-selftest");
         t.setDaemon(true);
@@ -174,6 +175,81 @@ final class SelfTest {
 
     private static void duel() {
         duel(null);
+    }
+
+    /**
+     * {@code -Dneo.adventure.selftest=anteduel}: un duelo de VERDAD, por
+     * {@code DuelScene} (como al chocar con un enemigo en el mapa), con el ante
+     * encendido. Las otras autopruebas llaman a {@link NeoDuelBridge} directo y
+     * se saltan justo ese camino. Sale de la pantalla negra reportada en los
+     * eventos de la Aventura jugando con ante (29-09-2026): con ante,
+     * {@code DuelScene.GameEnd} ensenya "carta ganada/perdida" antes de volver.
+     * Con {@code -Dneo.adventure.auto=true} la mesa juega sola. Apunta cada 3 s
+     * en que escena y pantalla esta el Adventure y que ventanas tiene encima.
+     */
+    private static void anteDuel() {
+        new Thread(() -> {
+            try {
+                Gdx.app.postRunnable(() -> {
+                    final forge.adventure.data.DifficultyData diff =
+                            forge.adventure.util.Config.instance().getConfigData().difficulties[1];
+                    forge.adventure.world.WorldSave.generateNewWorld("Prueba ante", true, 0, 0,
+                            forge.card.ColorSet.fromNames("R".toCharArray()), diff,
+                            forge.adventure.util.AdventureModes.Standard, 0, null, 1234);
+                    final boolean ante = !"false".equals(System.getProperty("neo.adventure.ante"));
+                    FModel.getPreferences().setPref(forge.localinstance.properties.ForgePreferences.FPref.UI_ANTE, ante);
+                    NeoDuelBridge.log("autoprueba anteduel: mundo nuevo, ante " + (ante ? "encendido" : "apagado"));
+                });
+                Thread.sleep(15000);
+                Gdx.app.postRunnable(() -> {
+                    try {
+                        // -Dneo.adventure.enemy=Sliver Queen: un JEFE, que al ganarte
+                        // ensenya su frase (el caso de la pantalla negra).
+                        final String who = System.getProperty("neo.adventure.enemy", "Goblin");
+                        final forge.adventure.data.EnemyData data = new forge.adventure.data.EnemyData(
+                                forge.adventure.data.WorldData.getEnemy(who));
+                        // Al mejor de N, como los eventos (-Dneo.adventure.games=3).
+                        data.gamesPerMatch = Integer.getInteger("neo.adventure.games", data.gamesPerMatch);
+                        final forge.adventure.character.EnemySprite enemy = new forge.adventure.character.EnemySprite(data);
+                        final forge.adventure.scene.DuelScene ds = forge.adventure.scene.DuelScene.instance();
+                        ds.initDuels(forge.adventure.stage.WorldStage.getInstance().getPlayerSprite(), enemy);
+                        forge.Forge.switchScene(ds);
+                        NeoDuelBridge.log("autoprueba anteduel: entrando por DuelScene contra " + who);
+                    } catch (final Throwable e) {
+                        NeoDuelBridge.log("autoprueba anteduel: no se pudo entrar: " + e);
+                        e.printStackTrace();
+                    }
+                });
+                final long end = System.currentTimeMillis() + Long.getLong("neo.adventure.snapshotMs", 240000);
+                while (System.currentTimeMillis() < end) {
+                    Thread.sleep(3000);
+                    Gdx.app.postRunnable(() -> {
+                        final StringBuilder o = new StringBuilder();
+                        for (final forge.toolbox.FOverlay ov : forge.toolbox.FOverlay.getOverlays()) {
+                            o.append(ov.getClass().getSimpleName()).append(ov.isVisible() ? "(visible) " : "(oculta) ");
+                        }
+                        // Pulsa OK en el aviso de fin de duelo (jefe, ante), como
+                        // haria el jugador, para ver si despues se vuelve al mapa.
+                        final forge.toolbox.FOverlay top = forge.toolbox.FOverlay.getTopOverlay();
+                        if (top instanceof forge.toolbox.FOptionPane pane && top.isVisible()) {
+                            NeoDuelBridge.log("autoprueba anteduel: pulso OK en el aviso");
+                            pane.setResult(0);
+                        }
+                        NeoDuelBridge.log("autoprueba anteduel: escena="
+                                + (forge.Forge.getCurrentScene() == null ? "null"
+                                : forge.Forge.getCurrentScene().getClass().getSimpleName())
+                                + " pantalla=" + (forge.Forge.getCurrentScreen() == null ? "null"
+                                : forge.Forge.getCurrentScreen().getClass().getSimpleName())
+                                + " encima=[" + o.toString().trim() + "]"
+                                + " GuiBase=" + forge.gui.GuiBase.getInterface().getClass().getSimpleName());
+                    });
+                }
+                NeoDuelBridge.log("autoprueba anteduel: FIN");
+            } catch (final Throwable e) {
+                NeoDuelBridge.log("autoprueba anteduel ha fallado: " + e);
+                e.printStackTrace();
+            }
+        }, "neo-adventure-selftest-ante").start();
     }
 
     private static void duel(final Runnable after) {

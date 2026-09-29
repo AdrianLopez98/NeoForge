@@ -105,10 +105,33 @@ public final class NeoSealed {
      */
     public static DeckGroup create(final String name, final CardEdition edition,
                                    final int boosters) {
-        if (name == null || name.isBlank() || edition == null) {
+        return edition == null ? null : create(name, PackMix.of(edition, boosters));
+    }
+
+    /** Los sobres de una mezcla ({@link PackMix}), en su orden. */
+    public static List<PaperCard> openBoosters(final PackMix mix) {
+        final List<PaperCard> out = new ArrayList<>();
+        for (final java.util.Map.Entry<CardEdition, Integer> e : mix.entries()) {
+            out.addAll(openBoosters(e.getKey(), e.getValue()));
+        }
+        return out;
+    }
+
+    /**
+     * Monta el evento con sobres de VARIAS expansiones (pedido en itch.io el
+     * 29-09-2026). Los siete rivales abren la MISMA mezcla: sigue siendo un
+     * sellado entre pools iguales.
+     */
+    public static DeckGroup create(final String name, final PackMix mix) {
+        if (name == null || name.isBlank() || mix == null || mix.isEmpty()) {
             return null;
         }
-        final List<PaperCard> mine = openBoosters(edition, boosters);
+        // Una sola expansion: sus tierras, como siempre. Una mezcla: las del
+        // bloque, o las de la primera expansion que las tenga.
+        final CardEdition lands = mix.entries().size() == 1 && mix.block() == null
+                ? mix.first() : mix.landSet();
+        final String landCode = lands == null ? mix.first().getCode() : lands.getCode();
+        final List<PaperCard> mine = openBoosters(mix);
         if (mine.isEmpty()) {
             return null;
         }
@@ -122,12 +145,12 @@ public final class NeoSealed {
         final DeckGroup group = new DeckGroup(name);
         group.setHumanDeck(deck);
         for (int i = 0; i < OPPONENTS; i++) {
-            final List<PaperCard> theirs = openBoosters(edition, boosters);
+            final List<PaperCard> theirs = openBoosters(mix);
             if (theirs.isEmpty()) {
                 break;
             }
             try {
-                final Deck ai = new SealedDeckBuilder(theirs).buildDeck(edition.getCode());
+                final Deck ai = new SealedDeckBuilder(theirs).buildDeck(landCode);
                 // SealedDeckBuilder bautiza el mazo con el toString() de su
                 // objeto de colores, o sea "DeckColors@3c1f2651". Eso acaba en
                 // la pantalla, delante del jugador, como nombre del rival.
@@ -150,7 +173,7 @@ public final class NeoSealed {
         DraftRun.Kind.SEALED.storage().add(group);
         System.out.printf(Locale.ROOT,
                 "[sellado] %s: %d cartas de %s en %d sobres, %d rivales%n",
-                name, mine.size(), edition.getCode(), boosters, group.getAiDecks().size());
+                name, mine.size(), mix.label(), mix.total(), group.getAiDecks().size());
         return group;
     }
 

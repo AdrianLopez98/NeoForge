@@ -125,6 +125,19 @@ final class NeoAppDraft {
             }
 
             @Override
+            public void createMix(final String name, final forge.neo.draft.PackMix mix) {
+                final forge.deck.DeckGroup group = forge.neo.draft.NeoSealed.create(name, mix);
+                if (group == null) {
+                    app.showMainMenu();
+                    return;
+                }
+                final forge.neo.draft.DraftRun run = forge.neo.draft.DraftRun.of(
+                        name, forge.neo.draft.DraftRun.Kind.SEALED);
+                run.makeCurrent();
+                showDraftRun(run);
+            }
+
+            @Override
             public void resume(final String name) {
                 final forge.neo.draft.DraftRun run = forge.neo.draft.DraftRun.of(
                         name, forge.neo.draft.DraftRun.Kind.SEALED);
@@ -159,6 +172,16 @@ final class NeoAppDraft {
                     @Override
                     public void startCube(final String cubeName) {
                         startNewDraftCube(cubeName);
+                    }
+
+                    @Override
+                    public void startMix(final forge.neo.draft.PackMix mix) {
+                        final forge.neo.draft.NeoDraft draft = forge.neo.draft.NeoDraft.start(mix);
+                        if (draft == null) {
+                            app.showMainMenu();
+                            return;
+                        }
+                        openDraftScreen(draft);
                     }
 
                     @Override

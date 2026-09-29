@@ -14,6 +14,7 @@ import forge.item.PaperCard;
 import forge.neo.match.NeoMatchUI;
 import forge.neo.match.TableBinder;
 import forge.neo.ui.AscentDeckScreen;
+import forge.neo.ui.AscentRelicsScreen;
 import forge.neo.ui.AscentEventScreen;
 import forge.neo.ui.AscentMapScreen;
 import forge.neo.ui.AscentOverScreen;
@@ -200,6 +201,12 @@ final class NeoAppAscent {
             }
 
             @Override
+            public void relics() {
+                app.scene.setRoot(new AscentRelicsScreen(run, app.cardWidth, () -> showMap(run)));
+                app.applyScale();
+            }
+
+            @Override
             public void abandon() {
                 run.discard();
                 app.showMainMenu();
@@ -285,6 +292,21 @@ final class NeoAppAscent {
             if (pick >= 0) {
                 screen.autoPickForTest(pick, Long.getLong("neo.ascent.eventPickAt", 1800L));
             }
+            return;
+        }
+        if ("relics".equals(which)) {
+            // Una run recien empezada no lleva ninguna: se le ponen cinco para
+            // que la captura ensenye la rejilla y el texto partido en lineas.
+            for (final forge.neo.ascent.AscentRelic r : AscentRelics.all()) {
+                if (demo.relics().size() >= 5) {
+                    break;
+                }
+                if (!demo.relics().contains(r)) {
+                    demo.addRelic(r);
+                }
+            }
+            app.scene.setRoot(new AscentRelicsScreen(demo, app.cardWidth, () -> showMap(demo)));
+            app.applyScale();
             return;
         }
         if ("deck".equals(which)) {

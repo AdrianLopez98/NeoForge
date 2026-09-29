@@ -192,6 +192,8 @@ public final class SealedCheck {
                 aliveAfterOne, gone);
         ok &= aliveAfterOne && gone;
 
+        ok &= mixChecks(sets);
+
         System.out.println();
         System.out.printf(Locale.ROOT, "  %s (%d s)%n",
                 ok ? "OK - el sellado se monta, es jugable y el evento cuenta bien"
@@ -199,6 +201,118 @@ public final class SealedCheck {
                 (System.currentTimeMillis() - t0) / 1000);
 
         borrar(name);
+    }
+
+    /**
+     * MEZCLA DE EXPANSIONES Y BLOQUES (itch.io, 29-09-2026): el reparto de un
+     * bloque, un sellado con sobres de dos expansiones, y un draft cuyas
+     * rondas siguen el orden de la mezcla.
+     */
+    private static boolean mixChecks(final List<CardEdition> sets) {
+        boolean ok = true;
+        System.out.println();
+        System.out.println("  --- Mezcla de expansiones y bloques ---");
+
+        CardEdition dom = null;
+        CardEdition m19 = null;
+        for (final CardEdition e : sets) {
+            if ("DOM".equals(e.getCode())) {
+                dom = e;
+            } else if ("M19".equals(e.getCode())) {
+                m19 = e;
+            }
+        }
+        if (dom == null || m19 == null) {
+            System.out.println("  FALLO: no estan DOM y M19 para probar la mezcla");
+            return false;
+        }
+
+        // ---- los bloques de Forge ----
+        final List<forge.model.CardBlock> blocks = PackMix.blocks();
+        forge.model.CardBlock khans = null;
+        for (final forge.model.CardBlock b : blocks) {
+            if ("Khans of Tarkir".equals(b.getName())) {
+                khans = b;
+            }
+        }
+        System.out.printf(Locale.ROOT, "  Bloques jugables: %d | Khans: %s%n",
+                blocks.size(), khans == null ? "(no esta)" : PackMix.blockCodes(khans));
+        ok &= blocks.size() > 50 && khans != null;
+        if (khans != null) {
+            final String three = String.join(",", PackMix.fromBlock(khans, 3).codes());
+            final String six = PackMix.fromBlock(khans, 6).label();
+            System.out.printf(Locale.ROOT, "  Khans en draft: %s | en sellado: %s%n", three, six);
+            // Se abre primero la mas nueva, y lo que no sale a partes iguales
+            // va a la mas vieja: FRF + 2xKTK, como los drafts de bloque.
+            ok &= "FRF,KTK,KTK".equals(three) && six.equals("3×FRF + 3×KTK");
+        }
+
+        // ---- sellado con dos expansiones ----
+        final PackMix mix = new PackMix();
+        mix.set(dom, 3);
+        mix.set(m19, 3);
+        final String name = "NeoCheck mezcla";
+        borrar(name);
+        final DeckGroup group = NeoSealed.create(name, mix);
+        int fromDom = 0;
+        int fromM19 = 0;
+        if (group != null) {
+            for (final java.util.Map.Entry<PaperCard, Integer> e
+                    : group.getHumanDeck().getOrCreate(forge.deck.DeckSection.Sideboard)) {
+                if ("DOM".equals(e.getKey().getEdition())) {
+                    fromDom += e.getValue();
+                } else if ("M19".equals(e.getKey().getEdition())) {
+                    fromM19 += e.getValue();
+                }
+            }
+        }
+        System.out.printf(Locale.ROOT, "  Sellado %s: %d de DOM, %d de M19, %d rivales%n",
+                mix.label(), fromDom, fromM19, group == null ? 0 : group.getAiDecks().size());
+        ok &= group != null && fromDom > 20 && fromM19 > 20 && group.getAiDecks().size() == NeoSealed.OPPONENTS;
+        borrar(name);
+
+        // ---- draft: las rondas siguen el orden de la mezcla ----
+        final PackMix draftMix = new PackMix();
+        draftMix.set(dom, 2);
+        draftMix.set(m19, 1);
+        final NeoDraft draft = NeoDraft.start(draftMix);
+        String round1 = "?";
+        String round3 = "?";
+        if (draft != null) {
+            round1 = mainEdition(draft.currentCards());
+            int guard = 0;
+            while (!draft.isDone() && draft.round() < 3 && guard++ < 100) {
+                final List<PaperCard> cards = draft.currentCards();
+                if (cards.isEmpty()) {
+                    break;
+                }
+                draft.pick(cards.get(0));
+            }
+            round3 = mainEdition(draft.currentCards());
+        }
+        System.out.printf(Locale.ROOT, "  Draft %s (%s): ronda 1 de %s, ronda 3 de %s%n",
+                draftMix.label(), draft == null ? "no arranca" : draft.productName(), round1, round3);
+        ok &= draft != null && "DOM".equals(round1) && "M19".equals(round3);
+
+        System.out.println(ok ? "  OK mezcla y bloques" : "  FALLO en la mezcla o los bloques");
+        return ok;
+    }
+
+    /** La expansion de la mayoria de las cartas de un sobre. */
+    private static String mainEdition(final List<PaperCard> cards) {
+        final java.util.Map<String, Integer> n = new java.util.HashMap<>();
+        for (final PaperCard c : cards) {
+            n.merge(c.getEdition(), 1, Integer::sum);
+        }
+        String best = "?";
+        int max = 0;
+        for (final java.util.Map.Entry<String, Integer> e : n.entrySet()) {
+            if (e.getValue() > max) {
+                max = e.getValue();
+                best = e.getKey();
+            }
+        }
+        return best;
     }
 
     /** Cuantas copias de esa carta habia en el pool que abrimos de muestra. */

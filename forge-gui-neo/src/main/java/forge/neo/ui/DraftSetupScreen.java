@@ -6,7 +6,9 @@ import java.util.Locale;
 
 import forge.card.CardEdition;
 import forge.neo.NeoText;
+import forge.model.CardBlock;
 import forge.neo.draft.NeoSealed;
+import forge.neo.draft.PackMix;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
@@ -62,11 +64,30 @@ public class DraftSetupScreen extends BorderPane {
          */
         void startCube(String cubeName);
 
+        /**
+         * Empezar con sobres de VARIAS expansiones ({@link PackMix}), elegidas
+         * a mano o rellenadas desde un bloque de Forge.
+         */
+        void startMix(PackMix mix);
+
         void back();
     }
 
-    /** Las tres preguntas que caben aqui: una expansion, todo Magic, o un cubo. */
-    private enum Mode { SET, ALL, CUBE }
+    /**
+     * Las preguntas que caben aqui: una expansion, una MEZCLA de varias (con
+     * sus sobres), un BLOQUE de Forge (que rellena la mezcla), todo Magic, o
+     * un cubo. Mezcla y bloque: pedido en itch.io el 29-09-2026.
+     */
+    private enum Mode { SET, MIX, BLOCK, ALL, CUBE }
+
+    /** Sobres por jugador en un draft. */
+    private static final int DRAFT_PACKS = 3;
+
+    private final PackMix mix = new PackMix();
+    private final VBox mixBox = new VBox();
+    private List<CardBlock> shownBlocks = new ArrayList<>();
+    private Button[] modeButtons;
+    private Button go;
 
     private final FlowPane grid = new FlowPane(10, 10);
     private final TextField search = new TextField();
@@ -112,7 +133,9 @@ public class DraftSetupScreen extends BorderPane {
         // La pagina es lo que quepa, no 24 fijas: ver Pager.fitTo.
         pager.fitTo(scroll, grid, UiScale.px(210), UiScale.px(50), 8);
 
-        setBox = new VBox(8, search, scroll, pager);
+        setBox = new VBox(8, mixBox, search, scroll, pager);
+        mixBox.setVisible(false);
+        mixBox.setManaged(false);
         VBox.setVgrow(setBox, Priority.ALWAYS);
 
         final VBox content = new VBox(12,
@@ -121,7 +144,7 @@ public class DraftSetupScreen extends BorderPane {
         content.setPadding(new Insets(4, 30, 10, 30));
         setCenter(content);
 
-        final Button go = new Button(NeoText.get("draftNew.start"));
+        go = new Button(NeoText.get("draftNew.start"));
         go.getStyleClass().add("btn-primary");
         go.setMinWidth(Region.USE_PREF_SIZE);
         go.setOnAction(e -> {
@@ -137,6 +160,13 @@ public class DraftSetupScreen extends BorderPane {
                         return;
                     }
                     actions.startCube(chosenCube.getName());
+                    break;
+                case MIX:
+                case BLOCK:
+                    if (mix.total() != DRAFT_PACKS) {
+                        return;
+                    }
+                    actions.startMix(mix.copy());
                     break;
                 default:
                     actions.start(null);
@@ -160,6 +190,28 @@ public class DraftSetupScreen extends BorderPane {
 
         reload();
         CardZoom.install(this);
+        mixTestHook(() -> switchMode(Mode.MIX, modeButtons, modeButtons[1]),
+                () -> switchMode(Mode.BLOCK, modeButtons, modeButtons[2]));
+    }
+
+    /**
+     * Solo pruebas: {@code -Dneo.mixTest=mix} abre "Mezclar" con 2xDOM + M19,
+     * y {@code =block} abre "Bloque". Para capturar sin clicar (la guía de pruebas).
+     */
+    private void mixTestHook(final Runnable toMix, final Runnable toBlock) {
+        final String t = System.getProperty("neo.mixTest");
+        if ("block".equals(t)) {
+            toBlock.run();
+        } else if ("mix".equals(t)) {
+            for (final CardEdition e : NeoSealed.editions()) {
+                if ("DOM".equals(e.getCode())) {
+                    mix.set(e, 2);
+                } else if ("M19".equals(e.getCode())) {
+                    mix.set(e, 1);
+                }
+            }
+            toMix.run();
+        }
     }
 
     /**
@@ -174,9 +226,12 @@ public class DraftSetupScreen extends BorderPane {
         row.setAlignment(Pos.CENTER_LEFT);
 
         final Button set = new Button(NeoText.get("draftNew.oneSet"));
+        final Button mixB = new Button(NeoText.get("draftNew.mix"));
+        final Button blockB = new Button(NeoText.get("draftNew.block"));
         final Button all = new Button(NeoText.get("draftNew.allCards"));
         final Button cube = new Button(NeoText.get("draftNew.cube"));
-        final Button[] all3 = {set, all, cube};
+        final Button[] all3 = {set, mixB, blockB, all, cube};
+        modeButtons = all3;
         for (final Button b : all3) {
             b.getStyleClass().add("segment");
             b.setMinWidth(Region.USE_PREF_SIZE);
@@ -184,6 +239,8 @@ public class DraftSetupScreen extends BorderPane {
         set.pseudoClassStateChanged(SELECTED, true);
 
         set.setOnAction(e -> switchMode(Mode.SET, all3, set));
+        mixB.setOnAction(e -> switchMode(Mode.MIX, all3, mixB));
+        blockB.setOnAction(e -> switchMode(Mode.BLOCK, all3, blockB));
         all.setOnAction(e -> switchMode(Mode.ALL, all3, all));
         cube.setOnAction(e -> switchMode(Mode.CUBE, all3, cube));
 
@@ -206,7 +263,26 @@ public class DraftSetupScreen extends BorderPane {
         final boolean showGrid = mode != Mode.ALL;
         setBox.setVisible(showGrid);
         setBox.setManaged(showGrid);
+        refreshMix();
         refreshChosen();
+    }
+
+    /** La barra de la mezcla: solo en "Mezclar", y se repinta en cada cambio. */
+    private void refreshMix() {
+        final boolean on = mode == Mode.MIX;
+        mixBox.setVisible(on);
+        mixBox.setManaged(on);
+        if (on) {
+            mixBox.getChildren().setAll(PackMixView.bar(mix, DRAFT_PACKS, () -> {
+                paint();
+                refreshMix();
+                refreshChosen();
+            }));
+        }
+        if (go != null) {
+            go.setDisable(mode == Mode.MIX && mix.total() != DRAFT_PACKS
+                    || mode == Mode.BLOCK);
+        }
     }
 
     private static Region section(final String caption, final Region content) {
@@ -235,6 +311,19 @@ public class DraftSetupScreen extends BorderPane {
             refreshChosen();
             return;
         }
+        if (mode == Mode.BLOCK) {
+            shownBlocks = new ArrayList<>();
+            for (final CardBlock b : PackMix.blocks()) {
+                if (q.isEmpty() || b.getName().toLowerCase(Locale.ROOT).contains(q)
+                        || PackMix.blockCodes(b).toLowerCase(Locale.ROOT).contains(q)) {
+                    shownBlocks.add(b);
+                }
+            }
+            pager.setTotal(shownBlocks.size());
+            paint();
+            refreshChosen();
+            return;
+        }
         shown = new ArrayList<>();
         // Las mismas que el sellado: las que tienen sobre. Un draft de una
         // expansion sin plantilla de sobre no existe.
@@ -257,6 +346,23 @@ public class DraftSetupScreen extends BorderPane {
         if (mode == Mode.CUBE) {
             for (int i = pager.from(); i < Math.min(shownCubes.size(), pager.to()); i++) {
                 grid.getChildren().add(cubeTile(shownCubes.get(i)));
+            }
+            return;
+        }
+        if (mode == Mode.BLOCK) {
+            for (int i = pager.from(); i < Math.min(shownBlocks.size(), pager.to()); i++) {
+                final CardBlock b = shownBlocks.get(i);
+                // Elegir un bloque RELLENA la mezcla y lleva a ella: el bloque
+                // es un atajo, luego se retoca con los - y +.
+                grid.getChildren().add(PackMixView.blockTile(b, b.equals(mix.block()), () -> {
+                    final PackMix filled = PackMix.fromBlock(b, DRAFT_PACKS);
+                    mix.clear();
+                    for (final java.util.Map.Entry<CardEdition, Integer> e : filled.entries()) {
+                        mix.set(e.getKey(), e.getValue());
+                    }
+                    mix.setBlock(b);
+                    switchMode(Mode.MIX, modeButtons, modeButtons[1]);
+                }));
             }
             return;
         }
@@ -291,7 +397,8 @@ public class DraftSetupScreen extends BorderPane {
     }
 
     private Region tile(final CardEdition edition) {
-        final Label code = new Label(edition.getCode());
+        final int inMix = mode == Mode.MIX ? mix.count(edition) : 0;
+        final Label code = new Label(inMix > 0 ? edition.getCode() + "  \u00d7" + inMix : edition.getCode());
         code.getStyleClass().add("set-code");
 
         final Label name = new Label(edition.getName());
@@ -304,9 +411,20 @@ public class DraftSetupScreen extends BorderPane {
         box.getStyleClass().add("set-tile");
         box.setPadding(new Insets(8, 10, 8, 10));
         box.setPrefWidth(UiScale.px(210));
-        box.pseudoClassStateChanged(PICKED, edition.equals(chosen));
+        box.pseudoClassStateChanged(PICKED, mode == Mode.MIX ? inMix > 0 : edition.equals(chosen));
         box.setOnMouseClicked(e -> {
             if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY) {
+                if (mode == Mode.MIX) {
+                    // En la mezcla, cada clic es un sobre mas de esa expansion
+                    // (hasta llenar los tres).
+                    if (mix.total() < DRAFT_PACKS) {
+                        mix.add(edition);
+                    }
+                    paint();
+                    refreshMix();
+                    refreshChosen();
+                    return;
+                }
                 chosen = edition;
                 paint();
                 refreshChosen();
@@ -323,6 +441,12 @@ public class DraftSetupScreen extends BorderPane {
             case CUBE:
                 chosenLabel.setText(chosenCube == null ? ""
                         : NeoText.get("draftNew.chosen", chosenCube.getName()));
+                break;
+            case MIX:
+                chosenLabel.setText(PackMixView.chosen(mix, DRAFT_PACKS));
+                break;
+            case BLOCK:
+                chosenLabel.setText(NeoText.get("mix.blockHelp"));
                 break;
             default:
                 chosenLabel.setText(chosen == null ? ""
