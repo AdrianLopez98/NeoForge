@@ -1,12 +1,14 @@
-**NeoForge para macOS 4.4 (beta).** El mismo numero que en itch.io.
+**NeoForge para macOS 4.5 (beta).** El mismo numero que en itch.io.
 
 Novedades:
-- **Ordenar como en Forge:** el dialogo de ordenar (disparos simultaneos, cartas al fondo de la biblioteca) tiene boton **Auto**, y los disparos traen la casilla **"Usar siempre este orden en esta partida"**. Se olvida desde Escape → *Olvidar los ordenes guardados*.
-- **La mano:** nuevo ajuste para tenerla **ordenada por coste y color**, como la opcion de Forge, y una carta se puede **cambiar de sitio arrastrandola** dentro de la mano.
-- **Clicar el comandante lo lanza**, como una carta de la mano (antes solo arrastrandolo).
-- **En red:** sales con el nombre de *Personalizar* y no como "Human", y el invitado ya ve la **pantalla de victoria o derrota**.
-- **Sin activaciones sin querer:** arrastrar un permanente fuera de combate ya no activa su habilidad.
-- **El stack largo** llena la columna hasta los botones.
+- **Momir Basic y MoJhoSto funcionan otra vez:** el avatar vuelve a la zona de mando (antes solo se podian jugar tierras), y salir de la partida te devuelve a *Otros formatos*.
+- **Constructor de mazos como el de Forge:** ordenar por nombre, coste, color, tipo, rareza, edicion, fuerza o resistencia; filtros de **incoloras y multicolor**, fuerza, resistencia, edicion y formato; y en la Aventura, **Copiar coleccion**, ordenar por precio y **Autovender lo filtrado**.
+- **Las cartas iguales se apilan**, no solo las fichas: treinta Rat Colony son una pila "×30" (se apaga en Ajustes).
+- **Rivales de tus colecciones:** una pestaña por coleccion al elegir el mazo de la IA, y *Al azar de una coleccion*.
+- **En red:** las cartas reveladas se ven, y el invitado tiene registro y efectos de sonido. El tiempo de **AFK** se elige en Ajustes.
+- **Auto al ordenar disparos** ya funciona, respetando lo que ya hayas ordenado.
+- **Imagenes:** clic derecho → *Volver a bajar la imagen*, y *Buscar imagenes mejores (HD)* en Ajustes; solo se sustituye si Scryfall ya tiene el escaneo bueno.
+- **La carta bajo el raton** se ve entera, y **los errores al importar un enlace** dicen que hacer (mazo privado, TappedOut bloqueado).
 
 Descarga el `.dmg` de tu Mac:
 
