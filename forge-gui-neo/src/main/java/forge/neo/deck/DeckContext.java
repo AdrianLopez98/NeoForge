@@ -235,6 +235,47 @@ public interface DeckContext {
      * <p>Existe por la Aventura (pedido en itch.io el 27-09-2026), cuyo
      * registro lo lleva {@code AcquiredLedger}.
      */
+    /**
+     * La coleccion entera como texto, una linea por carta ("4 Sol Ring"), o
+     * null si este contexto no tiene coleccion. Es el "Copy collection to
+     * clipboard" del editor de la Aventura de Forge
+     * ({@code FDeckViewer.copyCollectionToClipboard}).
+     */
+    default String collectionText() {
+        return null;
+    }
+
+    /**
+     * Si las cartas de este catalogo tienen precio (la Aventura: lo que te dan
+     * al venderlas). Enciende el orden por precio, como la columna PRICE del
+     * editor de Forge.
+     */
+    default boolean hasPrices() {
+        return false;
+    }
+
+    /** Lo que vale esa carta aqui; 0 si no tiene precio. */
+    default int price(PaperCard card) {
+        return 0;
+    }
+
+    /**
+     * Lo que haria "autovender lo filtrado" (el "Auto-sell current filters" del
+     * menu de la Aventura de Forge), o null si aqui no se vende.
+     *
+     * @param cards       lo que el filtro deja ver, entero (no solo la pagina)
+     * @param inThisDeck  cuantas lleva de cada una el mazo que se esta editando,
+     *                    que tampoco se tocan aunque no este guardado
+     */
+    default BulkSell bulkAutoSell(List<PaperCard> cards,
+                                  java.util.function.ToIntFunction<PaperCard> inThisDeck) {
+        return null;
+    }
+
+    /** Cuantas cartas y copias se marcarian, por cuanto, y como hacerlo. */
+    record BulkSell(int cards, int copies, int value, Runnable run) {
+    }
+
     default boolean tracksAcquisition() {
         return false;
     }

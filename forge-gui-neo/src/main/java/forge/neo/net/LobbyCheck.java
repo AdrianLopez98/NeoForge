@@ -422,6 +422,12 @@ public final class LobbyCheck {
                 // nunca (itch.io, 28-09-2026). Ver NeoMatchUI.finishIfGuest.
                 ok &= check("al invitado le llega finishGame (la pantalla de victoria o derrota)",
                         res.contains("finishGame=true"));
+                // El registro del invitado se escribe con los eventos que le
+                // llegan (NeoMatchUI.feedGuestLog). Vacio = "Nothing has
+                // happened yet" tras una partida entera (itch.io, 29-09-2026).
+                final String entries = field(res, "registro", "0");
+                ok &= check("el registro del invitado tiene lo que ha pasado (" + entries + " entradas)",
+                        !"0".equals(entries) && !"-1".equals(entries));
             }
 
             // ---- 8. las frases del motor, en cualquier idioma ----

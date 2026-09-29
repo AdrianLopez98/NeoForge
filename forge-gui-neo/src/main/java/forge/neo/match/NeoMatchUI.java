@@ -1750,6 +1750,8 @@ public class NeoMatchUI extends NetworkGuiGame {
         // no se cierra NUNCA: no falla, se queda ahi. Avisar cuesta un
         // Platform.runLater; ser el ultimo de la cola costaba una leccion.
         tellTheSpy(event);
+        feedGuestLog(event);
+        playGuestSound(event);
         rememberPlotted(event);
         // Y aqui se para, si el jugador esta leyendo una carta o tiene el menu
         // puesto: ANTES de tocar la mesa, para que lo que venga detras se vea
@@ -1793,6 +1795,56 @@ public class NeoMatchUI extends NetworkGuiGame {
      * Invitado = la vista no trae la partida ({@code getGame()} es
      * {@code transient}; ver {@link #listenToTheEngine}).
      */
+    /**
+     * <b>El registro del invitado de una partida en red.</b>
+     *
+     * <p>La misma trampa que {@link #finishIfGuest}: al invitado el anfitrion
+     * no le manda el registro, le manda los EVENTOS, y cada cliente se lo
+     * escribe con {@code gameLog.getEventVisitor().recieve(event)} — dentro de
+     * {@code AbstractGuiGame.handleGameEvent}, que nosotros sobrescribimos sin
+     * {@code super}. El registro lo crea {@code GameClientHandler}
+     * ({@code initGameLog}); solo faltaba llenarlo. Sintoma (itch.io,
+     * 29-09-2026): varios turnos de partida en red y "Nothing has happened
+     * yet". En una partida local el registro lo escribe el motor y aqui no se
+     * toca: invitado = la vista no trae la partida.
+     */
+    private void feedGuestLog(final GameEvent event) {
+        final GameView gv = getGameView();
+        if (gv == null || gv.getGame() != null) {
+            return;
+        }
+        final forge.game.GameLog log = gv.getGameLog();
+        if (log == null) {
+            return;
+        }
+        try {
+            log.getEventVisitor().recieve(event);
+        } catch (final RuntimeException e) {
+            trace("registro del invitado: %s", e);
+        }
+    }
+
+    /**
+     * Y los <b>sonidos</b> del invitado, por la misma razon: en local los
+     * dispara el {@code SoundSystem} que {@code HostedMatch} suscribe al bus
+     * de la partida; el invitado no tiene partida, y su
+     * {@code FControlGameEventHandler.receiveGameEvent} — el que llama a
+     * {@code SoundSystem.instance.receiveEvent} — tambien vive en el
+     * {@code super} que no llamamos. O sea que en red el invitado jugaba sin
+     * un solo efecto de sonido.
+     */
+    private void playGuestSound(final GameEvent event) {
+        final GameView gv = getGameView();
+        if (gv == null || gv.getGame() != null) {
+            return;
+        }
+        try {
+            forge.sound.SoundSystem.instance.receiveEvent(event);
+        } catch (final RuntimeException e) {
+            trace("sonido del invitado: %s", e);
+        }
+    }
+
     private void finishIfGuest(final GameEvent event) {
         if (!(event instanceof forge.game.event.GameEventGameFinished)) {
             return;
@@ -2767,6 +2819,35 @@ public class NeoMatchUI extends NetworkGuiGame {
         }
         lastPoolSize = now;
         pushToTable();
+    }
+
+    /**
+     * Cartas reveladas para la pregunta en curso (la mano de otro), hasta
+     * {@link #hideRevealedCards}. Ver {@code TableScreen.showRevealed}: sin
+     * esto, en red salia el OK de "has visto las cartas" sin ninguna carta.
+     */
+    @Override
+    public void showRevealedCards(final Iterable<CardView> cards) {
+        if (!interactive() || cards == null) {
+            return;
+        }
+        final List<CardView> list = new ArrayList<>();
+        for (final CardView c : cards) {
+            list.add(c);
+        }
+        if (list.isEmpty()) {
+            return;
+        }
+        final PlayerView owner = list.get(0).getOwner();
+        trace("revelado sin dialogo: %d cartas de %s", list.size(), nameOf(owner));
+        uiRunLater(() -> table.showRevealed(owner, list));
+    }
+
+    @Override
+    public void hideRevealedCards() {
+        if (interactive()) {
+            uiRunLater(() -> table.hideRevealed());
+        }
     }
 
     @Override

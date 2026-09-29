@@ -149,6 +149,91 @@ final class AdventureDeckContext implements DeckContext {
         return true;
     }
 
+    /**
+     * Como {@code FDeckViewer.copyCollectionToClipboard}: cuantas tienes de
+     * cada NOMBRE (todas las impresiones juntas) y el nombre en ingles, que es
+     * lo que entienden Moxfield y los importadores. Ordenado por nombre, que el
+     * suyo sale en el orden del mapa.
+     */
+    @Override
+    public boolean hasPrices() {
+        return true;
+    }
+
+    /** Lo que te dan al venderla, lo mismo que dice su editor ("Sell for N"). */
+    @Override
+    public int price(final PaperCard card) {
+        if (card == null || isBasic(card) || card.hasNoSellValue()) {
+            return 0;
+        }
+        try {
+            return player.cardSellPrice(card);
+        } catch (final RuntimeException e) {
+            return 0;
+        }
+    }
+
+    /**
+     * "Autovender lo filtrado" ("Auto-sell current filters" de su editor): lo
+     * que SOBRA de cada carta — nunca lo que esta en un mazo, ni en el que se
+     * edita sin guardar, ni lo ya marcado —, en UNA pasada por el hilo de
+     * libGDX y no una por carta.
+     */
+    @Override
+    public BulkSell bulkAutoSell(final List<PaperCard> cards,
+                                 final java.util.function.ToIntFunction<PaperCard> inThisDeck) {
+        final Map<String, PaperCard> byKey = new java.util.LinkedHashMap<>();
+        for (final PaperCard c : cards) {
+            if (c != null && !isBasic(c) && !c.hasNoSellValue()) {
+                byKey.putIfAbsent(key(c), c);
+            }
+        }
+        final Map<PaperCard, Integer> plan = new java.util.LinkedHashMap<>();
+        int copies = 0;
+        int value = 0;
+        for (final PaperCard c : byKey.values()) {
+            final String k = key(c);
+            int total = 0;
+            int used = 0;
+            for (final Map.Entry<PaperCard, Integer> e : player.getCards()) {
+                if (key(e.getKey()).equals(k)) {
+                    total += e.getValue();
+                    used += player.getCopiesUsedInDecks(e.getKey());
+                }
+            }
+            final int spare = Math.max(0, total - Math.max(used, inThisDeck.applyAsInt(c))
+                    - countIn(player.getAutoSellCards(), k));
+            if (spare > 0) {
+                plan.put(c, spare);
+                copies += spare;
+                value += spare * price(c);
+            }
+        }
+        final int cardCount = plan.size();
+        return new BulkSell(cardCount, copies, value, () -> {
+            onGdx(() -> {
+                for (final Map.Entry<PaperCard, Integer> e : plan.entrySet()) {
+                    markSpare(e.getKey(), e.getValue());
+                }
+                NeoDuelBridge.log("autovender lo filtrado: " + cardCount + " cartas");
+            });
+            countOwned();
+        });
+    }
+
+    @Override
+    public String collectionText() {
+        final java.util.TreeMap<String, Integer> byName = new java.util.TreeMap<>();
+        for (final Map.Entry<PaperCard, Integer> e : player.getCards()) {
+            byName.merge(e.getKey().getCardName(), e.getValue(), Integer::sum);
+        }
+        final StringBuilder sb = new StringBuilder();
+        for (final Map.Entry<String, Integer> e : byName.entrySet()) {
+            sb.append(e.getValue()).append(' ').append(e.getKey()).append(System.lineSeparator());
+        }
+        return sb.toString();
+    }
+
     @Override
     public long acquiredAt(final PaperCard card) {
         return AcquiredLedger.acquiredAt(card);
@@ -216,29 +301,38 @@ final class AdventureDeckContext implements DeckContext {
      * impresion que esta en un mazo solo se marca lo que sobra.
      */
     private void moveToAutoSell(final PaperCard card, final int amount) {
-        final String k = key(card);
         onGdx(() -> {
-            int left = amount;
-            final List<PaperCard> mine = new ArrayList<>();
-            for (final Map.Entry<PaperCard, Integer> e : player.getCards()) {
-                if (key(e.getKey()).equals(k)) {
-                    mine.add(e.getKey());
-                }
-            }
-            mine.sort(Comparator.comparingInt((PaperCard c) -> -spareOf(c)));
-            for (final PaperCard c : mine) {
-                if (left <= 0) {
-                    break;
-                }
-                final int take = Math.min(left, spareOf(c));
-                if (take > 0) {
-                    player.getAutoSellCards().add(c, take);
-                    left -= take;
-                }
-            }
-            NeoDuelBridge.log("autovender: +" + (amount - left) + " " + card.getName());
+            final int done = markSpare(card, amount);
+            NeoDuelBridge.log("autovender: +" + done + " " + card.getName());
         });
         countOwned();
+    }
+
+    /**
+     * El reparto de {@link #moveToAutoSell}, sin cambiar de hilo: ya se esta en
+     * el de libGDX. Devuelve cuantas se han marcado.
+     */
+    private int markSpare(final PaperCard card, final int amount) {
+        final String k = key(card);
+        int left = amount;
+        final List<PaperCard> mine = new ArrayList<>();
+        for (final Map.Entry<PaperCard, Integer> e : player.getCards()) {
+            if (key(e.getKey()).equals(k)) {
+                mine.add(e.getKey());
+            }
+        }
+        mine.sort(Comparator.comparingInt((PaperCard c) -> -spareOf(c)));
+        for (final PaperCard c : mine) {
+            if (left <= 0) {
+                break;
+            }
+            final int take = Math.min(left, spareOf(c));
+            if (take > 0) {
+                player.getAutoSellCards().add(c, take);
+                left -= take;
+            }
+        }
+        return amount - left;
     }
 
     /** Copias de esa impresion que no estan en ningun mazo ni ya en autovender. */

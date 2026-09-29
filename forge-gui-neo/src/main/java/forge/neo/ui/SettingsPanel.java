@@ -744,6 +744,18 @@ public class SettingsPanel extends VBox {
                     host.refreshTable();
                 }));
 
+        // --- apilar las cartas iguales, no solo las fichas ---
+        //
+        // Como Forge. Pedido en itch.io el 29-09-2026 con treinta Rat Colony
+        // en una fila con flecha. Encendido de fabrica. Ver BattlefieldPane.
+        getChildren().add(toggleRow(NeoText.get("settings.stackSame"),
+                NeoSettings.stackSameCards(),
+                on -> {
+                    NeoSettings.setBool(NeoSettings.STACK_SAME, on);
+                    NeoSettings.save();
+                    host.refreshTable();
+                }));
+
         // --- equipos y auras: abanico o apilados ---
         //
         // Pedido en itch.io el 20-09-2026: con la mesa llena, lo enganchado
@@ -848,6 +860,40 @@ public class SettingsPanel extends VBox {
         // (no "en la proxima partida"): apagarlo sin que desaparezca de Discord
         // hasta reiniciar seria justo lo contrario de lo que pide quien lo
         // apaga. Ver forge.neo.discord.DiscordRich.
+        // --- partida en red: el tiempo de AFK ---
+        //
+        // Pedido en itch.io el 29-09-2026: "Customizable AFK timeout for
+        // multiplayer ... fixed at 5 minutes". No es fijo: es la preferencia de
+        // Forge NET_AFK_TIMEOUT (minutos, 0 = nunca), que el anfitrion lee al
+        // esperar la prioridad de cada jugador (FServerManager.armAfkTimeout).
+        // Solo faltaba donde cambiarla. Cuenta la del ANFITRION; se guarda en
+        // las preferencias de red de Forge, que es donde la lee el motor.
+        getChildren().add(section(NeoText.get("settings.net")));
+        final forge.localinstance.properties.ForgeNetPreferences netPrefs =
+                forge.model.FModel.getNetPreferences();
+        final String[] afkValues = {"0", "1", "2", "3", "5", "10", "15", "30", "60"};
+        final String[] afkLabels = new String[afkValues.length];
+        for (int i = 0; i < afkValues.length; i++) {
+            afkLabels[i] = "0".equals(afkValues[i]) ? NeoText.get("common.no") : afkValues[i];
+        }
+        final int afkNow = netPrefs.getPrefInt(
+                forge.localinstance.properties.ForgeNetPreferences.FNetPref.NET_AFK_TIMEOUT);
+        String afkCurrent = afkNow <= 0 ? afkLabels[0] : String.valueOf(afkNow);
+        getChildren().add(choiceRow(
+                forge.util.Localizer.getInstance().getMessage("lblAfkTimeout"), afkLabels, afkCurrent,
+                label -> {
+                    final String minutes = label.equals(afkLabels[0]) ? "0" : label;
+                    netPrefs.setPref(forge.localinstance.properties.ForgeNetPreferences.FNetPref
+                            .NET_AFK_TIMEOUT, minutes);
+                    netPrefs.save();
+                }));
+        final Label afkNote = new Label(NeoText.get("settings.net.afk.note"));
+        afkNote.getStyleClass().add("home-subtitle");
+        afkNote.setWrapText(true);
+        afkNote.setMaxWidth(UiScale.px(560));
+        afkNote.setMinHeight(Region.USE_PREF_SIZE);
+        getChildren().add(afkNote);
+
         getChildren().add(section(NeoText.get("settings.discord")));
         getChildren().add(toggleRow(NeoText.get("settings.discord.on"),
                 NeoSettings.discord(),
@@ -929,6 +975,40 @@ public class SettingsPanel extends VBox {
         artEvery.setMinWidth(Region.USE_PREF_SIZE);
         artEvery.setOnAction(e -> showArtDownload(forge.neo.card.ArtDownload.Scope.EVERY_PRINTING));
         getChildren().add(row(NeoText.get("settings.art.everyRow"), artEvery));
+
+        // Buscar imagenes mejores de todo lo bajado: las provisionales de
+        // Scryfall de las expansiones recientes. Pedido en itch.io el
+        // 29-09-2026 despues del boton de una carta. Ver ArtHdScan.
+        final Button artHd = new Button(NeoText.get("settings.art.hd"));
+        artHd.setId("settings-art-hd");
+        artHd.getStyleClass().add("segment");
+        artHd.setMinWidth(Region.USE_PREF_SIZE);
+        final Label artHdStatus = new Label();
+        artHdStatus.getStyleClass().add("home-subtitle");
+        artHdStatus.setWrapText(true);
+        artHdStatus.setMaxWidth(UiScale.px(460));
+        artHd.setOnAction(e -> {
+            artHd.setDisable(true);
+            artHdStatus.setText(NeoText.get("settings.art.hd.start"));
+            final Thread t = new Thread(() -> {
+                final forge.neo.card.ArtHdScan.Result r = forge.neo.card.ArtHdScan.run(
+                        (done, sets, name, updated) -> javafx.application.Platform.runLater(() ->
+                                artHdStatus.setText(NeoText.get("settings.art.hd.progress",
+                                        Math.min(done + 1, Math.max(sets, 1)), sets, name, updated))),
+                        null);
+                javafx.application.Platform.runLater(() -> {
+                    artHd.setDisable(false);
+                    artHdStatus.setText(r.sets() == 0 ? NeoText.get("settings.art.hd.none")
+                            : r.stoppedByNetwork() ? NeoText.get("settings.art.hd.offline", r.updated())
+                            : NeoText.get("settings.art.hd.done", r.updated(), r.sets()));
+                });
+            }, "neo-art-hd");
+            t.setDaemon(true);
+            t.start();
+        });
+        final HBox artHdBox = new HBox(12, artHd, artHdStatus);
+        artHdBox.setAlignment(Pos.CENTER_LEFT);
+        getChildren().add(row(NeoText.get("settings.art.hdRow"), artHdBox));
 
         getChildren().add(section(NeoText.get("settings.keyboard")));
         final Button shortcuts = new Button(NeoText.get("settings.shortcuts.open"));

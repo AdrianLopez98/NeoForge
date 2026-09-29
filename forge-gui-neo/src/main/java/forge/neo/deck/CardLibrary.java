@@ -161,6 +161,12 @@ public final class CardLibrary {
         return instance != null;
     }
 
+    /** Si esa carta tiene alguna impresion en la expansion {@code setCode}. */
+    public boolean hasPrintingIn(final String setCode, final PaperCard card) {
+        final Map<String, PaperCard> cards = bySet.get(setCode);
+        return cards != null && cards.containsKey(key(card));
+    }
+
     /** Cuantas cartas distintas hay. */
     public int size() {
         return index.size();

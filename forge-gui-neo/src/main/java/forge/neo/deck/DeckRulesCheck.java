@@ -57,6 +57,7 @@ public final class DeckRulesCheck {
         ascentCardsStayOutOfTheCatalogue();
         adventureIgnoresTheBanList();
         newestFirstOrdersByAcquisition();
+        catalogueSorts();
         oathbreakerHasTwoSlots();
         oathbreakerDoesNotChangeCommander();
         companionGoesToTheSideboard();
@@ -1243,6 +1244,37 @@ public final class DeckRulesCheck {
                 all.subList(3, 5).equals(undated));
         final DeckEditor cmd = new DeckEditor(NeoFormat.COMMANDER, new Deck("__neocheck-newest2__"));
         check("Lo ultimo primero: fuera de una coleccion no se ofrece", !cmd.tracksAcquisition());
+    }
+
+    /**
+     * Los ordenes del catalogo que tiene el editor de Forge (itch.io,
+     * 29-09-2026): cada uno pone lo esperado arriba, y se ordena ANTES del
+     * corte (se pide con un tope menor que el pool).
+     */
+    private static void catalogueSorts() {
+        final List<PaperCard> pool = List.of(card("Counterspell"), card("Lightning Bolt"),
+                card("Llanowar Elves"), card("Serra Angel"), card("Sol Ring"), card("Forest"));
+        final DeckEditor adv = new DeckEditor(new AdventureLike(pool, java.util.Map.of()),
+                new Deck("__neocheck-sort__"));
+        adv.setSort(DeckEditor.Sort.COST);
+        final List<String> cost = names(adv.find("", false, null, 2, false).cards);
+        check("Orden por coste: primero lo de coste 0 -> " + cost,
+                new java.util.HashSet<>(cost).equals(java.util.Set.of("Forest", "Lightning Bolt"))
+                        || cost.contains("Forest"));
+        adv.setSort(DeckEditor.Sort.POWER);
+        final List<String> power = names(adv.find("", false, null, 1, false).cards);
+        check("Orden por fuerza: la criatura mas fuerte arriba -> " + power,
+                power.equals(List.of("Serra Angel")));
+        adv.setSort(DeckEditor.Sort.TYPE);
+        final List<String> type = names(adv.find("", false, null, 10, false).cards);
+        check("Orden por tipo: criaturas primero y tierras al final -> " + type,
+                type.get(0).equals("Llanowar Elves") || type.get(0).equals("Serra Angel"));
+        check("Orden por tipo: la tierra la ultima", type.get(type.size() - 1).equals("Forest"));
+        adv.setSort(DeckEditor.Sort.COLOR);
+        final List<String> colour = names(adv.find("", false, null, 10, false).cards);
+        check("Orden por color: el incoloro al final -> " + colour,
+                colour.indexOf("Sol Ring") > colour.indexOf("Counterspell"));
+        adv.setSort(DeckEditor.Sort.NAME);
     }
 
     private static List<String> names(final List<PaperCard> cards) {

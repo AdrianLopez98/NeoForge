@@ -215,12 +215,53 @@ public final class CardZoom {
                 onCardClick.run();
             });
         }
+        final Node refresh = refreshButton(card);
         if (!side) {
-            return new StackPane(big);
+            return refresh == null ? new StackPane(big) : withRefresh(big, refresh);
         }
         final HBox row = new HBox(w * 0.06, big, statePanel(card, w * SIDE_RATIO));
         row.setAlignment(Pos.CENTER);
-        return new StackPane(row);
+        return refresh == null ? new StackPane(row) : withRefresh(row, refresh);
+    }
+
+    /** La carta (o carta y ficha) con el boton de volver a bajar debajo. */
+    private static Region withRefresh(final Node content, final Node refresh) {
+        final javafx.scene.layout.VBox box = new javafx.scene.layout.VBox(6, content, refresh);
+        box.setAlignment(Pos.CENTER);
+        return new StackPane(box);
+    }
+
+    /**
+     * "Volver a bajar la imagen": solo si Scryfall ya la tiene en HD
+     * ({@code CardImages.refreshFromScryfall}); si no, lo dice y no toca nada.
+     * No sale con la descarga de imagenes apagada ni para lo que no viene de
+     * Scryfall.
+     */
+    private static Node refreshButton(final CardView card) {
+        final String key = card == null || card.getCurrentState() == null ? null
+                : card.getCurrentState().getImageKey(null);
+        if (key == null || key.isEmpty() || !forge.model.FModel.getPreferences().getPrefBoolean(
+                forge.localinstance.properties.ForgePreferences.FPref.UI_ENABLE_ONLINE_IMAGE_FETCHER)) {
+            return null;
+        }
+        final javafx.scene.control.Button b = new javafx.scene.control.Button(
+                forge.neo.NeoText.get("zoom.refreshArt"));
+        b.getStyleClass().addAll("segment", "zoom-refresh-art");
+        b.setId("zoom-refresh-art");
+        b.setTooltip(new javafx.scene.control.Tooltip(forge.neo.NeoText.get("zoom.refreshArt.tip")));
+        b.setOnAction(e -> {
+            e.consume();
+            b.setDisable(true);
+            b.setText(forge.neo.NeoText.get("zoom.refreshArt.checking"));
+            forge.neo.card.CardImages.refreshFromScryfall(key, r -> {
+                b.setText(forge.neo.NeoText.get("zoom.refreshArt." + r.name().toLowerCase(java.util.Locale.ROOT)));
+                // Se puede volver a intentar si no ha salido; si ha salido, ya esta.
+                b.setDisable(r == forge.neo.card.CardImages.Refresh.UPDATED);
+            });
+        });
+        // Clicar el boton no es clicar "fuera": que no cierre la ampliacion.
+        b.addEventHandler(javafx.scene.input.MouseEvent.MOUSE_CLICKED, javafx.scene.input.MouseEvent::consume);
+        return b;
     }
 
     /**

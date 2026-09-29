@@ -1194,6 +1194,13 @@
 
 .btn-secondary:hover { -fx-text-fill: -neo-text; -fx-border-color: -neo-text-dim; }
 
+/* Un MenuButton con estilo de boton secundario ("Al azar de una coleccion"):
+   su texto va en una .label interna y la flecha en .arrow, que no heredan el
+   -fx-text-fill del boton. Sin esto salia casi invisible. */
+.menu-button.btn-secondary > .label { -fx-text-fill: -neo-text-dim; }
+.menu-button.btn-secondary:hover > .label { -fx-text-fill: -neo-text; }
+.menu-button.btn-secondary > .arrow-button > .arrow { -fx-background-color: -neo-text-dim; }
+
 /* Un boton secundario que ademas ENCIENDE UN MODO (el "Elegir comandante" del
    deck builder). Sin esto se veia exactamente igual pulsado que sin pulsar: el
    unico indicio de que el catalogo habia cambiado era su texto.
@@ -1984,6 +1991,8 @@
 .colour-filter.mana-b { -fx-text-fill: #A79EA0; -fx-border-color: #A79EA0; }
 .colour-filter.mana-r { -fx-text-fill: #E28B75; -fx-border-color: #E28B75; }
 .colour-filter.mana-g { -fx-text-fill: #7FBE94; -fx-border-color: #7FBE94; }
+.colour-filter.mana-c { -fx-background-color: transparent; -fx-text-fill: #BDC5CC; -fx-border-color: #BDC5CC; }
+.colour-filter.mana-m { -fx-text-fill: #E0C46C; -fx-border-color: #E0C46C; }
 
 /* Marcado por clase y no por :selected, porque la pantalla de Ascenso
    reconstruye los botones en cada pulsacion y el pseudo-estado se perderia. */
@@ -1998,6 +2007,8 @@
 .colour-filter.mana-b:selected { -fx-background-color: #A79EA0; -fx-text-fill: #12161C; }
 .colour-filter.mana-r:selected { -fx-background-color: #E28B75; -fx-text-fill: #12161C; }
 .colour-filter.mana-g:selected { -fx-background-color: #7FBE94; -fx-text-fill: #12161C; }
+.colour-filter.mana-c:selected { -fx-background-color: #BDC5CC; -fx-text-fill: #12161C; }
+.colour-filter.mana-m:selected { -fx-background-color: #E0C46C; -fx-text-fill: #12161C; }
 
 .mana-curve {
     -fx-background-color: -neo-table-deep;

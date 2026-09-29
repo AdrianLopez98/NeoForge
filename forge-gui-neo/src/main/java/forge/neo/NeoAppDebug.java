@@ -747,6 +747,19 @@ final class NeoAppDebug {
         // ofrece recordarlo al ordenar disparos: NeoMatchUI.orderRemembering).
         dialog.offerRemember(true);
         app.table.getOverlay().show(dialog);
+        // -Dneo.mock.orderAuto=true pulsa "Auto" como lo haria el jugador: tiene
+        // que contestar ya (sale el "orden elegido" con las cuatro en el orden
+        // de la pantalla) y cerrar el dialogo. Antes no hacia nada (4.4).
+        if (Boolean.getBoolean("neo.mock.orderAuto")) {
+            javafx.application.Platform.runLater(() -> {
+                final javafx.scene.Node b = dialog.lookup("#choice-auto");
+                System.out.println("[maqueta] Auto: " + (b == null ? "no hay boton"
+                        : b.isDisabled() ? "deshabilitado" : "pulsado"));
+                if (b instanceof javafx.scene.control.Button button) {
+                    button.fire();
+                }
+            });
+        }
     }
 
     /**
@@ -824,6 +837,17 @@ final class NeoAppDebug {
      * visor con una marcada para comprobar que se ve elegible y que el click
      * llega.
      */
+    void mockRevealed(final Deck deck) {
+        // La mano del rival revelada sin dialogo (showRevealedCards), como la
+        // manda un anfitrion de Forge en red. El OK de la barra es el que
+        // contesta; esto solo se mira.
+        final forge.trackable.Tracker t = new forge.trackable.Tracker();
+        final forge.game.player.PlayerView rival = new forge.game.player.PlayerView(9200, t);
+        rival.set(forge.trackable.TrackableProperty.LobbyPlayerName, "Paige");
+        app.table.showRevealed(rival, views(pickCards(deck, 4)));
+        app.table.setPrompt("Maqueta: Paige revela su mano (--mock-revealed)");
+    }
+
     void mockZonePick() {
         final forge.trackable.Tracker t = new forge.trackable.Tracker();
         final CardView pickable = new CardView(9101, t, "Criatura elegible");

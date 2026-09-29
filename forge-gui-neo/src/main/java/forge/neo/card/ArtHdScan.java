@@ -1,0 +1,273 @@
+package forge.neo.card;
+
+import java.io.File;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+
+import forge.StaticData;
+import forge.card.CardEdition;
+import forge.item.PaperCard;
+import forge.localinstance.properties.ForgeConstants;
+import forge.util.BuildInfo;
+import forge.util.ScryfallRateLimiter;
+
+/**
+ * <b>Buscar imagenes mejores (HD)</b> de todo lo que ya esta bajado, de un
+ * golpe.
+ *
+ * <p>Pedido en itch.io el 29-09-2026 despues del boton de una carta: Scryfall
+ * pone una imagen provisional mientras no tiene el escaneo, y la cache no
+ * vuelve a mirar. Aqui no se pregunta carta a carta: se pide a Scryfall cada
+ * EXPANSION entera ({@code /cards/search}, 175 cartas por peticion), y de cada
+ * impresion salen dos datos:
+ * <ul>
+ *   <li>{@code highres_image}: si ya esta el escaneo bueno;</li>
+ *   <li>la FECHA de su imagen actual, que va en el propio enlace
+ *       ({@code ...jpg?1788003039}).</li>
+ * </ul>
+ * Si es HD y es mas nueva que nuestro fichero, el nuestro se bajo antes (o sea,
+ * es la provisional) y se vuelve a bajar. Si no, no se toca.
+ *
+ * <p>Solo las expansiones de los ULTIMOS {@link #MONTHS} meses (las
+ * provisionales solo existen en las recientes) y solo aquellas de las que hay
+ * alguna imagen en disco: sin nada bajado no se pregunta. La descarga va por
+ * {@link CardImages#replaceFromCdn}, que escribe a un {@code .tmp} y solo
+ * sustituye si llega entera. Sin red, o con Scryfall limitando, se para.
+ *
+ * <p>Lo traducido ({@code cards-es}...) no entra en esta primera version.
+ * Clase pura, sin JavaFX; la pantalla la llama en su hilo.
+ */
+public final class ArtHdScan {
+
+    private ArtHdScan() {
+    }
+
+    /** Cuantos meses hacia atras se mira. */
+    static final int MONTHS = 18;
+
+    /** Como va: expansion {@code done} de {@code sets}, y cuantas imagenes cambiadas. */
+    public interface Progress {
+        void update(int done, int sets, String setName, int updated);
+    }
+
+    /** Como ha acabado. */
+    public record Result(int sets, int checked, int updated, boolean stoppedByNetwork) {
+    }
+
+    /**
+     * Recorre y actualiza. Bloquea: llamarlo fuera del hilo de interfaz.
+     *
+     * @param cancel si se pone a true, se para en la siguiente expansion
+     */
+    public static Result run(final Progress progress, final AtomicBoolean cancel) {
+        final List<CardEdition> sets = recentCachedSets();
+        final Map<String, Map<String, PaperCard>> byEdition = printingsBy(sets);
+        int checked = 0;
+        int updated = 0;
+        for (int i = 0; i < sets.size(); i++) {
+            if (cancel != null && cancel.get()) {
+                break;
+            }
+            final CardEdition ed = sets.get(i);
+            if (progress != null) {
+                progress.update(i, sets.size(), ed.getName(), updated);
+            }
+            final List<JsonObject> cards = searchSet(ed.getScryfallCode());
+            if (cards == null) {
+                // Sin red o limitados: seguir no sirve de nada.
+                return new Result(sets.size(), checked, updated, true);
+            }
+            final Map<String, PaperCard> mine = byEdition.getOrDefault(ed.getCode(), Map.of());
+            for (final JsonObject c : cards) {
+                if (cancel != null && cancel.get()) {
+                    break;
+                }
+                if (!c.has("highres_image") || !c.get("highres_image").getAsBoolean()) {
+                    continue;
+                }
+                final PaperCard pc = mine.get(collector(c));
+                if (pc == null) {
+                    continue;
+                }
+                checked++;
+                updated += maybeUpdate(pc.getImageKey(false), frontUris(c));
+                if (pc.getRules() != null && pc.getRules().getOtherPart() != null) {
+                    updated += maybeUpdate(pc.getImageKey(true), backUris(c));
+                }
+            }
+        }
+        if (progress != null) {
+            progress.update(sets.size(), sets.size(), "", updated);
+        }
+        return new Result(sets.size(), checked, updated, false);
+    }
+
+    /**
+     * Vuelve a bajar esa cara si lo que hay en disco es MAS VIEJO que la imagen
+     * HD de Scryfall. Devuelve 1 si la ha cambiado.
+     */
+    private static int maybeUpdate(final String imageKey, final JsonObject uris) {
+        if (imageKey == null || uris == null) {
+            return 0;
+        }
+        final File file = CardImages.cachedFile(imageKey);
+        if (file == null || !file.exists()) {
+            return 0;
+        }
+        final boolean crop = file.getName().contains(".artcrop");
+        final String url = uris.has(crop ? "art_crop" : "normal")
+                ? uris.get(crop ? "art_crop" : "normal").getAsString() : null;
+        final long stamp = stampOf(url);
+        if (url == null || stamp <= 0 || file.lastModified() / 1000L >= stamp) {
+            return 0;
+        }
+        return CardImages.replaceFromCdn(imageKey, url, file) ? 1 : 0;
+    }
+
+    /** La fecha de la imagen, en segundos: lo que va detras del "?". */
+    static long stampOf(final String url) {
+        if (url == null) {
+            return 0;
+        }
+        final int q = url.lastIndexOf('?');
+        if (q < 0 || q == url.length() - 1) {
+            return 0;
+        }
+        try {
+            return Long.parseLong(url.substring(q + 1).trim());
+        } catch (final NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    private static JsonObject frontUris(final JsonObject c) {
+        if (c.has("image_uris")) {
+            return c.getAsJsonObject("image_uris");
+        }
+        return faceUris(c, 0);
+    }
+
+    private static JsonObject backUris(final JsonObject c) {
+        return c.has("image_uris") ? null : faceUris(c, 1);
+    }
+
+    private static JsonObject faceUris(final JsonObject c, final int face) {
+        if (!c.has("card_faces")) {
+            return null;
+        }
+        final JsonArray faces = c.getAsJsonArray("card_faces");
+        if (faces.size() <= face) {
+            return null;
+        }
+        final JsonObject f = faces.get(face).getAsJsonObject();
+        return f.has("image_uris") ? f.getAsJsonObject("image_uris") : null;
+    }
+
+    private static String collector(final JsonObject c) {
+        return c.has("collector_number") ? c.get("collector_number").getAsString() : "";
+    }
+
+    /** Las expansiones recientes de las que hay alguna imagen en disco. */
+    static List<CardEdition> recentCachedSets() {
+        final Calendar from = Calendar.getInstance();
+        from.add(Calendar.MONTH, -MONTHS);
+        final Date since = from.getTime();
+        final File root = new File(ForgeConstants.CACHE_CARD_PICS_DIR);
+        final List<CardEdition> out = new ArrayList<>();
+        for (final CardEdition ed : StaticData.instance().getEditions()) {
+            final Date d = ed.getDate();
+            if (d == null || d.before(since) || ed.getScryfallCode() == null
+                    || ed.getScryfallCode().isEmpty()) {
+                continue;
+            }
+            final File dir = new File(root, ed.getCode());
+            final String[] files = dir.list();
+            if (files != null && files.length > 0) {
+                out.add(ed);
+            }
+        }
+        out.sort((a, b) -> b.getDate().compareTo(a.getDate()));
+        return out;
+    }
+
+    /** Numero de coleccionista -> impresion, por edicion. */
+    private static Map<String, Map<String, PaperCard>> printingsBy(final List<CardEdition> sets) {
+        final Map<String, Map<String, PaperCard>> out = new HashMap<>();
+        for (final CardEdition ed : sets) {
+            out.put(ed.getCode(), new HashMap<>());
+        }
+        for (final PaperCard pc : forge.model.FModel.getMagicDb().getCommonCards().getAllCards()) {
+            final Map<String, PaperCard> m = out.get(pc.getEdition());
+            if (m != null) {
+                String cn = pc.getCollectorNumber();
+                if (cn != null && cn.endsWith("☇")) {
+                    cn = cn.substring(0, cn.length() - 1);
+                }
+                m.putIfAbsent(cn, pc);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Todas las impresiones de una expansion en Scryfall, por paginas. null si
+     * no se ha podido (sin red, limitados); lista vacia si Scryfall no la
+     * tiene (404).
+     */
+    private static List<JsonObject> searchSet(final String scryfallCode) {
+        final List<JsonObject> out = new ArrayList<>();
+        String next = "https://api.scryfall.com/cards/search?q=e%3A" + scryfallCode.toLowerCase()
+                + "&unique=prints&include_extras=true&include_variations=true";
+        int pages = 0;
+        while (next != null && pages++ < 20) {
+            if (ScryfallRateLimiter.isCoolingDown()) {
+                return null;
+            }
+            try {
+                ScryfallRateLimiter.acquire(next);
+                final HttpURLConnection http = (HttpURLConnection) new URL(next).openConnection();
+                http.setRequestProperty("Accept", "application/json");
+                http.setRequestProperty("User-Agent", BuildInfo.getUserAgent());
+                http.setConnectTimeout(8_000);
+                http.setReadTimeout(20_000);
+                final int code = http.getResponseCode();
+                if (code == HttpURLConnection.HTTP_NOT_FOUND) {
+                    return out;
+                }
+                if (code != HttpURLConnection.HTTP_OK) {
+                    ScryfallRateLimiter.noteIfRateLimited(code, next, http.getHeaderField("Retry-After"));
+                    http.disconnect();
+                    return null;
+                }
+                final String body;
+                try (InputStream in = http.getInputStream()) {
+                    body = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+                }
+                final JsonObject page = JsonParser.parseString(body).getAsJsonObject();
+                for (final JsonElement e : page.getAsJsonArray("data")) {
+                    out.add(e.getAsJsonObject());
+                }
+                next = page.has("has_more") && page.get("has_more").getAsBoolean()
+                        && page.has("next_page") ? page.get("next_page").getAsString() : null;
+            } catch (final Exception e) {
+                System.err.println("[neo-img] no se pudo mirar la expansion " + scryfallCode + ": " + e);
+                return null;
+            }
+        }
+        return out;
+    }
+}

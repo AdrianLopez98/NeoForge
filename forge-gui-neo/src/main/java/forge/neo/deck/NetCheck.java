@@ -48,6 +48,7 @@ public final class NetCheck {
             downloadBringsDecks();
             cachedReadsWithoutNetwork();
             deckUrlProvidersAreRouted();
+            deckUrlFailuresAreExplained();
         } else {
             System.out.println("  - sin conexion: la parte de descarga se salta");
             cachedReadsWithoutNetwork();
@@ -158,6 +159,23 @@ public final class NetCheck {
      * tan buena prueba de "el enrutado funciona" como un mazo real, y no se
      * rompe el día que alguien borre el que se hubiera usado de ejemplo.
      */
+    /**
+     * El "HTTP 404" de Forge se explica (DeckUrlFailure), sin red: el mensaje
+     * es el de Forge con su numero. Informes del 29-09-2026 (Moxfield privado,
+     * TappedOut detras de Cloudflare).
+     */
+    private static void deckUrlFailuresAreExplained() {
+        check("404 -> no encontrado", DeckUrlFailure.classify("Moxfield request failed with HTTP 404.")
+                == DeckUrlFailure.Kind.NOT_FOUND, "");
+        check("403 -> bloqueado", DeckUrlFailure.classify("La solicitud a TappedOut falló con HTTP 403.")
+                == DeckUrlFailure.Kind.BLOCKED, "");
+        check("429 -> demasiadas", DeckUrlFailure.classify("HTTP 429") == DeckUrlFailure.Kind.TOO_MANY, "");
+        check("sin numero -> tal cual", DeckUrlFailure.classify("Card not found: Sol Rnig")
+                == DeckUrlFailure.Kind.OTHER, "");
+        check("web del enlace", "TappedOut".equals(
+                DeckUrlFailure.site("https://tappedout.net/mtg-decks/x/")), "");
+    }
+
     private static void deckUrlProvidersAreRouted() {
         final String[] hosts = {
             "https://moxfield.com/decks/neocheck-not-a-real-deck-id",

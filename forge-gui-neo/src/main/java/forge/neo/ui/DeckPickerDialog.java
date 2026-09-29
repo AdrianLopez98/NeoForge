@@ -51,7 +51,14 @@ public class DeckPickerDialog extends VBox {
     private final Button tabStock;
     private final Pager pager = new Pager(MAX_TILES, this::fill);
 
-    private boolean showingMine;
+    /** Lo que ensenya la rejilla: los tuyos sueltos, una coleccion o los de Forge. */
+    private List<Deck> showing;
+    /** Las pestanyas, para marcar la que esta puesta. */
+    private final List<Button> tabs = new ArrayList<>();
+    /** La fila de pestanyas, para meter las de las colecciones. */
+    private HBox tabBar;
+    /** Cuantos mazos hay en las colecciones (para el "al azar (de N)"). */
+    private int inCollections;
 
     /**
      * Que hacer al pulsar la papelera de un mazo, o {@code null} para no
@@ -62,6 +69,44 @@ public class DeckPickerDialog extends VBox {
      * borraria tus mazos desde una pantalla que no va de eso.
      */
     private Consumer<Deck> onDelete;
+
+    /**
+     * "Al azar de una coleccion": el menu con tus colecciones y cuantos mazos
+     * tiene cada una. Pedido en itch.io el 29-09-2026: se podia elegir al azar
+     * entre todos, pero no entre los de una coleccion hecha a mano. Solo lo
+     * monta quien elige el mazo de un RIVAL ({@code HomeScreen}); el sorteo lo
+     * hace el al empezar, como el "al azar" de siempre.
+     */
+    public void setRandomFromCollections(final java.util.Map<String, List<Deck>> collections,
+                                         final Consumer<String> onRandomFrom) {
+        if (collections == null || collections.isEmpty() || onRandomFrom == null || footer == null) {
+            return;
+        }
+        final javafx.scene.control.MenuButton menu = new javafx.scene.control.MenuButton(
+                NeoText.get("picker.randomFrom"));
+        menu.setId("picker-random-collection");
+        menu.getStyleClass().add("btn-secondary");
+        menu.setMinWidth(Region.USE_PREF_SIZE);
+        for (final java.util.Map.Entry<String, List<Deck>> e : collections.entrySet()) {
+            if (e.getValue() == null || e.getValue().isEmpty()) {
+                continue;
+            }
+            final javafx.scene.control.MenuItem item = new javafx.scene.control.MenuItem(
+                    NeoText.get("picker.randomFrom.item", e.getKey(), e.getValue().size()));
+            final String name = e.getKey();
+            item.setOnAction(ev -> onRandomFrom.accept(name));
+            menu.getItems().add(item);
+        }
+        if (menu.getItems().isEmpty()) {
+            return;
+        }
+        final int at = footer.getChildren().indexOf(randomButton);
+        footer.getChildren().add(at < 0 ? footer.getChildren().size() : at + 1, menu);
+    }
+
+    /** El pie y su boton de "al azar", para colgar el menu de colecciones al lado. */
+    private HBox footer;
+    private Button randomButton;
 
     public void setOnDelete(final Consumer<Deck> onDelete) {
         this.onDelete = onDelete;
@@ -105,7 +150,7 @@ public class DeckPickerDialog extends VBox {
         this.stock = stock;
         this.tileWidth = tileWidth;
         this.onPicked = onPicked;
-        this.showingMine = !mine.isEmpty();
+        this.showing = !mine.isEmpty() ? mine : stock;
 
         getStyleClass().addAll("dialog", "deck-picker");
         setSpacing(12);
@@ -126,8 +171,8 @@ public class DeckPickerDialog extends VBox {
         hint.setWrapText(true);
         hint.setMaxWidth(UiScale.px(700));
 
-        tabMine = tab(NeoText.get("home.tab.mine", mine.size()), true);
-        tabStock = tab(NeoText.get("home.tab.stock", stock.size()), false);
+        tabMine = tab(NeoText.get("home.tab.mine", mine.size()), mine);
+        tabStock = tab(NeoText.get("home.tab.stock", stock.size()), stock);
 
         // "Al azar" reparte entre TODOS: los tuyos y los de Forge. Es lo que
         // hace que una partida a cuatro sea contra tres mazos distintos.
@@ -135,6 +180,7 @@ public class DeckPickerDialog extends VBox {
         random.getStyleClass().add("btn-secondary");
         random.setMinWidth(Region.USE_PREF_SIZE);
         random.setOnAction(e -> onPicked.accept(null));
+        randomButton = random;
 
         // "Genérame uno": un mazo de verdad, con sinergia, que no existía
         // hasta este click — no un reparto entre los que ya tenías. Solo
@@ -175,6 +221,7 @@ public class DeckPickerDialog extends VBox {
         HBox.setHgrow(gap, Priority.ALWAYS);
         final HBox bar = new HBox(8, tabMine, tabStock, gap, search);
         bar.setAlignment(Pos.CENTER_LEFT);
+        tabBar = bar;
 
         grid.setAlignment(Pos.CENTER);
         grid.setPrefWrapLength(Math.max(760, tileWidth * 5));
@@ -193,9 +240,10 @@ public class DeckPickerDialog extends VBox {
 
         final Region gap2 = new Region();
         HBox.setHgrow(gap2, Priority.ALWAYS);
-        final HBox footer = generate == null
+        footer = generate == null
                 ? new HBox(10, count, pager, gap2, random, cancel)
                 : new HBox(10, count, pager, gap2, random, generate, cancel);
+        randomButton = random;
         footer.setAlignment(Pos.CENTER_LEFT);
 
         getChildren().addAll(heading, hint, bar, scroll, footer);
@@ -207,23 +255,54 @@ public class DeckPickerDialog extends VBox {
         tabStock.fire();
     }
 
-    private Button tab(final String label, final boolean isMine) {
+    private Button tab(final String label, final List<Deck> decks) {
         final Button b = new Button(label);
         b.getStyleClass().add("segment");
         b.setMinWidth(Region.USE_PREF_SIZE);
-        b.pseudoClassStateChanged(SELECTED, showingMine == isMine);
+        b.pseudoClassStateChanged(SELECTED, showing == decks);
         b.setOnAction(e -> {
-            showingMine = isMine;
-            tabMine.pseudoClassStateChanged(SELECTED, isMine);
-            tabStock.pseudoClassStateChanged(SELECTED, !isMine);
+            showing = decks;
+            for (final Button t : tabs) {
+                t.pseudoClassStateChanged(SELECTED, t == b);
+            }
             pager.reset();
             fill();
         });
+        tabs.add(b);
         return b;
     }
 
+    /**
+     * Una pestanya por coleccion, entre "Mis mazos" y "Los de Forge", como en
+     * la pantalla de mazos. Pedido por Ana el 29-09-2026: con "al azar de una
+     * coleccion" se podia sortear, pero no ELEGIR uno concreto de ella; y "Mis
+     * mazos" contaba tambien los de las colecciones (8 cuando eran 7 sueltos).
+     */
+    public void setCollections(final java.util.Map<String, List<Deck>> collections) {
+        if (collections == null || tabBar == null) {
+            return;
+        }
+        int at = tabBar.getChildren().indexOf(tabStock);
+        for (final java.util.Map.Entry<String, List<Deck>> e : collections.entrySet()) {
+            final List<Deck> decks = e.getValue();
+            if (decks == null || decks.isEmpty()) {
+                continue;
+            }
+            inCollections += decks.size();
+            final Button t = tab(NeoText.get("picker.collectionTab", e.getKey(), decks.size()), decks);
+            tabBar.getChildren().add(at++, t);
+            // Sin sueltos, se abre por la primera coleccion y no por los de Forge.
+            if (mine.isEmpty() && showing == stock) {
+                t.fire();
+            }
+        }
+        if (randomButton != null) {
+            randomButton.setText(NeoText.get("picker.random", mine.size() + inCollections + stock.size()));
+        }
+    }
+
     private void fill() {
-        final List<Deck> source = showingMine ? mine : stock;
+        final List<Deck> source = showing;
         final String q = search.getText() == null ? ""
                 : search.getText().trim().toLowerCase(Locale.ROOT);
 
@@ -246,7 +325,7 @@ public class DeckPickerDialog extends VBox {
             // La papelera, solo en los tuyos: los de Forge no se pueden borrar
             // y quien monta este dialogo decide si aqui pinta algo (en el
             // selector del mazo de un rival, no).
-            if (onDelete != null && showingMine) {
+            if (onDelete != null && showing != stock) {
                 tile.setOnDelete(() -> onDelete.accept(deck));
             }
             tiles.add(tile);
@@ -254,7 +333,7 @@ public class DeckPickerDialog extends VBox {
         }
 
         if (hits.isEmpty()) {
-            final Label empty = new Label(showingMine
+            final Label empty = new Label(showing != stock
                     ? NeoText.get("picker.empty.mine")
                     : NeoText.get("home.empty.stock"));
             empty.getStyleClass().add("home-subtitle");

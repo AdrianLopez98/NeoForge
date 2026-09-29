@@ -356,6 +356,11 @@ public class DeckBuilderScreen extends StackPane {
         filters.getChildren().add(colourFilter("B", MagicColor.BLACK));
         filters.getChildren().add(colourFilter("R", MagicColor.RED));
         filters.getChildren().add(colourFilter("G", MagicColor.GREEN));
+        // Incolora y multicolor, como el filtro de color del editor de Forge
+        // (CardColorFilter: WUBRG + incoloro + multicolor). Pedido en itch.io
+        // el 29-09-2026: "noticeably the lack of colorless/artifact filtering".
+        filters.getChildren().add(extraColourFilter("C", "mana-c", NeoText.get("deck.colorless"), true));
+        filters.getChildren().add(extraColourFilter("M", "mana-m", NeoText.get("deck.multicolor"), false));
 
         final Button legal = new Button(NeoText.get("deck.onlyFits"));
         legal.getStyleClass().add("segment");
@@ -437,9 +442,71 @@ public class DeckBuilderScreen extends StackPane {
 
         final Region gap2 = new Region();
         HBox.setHgrow(gap2, Priority.ALWAYS);
+
+        // Fuerza y resistencia, como los rangos de la busqueda avanzada de
+        // Forge (CardPowerFilter / CardToughnessFilter), con los mismos
+        // botones que el coste: 7 es "7 o mas".
+        final HBox powerRow = new HBox(4);
+        powerRow.setAlignment(Pos.CENTER_LEFT);
+        final HBox toughRow = new HBox(4);
+        toughRow.setAlignment(Pos.CENTER_LEFT);
+        for (int i = 0; i <= 7; i++) {
+            powerRow.getChildren().add(statFilter(i, powers));
+            toughRow.getChildren().add(statFilter(i, toughnesses));
+        }
+        // Con techo: hay expansiones de nombre muy largo y el desplegable se
+        // estiraria hasta comerse la fila entera.
+        setBox.setPrefWidth(UiScale.px(230));
+        setBox.setMaxWidth(UiScale.px(230));
+        setBox.setId("builder-set");
+        setBox.getStyleClass().add("builder-sort");
+        setBox.setConverter(new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(final forge.card.CardEdition ed) {
+                if (ed == null) {
+                    return NeoText.get("library.set.all");
+                }
+                final String year = ed.getDate() == null ? ""
+                        : " (" + new java.text.SimpleDateFormat("yyyy").format(ed.getDate()) + ")";
+                return ed.getName() + year;
+            }
+
+            @Override
+            public forge.card.CardEdition fromString(final String s) {
+                return null;
+            }
+        });
+        setBox.getItems().add(null);
+        setBox.getSelectionModel().select(0);
+        setBox.setOnAction(e -> refreshCatalogue());
+        loadEditions();
+        formatBox.setId("builder-format");
+        formatBox.getStyleClass().add("builder-sort");
+        formatBox.getItems().add(null);
+        forge.model.FModel.getFormats().getSanctionedList().forEach(formatBox.getItems()::add);
+        forge.model.FModel.getFormats().getCasualList().forEach(formatBox.getItems()::add);
+        formatBox.setConverter(new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(final forge.game.GameFormat f) {
+                return f == null ? NeoText.get("library.format.any") : f.getName();
+            }
+
+            @Override
+            public forge.game.GameFormat fromString(final String s) {
+                return null;
+            }
+        });
+        formatBox.getSelectionModel().select(0);
+        formatBox.setOnAction(e -> refreshCatalogue());
+
         final FlowPane fine = new FlowPane(10, 8,
                 new HBox(6, label(NeoText.get("deck.rarity")), rarityRow),
-                new HBox(6, label(NeoText.get("deck.cmc")), cmcRow), rules, clear);
+                new HBox(6, label(NeoText.get("deck.cmc")), cmcRow),
+                new HBox(6, label(caps("deck.power")), powerRow),
+                new HBox(6, label(caps("deck.toughness")), toughRow),
+                new HBox(6, label(caps("deck.set")), setBox),
+                new HBox(6, label(caps("library.format")), formatBox),
+                rules, clear);
         fine.setAlignment(Pos.CENTER_LEFT);
 
         // El tipo va en SU PROPIA fila, antes que rareza y coste: es lo
@@ -452,8 +519,10 @@ public class DeckBuilderScreen extends StackPane {
         filterRow = new VBox(10, typeRowLabeled, fine);
         filterRow.setId("builder-advanced");
         filterRow.getStyleClass().add("builder-advanced");
-        filterRow.setVisible(false);
-        filterRow.setManaged(false);
+        // -Dneo.builder.filters=true los abre al entrar: solo para capturarlos.
+        final boolean openFilters = Boolean.getBoolean("neo.builder.filters");
+        filterRow.setVisible(openFilters);
+        filterRow.setManaged(openFilters);
 
         results.setAlignment(Pos.TOP_LEFT);
         results.setPadding(new Insets(16, 4, 16, 0));
@@ -476,8 +545,25 @@ public class DeckBuilderScreen extends StackPane {
         final HBox caption = new HBox(10,
                 label(editor.getFormat().catalogueLabel()), pickingBadge,
                 gap, legal);
-        if (editor.tracksAcquisition()) {
-            caption.getChildren().add(caption.getChildren().indexOf(legal), newestButton());
+        // Ordenar, como las columnas del editor de Forge. En la Aventura,
+        // ademas, "lo ultimo primero".
+        caption.getChildren().add(caption.getChildren().indexOf(legal), sortBox());
+        // Y en la Aventura, copiar la coleccion entera (lo tiene su editor).
+        if (editor.getFormat().collectionText() != null) {
+            final Button copy = new Button(NeoText.get("deck.copyCollection"));
+            copy.setId("builder-copy-collection");
+            copy.getStyleClass().add("segment");
+            copy.setMinWidth(Region.USE_PREF_SIZE);
+            copy.setOnAction(e -> copyCollection());
+            caption.getChildren().add(caption.getChildren().indexOf(legal), copy);
+        }
+        if (editor.bulkAutoSell(List.of()) != null) {
+            final Button sell = new Button(NeoText.get("deck.autoSellFiltered"));
+            sell.setId("builder-autosell-filtered");
+            sell.getStyleClass().add("segment");
+            sell.setMinWidth(Region.USE_PREF_SIZE);
+            sell.setOnAction(e -> askAutoSellFiltered());
+            caption.getChildren().add(caption.getChildren().indexOf(legal), sell);
         }
         caption.setAlignment(Pos.CENTER_LEFT);
 
@@ -519,6 +605,210 @@ public class DeckBuilderScreen extends StackPane {
      * vez, y quien ordena por lo ultimo lo quiere asi en la siguiente.
      */
     private static boolean newestFirstChosen;
+
+    /** El orden elegido la ultima vez, por la misma razon. */
+    private static DeckEditor.Sort sortChosen;
+
+    /**
+     * El selector de orden. Los criterios de las columnas del editor de Forge;
+     * "lo ultimo primero" solo donde se lleva la cuenta (la Aventura).
+     */
+    private javafx.scene.control.ComboBox<DeckEditor.Sort> sortBox() {
+        final javafx.scene.control.ComboBox<DeckEditor.Sort> box = new javafx.scene.control.ComboBox<>();
+        box.setId("builder-sort");
+        box.getStyleClass().add("builder-sort");
+        for (final DeckEditor.Sort s : DeckEditor.Sort.values()) {
+            if ((s != DeckEditor.Sort.NEWEST || editor.tracksAcquisition())
+                    && (s != DeckEditor.Sort.PRICE || editor.hasPrices())) {
+                box.getItems().add(s);
+            }
+        }
+        final javafx.util.StringConverter<DeckEditor.Sort> names = new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(final DeckEditor.Sort s) {
+                return s == null ? "" : NeoText.get("deck.sort", sortName(s));
+            }
+
+            @Override
+            public DeckEditor.Sort fromString(final String t) {
+                return null;
+            }
+        };
+        box.setConverter(names);
+        DeckEditor.Sort start = sortChosen;
+        if (start == null) {
+            start = newestFirstChosen && editor.tracksAcquisition()
+                    ? DeckEditor.Sort.NEWEST : DeckEditor.Sort.NAME;
+        }
+        if (!box.getItems().contains(start)) {
+            start = DeckEditor.Sort.NAME;
+        }
+        box.setValue(start);
+        editor.setSort(start);
+        if (editor.tracksAcquisition()) {
+            box.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("deck.newest.tip")));
+        }
+        box.valueProperty().addListener((o, was, is) -> {
+            if (is == null) {
+                return;
+            }
+            sortChosen = is;
+            newestFirstChosen = is == DeckEditor.Sort.NEWEST;
+            editor.setSort(is);
+            refreshCatalogue();
+        });
+        return box;
+    }
+
+    private static String sortName(final DeckEditor.Sort s) {
+        switch (s) {
+            case NEWEST:
+                return NeoText.get("deck.newest");
+            case COST:
+                return NeoText.get("deck.sort.cost");
+            case COLOR:
+                return NeoText.get("deck.sort.color");
+            case TYPE:
+                return NeoText.get("deck.sort.type");
+            case RARITY:
+                return NeoText.get("deck.sort.rarity");
+            case SET:
+                return NeoText.get("deck.sort.set");
+            case POWER:
+                return NeoText.get("deck.sort.power");
+            case TOUGHNESS:
+                return NeoText.get("deck.sort.toughness");
+            case PRICE:
+                return NeoText.get("deck.sort.price");
+            default:
+                return NeoText.get("deck.sort.name");
+        }
+    }
+
+    /** La coleccion entera, para copiarla (ver DeckContext.collectionText). */
+    private void copyCollection() {
+        final String text = editor.getFormat().collectionText();
+        overlay.show(TextDialog.block(NeoText.get("deck.copyCollection.title"),
+                NeoText.get("deck.copyCollection.hint"),
+                text == null ? "" : text, NeoText.get("deck.export.copy"),
+                t -> {
+                    final javafx.scene.input.ClipboardContent content =
+                            new javafx.scene.input.ClipboardContent();
+                    content.putString(t);
+                    javafx.scene.input.Clipboard.getSystemClipboard().setContent(content);
+                    overlay.hide();
+                },
+                overlay::hide));
+    }
+
+    private final java.util.Set<Integer> powers = new java.util.HashSet<>();
+    private final java.util.Set<Integer> toughnesses = new java.util.HashSet<>();
+    private final javafx.scene.control.ComboBox<forge.card.CardEdition> setBox =
+            new javafx.scene.control.ComboBox<>();
+    private final javafx.scene.control.ComboBox<forge.game.GameFormat> formatBox =
+            new javafx.scene.control.ComboBox<>();
+    /** Las cartas que tienen alguna impresion en cada expansion (CardLibrary). */
+    private volatile forge.neo.deck.CardLibrary library;
+
+    /** Un valor de fuerza o resistencia del filtro. El 7 es "7 o mas". */
+    private Button statFilter(final int value, final java.util.Set<Integer> into) {
+        final Button b = new Button(value == 7 ? "7+" : String.valueOf(value));
+        b.getStyleClass().addAll("segment", "cmc-filter");
+        b.setMinWidth(Region.USE_PREF_SIZE);
+        b.setOnAction(e -> {
+            if (!into.remove(value)) {
+                into.add(value);
+            }
+            b.pseudoClassStateChanged(SELECTED, into.contains(value));
+            refreshCatalogue();
+        });
+        filterButtons.add(b);
+        return b;
+    }
+
+    /**
+     * Las expansiones, fuera del hilo de interfaz: salen del mismo indice que
+     * la enciclopedia, que la primera vez tarda unas decimas en montarse.
+     */
+    private void loadEditions() {
+        final Thread t = new Thread(() -> {
+            final forge.neo.deck.CardLibrary lib = forge.neo.deck.CardLibrary.get();
+            javafx.application.Platform.runLater(() -> {
+                library = lib;
+                setBox.getItems().addAll(lib.editions());
+            });
+        }, "neo-builder-sets");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    /**
+     * Si la carta cabe en la expansion elegida. En una coleccion (la Aventura)
+     * cuenta la impresion que TIENES; en el catalogo de todo Magic, que haya
+     * alguna impresion de esa carta en la expansion.
+     */
+    private boolean inChosenSet(final PaperCard card, final forge.card.CardEdition ed) {
+        if (ed.getCode().equalsIgnoreCase(card.getEdition())) {
+            return true;
+        }
+        if (editor.getFormat().pool() != null) {
+            return false;
+        }
+        final forge.neo.deck.CardLibrary lib = library;
+        return lib != null && lib.hasPrintingIn(ed.getCode(), card);
+    }
+
+    /** "Autovender lo filtrado": pregunta, con cuantas y por cuanto. */
+    private void askAutoSellFiltered() {
+        final List<PaperCard> all = editor.find(lastQuery, onlyLegal, lastFine,
+                Integer.MAX_VALUE, searchRules).cards;
+        final forge.neo.deck.DeckContext.BulkSell plan = editor.bulkAutoSell(all);
+        if (plan == null || plan.copies() == 0) {
+            overlay.show(new ConfirmDialog(NeoText.get("deck.autoSellFiltered"),
+                    NeoText.get("deck.autoSellFiltered.none"),
+                    List.of(NeoText.get("banner.understood")), 0, i -> overlay.hide()));
+            return;
+        }
+        overlay.show(new ConfirmDialog(NeoText.get("deck.autoSellFiltered.ask"),
+                NeoText.get("deck.autoSellFiltered.detail", plan.copies(), plan.cards(), plan.value()),
+                List.of(NeoText.get("deck.autoSellFiltered.yes"), NeoText.get("common.cancel")), 1,
+                i -> {
+                    overlay.hide();
+                    if (i != null && i == 0) {
+                        plan.run().run();
+                        refreshCatalogue();
+                    }
+                }));
+    }
+
+    /** La ultima busqueda y sus filtros, para "autovender lo filtrado". */
+    private String lastQuery = "";
+    private Predicate<PaperCard> lastFine;
+
+    /** Incolora o multicolor: van con los colores y se suman a ellos. */
+    private boolean colourlessOn;
+    private boolean multicolourOn;
+
+    private Button extraColourFilter(final String letter, final String style, final String tip,
+                                     final boolean colourless) {
+        final Button b = new Button(letter);
+        b.getStyleClass().addAll("segment", "colour-filter", style);
+        b.setTooltip(new javafx.scene.control.Tooltip(tip));
+        b.setOnAction(e -> {
+            final boolean on;
+            if (colourless) {
+                colourlessOn = !colourlessOn;
+                on = colourlessOn;
+            } else {
+                multicolourOn = !multicolourOn;
+                on = multicolourOn;
+            }
+            b.pseudoClassStateChanged(SELECTED, on);
+            refreshCatalogue();
+        });
+        filterButtons.add(b);
+        return b;
+    }
 
     /**
      * "Lo ultimo primero": la coleccion ordenada por cuando entro cada carta.
@@ -614,6 +904,12 @@ public class DeckBuilderScreen extends StackPane {
      */
     private void clearFilters() {
         colours.clear();
+        colourlessOn = false;
+        multicolourOn = false;
+        powers.clear();
+        toughnesses.clear();
+        setBox.getSelectionModel().select(0);
+        formatBox.getSelectionModel().select(0);
         rarities.clear();
         cmcs.clear();
         types.clear();
@@ -680,6 +976,11 @@ public class DeckBuilderScreen extends StackPane {
         box.getStyleClass().add("deck-panel");
         box.setPadding(new Insets(12, 14, 12, 14));
         return box;
+    }
+
+    /** Un rotulo de filtro en mayusculas, como TIPO, RAREZA y COSTE. */
+    private static String caps(final String key) {
+        return NeoText.get(key).toUpperCase(java.util.Locale.ROOT);
     }
 
     private static Label label(final String text) {
@@ -846,7 +1147,10 @@ public class DeckBuilderScreen extends StackPane {
     // Catalogo
 
     private void updateFilterToggle() {
-        final int active = colours.size() + rarities.size() + cmcs.size() + types.size() + (searchRules ? 1 : 0);
+        final int active = colours.size() + (colourlessOn ? 1 : 0) + (multicolourOn ? 1 : 0)
+                + rarities.size() + cmcs.size() + types.size() + (searchRules ? 1 : 0)
+                + powers.size() + toughnesses.size()
+                + (setBox.getValue() != null ? 1 : 0) + (formatBox.getValue() != null ? 1 : 0);
         filterToggle.setText(NeoText.get("deck.filters") + (active == 0 ? "" : " · " + active)
                 + (filterRow != null && filterRow.isVisible() ? "  −" : "  +"));
         filterToggle.pseudoClassStateChanged(SELECTED, active > 0 || (filterRow != null && filterRow.isVisible()));
@@ -854,14 +1158,19 @@ public class DeckBuilderScreen extends StackPane {
 
     private void refreshCatalogue() {
         updateFilterToggle();
-        final Predicate<PaperCard> colourFilter = colours.isEmpty() ? null : card -> {
+        // Dentro del grupo de color se SUMA: verde, o incolora, o multicolor.
+        final Predicate<PaperCard> colourFilter =
+                colours.isEmpty() && !colourlessOn && !multicolourOn ? null : card -> {
             final ColorSet id = card.getRules().getColorIdentity();
             for (final byte c : colours) {
                 if (id.hasAnyColor(c)) {
                     return true;
                 }
             }
-            return false;
+            if (colourlessOn && id.isColorless()) {
+                return true;
+            }
+            return multicolourOn && id.countColors() > 1;
         };
 
         // Los filtros finos se componen con el de color en un solo predicado:
@@ -881,10 +1190,34 @@ public class DeckBuilderScreen extends StackPane {
                     return false;
                 }
             }
+            // Fuerza y resistencia: solo criaturas, como en Forge.
+            if (!powers.isEmpty() || !toughnesses.isEmpty()) {
+                if (!card.getRules().getType().isCreature()) {
+                    return false;
+                }
+                if (!powers.isEmpty() && !powers.contains(
+                        Math.max(0, Math.min(card.getRules().getIntPower(), 7)))) {
+                    return false;
+                }
+                if (!toughnesses.isEmpty() && !toughnesses.contains(
+                        Math.max(0, Math.min(card.getRules().getIntToughness(), 7)))) {
+                    return false;
+                }
+            }
+            final forge.card.CardEdition ed = setBox.getValue();
+            if (ed != null && !inChosenSet(card, ed)) {
+                return false;
+            }
+            final forge.game.GameFormat gf = formatBox.getValue();
+            if (gf != null && !gf.getFilterRules().test(card)) {
+                return false;
+            }
             return colourFilter == null || colourFilter.test(card);
         };
 
         final String query = search.getText();
+        lastQuery = query;
+        lastFine = fine;
         if (commanderMode) {
             // En modo comandante manda una sola regla, la del motor: que cartas
             // pueden serlo. Los filtros de color y "solo lo que cabe" no pintan
@@ -1861,6 +2194,25 @@ public class DeckBuilderScreen extends StackPane {
      * cambia de texto — dos descargas a la vez no tienen dónde ir, y así el
      * jugador ve que su URL se ha aceptado sin tener que pulsar otra vez.
      */
+    /**
+     * El "HTTP 404" de Forge, dicho de forma que se sepa que hacer: privado,
+     * bloqueado (TappedOut y su Cloudflare) o demasiadas peticiones. Ver
+     * {@link forge.neo.deck.DeckUrlFailure}.
+     */
+    private static String explainUrlFailure(final String url, final String message) {
+        final String site = forge.neo.deck.DeckUrlFailure.site(url);
+        switch (forge.neo.deck.DeckUrlFailure.classify(message)) {
+            case NOT_FOUND:
+                return NeoText.get("deck.import.url.notFound", site);
+            case BLOCKED:
+                return NeoText.get("deck.import.url.blocked", site);
+            case TOO_MANY:
+                return NeoText.get("deck.import.url.tooMany", site);
+            default:
+                return message;
+        }
+    }
+
     private void applyImportUrl(final String url) {
         if (busyImportingUrl) {
             return;
@@ -1876,7 +2228,7 @@ public class DeckBuilderScreen extends StackPane {
             try {
                 deck = forge.deck.DeckUrlLoader.load(url).getDeck();
             } catch (final java.io.IOException | RuntimeException e) {
-                failure = e.getMessage();
+                failure = explainUrlFailure(url, e.getMessage());
             }
             final Deck loaded = deck;
             final String why = failure;

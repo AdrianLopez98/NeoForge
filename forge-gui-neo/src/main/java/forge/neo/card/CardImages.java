@@ -707,6 +707,201 @@ public final class CardImages {
         });
     }
 
+    // ---------------------------------------------------------------
+    // Volver a bajar la imagen, SOLO si Scryfall ya la tiene en HD
+    // ---------------------------------------------------------------
+
+    /** Lo que ha pasado al pedir otra vez la imagen. */
+    public enum Refresh {
+        /** Habia HD y ya esta puesta. */
+        UPDATED,
+        /** Scryfall todavia no la tiene en alta: no se ha tocado nada. */
+        NOT_YET,
+        /** Sin red, o la descarga no llego: no se ha tocado nada. */
+        OFFLINE,
+        /** Scryfall nos esta limitando: no se ha tocado nada. */
+        BUSY,
+        /** Esta carta no se pide a Scryfall (propia, sin numero...). */
+        UNSUPPORTED
+    }
+
+    /**
+     * <b>Vuelve a bajar la imagen de esta carta si Scryfall ya la tiene en
+     * HD</b>, y si no, no toca nada.
+     *
+     * <p>Pregunta en itch.io (29-09-2026): Scryfall pone una imagen provisional
+     * mientras no tiene el escaneo bueno, y una vez bajada la cache no vuelve a
+     * mirar nunca. Se pide primero la ficha de ESA impresion — la misma url que
+     * usa Forge para la imagen, con {@code format=json} —, y solo si dice
+     * {@code highres_image: true} se descarga encima. La descarga escribe a un
+     * {@code .tmp} y solo sustituye el fichero si llega entera
+     * ({@code NeoImageFetcher.doFetch}), asi que sin red, con un 429 o con
+     * cualquier fallo la imagen que habia se queda. Va por el limitador de
+     * Scryfall de siempre.
+     *
+     * <p>Se refresca la imagen QUE SE VE: la traducida si la hay (y esta
+     * puesta), o la de Forge.
+     *
+     * @param done se llama una vez, en el hilo de interfaz
+     */
+    public static void refreshFromScryfall(final String imageKey, final java.util.function.Consumer<Refresh> done) {
+        final Thread t = new Thread(() -> {
+            final Refresh r = refreshBlocking(imageKey);
+            javafx.application.Platform.runLater(() -> done.accept(r));
+        }, "neo-art-refresh");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    /**
+     * Lo mismo, esperando la respuesta en ESTE hilo (nunca el de interfaz).
+     * Lo usa tambien {@code run.cmd refreshartcheck}, que no tiene JavaFX.
+     */
+    public static Refresh refreshBlocking(final String imageKey) {
+        if (imageKey == null || imageKey.isEmpty()
+                || !(GuiBase.getInterface().getImageFetcher() instanceof forge.neo.platform.NeoImageFetcher neo)
+                || !forge.model.FModel.getPreferences().getPrefBoolean(
+                        forge.localinstance.properties.ForgePreferences.FPref.UI_ENABLE_ONLINE_IMAGE_FETCHER)) {
+            return Refresh.UNSUPPORTED;
+        }
+        try {
+            return refreshNow(imageKey, neo);
+        } catch (final RuntimeException e) {
+            System.err.println("[neo-img] no se pudo refrescar " + imageKey + ": " + e);
+            return Refresh.OFFLINE;
+        }
+    }
+
+    private static Refresh refreshNow(final String imageKey, final forge.neo.platform.NeoImageFetcher neo) {
+        final String face = imageKey.endsWith(ImageKeys.BACKFACE_POSTFIX) ? "back" : "";
+        final forge.item.PaperCard card = forge.util.ImageUtil.getPaperCardFromImageKey(imageKey);
+        if (card == null || card.getRules() == null || card.getRules().isCustom()
+                || card.getCollectorNumber().equals(forge.item.IPaperCard.NO_COLLECTOR_NUMBER)) {
+            return Refresh.UNSUPPORTED;
+        }
+        final forge.card.CardEdition edition = forge.StaticData.instance().getEditions().get(card.getEdition());
+        if (edition == null) {
+            return Refresh.UNSUPPORTED;
+        }
+        if (forge.util.ScryfallRateLimiter.isCoolingDown()) {
+            return Refresh.BUSY;
+        }
+        // Que fichero se esta viendo: el traducido si esta puesto, si no el de
+        // Forge. Se refresca ESE, en su idioma.
+        final File localized = findLocalized(imageKey);
+        final String lang = localized != null ? CardArt.language() : "";
+        final boolean crop = "Crop".equals(forge.model.FModel.getPreferences()
+                .getPref(forge.localinstance.properties.ForgePreferences.FPref.UI_CARD_ART_FORMAT));
+        final String imageUrl = forge.localinstance.properties.ForgeConstants.URL_PIC_SCRYFALL_DOWNLOAD
+                + forge.util.ImageUtil.getScryfallDownloadUrl(card, face, edition.getScryfallCode(),
+                        lang == null ? "" : lang, crop && localized == null);
+        final String jsonUrl = imageUrl.replace("format=image", "format=json");
+
+        final Boolean highres = askHighres(jsonUrl);
+        if (highres == null) {
+            return forge.util.ScryfallRateLimiter.isCoolingDown() ? Refresh.BUSY : Refresh.OFFLINE;
+        }
+        if (!highres) {
+            return Refresh.NOT_YET;
+        }
+
+        final String dest;
+        if (localized != null) {
+            dest = localized.getPath();
+        } else {
+            final String name = toFilename(imageKey);
+            if (name == null || name.isEmpty()) {
+                return Refresh.UNSUPPORTED;
+            }
+            // doFetch pasa .full a .fullborder, como con cualquier descarga.
+            dest = new File(forge.localinstance.properties.ForgeConstants.CACHE_CARD_PICS_DIR,
+                    name + ".jpg").getPath();
+        }
+        final java.util.concurrent.CompletableFuture<Boolean> got = new java.util.concurrent.CompletableFuture<>();
+        neo.fetchDirect(imageUrl, dest, got::complete);
+        final boolean ok;
+        try {
+            ok = got.get(60, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (final Exception e) {
+            return Refresh.OFFLINE;
+        }
+        if (!ok) {
+            return Refresh.OFFLINE;
+        }
+        // La nueva, en vez de la de memoria.
+        CACHE.invalidate(imageKey);
+        SCALED.invalidateAll();
+        FAILED.remove(imageKey);
+        ImageKeys.clearMissingCards();
+        final File now = localized != null ? localized : downloadedFile(imageKey);
+        if (now != null && now.exists()) {
+            decode(imageKey, now);
+        }
+        return Refresh.UPDATED;
+    }
+
+    /** El fichero de Forge de esa imagen, si esta en disco (ver ArtHdScan). */
+    public static File cachedFile(final String imageKey) {
+        return downloadedFile(imageKey);
+    }
+
+    /**
+     * Baja {@code url} (la CDN de Scryfall) ENCIMA de {@code file}, por el
+     * {@code .tmp} de siempre: si no llega entera, el fichero no se toca. Si la
+     * imagen estaba en memoria, se cambia. Bloquea; nunca en el hilo de
+     * interfaz. Lo usa {@link ArtHdScan}.
+     */
+    public static boolean replaceFromCdn(final String imageKey, final String url, final File file) {
+        if (!(GuiBase.getInterface().getImageFetcher() instanceof forge.neo.platform.NeoImageFetcher neo)) {
+            return false;
+        }
+        final java.util.concurrent.CompletableFuture<Boolean> got = new java.util.concurrent.CompletableFuture<>();
+        neo.fetchDirect(url, file.getPath(), got::complete);
+        final boolean ok;
+        try {
+            ok = got.get(60, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (final Exception e) {
+            return false;
+        }
+        if (ok && CACHE.getIfPresent(imageKey) != null) {
+            CACHE.invalidate(imageKey);
+            SCALED.invalidateAll();
+            decode(imageKey, file);
+        }
+        return ok;
+    }
+
+    /**
+     * Si Scryfall tiene ESA impresion en alta ({@code highres_image}); null si
+     * no se ha podido saber (sin red, 429, 404...).
+     */
+    private static Boolean askHighres(final String jsonUrl) {
+        try {
+            forge.util.ScryfallRateLimiter.acquire(jsonUrl);
+            final java.net.HttpURLConnection http =
+                    (java.net.HttpURLConnection) new java.net.URL(jsonUrl).openConnection();
+            http.setRequestProperty("Accept", "application/json");
+            http.setRequestProperty("User-Agent", forge.util.BuildInfo.getUserAgent());
+            http.setConnectTimeout(5_000);
+            http.setReadTimeout(8_000);
+            final int code = http.getResponseCode();
+            if (code != java.net.HttpURLConnection.HTTP_OK) {
+                forge.util.ScryfallRateLimiter.noteIfRateLimited(code, jsonUrl,
+                        http.getHeaderField("Retry-After"));
+                http.disconnect();
+                return null;
+            }
+            final String body;
+            try (java.io.InputStream in = http.getInputStream()) {
+                body = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            }
+            return java.util.regex.Pattern.compile("\"highres_image\"\\s*:\\s*true")
+                    .matcher(body).find();
+        } catch (final java.io.IOException | RuntimeException e) {
+            return null;
+        }
+    }
+
     private static void decode(final String imageKey, final File file) {
         try {
             final Image img = new Image(file.toURI().toString(), false);

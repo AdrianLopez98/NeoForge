@@ -204,19 +204,30 @@ public class ChoiceDialog<T> extends VBox {
         // TODAS (disparos simultaneos): si se puede dejar alguna fuera, "todas
         // en este orden" no es la unica respuesta razonable y no se adivina.
         final boolean autoFits = this.ordered && this.min == options.size();
+        auto.setId("choice-auto");
         auto.getStyleClass().add("btn-secondary");
         auto.setText(NeoText.get("choice.auto"));
         auto.setVisible(autoFits);
         auto.setManaged(autoFits);
+        // Contesta DIRECTAMENTE con el orden de la pantalla, como el Auto de
+        // Forge (addAll + finish): no hace falta Aceptar despues. Antes llenaba
+        // la seleccion por dentro y "pulsaba" Aceptar con fire(), pero Aceptar
+        // seguia deshabilitado (no se habia refrescado) y fire() no hace nada
+        // en un boton deshabilitado: no pasaba nada a la vista y la seleccion
+        // quedaba llena sin marcar, asi que los clics siguientes parecian
+        // encender y apagar al azar (itch.io, 29-09-2026).
+        //
+        // Y como el de Forge, respeta lo que ya hayas ordenado: eso va primero,
+        // en tu orden, y el resto detras en el de la pantalla.
         auto.setOnAction(e -> {
-            for (final Region node : new ArrayList<>(selected.keySet())) {
-                unmark(node);
-            }
-            selected.clear();
+            chosen.clear();
+            chosen.addAll(selected.values());
             for (int i = 0; i < nodesInOrder.size(); i++) {
-                selected.put(nodesInOrder.get(i), optionsInOrder.get(i));
+                if (!selected.containsKey(nodesInOrder.get(i))) {
+                    chosen.add(optionsInOrder.get(i));
+                }
             }
-            accept.fire();
+            onDone.accept(new ArrayList<>(chosen));
         });
 
         // Con "Auto" a la vista, "marcar todas" sobra: hace lo mismo con un

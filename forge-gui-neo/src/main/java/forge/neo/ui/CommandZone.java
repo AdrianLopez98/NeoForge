@@ -285,7 +285,13 @@ public class CommandZone extends Pane {
         // llena, porque una carta pequena se sigue viendo entera; solaparse
         // esconde justo el arte, que es por lo que se reconoce. Crecer no es
         // una opcion: este ancho se le quita a la mano, y la mano no se mueve.
-        final double span = preferredWidth();
+        //
+        // Contra el ancho que de verdad le han dado, no contra el que pidio: la
+        // mesa le pone techo (un tercio, TableScreen) y con tres avatares de
+        // MoJhoSto el preferido pasa de ese techo — la tercera carta se salia
+        // por debajo de la columna de la derecha (itch.io, 29-09-2026).
+        final double span = getWidth() > 0 ? Math.min(preferredWidth(), getWidth() - 4)
+                : preferredWidth();
         double w = cardWidth;
         double step = w + GAP;
 

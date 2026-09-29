@@ -153,6 +153,13 @@ et}) y no se tocan.
      * disponibles, cada uno puede llevar algo distinto.
      */
     private final List<Deck> opponentDecks = new ArrayList<>();
+
+    /**
+     * Los rivales que van "al azar de una coleccion": asiento -> coleccion. Un
+     * asiento aqui tiene {@code null} en {@link #opponentDecks} y se sortea al
+     * empezar DENTRO de esa coleccion (ver {@link #resolvedOpponentDecks}).
+     */
+    private final java.util.Map<Integer, String> opponentPools = new java.util.HashMap<>();
     private final List<Button> opponentButtons = new ArrayList<>();
     private Region opponentRow;
 
@@ -1088,8 +1095,11 @@ et}) y no se tocan.
     private void refreshOpponentLabels() {
         for (int i = 0; i < opponentButtons.size(); i++) {
             final Deck d = i < opponentDecks.size() ? opponentDecks.get(i) : null;
+            final String pool = d == null ? opponentPools.get(i) : null;
             opponentButtons.get(i).setText(NeoText.get("home.aiDeck", i + 1,
-                    d == null ? NeoText.get("home.random") : shorten(d.getName())));
+                    d != null ? shorten(d.getName())
+                            : pool != null ? NeoText.get("home.randomFrom", shorten(pool))
+                            : NeoText.get("home.random")));
         }
         if (opponentCaption != null) {
             // "Juegan contra ti" deja de ser verdad en cuanto hay alguien en
@@ -1145,10 +1155,9 @@ et}) y no se tocan.
     }
 
     private void pickOpponentDeck(final int index) {
-        // "Los tuyos" del selector del rival son todos: sueltos y en colecciones.
-        final List<Deck> own = new ArrayList<>(mine);
-        collections.values().forEach(own::addAll);
-        picker = new DeckPickerDialog(NeoText.get("home.pickRival", index + 1), own, stock,
+        // "Los tuyos" del selector del rival: los SUELTOS. Los de las colecciones
+        // van en su pestanya (setCollections), como en la pantalla de mazos.
+        picker = new DeckPickerDialog(NeoText.get("home.pickRival", index + 1), mine, stock,
                 tileWidth * 0.72,
                 chosen -> {
                     overlay.hide();
@@ -1156,11 +1165,23 @@ et}) y no se tocan.
                         opponentDecks.add(null);
                     }
                     opponentDecks.set(index, chosen);
+                    opponentPools.remove(index);
                     refreshOpponentLabels();
                     updateSummary();
                 },
                 overlay::hide,
                 format.isCommanderStyle() ? this::generateOpponentDeck : null);
+        picker.setCollections(collections);
+        picker.setRandomFromCollections(collections, name -> {
+            overlay.hide();
+            while (opponentDecks.size() <= index) {
+                opponentDecks.add(null);
+            }
+            opponentDecks.set(index, null);
+            opponentPools.put(index, name);
+            refreshOpponentLabels();
+            updateSummary();
+        });
         overlay.setOnBackgroundClick(overlay::hide);
         overlay.show(picker);
     }
@@ -1234,6 +1255,23 @@ et}) y no se tocan.
             final Deck chosen = i < opponentDecks.size() ? opponentDecks.get(i) : null;
             if (chosen != null) {
                 out.add(chosen);
+                continue;
+            }
+            // Al azar DE UNA COLECCION: el sorteo, dentro de ella. Si se ha
+            // quedado vacia (borrada o sin mazos), cae al azar de siempre.
+            final String poolName = opponentPools.get(i);
+            final List<Deck> fromPool = poolName == null ? null : collections.get(poolName);
+            if (fromPool != null && !fromPool.isEmpty()) {
+                final List<Deck> shuffled = new ArrayList<>(fromPool);
+                java.util.Collections.shuffle(shuffled);
+                Deck inPool = null;
+                for (final Deck d : shuffled) {
+                    if (used.add(d.getName())) {
+                        inPool = d;
+                        break;
+                    }
+                }
+                out.add(inPool != null ? inPool : shuffled.get(0));
                 continue;
             }
             Deck pick = null;

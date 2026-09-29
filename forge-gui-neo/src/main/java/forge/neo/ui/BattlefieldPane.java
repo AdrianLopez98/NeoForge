@@ -26,10 +26,13 @@ import javafx.scene.layout.Pane;
  *       de fichas llena la pantalla y no se ve nada.</li>
  * </ol>
  *
- * <p>Solo se agrupan FICHAS realmente identicas (mismo nombre, misma fuerza y
- * resistencia, mismo estado de giro y de combate). Dos cartas normales nunca se
- * apilan aunque se llamen igual: cada permanente es una entidad distinta con la
- * que se puede interactuar por separado.
+ * <p>Se agrupan FICHAS realmente identicas (mismo nombre, misma fuerza y
+ * resistencia, mismo estado de giro y de combate). Y desde el 29-09-2026
+ * tambien las CARTAS iguales, como Forge (ajuste {@code NeoSettings.STACK_SAME},
+ * encendido de fabrica), con condiciones de mas: mismos contadores, nada
+ * enganchado, ni boca abajo ni copia de otra. Lo que hace segura una pila es lo
+ * mismo para las dos: se parte en combate, deja de apilar cuando el motor pide
+ * senyalar cartas concretas y lo ya elegido sale de la pila.
  */
 public class BattlefieldPane extends Pane {
 
@@ -438,6 +441,19 @@ public class BattlefieldPane extends Pane {
             if (is) {
                 fireHover(node.getFront());
             }
+            // La carta con el raton encima, DELANTE DE TODO: de sus vecinas de
+            // fila (las de la derecha se pintan despues) y de las otras filas
+            // (la de criaturas se pintaba encima de la de tierras). Con la
+            // carta ampliada al pasar el raton se veia cortada por la de al
+            // lado (itch.io, 29-09-2026). Lo recoloca el layout, que respeta
+            // la que esta bajo el raton.
+            node.setViewOrder(is ? -10 : 0);
+            setViewOrder(is ? -1 : 0);
+            // Y el campo entero, por encima del del rival (y al reves).
+            if (getParent() instanceof PlayerField field) {
+                field.setViewOrder(is ? -1 : 0);
+            }
+            requestLayout();
         });
         node.getFront().setOnMouseClicked(e -> {
             // El derecho lo usa la mesa para ampliar la carta.
@@ -571,9 +587,10 @@ public class BattlefieldPane extends Pane {
         int unique = 0;
         for (final CardView cv : cards) {
             final String key;
-            if (cv != null && cv.isToken() && canGroup(cv)) {
+            if (cv != null && canGroup(cv) && (cv.isToken() || sameCardsStack(cv))) {
                 final CardStateView st = cv.getCurrentState();
-                key = "tok|" + (st == null ? "?" : st.getName())
+                key = (cv.isToken() ? "tok|" : "same|") + (st == null ? "?" : st.getName())
+                        + "|" + countersKey(cv)
                         + "|" + (st == null ? "" : st.getPower() + "/" + st.getToughness())
                         + "|" + cv.isTapped()
                         + "|" + cv.isSick()
@@ -596,6 +613,35 @@ public class BattlefieldPane extends Pane {
             groups.computeIfAbsent(key, k -> new ArrayList<>()).add(cv);
         }
         return groups;
+    }
+
+    /**
+     * Si esta CARTA (no ficha) puede ir en una pila con sus iguales. Lo que la
+     * haria distinta a la vista o al jugar no se apila: con algo enganchado,
+     * boca abajo, fuera de fase, copia de otra carta, el comandante, o sin id
+     * estable.
+     */
+    private static boolean sameCardsStack(final CardView cv) {
+        if (!forge.neo.NeoSettings.stackSameCards() || cv.getId() < 0) {
+            return false;
+        }
+        if (cv.isFaceDown() || cv.isPhasedOut() || cv.isCloned() || cv.isCommander()) {
+            return false;
+        }
+        return cv.getAttachedCards() == null || cv.getAttachedCards().isEmpty();
+    }
+
+    /** Los contadores, ordenados, para que dos cartas con distintos no se apilen. */
+    private static String countersKey(final CardView cv) {
+        final com.google.common.collect.Multiset<forge.game.card.CounterType> c = cv.getCounters();
+        if (c == null || c.isEmpty()) {
+            return "";
+        }
+        final java.util.TreeMap<String, Integer> sorted = new java.util.TreeMap<>();
+        for (final com.google.common.collect.Multiset.Entry<forge.game.card.CounterType> e : c.entrySet()) {
+            sorted.put(String.valueOf(e.getElement()), e.getCount());
+        }
+        return sorted.toString();
     }
 
     public void refreshAll() {
@@ -676,7 +722,7 @@ public class BattlefieldPane extends Pane {
                 shift += extra;
             }
             node.setLayoutY(Math.max(0, (availH - cardH) / 2));
-            node.setViewOrder(-i * .001);
+            node.setViewOrder(node.getFront().isHover() ? -10 : -i * .001);
         }
 
         previous.setVisible(scrollMax > .5);

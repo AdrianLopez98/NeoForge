@@ -2509,6 +2509,45 @@ public class TableScreen extends Pane {
         return card != null && playableOutside.test(card);
     }
 
+    /** El visor de lo revelado que hay puesto, si lo hay. Ver {@link #showRevealed}. */
+    private ZoneViewer revealedViewer;
+
+    /**
+     * <b>Lo que el motor te esta ensenyando de la mano de otro</b>, sin dialogo.
+     *
+     * <p>Forge ya no lo manda con {@code reveal()} cuando la mano revelada es
+     * de otro y {@code UI_SELECT_FROM_CARD_DISPLAYS} esta encendido: pide
+     * {@code showRevealedCards} y pone la pregunta (OK / fin de turno) en la
+     * barra de botones ({@code PlayerControllerHuman.reveal}). En una partida
+     * en red manda la preferencia del ANFITRION, que en Forge viene encendida,
+     * y nosotros no lo pintabamos: salia el OK y ninguna carta (itch.io,
+     * 29-09-2026). Swing abre la mano como zona; aqui, el mismo visor de zonas,
+     * en la capa de consultar (principio 10): lo que contesta es el OK de la
+     * barra, no esto. Se ve todo lo que llega: el motor lo esta revelando.
+     */
+    public void showRevealed(final PlayerView owner, final List<CardView> cards) {
+        if (cards == null || cards.isEmpty()) {
+            return;
+        }
+        final ZoneViewer viewer = new ZoneViewer(
+                owner == null ? null : forge.neo.match.PlayerName.of(owner),
+                forge.game.zone.ZoneType.Hand, cards, c -> true, cardWidth * 1.15,
+                menuOverlay::hide);
+        viewer.setHeading(owner == null ? NeoText.get("zoneViewer.revealedAny")
+                : NeoText.get("zoneViewer.revealed", forge.neo.match.PlayerName.of(owner)));
+        revealedViewer = viewer;
+        menuOverlay.show(viewer);
+    }
+
+    /** Quita lo revelado, si sigue puesto (el motor ya no espera el OK). */
+    public void hideRevealed() {
+        if (revealedViewer != null && menuOverlay.isShowing() && !menuOverlay.getChildren().isEmpty()
+                && menuOverlay.getChildren().get(0) == revealedViewer) {
+            menuOverlay.hide();
+        }
+        revealedViewer = null;
+    }
+
     /** Cierra el visor de zona, si es lo que hay puesto. */
     public void hideZoneViewer() {
         if (menuOverlay.isShowing() && !menuOverlay.getChildren().isEmpty()

@@ -233,10 +233,46 @@ public final class DeckEditor {
      * ordenar despues del corte dejaria fuera justo lo que acaba de entrar.
      */
     public void setNewestFirst(final boolean on) {
-        newestFirst = on;
+        sort = on ? Sort.NEWEST : Sort.NAME;
     }
 
-    private boolean newestFirst;
+    /**
+     * Como se ordena el catalogo. Los mismos criterios que las columnas del
+     * editor de Forge ({@code SColumnUtil}: coste, color, tipo, rareza,
+     * edicion, fuerza, resistencia...), pedidos en itch.io el 29-09-2026 para
+     * la Aventura: <i>"a lot fewer sorting and filtering options ... than in
+     * standard forge adventure"</i>. {@link Sort#NEWEST} solo tiene sentido
+     * donde se lleva la cuenta ({@link #tracksAcquisition}).
+     */
+    public enum Sort { NAME, COST, COLOR, TYPE, RARITY, SET, POWER, TOUGHNESS, PRICE, NEWEST }
+
+    public void setSort(final Sort s) {
+        sort = s == null ? Sort.NAME : s;
+    }
+
+    public Sort getSort() {
+        return sort;
+    }
+
+    private Sort sort = Sort.NAME;
+
+    /** Si el catalogo tiene precios (ver DeckContext.hasPrices). */
+    public boolean hasPrices() {
+        return format.hasPrices();
+    }
+
+    /** Cuantas copias de esa carta lleva el mazo que se esta editando. */
+    public int copiesInDeck(final PaperCard card) {
+        return countOf(card);
+    }
+
+    /**
+     * "Autovender lo filtrado", o null si aqui no se vende. Protege las copias
+     * de este mazo aunque no este guardado, igual que el menu de una carta.
+     */
+    public DeckContext.BulkSell bulkAutoSell(final List<PaperCard> cards) {
+        return format.bulkAutoSell(cards, this::countOf);
+    }
 
     /** Lo que el contexto anyade al menu de una carta del catalogo (ver DeckContext). */
     public List<DeckContext.Action> contextActions(final PaperCard card) {
@@ -1544,23 +1580,125 @@ public final class DeckEditor {
             hits.add(card);
         }
 
-        if (newestFirst && format.tracksAcquisition()) {
+        final Comparator<PaperCard> byName = Comparator.comparing(DeckEditor::displayName);
+        if (sort == Sort.PRICE && format.hasPrices()) {
+            // La mas cara primero, como la columna PRICE de Forge (DESC).
+            hits.sort(Comparator.comparingInt((PaperCard c) -> -format.price(c)).thenComparing(byName));
+        } else if (sort == Sort.NEWEST && format.tracksAcquisition()) {
             // Lo que no tiene hora (lo de antes de llevar la cuenta) va detras,
             // por nombre.
             hits.sort(Comparator
                     .comparingLong((PaperCard c) -> -format.acquiredAt(c))
-                    .thenComparing(DeckEditor::displayName));
-        } else {
+                    .thenComparing(byName));
+        } else if (sort == Sort.NAME || sort == Sort.NEWEST) {
             // Lo que empieza por lo buscado va primero: si escribes "sol" quieres
             // ver el Sol Ring arriba, no un Consul's Lieutenant.
             hits.sort(Comparator
                     .comparingInt((PaperCard c) -> displayName(c).startsWith(q) ? 0 : 1)
-                    .thenComparing(DeckEditor::displayName));
+                    .thenComparing(byName));
+        } else {
+            // Se ordena ANTES de cortar en las mil primeras, por la misma razon
+            // que "lo ultimo primero": despues del corte faltaria lo de abajo.
+            hits.sort(sortKey(sort).thenComparing(byName));
         }
 
         final int total = hits.size();
         return new SearchResult(
                 total > limit ? new ArrayList<>(hits.subList(0, limit)) : hits, total);
+    }
+
+    /**
+     * El criterio de cada orden. Lo que no aplica (la fuerza de un conjuro) va
+     * detras. Todo sale de la carta en papel: no se inventa nada.
+     */
+    private static Comparator<PaperCard> sortKey(final Sort s) {
+        switch (s) {
+            case COST:
+                return Comparator.comparingInt(c -> c.getRules().getManaCost().getCMC());
+            case COLOR:
+                // Incoloras al final, como en la curva: primero los cinco colores
+                // en el orden de Magic y luego las multicolor.
+                return Comparator.comparingDouble(c -> {
+                    final forge.card.ColorSet cs = c.getRules().getColor();
+                    return cs.isColorless() ? Double.MAX_VALUE : cs.getOrderWeight();
+                });
+            case TYPE:
+                return Comparator.comparingInt(DeckEditor::typeRank);
+            case RARITY:
+                // De la mas rara a la mas comun.
+                return Comparator.comparingInt(c -> -rarityRank(c.getRarity()));
+            case SET:
+                // La edicion mas nueva primero.
+                return Comparator.comparing((PaperCard c) -> editionDate(c),
+                        Comparator.reverseOrder());
+            case POWER:
+                return Comparator.comparingInt(c -> -statOrLowest(c.getRules().getIntPower(),
+                        c.getRules().getType().isCreature()));
+            case TOUGHNESS:
+                return Comparator.comparingInt(c -> -statOrLowest(c.getRules().getIntToughness(),
+                        c.getRules().getType().isCreature()));
+            default:
+                return (a, b) -> 0;
+        }
+    }
+
+    /** El orden de tipos de un mazo: criaturas primero, tierras al final. */
+    private static int typeRank(final PaperCard c) {
+        final forge.card.CardType t = c.getRules().getType();
+        if (t.isCreature()) {
+            return 0;
+        }
+        if (t.isPlaneswalker()) {
+            return 1;
+        }
+        if (t.isBattle()) {
+            return 2;
+        }
+        if (t.isInstant()) {
+            return 3;
+        }
+        if (t.isSorcery()) {
+            return 4;
+        }
+        if (t.isArtifact()) {
+            return 5;
+        }
+        if (t.isEnchantment()) {
+            return 6;
+        }
+        if (t.isLand()) {
+            return 8;
+        }
+        return 7;
+    }
+
+    private static int rarityRank(final forge.card.CardRarity r) {
+        if (r == null) {
+            return 0;
+        }
+        switch (r) {
+            case MythicRare:
+                return 5;
+            case Rare:
+                return 4;
+            case Special:
+                return 3;
+            case Uncommon:
+                return 2;
+            case Common:
+                return 1;
+            default:
+                return 0;
+        }
+    }
+
+    private static int statOrLowest(final int value, final boolean creature) {
+        return creature ? value : Integer.MIN_VALUE / 2;
+    }
+
+    private static java.util.Date editionDate(final PaperCard c) {
+        final forge.card.CardEdition ed = forge.StaticData.instance().getEditions().get(c.getEdition());
+        return ed == null || ed.getDate() == null ? new java.util.Date(0) : ed.getDate();
     }
 
     /** El nombre por el que se ordena y se compara: el que se ve. */

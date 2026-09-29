@@ -466,6 +466,24 @@ public final class NeoSettings {
     public static final String ATTACHMENTS_STACKED = "attachmentsStacked";
 
     /**
+     * Apilar tambien las CARTAS iguales (tierras, criaturas, el resto de
+     * permanentes), no solo las fichas. Como Forge (que apila tierras siempre
+     * y criaturas con {@code UI_GROUP_PERMANENTS}). Pedido en itch.io el
+     * 29-09-2026 con treinta Rat Colony y una flecha de desplazamiento.
+     * Encendido de fabrica. {@code -Dneo.stackSame=false} lo apaga sin tocar
+     * las preferencias.
+     */
+    public static final String STACK_SAME = "stackSameCards";
+
+    public static boolean stackSameCards() {
+        final String forced = System.getProperty("neo.stackSame");
+        if (forced != null && !forced.isBlank()) {
+            return Boolean.parseBoolean(forced);
+        }
+        return getBool(STACK_SAME, true);
+    }
+
+    /**
      * Si lo enganchado va apilado detras de su anfitriona.
      *
      * <p>{@code -Dneo.attachStacked=true|false} lo fuerza sin tocar las

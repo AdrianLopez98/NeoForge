@@ -198,6 +198,12 @@ public final class NeoMain {
             case "diag":
                 diagnoseImages(deckName);
                 break;
+            case "refreshartcheck":
+                // Volver a bajar una imagen SOLO si Scryfall la tiene en HD.
+                // Necesita red. Ver forge.neo.card.RefreshArtCheck.
+                banner("Volver a bajar la imagen: solo si hay HD");
+                forge.neo.card.RefreshArtCheck.run();
+                break;
             case "artecheck":
                 // El arte sin conexion (OfflineArt) se encuentra por NOMBRE, y
                 // el nombre lo calculan igual dos sitios: este codigo y el
