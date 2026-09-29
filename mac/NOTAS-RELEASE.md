@@ -1,14 +1,14 @@
-**NeoForge para macOS 4.5 (beta).** El mismo numero que en itch.io.
+**NeoForge para macOS 4.6 (beta).** El mismo numero que en itch.io.
 
 Novedades:
-- **Momir Basic y MoJhoSto funcionan otra vez:** el avatar vuelve a la zona de mando (antes solo se podian jugar tierras), y salir de la partida te devuelve a *Otros formatos*.
-- **Constructor de mazos como el de Forge:** ordenar por nombre, coste, color, tipo, rareza, edicion, fuerza o resistencia; filtros de **incoloras y multicolor**, fuerza, resistencia, edicion y formato; y en la Aventura, **Copiar coleccion**, ordenar por precio y **Autovender lo filtrado**.
-- **Las cartas iguales se apilan**, no solo las fichas: treinta Rat Colony son una pila "×30" (se apaga en Ajustes).
-- **Rivales de tus colecciones:** una pestaña por coleccion al elegir el mazo de la IA, y *Al azar de una coleccion*.
-- **En red:** las cartas reveladas se ven, y el invitado tiene registro y efectos de sonido. El tiempo de **AFK** se elige en Ajustes.
-- **Auto al ordenar disparos** ya funciona, respetando lo que ya hayas ordenado.
-- **Imagenes:** clic derecho → *Volver a bajar la imagen*, y *Buscar imagenes mejores (HD)* en Ajustes; solo se sustituye si Scryfall ya tiene el escaneo bueno.
-- **La carta bajo el raton** se ve entera, y **los errores al importar un enlace** dicen que hacer (mazo privado, TappedOut bloqueado).
+- **Draft y sellado: mezclar expansiones y los bloques de Forge.** Varias expansiones con cuantos sobres de cada una, o un bloque de Forge que rellena la mezcla.
+- **Aventura: se acabo la pantalla negra** al acabar un match de evento (draft, Jumpstart) perdiendo contra un jefe o con ante; y activar la pantalla completa en un duelo ya no deja el Adventure con textos cortados.
+- **En red:** el invitado vuelve a recibir la pantalla de fin de partida, y el boton "Al azar" de la sala y del torneo ya elige un mazo.
+- **Ascenso:** boton "Reliquias (N)" en el mapa para verlas todas como carta.
+- **Imagenes HD:** la busqueda ya no se para cuando Scryfall pide ir mas despacio.
+- **Entre partidas de un match** se puede sacar del mazo una carta ganada al ante.
+- **Raíl de fases:** Cleanup ya no queda debajo de Untap cuando las fases no caben en una fila.
+- Cartas y arreglos nuevos de Forge 2.0.16.
 
 Descarga el `.dmg` de tu Mac:
 
