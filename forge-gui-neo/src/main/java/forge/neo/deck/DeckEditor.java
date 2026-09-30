@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.function.Predicate;
 
 import forge.card.CardRules;
+import forge.card.ColorSet;
 import forge.deck.CardPool;
 import forge.deck.Deck;
 import forge.deck.DeckFormat;
@@ -1759,11 +1760,62 @@ public final class DeckEditor {
             cachedIdentity = deckFormat().isLegalCardForCommanderPredicate(cmd);
             cachedIdentityKey = key;
         }
-        return cachedIdentity;
+        return withWildColors(cachedIdentity, cmd);
     }
 
     private String cachedIdentityKey;
     private Predicate<PaperCard> cachedIdentity;
+
+    /**
+     * El color comodin de Clara Oswald, The Prismatic Piper o Faceless One.
+     *
+     * <p>"If X is your commander, choose a color before the game begins": el
+     * motor lo cuenta al GUARDAR — {@code getDeckConformanceProblem} suma un
+     * color libre por cada comandante con {@code getAddsWildCardColor()} y lo
+     * va gastando con las cartas del mazo — pero
+     * {@code isLegalCardForCommanderPredicate} no lo sabe. Resultado: el
+     * Duodecimo Doctor (UR) con Clara no dejaba guardar ni una verde
+     * (reportado en itch.io, 30-09-2026).
+     *
+     * <p>Se replica ese reparto: los colores que el mazo ya ha cogido quedan
+     * dentro de la identidad, y lo que sobre de comodines deja entrar cartas
+     * con tantos colores de fuera como comodines libres. No en Oathbreaker: ahi
+     * el motor no reparte comodines.
+     */
+    private Predicate<PaperCard> withWildColors(final Predicate<PaperCard> base,
+                                                final List<PaperCard> cmd) {
+        if (usesSignatureSpell()) {
+            return base;
+        }
+        int wild = 0;
+        byte ci = 0;
+        for (final PaperCard c : cmd) {
+            ci |= c.getRules().getColorIdentity().getColor();
+            wild += c.getRules().getAddsWildCardColor() ? 1 : 0;
+        }
+        if (wild == 0) {
+            return base;
+        }
+        // Mismo recorrido que el motor: el principal, en orden, gastando.
+        for (final Map.Entry<PaperCard, Integer> e : deck.getMain()) {
+            if (wild == 0) {
+                break;
+            }
+            final PaperCard card = e.getKey();
+            if (base.test(card)) {
+                continue;
+            }
+            final ColorSet missing = card.getRules().getColorIdentity().getMissingColors(ci);
+            if (missing.countColors() > 0 && missing.countColors() <= wild) {
+                wild -= missing.countColors();
+                ci |= missing.getColor();
+            }
+        }
+        final byte identity = ci;
+        final int left = wild;
+        return card -> base.test(card)
+                || card.getRules().getColorIdentity().getMissingColors(identity).countColors() <= left;
+    }
 
     /**
      * Quien FIJA la identidad de color del mazo.

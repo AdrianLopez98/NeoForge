@@ -3571,3 +3571,41 @@
 .hand-peek {
     -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.75), 30, 0.35, 0, 8);
 }
+
+/* ---- Elegir comandante (CommanderPickDialog, 30-09-2026) ------------------
+   Cada opcion es una tarjeta como las de los mazos: la carta (o la pareja),
+   su nombre y, debajo, "por defecto" o "sugerido". La que lleva el mazo ahora
+   va marcada como la del mazo elegido en la pantalla de mazos. */
+.commander-pick .commander-option {
+    -fx-background-color: transparent;
+    -fx-background-radius: 10;
+    -fx-border-color: transparent;
+    -fx-border-radius: 10;
+    -fx-border-width: 2;
+    -fx-padding: 8;
+    -fx-cursor: hand;
+}
+.commander-pick .commander-option:hover {
+    -fx-background-color: rgba(74,155,224,0.10);
+    -fx-border-color: rgba(74,155,224,0.45);
+}
+.commander-pick .commander-option:selected {
+    -fx-background-color: rgba(74,155,224,0.18);
+    -fx-border-color: -neo-accent;
+}
+.commander-option-name { -fx-font-size: 0.95em; -fx-text-fill: -neo-text; -fx-font-weight: bold; }
+.commander-option-tag { -fx-font-size: 0.8em; -fx-text-fill: -neo-text-dim; }
+.commander-option-tag.suggested { -fx-text-fill: -neo-warn; }
+.commander-option-none {
+    -fx-background-color: rgba(255,255,255,0.04);
+    -fx-background-radius: 6;
+    -fx-border-color: -neo-line;
+    -fx-border-radius: 6;
+    -fx-border-style: segments(6, 4);
+}
+.commander-option-none .label { -fx-text-fill: -neo-text-dim; -fx-font-size: 1.05em; }
+
+/* La casilla de "Incluir la musica importada" (Ajustes -> Tus datos): el
+   check-box de fabrica pinta su texto casi negro sobre el panel oscuro. */
+.settings .check-box { -fx-text-fill: -neo-text; }
+.settings .check-box:disabled { -fx-opacity: 0.5; }

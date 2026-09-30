@@ -1296,7 +1296,13 @@ public class LobbyScreen extends BorderPane
         // asiento, y en el anfitrion para todos menos los remotos.
         b.setDisable(!l.mayEdit(index) || noPoolYet);
         b.setOnAction(e -> pickDeck(index));
-        return b;
+        final Button crown = commanderCell(l, index, deck);
+        if (crown == null) {
+            return b;
+        }
+        final HBox both = new HBox(4, b, crown);
+        both.setAlignment(Pos.CENTER_LEFT);
+        return both;
     }
 
     /**
@@ -1444,11 +1450,75 @@ public class LobbyScreen extends BorderPane
         refresh();
     }
 
-    /** Cambiar el mazo de un asiento, de forma que se entere todo el mundo. Ver NeoLobby.deckEvents. */
+    /**
+     * Cambiar el mazo de un asiento, de forma que se entere todo el mundo. Ver
+     * NeoLobby.deckEvents. Queda como la BASE del asiento para elegirle
+     * comandante, y se olvida el que se le hubiera elegido al anterior.
+     */
     private void sendDeck(final int index, final Deck deck) {
+        baseDecks.put(index, deck);
+        seatCommanders.remove(index);
+        sendDeckAsIs(index, deck);
+    }
+
+    private void sendDeckAsIs(final int index, final Deck deck) {
         for (final UpdateLobbyPlayerEvent e : NeoLobby.deckEvents(deck)) {
             send(index, e);
         }
+    }
+
+    // ------------------------------------------------------------------
+    // Elegir comandante (Forge #12052, 29-09-2026), como en el lobby de Forge.
+    //
+    // El mazo viaja ENTERO por la red, asi que el asiento manda la copia con el
+    // comandante elegido y todos ven el mazo tal y como se va a jugar: no hay
+    // nada nuevo en el protocolo. Aqui se guarda el mazo base de cada asiento
+    // que se maneja desde esta pantalla, para poder volver a elegir.
+
+    private final java.util.Map<Integer, Deck> baseDecks = new java.util.HashMap<>();
+    private final java.util.Map<Integer, List<forge.item.PaperCard>> seatCommanders = new java.util.HashMap<>();
+
+    /** La corona junto al mazo de un asiento que se puede tocar, o null. */
+    private Button commanderCell(final GameLobby l, final int index, final Deck shown) {
+        final Deck base = baseDecks.get(index);
+        if (base == null || shown == null || !l.mayEdit(index)
+                || forge.neo.net.NeoNetEvent.isLimited(l)
+                || !forge.neo.deck.CommanderChoice.applies(format.getGameType())
+                || base.getCommanders().isEmpty()) {
+            return null;
+        }
+        final List<forge.item.PaperCard> pick = seatCommanders.get(index);
+        final List<forge.item.PaperCard> who = pick != null ? pick : base.getCommanders();
+        final List<String> names = new ArrayList<>();
+        for (final forge.item.PaperCard c : who) {
+            names.add(forge.neo.card.CardText.nameOf(c));
+        }
+        final Button b = new Button(NeoText.get("commander.pick.short"));
+        b.getStyleClass().addAll("btn-secondary", "rival-commander");
+        b.setMinWidth(Region.USE_PREF_SIZE);
+        b.setTooltip(new javafx.scene.control.Tooltip(
+                NeoText.get("commander.pick.button", String.join(" + ", names))));
+        b.setOnAction(e -> pickCommander(index, base));
+        return b;
+    }
+
+    private void pickCommander(final int index, final Deck base) {
+        final forge.deck.DeckFormat df = format.getGameType().getDeckFormat();
+        final List<forge.item.PaperCard> current = seatCommanders.get(index);
+        final CommanderPickDialog dialog = new CommanderPickDialog(base, df,
+                current == null ? base.getCommanders() : current, tileWidth * 0.62,
+                picked -> {
+                    overlay.hide();
+                    if (forge.neo.deck.CommanderChoice.same(picked, base.getCommanders())) {
+                        seatCommanders.remove(index);
+                    } else {
+                        seatCommanders.put(index, picked);
+                    }
+                    sendDeckAsIs(index, forge.neo.deck.CommanderChoice.apply(base, picked));
+                },
+                overlay::hide);
+        overlay.setOnBackgroundClick(overlay::hide);
+        overlay.show(dialog);
     }
 
     private void addSeat(final LobbySlotType type) {

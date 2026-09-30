@@ -84,6 +84,15 @@ public class SettingsPanel extends VBox {
          */
         default void refreshTable() {
         }
+
+        /**
+         * Reabrir el juego para aplicar una importacion de datos ya preparada
+         * (NeoBackup.stage). {@code false} si no se puede reabrir solo
+         * (arbol de desarrollo): entonces se le pide al jugador que lo haga.
+         */
+        default boolean restartToImport() {
+            return false;
+        }
     }
 
     /** El titulo, que se queda arriba pase lo que pase. */
@@ -1023,6 +1032,8 @@ public class SettingsPanel extends VBox {
         artHdBox.setAlignment(Pos.CENTER_LEFT);
         getChildren().add(row(NeoText.get("settings.art.hdRow"), artHdBox));
 
+        addDataSection(host);
+
         getChildren().add(section(NeoText.get("settings.keyboard")));
         final Button shortcuts = new Button(NeoText.get("settings.shortcuts.open"));
         shortcuts.getStyleClass().add("segment");
@@ -1217,6 +1228,161 @@ public class SettingsPanel extends VBox {
                 note.setManaged(true);
             }
         };
+    }
+
+    // ------------------------------------------------------------------
+    // Tus datos: exportar e importar (forge.neo.data.NeoBackup)
+
+    /**
+     * "Tus datos": exportar e importar en un zip. Pedido en Discord el
+     * 30-09-2026 para pasar los datos entre versiones y entre PC y Android.
+     *
+     * <p>Con una partida en marcha va apagado: importar reinicia el juego.
+     * Importar no escribe nada ahora: prepara el zip y reinicia, y se aplica
+     * al arrancar (ver NeoBackup).
+     */
+    private void addDataSection(final Host host) {
+        getChildren().add(section(NeoText.get("settings.data")));
+        final Label help = new Label(NeoText.get("settings.data.help"));
+        help.getStyleClass().add("home-subtitle");
+        help.setWrapText(true);
+        help.setMaxWidth(560);
+        getChildren().add(help);
+
+        final forge.neo.data.NeoBackup.Places places = forge.neo.data.DataPlaces.desktop();
+        final long musicMb = (sizeOf(new java.io.File(places.root, "neo/music"))
+                + sizeOf(new java.io.File(places.root, "custom"))) >> 20;
+        final javafx.scene.control.CheckBox music = new javafx.scene.control.CheckBox(
+                NeoText.get("settings.data.music", musicMb));
+        music.setSelected(false);
+
+        final Button export = new Button(NeoText.get("settings.data.export"));
+        final Button importB = new Button(NeoText.get("settings.data.import"));
+        for (final Button b : new Button[] {export, importB}) {
+            b.getStyleClass().add("segment");
+            b.setMinWidth(Region.USE_PREF_SIZE);
+        }
+        export.setId("settings-data-export");
+        importB.setId("settings-data-import");
+        final Label status = new Label();
+        status.getStyleClass().add("home-subtitle");
+        status.setWrapText(true);
+        status.setMaxWidth(560);
+        final VBox choice = new VBox(6);
+
+        if (inMatch) {
+            export.setDisable(true);
+            importB.setDisable(true);
+            status.setText(NeoText.get("settings.data.inMatch"));
+        }
+
+        export.setOnAction(e -> {
+            final javafx.stage.FileChooser fc = new javafx.stage.FileChooser();
+            fc.setInitialFileName("NeoForge-datos-"
+                    + new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.ROOT).format(new java.util.Date())
+                    + ".zip");
+            fc.getExtensionFilters().add(new javafx.stage.FileChooser.ExtensionFilter("zip", "*.zip"));
+            final java.io.File to = fc.showSaveDialog(getScene() == null ? null : getScene().getWindow());
+            if (to == null) {
+                return;
+            }
+            export.setDisable(true);
+            status.setText(NeoText.get("settings.data.exporting"));
+            final boolean withMusic = music.isSelected();
+            final Thread t = new Thread(() -> {
+                String msg;
+                try {
+                    final forge.neo.data.NeoBackup.Summary s = forge.neo.data.NeoBackup.export(
+                            places, to, withMusic, forge.neo.NeoVersion.neoVersion(), forge.neo.data.DataPlaces.platform());
+                    msg = NeoText.get("settings.data.exported", to.getName(), s.decks, s.total());
+                } catch (final java.io.IOException | RuntimeException ex) {
+                    msg = NeoText.get("settings.data.failed", ex.getMessage());
+                }
+                final String m = msg;
+                javafx.application.Platform.runLater(() -> {
+                    status.setText(m);
+                    export.setDisable(false);
+                });
+            }, "neo-export");
+            t.setDaemon(true);
+            t.start();
+        });
+
+        importB.setOnAction(e -> {
+            final javafx.stage.FileChooser fc = new javafx.stage.FileChooser();
+            fc.getExtensionFilters().add(new javafx.stage.FileChooser.ExtensionFilter("zip", "*.zip"));
+            final java.io.File from = fc.showOpenDialog(getScene() == null ? null : getScene().getWindow());
+            if (from == null) {
+                return;
+            }
+            final forge.neo.data.NeoBackup.Summary s = forge.neo.data.NeoBackup.inspect(from);
+            choice.getChildren().clear();
+            if (!s.valid) {
+                status.setText(NeoText.get("settings.data.notBackup"));
+                return;
+            }
+            status.setText(NeoText.get("settings.data.found", platformName(s.platform),
+                    s.version.isEmpty() ? "?" : s.version, s.date, s.decks, s.total()));
+            final Button add = new Button(NeoText.get("settings.data.add"));
+            final Button replace = new Button(NeoText.get("settings.data.replace"));
+            final Button cancel = new Button(NeoText.get("common.cancel"));
+            add.getStyleClass().add("btn-primary");
+            replace.getStyleClass().add("btn-secondary");
+            cancel.getStyleClass().add("btn-secondary");
+            final Label addHelp = new Label(NeoText.get("settings.data.addHelp"));
+            final Label replaceHelp = new Label(NeoText.get("settings.data.replaceHelp"));
+            addHelp.getStyleClass().add("home-subtitle");
+            replaceHelp.getStyleClass().add("home-subtitle");
+            cancel.setOnAction(x -> {
+                choice.getChildren().clear();
+                status.setText("");
+            });
+            final java.util.function.Consumer<forge.neo.data.NeoBackup.Mode> go = mode -> {
+                try {
+                    forge.neo.data.NeoBackup.stage(places.root, from, mode);
+                } catch (final java.io.IOException ex) {
+                    status.setText(NeoText.get("settings.data.failed", ex.getMessage()));
+                    return;
+                }
+                choice.getChildren().clear();
+                if (!host.restartToImport()) {
+                    status.setText(NeoText.get("settings.data.restartManual"));
+                }
+            };
+            add.setOnAction(x -> go.accept(forge.neo.data.NeoBackup.Mode.ADD));
+            replace.setOnAction(x -> go.accept(forge.neo.data.NeoBackup.Mode.REPLACE));
+            final HBox addRow = new HBox(10, add, addHelp);
+            final HBox replaceRow = new HBox(10, replace, replaceHelp);
+            addRow.setAlignment(Pos.CENTER_LEFT);
+            replaceRow.setAlignment(Pos.CENTER_LEFT);
+            choice.getChildren().addAll(addRow, replaceRow, cancel);
+        });
+
+        final HBox buttons = new HBox(12, export, importB, music);
+        buttons.setAlignment(Pos.CENTER_LEFT);
+        getChildren().addAll(buttons, status, choice);
+    }
+
+    /** "Windows", "Android"... para decir de donde viene un zip. */
+    private static String platformName(final String p) {
+        if (p == null || p.isEmpty()) {
+            return "?";
+        }
+        return Character.toUpperCase(p.charAt(0)) + p.substring(1);
+    }
+
+    private static long sizeOf(final java.io.File f) {
+        if (f.isFile()) {
+            return f.length();
+        }
+        long n = 0;
+        final java.io.File[] kids = f.listFiles();
+        if (kids != null) {
+            for (final java.io.File k : kids) {
+                n += sizeOf(k);
+            }
+        }
+        return n;
     }
 
     private static Label section(final String text) {

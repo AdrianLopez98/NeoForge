@@ -423,7 +423,7 @@ public class CardNode extends StackPane {
         sceneProperty().addListener((o, was, now) -> updateFoilMotion());
         visibleProperty().addListener((o, was, now) -> updateFoilMotion());
 
-        setOnMouseEntered(e -> { if (hoverEnabled) { hoverIn(); } });
+        setOnMouseEntered(e -> { if (hoverEnabled) { entering(e); } });
         // Ojo: la salida NO se atiende a secas. Ver leaving().
         setOnMouseExited(e -> { if (hoverEnabled) { leaving(e); } });
     }
@@ -1816,6 +1816,24 @@ public class CardNode extends StackPane {
      */
     private boolean lifted;
 
+    private final javafx.beans.property.ReadOnlyBooleanWrapper liftedProp =
+            new javafx.beans.property.ReadOnlyBooleanWrapper(false);
+
+    /**
+     * Si la carta esta ampliada por el hover, que NO es lo mismo que
+     * {@code hoverProperty()}: mientras {@link #leaving} ignora una salida
+     * falsa la carta sigue ampliada con el raton en el hueco que ha dejado.
+     * Quien tenga que ponerla delante (la mesa) escucha esto, o la devuelve
+     * detras de sus vecinas justo cuando se ve mas grande.
+     */
+    public javafx.beans.property.ReadOnlyBooleanProperty liftedProperty() {
+        return liftedProp.getReadOnlyProperty();
+    }
+
+    public boolean isLifted() {
+        return lifted;
+    }
+
     private void stopWatching() {
         if (exitWatch != null && watchedScene != null) {
             watchedScene.removeEventFilter(javafx.scene.input.MouseEvent.ANY, exitWatch);
@@ -1824,9 +1842,69 @@ public class CardNode extends StackPane {
         watchedScene = null;
     }
 
+    /**
+     * La ultima carta levantada por el hover. Debil: una carta que se va de
+     * la pantalla levantada no se queda viva por esto (principio 11).
+     */
+    private static java.lang.ref.WeakReference<CardNode> lastLifted;
+
+    /** La carta que ha recibido el raton mientras otra lo retenia. */
+    private static java.lang.ref.WeakReference<CardNode> pendingHover;
+
+    private static CardNode lifted(final java.lang.ref.WeakReference<CardNode> ref) {
+        return ref == null ? null : ref.get();
+    }
+
+    /**
+     * Ha entrado el raton. Solo puede haber UNA carta ampliada.
+     *
+     * <p>En una fila apretada las cartas se solapan. La ampliada sube y deja
+     * libre una franja de su sitio de reposo, y en esa franja asoma la vecina:
+     * {@link #leaving} ya sabe que esa salida es falsa y deja la primera
+     * levantada, pero la vecina recibia la entrada y se levantaba TAMBIEN.
+     * Barriendo la fila se quedaban tres o cuatro ampliadas a la vez, y como
+     * la mesa solo pone delante una, las otras salian tapadas por sus vecinas
+     * (Discord, 30-09-2026: una criatura ampliada detras de unas Llanuras).
+     *
+     * <p>Asi que mientras el raton siga dentro del sitio de reposo de la que
+     * esta ampliada, esa lo retiene y la recien llegada ESPERA; se amplia ella
+     * cuando la primera baja de verdad ({@link #hoverOut}). Bajar la primera
+     * en el acto no valia: al volver a su sitio tapa a la vecina, que vuelve a
+     * soltar el raton en la franja... y parpadean las dos sin parar.
+     */
+    private void entering(final javafx.scene.input.MouseEvent e) {
+        final CardNode holder = lifted(lastLifted);
+        if (holder != null && holder != this && holder.lifted
+                && holder.getScene() == getScene() && holder.holdsPointer(e.getSceneX(), e.getSceneY())) {
+            pendingHover = new java.lang.ref.WeakReference<>(this);
+            holder.watchRealExit();
+            return;
+        }
+        hoverIn();
+    }
+
+    /** Si el punto (de escena) cae en el sitio que la carta ocupa en reposo. */
+    private boolean holdsPointer(final double sceneX, final double sceneY) {
+        final javafx.geometry.Bounds resting = restingBoundsInParent();
+        final javafx.scene.Parent parent = getParent();
+        return resting != null && parent != null && isVisible()
+                && resting.contains(parent.sceneToLocal(sceneX, sceneY));
+    }
+
     private void hoverIn() {
+        // Red por si otra se quedo levantada sin retener el raton: no puede
+        // haber dos ampliadas (ver entering).
+        final CardNode previous = lifted(lastLifted);
+        if (previous != null && previous != this && previous.lifted) {
+            previous.drop();
+        }
+        if (lifted(pendingHover) == this) {
+            pendingHover = null;
+        }
+        lastLifted = new java.lang.ref.WeakReference<>(this);
         stopWatching();
         lifted = true;
+        liftedProp.set(true);
         // Mientras el raton esta encima, delante de todo: da igual que esta
         // carta viva por DETRAS de otra (lo enganchado a una criatura), porque
         // pasar el raton por encima es justo el gesto de "ensenyamela".
@@ -1880,9 +1958,54 @@ public class CardNode extends StackPane {
         return width * (0.12 + (zoom - 1.08) * 0.7);
     }
 
+    /**
+     * El sitio que ocupa DE MAS una carta de {@code width} con el raton
+     * encima: crece {@code NeoSettings.hoverZoom()} desde el centro y sube
+     * {@link #hoverLiftFor}. Arriba, lo que sube mas la mitad de lo que crece;
+     * a los lados, la mitad de lo que crece; abajo, lo que crece hacia abajo
+     * menos lo que sube (casi siempre nada).
+     *
+     * <p>Es el margen que necesita una rejilla de cartas dentro de un
+     * {@code ScrollPane}: el visor recorta, y sin el la carta ampliada salia
+     * sin cabeza en la primera fila (itch.io, 30-09-2026). La mesa hace la
+     * misma cuenta en {@code BattlefieldPane.updateClip}.
+     */
+    public static javafx.geometry.Insets hoverRoomFor(final double width) {
+        final double zoom = forge.neo.NeoSettings.hoverZoom();
+        final double lift = hoverLiftFor(zoom, width);
+        final double growW = width * (zoom - 1) / 2;
+        final double growH = width * ASPECT * (zoom - 1) / 2;
+        final double pad = 4;
+        return new javafx.geometry.Insets(Math.ceil(lift + growH + pad), Math.ceil(growW + pad),
+                Math.ceil(Math.max(0, growH - lift) + pad), Math.ceil(growW + pad));
+    }
+
     private void hoverOut() {
+        final boolean was = lifted;
+        drop();
+        if (lifted(pendingHover) == this) {
+            pendingHover = null;
+        }
+        // Si otra carta estaba esperando el raton (entering) y lo sigue
+        // teniendo, ahora le toca a ella.
+        if (was) {
+            final CardNode next = lifted(pendingHover);
+            pendingHover = null;
+            if (next != null && next != this && next.hoverEnabled && next.isHover()
+                    && next.getScene() != null) {
+                next.hoverIn();
+            }
+        }
+    }
+
+    /** Baja la carta sin pasarle el raton a nadie. */
+    private void drop() {
         stopWatching();
+        if (lifted(lastLifted) == this) {
+            lastLifted = null;
+        }
         lifted = false;
+        liftedProp.set(false);
         setViewOrder(baseViewOrder);
         setEffect(null);
         if (!animations) {

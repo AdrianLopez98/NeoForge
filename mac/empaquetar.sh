@@ -94,7 +94,7 @@ jpackage --type app-image \
     --dest "$DIST" \
     --mac-package-identifier io.github.adrianlopez98.neoforge \
     --java-options "-Dfile.encoding=UTF-8" \
-    --java-options "-Xmx2g" \
+    --java-options "-XX:MaxRAMPercentage=50" \
     --java-options '-Dforge.assetsDir=$APPDIR/' \
     --java-options "--add-opens=java.base/java.util=ALL-UNNAMED" \
     --java-options "--add-opens=java.base/java.lang=ALL-UNNAMED" \

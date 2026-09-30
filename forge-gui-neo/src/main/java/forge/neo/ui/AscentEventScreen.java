@@ -56,6 +56,8 @@ public class AscentEventScreen extends StackPane {
     private final Random rnd;
     private final Actions actions;
     private final double cardWidth;
+    /** Refresca el contador de reliquias de los botones de consulta. */
+    private Runnable quickLook;
 
     private final VBox body = new VBox(16);
 
@@ -77,6 +79,8 @@ public class AscentEventScreen extends StackPane {
         showChoices();
 
         getChildren().addAll(paper, body);
+        // "Tu mazo" y "Reliquias" a mano, como en el mapa: ver AscentQuickLook.
+        quickLook = AscentQuickLook.install(this, run, cardWidth);
         CardZoom.install(this);
     }
 

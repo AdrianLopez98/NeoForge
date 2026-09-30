@@ -54,6 +54,8 @@ public class AscentRestScreen extends StackPane {
     private final AscentRun run;
     private final Actions actions;
     private final double cardWidth;
+    /** Refresca el contador de reliquias de los botones de consulta. */
+    private Runnable quickLook;
     private final VBox body = new VBox(18);
 
     public AscentRestScreen(final AscentRun run, final double cardWidth, final Actions actions) {
@@ -78,6 +80,8 @@ public class AscentRestScreen extends StackPane {
         }
 
         getChildren().addAll(paper, body);
+        // "Tu mazo" y "Reliquias" a mano, como en el mapa: ver AscentQuickLook.
+        quickLook = AscentQuickLook.install(this, run, cardWidth);
         // Click derecho = la carta grande. Quitar una carta se decide leyendo
         // el mazo, y a este tamanyo no se lee.
         CardZoom.install(this);

@@ -54,6 +54,8 @@ public class AscentShopScreen extends StackPane {
     private final List<AscentShop.Item> stock;
     private final Actions actions;
     private final double cardWidth;
+    /** Refresca el contador de reliquias de los botones de consulta. */
+    private Runnable quickLook;
 
     private final VBox body = new VBox(14);
     private AscentShop.Item selected;
@@ -79,12 +81,17 @@ public class AscentShopScreen extends StackPane {
         rebuild();
 
         getChildren().addAll(paper, body);
+        // "Tu mazo" y "Reliquias" a mano, como en el mapa: ver AscentQuickLook.
+        quickLook = AscentQuickLook.install(this, run, cardWidth);
         CardZoom.install(this);
     }
 
     // ------------------------------------------------------------------
 
     private void rebuild() {
+        if (quickLook != null) {
+            quickLook.run();
+        }
         body.getChildren().clear();
 
         final Label title = new Label(NeoText.get("ascent.shop.title"));

@@ -76,7 +76,14 @@ public final class UpdateCheck {
         check(ItchVersion.compare("4.10", "4.9") > 0, "4.10 es mas nueva que 4.9 (no por letras)");
         check(ItchVersion.compare("5.0", "4.9") > 0, "5.0 es mas nueva que 4.9");
         check(ItchVersion.compare("1.0.3", "1.0.2") > 0, "1.0.3 es mas nueva que 1.0.2 (Android)");
-        check(ItchVersion.compare("4.1", "4.1.0") == 0, "4.1 y 4.1.0 son la misma");
+        // Un solo numero para PC y Android desde el 30-09-2026: el PC paso de
+        // la 4.7 a la 1.0.8. Lo viejo del PC (dos cifras, 2 o mas) va antes.
+        check(ItchVersion.compare("1.0.8", "4.7") > 0, "1.0.8 (numero unico) es mas nueva que 4.7 (el esquema viejo del PC)");
+        check(ItchVersion.compare("4.6", "1.0.8") < 0, "y 4.6 mas vieja que 1.0.8");
+        check(ItchVersion.offerFor("1.0.8", "4.6", null) == null, "con la 1.0.8, la 4.6 de itch.io no se ofrece");
+        check("1.0.9".equals(ItchVersion.offerFor("1.0.8", "1.0.9", null)), "y la 1.0.9 si");
+        check(ItchVersion.compare("1.1", "1.0.9") > 0, "1.1 es mas nueva que 1.0.9 (dos cifras pero empieza por 1)");
+        check(ItchVersion.compare("2.0.0", "1.9.9") > 0, "una 2.0.0 futura (tres cifras) es nueva");
         check(ItchVersion.compare("v4.2", "4.2") == 0, "la v de delante no cuenta");
         check(ItchVersion.compare("4.2 beta", "4.1") == 0, "lo que no se entiende no es mas nuevo");
         check(ItchVersion.compare("", "4.1") == 0, "ni una cadena vacia");

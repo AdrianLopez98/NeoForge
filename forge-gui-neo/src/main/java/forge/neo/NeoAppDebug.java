@@ -67,12 +67,38 @@ final class NeoAppDebug {
         t.setOnFinished(e -> {
             final List<CardNode> all = new ArrayList<>();
             collectCardNodes(app.scene.getRoot(), all);
-            final int which = Integer.getInteger("neo.hover.index", 0);
-            if (all.isEmpty() || which >= all.size()) {
-                System.out.println("[hover] no hay carta " + which + " en pantalla");
+            // Negativo cuenta desde el final: lo ultimo del recorrido es lo del
+            // dialogo de encima (-1 su ultima carta).
+            final int asked = Integer.getInteger("neo.hover.index", 0);
+            final int which = asked < 0 ? all.size() + asked : asked;
+            if (all.isEmpty() || which < 0 || which >= all.size()) {
+                System.out.println("[hover] no hay carta " + asked + " en pantalla");
                 return;
             }
             final CardNode card = all.get(which);
+            // -Dneo.hover.fire=true: no mueve el puntero, le manda a la carta
+            // el MOUSE_ENTERED a mano. No sirve para contar parpadeos (el
+            // hoverProperty no se entera), pero SI para capturar la carta
+            // ampliada: que no la corte el visor ni la tape la vecina.
+            if (Boolean.getBoolean("neo.hover.fire")) {
+                final javafx.geometry.Bounds c = card.localToScene(card.getBoundsInLocal());
+                final double cx = (c.getMinX() + c.getMaxX()) / 2;
+                final double cy = (c.getMinY() + c.getMaxY()) / 2;
+                card.fireEvent(new javafx.scene.input.MouseEvent(
+                        javafx.scene.input.MouseEvent.MOUSE_ENTERED, cx, cy, cx, cy,
+                        javafx.scene.input.MouseButton.NONE, 0, false, false, false, false,
+                        false, false, false, false, false, false, null));
+                System.out.println("[hover] MOUSE_ENTERED a mano en la carta " + which + " de "
+                        + all.size() + ": " + (card.getCard() == null ? "?" : card.getCard()));
+                final PauseTransition foto = new PauseTransition(Duration.millis(600));
+                foto.setOnFinished(x2 -> {
+                    if (app.animSnapshot != null) {
+                        app.animSnapshot.run();
+                    }
+                });
+                foto.play();
+                return;
+            }
             final int[] entradas = {0};
             card.hoverProperty().addListener((o, was, is) -> {
                 if (is) {
@@ -102,6 +128,18 @@ final class NeoAppDebug {
                 System.out.printf(java.util.Locale.ROOT,
                         "[hover] entradas con el raton quieto: %d -> %s%n",
                         entradas[0], entradas[0] <= 1 ? "OK" : "PARPADEA");
+                // Quien esta ampliada y en que orden va cada contenedor hasta
+                // la mesa: la carta con el raton tiene que ir delante en TODOS.
+                for (final CardNode cn : all) {
+                    if (cn.getScaleX() > 1.001 || cn.isHover()) {
+                        final StringBuilder chain = new StringBuilder();
+                        for (javafx.scene.Node n = cn; n != null && n != app.scene.getRoot(); n = n.getParent()) {
+                            chain.append(' ').append(n.getClass().getSimpleName()).append('=').append(n.getViewOrder());
+                        }
+                        System.out.printf(java.util.Locale.ROOT, "[hover] %s hover=%s escala=%.2f:%s%n",
+                                cn.getCard(), cn.isHover(), cn.getScaleX(), chain);
+                    }
+                }
                 if (app.animSnapshot != null) {
                     app.animSnapshot.run();
                 }
@@ -294,6 +332,10 @@ final class NeoAppDebug {
             item.set(forge.trackable.TrackableProperty.OptionalTrigger, trigger && i % 6 == 0);
             items.add(item);
         }
+        if (Boolean.getBoolean("neo.stack.drain")) {
+            drainStack(items, me);
+            return;
+        }
         app.table.setStack(items, me);
         app.table.requestLayout();
 
@@ -304,6 +346,124 @@ final class NeoAppDebug {
         if (Boolean.getBoolean("neo.stack.open")) {
             javafx.application.Platform.runLater(this::openWholeStack);
         }
+    }
+
+    /**
+     * {@code -Dneo.bump.storm=N}: N avisos de contadores lanzados desde otro
+     * hilo tan deprisa como los da el motor, repartidos entre las cartas de tu
+     * mesa, y cada 2 s cuanto queda en cola y la memoria. Sale de Discord
+     * (30-09-2026): 380 fichas con contadores y 300 disparos acabaron en
+     * {@code OutOfMemoryError} en el hilo de interfaz.
+     */
+    void bumpStorm(final int count) {
+        final List<forge.neo.card.CardNode> nodes = app.table.selfFieldNodes();
+        if (nodes.isEmpty()) {
+            System.out.println("[maqueta] tormenta: no hay cartas en tu mesa");
+            return;
+        }
+        final List<CardView> cards = new ArrayList<>();
+        for (final forge.neo.card.CardNode n : nodes) {
+            cards.add(n.getCard());
+        }
+        final java.util.concurrent.atomic.AtomicLong done = new java.util.concurrent.atomic.AtomicLong();
+        final forge.neo.match.CardPulses pulses = Boolean.getBoolean("neo.bump.raw") ? null
+                : new forge.neo.match.CardPulses(app.table, javafx.application.Platform::runLater);
+        final long start = System.nanoTime();
+        final Thread engine = new Thread(() -> {
+            for (int i = 0; i < count; i++) {
+                final CardView c = cards.get(i % cards.size());
+                if (pulses == null) {
+                    // Lo de antes: una tarea y una animacion por aviso.
+                    javafx.application.Platform.runLater(() -> {
+                        app.table.bumpCard(c);
+                        done.incrementAndGet();
+                    });
+                } else {
+                    pulses.bump(c);
+                    done.incrementAndGet();
+                }
+            }
+            System.out.printf("[maqueta] tormenta: %d avisos mandados en %.1f s%n",
+                    count, (System.nanoTime() - start) / 1e9);
+        }, "tormenta");
+        engine.setDaemon(true);
+        engine.start();
+        final Thread watch = new Thread(() -> {
+            try {
+                for (int s = 0; s < 60; s++) {
+                    Thread.sleep(2000);
+                    final Runtime rt = Runtime.getRuntime();
+                    final long ui = pingUi();
+                    System.out.printf("[maqueta] tormenta %2d s: atendidos %d de %d, la interfaz tarda %d ms"
+                            + " en contestar, memoria %d MB%n", (s + 1) * 2, done.get(), count, ui,
+                            (rt.totalMemory() - rt.freeMemory()) >> 20);
+                    if (done.get() >= count && ui < 200) {
+                        break;
+                    }
+                }
+            } catch (final InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
+        }, "tormenta-reloj");
+        watch.setDaemon(true);
+        watch.start();
+    }
+
+    /** Cuanto tarda el hilo de interfaz en atender una tarea nueva (hasta 5 s). */
+    private static long pingUi() throws InterruptedException {
+        final long t0 = System.nanoTime();
+        final java.util.concurrent.CountDownLatch l = new java.util.concurrent.CountDownLatch(1);
+        javafx.application.Platform.runLater(l::countDown);
+        return l.await(5, java.util.concurrent.TimeUnit.SECONDS)
+                ? (System.nanoTime() - t0) / 1_000_000 : 5000;
+    }
+
+    /**
+     * {@code -Dneo.stack.drain=true}: una cascada de disparos. La pila crece de
+     * uno en uno hasta {@code neo.stack.items} y luego se resuelve de uno en
+     * uno, con un layout entre medias como en partida, y apunta lo que cuesta
+     * cada actualizacion y la memoria. Sale de Discord (30-09-2026): con 300+
+     * disparos en la pila el juego se cerro.
+     */
+    private void drainStack(final List<forge.game.spellability.StackItemView> all,
+            final forge.game.player.PlayerView me) {
+        final int n = all.size();
+        final int[] step = {0};
+        final long[] worst = {0};
+        final long[] total = {0};
+        final long start = System.nanoTime();
+        final javafx.animation.AnimationTimer timer = new javafx.animation.AnimationTimer() {
+            @Override
+            public void handle(final long now) {
+                final int s = step[0]++;
+                // 1..n creciendo (la parte de arriba es la ultima en entrar), y
+                // luego n-1..0 resolviendo desde arriba.
+                final int size = s < n ? s + 1 : 2 * n - 1 - s;
+                if (size < 0) {
+                    stop();
+                    final Runtime rt = Runtime.getRuntime();
+                    System.out.printf("[maqueta] pila drenada: %d objetos, %d actualizaciones, %.1f s,"
+                            + " peor %d ms, media %.1f ms, memoria %d MB de %d MB%n",
+                            n, 2 * n, (System.nanoTime() - start) / 1e9, worst[0] / 1_000_000,
+                            total[0] / 1e6 / (2 * n), (rt.totalMemory() - rt.freeMemory()) >> 20,
+                            rt.maxMemory() >> 20);
+                    return;
+                }
+                final long t0 = System.nanoTime();
+                app.table.setStack(all.subList(n - size, n), me);
+                app.table.applyCss();
+                app.table.layout();
+                final long dt = System.nanoTime() - t0;
+                total[0] += dt;
+                worst[0] = Math.max(worst[0], dt);
+                if (size % 50 == 0) {
+                    final Runtime rt = Runtime.getRuntime();
+                    System.out.printf("[maqueta] pila %d: %d ms, memoria %d MB%n", size, dt / 1_000_000,
+                            (rt.totalMemory() - rt.freeMemory()) >> 20);
+                }
+            }
+        };
+        timer.start();
     }
 
     /** Baja el visor de los Ajustes, que es mas largo que la ventana. */
@@ -844,6 +1004,16 @@ final class NeoAppDebug {
         final forge.trackable.Tracker t = new forge.trackable.Tracker();
         final forge.game.player.PlayerView rival = new forge.game.player.PlayerView(9200, t);
         rival.set(forge.trackable.TrackableProperty.LobbyPlayerName, "Paige");
+        // -Dneo.revealed.asChoice=N: lo mismo pero en el dialogo de eleccion,
+        // con N cartas, como el "Looking at cards in X's library" (para ver
+        // que la carta con el raton encima no la corta el visor).
+        final int asChoice = Integer.getInteger("neo.revealed.asChoice", 0);
+        if (asChoice > 0) {
+            app.table.getOverlay().show(new forge.neo.ui.ChoiceDialog<CardView>(
+                    "Looking at cards in Paige's library", views(pickCards(deck, asChoice)), -1, -1,
+                    CardView::getName, 132, picked -> { }));
+            return;
+        }
         app.table.showRevealed(rival, views(pickCards(deck, 4)));
         app.table.setPrompt("Maqueta: Paige revela su mano (--mock-revealed)");
     }

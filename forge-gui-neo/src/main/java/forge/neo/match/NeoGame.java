@@ -464,7 +464,11 @@ public final class NeoGame {
                                     final boolean autoPayMana) {
         applyEnginePrefs();
 
-        final NeoMatchUI gui = new NeoMatchUI(NeoMatchUI.Mode.HUMAN, verbose);
+        final NeoMatchUI gui = new NeoMatchUI(
+                // Solo pruebas: -Dneo.puzzle.auto=true, el asiento humano juega
+                // solo (una posicion con cientos de disparos no se pasa a mano).
+                Boolean.getBoolean("neo.puzzle.auto") ? NeoMatchUI.Mode.AUTO_PLAY : NeoMatchUI.Mode.HUMAN,
+                verbose);
         gui.setAutoPayMana(autoPayMana);
         if (binder != null) {
             gui.setBinder(binder);
@@ -608,6 +612,12 @@ public final class NeoGame {
     public static List<Puzzle> puzzles() {
         final List<Puzzle> out = new ArrayList<>(
                 PuzzleIO.loadPuzzles(ForgeConstants.PUZZLE_DIR));
+        // Solo pruebas: -Dneo.puzzleDir=<carpeta> anyade los .pzl de una
+        // carpeta nuestra (en res/puzzle de Forge no se escribe: regla de oro).
+        final String extra = System.getProperty("neo.puzzleDir");
+        if (extra != null && !extra.isBlank()) {
+            out.addAll(PuzzleIO.loadPuzzles(extra.endsWith("/") ? extra : extra + "/"));
+        }
         java.util.Collections.sort(out);
         return out;
     }

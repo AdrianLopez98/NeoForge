@@ -209,7 +209,7 @@ public final class Anim {
      * animacion larga aqui haria el turno del rival insoportable.
      */
     public static void hit(final CardNode node) {
-        if (!CardNode.areAnimationsEnabled() || node == null) {
+        if (!CardNode.areAnimationsEnabled() || node == null || !claim(node, HIT_KEY)) {
             return;
         }
         final javafx.scene.shape.Rectangle flash = new javafx.scene.shape.Rectangle(
@@ -227,15 +227,34 @@ public final class Anim {
         f.setAutoReverse(true);
         f.setCycleCount(2);
         f.setInterpolator(Interpolator.EASE_OUT);
-        f.setOnFinished(e -> node.getChildren().remove(flash));
+        f.setOnFinished(e -> {
+            node.getChildren().remove(flash);
+            node.getProperties().remove(HIT_KEY);
+        });
         f.play();
     }
 
+    private static final String HIT_KEY = "neo.anim.hit";
+    private static final String BUMP_KEY = "neo.anim.bump";
+
+    /**
+     * UNA animacion de cada tipo por carta a la vez. Una cascada de disparos
+     * (Discord, 30-09-2026: 380 fichas recibiendo contadores con 300 disparos
+     * en la pila) pedia una por aviso, miles sobre las mismas cartas. No fue
+     * lo que dejo el juego sin memoria (eso fue el motor, ver las trampas conocidas),
+     * pero no explica nada: la que ya esta en marcha ya cuenta lo que ha
+     * pasado.
+     */
+    private static boolean claim(final Node node, final String key) {
+        return node.getProperties().putIfAbsent(key, Boolean.TRUE) == null;
+    }
+
     public static void bump(final Node node) {
-        if (!CardNode.areAnimationsEnabled()) {
+        if (!CardNode.areAnimationsEnabled() || node == null || !claim(node, BUMP_KEY)) {
             return;
         }
         final ScaleTransition sc = new ScaleTransition(BUMP, node);
+        sc.setOnFinished(e -> node.getProperties().remove(BUMP_KEY));
         sc.setFromX(1);
         sc.setFromY(1);
         sc.setToX(1.2);

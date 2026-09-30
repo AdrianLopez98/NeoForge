@@ -232,8 +232,16 @@ final class SelfTest {
                         // haria el jugador, para ver si despues se vuelve al mapa.
                         final forge.toolbox.FOverlay top = forge.toolbox.FOverlay.getTopOverlay();
                         if (top instanceof forge.toolbox.FOptionPane pane && top.isVisible()) {
-                            NeoDuelBridge.log("autoprueba anteduel: pulso OK en el aviso");
-                            pane.setResult(0);
+                            if (Boolean.getBoolean("neo.adventure.realClick")) {
+                                // Como un raton de verdad: por el InputProcessor que
+                                // tenga libGDX AHORA. setResult se salta justo eso, y
+                                // por eso no vio el OK muerto de "Card Gained"
+                                // (Reddit, 30-09-2026).
+                                realClickOk(pane);
+                            } else {
+                                NeoDuelBridge.log("autoprueba anteduel: pulso OK en el aviso");
+                                pane.setResult(0);
+                            }
                         }
                         NeoDuelBridge.log("autoprueba anteduel: escena="
                                 + (forge.Forge.getCurrentScene() == null ? "null"
@@ -250,6 +258,41 @@ final class SelfTest {
                 e.printStackTrace();
             }
         }, "neo-adventure-selftest-ante").start();
+    }
+
+    /** Pulsa el primer boton del aviso con un toque de verdad (touchDown + touchUp). */
+    private static void realClickOk(final forge.toolbox.FOptionPane pane) {
+        final forge.toolbox.FButton ok = firstButton(pane);
+        final com.badlogic.gdx.InputProcessor ip = Gdx.input.getInputProcessor();
+        final boolean forgeHasIt = ip == forge.Forge.getInputProcessor();
+        if (ok == null) {
+            NeoDuelBridge.log("autoprueba anteduel: el aviso no tiene boton");
+            return;
+        }
+        final int x = Math.round(ok.screenPos.x + ok.screenPos.width / 2);
+        final int y = Math.round(ok.screenPos.y + ok.screenPos.height / 2);
+        NeoDuelBridge.log("autoprueba anteduel: clic de verdad en '" + ok.getText() + "' (" + x + "," + y
+                + "); los clics los tiene " + (ip == null ? "nadie" : ip.getClass().getName())
+                + (forgeHasIt ? " = Forge" : " (NO Forge)"));
+        if (ip != null) {
+            ip.touchDown(x, y, 0, com.badlogic.gdx.Input.Buttons.LEFT);
+            ip.touchUp(x, y, 0, com.badlogic.gdx.Input.Buttons.LEFT);
+        }
+    }
+
+    private static forge.toolbox.FButton firstButton(final forge.toolbox.FContainer c) {
+        for (final forge.toolbox.FDisplayObject o : c.getChildren()) {
+            if (o instanceof forge.toolbox.FButton b && b.isVisible()) {
+                return b;
+            }
+            if (o instanceof forge.toolbox.FContainer inner) {
+                final forge.toolbox.FButton b = firstButton(inner);
+                if (b != null) {
+                    return b;
+                }
+            }
+        }
+        return null;
     }
 
     private static void duel(final Runnable after) {

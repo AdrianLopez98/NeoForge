@@ -33,6 +33,7 @@ public final class DeckRulesCheck {
 
         commanderIsSingleton();
         commanderColourIdentity();
+        wildColourCompanion();
         basicLandsAreUnlimited();
         constructedAllowsFour();
         sideboardCountsTowardsTheLimit();
@@ -327,6 +328,27 @@ public final class DeckRulesCheck {
                 String.valueOf(editor.rejectionReason(card("Counterspell"))).equals(
                         forge.neo.NeoText.get("reject.identity",
                                 forge.neo.card.CardText.nameOf(card("Counterspell")))));
+    }
+
+    /**
+     * Clara Oswald con un Doctor: "choose a color" le da al mazo UN color mas,
+     * y el motor lo acepta al guardar. El editor no lo sabia y no dejaba
+     * guardar (itch.io, 30-09-2026).
+     */
+    private static void wildColourCompanion() {
+        final DeckEditor editor = DeckEditor.createNew(NeoFormat.COMMANDER, "prueba");
+        check("Clara: entra el Doctor (UR)", editor.setCommander(card("The Twelfth Doctor")));
+        check("Clara: entra Clara como companera", editor.setCommander(card("Clara Oswald")));
+        check("Clara: son dos comandantes", editor.commanders().size() == 2);
+        check("Clara: una verde entra (el color comodin)",
+                editor.add(card("Llanowar Elves"), 1) == 1);
+        check("Clara: otra verde tambien", editor.add(card("Growth Spiral"), 1) == 1);
+        check("Clara: pero una negra ya NO (el comodin es uno)",
+                editor.add(card("Doom Blade"), 1) == 0);
+        check("Clara: el editor no marca nada", editor.illegalCards().isEmpty());
+        final String engine = forge.deck.DeckFormat.Commander.getDeckConformanceProblem(editor.getDeck());
+        check("Clara: y el motor tampoco se queja de la identidad",
+                engine == null || !engine.contains("color identity"));
     }
 
     /** Las tierras basicas no tienen limite en ningun formato. */

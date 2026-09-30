@@ -902,6 +902,13 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 if (args.contains("--mock-stack")) {
                     debug.mockStack(Integer.getInteger("neo.stack.items", 5));
                 }
+                if (Integer.getInteger("neo.bump.storm") != null) {
+                    // Tormenta de avisos de contadores (Discord, 30-09-2026):
+                    // -Dneo.bump.storm=N, y -Dneo.bump.raw=true para el camino
+                    // de antes (una tarea por aviso). Ver NeoAppDebug.bumpStorm.
+                    final int storm = Integer.getInteger("neo.bump.storm");
+                    javafx.application.Platform.runLater(() -> debug.bumpStorm(storm));
+                }
                 if (args.contains("--mock-phase-ask")) {
                     // La pregunta de "vas a dejar tu fase principal". En
                     // partida la levanta NeoMatchUI al pulsar OK; aqui se monta
@@ -1151,6 +1158,12 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 // El selector del mazo de rival: hace falta un click para verlo.
                 home.openOpponentPicker(0, args.contains("--stock"));
             }
+            if (args.contains("--choose-commander") && home != null) {
+                // Elegir comandante (Forge #12052). -Dneo.commander.deck=X
+                // elige antes ese mazo (un trozo del nombre, tambien de los de
+                // Forge) y -Dneo.commander.choose=N pulsa la opcion N.
+                home.openCommanderPicker(System.getProperty("neo.commander.deck"));
+            }
         } else if (args.contains("--other-formats")) {
             // "Otros formatos": Modern, Pioneer, Pauper... sin pasar por el menu.
             showOtherFormats();
@@ -1246,6 +1259,8 @@ public class NeoApp extends Application implements SettingsPanel.Host {
         } else {
             showMainMenu();
         }
+        // Si se acaba de importar (Ajustes -> Tus datos), decir que ha pasado.
+        showImportResult();
 
         // La ventana ya estaba puesta antes de empezar a cargar: aqui solo se
         // cambia lo que hay dentro.
@@ -2289,6 +2304,72 @@ public class NeoApp extends Application implements SettingsPanel.Host {
     public boolean isInMatch() {
         final TableBinder b = binder;
         return b != null && b.getMatchUi() != null;
+    }
+
+    /**
+     * Reabrir para aplicar una importacion de datos ya preparada. Igual que al
+     * cambiar de idioma: solo en la version empaquetada (ver relauncher) y
+     * soltando antes el cerrojo, o el hijo se encontraria el juego "ya
+     * abierto". Lo que se guarde al cerrarse no importa: la importacion se
+     * aplica en el arranque siguiente, DESPUES.
+     */
+    @Override
+    public boolean restartToImport() {
+        final String launcher = relauncher();
+        if (launcher == null) {
+            return false;
+        }
+        NeoLock.release();
+        try {
+            new ProcessBuilder(launcher).start();
+        } catch (final java.io.IOException e) {
+            System.err.println("[neo] no se ha podido reabrir para importar: " + e);
+            return false;
+        }
+        Platform.exit();
+        return true;
+    }
+
+    /**
+     * Lo que paso en la ultima importacion de datos, una vez, encima de lo que
+     * haya en pantalla. Sin importacion, nada.
+     */
+    private void showImportResult() {
+        final java.util.Properties r = forge.neo.data.NeoBackup.takeResult(
+                forge.neo.data.DataPlaces.desktop().root);
+        if (r == null) {
+            return;
+        }
+        final String title;
+        final String body;
+        if (r.getProperty("error") != null) {
+            title = NeoText.get("import.failed.title");
+            body = NeoText.get("import.failed.body", r.getProperty("error"));
+        } else {
+            title = NeoText.get("import.done.title");
+            final String from = r.getProperty("from", "");
+            body = NeoText.get("REPLACE".equals(r.getProperty("mode")) ? "import.done.replace" : "import.done.add",
+                    r.getProperty("written", "0"), r.getProperty("kept", "0"),
+                    from.isEmpty() ? "?" : Character.toUpperCase(from.charAt(0)) + from.substring(1),
+                    r.getProperty("version", "?"), r.getProperty("backup", ""));
+        }
+        final javafx.scene.Parent previous = scene.getRoot();
+        final javafx.scene.layout.StackPane layer = new javafx.scene.layout.StackPane();
+        layer.getStyleClass().add("overlay");
+        layer.getChildren().add(new forge.neo.ui.ConfirmDialog(title, body,
+                java.util.List.of(NeoText.get("common.accept")), 0,
+                choice -> {
+                    if (scene.getRoot() instanceof javafx.scene.layout.StackPane sp
+                            && sp.getChildren().contains(layer)) {
+                        sp.getChildren().remove(layer);
+                        if (sp.getChildren().size() == 1) {
+                            scene.setRoot((javafx.scene.Parent) sp.getChildren().get(0));
+                        }
+                    }
+                }));
+        final javafx.scene.layout.StackPane both = new javafx.scene.layout.StackPane(previous, layer);
+        scene.setRoot(both);
+        applyScale();
     }
 
     /** Repintar la mesa ya, sin esperar al siguiente aviso del motor. */

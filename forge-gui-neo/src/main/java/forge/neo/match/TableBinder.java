@@ -778,7 +778,8 @@ public class TableBinder {
             }
         }
         // Y lo que esa lista del motor se deja: lo planeado en el exilio
-        // (NeoMatchUI.plotted) y el caos en el cementerio (isMayhemCastable).
+        // (NeoMatchUI.plotted) y el caos o armonizar en el cementerio
+        // (isMayhemCastable).
         final NeoMatchUI ui = matchUi;
         final var cards = ui == null || (zone != ZoneType.Exile && zone != ZoneType.Graveyard)
                 ? null : owner.getCards(zone);

@@ -188,6 +188,9 @@ public class ZoneViewer extends VBox {
         final FlowPane grid = new FlowPane(10, 10);
         grid.setAlignment(Pos.CENTER);
         grid.setPrefWrapLength(Math.max(600, cardWidth * 6));
+        // Sitio para la carta con el raton encima, que crece y sube: sin el
+        // el visor la cortaba en la primera fila (ChoiceDialog, igual).
+        grid.setPadding(CardNode.hoverRoomFor(cardWidth));
 
         // Las zonas de mazo son SECRETAS... pero no siempre del todo.
         //

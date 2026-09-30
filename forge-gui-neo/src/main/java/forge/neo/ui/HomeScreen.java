@@ -160,6 +160,20 @@ et}) y no se tocan.
      * empezar DENTRO de esa coleccion (ver {@link #resolvedOpponentDecks}).
      */
     private final java.util.Map<Integer, String> opponentPools = new java.util.HashMap<>();
+
+    /**
+     * El comandante que lleva cada rival con mazo fijado, si no es el de
+     * siempre (Forge #12052, 29-09-2026). Se borra al cambiarle el mazo.
+     */
+    private final java.util.Map<Integer, List<PaperCard>> opponentCommanders = new java.util.HashMap<>();
+
+    /**
+     * "Comandante: X" de tu mazo, en formatos con comandante; null en el resto.
+     * Solo se habilita si el mazo tiene a quien elegir, y eso lo calcula el
+     * motor en otro hilo (ver CommanderPickDialog) y se guarda por mazo.
+     */
+    private Button commanderButton;
+    private final java.util.Map<Deck, Boolean> commanderChoices = new java.util.IdentityHashMap<>();
     private final List<Button> opponentButtons = new ArrayList<>();
     private Region opponentRow;
 
@@ -1025,6 +1039,21 @@ et}) y no se tocan.
             opponentDecks.add(null);
         }
 
+        // Con que comandante juegas (Forge #12052): lo primero de la fila, que
+        // es lo que va con TU mazo. Solo en formatos con comandante.
+        commanderButton = null;
+        if (forge.neo.deck.CommanderChoice.applies(format.getGameType())) {
+            commanderButton = new Button();
+            commanderButton.setId("home-commander");
+            commanderButton.getStyleClass().add("segment");
+            commanderButton.setMinWidth(Region.USE_PREF_SIZE);
+            commanderButton.setOnAction(e -> pickCommander(-1));
+            final Region sep = new Region();
+            sep.setMinWidth(14);
+            row.getChildren().addAll(commanderButton, sep);
+            refreshCommander();
+        }
+
         // Con un solo rival no hay equipos que hacer: tu y el, uno contra uno,
         // y la fila se queda como estaba antes de que hubiera equipos.
         final boolean withTeams = opponents > 1;
@@ -1046,9 +1075,181 @@ et}) y no se tocan.
             b.setMinWidth(Region.USE_PREF_SIZE);
             b.setOnAction(e -> pickOpponentDeck(index));
             opponentButtons.add(b);
-            row.getChildren().add(withTeams ? seat(b, teamBox(i + 1)) : b);
+            final javafx.scene.Node who = rivalCommanderButton(index) == null ? b
+                    : new HBox(2, b, rivalCommanderButton(index));
+            row.getChildren().add(withTeams ? seat(who, teamBox(i + 1)) : who);
         }
         refreshOpponentLabels();
+    }
+
+    /**
+     * La corona junto al mazo de un rival: con que comandante juega. Solo si
+     * se le ha fijado un mazo (al azar no hay mazo que mirar todavia) y el
+     * formato lleva comandante. Se crea una vez por asiento y se reutiliza.
+     */
+    private Button rivalCommanderButton(final int index) {
+        final Deck d = index < opponentDecks.size() ? opponentDecks.get(index) : null;
+        if (d == null || !forge.neo.deck.CommanderChoice.applies(format.getGameType())
+                || d.getCommanders().isEmpty()) {
+            rivalCommanderButtons.remove(index);
+            return null;
+        }
+        return rivalCommanderButtons.computeIfAbsent(index, i -> {
+            final Button b = new Button(NeoText.get("commander.pick.short"));
+            b.getStyleClass().addAll("segment", "rival-commander");
+            b.setMinWidth(Region.USE_PREF_SIZE);
+            b.setTooltip(new javafx.scene.control.Tooltip(
+                    NeoText.get("commander.pick.rivalTip", i + 1, commanderNames(d, opponentCommanders.get(i)))));
+            b.setOnAction(e -> pickCommander(i));
+            return b;
+        });
+    }
+
+    private final java.util.Map<Integer, Button> rivalCommanderButtons = new java.util.HashMap<>();
+
+    /** Tu mazo tal y como se va a jugar: con el comandante elegido, si hay. */
+    private Deck effectiveDeck() {
+        if (selected == null || !forge.neo.deck.CommanderChoice.applies(format.getGameType())) {
+            return selected;
+        }
+        return forge.neo.deck.CommanderChoice.apply(selected,
+                forge.neo.deck.CommanderChoice.remembered(selected, format.getGameType().getDeckFormat()));
+    }
+
+    /** "Atraxa" o "Tymna + Thrasios", traducidos: quien lleva el mazo ahora. */
+    private static String commanderNames(final Deck deck, final List<PaperCard> pick) {
+        final List<PaperCard> who = pick != null ? pick : deck.getCommanders();
+        final List<String> names = new ArrayList<>();
+        for (final PaperCard c : who) {
+            names.add(forge.neo.card.CardText.nameOf(c));
+        }
+        return String.join(" + ", names);
+    }
+
+    /**
+     * Pone el texto del boton de tu comandante y lo habilita si hay a quien
+     * elegir. Eso lo sabe el motor mirando cada carta del mazo, asi que se
+     * pregunta en otro hilo la primera vez y se guarda por mazo.
+     */
+    private void refreshCommander() {
+        final Button b = commanderButton;
+        if (b == null) {
+            return;
+        }
+        final Deck deck = selected;
+        if (deck == null || deck.getCommanders().isEmpty()) {
+            b.setVisible(false);
+            b.setManaged(false);
+            return;
+        }
+        b.setVisible(true);
+        b.setManaged(true);
+        final forge.deck.DeckFormat df = format.getGameType().getDeckFormat();
+        final List<PaperCard> pick = forge.neo.deck.CommanderChoice.remembered(deck, df);
+        b.setText(NeoText.get("commander.pick.button", commanderNames(deck, pick)));
+        final Boolean known = commanderChoices.get(deck);
+        if (known != null) {
+            b.setDisable(!known);
+            b.setTooltip(known ? null : new javafx.scene.control.Tooltip(NeoText.get("commander.pick.none")));
+            return;
+        }
+        b.setDisable(true);
+        final Thread t = new Thread(() -> {
+            boolean has;
+            try {
+                has = forge.neo.deck.CommanderChoice.hasChoices(deck,
+                        forge.neo.deck.CommanderChoice.options(deck, df), df);
+            } catch (final RuntimeException e) {
+                has = false;
+            }
+            final boolean result = has;
+            javafx.application.Platform.runLater(() -> {
+                commanderChoices.put(deck, result);
+                if (selected == deck) {
+                    refreshCommander();
+                }
+            });
+        }, "neo-commander-choices");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    /**
+     * Solo pruebas ({@code --pick-commander}): elige el mazo que contenga
+     * {@code deckName} en el nombre (de los tuyos o de los de Forge) y abre el
+     * dialogo de su comandante.
+     */
+    public void openCommanderPicker(final String deckName) {
+        // -Dneo.commander.rivalDeck=X: ese mazo para el primer rival, para ver
+        // su corona. Y si no se pide tu mazo, el dialogo que se abre es el suyo.
+        final String rivalName = System.getProperty("neo.commander.rivalDeck");
+        if (rivalName != null && !rivalName.isBlank()) {
+            final String q = rivalName.toLowerCase(java.util.Locale.ROOT);
+            for (final Deck d : decks) {
+                if (d.getName().toLowerCase(java.util.Locale.ROOT).contains(q)) {
+                    while (opponentDecks.isEmpty()) {
+                        opponentDecks.add(null);
+                    }
+                    opponentDecks.set(0, d);
+                    rebuildOpponentRow();
+                    break;
+                }
+            }
+            if (deckName == null || deckName.isBlank()) {
+                if (!Boolean.getBoolean("neo.commander.noDialog")) {
+                    pickCommander(0);
+                }
+                return;
+            }
+        }
+        if (deckName != null && !deckName.isBlank()) {
+            final String q = deckName.toLowerCase(java.util.Locale.ROOT);
+            for (final Deck d : decks) {
+                if (d.getName().toLowerCase(java.util.Locale.ROOT).contains(q)) {
+                    select(d);
+                    break;
+                }
+            }
+        }
+        if (!Boolean.getBoolean("neo.commander.noDialog")) {
+            pickCommander(-1);
+        }
+    }
+
+    /**
+     * El dialogo de elegir comandante: -1 para tu mazo, o el asiento de un
+     * rival. Lo elegido vale para la proxima partida; el mazo no se toca.
+     */
+    private void pickCommander(final int rival) {
+        final Deck deck = rival < 0 ? selected
+                : rival < opponentDecks.size() ? opponentDecks.get(rival) : null;
+        if (deck == null) {
+            return;
+        }
+        final forge.deck.DeckFormat df = format.getGameType().getDeckFormat();
+        final List<PaperCard> current = rival < 0
+                ? forge.neo.deck.CommanderChoice.remembered(deck, df) : opponentCommanders.get(rival);
+        final CommanderPickDialog dialog = new CommanderPickDialog(deck, df,
+                current == null ? deck.getCommanders() : current, tileWidth * 0.62,
+                picked -> {
+                    overlay.hide();
+                    if (rival < 0) {
+                        forge.neo.deck.CommanderChoice.remember(deck, df, picked);
+                        refreshCommander();
+                    } else {
+                        if (forge.neo.deck.CommanderChoice.same(picked, deck.getCommanders())) {
+                            opponentCommanders.remove(rival);
+                        } else {
+                            opponentCommanders.put(rival, picked);
+                        }
+                        rivalCommanderButtons.remove(rival);
+                        rebuildOpponentRow();
+                    }
+                    updateSummary();
+                },
+                overlay::hide);
+        overlay.setOnBackgroundClick(overlay::hide);
+        overlay.show(dialog);
     }
 
     /**
@@ -1166,6 +1367,9 @@ et}) y no se tocan.
                     }
                     opponentDecks.set(index, chosen);
                     opponentPools.remove(index);
+                    opponentCommanders.remove(index);
+                    rivalCommanderButtons.remove(index);
+                    rebuildOpponentRow();
                     refreshOpponentLabels();
                     updateSummary();
                 },
@@ -1179,6 +1383,9 @@ et}) y no se tocan.
             }
             opponentDecks.set(index, null);
             opponentPools.put(index, name);
+            opponentCommanders.remove(index);
+            rivalCommanderButtons.remove(index);
+            rebuildOpponentRow();
             refreshOpponentLabels();
             updateSummary();
         });
@@ -1225,7 +1432,7 @@ et}) y no se tocan.
         NeoSettings.set(NeoSettings.AI_PROFILE, aiProfile);
         NeoSettings.setTeams(format, forge.neo.match.NeoTeams.toSetting(teams));
         NeoSettings.save();
-        onStart.start(selected, opponents, aiProfile, watch, resolvedOpponentDecks(),
+        onStart.start(effectiveDeck(), opponents, aiProfile, watch, resolvedOpponentDecks(),
                 hasTeams() ? teams.clone() : null);
     }
 
@@ -1254,7 +1461,7 @@ et}) y no se tocan.
         for (int i = 0; i < opponents; i++) {
             final Deck chosen = i < opponentDecks.size() ? opponentDecks.get(i) : null;
             if (chosen != null) {
-                out.add(chosen);
+                out.add(forge.neo.deck.CommanderChoice.apply(chosen, opponentCommanders.get(i)));
                 continue;
             }
             // Al azar DE UNA COLECCION: el sorteo, dentro de ella. Si se ha
@@ -1369,6 +1576,7 @@ et}) y no se tocan.
             NeoSettings.set(NeoSettings.DECK, deck.getName());
         }
         edit.setDisable(deck == null);
+        refreshCommander();
         // JUGAR lo habilita updateSummary, que es quien sabe si el mazo es legal.
         updateSummary();
     }
@@ -1393,7 +1601,7 @@ et}) y no se tocan.
 
         String problem =
                 forge.neo.deck.DeckProblem.translate(format.getGameType()
-                        .getDeckFormat().getDeckConformanceProblem(selected));
+                        .getDeckFormat().getDeckConformanceProblem(effectiveDeck()));
         // Todos en el mismo equipo no se puede jugar, y se dice aqui con el
         // mismo texto con el que lo dice Forge al darle a empezar.
         if (problem == null && notEnoughTeams()) {

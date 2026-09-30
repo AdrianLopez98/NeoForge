@@ -72,6 +72,8 @@ public class AscentRewardScreen extends StackPane {
     private final AscentRewards.Reward reward;
     private final Actions actions;
     private final double cardWidth;
+    /** Refresca el contador de reliquias de los botones de consulta. */
+    private Runnable quickLook;
 
     private final VBox body = new VBox(16);
     /**
@@ -106,6 +108,8 @@ public class AscentRewardScreen extends StackPane {
         rebuild();
 
         getChildren().addAll(paper, body);
+        // "Tu mazo" y "Reliquias" a mano, como en el mapa: ver AscentQuickLook.
+        quickLook = AscentQuickLook.install(this, run, cardWidth);
         // Click derecho = la carta grande, como en el resto del juego. Aqui
         // hace mas falta que en ninguna parte: se esta eligiendo 1 de 3 y la
         // decision se toma LEYENDO la carta.
@@ -168,6 +172,9 @@ public class AscentRewardScreen extends StackPane {
     // ------------------------------------------------------------------
 
     private void rebuild() {
+        if (quickLook != null) {
+            quickLook.run();
+        }
         body.getChildren().clear();
 
         final Label title = new Label(NeoText.get("ascent.reward.title"));

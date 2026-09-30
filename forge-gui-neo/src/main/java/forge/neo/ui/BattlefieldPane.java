@@ -441,6 +441,11 @@ public class BattlefieldPane extends Pane {
             if (is) {
                 fireHover(node.getFront());
             }
+        });
+        // liftedProperty y no hoverProperty: con el raton en el hueco que deja
+        // la carta al subir, JavaFX ya dice que no esta encima pero sigue
+        // ampliada (CardNode.leaving), y se quedaba detras de la de al lado.
+        node.getFront().liftedProperty().addListener((o, was, is) -> {
             // La carta con el raton encima, DELANTE DE TODO: de sus vecinas de
             // fila (las de la derecha se pintan despues) y de las otras filas
             // (la de criaturas se pintaba encima de la de tierras). Con la
@@ -722,7 +727,7 @@ public class BattlefieldPane extends Pane {
                 shift += extra;
             }
             node.setLayoutY(Math.max(0, (availH - cardH) / 2));
-            node.setViewOrder(node.getFront().isHover() ? -10 : -i * .001);
+            node.setViewOrder(node.getFront().isLifted() ? -10 : -i * .001);
         }
 
         previous.setVisible(scrollMax > .5);

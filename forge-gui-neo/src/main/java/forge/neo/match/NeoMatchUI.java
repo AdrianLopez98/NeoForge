@@ -2111,14 +2111,25 @@ public class NeoMatchUI extends NetworkGuiGame {
         if (t == null || !forge.neo.card.CardNode.areAnimationsEnabled()) {
             return;
         }
+        // Juntas, nunca una tarea por aviso: ver CardPulses (una cascada de
+        // contadores dejo el juego sin memoria).
         if (event instanceof forge.game.event.GameEventCardDamaged e && e.amount() > 0) {
-            final CardView hit = e.card();
-            runOnUi(() -> t.flashHit(hit));
+            pulsesFor(t).hit(e.card());
         } else if (event instanceof forge.game.event.GameEventCardCounters e
                 && e.oldValue() != e.newValue()) {
-            final CardView changed = e.card();
-            runOnUi(() -> t.bumpCard(changed));
+            pulsesFor(t).bump(e.card());
         }
+    }
+
+    private volatile CardPulses pulses;
+
+    private CardPulses pulsesFor(final forge.neo.ui.TableScreen t) {
+        CardPulses p = pulses;
+        if (p == null || !p.isFor(t)) {
+            p = new CardPulses(t, this::runOnUi);
+            pulses = p;
+        }
+        return p;
     }
 
     /**
@@ -2640,14 +2651,18 @@ public class NeoMatchUI extends NetworkGuiGame {
                 }
             }
         }
-        // Lo que esa lista se deja: lo planeado (ver plotted) y el caos.
+        // Lo que esa lista se deja: lo planeado (ver plotted), el caos y
+        // armonizar.
         return isPlottedCastable(card) || isMayhemCastable(card);
     }
 
     /**
      * Si esta carta del cementerio se puede lanzar ya con <b>Caos</b> (Mayhem,
      * de SPM): <i>"puedes lanzarla desde tu cementerio si la descartaste este
-     * turno"</i>.
+     * turno"</i> — o con <b>Armonizar</b> (Harmonize, TDM) o "Beam me up", que
+     * el filtro del motor tambien se deja (30-09-2026, Nature's Rhythm: el
+     * visor decia "25 cartas se pueden lanzar desde aqui" y justo esa no).
+     * Las condiciones son {@link OutsideCasts#fromGraveyard}.
      *
      * <p>El mismo olvido que lo planeado: el motor sabe lanzarla
      * ({@code GameActionUtil}, rama "Mayhem") pero el filtro de
@@ -2687,7 +2702,7 @@ public class NeoMatchUI extends NetworkGuiGame {
                     break;
                 }
             }
-            if (!OutsideCasts.mayhem(c)) {
+            if (!OutsideCasts.fromGraveyard(c)) {
                 return false;
             }
             // "Timing rules still apply": un instantaneo (o con destello)

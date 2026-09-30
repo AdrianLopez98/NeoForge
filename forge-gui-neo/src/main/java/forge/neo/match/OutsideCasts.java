@@ -23,6 +23,10 @@ import forge.game.zone.ZoneType;
  *       27-09-2026 (Sunbird's Invocation con Make Your Own Luck).</li>
  *   <li><b>El caos</b> (Mayhem, SPM), en el cementerio. Reportado en itch.io el
  *       28-09-2026 (Spider-Islanders).</li>
+ *   <li><b>Armonizar</b> (Harmonize, TDM: 12 cartas) y <b>"Beam me up"</b>
+ *       (Open Communications), en el cementerio. Reportado el 30-09-2026
+ *       (Nature's Rhythm): el visor decia "25 cartas se pueden lanzar desde
+ *       aqui" y justo esa no.</li>
  * </ul>
  *
  * <p>En los dos casos la carta se veia y no habia forma de jugarla, porque el
@@ -56,6 +60,24 @@ public final class OutsideCasts {
     }
 
     /**
+     * {@code GameActionUtil}, ramas "Harmonize" y "Beam me up": en el
+     * cementerio y con la palabra clave. Nada mas: ni que haya llegado este
+     * turno ni que se descartara. Lo que cueste (girar una criatura para
+     * rebajar, devolver una a la mano) y el momento lo decide el motor al
+     * lanzarla. La unica rama que el motor descarta ("Harmonize" sin coste
+     * propio en una carta sin coste de mana) no la tiene ninguna carta.
+     */
+    public static boolean graveyardKeyword(final Card c) {
+        return c != null && c.isInZone(ZoneType.Graveyard)
+                && (c.hasKeyword(Keyword.HARMONIZE) || c.hasKeyword(Keyword.BEAM_ME_UP));
+    }
+
+    /** Lo que se puede lanzar desde el cementerio y el motor no publica. */
+    public static boolean fromGraveyard(final Card c) {
+        return mayhem(c) || graveyardKeyword(c);
+    }
+
+    /**
      * {@code GameActionUtil}, rama "Plotted": planeada, en el exilio, tuya,
      * no llegada este turno, y tu puedes lanzar a velocidad de conjuro.
      */
@@ -69,7 +91,7 @@ public final class OutsideCasts {
 
     /**
      * Las cartas de {@code player} que se pueden lanzar ahora por uno de esos
-     * dos caminos: lo que {@code getFlashback()} se deja.
+     * caminos: lo que {@code getFlashback()} se deja.
      */
     public static List<Card> missedBy(final Player player) {
         final List<Card> out = new ArrayList<>();
@@ -77,7 +99,7 @@ public final class OutsideCasts {
             return out;
         }
         for (final Card c : player.getCardsIn(ZoneType.Graveyard)) {
-            if (mayhem(c)) {
+            if (fromGraveyard(c)) {
                 out.add(c);
             }
         }

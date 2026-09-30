@@ -106,6 +106,15 @@ public final class NeoLog {
      * {@code APPDATA} — no deberia pasar en Windows — se usa el directorio del
      * usuario, que siempre existe.
      */
+    /**
+     * La carpeta de datos del jugador (la de Forge), sin tocar ForgeConstants:
+     * vale antes de arrancar el motor. La usa tambien exportar/importar tus
+     * datos ({@code forge.neo.data.NeoBackup}).
+     */
+    public static File dataRoot() {
+        return userDir();
+    }
+
     private static File userDir() {
         // En modo portable, dentro de la carpeta del juego. Se pregunta aqui y
         // no se deriva de ForgeConstants por lo que dice el javadoc de arriba:

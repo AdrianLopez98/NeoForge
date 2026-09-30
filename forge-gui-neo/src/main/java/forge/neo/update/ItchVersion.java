@@ -83,6 +83,17 @@ public final class ItchVersion {
         }
         final String[] pa = ca.split("\\.");
         final String[] pb = cb.split("\\.");
+        // UN SOLO NUMERO PARA PC Y ANDROID (30-09-2026, decision del autor): el
+        // PC paso de su 4.7 al 1.0.8 de Android. Las del esquema viejo del PC
+        // -dos cifras con la primera 2 o mas: "4.6", "4.7"- son ANTERIORES a
+        // cualquiera del nuevo, que lleva tres ("1.0.8"). Sin esto un PC con la
+        // 1.0.8 veria en itch.io la 4.6 como "mas nueva". Una "2.0.0" futura
+        // lleva tres cifras, asi que sigue siendo nueva.
+        final boolean oldA = legacyPc(pa);
+        final boolean oldB = legacyPc(pb);
+        if (oldA != oldB) {
+            return oldA ? -1 : 1;
+        }
         for (int i = 0; i < Math.max(pa.length, pb.length); i++) {
             final int x = i < pa.length ? Integer.parseInt(pa[i]) : 0;
             final int y = i < pb.length ? Integer.parseInt(pb[i]) : 0;
@@ -91,6 +102,11 @@ public final class ItchVersion {
             }
         }
         return 0;
+    }
+
+    /** Del esquema viejo del PC (hasta la 4.7): dos cifras, la primera 2 o mas. */
+    private static boolean legacyPc(final String[] parts) {
+        return parts.length == 2 && Integer.parseInt(parts[0]) >= 2;
     }
 
     /** {@code "v4.2 "} → {@code "4.2"}; lo que no sea una version, {@code null}. */

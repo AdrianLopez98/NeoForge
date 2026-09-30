@@ -148,18 +148,6 @@ public class ChoiceDialog<T> extends VBox {
             optionsInOrder.add(option);
         }
 
-        if (this.ordered) {
-            // La pastilla sobresale de la esquina; sin este margen el visor
-            // la corta en la primera fila y en la primera columna.
-            items.setPadding(new Insets(8, 4, 4, 8));
-        }
-        scroll = new ScrollPane(items);
-        scroll.getStyleClass().add("dialog-scroll");
-        scroll.setFitToWidth(true);
-        // Nunca barra horizontal: el texto ENVUELVE. La que salia se comia un
-        // renglon de los pocos que habia y encima dejaba media opcion fuera de
-        // la vista, que es lo peor de los dos mundos.
-        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         boolean card = false;
         for (final T option : options) {
             if (option instanceof CardView || option instanceof forge.item.PaperCard) {
@@ -168,9 +156,33 @@ public class ChoiceDialog<T> extends VBox {
             }
         }
         anyCard = card;
+
+        // La pastilla sobresale de la esquina; sin este margen el visor la
+        // corta en la primera fila y en la primera columna.
+        final Insets badgeRoom = this.ordered ? new Insets(8, 4, 4, 8) : Insets.EMPTY;
+        // Y la carta con el raton encima crece y SUBE (CardNode.hoverIn): el
+        // visor la cortaba por arriba en la primera fila y por los lados en
+        // las de los extremos (itch.io, 30-09-2026: "Looking at cards in ...
+        // library" con la carta ampliada sin cabeza). Se le deja el sitio que
+        // va a ocupar, con la misma cuenta que usa ella.
+        final Insets hoverRoom = anyCard ? CardNode.hoverRoomFor(cardWidth) : Insets.EMPTY;
+        items.setPadding(new Insets(
+                Math.max(badgeRoom.getTop(), hoverRoom.getTop()),
+                Math.max(badgeRoom.getRight(), hoverRoom.getRight()),
+                Math.max(badgeRoom.getBottom(), hoverRoom.getBottom()),
+                Math.max(badgeRoom.getLeft(), hoverRoom.getLeft())));
+        scroll = new ScrollPane(items);
+        scroll.getStyleClass().add("dialog-scroll");
+        scroll.setFitToWidth(true);
+        // Nunca barra horizontal: el texto ENVUELVE. La que salia se comia un
+        // renglon de los pocos que habia y encima dejaba media opcion fuera de
+        // la vista, que es lo peor de los dos mundos.
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         // El alto de verdad se pone en layoutChildren: aqui todavia no hay
         // escena y no se sabe cuanta ventana hay. Esto es solo el arranque.
-        scroll.setPrefViewportHeight(anyCard ? cardWidth * CardNode.ASPECT + 40 : 200);
+        scroll.setPrefViewportHeight(anyCard
+                ? cardWidth * CardNode.ASPECT + 40 + items.getPadding().getTop() + items.getPadding().getBottom()
+                : 200);
         VBox.setVgrow(scroll, Priority.ALWAYS);
 
         counter.getStyleClass().add("dialog-counter");
@@ -513,6 +525,10 @@ public class ChoiceDialog<T> extends VBox {
         final javafx.scene.layout.StackPane box = new javafx.scene.layout.StackPane(node, badge);
         javafx.scene.layout.StackPane.setAlignment(badge, Pos.TOP_LEFT);
         javafx.scene.layout.StackPane.setMargin(badge, new Insets(-6, 0, 0, -6));
+        // La carta ya se pone delante al pasar el raton, pero solo entre sus
+        // hermanas: aqui su hermana es la pastilla, y la caja de al lado la
+        // seguia tapando al crecer. Se sube la caja entera.
+        node.hoverProperty().addListener((o, was, is) -> box.setViewOrder(is ? -1 : 0));
         return box;
     }
 

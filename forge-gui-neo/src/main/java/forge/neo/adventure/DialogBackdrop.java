@@ -1,5 +1,7 @@
 package forge.neo.adventure;
 
+import com.badlogic.gdx.Gdx;
+
 import forge.Forge;
 import forge.screens.FScreen;
 
@@ -44,12 +46,19 @@ public final class DialogBackdrop extends FScreen {
      * el mismo fallo: no depende de JavaFX.
      */
     public static void open() {
-        if (Forge.getCurrentScreen() != null) {
-            return;
+        if (Forge.getCurrentScreen() == null) {
+            if (instance == null) {
+                instance = new DialogBackdrop();
+            }
+            instance.setSize(Forge.getScreenWidth(), Forge.getScreenHeight());
+            Forge.openScreen(instance);
         }
-        if (instance == null) {
-            instance = new DialogBackdrop();
-        }
-        Forge.openScreen(instance);
+        // Y los CLICS a Forge, que es quien los reparte a sus avisos. Sin esto
+        // el aviso se veia pero no se podia pulsar: "Card Gained" tras ganar un
+        // match con ante, con el raton moviendose y el OK muerto (Reddit,
+        // 30-09-2026). Los tenia la escena del Adventure desde antes del duelo.
+        // Es lo que hace ForgeScene.enter al abrir la pantalla de la partida; y
+        // al volver al evento, UIScene.enter se los devuelve a su escena.
+        Gdx.input.setInputProcessor(Forge.getInputProcessor());
     }
 }

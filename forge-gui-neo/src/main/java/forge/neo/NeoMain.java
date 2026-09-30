@@ -110,6 +110,11 @@ public final class NeoMain {
             forge.neo.update.UpdateCheck.run();
             return;
         }
+        if ("backupcheck".equals(cmd)) {
+            banner("Exportar e importar tus datos (carpetas temporales)");
+            forge.neo.data.BackupCheck.run();
+            return;
+        }
 
         // La Aventura (el Adventure de Forge) en su propio proceso, lanzado desde
         // el menu. Va ANTES del cerrojo de instancia unica: el NeoForge que la
@@ -138,6 +143,15 @@ public final class NeoMain {
         // permite que jugar.cmd arranque sin ventana negra y que aun asi se
         // pueda mirar lo que paso. Ver NeoLog.
         NeoLog.start();
+
+        // Una importacion de datos preparada desde Ajustes ("Tus datos"): se
+        // aplica AQUI, con el cerrojo ya cogido y antes de que el motor o los
+        // ajustes lean nada. Con el juego abierto no se podia: al cerrarse
+        // volvia a guardar lo que tenia cargado encima de lo importado.
+        if (windowed && forge.neo.data.NeoBackup.hasPending(forge.neo.data.DataPlaces.desktop().root)) {
+            System.out.println("[neo] importando los datos preparados...");
+            forge.neo.data.NeoBackup.applyPending(forge.neo.data.DataPlaces.desktop());
+        }
 
         final boolean verbose = has(args, "-v");
         final String deckName = opt(args, "--deck", null);
@@ -243,6 +257,18 @@ public final class NeoMain {
                 banner("Por que no se puede lanzar esa carta");
                 forge.neo.match.CantPlayCheck.run();
                 break;
+            case "stackblockcheck":
+                banner("Bloquear con varias fichas de una pila");
+                forge.neo.match.StackBlockCheck.run();
+                break;
+            case "commandercheck":
+                banner("Elegir comandante para la proxima partida");
+                forge.neo.deck.CommanderCheck.run();
+                break;
+            case "lifegaincheck":
+                banner("Spike Feeder y Light of Promise");
+                forge.neo.match.LifeGainCheck.run();
+                break;
             case "filtercheck":
                 banner("Mana: las fuentes que el motor no ve");
                 forge.neo.match.FilterCheck.run();
@@ -324,6 +350,13 @@ public final class NeoMain {
                 // 28-09-2026. Ver MayhemCheck y OutsideCasts.
                 banner("El caos: lanzarlo desde el cementerio");
                 forge.neo.match.MayhemCheck.run();
+                break;
+            case "harmonizecheck":
+                // Lanzar con Armonizar (Harmonize) desde el cementerio: el
+                // mismo olvido que el caos. Reportado el 30-09-2026 (Nature's
+                // Rhythm). Ver HarmonizeCheck y OutsideCasts.
+                banner("Armonizar: lanzarlo desde el cementerio");
+                forge.neo.match.HarmonizeCheck.run();
                 break;
             case "readingcheck":
                 // La pausa mientras lees una carta: que el motor se pare DE
