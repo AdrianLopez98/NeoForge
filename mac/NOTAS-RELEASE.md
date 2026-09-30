@@ -1,14 +1,15 @@
-**NeoForge para macOS 4.6 (beta).** El mismo numero que en itch.io.
+**NeoForge para macOS 1.0.8 (beta).** El mismo numero que en itch.io. Desde esta version el PC, el Mac y Android llevan **un solo numero**: la 1.0.8 viene despues de la 4.6.
 
 Novedades:
-- **Draft y sellado: mezclar expansiones y los bloques de Forge.** Varias expansiones con cuantos sobres de cada una, o un bloque de Forge que rellena la mezcla.
-- **Aventura: se acabo la pantalla negra** al acabar un match de evento (draft, Jumpstart) perdiendo contra un jefe o con ante; y activar la pantalla completa en un duelo ya no deja el Adventure con textos cortados.
-- **En red:** el invitado vuelve a recibir la pantalla de fin de partida, y el boton "Al azar" de la sala y del torneo ya elige un mazo.
-- **Ascenso:** boton "Reliquias (N)" en el mapa para verlas todas como carta.
-- **Imagenes HD:** la busqueda ya no se para cuando Scryfall pide ir mas despacio.
-- **Entre partidas de un match** se puede sacar del mazo una carta ganada al ante.
-- **Raíl de fases:** Cleanup ya no queda debajo de Untap cuando las fases no caben en una fila.
-- Cartas y arreglos nuevos de Forge 2.0.16.
+- **Exportar e importar tus datos** (Ajustes → Tus datos): mazos (con su arte y su foil), Quest, Aventura, Ascenso, logros y ajustes en un zip, para pasarlos entre ordenadores y Android o guardarlos antes de actualizar. Al importar pregunta si añadir o reemplazar, y siempre guarda una copia de lo que había.
+- **Elegir comandante para la próxima partida**: botón "Comandante" en la pantalla de mazos (y en los rivales y en cada asiento de la partida en red), sin cambiar el mazo guardado.
+- **Mesas enormes**: el juego ya no se queda sin memoria con cientos de criaturas y disparos; usa hasta la mitad de la RAM del equipo en vez de 2 GB fijos.
+- **La carta con el ratón encima**, siempre entera y delante de todo: en una mesa llena ya no se queda detrás de la de al lado, y en "Looking at cards" la primera fila ya no sale cortada.
+- **Armonizar desde el cementerio** (Nature's Rhythm y el resto): ya se marcan y se pueden lanzar, como el flashback.
+- **Ascenso:** "Tu mazo" y "Reliquias" también en el premio, la tienda, el descanso y los eventos.
+- **Constructor:** Clara Oswald (y The Prismatic Piper, Faceless One) ya suman su color.
+- **Aventura:** el OK del aviso de ante ("Card Gained" / "Card Lost") vuelve a responder.
+- Cartas y arreglos nuevos de Forge.
 
 Descarga el `.dmg` de tu Mac:
 
