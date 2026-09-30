@@ -12,6 +12,8 @@ presentation. **Not one line of the rules is ours.**
 🎮 **Download and play:** [dokkodolabs.itch.io/neo-forge](https://dokkodolabs.itch.io/neo-forge)
 — free, Windows and macOS, nothing to install.
 
+🛠️ **Build it yourself:** [BUILDING.md](BUILDING.md) — from source on Windows, macOS or Linux.
+
 💬 **Discord:** [discord.gg/fF5Tn7Z2pv](https://discord.gg/fF5Tn7Z2pv) — bugs, ideas and people
 to play online with.
 
@@ -178,46 +180,28 @@ from this module instead of patched.
 
 ---
 
-## Building
+## Building from source
 
-You need **JDK 17** (Forge enforces it with maven-enforcer) and Maven 3.9.
+**[BUILDING.md](BUILDING.md)** has the step-by-step guide for Windows, macOS and Linux: get
+Forge at the tested commit, drop this module inside, build and play, online included. No
+itch.io download needed.
+
+The short version, for people who already know Maven. You need **JDK 17** and Maven 3.9:
 
 ```bash
-# 1. the engine
-git clone https://github.com/Card-Forge/forge.git
+git clone --filter=blob:none https://github.com/Card-Forge/forge.git
 cd forge
-git checkout 746455d75515daabec62971e0544cf19c66356b3   # the tested base; master usually works
-
-# 2. this module, inside it
-git clone https://github.com/AdrianLopez98/NeoForge.git /tmp/neoforge
-cp -r /tmp/neoforge/forge-gui-neo .
-
-# 3. the only line of Forge that gets touched: add the module to the reactor
-#    in pom.xml, next to the other <module> entries:
-#        <module>forge-gui-neo</module>
-
-# 4. always build inside the reactor, with -am
-export MAVEN_OPTS="-Dfile.encoding=UTF-8 -Xmx2g"
-mvn -B install -DskipTests -pl forge-gui-neo -am
+git checkout <FORGE_REF from .github/workflows/macos.yml>
+cp -r ../NeoForge/forge-gui-neo .
+# add <module>forge-gui-neo</module> to pom.xml, next to the other modules
+mvn -B package -DskipTests -pl forge-gui-neo -am
+cd forge-gui-neo
+java -Dfile.encoding=UTF-8 -Xmx2g -cp "target/classes:target/lib/*" forge.neo.NeoMain ui
 ```
 
 > **`-am` is not optional.** Forge binds the *flatten* plugin to the `deploy` phase, not to
 > `install`, so the POMs left in `~/.m2` keep `${revision}` unresolved and the modules can't be
 > consumed in isolation. With `-am` it resolves from the reactor.
-
-## Running
-
-The working directory has to be `forge-gui-neo/`, so that `../forge-gui/` resolves
-`res/cardsfolder`, `res/editions` and the rest of the engine's resources.
-
-```bash
-cd forge-gui-neo
-java -Dfile.encoding=UTF-8 -Xmx2g -cp "target/classes:target/lib/*" forge.neo.NeoMain ui
-```
-
-`target/lib/` is filled by the `maven-dependency-plugin` during the `package` phase. The
-resource directory can be moved with `-Dforge.assetsDir=...`, and every bit of the player's
-data can be kept inside the game's own folder with `-Dneo.dataDir=...`.
 
 With no arguments, `NeoMain` lists the decks. With `ui` it opens the window. There is also a
 family of checkers that run **headless** (`deckcheck`, `draftcheck`, `questcheck`,
