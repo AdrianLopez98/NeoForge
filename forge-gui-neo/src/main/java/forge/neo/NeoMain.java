@@ -351,6 +351,26 @@ public final class NeoMain {
                 banner("El caos: lanzarlo desde el cementerio");
                 forge.neo.match.MayhemCheck.run();
                 break;
+            case "moxchaincheck":
+                // Girar fuentes de mana en cadena y rapido (Mox Opal sin su
+                // mana, Discord 01-10-2026). Ver MoxChainCheck.
+                banner("Fuentes de mana en cadena: el Mox no pierde su mana");
+                forge.neo.match.MoxChainCheck.run();
+                break;
+            case "abilitygroupcheck":
+                // El menu de habilidades junta las iguales con "xN" (Marvin,
+                // Murderous Mimic). Pedido en Discord el 01-10-2026. Ver
+                // AbilityGroupCheck y AbilityMenu.Grouped.
+                banner("El menu de habilidades junta las iguales");
+                forge.neo.match.AbilityGroupCheck.run();
+                break;
+            case "bannercheck":
+                // El cartel central (espejo del stack) una cosa por linea:
+                // quien, que carta, que hace, a quien. Pedido en Discord el
+                // 01-10-2026. Ver BannerCheck y TableScreen.bannerText.
+                banner("El cartel central, una cosa por linea");
+                forge.neo.match.BannerCheck.run();
+                break;
             case "harmonizecheck":
                 // Lanzar con Armonizar (Harmonize) desde el cementerio: el
                 // mismo olvido que el caos. Reportado el 30-09-2026 (Nature's

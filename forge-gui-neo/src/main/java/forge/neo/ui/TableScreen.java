@@ -1987,6 +1987,51 @@ public class TableScreen extends Pane {
      *
      * @param what el texto que ya se esta ensenyando encima
      */
+    /**
+     * El texto del cartel central (el espejo del stack), una cosa por linea:
+     * quien, que carta, que hace y a quien apunta.
+     *
+     * <p>Antes era un parrafo: "Jugador: Carta (12) - efecto (Targeting:
+     * Otra (34))", el texto del motor tal cual con el nombre delante. Pedido en
+     * Discord (01-10-2026): <i>"line breaks between the individual pieces of
+     * information (player, card name, target, effect)"</i>. Son las mismas
+     * piezas que ya usa el panel del stack de la derecha ({@link #headlineOf},
+     * {@link #effectText}, {@link #targetsOf}), asi que los dos cuentan lo
+     * mismo. El "(Targeting: ...)" que el motor pega al final —en ingles y con
+     * el numero interno de cada carta— sale del efecto y va en su linea,
+     * traducido.
+     */
+    public static String bannerText(final StackItemView item, final PlayerView me) {
+        if (item == null) {
+            return "";
+        }
+        final java.util.List<String> lines = new java.util.ArrayList<>();
+        final String who = ownerName(item, me);
+        if (!who.isBlank()) {
+            lines.add(who);
+        }
+        final String head = headlineOf(item, me);
+        if (!head.isBlank()) {
+            lines.add(head);
+        }
+        String what = effectText(item);
+        final int targeting = what.lastIndexOf("(Targeting:");
+        if (targeting >= 0) {
+            what = what.substring(0, targeting).trim();
+        }
+        if (!what.isBlank() && !what.equals(head)) {
+            lines.add(what);
+        }
+        // Aqui el objetivo va SIEMPRE en su linea, aunque el efecto ya lo
+        // nombre ("hace 3 de dano a Grizzly Bears"): es justo lo que se pidio
+        // poder ver de un vistazo, sin leer la frase.
+        final String targets = targetsOf(item, "");
+        if (!targets.isEmpty()) {
+            lines.add(NeoText.get("stack.targets", targets));
+        }
+        return lines.isEmpty() ? NeoText.get("alert.aSpell") : String.join("\n", lines);
+    }
+
     private static String targetsOf(final StackItemView item, final String what) {
         final StringBuilder sb = new StringBuilder();
         try {
@@ -2153,7 +2198,11 @@ public class TableScreen extends Pane {
         if (text == null) {
             return "";
         }
-        text = text.trim();
+        // El motor escribe cada carta como "Nombre (12)", con su numero interno
+        // detras: "Lightning Bolt (5) - Lightning Bolt (5) deals 3 damage to
+        // Grizzly Bears (4)." Ese numero no le dice nada al jugador, y ademas
+        // dejaba "(5) - " colgando al quitar el nombre de delante.
+        text = CARD_ID.matcher(text).replaceAll("").trim();
         final CardView src = item.getSourceCard();
         if (src != null) {
             final String translated = src.getCurrentState() == null
@@ -2173,6 +2222,9 @@ public class TableScreen extends Pane {
     }
 
     private static final String SEPARATORS = "-\u2013\u2014:\u00b7";
+
+    /** El " (12)" que el motor pone detras del nombre de cada carta. */
+    private static final java.util.regex.Pattern CARD_ID = java.util.regex.Pattern.compile(" \\(\\d+\\)");
 
     /** Ensenya el estado de un jugador mientras el raton este sobre su barra. */
     private void hoverDetails(final PlayerBar bar, final boolean opponent) {

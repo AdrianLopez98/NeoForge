@@ -497,10 +497,13 @@ public final class NeoBackup {
      * Las claves de {@code neo.properties} que son de ESTE dispositivo y no
      * se traen de otro: la escala de un PC no le sirve a un movil. Todo lo
      * demas (la run de Ascenso, los desbloqueos, tus ajustes de partida) si.
+     * La zona de ampliar de la mano de Android y su aviso tambien son del
+     * aparato: en un plegable se pone en el centro de un lado y en un movil en
+     * una esquina (decision 192 de Android, 01-10-2026).
      */
     static final Set<String> DEVICE_KEYS = new HashSet<>(Arrays.asList(
             "uiScale", "fullscreen", "hoverZoom", "textZoom", "soundVolume", "musicVolume",
-            "touchHand", "neo.adventure.process", "language"));
+            "touchHand", "neo.adventure.process", "language", "handZoomCorner", "handZoomHint"));
 
     /**
      * Los ajustes se funden clave a clave: con ADD entran solo las que no

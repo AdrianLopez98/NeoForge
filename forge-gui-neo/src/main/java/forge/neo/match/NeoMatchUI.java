@@ -2484,20 +2484,13 @@ public class NeoMatchUI extends NetworkGuiGame {
     }
 
     /**
-     * El texto de lo que hay en el stack.
-     *
-     * <p>Sale del script de la carta, asi que ya viene redactado y legible. Se
-     * dice ademas de quien es: en una partida a cuatro, saber si el disparo lo
-     * ha puesto el de enfrente o tu mismo cambia todo.
+     * El texto de lo que hay en el stack, una cosa por linea: de quien es (en
+     * una partida a cuatro, saber si el disparo lo ha puesto el de enfrente o
+     * tu mismo cambia todo), que carta, que hace y a quien apunta. Ver
+     * {@link TableScreen#bannerText}.
      */
-    private static String stackText(final StackItemView item) {
-        final StringBuilder sb = new StringBuilder();
-        if (item.getActivatingPlayer() != null) {
-            sb.append(PlayerName.of(item.getActivatingPlayer())).append(": ");
-        }
-        final String body = item.getText();
-        sb.append(body == null || body.isBlank() ? NeoText.get("alert.aSpell") : body);
-        return sb.toString();
+    private String stackText(final StackItemView item) {
+        return TableScreen.bannerText(item, localPlayerView());
     }
 
     /**
@@ -5003,7 +4996,7 @@ public class NeoMatchUI extends NetworkGuiGame {
         final List<T> picked = askUser(reply -> {
             final ChoiceDialog<T> dialog = new ChoiceDialog<>(
                     title, options, lo, hi,
-                    display == null ? String::valueOf : display::apply,
+                    display == null ? NeoMatchUI::defaultLabel : display::apply,
                     handCardWidth(), null, ordered, reply::accept);
             if (about != null && !about.isEmpty()) {
                 dialog.setContext(subjectRow(about));
@@ -5602,6 +5595,13 @@ public class NeoMatchUI extends NetworkGuiGame {
         // El motor nos devuelve la llamada cuando una carta tiene varias cosas
         // jugables: es el menu contextual de Arena.
         if (interactive() && choices != null && choices.size() > 1) {
+            // Si todas son la MISMA habilidad (Marvin, Murderous Mimic con tres
+            // criaturas que hacen lo mismo), el menu se quedaria en un solo
+            // boton: se activa sin preguntar, como hace Forge con una sola.
+            final int[] grouped = forge.neo.ui.AbilityMenu.groupedOriginal(hostCard, choices);
+            if (grouped.length == 1) {
+                return choices.get(grouped[0]);
+            }
             final Integer picked = askUser(reply -> {
                 final AbilityMenu menu = new AbilityMenu(
                         hostCard, choices, table.zoomCardWidth() * 0.62, reply::accept);
@@ -5804,6 +5804,21 @@ public class NeoMatchUI extends NetworkGuiGame {
      * @param asLastTime si la sugerencia es "como la ultima vez"
      * @return el reparto, o null si algo fue mal (y entonces pregunta Forge)
      */
+    /**
+     * El texto de una opcion que el motor manda sin etiqueta. Casi siempre es
+     * su {@code toString()}, pero un color de mana ("Selecciona el mana a
+     * producir": Mox Opal, Birds of Paradise...) es una constante de enum y
+     * salia WHITE / BLUE / BLACK, en mayusculas y en ingles. El nombre
+     * traducido lo da el propio color, el mismo que usa Forge cuando pregunta
+     * entre dos.
+     */
+    static String defaultLabel(final Object option) {
+        if (option instanceof forge.card.MagicColor.Color c) {
+            return c.getTranslatedName();
+        }
+        return String.valueOf(option);
+    }
+
     Map<forge.card.MagicColor.Color, Integer> askManaCombo(final CardView source, final forge.card.ColorSet options,
                                                 final int amount,
                                                 final Map<forge.card.MagicColor.Color, Integer> suggested,

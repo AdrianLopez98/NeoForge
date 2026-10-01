@@ -735,13 +735,29 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                     }
                 }
                 if (args.contains("--mock-abilities") && !table.selfFieldNodes().isEmpty()) {
+                    // -Dneo.abilities.count=N: N habilidades distintas, para ver
+                    // que la lista se desplaza en vez de salirse por abajo
+                    // (Marvin, Murderous Mimic).
+                    final int many = Integer.getInteger("neo.abilities.count", 0);
+                    final List<String> labels = new ArrayList<>();
+                    if (many > 0) {
+                        for (int k = 1; k <= many; k++) {
+                            labels.add("{" + k + "}, {T}: Habilidad prestada numero " + k
+                                    + " de otra criatura que controlas.");
+                        }
+                    } else {
+                        labels.add("Equipar {3}");
+                        labels.add("{1}: Los permanentes que controlan tus oponentes pierden "
+                                + "la habilidad de antimaleficio y la indestructibilidad "
+                                + "hasta el final del turno.");
+                    }
+                    final boolean[] can = new boolean[labels.size()];
+                    java.util.Arrays.fill(can, true);
+                    if (many <= 0) {
+                        can[1] = false;
+                    }
                     table.getOverlay().show(new forge.neo.ui.AbilityMenu(
-                            table.selfFieldNodes().get(0).getCard(),
-                            List.of("Equipar {3}",
-                                    "{1}: Los permanentes que controlan tus oponentes pierden "
-                                            + "la habilidad de antimaleficio y la indestructibilidad "
-                                            + "hasta el final del turno."),
-                            new boolean[] {true, false},
+                            table.selfFieldNodes().get(0).getCard(), labels, can,
                             table.zoomCardWidth() * 0.62,
                             i -> table.getOverlay().hide()));
                 }
@@ -753,9 +769,11 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                             : table.selfFieldNodes().get(0).getCard();
                     table.getPromptBanner().setOnDismiss(
                             () -> System.out.println("[banner] apartado por el jugador"));
+                    // Con el formato de TableScreen.bannerText: quien, que
+                    // carta, que hace y a quien, una cosa por linea.
                     table.getPromptBanner().showInfo(shown,
-                            "IA-2 juega: Destruye la criatura objetivo. Su controlador pierde"
-                            + " 2 vidas.");
+                            "IA-2\nAsesinato\nDestruye la criatura objetivo. Su controlador"
+                            + " pierde 2 vidas.\n" + NeoText.get("stack.targets", "Grizzly Bears"));
                     table.requestLayout();
 
                     // -Dneo.banner.swapAt=N: y a los N ms, OTRA carta.

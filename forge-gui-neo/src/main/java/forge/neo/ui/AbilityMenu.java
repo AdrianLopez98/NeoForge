@@ -47,7 +47,68 @@ public class AbilityMenu extends VBox {
      */
     public AbilityMenu(final CardView host, final List<SpellAbilityView> abilities,
                        final double cardWidth, final Consumer<Integer> onPick) {
-        this(host, labelsOf(host, abilities), playableOf(abilities), cardWidth, onPick);
+        this(host, Grouped.of(host, abilities), cardWidth, onPick);
+    }
+
+    private AbilityMenu(final CardView host, final Grouped g, final double cardWidth,
+                        final Consumer<Integer> onPick) {
+        // El indice que devuelve el menu es el de la lista AGRUPADA: se
+        // traduce al de la lista del motor, que es el que espera quien llama.
+        this(host, g.labels, g.playable, cardWidth,
+                i -> onPick.accept(i == null || i < 0 || i >= g.original.length ? -1 : g.original[i]));
+    }
+
+    /**
+     * Las habilidades IGUALES, juntas.
+     *
+     * <p>Reportado en Discord (01-10-2026) con <i>Marvin, Murderous Mimic</i>,
+     * que tiene las habilidades activadas de todas tus criaturas: con una
+     * docena que hacen "{T}: esta criatura hace dano igual a su fuerza", el
+     * menu salia con doce recuadros identicos y las que el jugador queria se
+     * quedaban debajo, fuera de la pantalla. Dos habilidades activadas con el
+     * mismo texto, en la misma carta, hacen lo mismo: se ensenyan una vez con
+     * "×N", y elegirla activa una de ellas — una que se pueda pagar, si la hay.
+     *
+     * <p>Los HECHIZOS repetidos no se juntan: ahi el texto igual esconde un
+     * coste alternativo distinto (ver {@link #labelsOf}), y si son dos opciones
+     * de verdad.
+     */
+    /**
+     * Los textos tal y como salen en el menu, ya juntados. Para el comprobador
+     * ({@code AbilityGroupCheck}): un {@code SpellAbilityView} solo existe con
+     * una partida detras.
+     */
+    public static List<String> groupedLabels(final CardView host, final List<SpellAbilityView> abilities) {
+        return Grouped.of(host, abilities).labels;
+    }
+
+    /** Lo mismo: a que habilidad del motor corresponde cada linea del menu. */
+    public static int[] groupedOriginal(final CardView host, final List<SpellAbilityView> abilities) {
+        return Grouped.of(host, abilities).original;
+    }
+
+    private static final class Grouped {
+        final List<String> labels = new ArrayList<>();
+        boolean[] playable;
+        int[] original;
+
+        /** El reparto es {@link forge.neo.match.AbilityGroups}; aqui solo los textos. */
+        static Grouped of(final CardView host, final List<SpellAbilityView> abilities) {
+            final List<String> texts = labelsOf(host, abilities);
+            final List<forge.neo.match.AbilityGroups.Group> groups =
+                    forge.neo.match.AbilityGroups.of(abilities);
+            final Grouped g = new Grouped();
+            g.playable = new boolean[groups.size()];
+            g.original = new int[groups.size()];
+            for (int k = 0; k < groups.size(); k++) {
+                final forge.neo.match.AbilityGroups.Group group = groups.get(k);
+                g.original[k] = group.chosen();
+                g.playable[k] = group.playable;
+                final String text = texts.get(group.chosen());
+                g.labels.add(group.size() > 1 ? text + "   ×" + group.size() : text);
+            }
+            return g;
+        }
     }
 
     /**
@@ -102,7 +163,17 @@ public class AbilityMenu extends VBox {
         HBox.setHgrow(gap, Priority.ALWAYS);
         final HBox footer = new HBox(gap, cancel);
 
-        final VBox right = new VBox(10, title, help, list, footer);
+        // Si no caben, se desplazan: con Marvin, Murderous Mimic el menu crecia
+        // hasta salirse por abajo y lo de abajo no habia forma de alcanzarlo
+        // (principio 5). El alto se pone en layoutChildren, que es cuando se
+        // sabe cuanta ventana hay.
+        scroll = new javafx.scene.control.ScrollPane(list);
+        scroll.getStyleClass().add("dialog-scroll");
+        scroll.setFitToWidth(true);
+        scroll.setHbarPolicy(javafx.scene.control.ScrollPane.ScrollBarPolicy.NEVER);
+        this.list = list;
+
+        final VBox right = new VBox(10, title, help, scroll, footer);
         right.setAlignment(Pos.TOP_LEFT);
 
         if (host != null) {
@@ -118,6 +189,21 @@ public class AbilityMenu extends VBox {
         } else {
             getChildren().add(right);
         }
+    }
+
+    private javafx.scene.control.ScrollPane scroll;
+    private VBox list;
+
+    /** Lo que pide la lista, hasta un tope de dos tercios de la ventana. */
+    @Override
+    protected void layoutChildren() {
+        if (scroll != null && list != null && getScene() != null && getScene().getHeight() > 0) {
+            final double w = list.getPrefWidth();
+            final double needed = list.prefHeight(w) + 4;
+            final double room = Math.max(160, getScene().getHeight() * 0.66);
+            scroll.setPrefViewportHeight(Math.min(needed, room));
+        }
+        super.layoutChildren();
     }
 
     /**
@@ -153,7 +239,13 @@ public class AbilityMenu extends VBox {
         final List<String> out = new ArrayList<>();
         for (int i = 0; i < raw.size(); i++) {
             String label = raw.get(i);
-            final boolean duplicated = countOf(raw, label) > 1;
+            // Solo los HECHIZOS: el truco de "el primero es el coste impreso"
+            // es de como el motor ordena los costes alternativos de un hechizo.
+            // Con habilidades activadas iguales (Marvin, Murderous Mimic) decia
+            // "(coste alternativo)" de algo que no lo es; esas se juntan en
+            // Grouped.
+            final SpellAbilityView sa = abilities.get(i);
+            final boolean duplicated = sa != null && sa.isSpell() && countOf(raw, label) > 1;
             if (duplicated) {
                 final boolean firstOfItsKind = raw.indexOf(label) == i;
                 label += "\n" + (firstOfItsKind
