@@ -1,9 +1,14 @@
-**NeoForge para macOS 1.0.9 (beta).** El mismo numero que en itch.io, en PC, Mac y Android.
+**NeoForge para macOS 1.0.10 (beta).** El mismo numero que en itch.io, en PC, Mac y Android.
 
 Novedades:
-- **El cartel central del stack, una cosa por linea**: quien lo juega, la carta, que hace y sus objetivos. Sin los numeros internos de las cartas ("Grizzly Bears (4)").
-- **Cartas con muchas habilidades** (Marvin, Murderous Mimic): las habilidades iguales salen una sola vez con "×N", y la lista se desplaza si no cabe.
-- **Los colores de mana, en tu idioma** al elegir uno (Mox Opal, Birds of Paradise...).
+- **Jumpstart en el Sellado**: los nueve Jumpstart de Forge; eliges el tema de cada uno de los dos sobres o al azar, y los dos juntos ya son tu mazo de 40.
+- **Cada rival con su cara, su nombre y su IA** (Personalizar → Rivales), con un "Al azar" que sortea entre los perfiles que marques.
+- **Ascenso con las cartas de unas expansiones**: todas, desde/hasta (por ejemplo de Alpha a Fourth Edition) o solo una. Vale para todo, rivales incluidos, y con el arte de esas expansiones.
+- **Bajar el arte de una expansion o de un formato**, ademas de todo el arte.
+- **Los pagos opcionales ya no se pagan solos** (Paralyze, "a menos que", eco): Auto paga y Cancelar no.
+- **Ordenar la biblioteca** dice que la marcada con 1 queda arriba: es la proxima que robas.
+- **Generar mazo**: sin Gleemox, sin repetir el hechizo insignia ni el compañero, y con Partner dentro de tu identidad y con 99 cartas.
+- Un mazo tuyo que se llama igual que un precon ya no mete el precon en "Mis mazos".
 - Arreglos y pruebas nuevas.
 
 Descarga el `.dmg` de tu Mac:
@@ -27,7 +32,7 @@ La primera vez tarda en abrir (~45 s): está leyendo las 33.000 cartas. Trae su 
 
 ---
 
-**NeoForge for macOS 1.0.9 (beta).** What's new, all of it from Discord reports: **offline card art now downloads in about an hour instead of a day and a half** — it goes through Scryfall's CDN instead of their API (two requests per second), fetching Scryfall's card index (~75 MB) the first time; a new option to download **every card and every art** — all printings and alternate arts (~95,000 images, ~7 GB), in Settings → Card art; an **"Equip {cost}" button** when you zoom one of your equipment cards; with equipment and auras **stacked behind the card**, the "+N" viewer now lets you use yours (re-equip), not just read them; and fixes for **black floating mana** looking colourless, **Ascent** ignoring the auto-pay mana setting, and a **held OK key** getting ahead of the engine during a long chain of triggers, which could ask "leave your main phase?" mid-loop. Download the `.dmg` for your Mac: `arm64` for Apple Silicon (M1–M4), `x64` for Intel.
+**NeoForge for macOS 1.0.10 (beta).** What's new, all of it from Discord requests: **Jumpstart in Sealed** — the nine Jumpstart products Forge ships, pick the theme of each of your two packs or leave them on Random, and the two packs are already your 40-card deck; **customize each rival** with their own face, name and AI (Customise → Rivals), including a Random AI that draws from the profiles you tick; **Ascent with the cards of chosen sets** — all, from/to (e.g. Alpha to Fourth Edition) or just one set, applied to everything including the rival decks, with those sets' art; **download card art by set or by format**; **optional payments are no longer paid for you** (Paralyze, "unless" costs, echo: Auto pays, Cancel doesn't); the library-ordering dialog now says the card marked 1 ends up on top; and **Generate deck** no longer adds Gleemox or repeats your signature spell or companion, and builds Partner commanders within your colour identity. Download the `.dmg` for your Mac: `arm64` for Apple Silicon (M1–M4), `x64` for Intel.
 
 1. Open the `.dmg` and drag **NeoForge** into **Applications**.
 2. macOS blocks it the first time because it isn't signed with an Apple developer account: double-click it, dismiss the warning, then **System Settings → Privacy & Security → Open Anyway**.
