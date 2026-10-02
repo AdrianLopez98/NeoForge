@@ -125,6 +125,22 @@ final class NeoAppDraft {
             }
 
             @Override
+            public void createJumpstart(final String name, final forge.neo.draft.Jumpstart.Product product,
+                                        final forge.neo.draft.Jumpstart.Theme first,
+                                        final forge.neo.draft.Jumpstart.Theme second) {
+                final forge.deck.DeckGroup group =
+                        forge.neo.draft.NeoSealed.createJumpstart(name, product, first, second);
+                if (group == null) {
+                    app.showMainMenu();
+                    return;
+                }
+                final forge.neo.draft.DraftRun run = forge.neo.draft.DraftRun.of(
+                        name, forge.neo.draft.DraftRun.Kind.SEALED);
+                run.makeCurrent();
+                showDraftRun(run);
+            }
+
+            @Override
             public void createMix(final String name, final forge.neo.draft.PackMix mix) {
                 final forge.deck.DeckGroup group = forge.neo.draft.NeoSealed.create(name, mix);
                 if (group == null) {

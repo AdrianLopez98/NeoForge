@@ -3947,7 +3947,16 @@ public class NeoMatchUI extends NetworkGuiGame {
             //
             // Sin esto hay que ir clicando tierras a mano, que no es lo que hace
             // ni Arena, ni la mesa de verdad, ni la propia GUI vieja de Forge.
-            if (payingMana && okEnabled && autoPayMana
+            // ...salvo que pagar sea OPCIONAL: "puede pagar {4}; si lo hace,
+            // desgira la criatura" (Paralyze), un coste de "a menos que", el
+            // eco. Ahi Cancelar es "no pago", y pulsar Auto por el jugador le
+            // cobraba el mana cada mantenimiento sin preguntar (Discord,
+            // 02-10-2026). Se le deja el pago delante: Auto paga, Cancelar no.
+            final boolean optionalPayment = payingMana && isOptionalPayment();
+            if (optionalPayment) {
+                noteOptionalPayment();
+            }
+            if (payingMana && okEnabled && autoPayMana && !optionalPayment
                     && autoPayPresses.incrementAndGet() <= MAX_AUTO_PAY_PRESSES) {
                 // Antes de soltarle el "Auto" al motor: apagar el rastreo de
                 // cartas accionables. Ver setActionableScans().
@@ -3961,7 +3970,7 @@ public class NeoMatchUI extends NetworkGuiGame {
             // que el planificador del motor no contempla — se activa una, que
             // es literalmente lo que haria el jugador clicandola. Ver
             // FilterSources y tryBlindSource().
-            if (payingMana && !okEnabled && autoPayMana && tryBlindSource()) {
+            if (payingMana && !okEnabled && autoPayMana && !optionalPayment && tryBlindSource()) {
                 return;
             }
 
@@ -4348,6 +4357,25 @@ public class NeoMatchUI extends NetworkGuiGame {
      * Se espera medio segundo y, si mientras tanto llega el encendido, el aviso
      * se cancela solo por el numero de generacion.
      */
+    /**
+     * Si el pago de mana en curso es de los que se pueden NO pagar: lo pide un
+     * efecto al resolverse (Paralyze, "a menos que", eco), no el coste de algo
+     * que el jugador ha decidido jugar. Ver {@code NeoPaymentPeek.isEffectPayment}.
+     * El invitado en red no tiene la entrada del motor: ahi se queda como antes.
+     */
+    boolean isOptionalPayment() {
+        return getGameController() instanceof forge.player.PlayerControllerHuman human
+                && forge.gamemodes.match.input.NeoPaymentPeek.isEffectPayment(
+                        human.getInputQueue().getInput());
+    }
+
+    /** Una vez por pago: por que el pago automatico no ha saltado esta vez. */
+    private void noteOptionalPayment() {
+        if (Boolean.getBoolean("neo.pay.debug")) {
+            System.out.println("[pago] opcional (lo pide un efecto): no se paga solo");
+        }
+    }
+
     private void noteAutoPayState(final boolean okEnabled) {
         if (!payingMana || !autoPayMana) {
             return;
@@ -4983,6 +5011,15 @@ public class NeoMatchUI extends NetworkGuiGame {
                                   final FSerializableFunction<T, String> display,
                                   final List<TriggerSubject.Subject> about,
                                   final boolean ordered) {
+        return askChoice(title, options, min, max, display, about, ordered, null);
+    }
+
+    /** @param note una linea de ayuda bajo el titulo, o null (ver {@link #orderHint}) */
+    private <T> List<T> askChoice(final String title, final List<T> options,
+                                  final int min, final int max,
+                                  final FSerializableFunction<T, String> display,
+                                  final List<TriggerSubject.Subject> about,
+                                  final boolean ordered, final String note) {
         if (options == null || options.isEmpty()) {
             return new ArrayList<>();
         }
@@ -5000,6 +5037,12 @@ public class NeoMatchUI extends NetworkGuiGame {
                     handCardWidth(), null, ordered, reply::accept);
             if (about != null && !about.isEmpty()) {
                 dialog.setContext(subjectRow(about));
+            } else if (note != null) {
+                final javafx.scene.control.Label line = new javafx.scene.control.Label(note);
+                line.getStyleClass().add("dialog-note");
+                line.setWrapText(true);
+                line.setMaxWidth(forge.neo.ui.UiScale.px(760));
+                dialog.setContext(line);
             }
             table.getOverlay().show(dialog);
         }, null);
@@ -5914,12 +5957,41 @@ public class NeoMatchUI extends NetworkGuiGame {
                 : (title == null || title.isBlank() ? top : title + " — " + top);
 
         final List<T> picked = askChoice(heading, source, pickMin, Math.max(pickMin, pickMax), null,
-                List.of(), true);
+                List.of(), true, orderHint(top, Math.max(pickMin, pickMax)));
         final List<T> ordered = new ArrayList<>(already);
         if (picked != null) {
             ordered.addAll(picked);
         }
         return new IGuiGame.OrderResult<>(ordered, false);
+    }
+
+    /**
+     * Que queda arriba y que abajo al ordenar cartas de la biblioteca.
+     *
+     * <p>Pedido en Discord el 02-10-2026: <i>"I wish it was more clear which
+     * card will end on top vs bottom ... Is 1 the first card I'll draw?"</i>. El
+     * motor solo dice "Closest to top" y hay que adivinar a que se refiere. Lo
+     * que hace de verdad, mirado en el codigo: con "Closest to top" (y "Top of
+     * Library", la de adivinar y vigilar) <b>la primera de la lista queda
+     * arriba del todo</b> — {@code orderMoveToZoneList} y {@code scry} le dan
+     * la vuelta antes de ir metiendolas una a una en la cima —; con "Closest to
+     * bottom", la primera queda abajo del todo. Se reconoce la etiqueta por el
+     * texto del motor en el idioma de la partida.
+     *
+     * @return la linea de ayuda, o null si no es de biblioteca o hay una sola carta
+     */
+    public static String orderHint(final String top, final int count) {
+        if (top == null || count < 2) {
+            return null;
+        }
+        final forge.util.Localizer l = forge.util.Localizer.getInstance();
+        if (top.equals(l.getMessage("lblClosestToTop")) || top.equals(l.getMessage("lblTopOfLibrary"))) {
+            return NeoText.get("order.hint.top", count);
+        }
+        if (top.equals(l.getMessage("lblClosestToBottom"))) {
+            return NeoText.get("order.hint.bottom", count);
+        }
+        return null;
     }
 
     /**

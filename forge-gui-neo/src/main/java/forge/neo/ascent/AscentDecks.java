@@ -3,8 +3,11 @@ package forge.neo.ascent;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import forge.deck.Deck;
 import forge.item.PaperCard;
@@ -54,6 +57,16 @@ public final class AscentDecks {
     private static Map<String, Deck> inMemory;
 
     /**
+     * Los mazos que <b>este proceso</b> ha escrito en {@code decks/ascenso/}.
+     *
+     * <p>Solo lo leen los comprobadores ({@link AscentCheckGuard}), para borrar
+     * al terminar lo que escribieron ellos y nada mas. "Lo que no estaba al
+     * empezar" no vale: el juego abierto puede estar empezando una run de
+     * verdad mientras tanto, y su mazo tambien seria nuevo.
+     */
+    private static final Set<String> written = new LinkedHashSet<>();
+
+    /**
      * Desde aqui, nada se escribe ni se borra en {@code decks/ascenso/}.
      *
      * <p>Leer si se lee — una maqueta sobre la run guardada tiene que ensenyar
@@ -92,6 +105,9 @@ public final class AscentDecks {
         // add() reescribe si ya existe, que es justo lo que hace falta: el
         // mazo de la run cambia en cada nodo.
         storage().add(deck);
+        synchronized (AscentDecks.class) {
+            written.add(deck.getName());
+        }
     }
 
     /** El mazo de esa run, o {@code null} si no esta. */
@@ -168,5 +184,37 @@ public final class AscentDecks {
         if (name != null && storage().contains(name)) {
             storage().delete(name);
         }
+    }
+
+    /** Los mazos que hay en la carpeta, por nombre. */
+    static synchronized Set<String> names() {
+        return new HashSet<>(storage().getItemNames());
+    }
+
+    /**
+     * Borra los mazos que <b>este proceso</b> ha escrito y que no estaban en
+     * {@code before}. Es la red de {@link AscentCheckGuard}.
+     *
+     * @param before lo que habia en la carpeta al empezar ({@link #names()})
+     * @param keep   el mazo de la run en curso, que no se toca nunca
+     * @return los que ha borrado
+     */
+    static List<String> removeWrittenSince(final Set<String> before, final String keep) {
+        final List<String> mine;
+        synchronized (AscentDecks.class) {
+            if (inMemory != null) {
+                return List.of();
+            }
+            mine = new ArrayList<>(written);
+        }
+        final List<String> gone = new ArrayList<>();
+        for (final String name : mine) {
+            if (before.contains(name) || name.equals(keep) || !storage().contains(name)) {
+                continue;
+            }
+            remove(name);
+            gone.add(name);
+        }
+        return gone;
     }
 }

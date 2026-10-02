@@ -60,6 +60,8 @@ public final class AscentRun {
     private final List<String> relics = new ArrayList<>();
     /** El nombre del mazo de la run, que es un .dck en la carpeta de Ascenso. */
     private String deckName;
+    /** De que expansiones salen las cartas (ver {@link AscentPool}). De fabrica, todas. */
+    private AscentPool pool = AscentPool.ALL;
 
     private AscentRun() {
     }
@@ -122,7 +124,14 @@ public final class AscentRun {
      */
     public static AscentRun start(final Mode mode, final int ascension,
                                   final int maxLife, final String deckName) {
+        return start(mode, ascension, maxLife, deckName, AscentPool.ALL);
+    }
+
+    /** Igual, con las cartas de solo unas expansiones ({@link AscentPool}). */
+    public static AscentRun start(final Mode mode, final int ascension,
+                                  final int maxLife, final String deckName, final AscentPool pool) {
         final AscentRun run = new AscentRun();
+        run.pool = pool == null ? AscentPool.ALL : pool;
         run.mode = mode;
         run.seed = System.nanoTime();
         run.act = 1;
@@ -166,6 +175,7 @@ public final class AscentRun {
         final List<String> rel = new ArrayList<>();
         split(NeoSettings.get(PREFIX + "relics", ""), rel);
         run.relics.addAll(rel);
+        run.pool = AscentPool.parse(NeoSettings.get(PREFIX + "pool", ""));
         return run;
     }
 
@@ -187,6 +197,7 @@ public final class AscentRun {
         NeoSettings.set(PREFIX + "node", currentNode);
         NeoSettings.set(PREFIX + "cleared", String.join(";", clearedNodes));
         NeoSettings.set(PREFIX + "relics", String.join(";", relics));
+        NeoSettings.set(PREFIX + "pool", pool.isAll() ? null : pool.serialize());
         NeoSettings.save();
     }
 
@@ -216,11 +227,22 @@ public final class AscentRun {
      */
     public static AscentRun begin(final Mode mode, final int ascension, final int maxLife,
                                   final forge.item.PaperCard commander, final byte colours) {
+        return begin(mode, ascension, maxLife, commander, colours, AscentPool.ALL);
+    }
+
+    /**
+     * Igual, con las cartas de solo unas expansiones. Pedido en Discord el
+     * 02-10-2026: "restrict ... to a certain edition or card sets (e.g. 4th ed
+     * and earlier)". Ver {@link AscentPool}.
+     */
+    public static AscentRun begin(final Mode mode, final int ascension, final int maxLife,
+                                  final forge.item.PaperCard commander, final byte colours,
+                                  final AscentPool pool) {
         final String name = deckNameFor(mode);
         final forge.deck.Deck deck =
-                AscentSeedDeck.generate(mode, commander, name, ascension, colours);
+                AscentSeedDeck.generate(mode, commander, name, ascension, colours, pool);
         AscentDecks.save(deck);
-        return start(mode, ascension, maxLife, name);
+        return start(mode, ascension, maxLife, name, pool);
     }
 
     /**
@@ -281,7 +303,7 @@ public final class AscentRun {
             return;
         }
         for (final String k : new String[]{"mode", "seed", "act", "life", "maxLife",
-                "credits", "ascension", "deck", "node", "cleared", "relics"}) {
+                "credits", "ascension", "deck", "node", "cleared", "relics", "pool"}) {
             NeoSettings.set(PREFIX + k, null);
         }
         NeoSettings.setBool(ACTIVE, false);
@@ -638,6 +660,11 @@ public final class AscentRun {
     // ------------------------------------------------------------------
     //  Consultas
     // ------------------------------------------------------------------
+
+    /** De que expansiones salen las cartas de esta run. Nunca null. */
+    public AscentPool getPool() {
+        return pool;
+    }
 
     public Mode getMode() {
         return mode;

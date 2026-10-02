@@ -51,6 +51,13 @@ public class SealedScreen extends BorderPane {
          */
         void createMix(String name, PackMix mix);
 
+        /**
+         * Un sellado de Jumpstart: dos sobres tematicos de ese producto, los
+         * elegidos o al azar (null). Ver {@link forge.neo.draft.Jumpstart}.
+         */
+        void createJumpstart(String name, forge.neo.draft.Jumpstart.Product product,
+                             forge.neo.draft.Jumpstart.Theme first, forge.neo.draft.Jumpstart.Theme second);
+
         /** Seguir con un sellado ya montado. */
         void resume(String name);
 
@@ -71,7 +78,18 @@ public class SealedScreen extends BorderPane {
      * que rellena la mezcla. Pedido en itch.io el 29-09-2026. En la mezcla, el
      * numero de sobres de abajo (4, 6, 8, 12) es lo que tiene que sumar.
      */
-    private enum Mode { SET, MIX, BLOCK }
+    private enum Mode { SET, MIX, BLOCK, JUMPSTART }
+
+    /**
+     * Jumpstart (Discord, 02-10-2026): el producto elegido y sus dos temas
+     * (null = al azar). Dos sobres de Jumpstart ya son un mazo de 40, asi que
+     * en este modo no se elige cuantos sobres.
+     */
+    private forge.neo.draft.Jumpstart.Product jsProduct;
+    private forge.neo.draft.Jumpstart.Theme jsFirst;
+    private forge.neo.draft.Jumpstart.Theme jsSecond;
+    private List<forge.neo.draft.Jumpstart.Product> shownProducts = new ArrayList<>();
+    private Region countSection;
 
     private Mode mode = Mode.SET;
     private final PackMix mix = new PackMix();
@@ -113,9 +131,10 @@ public class SealedScreen extends BorderPane {
 
         buildCounts();
 
+        countSection = section(NeoText.get("sealed.step2"), countRow);
         final VBox content = new VBox(12,
                 section(NeoText.get("sealed.step1"), new VBox(8, modeRow(), mixBox, search, scroll, pager)),
-                section(NeoText.get("sealed.step2"), countRow),
+                countSection,
                 resumeRow(actions));
         content.setPadding(new Insets(4, 30, 10, 30));
         setCenter(content);
@@ -131,7 +150,11 @@ public class SealedScreen extends BorderPane {
         go.setOnAction(e -> {
             final String n = name.getText() == null || name.getText().isBlank()
                     ? NeoSealed.nextName() : name.getText().trim();
-            if (mode == Mode.SET) {
+            if (mode == Mode.JUMPSTART) {
+                if (jsProduct != null) {
+                    actions.createJumpstart(n, jsProduct, jsFirst, jsSecond);
+                }
+            } else if (mode == Mode.SET) {
                 if (chosen == null) {
                     return;
                 }
@@ -169,6 +192,18 @@ public class SealedScreen extends BorderPane {
      */
     private void mixTestHook(final Runnable toMix, final Runnable toBlock) {
         final String t = System.getProperty("neo.mixTest");
+        // -Dneo.mixTest=jumpstart:J22 abre Jumpstart con ese producto elegido.
+        if (t != null && t.startsWith("jumpstart")) {
+            switchMode(Mode.JUMPSTART);
+            final int colon = t.indexOf(':');
+            if (colon > 0) {
+                jsProduct = forge.neo.draft.Jumpstart.byCode(t.substring(colon + 1));
+                paint();
+                refreshMix();
+                refreshChosen();
+            }
+            return;
+        }
         if ("block".equals(t)) {
             toBlock.run();
         } else if ("mix".equals(t)) {
@@ -190,7 +225,8 @@ public class SealedScreen extends BorderPane {
         final Button set = new Button(NeoText.get("draftNew.oneSet"));
         final Button mixB = new Button(NeoText.get("draftNew.mix"));
         final Button blockB = new Button(NeoText.get("draftNew.block"));
-        modeButtons = new Button[] {set, mixB, blockB};
+        final Button jumpB = new Button(NeoText.get("sealed.jumpstart"));
+        modeButtons = new Button[] {set, mixB, blockB, jumpB};
         for (final Button b : modeButtons) {
             b.getStyleClass().add("segment");
             b.setMinWidth(Region.USE_PREF_SIZE);
@@ -199,6 +235,7 @@ public class SealedScreen extends BorderPane {
         set.setOnAction(e -> switchMode(Mode.SET));
         mixB.setOnAction(e -> switchMode(Mode.MIX));
         blockB.setOnAction(e -> switchMode(Mode.BLOCK));
+        jumpB.setOnAction(e -> switchMode(Mode.JUMPSTART));
         row.getChildren().addAll(modeButtons);
         mixBox.setVisible(false);
         mixBox.setManaged(false);
@@ -217,10 +254,17 @@ public class SealedScreen extends BorderPane {
 
     /** La barra de la mezcla: solo en "Mezclar", y se repinta en cada cambio. */
     private void refreshMix() {
-        final boolean on = mode == Mode.MIX;
+        final boolean jump = mode == Mode.JUMPSTART;
+        if (countSection != null) {
+            countSection.setVisible(!jump);
+            countSection.setManaged(!jump);
+        }
+        final boolean on = mode == Mode.MIX || jump && jsProduct != null;
         mixBox.setVisible(on);
         mixBox.setManaged(on);
-        if (on) {
+        if (jump && jsProduct != null) {
+            mixBox.getChildren().setAll(themesRow());
+        } else if (on) {
             mixBox.getChildren().setAll(PackMixView.bar(mix, boosters, () -> {
                 paint();
                 refreshMix();
@@ -228,7 +272,8 @@ public class SealedScreen extends BorderPane {
             }));
         }
         if (go != null) {
-            go.setDisable(mode == Mode.MIX && mix.total() != boosters || mode == Mode.BLOCK);
+            go.setDisable(mode == Mode.MIX && mix.total() != boosters || mode == Mode.BLOCK
+                    || mode == Mode.JUMPSTART && jsProduct == null);
         }
     }
 
@@ -286,6 +331,19 @@ public class SealedScreen extends BorderPane {
     private void reload() {
         final String q = search.getText() == null ? ""
                 : search.getText().trim().toLowerCase(Locale.ROOT);
+        if (mode == Mode.JUMPSTART) {
+            shownProducts = new ArrayList<>();
+            for (final forge.neo.draft.Jumpstart.Product p : forge.neo.draft.Jumpstart.products()) {
+                if (q.isEmpty() || p.name.toLowerCase(Locale.ROOT).contains(q)
+                        || p.code.toLowerCase(Locale.ROOT).contains(q)) {
+                    shownProducts.add(p);
+                }
+            }
+            pager.setTotal(shownProducts.size());
+            paint();
+            refreshChosen();
+            return;
+        }
         if (mode == Mode.BLOCK) {
             shownBlocks = new ArrayList<>();
             for (final CardBlock b : PackMix.blocks()) {
@@ -316,6 +374,12 @@ public class SealedScreen extends BorderPane {
 
     private void paint() {
         grid.getChildren().clear();
+        if (mode == Mode.JUMPSTART) {
+            for (int i = pager.from(); i < Math.min(shownProducts.size(), pager.to()); i++) {
+                grid.getChildren().add(jumpstartTile(shownProducts.get(i)));
+            }
+            return;
+        }
         if (mode == Mode.BLOCK) {
             for (int i = pager.from(); i < Math.min(shownBlocks.size(), pager.to()); i++) {
                 final CardBlock b = shownBlocks.get(i);
@@ -336,6 +400,90 @@ public class SealedScreen extends BorderPane {
         for (int i = pager.from(); i < Math.min(shown.size(), pager.to()); i++) {
             grid.getChildren().add(tile(shown.get(i)));
         }
+    }
+
+    /** Un producto de Jumpstart: su codigo, su nombre y cuantos temas trae. */
+    private Region jumpstartTile(final forge.neo.draft.Jumpstart.Product p) {
+        final Label code = new Label(p.code);
+        code.getStyleClass().add("set-code");
+        final Label name = new Label(p.name);
+        name.getStyleClass().add("duel-name");
+        name.setWrapText(true);
+        name.setMaxWidth(UiScale.px(190));
+        name.setMinHeight(Region.USE_PREF_SIZE);
+        final Label themes = new Label(NeoText.get("sealed.jumpstart.themes", p.themes.size()));
+        themes.getStyleClass().add("home-subtitle");
+        final VBox box = new VBox(2, code, name, themes);
+        box.getStyleClass().add("set-tile");
+        box.setPadding(new Insets(8, 10, 8, 10));
+        box.setPrefWidth(UiScale.px(210));
+        box.pseudoClassStateChanged(PICKED, p == jsProduct);
+        box.setOnMouseClicked(e -> {
+            if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY) {
+                if (p != jsProduct) {
+                    jsProduct = p;
+                    jsFirst = null;
+                    jsSecond = null;
+                }
+                paint();
+                refreshMix();
+                refreshChosen();
+            }
+        });
+        return box;
+    }
+
+    /**
+     * Los dos sobres tematicos: cada uno, uno de la lista o "al azar". Como el
+     * Forge de escritorio, que pregunta uno por sobre; aqui se ven los dos.
+     */
+    private Region themesRow() {
+        final HBox row = new HBox(10,
+                captionLabel(NeoText.get("sealed.jumpstart.pack", 1)), themeBox(jsFirst, t -> jsFirst = t),
+                captionLabel(NeoText.get("sealed.jumpstart.pack", 2)), themeBox(jsSecond, t -> jsSecond = t));
+        row.setAlignment(Pos.CENTER_LEFT);
+        final Label help = new Label(NeoText.get("sealed.jumpstart.about"));
+        help.getStyleClass().add("home-subtitle");
+        help.setWrapText(true);
+        return new VBox(6, row, help);
+    }
+
+    private static Label captionLabel(final String text) {
+        final Label l = new Label(text);
+        l.getStyleClass().add("caption");
+        return l;
+    }
+
+    private Region themeBox(final forge.neo.draft.Jumpstart.Theme selected,
+                            final java.util.function.Consumer<forge.neo.draft.Jumpstart.Theme> onPick) {
+        final javafx.scene.control.ComboBox<forge.neo.draft.Jumpstart.Theme> box =
+                new javafx.scene.control.ComboBox<>();
+        box.getStyleClass().add("team-combo");
+        box.getItems().add(forge.neo.draft.Jumpstart.RANDOM);
+        box.getItems().addAll(jsProduct.themes);
+        box.setVisibleRowCount(16);
+        box.setPrefWidth(UiScale.px(240));
+        final javafx.util.Callback<javafx.scene.control.ListView<forge.neo.draft.Jumpstart.Theme>,
+                javafx.scene.control.ListCell<forge.neo.draft.Jumpstart.Theme>> cells = l -> new javafx.scene.control.ListCell<>() {
+            @Override
+            protected void updateItem(final forge.neo.draft.Jumpstart.Theme t, final boolean empty) {
+                super.updateItem(t, empty);
+                setText(empty ? null : themeLabel(t));
+            }
+        };
+        box.setCellFactory(cells);
+        box.setButtonCell(cells.call(null));
+        box.getSelectionModel().select(selected == null ? forge.neo.draft.Jumpstart.RANDOM : selected);
+        box.setOnAction(e -> {
+            final forge.neo.draft.Jumpstart.Theme v = box.getValue();
+            onPick.accept(v == null || v == forge.neo.draft.Jumpstart.RANDOM ? null : v);
+            refreshChosen();
+        });
+        return box;
+    }
+
+    private static String themeLabel(final forge.neo.draft.Jumpstart.Theme t) {
+        return t == null || t == forge.neo.draft.Jumpstart.RANDOM ? NeoText.get("sealed.jumpstart.random") : t.name;
     }
 
     private Region tile(final CardEdition edition) {
@@ -375,6 +523,11 @@ public class SealedScreen extends BorderPane {
     }
 
     private void refreshChosen() {
+        if (mode == Mode.JUMPSTART) {
+            chosenLabel.setText(jsProduct == null ? NeoText.get("sealed.jumpstart.help")
+                    : NeoText.get("sealed.jumpstart.chosen", jsProduct.name, themeLabel(jsFirst), themeLabel(jsSecond)));
+            return;
+        }
         if (mode == Mode.MIX) {
             chosenLabel.setText(PackMixView.chosen(mix, boosters));
             return;

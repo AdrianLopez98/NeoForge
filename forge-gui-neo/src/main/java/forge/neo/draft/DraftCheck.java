@@ -742,12 +742,22 @@ public final class DraftCheck {
         boolean ok = !run.isArena() && run.canChangeArena();
 
         // --- la tanda: se juega contra todos, gane o pierda, y se repite ---
+        // Y lo que queda baja con CADA partida, tambien con las derrotas:
+        // Android pinta getRemaining tal cual, y hasta el 02-10-2026 decia
+        // "quedan 7" tras seis derrotas.
+        boolean remainingOk = run.getRemaining() == run.opponents().size();
         for (int i = 0; i < run.opponents().size(); i++) {
             run.record(i % 2 == 0);
+            remainingOk &= run.getRemaining() == run.opponents().size() - (i + 1);
         }
         final boolean gauntletOk = run.isCompleted() && !run.isEliminated() && existe(name)
                 && run.getWins() + run.getLosses() == run.opponents().size()
+                && run.getRemaining() == 0
                 && !run.canChangeArena();
+        System.out.printf(Locale.ROOT,
+                "  Tanda: lo que queda baja con cada partida, gane o pierda: %s%n",
+                remainingOk ? "si" : "NO");
+        ok &= remainingOk;
         run.restart();
         final boolean restartOk = run.getWins() == 0 && run.getLosses() == 0 && !run.isOver()
                 && run.canChangeArena();
@@ -767,6 +777,8 @@ public final class DraftCheck {
 
         run.record(false);                      // primera derrota: sigue vivo
         ok &= run.getLosses() == 1 && !run.isOver() && existe(name);
+        // En Arena perder no acerca el final: quedan los que faltan por batir.
+        ok &= run.getRemaining() == run.opponents().size() - 1;
 
         run.record(false);                      // segunda: fuera y borrado
         ok &= run.isEliminated() && run.isOver() && !existe(name);

@@ -328,6 +328,8 @@ public final class NeoGame {
         }
 
         final int aiCount = mode == NeoMatchUI.Mode.OBSERVE ? opponents + 1 : opponents;
+        // Las caras importadas de la partida anterior no valen para esta.
+        forge.neo.look.NeoPlayers.newMatch();
         for (int i = 0; i < aiCount; i++) {
             final Deck aiDeck = deckForOpponent(opponentDecks, i, deck);
             final RegisteredPlayer ai = seating == null ? format.register(aiDeck, seats)
@@ -341,7 +343,8 @@ public final class NeoGame {
 
         System.out.printf(Locale.ROOT, "  Formato: %s | modo: %s | asientos: %d | mazo: %s | IA: %s%n",
                 format, mode, players.size(), deck.getName(),
-                aiProfile == null || aiProfile.isBlank() ? "(por defecto)" : aiProfile);
+                aiProfile == null || aiProfile.isBlank() ? "(por defecto)"
+                        : aiProfile.replace("neo:perRival:", "por rival, general "));
         for (int i = 0; i < aiCount; i++) {
             System.out.printf(Locale.ROOT, "    %s juega: %s%n",
                     forge.neo.look.NeoPlayers.aiName(i),

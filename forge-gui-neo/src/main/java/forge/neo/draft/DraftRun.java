@@ -204,9 +204,18 @@ public final class DraftRun {
         return losses;
     }
 
-    /** Cuantos rivales quedan por batir. */
+    /**
+     * Cuantas partidas de la tanda quedan, con la misma cuenta que
+     * {@link #isCompleted}: en Arena, rivales por BATIR (perder no te acerca
+     * al final); fuera de Arena, rivales por JUGAR, gane o pierda.
+     *
+     * <p>Hasta el 02-10-2026 contaba solo las victorias tambien fuera de
+     * Arena, y Android lo pinta tal cual: con seis derrotas seguidas decia
+     * "quedan 7 rivales" y "ahora toca el 6 de 7" a la vez.
+     */
     public int getRemaining() {
-        return Math.max(0, opponents().size() - wins);
+        final int size = opponents().size();
+        return Math.max(0, isArena() ? size - wins : size - (wins + losses));
     }
 
     /**

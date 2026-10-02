@@ -8,13 +8,11 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 
 import forge.card.CardRarity;
 import forge.card.ColorSet;
 import forge.deck.CardPool;
-import forge.deck.CommanderBracketCalculator;
 import forge.deck.CommanderDeckGenerator;
 import forge.deck.Deck;
 import forge.deck.DeckFormat;
@@ -29,6 +27,7 @@ import forge.item.PaperCard;
 import forge.localinstance.properties.ForgePreferences.FPref;
 import forge.model.FModel;
 import forge.neo.ascent.AscentSynergy;
+import forge.neo.deck.GeneratedDecks;
 import forge.util.MyRandom;
 
 /**
@@ -162,6 +161,8 @@ public final class NeoCommanderDuels {
                     final Deck d = DeckgenUtil.generateRandomCommanderDeck(
                             cmd, DeckFormat.Commander, true, true);
                     if (d != null && d.getMain().countAll() >= 90) {
+                        // Sin Gleemox: ver GeneratedDecks.
+                        GeneratedDecks.fixCopyLimits(d, DeckFormat.Commander);
                         return d;
                     }
                 } catch (final RuntimeException e) {
@@ -319,7 +320,7 @@ public final class NeoCommanderDuels {
         addWeighted(candidates, seen, AscentSynergy.popularity(), CANDIDATES,
                 format, identity, maxRarity, quota);
 
-        final List<PaperCard> pool = limitToBracket(candidates, cmd, maxBracket);
+        final List<PaperCard> pool = GeneratedDecks.limitToBracket(candidates, cmd, null, maxBracket);
         final CardThemedCommanderDeckBuilder gen =
                 new CardThemedCommanderDeckBuilder(cmd, null, pool, true, format);
         gen.setSingleton(true);
@@ -330,6 +331,10 @@ public final class NeoCommanderDuels {
         deck.setDirectory("generated/commander");
         deck.getMain().addAll(cards);
         deck.getOrCreate(DeckSection.Commander).add(cmd);
+        // Sin Gleemox: si los candidatos no llegan, el montador rellena al
+        // azar de toda la base (addRandomCards) y no mira su DeckLimit:0.
+        // Ver GeneratedDecks. Antes que enforceStarterRarity, que es rara.
+        GeneratedDecks.fixCopyLimits(deck, format);
         return deck;
     }
 
@@ -368,31 +373,6 @@ public final class NeoCommanderDuels {
             seen.add(c.getName());
             out.add(c);
         }
-    }
-
-    /**
-     * Lo mismo que {@code DeckgenUtil.limitCardsToCommanderBracket}, que es
-     * privado: se van metiendo cartas mientras el mazo que resultaria no pase
-     * del bracket. Solo hace algo entre 1 y 3, igual que alli.
-     */
-    private static List<PaperCard> limitToBracket(final List<PaperCard> cards,
-            final PaperCard cmd, final int maxBracket) {
-        if (maxBracket < 1 || maxBracket >= 4) {
-            return cards;
-        }
-        final List<PaperCard> out = new ArrayList<>();
-        Set<String> names = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
-        names.addAll(CommanderBracketCalculator.getCardNames(cmd));
-        for (final PaperCard c : cards) {
-            final Set<String> next = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
-            next.addAll(names);
-            next.addAll(CommanderBracketCalculator.getCardNames(c));
-            if (CommanderBracketCalculator.calculate(next).getBracket() <= maxBracket) {
-                out.add(c);
-                names = next;
-            }
-        }
-        return out;
     }
 
     /**

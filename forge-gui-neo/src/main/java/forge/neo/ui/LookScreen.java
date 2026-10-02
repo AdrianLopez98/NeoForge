@@ -169,18 +169,41 @@ public class LookScreen extends BorderPane {
         hint.setMinHeight(Region.USE_PREF_SIZE);
         content.getChildren().add(hint);
 
+        final Label aiHint = new Label(NeoText.get("look.rivals.aiHint"));
+        aiHint.getStyleClass().add("home-subtitle");
+        aiHint.setWrapText(true);
+        aiHint.setMaxWidth(UiScale.px(820));
+        aiHint.setMinHeight(Region.USE_PREF_SIZE);
+        content.getChildren().add(aiHint);
+
+        // Cada rival: su cara, su nombre y su forma de jugar (RivalSetup).
+        // Pedido en Discord el 02-10-2026: "profile pic, separate ai types for
+        // each rival, ai mode pool it can shuffle through".
         final List<TextField> fields = new ArrayList<>();
         final List<String> saved = NeoLook.aiNames();
-        for (int i = 0; i < 4; i++) {
+        final VBox rows = new VBox(8);
+        for (int i = 0; i < forge.neo.look.RivalSetup.SEATS; i++) {
+            final int rival = i;
             final TextField f = new TextField(i < saved.size() ? saved.get(i) : "");
             f.getStyleClass().add("text-input");
-            f.setPrefColumnCount(16);
+            f.setPrefColumnCount(14);
             f.setPromptText(NeoText.get("look.rivals.empty"));
             fields.add(f);
-            final HBox row = new HBox(12, caption(NeoText.get("look.rival", i + 1)), f);
+
+            final Label who = caption(NeoText.get("look.rival", i + 1));
+            who.setMinWidth(UiScale.px(70));
+            final HBox row = new HBox(12, who, rivalFaceButton(rival), f,
+                    caption(NeoText.get("look.rivals.ai")), rivalAiChoice(rival));
             row.setAlignment(Pos.CENTER_LEFT);
-            content.getChildren().add(row);
+            rows.getChildren().add(row);
+            // La rejilla de caras de ESTE rival, si esta abierta: justo debajo
+            // de su fila, para que se vea a quien se le esta poniendo.
+            if (openFaceRival == rival) {
+                rows.getChildren().add(rivalFaceGrid(rival));
+            }
         }
+        content.getChildren().add(rows);
+        content.getChildren().add(poolRow());
 
         final Runnable save = () -> {
             final List<String> names = new ArrayList<>();
@@ -205,6 +228,194 @@ public class LookScreen extends BorderPane {
             select(1);
         });
         content.getChildren().add(clear);
+    }
+
+    /**
+     * El rival cuya rejilla de caras esta abierta, o -1. Solo una a la vez.
+     * {@code -Dneo.look.rivalFace=N} la abre de salida, para capturarla.
+     */
+    private int openFaceRival = Integer.getInteger("neo.look.rivalFace", -1);
+
+    private static final double FACE_1080 = 40;
+
+    /** La cara del rival, redonda; al clicarla se abre (o se cierra) su rejilla. */
+    private Region rivalFaceButton(final int rival) {
+        final double size = UiScale.px(FACE_1080);
+        final StackPane face = new StackPane();
+        face.getStyleClass().add("look-tile");
+        face.setPrefSize(size, size);
+        face.setMinSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+        face.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+        face.pseudoClassStateChanged(PICKED, openFaceRival == rival);
+        final LookItem chosen = NeoLook.avatarById(forge.neo.look.RivalSetup.avatar(rival));
+        // Sin cara elegida sale la que le da la partida de siempre (la del
+        // hueco N de la hoja, ver NeoPlayers.ai), apagada: se ve que es
+        // automatica y se ve cual es.
+        final LookItem shown = chosen != null ? chosen : NeoLook.builtInAvatar(rival);
+        final Image image = shown == null ? null : shown.image();
+        if (image != null) {
+            final ImageView view = new ImageView(image);
+            view.setFitWidth(size - 4);
+            view.setFitHeight(size - 4);
+            view.setClip(new javafx.scene.shape.Circle((size - 4) / 2, (size - 4) / 2, (size - 4) / 2));
+            view.setOpacity(chosen != null ? 1 : 0.45);
+            face.getChildren().add(view);
+        } else {
+            final Label q = new Label("?");
+            q.getStyleClass().add("home-subtitle");
+            face.getChildren().add(q);
+        }
+        face.setCursor(javafx.scene.Cursor.HAND);
+        javafx.scene.control.Tooltip.install(face,
+                new javafx.scene.control.Tooltip(NeoText.get("look.rivals.face")));
+        face.setOnMouseClicked(e -> {
+            openFaceRival = openFaceRival == rival ? -1 : rival;
+            select(lastTab);
+        });
+        return face;
+    }
+
+    /** Las caras para un rival: "la de siempre" y todas las de Personalizar. */
+    private Region rivalFaceGrid(final int rival) {
+        final double size = UiScale.px(56);
+        final FlowPane grid = new FlowPane(8, 8);
+        grid.setAlignment(Pos.TOP_LEFT);
+        final String current = forge.neo.look.RivalSetup.avatar(rival);
+
+        // Sin estilo propio la etiqueta sale casi negra sobre la casilla.
+        final Label auto = new Label(NeoText.get("look.rivals.face.default"));
+        auto.getStyleClass().add("home-subtitle");
+        final StackPane none = new StackPane(auto);
+        none.getStyleClass().add("look-tile");
+        none.setPrefSize(size * 2, size);
+        none.setMinSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+        none.pseudoClassStateChanged(PICKED, current.isEmpty());
+        none.setCursor(javafx.scene.Cursor.HAND);
+        none.setOnMouseClicked(e -> pickRivalFace(rival, ""));
+        grid.getChildren().add(none);
+
+        for (final LookItem item : NeoLook.avatars()) {
+            final StackPane face = new StackPane();
+            face.getStyleClass().add("look-tile");
+            face.setPrefSize(size, size);
+            face.setMinSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+            face.pseudoClassStateChanged(PICKED, item.getId().equals(current));
+            final Image image = item.image();
+            if (image != null) {
+                final ImageView view = new ImageView(image);
+                view.setFitWidth(size - 6);
+                view.setFitHeight(size - 6);
+                view.setClip(new javafx.scene.shape.Circle((size - 6) / 2, (size - 6) / 2, (size - 6) / 2));
+                face.getChildren().add(view);
+            }
+            face.setCursor(javafx.scene.Cursor.HAND);
+            face.setOnMouseClicked(e -> pickRivalFace(rival, item.getId()));
+            grid.getChildren().add(face);
+        }
+
+        final ScrollPane scroll = new ScrollPane(grid);
+        scroll.getStyleClass().add("dialog-scroll");
+        scroll.setFitToWidth(true);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        // Tres filas a la vista: son ciento treinta, y la pestanya tiene que
+        // seguir dejando ver al resto de rivales.
+        scroll.setPrefViewportHeight(size * 3 + 24);
+
+        final Label hint = new Label(NeoText.get("look.rivals.face.hint"));
+        hint.getStyleClass().add("home-subtitle");
+        hint.setWrapText(true);
+        hint.setMaxWidth(UiScale.px(820));
+        hint.setMinHeight(Region.USE_PREF_SIZE);
+        final VBox box = new VBox(6, scroll, hint);
+        box.setPadding(new Insets(0, 0, 6, UiScale.px(82)));
+        return box;
+    }
+
+    private void pickRivalFace(final int rival, final String id) {
+        forge.neo.look.RivalSetup.setAvatar(rival, id);
+        openFaceRival = -1;
+        select(lastTab);
+    }
+
+    /** La forma de jugar de un rival: la general, uno de los cuatro o al azar. */
+    private Region rivalAiChoice(final int rival) {
+        final List<String> values = new ArrayList<>();
+        values.add("");
+        values.addAll(java.util.Arrays.asList(forge.neo.look.RivalSetup.PROFILES));
+        values.add(forge.neo.look.RivalSetup.RANDOM);
+        final String current = forge.neo.look.RivalSetup.mode(rival);
+        final HBox row = new HBox(4);
+        final List<Button> buttons = new ArrayList<>();
+        for (final String v : values) {
+            final Button b = new Button(aiLabel(v));
+            b.getStyleClass().add("segment");
+            b.setMinWidth(Region.USE_PREF_SIZE);
+            b.pseudoClassStateChanged(SELECTED, v.equals(current));
+            b.setOnAction(e -> {
+                forge.neo.look.RivalSetup.setMode(rival, v);
+                for (final Button other : buttons) {
+                    other.pseudoClassStateChanged(SELECTED, other == b);
+                }
+            });
+            buttons.add(b);
+            row.getChildren().add(b);
+        }
+        return row;
+    }
+
+    /** "La general", "Al azar" o el nombre del perfil de Forge. */
+    static String aiLabel(final String value) {
+        if (value == null || value.isEmpty()) {
+            return NeoText.get("look.rivals.ai.general");
+        }
+        if (forge.neo.look.RivalSetup.RANDOM.equals(value)) {
+            return NeoText.get("look.rivals.ai.random");
+        }
+        return value;
+    }
+
+    /**
+     * La IA que dice el resumen de la pantalla de mazos. Si algun rival de los
+     * que se van a sentar lleva la suya, se dice: si no, la linea diria "IA
+     * Default" en una partida donde quiza nadie juega con Default.
+     */
+    static String aiSummary(final String general, final int opponents) {
+        for (int i = 0; i < opponents; i++) {
+            if (!forge.neo.look.RivalSetup.mode(i).isEmpty()) {
+                return NeoText.get("look.rivals.ai.someOwn", aiLabel(general));
+            }
+        }
+        return aiLabel(general);
+    }
+
+    /** Entre que perfiles se sortea "Al azar". Al menos uno siempre marcado. */
+    private Region poolRow() {
+        final List<String> pool = new ArrayList<>(forge.neo.look.RivalSetup.pool());
+        final HBox row = new HBox(4);
+        for (final String p : forge.neo.look.RivalSetup.PROFILES) {
+            final Button b = new Button(p);
+            b.getStyleClass().add("segment");
+            b.setMinWidth(Region.USE_PREF_SIZE);
+            b.pseudoClassStateChanged(SELECTED, pool.contains(p));
+            b.setOnAction(e -> {
+                if (pool.contains(p)) {
+                    // El pozo no se puede quedar vacio: no habria entre que
+                    // sortear. El ultimo marcado no se desmarca.
+                    if (pool.size() > 1) {
+                        pool.remove(p);
+                    }
+                } else {
+                    pool.add(p);
+                }
+                forge.neo.look.RivalSetup.setPool(pool);
+                b.pseudoClassStateChanged(SELECTED, pool.contains(p));
+            });
+            row.getChildren().add(b);
+        }
+        final HBox line = new HBox(12, caption(NeoText.get("look.rivals.pool")), row);
+        line.setAlignment(Pos.CENTER_LEFT);
+        line.setPadding(new Insets(6, 0, 0, 0));
+        return line;
     }
 
     // ---------------------------------------------------------------

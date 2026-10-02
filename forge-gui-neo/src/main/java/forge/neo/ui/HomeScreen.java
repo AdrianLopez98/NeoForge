@@ -35,7 +35,13 @@ import javafx.scene.layout.VBox;
 public class HomeScreen extends javafx.scene.layout.StackPane {
 
     /** Perfiles de IA que trae Forge en {@code forge-gui/res/ai/}. */
-    private static final String[] AI_PROFILES = {"Cautious", "Default", "Reckless", "Experimental"};
+    /**
+     * Las formas de jugar de Forge y "Al azar" (de un pozo que se elige en
+     * Personalizar -> Rivales). Cada rival puede llevar ademas la suya: ver
+     * {@link forge.neo.look.RivalSetup}.
+     */
+    private static final String[] AI_PROFILES = {"Cautious", "Default", "Reckless", "Experimental",
+            forge.neo.look.RivalSetup.RANDOM};
 
     /** Que hacer al pulsar JUGAR. */
     public interface StartHandler {
@@ -514,7 +520,7 @@ et}) y no se tocan.
         if (format.isMine(deck)) {
             return Tab.MINE;
         }
-        return net.contains(deck) ? Tab.NET : Tab.STOCK;
+        return net.stream().anyMatch(d -> d == deck) ? Tab.NET : Tab.STOCK;
     }
 
     /**
@@ -756,7 +762,9 @@ et}) y no se tocan.
 
     /** "Mis mazos" otra vez desde el almacen del formato, que es la verdad. */
     private void reloadMine() {
-        decks.removeAll(mine);
+        // Por objeto: removeAll tira de Deck.equals, que compara el nombre, y
+        // se llevaba tambien el preconstruido que se llama como uno tuyo.
+        decks.removeIf(d -> mine.stream().anyMatch(m -> m == d));
         mine.clear();
         format.storage().forEach(mine::add);
         decks.addAll(mine);
@@ -921,10 +929,14 @@ et}) y no se tocan.
                     } else {
                         mine.removeIf(d -> d == deck);
                     }
+                    // Por objeto, como todo lo de arriba: Deck.equals compara
+                    // el NOMBRE, y borrar tu "Abzan Armor [TDC] [2025]" se
+                    // llevaba de la pestanya de Forge el preconstruido que se
+                    // llama igual.
                     decks.removeIf(d -> d == deck);
-                    stock.remove(deck);
-                    net.remove(deck);
-                    if (deck.equals(selected)) {
+                    stock.removeIf(d -> d == deck);
+                    net.removeIf(d -> d == deck);
+                    if (deck == selected) {
                         selected = null;
                     }
                     retitleTabs();
@@ -1402,10 +1414,13 @@ et}) y no se tocan.
      * reinventar aquí. {@code isCardGen=true} vive dentro de esa llamada:
      * usa los mazos genéticos de IA para que el rival tenga algo de
      * sinergia real.
+     *
+     * <p>Pasa por {@code GeneratedDecks}: el generador mete a veces Gleemox,
+     * que ningun formato deja jugar, y la IA salia con ella.
      */
     private forge.deck.Deck generateOpponentDeck() {
         try {
-            return forge.deck.DeckgenUtil.generateCommanderDeck(true, format.getGameType());
+            return forge.neo.deck.GeneratedDecks.commanderDeck(true, format.getGameType());
         } catch (final RuntimeException e) {
             return null;
         }
@@ -1510,7 +1525,7 @@ et}) y no se tocan.
         final HBox row = new HBox(4);
         final List<Button> buttons = new ArrayList<>();
         for (final String value : values) {
-            final Button b = new Button(value);
+            final Button b = new Button(LookScreen.aiLabel(value));
             b.getStyleClass().add("segment");
             // Sin esto, cuando la fila no cabe JavaFX encoge los botones por
             // debajo de su texto y lo corta con puntos suspensivos: salian
@@ -1624,11 +1639,11 @@ et}) y no se tocan.
             }
             summary.setText(NeoText.get("home.summary.teams",
                     format.getLabel(), selected.getName(), selected.getMain().countAll(),
-                    split.toString(), aiProfile));
+                    split.toString(), LookScreen.aiSummary(aiProfile, opponents)));
         } else if (problem == null) {
             summary.setText(NeoText.get("home.summary",
                     format.getLabel(), selected.getName(), selected.getMain().countAll(),
-                    opponents + 1, aiProfile));
+                    opponents + 1, LookScreen.aiSummary(aiProfile, opponents)));
         } else {
             summary.setText(NeoText.get("home.summary.invalid",
                     format.getLabel(), selected.getName(), problem));

@@ -10,6 +10,7 @@ import forge.deck.DeckgenUtil;
 import forge.deck.io.DeckGroupSerializer;
 import forge.localinstance.properties.ForgeConstants;
 import forge.neo.NeoSettings;
+import forge.neo.deck.GeneratedDecks;
 import forge.neo.match.NeoFormat;
 import forge.util.MyRandom;
 import forge.util.storage.IStorage;
@@ -202,7 +203,9 @@ public final class NeoTournament {
     private static Deck generateOpponent(final NeoFormat format) {
         try {
             if (format.isCommanderStyle()) {
-                return DeckgenUtil.generateCommanderDeck(true, format.getGameType());
+                // Sin Gleemox: ver GeneratedDecks. En un torneo el rival
+                // conserva el mazo todas las rondas.
+                return GeneratedDecks.commanderDeck(true, format.getGameType());
             }
             // Estandar: el mismo generador de mazos "de arquetipo" que usan
             // el Gauntlet y las quest de Forge para rivales de construido —

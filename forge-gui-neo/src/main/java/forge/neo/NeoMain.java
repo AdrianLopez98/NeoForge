@@ -351,6 +351,12 @@ public final class NeoMain {
                 banner("El caos: lanzarlo desde el cementerio");
                 forge.neo.match.MayhemCheck.run();
                 break;
+            case "optionalpaycheck":
+                // Un pago opcional ("puede pagar {4}", Paralyze) no se paga
+                // solo. Discord, 02-10-2026. Ver OptionalPayCheck.
+                banner("Un pago opcional no se paga solo");
+                forge.neo.match.OptionalPayCheck.run();
+                break;
             case "moxchaincheck":
                 // Girar fuentes de mana en cadena y rapido (Mox Opal sin su
                 // mana, Discord 01-10-2026). Ver MoxChainCheck.
@@ -782,6 +788,7 @@ public final class NeoMain {
         System.out.println("  sin arte (sin contar Alchemy): " + faltan.size());
         faltan.stream().limit(25).forEach(k -> System.out.println("     " + k));
         checkArtDownloadTargets();
+        checkArtDownloadFilters();
         if (Integer.getInteger("neo.art.testLimit", 0) > 0) {
             checkArtDownloadRuns();
             checkEveryPrintingRuns();
@@ -922,6 +929,48 @@ public final class NeoMain {
                 mirados, mal);
         if (mal > 0) {
             throw new IllegalStateException(mal + " carta(s) se bajarian donde nadie las lee");
+        }
+    }
+
+    /**
+     * Bajar por expansion o por formato (Discord, 02-10-2026), sin red: que la
+     * lista de expansiones venga de la mas nueva a la mas vieja, y que la de
+     * un formato pida SOLO cartas legales en el — y menos que "todas", o el
+     * filtro no estaria haciendo nada.
+     */
+    private static void checkArtDownloadFilters() {
+        final java.util.List<forge.card.CardEdition> eds = forge.neo.card.ArtDownload.editions();
+        boolean ordered = true;
+        for (int i = 1; i < eds.size(); i++) {
+            final java.util.Date a = eds.get(i - 1).getDate();
+            final java.util.Date b = eds.get(i).getDate();
+            if (a != null && b != null && a.before(b)) {
+                ordered = false;
+            }
+        }
+        forge.game.GameFormat pauper = null;
+        for (final forge.game.GameFormat f : forge.neo.card.ArtDownload.formats()) {
+            if ("Pauper".equals(f.getName())) {
+                pauper = f;
+            }
+        }
+        if (eds.isEmpty() || !ordered || pauper == null) {
+            throw new IllegalStateException("listas de la descarga: " + eds.size() + " expansiones, ordenadas="
+                    + ordered + ", Pauper=" + (pauper != null));
+        }
+        final forge.neo.card.ArtDownload byFormat = forge.neo.card.ArtDownload.forFormat(pauper);
+        final int pending = byFormat.countPending();
+        int illegal = 0;
+        for (final PaperCard c : byFormat.getQueued()) {
+            if (!pauper.getFilterRules().test(c)) {
+                illegal++;
+            }
+        }
+        final int all = forge.neo.card.ArtDownload.missing(forge.neo.card.ArtDownload.Scope.ALL);
+        System.out.printf("  por formato: Pauper pide %d (de %d sin filtro), %d ilegales; %d expansiones, la primera %s%n",
+                pending, all, illegal, eds.size(), eds.get(0).getCode());
+        if (illegal > 0 || (all > 0 && pending >= all)) {
+            throw new IllegalStateException("el filtro por formato no filtra: " + illegal + " ilegales");
         }
     }
 

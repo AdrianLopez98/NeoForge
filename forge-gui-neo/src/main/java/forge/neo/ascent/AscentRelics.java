@@ -405,10 +405,9 @@ public final class AscentRelics {
      * Los nombres de TODAS nuestras cartas: las reliquias y el segundo aliento.
      *
      * <p>Lo pide {@code CardIndex} para quitarlas del catalogo del deck
-     * builder. Hace falta de verdad: {@code getUniqueCards()} <b>si</b> las
-     * trae — se comprobo que solo parecian ausentes porque {@code CardDb}
-     * reindexa mas tarde, despues de la primera partida, y el comprobador que
-     * decia lo contrario miraba demasiado pronto. Ver {@code AscentCheck}.
+     * builder. Hace falta de verdad: {@code getUniqueCards()} las trae en
+     * cuanto el motor reindexa la base entera — ver
+     * {@link #exposeInUniqueCardsForTest()}, que cuenta cuando pasa eso hoy.
      */
     public static java.util.Set<String> allCardNames() {
         final java.util.Set<String> names = new java.util.LinkedHashSet<>();
@@ -419,6 +418,87 @@ public final class AscentRelics {
             names.add(c.getName());
         }
         return names;
+    }
+
+    /**
+     * Cuantas de {@link #allCardNames()} trae <b>ahora mismo</b>
+     * {@code getUniqueCards()}, que es de donde tiran el catalogo del deck
+     * builder y el premio de Ascenso.
+     */
+    public static int countInUniqueCards() {
+        final java.util.Set<String> ours = allCardNames();
+        int n = 0;
+        for (final PaperCard c : FModel.getMagicDb().getCommonCards().getUniqueCards()) {
+            if (ours.contains(c.getName())) {
+                n++;
+            }
+        }
+        return n;
+    }
+
+    /**
+     * <b>Solo para comprobadores:</b> mete nuestras cartas en
+     * {@code getUniqueCards()}, que es el peor caso que tienen que aguantar
+     * los filtros ({@code CardIndex.withoutOurCustomCards} y
+     * {@code AscentRewards.castable}).
+     *
+     * <h2>Por que hay que forzarlo</h2>
+     *
+     * <p>{@link #install()} las mete con {@code CardDb.addCard}, que no
+     * reindexa: entran en {@code allCardsByRules}, pero no en el mapa que
+     * devuelve {@code getUniqueCards()}. Hasta Forge #11763 (entro con el
+     * rebase del 09-09-2026) {@code CardDb.loadCard} reindexaba la base
+     * <b>entera</b>, y eso pasaba jugando: tras la primera partida salian
+     * todas. Desde entonces reindexa solo la carta que carga, y nada de
+     * NeoForge rehace el mapa entero despues de arrancar — medido el
+     * 02-10-2026: <b>0</b> visibles tras las partidas de {@code reliccheck}.
+     *
+     * <p>Eso es suerte, no garantia. Cualquier reindexado completo las mete:
+     * hoy el unico publico es {@code setPreferredLanguageAvailability}, el que
+     * llaman las dos GUIs de Forge al cambiar el idioma de las cartas, y el
+     * proximo rebase puede traer otro. Un comprobador que espera a que
+     * aparezcan solas se salta siempre: el verde que no mira nada de
+     * las trampas conocidas.
+     *
+     * <h2>Como</h2>
+     *
+     * <p>Con ese mismo setter, que con la base ya cargada rehace el mapa
+     * entero ({@code reIndex()}), y con el <b>mismo</b> criterio de idioma
+     * que le dio {@code FModel} al arrancar (su
+     * {@code buildPreferredLanguageAvailability} es privado; son las mismas
+     * tres comprobaciones). Mismos datos y mismo algoritmo, asi que el resto
+     * del catalogo sale igual: lo unico nuevo son las nuestras.
+     *
+     * <p>⚠️ <b>No se deshace</b> — no hay forma publica de sacarlas — y se
+     * quedan hasta que acaba el proceso. Cada comprobador corre en el suyo, y
+     * dentro de el esto va <b>al final</b>, con ninguna partida en marcha:
+     * {@code reIndex()} vacia el mapa antes de rehacerlo, y una partida que lo
+     * leyera justo entonces no veria ni una carta.
+     *
+     * @return cuantas de {@link #allCardNames()} salen despues. Si no son
+     *         todas, el motor ya no reindexa por ahi y quien llama tiene que
+     *         darlo por <b>fallo</b>, no saltarselo
+     */
+    public static int exposeInUniqueCardsForTest() {
+        install();
+        FModel.getMagicDb().getCommonCards()
+                .setPreferredLanguageAvailability(languageAvailabilityLikeFModel());
+        return countInUniqueCards();
+    }
+
+    /** Lo mismo que {@code FModel.buildPreferredLanguageAvailability}, que es privado. */
+    private static java.util.function.BiPredicate<String, String> languageAvailabilityLikeFModel() {
+        final forge.localinstance.properties.ForgePreferences prefs = FModel.getPreferences();
+        if (!prefs.getPrefBoolean(
+                forge.localinstance.properties.ForgePreferences.FPref.UI_PREFER_LANG_FOR_UNIQUE_CARDS)) {
+            return null;
+        }
+        final String lang = prefs.getPref(
+                forge.localinstance.properties.ForgePreferences.FPref.UI_CARD_DOWNLOAD_LANG);
+        if (lang == null || lang.isEmpty() || "en".equalsIgnoreCase(lang)) {
+            return null;
+        }
+        return (set, number) -> forge.gui.download.CdnUuidCache.isAvailableInLanguage(set, number, lang);
     }
 
     /**

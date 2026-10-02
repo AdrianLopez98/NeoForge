@@ -46,16 +46,28 @@ public final class ArtDownloadPanel extends VBox {
     private int total;
 
     public ArtDownloadPanel(final ArtDownload.Scope scope, final Runnable onBack) {
+        this(scope, null, onBack);
+    }
+
+    /**
+     * @param target con {@link ArtDownload.Scope#SET}, el codigo de la
+     *               expansion; con {@link ArtDownload.Scope#FORMAT}, el nombre
+     *               del formato. Con los demas, nada.
+     */
+    public ArtDownloadPanel(final ArtDownload.Scope scope, final String target, final Runnable onBack) {
         getStyleClass().addAll("dialog", "art-download");
         setSpacing(12);
         setAlignment(Pos.CENTER_LEFT);
 
         final String which = scope == ArtDownload.Scope.ALL ? "all"
-                : scope == ArtDownload.Scope.EVERY_PRINTING ? "every" : "decks";
-        final Label title = new Label(NeoText.get("artdl.title." + which));
+                : scope == ArtDownload.Scope.EVERY_PRINTING ? "every"
+                : scope == ArtDownload.Scope.SET ? "set"
+                : scope == ArtDownload.Scope.FORMAT ? "format" : "decks";
+        final String targetName = targetName(scope, target);
+        final Label title = new Label(NeoText.get("artdl.title." + which, targetName));
         title.getStyleClass().add("dialog-title");
 
-        final Label note = new Label(NeoText.get("artdl.note." + which));
+        final Label note = new Label(NeoText.get("artdl.note." + which, targetName));
         note.getStyleClass().add("dialog-note");
         note.setWrapText(true);
         note.setMaxWidth(UiScale.px(560));
@@ -106,8 +118,15 @@ public final class ArtDownloadPanel extends VBox {
         final forge.gui.download.GuiDownloadService service;
         if (scope == ArtDownload.Scope.EVERY_PRINTING) {
             service = ArtDownload.everyPrinting();
+        } else if (scope == ArtDownload.Scope.SET) {
+            // Las impresiones de esa expansion: el descargador de Forge con un
+            // filtro, como su opcion por expansion.
+            service = ArtDownload.forSet(target);
         } else {
-            final ArtDownload mine = new ArtDownload(scope);
+            final forge.game.GameFormat format = scope == ArtDownload.Scope.FORMAT
+                    ? forge.model.FModel.getFormats().get(target) : null;
+            final ArtDownload mine = format != null ? ArtDownload.forFormat(format)
+                    : new ArtDownload(scope);
             // La primera vez de "todas" se baja antes el indice de Scryfall (75
             // MB, un par de minutos): sin decirlo, parece que "contando" se ha
             // colgado.
@@ -177,6 +196,18 @@ public final class ArtDownloadPanel extends VBox {
                 }
             }
         });
+    }
+
+    /** "Bloomburrow (BLB)" o "Modern", para el titulo. */
+    private static String targetName(final ArtDownload.Scope scope, final String target) {
+        if (target == null) {
+            return "";
+        }
+        if (scope == ArtDownload.Scope.SET) {
+            final forge.card.CardEdition ed = forge.model.FModel.getMagicDb().getEditions().get(target);
+            return ed == null ? target : ed.getName() + " (" + ed.getCode() + ")";
+        }
+        return target;
     }
 
     private void start() {

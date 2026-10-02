@@ -111,12 +111,12 @@ public final class AscentProbe {
      * <p>⚠️ <b>Esto NO comprueba que quedan fuera del catalogo del deck
      * builder</b>, aunque el nombre de la sonda lo sugiera y durante un
      * tiempo se creyo que si: {@code getUniqueCards()} no las trae justo
-     * despues de registrarlas (el motor todavia no ha reindexado), pero en
-     * cuanto se juega una partida de verdad {@code CardDb} reindexa y SI
-     * aparecen — asi que esta sonda, que corre <b>antes</b> de jugar nada,
-     * pasaba en verde sin demostrar nada. El filtro de verdad vive en
+     * despues de registrarlas, pero SI en cuanto el motor reindexa la base
+     * entera — asi que esta sonda, que mira de pasada, pasaba en verde sin
+     * demostrar nada. El filtro de verdad vive en
      * {@code forge.neo.deck.CardIndex} y lo comprueba {@code run.cmd
-     * deckcheck} sobre un catalogo construido a proposito, no de pasada.
+     * deckcheck} con las reliquias metidas a la fuerza en el catalogo
+     * ({@code AscentRelics.exposeInUniqueCardsForTest}).
      */
     private static void sonda5CatalogoLimpio() {
         if (AscentRelics.all().isEmpty()) {

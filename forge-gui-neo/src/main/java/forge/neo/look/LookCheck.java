@@ -34,6 +34,7 @@ public final class LookCheck {
         musicGoesWhereTheEngineLooks();
         importedMusicIsKept();
         aiNamesAreRealAndStable();
+        rivalsPlayTheirOwnWay();
         deckCarriesItsOwnSleeve();
         hoverZoomBehaves();
 
@@ -474,6 +475,117 @@ public final class LookCheck {
             check("Rivales: y cada uno el suyo", !first.equals(NeoPlayers.aiName(1)));
         } finally {
             NeoLook.setAiNames(before);
+        }
+    }
+
+    /**
+     * Cada rival con su cara y su forma de jugar ({@link RivalSetup}).
+     *
+     * <p>Pedido en Discord el 02-10-2026. Lo que se rompe en silencio no es la
+     * pantalla, es lo que llega al motor: que el rival 2 juegue de verdad con
+     * el perfil que le pusiste, que "Al azar" no se salga del pozo, que un modo
+     * que pasa su perfil, como Ascenso, <b>siga mandando</b> (su dificultad
+     * depende de el; Quest y la Aventura ni pasan por aqui) y que una cara
+     * importada no le llegue al motor como un
+     * numero de la hoja que no es. Por eso se mira el {@code LobbyPlayerAi}
+     * que sale de {@code NeoPlayers.ai}, que es lo que recibe la partida.
+     *
+     * <p>Toca los ajustes del jugador: se guardan antes y se reponen siempre.
+     */
+    private static void rivalsPlayTheirOwnWay() {
+        final String[] keys = {RivalSetup.NAMES, RivalSetup.MODES, RivalSetup.AVATARS, RivalSetup.POOL};
+        final String[] before = new String[keys.length];
+        for (int i = 0; i < keys.length; i++) {
+            before[i] = forge.neo.NeoSettings.get(keys[i], null);
+        }
+        try {
+            for (final String k : keys) {
+                forge.neo.NeoSettings.set(k, null);
+            }
+            final java.util.Random rnd = new java.util.Random(7);
+            final String normal = RivalSetup.perRival("Default");
+
+            check("Rivales/IA: sin elegir nada, la general",
+                    "Default".equals(RivalSetup.resolve(normal, 2, rnd)));
+            check("Rivales/IA: y la general vacia sigue siendo la de Forge",
+                    "".equals(RivalSetup.resolve(RivalSetup.perRival(""), 0, rnd)));
+
+            RivalSetup.setMode(1, "Cautious");
+            RivalSetup.setMode(3, "Reckless");
+            check("Rivales/IA: el rival 2 juega con la suya",
+                    "Cautious".equals(RivalSetup.resolve(normal, 1, rnd)));
+            check("Rivales/IA: el 4 con la suya", "Reckless".equals(RivalSetup.resolve(normal, 3, rnd)));
+            check("Rivales/IA: y el 1, sin elegir, con la general",
+                    "Default".equals(RivalSetup.resolve(normal, 0, rnd)));
+            check("Rivales/IA: fuera de una partida normal manda el perfil del modo (Ascenso)",
+                    "Experimental".equals(RivalSetup.resolve("Experimental", 1, rnd)));
+
+            RivalSetup.setPool(java.util.Arrays.asList("Cautious", "Experimental", "Basura"));
+            check("Rivales/IA: el pozo se queda con lo que existe",
+                    RivalSetup.pool().equals(java.util.Arrays.asList("Cautious", "Experimental")));
+            RivalSetup.setMode(2, RivalSetup.RANDOM);
+            final java.util.Set<String> own = new java.util.TreeSet<>();
+            final java.util.Set<String> general = new java.util.TreeSet<>();
+            for (int i = 0; i < 300; i++) {
+                own.add(RivalSetup.resolve(normal, 2, rnd));
+                general.add(RivalSetup.resolve(RivalSetup.perRival(RivalSetup.RANDOM), 0, rnd));
+            }
+            final java.util.Set<String> expected = new java.util.TreeSet<>(RivalSetup.pool());
+            System.out.printf(Locale.ROOT, "        (al azar salen %s y %s)%n", own, general);
+            check("Rivales/IA: al azar, todos los del pozo y solo esos", own.equals(expected));
+            check("Rivales/IA: y la general al azar, igual", general.equals(expected));
+
+            RivalSetup.setPool(List.of());
+            check("Rivales/IA: un pozo vacio son los cuatro", RivalSetup.pool().size() == 4);
+
+            forge.neo.NeoSettings.set(RivalSetup.MODES, "Foo|Cautious");
+            check("Rivales/IA: un modo que no existe no se cuela",
+                    "".equals(RivalSetup.mode(0)) && "Cautious".equals(RivalSetup.mode(1)));
+
+            check("Rivales/cara: el numero de la hoja",
+                    RivalSetup.spriteIndexOf("sprite:avatar:12") == 12
+                            && RivalSetup.spriteIndexOf("file:mia.png") == -1
+                            && RivalSetup.spriteIndexOf("") == -1
+                            && RivalSetup.spriteIndexOf(null) == -1
+                            && RivalSetup.spriteIndexOf("sprite:avatar:x") == -1);
+
+            // Lo que recibe la partida.
+            NeoLook.setAiNames(java.util.Arrays.asList("Uno", "Dos", "Tres", "Cuatro"));
+            forge.neo.NeoSettings.set(RivalSetup.MODES, null);
+            RivalSetup.setMode(1, "Cautious");
+            RivalSetup.setAvatar(1, "sprite:avatar:7");
+            final forge.ai.LobbyPlayerAi dos = (forge.ai.LobbyPlayerAi) NeoPlayers.ai(1, normal);
+            final forge.ai.LobbyPlayerAi uno = (forge.ai.LobbyPlayerAi) NeoPlayers.ai(0, normal);
+            check("Rivales/partida: el rival 2 se sienta con su nombre, su IA y su cara",
+                    "Dos".equals(dos.getName()) && "Cautious".equals(dos.getAiProfile())
+                            && dos.getAvatarIndex() == 7 && NeoPlayers.customFaceOf("Dos") == null);
+            check("Rivales/partida: el 1, sin elegir nada, como siempre",
+                    "Default".equals(uno.getAiProfile()) && uno.getAvatarIndex() == 0);
+            final forge.ai.LobbyPlayerAi quest = (forge.ai.LobbyPlayerAi) NeoPlayers.ai(1, "Reckless");
+            check("Rivales/partida: un modo que pasa su perfil (Ascenso) manda, y la cara sigue",
+                    "Reckless".equals(quest.getAiProfile()) && quest.getAvatarIndex() == 7);
+
+            RivalSetup.setAvatar(2, "file:mia.png");
+            final forge.ai.LobbyPlayerAi tres = (forge.ai.LobbyPlayerAi) NeoPlayers.ai(2, normal);
+            check("Rivales/partida: una cara importada la pinta la mesa, no el motor",
+                    "file:mia.png".equals(NeoPlayers.customFaceOf("Tres")) && tres.getAvatarIndex() == 2);
+            // Dos rivales con el mismo nombre, uno con cara y otro sin ella:
+            // sentar al segundo no puede borrarle la cara al primero.
+            NeoLook.setAiNames(java.util.Arrays.asList("Uno", "Dos", "Tres", "Tres"));
+            NeoPlayers.ai(3, normal);
+            check("Rivales/partida: un tocayo sin cara no le quita la suya",
+                    "file:mia.png".equals(NeoPlayers.customFaceOf("Tres")));
+            // Lo que la vacia es montar otra partida (NeoGame.play).
+            RivalSetup.setAvatar(2, "");
+            NeoPlayers.newMatch();
+            NeoPlayers.ai(2, normal);
+            check("Rivales/partida: y en la partida siguiente, sin ella, se olvida",
+                    NeoPlayers.customFaceOf("Tres") == null);
+        } finally {
+            for (int i = 0; i < keys.length; i++) {
+                forge.neo.NeoSettings.set(keys[i], before[i]);
+            }
+            forge.neo.NeoSettings.save();
         }
     }
 

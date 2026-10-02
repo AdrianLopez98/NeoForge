@@ -415,11 +415,38 @@ public class TableBinder {
             if (!opponent) {
                 return forge.neo.look.NeoLook.currentAvatar().image();
             }
+            // Un rival con una cara importada (Personalizar -> Rivales): el
+            // motor solo sabe de la hoja de Forge, asi que se busca por nombre.
+            final String custom = forge.neo.look.NeoPlayers.customFaceOf(p.getName());
+            if (custom != null) {
+                final javafx.scene.image.Image image = customFace(custom);
+                if (image != null) {
+                    return image;
+                }
+            }
             return forge.neo.look.NeoLook.builtInAvatar(p.getAvatarIndex()).image();
         } catch (final RuntimeException e) {
             // Sin cara se juega igual; con la mesa caida, no.
             return null;
         }
+    }
+
+    /**
+     * Las caras importadas de los rivales, ya leidas: una por partida.
+     *
+     * <p>{@code faceOf} se pregunta en cada refresco, y {@code avatarById}
+     * recorre la carpeta y decodifica el PNG entero cada vez — que puede ser
+     * la foto de 4000 px del movil. Vive lo que vive este binder (una
+     * partida), asi que no retiene nada de la anterior.
+     */
+    private final java.util.Map<String, java.util.Optional<javafx.scene.image.Image>> customFaces =
+            new java.util.HashMap<>();
+
+    private javafx.scene.image.Image customFace(final String id) {
+        return customFaces.computeIfAbsent(id, k -> {
+            final forge.neo.look.LookItem item = forge.neo.look.NeoLook.avatarById(k);
+            return java.util.Optional.ofNullable(item == null ? null : item.image());
+        }).orElse(null);
     }
 
     /**

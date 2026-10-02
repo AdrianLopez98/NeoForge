@@ -71,16 +71,11 @@ public final class AscentCheck {
         passed = 0;
         failed = 0;
 
-        // ⚠️ Esto escribe en ascent.* de verdad: son runs de mentira, pero el
-        // marcador es el mismo fichero. Sin guardarlo y reponerlo, pasar los
-        // comprobadores le BORRA al jugador la run que tenga a medias — y en
-        // un modo donde no se puede volver atras, eso no tiene arreglo.
-        final Map<String, String> suRun = AscentRun.snapshot();
-        // Los hitos NO viven bajo "ascent." — viven aparte justo para
-        // sobrevivir a la derrota — asi que el snapshot de arriba no los
-        // recoge. Sin esto, pasar los comprobadores le regalaria (o le
-        // borraria) al jugador desbloqueos que no ha ganado.
-        final String susHitos = AscentUnlocks.rawFeatsForTest();
+        // ⚠️ Esto escribe en ascent.*, en los hitos y en decks/ascenso/ de
+        // verdad: son runs de mentira, pero los ficheros son los del jugador.
+        // Ver AscentCheckGuard: sin devolverlo todo, pasar los comprobadores
+        // le BORRA la run que tenga a medias y le llena la carpeta de mazos.
+        final AscentCheckGuard prestado = new AscentCheckGuard();
         try {
             curvaDeDificultad();
             curvaSigueTuPoder();
@@ -106,6 +101,7 @@ public final class AscentCheck {
             singletonEnCommander();
             calidadDelPremio();
             sinergia();
+            expansiones();
             reliquiasQueLaIaPuedeLlevar();
             descanso();
             tienda();
@@ -118,8 +114,12 @@ public final class AscentCheck {
             hitos();
             nivelesDeAscension();
         } finally {
-            AscentRun.restore(suRun);
-            AscentUnlocks.setRawFeatsForTest(susHitos);
+            final List<String> sobras = prestado.restore();
+            if (!sobras.isEmpty()) {
+                fail("limpieza: " + sobras.size() + " mazo(s) de runs de prueba se habian"
+                        + " quedado en decks/ascenso — alguna sonda no hace discard(); ya"
+                        + " borrados: " + String.join(", ", sobras));
+            }
         }
 
         System.out.printf(Locale.ROOT, "%n  %d bien, %d mal%n", passed, failed);
@@ -807,9 +807,10 @@ public final class AscentCheck {
      *
      * <p>⚠️ Que NO aparezcan en el catalogo del deck builder se comprueba en
      * {@code run.cmd deckcheck} y no aqui: {@code getUniqueCards()} SI las
-     * trae en cuanto se juega una partida de verdad y el motor reindexa —
-     * mirarlo aqui, antes de jugar nada, habria dado un verde que no
-     * demuestra nada. El filtro de verdad vive en {@code CardIndex}.
+     * trae en cuanto el motor reindexa la base entera, y eso hay que forzarlo
+     * ({@code AscentRelics.exposeInUniqueCardsForTest}) — mirarlo de pasada
+     * daria un verde que no demuestra nada. El filtro de verdad vive en
+     * {@code CardIndex}.
      */
     private static void ascension10SegundoAliento() {
         final List<String> mal = new ArrayList<>();
@@ -2391,19 +2392,25 @@ public final class AscentCheck {
         }
         final double[] alturas = {0.0, 1.0};
         final double[] parte = new double[alturas.length];
-        for (int a = 0; a < alturas.length; a++) {
-            final Random rnd = new Random(4242L + a);
-            int dentro = 0;
-            int total = 0;
-            for (int i = 0; i < 60; i++) {
-                for (final PaperCard c : AscentRewards.offer(run, alturas[a], rnd, 3)) {
-                    total++;
-                    if (pozo.contains(c.getName())) {
-                        dentro++;
+        try {
+            for (int a = 0; a < alturas.length; a++) {
+                final Random rnd = new Random(4242L + a);
+                int dentro = 0;
+                int total = 0;
+                for (int i = 0; i < 60; i++) {
+                    for (final PaperCard c : AscentRewards.offer(run, alturas[a], rnd, 3)) {
+                        total++;
+                        if (pozo.contains(c.getName())) {
+                            dentro++;
+                        }
                     }
                 }
+                parte[a] = total == 0 ? 0 : (double) dentro / total;
             }
-            parte[a] = total == 0 ? 0 : (double) dentro / total;
+        } finally {
+            // Sin esto, un mazo con Malcolm en decks/ascenso por cada pasada:
+            // 106 el 02-10-2026 (ver AscentCheckGuard).
+            run.discard();
         }
         if (parte[1] > parte[0] && parte[0] > 0.15) {
             ok(String.format(Locale.ROOT, "sinergia: los premios van del %.0f%% al %.0f%% de"
@@ -4026,6 +4033,175 @@ public final class AscentCheck {
         } else {
             fail("hitos: la derrota se ha llevado hitos: " + antes.size()
                     + " -> " + AscentUnlocks.feats().size());
+        }
+    }
+
+    // ------------------------------------------------------------------
+    //  Solo unas expansiones (AscentPool)
+    // ------------------------------------------------------------------
+
+    /**
+     * Una run "de Alpha a Fourth Edition" no puede traer UNA sola carta
+     * moderna: ni en el mazo de salida, ni en los rivales convertidos, ni en
+     * los premios. Pedido en Discord el 02-10-2026; lo que se rompe en silencio
+     * es eso, una carta de 2025 colada por un sitio que nadie mira.
+     */
+    private static void expansiones() {
+        final AscentPool old = AscentPool.range("LEA", "4ED");
+        final java.util.Set<String> codes = old.codes();
+        final forge.card.CardDb db = FModel.getMagicDb().getCommonCards();
+
+        // Las promos no cuentan: Media Inserts lleva fecha de 1995 y trae a Aang.
+        final PaperCard aang = db.getCard("Aang, Air Nomad");
+        final PaperCard solRing = db.getCard("Sol Ring");
+        final PaperCard attorney = db.getCard("Demonic Attorney");
+        if ((aang == null || !old.allows(aang)) && solRing != null && old.allows(solRing)
+                && (attorney == null || !old.allows(attorney))
+                && codes.contains("LEG") && !codes.contains("ICE")) {
+            ok("pozo LEA-4ED: entran Sol Ring y Legends, no Aang (una promo con fecha vieja), ni Ice Age, ni las de apuesta");
+        } else {
+            fail("pozo LEA-4ED mal delimitado: codigos " + codes);
+        }
+
+        final List<PaperCard> cmds = AscentSeedDeck.commanderPool(old);
+        int badCmd = 0;
+        for (final PaperCard c : cmds) {
+            if (!old.allows(c) || !codes.contains(c.getEdition())) {
+                badCmd++;
+            }
+        }
+        System.out.println("         (" + cmds.size() + " comandantes, " + old.spellCount()
+                + " cartas; problema: " + old.problem(AscentRun.Mode.COMMANDER) + ")");
+        if (!cmds.isEmpty() && badCmd == 0 && old.problem(AscentRun.Mode.COMMANDER) == null) {
+            ok("pozo LEA-4ED: " + cmds.size() + " comandantes, todos de esas expansiones y con su impresion");
+        } else {
+            fail("pozo LEA-4ED: " + badCmd + " comandantes de fuera de " + cmds.size());
+        }
+
+        // El mazo de salida, en los dos modos y varias veces (el generador es azar).
+        for (final AscentRun.Mode mode : AscentRun.Mode.values()) {
+            int bad = 0;
+            int wrongSize = 0;
+            int noLands = 0;
+            String example = null;
+            for (int i = 0; i < 4; i++) {
+                final Deck d = AscentSeedDeck.generate(mode, null, "prueba", 0,
+                        AscentSeedDeck.NO_COLOURS, old);
+                final int want = mode == AscentRun.Mode.COMMANDER ? 60 : 30;
+                if (d.getMain().countAll() != want) {
+                    wrongSize++;
+                }
+                int lands = 0;
+                for (final Map.Entry<PaperCard, Integer> e : d.getMain()) {
+                    if (e.getKey().getRules().getType().isLand()) {
+                        lands += e.getValue();
+                    }
+                    if (!old.allows(e.getKey())) {
+                        bad++;
+                        example = e.getKey().getName();
+                    }
+                }
+                for (final PaperCard c : d.getCommanders()) {
+                    if (!old.allows(c)) {
+                        bad++;
+                        example = c.getName();
+                    }
+                }
+                if (lands == 0) {
+                    noLands++;
+                }
+            }
+            if (bad == 0 && wrongSize == 0 && noLands == 0) {
+                ok("pozo LEA-4ED: 4 mazos de salida de " + mode + " sin una carta de fuera, con su tamanyo y tierras");
+            } else {
+                fail("pozo LEA-4ED, mazo de salida " + mode + ": " + bad + " cartas de fuera (p. ej. "
+                        + example + "), " + wrongSize + " de tamanyo raro, " + noLands + " sin tierras");
+            }
+        }
+
+        // Los rivales: preconstruidos modernos, convertidos.
+        for (final AscentRun.Mode mode : AscentRun.Mode.values()) {
+            final List<Deck> rivals = AscentBattle.pool(mode);
+            int bad = 0;
+            int shrunk = 0;
+            int offIdentity = 0;
+            int looked = 0;
+            String example = null;
+            for (int i = 0; i < rivals.size(); i += Math.max(1, rivals.size() / 8)) {
+                final Deck src = rivals.get(i);
+                final Deck r = old.restrict(src, mode, new java.util.Random(i));
+                looked++;
+                if (r.getMain().countAll() != src.getMain().countAll()) {
+                    shrunk++;
+                }
+                final forge.card.ColorSet id = mode == AscentRun.Mode.COMMANDER && !r.getCommanders().isEmpty()
+                        ? r.getCommanders().get(0).getRules().getColorIdentity() : null;
+                for (final PaperCard c : r.getCommanders()) {
+                    if (!old.allows(c)) {
+                        bad++;
+                        example = c.getName();
+                    }
+                }
+                for (final Map.Entry<PaperCard, Integer> e : r.getMain()) {
+                    if (!old.allows(e.getKey())) {
+                        bad++;
+                        example = e.getKey().getName();
+                    }
+                    if (id != null && !e.getKey().getRules().getColorIdentity().hasNoColorsExcept(id)) {
+                        offIdentity++;
+                    }
+                }
+            }
+            if (bad == 0 && shrunk == 0 && offIdentity == 0 && looked > 0) {
+                ok("pozo LEA-4ED: " + looked + " rivales de " + mode
+                        + " convertidos, sin una carta de fuera ni de otra identidad, y del mismo tamanyo");
+            } else {
+                fail("pozo LEA-4ED, rivales " + mode + ": " + bad + " de fuera (p. ej. " + example + "), "
+                        + shrunk + " cambian de tamanyo, " + offIdentity + " fuera de identidad");
+            }
+        }
+
+        // Los premios, y que el pozo se guarda con la run.
+        final AscentRun run = AscentRun.begin(AscentRun.Mode.STANDARD, 0, 20, null,
+                AscentSeedDeck.NO_COLOURS, old);
+        try {
+            final java.util.Random rnd = new java.util.Random(7);
+            int bad = 0;
+            int offered = 0;
+            for (int i = 0; i < 10; i++) {
+                for (final PaperCard c : AscentRewards.offer(run, i / 10.0, rnd, 3)) {
+                    offered++;
+                    if (!old.allows(c) || !codes.contains(c.getEdition())) {
+                        bad++;
+                    }
+                }
+            }
+            if (offered > 0 && bad == 0) {
+                ok("pozo LEA-4ED: " + offered + " cartas de premio, todas de esas expansiones y con su impresion");
+            } else {
+                fail("pozo LEA-4ED, premios: " + bad + " de fuera de " + offered);
+            }
+            final AscentRun again = AscentRun.current();
+            if (again != null && old.equals(again.getPool())) {
+                ok("pozo LEA-4ED: se guarda con la run y vuelve al recargarla");
+            } else {
+                fail("el pozo no sobrevive a recargar la run: " + (again == null ? null : again.getPool()));
+            }
+        } finally {
+            discard(run);
+        }
+
+        // Una sola expansion pequenya no deja jugar, y "todas" no toca nada.
+        final AscentPool tiny = AscentPool.set("DRK");
+        final Deck any = AscentBattle.pool(AscentRun.Mode.STANDARD).get(0);
+        if (tiny.problem(AscentRun.Mode.STANDARD) != null
+                && AscentPool.set("LEG").problem(AscentRun.Mode.COMMANDER) == null
+                && AscentPool.ALL.restrict(any, AscentRun.Mode.STANDARD, new java.util.Random(1)) == any
+                && AscentPool.parse("").isAll() && AscentPool.parse(old.serialize()).equals(old)) {
+            ok("pozo: The Dark sola no llega al minimo, Legends sola si; 'todas' no toca el mazo; se guarda y se lee igual");
+        } else {
+            fail("pozo: minimos o lectura mal (The Dark " + tiny.spellCount() + " cartas, problema "
+                    + tiny.problem(AscentRun.Mode.STANDARD) + ")");
         }
     }
 

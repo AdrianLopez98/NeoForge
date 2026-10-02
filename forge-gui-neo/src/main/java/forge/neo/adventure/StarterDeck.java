@@ -15,6 +15,7 @@ import forge.deck.DeckgenUtil;
 import forge.item.PaperCard;
 import forge.model.FModel;
 import forge.neo.NeoSettings;
+import forge.neo.deck.GeneratedDecks;
 import forge.util.MyRandom;
 import javafx.application.Platform;
 
@@ -210,6 +211,10 @@ final class StarterDeck {
                 NeoDuelBridge.log("mazo de salida: el generador ha fallado con " + cmd.getName() + ": " + e);
                 continue;
             }
+            // Sin Gleemox (ver GeneratedDecks). DuelScene ya la quita de la
+            // copia de cada duelo, pero este mazo va al guardado y a la
+            // coleccion, y el editor lo daria por ilegal.
+            GeneratedDecks.fixCopyLimits(gen, DeckFormat.Commander);
             trimLands(gen, cmd);
             final String why = problem(gen, color);
             if (why == null) {
@@ -253,6 +258,7 @@ final class StarterDeck {
         try {
             final Deck other = DeckgenUtil.generateRandomCommanderDeck(
                     cmd, DeckFormat.Commander, false, true, MAX_BRACKET);
+            GeneratedDecks.fixCopyLimits(other, DeckFormat.Commander);
             for (final Map.Entry<PaperCard, Integer> e : other.getMain()) {
                 final PaperCard c = e.getKey();
                 if (!c.getRules().getType().isLand() && deck.getMain().count(c) == 0

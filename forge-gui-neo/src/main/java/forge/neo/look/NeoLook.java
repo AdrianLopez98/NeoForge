@@ -423,37 +423,36 @@ public final class NeoLook {
      * IA-3 no.
      */
     public static String aiName(final int index) {
-        final List<String> saved = aiNames();
-        if (index < saved.size() && !saved.get(index).isBlank()) {
-            return saved.get(index);
-        }
-        return "";
+        return RivalSetup.name(index);
     }
 
-    /** Los nombres que hayas fijado, en orden. Los huecos van vacios. */
+    /**
+     * Los nombres que hayas fijado, en orden. Los huecos van vacios. Viven en
+     * {@link RivalSetup} con el resto de lo de cada rival (su cara y su forma
+     * de jugar), que es Java puro y lo comparte Android.
+     */
     public static List<String> aiNames() {
-        final String raw = NeoSettings.get(AI_NAMES, "");
-        final List<String> out = new ArrayList<>();
-        if (raw.isBlank()) {
-            return out;
-        }
-        for (final String part : raw.split("\\|", -1)) {
-            out.add(part.trim());
-        }
-        return out;
+        return RivalSetup.names();
     }
 
     public static void setAiNames(final List<String> names) {
-        final StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < names.size(); i++) {
-            if (i > 0) {
-                sb.append('|');
-            }
-            // La barra es el separador: si alguien la escribe en un nombre, se
-            // guardaria un nombre de mas al releerlo.
-            sb.append(names.get(i) == null ? "" : names.get(i).replace("|", " ").trim());
+        RivalSetup.setNames(names);
+    }
+
+    /**
+     * El avatar con ese id, o {@code null} si ya no esta (lo has borrado de la
+     * carpeta). A diferencia de {@link #currentAvatar()} no se cae al primero:
+     * para la cara de un rival, "no esta" significa "la de siempre".
+     */
+    public static LookItem avatarById(final String id) {
+        if (id == null || id.isEmpty()) {
+            return null;
         }
-        NeoSettings.set(AI_NAMES, sb.toString());
-        NeoSettings.save();
+        for (final LookItem item : avatars()) {
+            if (item.getId().equals(id)) {
+                return item;
+            }
+        }
+        return null;
     }
 }

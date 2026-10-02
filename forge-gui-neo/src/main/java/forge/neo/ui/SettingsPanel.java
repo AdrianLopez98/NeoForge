@@ -985,6 +985,12 @@ public class SettingsPanel extends VBox {
         artEvery.setOnAction(e -> showArtDownload(forge.neo.card.ArtDownload.Scope.EVERY_PRINTING));
         getChildren().add(row(NeoText.get("settings.art.everyRow"), artEvery));
 
+        // Por expansion o por formato, como el descargador de Forge. Pedido en
+        // Discord el 02-10-2026: "Forge has options for entire formats or by
+        // set (which I'm more interested in)".
+        getChildren().add(row(NeoText.get("settings.art.setRow"), artSetPicker()));
+        getChildren().add(row(NeoText.get("settings.art.formatRow"), artFormatPicker()));
+
         // Buscar imagenes mejores de todo lo bajado: las provisionales de
         // Scryfall de las expansiones recientes. Pedido en itch.io el
         // 29-09-2026 despues del boton de una carta. Ver ArtHdScan.
@@ -1131,12 +1137,17 @@ public class SettingsPanel extends VBox {
      * partida, sin una capa nueva ni un camino nuevo.
      */
     public void showArtDownload(final forge.neo.card.ArtDownload.Scope scope) {
+        showArtDownload(scope, null);
+    }
+
+    /** Con una expansion (su codigo) o un formato (su nombre). */
+    public void showArtDownload(final forge.neo.card.ArtDownload.Scope scope, final String target) {
         if (shortcutsOpen) {
             return;
         }
         shortcutsOpen = true;
         final List<javafx.scene.Node> main = new ArrayList<>(getChildren());
-        getChildren().setAll(new ArtDownloadPanel(scope, () -> {
+        getChildren().setAll(new ArtDownloadPanel(scope, target, () -> {
             shortcutsOpen = false;
             getChildren().setAll(main);
         }));
@@ -1392,6 +1403,66 @@ public class SettingsPanel extends VBox {
     }
 
     /** Etiqueta a la izquierda, control a la derecha, ancho fijo. */
+    /** Elegir una expansion (la mas nueva arriba) y bajar sus artes. */
+    private Region artSetPicker() {
+        final javafx.scene.control.ComboBox<forge.card.CardEdition> sets = new javafx.scene.control.ComboBox<>();
+        sets.getItems().addAll(forge.neo.card.ArtDownload.editions());
+        // El desplegable oscuro de los equipos: sin clase sale el blanco de JavaFX.
+        sets.getStyleClass().add("team-combo");
+        sets.setVisibleRowCount(16);
+        sets.setPrefWidth(UiScale.px(300));
+        sets.setPromptText(NeoText.get("settings.art.setPick"));
+        sets.setConverter(new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(final forge.card.CardEdition ed) {
+                return ed == null ? "" : ed.getName() + " (" + ed.getCode() + ")";
+            }
+
+            @Override
+            public forge.card.CardEdition fromString(final String s) {
+                return null;
+            }
+        });
+        final Button go = new Button(NeoText.get("settings.art.set"));
+        go.getStyleClass().add("segment");
+        go.setMinWidth(Region.USE_PREF_SIZE);
+        go.disableProperty().bind(sets.valueProperty().isNull());
+        go.setOnAction(e -> showArtDownload(forge.neo.card.ArtDownload.Scope.SET, sets.getValue().getCode()));
+        final HBox box = new HBox(8, sets, go);
+        box.setAlignment(Pos.CENTER_LEFT);
+        return box;
+    }
+
+    /** Elegir un formato y bajar una foto de cada carta legal en el. */
+    private Region artFormatPicker() {
+        final javafx.scene.control.ComboBox<forge.game.GameFormat> formats = new javafx.scene.control.ComboBox<>();
+        formats.getItems().addAll(forge.neo.card.ArtDownload.formats());
+        // El desplegable oscuro de los equipos: sin clase sale el blanco de JavaFX.
+        formats.getStyleClass().add("team-combo");
+        formats.setVisibleRowCount(16);
+        formats.setPrefWidth(UiScale.px(300));
+        formats.setPromptText(NeoText.get("settings.art.formatPick"));
+        formats.setConverter(new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(final forge.game.GameFormat f) {
+                return f == null ? "" : f.getName();
+            }
+
+            @Override
+            public forge.game.GameFormat fromString(final String s) {
+                return null;
+            }
+        });
+        final Button go = new Button(NeoText.get("settings.art.format"));
+        go.getStyleClass().add("segment");
+        go.setMinWidth(Region.USE_PREF_SIZE);
+        go.disableProperty().bind(formats.valueProperty().isNull());
+        go.setOnAction(e -> showArtDownload(forge.neo.card.ArtDownload.Scope.FORMAT, formats.getValue().getName()));
+        final HBox box = new HBox(8, formats, go);
+        box.setAlignment(Pos.CENTER_LEFT);
+        return box;
+    }
+
     private static HBox row(final String caption, final Region control) {
         final Label label = new Label(caption);
         label.getStyleClass().add("settings-label");

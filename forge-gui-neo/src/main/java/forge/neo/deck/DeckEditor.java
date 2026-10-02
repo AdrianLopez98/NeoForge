@@ -323,11 +323,20 @@ public final class DeckEditor {
      * ({@code res/geneticaidecks}) para que el resultado tenga algo de
      * sinergia real y no sea 99 cartas sueltas del mismo color.
      *
-     * <p>No comprueba nada de legalidad aparte: {@code generateRandomCommanderDeck}
-     * ya filtra por la identidad de color y el pozo del formato, así que lo
-     * que sale es jugable de por sí — pero se mete con {@link #addAnyway} y
-     * no con {@link #add}, igual que una lista pegada, por si el motor alguna
-     * vez se pasa de copias.
+     * <p>{@code generateRandomCommanderDeck} ya filtra por la identidad de
+     * color y el pozo del formato, pero NO por el limite de copias de la
+     * propia carta (Gleemox, {@code DeckLimit:0}) ni por lo que el jugador
+     * ya tiene en la zona de mando y el banquillo (el hechizo insignia, el
+     * companero), que no se le pasa: eso lo limpia
+     * {@link GeneratedDecks#fixCopyLimits}. Y aun asi se mete con
+     * {@link #addAnyway} y no con {@link #add}, igual que una lista pegada,
+     * por si el motor alguna vez se pasa de otra forma.
+     *
+     * <p><b>Con un comandante que admite companero</b> (Partner, Background,
+     * Doctor...) no se llama al generador: le busca un companero suyo al azar
+     * y monta para la identidad de los dos, que no es la del jugador. Ahi se
+     * monta con {@link GeneratedDecks#forCommandZone}, para el segundo
+     * comandante que tenga puesto o para ninguno.
      *
      * @return cuantas cartas ha metido, o -1 si no hay comandante o el motor
      *         no ha podido generar nada
@@ -342,14 +351,28 @@ public final class DeckEditor {
         }
         final Deck generated;
         try {
-            generated = forge.deck.DeckgenUtil.generateRandomCommanderDeck(
-                    head, deckFormat(), false, true);
+            if (GeneratedDecks.picksItsOwnPartner(head, deckFormat())) {
+                // Fuera de Oathbreaker, head es commanders().get(0): el
+                // segundo, si lo hay, es su companero.
+                final List<PaperCard> zone = commanders();
+                generated = GeneratedDecks.forCommandZone(head,
+                        zone.size() > 1 ? zone.get(1) : null, deckFormat(), outsideMain());
+            } else {
+                generated = forge.deck.DeckgenUtil.generateRandomCommanderDeck(
+                        head, deckFormat(), false, true);
+            }
         } catch (final RuntimeException e) {
             return -1;
         }
         if (generated == null) {
             return -1;
         }
+        // Sin Gleemox (DeckLimit:0) y sin lo que el jugador ya tiene fuera del
+        // principal: el generador solo conoce el comandante, asi que el
+        // hechizo insignia y el companero los podia repetir aqui (ver
+        // GeneratedDecks). Si se colaran, addAnyway los meteria y el mazo
+        // recien generado saldria ya sin poderse guardar.
+        GeneratedDecks.fixCopyLimits(generated, deckFormat(), outsideMain());
         deck.getOrCreate(DeckSection.Main).clear();
         int added = 0;
         for (final Map.Entry<PaperCard, Integer> e : generated.getMain()) {
@@ -357,6 +380,23 @@ public final class DeckEditor {
         }
         dirty = true;
         return added;
+    }
+
+    /**
+     * Lo que el mazo lleva fuera del principal y el motor cuenta con el para
+     * el limite de copias: el banquillo y, si el formato la tiene, la zona de
+     * mando ({@code Deck.getAllCardsInASinglePool(hasCommander, false)} sin el
+     * principal).
+     */
+    private CardPool outsideMain() {
+        final CardPool out = new CardPool();
+        if (deck.has(DeckSection.Sideboard)) {
+            out.addAll(deck.get(DeckSection.Sideboard));
+        }
+        if (deckFormat().hasCommander() && deck.has(DeckSection.Commander)) {
+            out.addAll(deck.get(DeckSection.Commander));
+        }
+        return out;
     }
 
     /** El formato de construccion que aplica, que sale del {@code GameType}. */

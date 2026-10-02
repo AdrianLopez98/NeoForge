@@ -75,7 +75,66 @@ public final class ArtDownload extends GuiDownloadService {
          * lo baja el propio Forge ({@link #everyPrinting()}), a la cache normal
          * de impresiones, que es la que {@code CardImages} mira primero.
          */
-        EVERY_PRINTING
+        EVERY_PRINTING,
+        /**
+         * Las impresiones de UNA expansion, con su arte de esa expansion: lo
+         * que hace el descargador de Forge por expansion. Pedido en Discord el
+         * 02-10-2026 ("Forge has options for entire formats or by set"). Lo
+         * baja {@link #forSet}, que es {@link #everyPrinting(java.util.function.Predicate)}
+         * con un filtro.
+         */
+        SET,
+        /**
+         * Una foto por carta, solo de las legales en UN formato (Standard,
+         * Modern, Pauper...): {@link #forFormat}. El mismo camino que
+         * {@link #ALL}, recortado con {@code GameFormat.getFilterRules()}.
+         */
+        FORMAT
+    }
+
+    /** Todas las impresiones de la expansion con ese codigo de Forge. */
+    public static GuiDownloadService forSet(final String editionCode) {
+        return everyPrinting(c -> editionCode != null && editionCode.equalsIgnoreCase(c.getEdition()));
+    }
+
+    /** Una foto por cada carta legal en ese formato. */
+    public static ArtDownload forFormat(final forge.game.GameFormat format) {
+        return new ArtDownload(Scope.FORMAT, format.getFilterRules());
+    }
+
+    /**
+     * Las expansiones que se pueden elegir, de la mas nueva a la mas vieja:
+     * las que traen alguna carta. Java de la 8: lo usa tambien Android.
+     */
+    public static List<CardEdition> editions() {
+        final List<CardEdition> out = new java.util.ArrayList<>();
+        for (final CardEdition ed : FModel.getMagicDb().getEditions()) {
+            if (!ed.getAllCardsInSet().isEmpty()) {
+                out.add(ed);
+            }
+        }
+        out.sort((a, b) -> {
+            if (a.getDate() == null || b.getDate() == null) {
+                return a.getDate() == null ? (b.getDate() == null ? 0 : 1) : -1;
+            }
+            return b.getDate().compareTo(a.getDate());
+        });
+        return out;
+    }
+
+    /**
+     * Los formatos que se pueden elegir: los oficiales y los informales de
+     * Forge, la misma lista que el filtro de la Enciclopedia.
+     */
+    public static List<forge.game.GameFormat> formats() {
+        final List<forge.game.GameFormat> out = new java.util.ArrayList<>();
+        for (final forge.game.GameFormat f : FModel.getFormats().getSanctionedList()) {
+            out.add(f);
+        }
+        for (final forge.game.GameFormat f : FModel.getFormats().getCasualList()) {
+            out.add(f);
+        }
+        return out;
     }
 
     /**
@@ -187,6 +246,9 @@ public final class ArtDownload extends GuiDownloadService {
 
     private final Scope scope;
 
+    /** Que cartas entran, o null para todas las del alcance. */
+    private final java.util.function.Predicate<PaperCard> filter;
+
     /**
      * Si faltan mas juegos que estos en el indice, se baja el indice entero en
      * vez de ir juego a juego. El mismo umbral que el descargador de Forge
@@ -202,7 +264,12 @@ public final class ArtDownload extends GuiDownloadService {
     private volatile java.util.function.DoubleConsumer onIndex;
 
     public ArtDownload(final Scope scope) {
+        this(scope, null);
+    }
+
+    public ArtDownload(final Scope scope, final java.util.function.Predicate<PaperCard> filter) {
         this.scope = scope;
+        this.filter = filter;
     }
 
     public void setOnIndex(final java.util.function.DoubleConsumer listener) {
@@ -339,7 +406,17 @@ public final class ArtDownload extends GuiDownloadService {
      */
     private Iterable<PaperCard> cards() {
         if (scope != Scope.MY_DECKS) {
-            return FModel.getMagicDb().getCommonCards().getUniqueCards();
+            final Iterable<PaperCard> all = FModel.getMagicDb().getCommonCards().getUniqueCards();
+            if (filter == null) {
+                return all;
+            }
+            final List<PaperCard> some = new java.util.ArrayList<>();
+            for (final PaperCard c : all) {
+                if (filter.test(c)) {
+                    some.add(c);
+                }
+            }
+            return some;
         }
         final Set<PaperCard> mine = new LinkedHashSet<>();
         for (final forge.neo.match.NeoFormat f : forge.neo.match.NeoFormat.values()) {
@@ -565,6 +642,20 @@ public final class ArtDownload extends GuiDownloadService {
     public static int missing(final Scope scope) {
         try {
             final Map<String, String> wanted = new ArtDownload(scope).list(false);
+            ArtUnavailable.filter(wanted);
+            return wanted.size();
+        } catch (final UnsupportedEncodingException e) {
+            return 0;
+        }
+    }
+
+    /**
+     * Cuantas faltan con ESTE descargador (con su filtro), sin bajar nada ni
+     * el indice. Deja en {@link #getQueued()} las cartas que pediria.
+     */
+    public int countPending() {
+        try {
+            final Map<String, String> wanted = list(false);
             ArtUnavailable.filter(wanted);
             return wanted.size();
         } catch (final UnsupportedEncodingException e) {

@@ -329,6 +329,16 @@ public enum NeoFormat implements forge.neo.deck.DeckContext {
      *
      * <p>Sirve para marcarlos en la pantalla: con los preconstruidos dentro, la
      * lista se llena y conviene distinguir de un vistazo cuales has montado tu.
+     *
+     * <p><b>Por objeto, no por nombre.</b> Un mazo tuyo puede llamarse
+     * exactamente igual que un preconstruido — retocas <i>Abzan Armor [TDC]
+     * [2025]</i> y lo guardas tal cual — y {@link #decks()} trae los dos.
+     * Preguntando solo por el nombre, el de Forge salia tambien en "Mis
+     * mazos" y con papelera, y esa papelera borraba por nombre: <b>tu</b>
+     * fichero. Tuyo es el objeto que esta guardado en tu carpeta; el otro, con
+     * el mismo nombre, es el de Forge. Todos los que preguntan sacan el mazo
+     * de {@link #decks()} o del propio {@link #storage()}, que devuelven ese
+     * mismo objeto (Android lo arreglo igual el 02-10-2026, su decision 198).
      */
     public boolean isMine(final Deck deck) {
         if (deck == null) {
@@ -339,7 +349,9 @@ public enum NeoFormat implements forge.neo.deck.DeckContext {
             // entero (DeckGroup), y storage() apunta a otra carpeta.
             return groupOf(deck) != null;
         }
-        return storage().contains(deck.getName());
+        // El almacen es un TreeMap: get(null) revienta en vez de dar null.
+        final String name = deck.getName();
+        return name != null && storage().get(name) == deck;
     }
 
     /**
@@ -376,6 +388,9 @@ public enum NeoFormat implements forge.neo.deck.DeckContext {
         if (this == SELLADO) {
             return deleteGroup(FModel.getDecks().getSealed(), deck);
         }
+        // Ojo: esto borra el fichero que lleve ESE NOMBRE, sea cual sea el
+        // objeto que se pase. Lo que impide que un preconstruido homonimo se
+        // lleve el tuyo es canDelete -> isMine, que mira el objeto.
         storage().delete(deck.getName());
         return !storage().contains(deck.getName());
     }

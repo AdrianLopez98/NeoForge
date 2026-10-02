@@ -193,6 +193,7 @@ public final class SealedCheck {
         ok &= aliveAfterOne && gone;
 
         ok &= mixChecks(sets);
+        ok &= jumpstartChecks();
 
         System.out.println();
         System.out.printf(Locale.ROOT, "  %s (%d s)%n",
@@ -295,6 +296,62 @@ public final class SealedCheck {
         ok &= draft != null && "DOM".equals(round1) && "M19".equals(round3);
 
         System.out.println(ok ? "  OK mezcla y bloques" : "  FALLO en la mezcla o los bloques");
+        return ok;
+    }
+
+    /**
+     * Jumpstart (Discord, 02-10-2026): que salgan los productos de Forge y solo
+     * esos, que el evento se monte con TUS dos temas (uno elegido, otro al
+     * azar) como mazo de 40 al principal, y que los siete rivales tengan el
+     * suyo.
+     */
+    private static boolean jumpstartChecks() {
+        boolean ok = true;
+        final List<Jumpstart.Product> products = Jumpstart.products();
+        boolean allJump = !products.isEmpty();
+        for (final Jumpstart.Product p : products) {
+            allJump &= p.name.toLowerCase(Locale.ROOT).contains("jumpstart") && p.themes.size() >= 2;
+        }
+        final Jumpstart.Product j22 = Jumpstart.byCode("J22");
+        System.out.printf(Locale.ROOT, "  Jumpstart: %d productos (J22 con %d temas)%n",
+                products.size(), j22 == null ? 0 : j22.themes.size());
+        ok &= allJump && j22 != null;
+        if (j22 == null) {
+            return false;
+        }
+        final String name = "zz-prueba-jumpstart";
+        borrar(name);
+        final Jumpstart.Theme chosen = j22.themes.get(0);
+        final DeckGroup group = NeoSealed.createJumpstart(name, j22, chosen, Jumpstart.RANDOM);
+        int mine = 0;
+        int fromTheme = 0;
+        int rivalsOk = 0;
+        if (group != null) {
+            mine = group.getHumanDeck().getMain().countAll();
+            // Las cartas del tema elegido: se abre otro sobre igual y se
+            // cuenta cuantas de sus cartas estan en el mazo.
+            final java.util.Set<String> theme = new HashSet<>();
+            for (final PaperCard c : Jumpstart.open(chosen)) {
+                theme.add(c.getName());
+            }
+            for (final java.util.Map.Entry<PaperCard, Integer> e : group.getHumanDeck().getMain()) {
+                if (theme.contains(e.getKey().getName())) {
+                    fromTheme += e.getValue();
+                }
+            }
+            for (final forge.deck.Deck ai : group.getAiDecks()) {
+                if (ai.getMain().countAll() >= 30) {
+                    rivalsOk++;
+                }
+            }
+        }
+        System.out.printf(Locale.ROOT, "  Jumpstart J22: tu mazo %d cartas (%d de \"%s\"), %d rivales con mazo%n",
+                mine, fromTheme, chosen.name, rivalsOk);
+        ok &= group != null && mine >= 36 && mine <= 46 && fromTheme >= 10
+                && rivalsOk == NeoSealed.OPPONENTS
+                && group.getHumanDeck().getOrCreate(forge.deck.DeckSection.Sideboard).isEmpty();
+        borrar(name);
+        System.out.println(ok ? "  OK Jumpstart" : "  FALLO en Jumpstart");
         return ok;
     }
 

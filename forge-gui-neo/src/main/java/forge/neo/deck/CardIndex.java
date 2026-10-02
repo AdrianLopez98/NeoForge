@@ -70,12 +70,12 @@ final class CardIndex {
      * <p><b>Hace falta de verdad, no es paranoia.</b> {@code AscentRelics}
      * las registra con {@code AI:RemoveDeck:All}, que solo evita que un mazo
      * ALEATORIO las incluya — no las saca de {@code getUniqueCards()}, que es
-     * de donde tira este catalogo. Medido: nada mas registrarlas no aparecen
-     * (el motor todavia no ha reindexado), pero en cuanto se juega una
-     * partida de verdad {@code CardDb} reindexa y <b>si</b> aparecen. Sin este
-     * filtro, cualquiera que abriera el deck builder despues de una run de
-     * Ascenso podria buscar "Crown of the Eternal" y metersela en un mazo de
-     * Commander de verdad.
+     * de donde tira este catalogo. Nada mas registrarlas no aparecen, pero
+     * <b>si</b> en cuanto el motor reindexa la base entera: hasta Forge #11763
+     * pasaba en la primera partida, y hoy NeoForge no lo dispara, pero el
+     * proximo rebase puede (ver {@code AscentRelics.exposeInUniqueCardsForTest}).
+     * Sin este filtro, quien abriera el deck builder despues podria buscar
+     * "Crown of the Eternal" y metersela en un mazo de Commander de verdad.
      */
     private static PaperCard[] withoutOurCustomCards(final Collection<PaperCard> source) {
         final Set<String> ours = AscentRelics.allCardNames();

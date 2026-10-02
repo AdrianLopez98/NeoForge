@@ -35,4 +35,16 @@ public final class NeoPaymentPeek {
     public static SpellAbility paidFor(final Input input) {
         return input instanceof InputPayMana pay ? pay.saPaidFor : null;
     }
+
+    /**
+     * Si es un pago que pide un EFECTO mientras se resuelve — "puede pagar {4};
+     * si lo hace..." (Paralyze), un coste de "a menos que", eco, mantenimiento
+     * acumulativo — y no el coste de algo que el jugador ha decidido lanzar o
+     * activar. En esos pagos <b>no pagar es una decision</b>: Cancelar es "no
+     * pago". Es el {@code effect} que {@code PlaySpellAbility} pasa al pedir el
+     * pago ({@code hcd.isEffect()}), protegido y sin getter en Forge.
+     */
+    public static boolean isEffectPayment(final Input input) {
+        return input instanceof InputPayMana pay && pay.effect;
+    }
 }

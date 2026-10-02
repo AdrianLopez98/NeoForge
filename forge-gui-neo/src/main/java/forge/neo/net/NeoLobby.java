@@ -542,13 +542,16 @@ public final class NeoLobby {
      * <p>Es la misma fachada que usa la pantalla de inicio para "Generame uno"
      * ({@code HomeScreen.generateOpponentDeck}). Solo sabe de formatos con
      * comandante; en Estandar hay 505 preconstruidos y nunca se llega aqui.
+     * Limpio de Gleemox ({@code GeneratedDecks}): aqui ademas el
+     * {@code GameLobby} de Forge SI mira la legalidad, y el anfitrion se
+     * encontraba un "este mazo no es legal" de un mazo que no ha montado.
      */
     public static Deck generateDeck(final NeoFormat format) {
         if (!format.isCommanderStyle()) {
             return null;
         }
         try {
-            return forge.deck.DeckgenUtil.generateCommanderDeck(true, format.getGameType());
+            return forge.neo.deck.GeneratedDecks.commanderDeck(true, format.getGameType());
         } catch (final RuntimeException | LinkageError e) {
             System.out.println("[lobby] no se ha podido generar un mazo: " + e);
             return null;

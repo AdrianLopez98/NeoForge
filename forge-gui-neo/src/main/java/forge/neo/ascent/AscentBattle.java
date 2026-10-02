@@ -257,7 +257,12 @@ public final class AscentBattle {
                 ? Math.min(1.0, climb + BOSS_DECK_EDGE)
                 : tough ? Math.min(1.0, climb + 0.15) : climb;
 
-        final Deck deck = pickDeck(run.getMode(), tierFor(effective), rnd);
+        // Con una run de solo unas expansiones (AscentPool), el rival se
+        // convierte: ningun preconstruido de Forge es de antes de 1995, y un
+        // rival con cartas modernas es justo lo que no queria quien lo pidio.
+        // Mismo rnd, asi que el rival de ese nodo sigue sin sortearse dos veces.
+        final Deck deck = run.getPool().restrict(pickDeck(run.getMode(), tierFor(effective), rnd),
+                run.getMode(), rnd);
 
         int life = lifeAt(run.getMaxLife(), climb, playerEdge(run));
         if (kind == AscentNode.Kind.ELITE) {

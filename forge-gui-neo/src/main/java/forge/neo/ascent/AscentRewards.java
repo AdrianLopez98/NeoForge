@@ -488,7 +488,13 @@ public final class AscentRewards {
             }
         }
         final List<PaperCard> out = new ArrayList<>();
-        for (final PaperCard c : FModel.getMagicDb().getCommonCards().getUniqueCards()) {
+        for (final PaperCard raw : FModel.getMagicDb().getCommonCards().getUniqueCards()) {
+            // Solo las de las expansiones de la run, y con su impresion de
+            // ahi (AscentPool). Con "todas", la carta tal cual.
+            if (!run.getPool().allows(raw)) {
+                continue;
+            }
+            final PaperCard c = run.getPool().printing(raw);
             if (c.getRules() == null || !c.getRules().getType().isLand()
                     || c.getRules().getType().isBasicLand()) {
                 continue;
@@ -535,8 +541,8 @@ public final class AscentRewards {
             if (!allowed.hasAnyColor(forge.card.MagicColor.WUBRG[i])) {
                 continue;
             }
-            final PaperCard basic = FModel.getMagicDb().getCommonCards()
-                    .getCard(forge.card.MagicColor.Constant.BASIC_LANDS.get(i));
+            final PaperCard basic = run.getPool().printing(FModel.getMagicDb().getCommonCards()
+                    .getCard(forge.card.MagicColor.Constant.BASIC_LANDS.get(i)));
             if (basic != null) {
                 out.add(basic);
             }
@@ -837,7 +843,13 @@ public final class AscentRewards {
                 ? AscentSynergy.namesFor(mine.getCommanders())
                 : Set.of();
         final Pools out = new Pools();
-        for (final PaperCard c : FModel.getMagicDb().getCommonCards().getUniqueCards()) {
+        for (final PaperCard raw : FModel.getMagicDb().getCommonCards().getUniqueCards()) {
+            // Solo las de las expansiones de la run, y con su impresion de
+            // ahi (AscentPool). Con "todas", la carta tal cual.
+            if (!run.getPool().allows(raw)) {
+                continue;
+            }
+            final PaperCard c = run.getPool().printing(raw);
             if (owned.contains(c.getName())) {
                 continue;
             }
@@ -900,7 +912,8 @@ public final class AscentRewards {
      */
     private static boolean castable(final PaperCard c) {
         final forge.card.mana.ManaCost cost = c.getRules().getManaCost();
-        return cost != null && !cost.isNoCost();
+        // Las de apuesta no: el motor las quita del mazo al empezar la partida.
+        return cost != null && !cost.isNoCost() && !AscentPool.isAnte(c);
     }
 
     /**

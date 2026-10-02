@@ -46,10 +46,54 @@ public final class NeoPlayers {
                 sleeveIndexOf(NeoLook.sleeveInPlay()), true);
     }
 
-    /** El rival numero {@code index} (desde 0), con su nombre y su perfil. */
+    /**
+     * El rival numero {@code index} (desde 0), con su nombre, su cara y su
+     * forma de jugar (ver {@link RivalSetup}).
+     *
+     * @param aiProfile un perfil, "" (el de Forge), {@link RivalSetup#RANDOM}
+     *                  o {@link RivalSetup#perRival(String)} en una partida
+     *                  normal, donde cada rival juega con el suyo
+     */
     public static LobbyPlayer ai(final int index, final String aiProfile) {
-        return GamePlayerUtil.createAiPlayer(aiName(index), index,
-                aiProfile == null ? "" : aiProfile);
+        final String name = aiName(index);
+        final String profile = RivalSetup.resolve(aiProfile, index, RANDOM);
+        // La cara: si es de la hoja de Forge, su numero va al motor (y la ve
+        // tambien un invitado en red); si es un PNG tuyo, el motor no sabe
+        // pintarla y se apunta por nombre para que la pinte la mesa.
+        final String face = RivalSetup.avatar(index);
+        final int sprite = RivalSetup.spriteIndexOf(face);
+        if (sprite < 0 && !face.isEmpty()) {
+            CUSTOM_FACES.put(name, face);
+        }
+        System.out.printf(java.util.Locale.ROOT, "  Rival %d: %s | IA %s%s%n", index + 1, name,
+                profile.isEmpty() ? "(la de Forge)" : profile,
+                face.isEmpty() ? "" : " | cara " + face);
+        return GamePlayerUtil.createAiPlayer(name, sprite >= 0 ? sprite : index, profile);
+    }
+
+    private static final java.util.Random RANDOM = new java.util.Random();
+
+    /**
+     * Rivales con una cara importada (PNG): nombre -> id de avatar.
+     *
+     * <p>Solo se anyade: se vacia entero al montar cada partida
+     * ({@link #newMatch}). Quitar al sentar a un rival sin cara le borraba la
+     * suya a otro que se llamara igual.
+     */
+    private static final java.util.Map<String, String> CUSTOM_FACES =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** Una partida nueva: las caras importadas de la anterior no valen. */
+    public static void newMatch() {
+        CUSTOM_FACES.clear();
+    }
+
+    /**
+     * El id de la cara importada de un rival, o {@code null} si lleva una de la
+     * hoja de Forge (entonces vale {@code PlayerView.getAvatarIndex}).
+     */
+    public static String customFaceOf(final String playerName) {
+        return playerName == null ? null : CUSTOM_FACES.get(playerName);
     }
 
     /**

@@ -604,6 +604,26 @@ public final class AscentRelicCheck {
         passed = 0;
         failed = 0;
 
+        // ⚠️ La sonda del premio monta una run de verdad (AscentRun.begin) y
+        // luego la descarta: sin devolverlo todo, pasar reliccheck le BORRARIA
+        // al jugador la run que tenga a medias y dejaria su mazo huerfano en
+        // decks/ascenso — en cada build.cmd --con-pruebas, porque desde el
+        // 02-10-2026 esa sonda ya no se salta nunca. Ver AscentCheckGuard.
+        final AscentCheckGuard prestado = new AscentCheckGuard();
+        try {
+            probarTodas(solo);
+        } finally {
+            final List<String> sobras = prestado.restore();
+            if (!sobras.isEmpty()) {
+                fail("limpieza: " + sobras.size() + " mazo(s) de runs de prueba se habian"
+                        + " quedado en decks/ascenso — alguna sonda no hace discard(); ya"
+                        + " borrados: " + String.join(", ", sobras));
+            }
+        }
+        resumen();
+    }
+
+    private static void probarTodas(final String solo) {
         AscentRelics.install();
         final Map<String, Spec> specs = specs();
 
@@ -633,7 +653,6 @@ public final class AscentRelicCheck {
         final Deck deck = AscentProbe.runDeck();
         if (deck == null) {
             fail("no se ha podido montar el mazo de sonda");
-            resumen();
             return;
         }
         for (final Spec spec : specs.values()) {
@@ -643,11 +662,10 @@ public final class AscentRelicCheck {
             probar(spec, deck);
         }
 
-        // 3. Y AHORA, con partidas jugadas detras, mirar que ninguna reliquia
-        //    se haya colado en el pozo de premios. Aqui y no en AscentCheck:
-        //    ver el javadoc.
+        // 3. Y la ultima: que ninguna reliquia se cuele en el pozo de premios.
+        //    Mete las reliquias en el catalogo a la fuerza y ya no las saca,
+        //    asi que va detras de las partidas: ver el javadoc.
         reliquiasFueraDelPremio();
-        resumen();
     }
 
     /**
@@ -668,33 +686,45 @@ public final class AscentRelicCheck {
      * catalogo del <i>deck builder</i>, pero {@code AscentRewards} lee
      * {@code getCommonCards().getUniqueCards()} <b>en crudo</b>. El principio 8
      * al reves. Y son <b>incoloras</b>, o sea que el filtro de color del pozo
-     * las deja pasar con cualquier comandante, en todas las runs.
+     * las deja pasar con cualquier comandante, en todas las runs. Lo que las
+     * para hoy, una vez dentro, es que no tienen coste
+     * ({@code AscentRewards.castable}) y que son {@code Special}, una rareza
+     * que el pozo no sortea — pero eso es lo que se comprueba, no lo que se
+     * supone.
      *
-     * <h2>⚠️ Por que esto vive aqui y no en {@code AscentCheck}</h2>
+     * <h2>⚠️ Se mira con las reliquias DENTRO del catalogo, a la fuerza</h2>
      *
-     * <p>Porque {@code CardDb.addCard} <b>no reindexa</b>: mete la carta en
-     * {@code allCardsByName} y se va. {@code getUniqueCards()} lee otro mapa,
-     * {@code uniqueCardsByRules}, que solo se rehace cuando el motor carga
-     * cartas — o sea <b>cuando se juega</b>. Medido: en {@code ascentcheck},
-     * que no juega ninguna partida antes, las reliquias visibles en el catalogo
-     * son <b>0 de 37</b>, asi que el comprobador pasaba en verde <i>sin mirar
-     * nada</i>. Es el mismo verde vacio que ya enganyo una vez en
-     * {@code DeckRulesCheck}. Aqui detras van 37 partidas, que es justo la
-     * condicion que hace falta — y se dice cuantas se ven, para que un verde
-     * vacio no pueda volver a disfrazarse de verde.
+     * <p>{@code CardDb.addCard} no reindexa, asi que despues de
+     * {@code AscentRelics.install()} las reliquias no salen en
+     * {@code getUniqueCards()}. Esta sonda se escribio (22-09-2026) contando
+     * con que las partidas las meterian, y por eso vive aqui y no en
+     * {@code ascentcheck}; si no las veia, se saltaba. Pero el motor habia
+     * dejado de hacerlo trece dias antes (Forge #11763, ver
+     * {@code AscentRelics.exposeInUniqueCardsForTest}): con todas las
+     * partidas detras seguia en <b>0</b>, y se salto en cada pasada — el verde
+     * que no mira nada de las trampas conocidas, con un {@code [--]} en vez de un
+     * {@code [ok]} pero igual de mudo.
+     *
+     * <p>Ahora el estado se <b>fuerza</b> antes de mirar, y si ni asi salen
+     * todas, es un <b>fallo</b>: mirar el pozo sin ellas dentro no
+     * demostraria nada, y saltarselo en silencio es lo que lo tuvo tapado.
+     *
+     * <p>Ya no necesita las partidas, pero sigue al final por lo contrario:
+     * las reliquias se quedan en el catalogo hasta que acaba el proceso, y
+     * las partidas se juegan con el catalogo de verdad.
      */
     private static void reliquiasFueraDelPremio() {
         final java.util.Set<String> nuestras = AscentRelics.allCardNames();
-        int visibles = 0;
-        for (final PaperCard c : forge.model.FModel.getMagicDb()
-                .getCommonCards().getUniqueCards()) {
-            if (nuestras.contains(c.getName())) {
-                visibles++;
-            }
-        }
-        if (visibles == 0) {
-            skip("premio: el motor no tiene ninguna reliquia en el catalogo todavia,"
-                    + " asi que mirar el pozo no demostraria nada");
+        // Lo que habia sin forzar nada, para que se vea si el motor vuelve a
+        // meterlas solo (el dia que Forge cambie como reindexa).
+        final int solas = AscentRelics.countInUniqueCards();
+        final int visibles = AscentRelics.exposeInUniqueCardsForTest();
+        if (visibles < nuestras.size()) {
+            fail("premio: forzando el reindexado, el catalogo trae " + visibles + " de "
+                    + nuestras.size() + " cartas nuestras, y sin ellas dentro mirar el pozo no"
+                    + " demuestra nada. El motor ya no reindexa por"
+                    + " setPreferredLanguageAvailability: hay que buscar otra forma"
+                    + " (AscentRelics.exposeInUniqueCardsForTest)");
             return;
         }
 
@@ -725,8 +755,9 @@ public final class AscentRelicCheck {
                 }
             }
             if (coladas.isEmpty()) {
-                ok("premio: con las " + visibles + " reliquias visibles en el catalogo, ninguna"
-                        + " se ofrece como carta de mazo (" + vistas + " cartas, tres actos)");
+                ok("premio: con las " + visibles + " cartas nuestras en el catalogo (forzado;"
+                        + " solas habia " + solas + "), ninguna se ofrece como carta de mazo ("
+                        + vistas + " cartas, tres actos)");
             } else {
                 fail("premio: " + coladas.size() + " reliquia(s) se ofrecen como carta de mazo y"
                         + " no se pueden lanzar (ManaCost:no cost): "

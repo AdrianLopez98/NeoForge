@@ -731,8 +731,11 @@ public final class NeoQuest {
         }
         Collections.shuffle(commanders);
         try {
-            return forge.deck.DeckgenUtil.generateRandomCommanderDeck(
+            final Deck deck = forge.deck.DeckgenUtil.generateRandomCommanderDeck(
                     commanders.get(0), forge.deck.DeckFormat.Commander, false, false, 1);
+            // Sin Gleemox, que el generador mete a veces: ver GeneratedDecks.
+            forge.neo.deck.GeneratedDecks.fixCopyLimits(deck, forge.deck.DeckFormat.Commander);
+            return deck;
         } catch (final RuntimeException e) {
             System.err.println("[neo] no se ha podido generar un mazo de bracket 1: " + e);
             return null;

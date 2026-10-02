@@ -61,7 +61,8 @@ public class AscentSetupScreen extends StackPane {
          * @param commander en Commander, el elegido, o {@code null} para que
          *                  salga uno al azar. En Estandar se ignora
          */
-        void start(AscentRun.Mode mode, PaperCard commander, int ascension, byte colours);
+        void start(AscentRun.Mode mode, PaperCard commander, int ascension, byte colours,
+                   forge.neo.ascent.AscentPool pool);
 
         void back();
     }
@@ -106,6 +107,53 @@ public class AscentSetupScreen extends StackPane {
      */
     private int page = Math.max(0, Integer.getInteger("neo.ascent.setupPage", 0));
 
+    /**
+     * De que expansiones salen las cartas (ver {@link forge.neo.ascent.AscentPool}).
+     * De fabrica, todas. {@code -Dneo.ascent.setupPool=range:LEA:4ED} o
+     * {@code set:LEG} lo deja puesto al abrir, para capturarlo.
+     */
+    private forge.neo.ascent.AscentPool.Kind poolKind;
+    private String poolFrom;
+    private String poolTo;
+    private String poolSet;
+
+    {
+        final forge.neo.ascent.AscentPool preset = forge.neo.ascent.AscentPool.parse(
+                System.getProperty("neo.ascent.setupPool", ""));
+        poolKind = preset.kind;
+        if (preset.kind == forge.neo.ascent.AscentPool.Kind.RANGE) {
+            poolFrom = preset.from;
+            poolTo = preset.to;
+        } else if (preset.kind == forge.neo.ascent.AscentPool.Kind.SET) {
+            poolSet = preset.from;
+        }
+    }
+
+    /** El pozo que hay puesto ahora. */
+    private forge.neo.ascent.AscentPool pool() {
+        switch (poolKind) {
+            case RANGE:
+                return forge.neo.ascent.AscentPool.range(poolFrom, poolTo);
+            case SET:
+                return forge.neo.ascent.AscentPool.set(poolSet);
+            default:
+                return forge.neo.ascent.AscentPool.ALL;
+        }
+    }
+
+    /** Los comandantes del pozo puesto: recalcularlos son once mil cartas. */
+    private List<PaperCard> commandersCache;
+    private forge.neo.ascent.AscentPool commandersFor;
+
+    private List<PaperCard> commanders() {
+        final forge.neo.ascent.AscentPool p = pool();
+        if (commandersCache == null || !p.equals(commandersFor)) {
+            commandersCache = AscentSeedDeck.commanderPool(p);
+            commandersFor = p;
+        }
+        return commandersCache;
+    }
+
     public AscentSetupScreen(final double cardWidth, final boolean runInProgress,
                              final Actions actions) {
         this.actions = actions;
@@ -126,7 +174,7 @@ public class AscentSetupScreen extends StackPane {
             // -Dneo.ascent.setupCommander=N deja marcado el N-esimo de la
             // lista, para poder capturar como se ve el elegido.
             final int preset = Integer.getInteger("neo.ascent.setupCommander", -1);
-            final List<PaperCard> pool = AscentSeedDeck.commanderPool();
+            final List<PaperCard> pool = commanders();
             if (preset >= 0 && preset < pool.size()) {
                 commander = pool.get(preset);
             }
@@ -134,6 +182,21 @@ public class AscentSetupScreen extends StackPane {
         rebuild();
 
         getChildren().addAll(paper, body);
+        // -Dneo.ascent.setupStartAt=N pulsa Empezar a los N ms, por el camino
+        // de verdad: es la unica forma de jugar sin raton el primer nodo de una
+        // run con un pozo de expansiones (con -Dneo.settingsFile aparte, para
+        // no tocar la run del jugador).
+        final int startAt = Integer.getInteger("neo.ascent.setupStartAt", 0);
+        if (startAt > 0 && !runInProgress) {
+            final javafx.animation.PauseTransition later =
+                    new javafx.animation.PauseTransition(javafx.util.Duration.millis(startAt));
+            later.setOnFinished(e -> {
+                if (pool().problem(mode) == null) {
+                    actions.start(mode, commander, ascension, colours, pool());
+                }
+            });
+            later.play();
+        }
         // Click derecho = el comandante grande, que es como se elige entre
         // 10.788 sin conocerselos de memoria.
         CardZoom.install(this);
@@ -155,6 +218,7 @@ public class AscentSetupScreen extends StackPane {
         body.getChildren().addAll(title, sub);
 
         body.getChildren().addAll(label("ascent.setup.mode"), modeRow());
+        body.getChildren().addAll(label("ascent.pool.title"), poolBox());
 
         if (mode == AscentRun.Mode.COMMANDER) {
             body.getChildren().addAll(label("ascent.setup.commander"), commanderBox());
@@ -302,7 +366,7 @@ public class AscentSetupScreen extends StackPane {
     }
 
     private List<PaperCard> matches() {
-        final List<PaperCard> all = AscentSeedDeck.commanderPool();
+        final List<PaperCard> all = commanders();
         if (search == null || search.isBlank()) {
             return all;
         }
@@ -556,16 +620,139 @@ public class AscentSetupScreen extends StackPane {
         return mask;
     }
 
+    // ------------------------------------------------------------------
+    //  De que expansiones salen las cartas
+    // ------------------------------------------------------------------
+
+    /**
+     * Todas / desde-hasta / solo una expansion, y debajo cuantas cartas deja.
+     *
+     * <p>Pedido en Discord el 02-10-2026 ("restrict ... to a certain edition
+     * or card sets, e.g. 4th ed and earlier"). Lo de debajo no es adorno: con
+     * Legends sola se puede jugar, con una caja de promos no, y eso hay que
+     * saberlo antes de empezar y no en el primer premio vacio.
+     */
+    private Region poolBox() {
+        final HBox row = new HBox(12);
+        row.setAlignment(Pos.CENTER);
+        for (final forge.neo.ascent.AscentPool.Kind k : forge.neo.ascent.AscentPool.Kind.values()) {
+            final Button b = choice(NeoText.get("ascent.pool." + k.name().toLowerCase(java.util.Locale.ROOT)),
+                    k == poolKind);
+            b.setOnAction(e -> {
+                poolKind = k;
+                final List<forge.card.CardEdition> eds = forge.neo.ascent.AscentPool.editions();
+                if (k == forge.neo.ascent.AscentPool.Kind.RANGE && poolFrom == null && !eds.isEmpty()) {
+                    poolFrom = eds.get(0).getCode();
+                    poolTo = eds.get(eds.size() - 1).getCode();
+                }
+                if (k == forge.neo.ascent.AscentPool.Kind.SET && poolSet == null && !eds.isEmpty()) {
+                    poolSet = eds.get(eds.size() - 1).getCode();
+                }
+                poolChanged();
+            });
+            row.getChildren().add(b);
+        }
+        final VBox box = new VBox(8, row);
+        box.setAlignment(Pos.CENTER);
+        if (poolKind == forge.neo.ascent.AscentPool.Kind.RANGE) {
+            final Label fromLabel = new Label(NeoText.get("ascent.pool.from"));
+            final Label toLabel = new Label(NeoText.get("ascent.pool.to"));
+            fromLabel.getStyleClass().add("ascent-info-text");
+            toLabel.getStyleClass().add("ascent-info-text");
+            final HBox pick = new HBox(10, fromLabel, editionBox(poolFrom, c -> {
+                poolFrom = c;
+                poolChanged();
+            }), toLabel, editionBox(poolTo, c -> {
+                poolTo = c;
+                poolChanged();
+            }));
+            pick.setAlignment(Pos.CENTER);
+            box.getChildren().add(pick);
+        } else if (poolKind == forge.neo.ascent.AscentPool.Kind.SET) {
+            final HBox pick = new HBox(10, editionBox(poolSet, c -> {
+                poolSet = c;
+                poolChanged();
+            }));
+            pick.setAlignment(Pos.CENTER);
+            box.getChildren().add(pick);
+        }
+        if (poolKind != forge.neo.ascent.AscentPool.Kind.ALL) {
+            final forge.neo.ascent.AscentPool p = pool();
+            final String problem = p.problem(mode);
+            final Label info = new Label(problem != null
+                    ? NeoText.get(problem, forge.neo.ascent.AscentPool.MIN_CARDS)
+                    : NeoText.get(mode == AscentRun.Mode.COMMANDER
+                            ? "ascent.pool.countCommander" : "ascent.pool.count",
+                            String.format(java.util.Locale.getDefault(), "%,d", p.spellCount()),
+                            p.commanderCount()));
+            info.getStyleClass().add(problem != null ? "ascent-info-duel" : "ascent-hint");
+            info.setWrapText(true);
+            info.setMaxWidth(UiScale.px(620));
+            box.getChildren().add(info);
+        }
+        return box;
+    }
+
+    /** Un desplegable de expansiones, de la mas vieja a la mas nueva. */
+    private Region editionBox(final String selected, final java.util.function.Consumer<String> onPick) {
+        final javafx.scene.control.ComboBox<forge.card.CardEdition> box = new javafx.scene.control.ComboBox<>();
+        box.getStyleClass().add("team-combo");
+        box.getItems().addAll(forge.neo.ascent.AscentPool.editions());
+        box.setVisibleRowCount(16);
+        box.setPrefWidth(UiScale.px(300));
+        box.setConverter(new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(final forge.card.CardEdition ed) {
+                if (ed == null) {
+                    return "";
+                }
+                final String year = ed.getDate() == null ? ""
+                        : "  \u00b7  " + new java.text.SimpleDateFormat("yyyy", java.util.Locale.ROOT)
+                                .format(ed.getDate());
+                return ed.getName() + " (" + ed.getCode() + ")" + year;
+            }
+
+            @Override
+            public forge.card.CardEdition fromString(final String s) {
+                return null;
+            }
+        });
+        for (final forge.card.CardEdition ed : box.getItems()) {
+            if (ed.getCode().equals(selected)) {
+                box.getSelectionModel().select(ed);
+                break;
+            }
+        }
+        box.setOnAction(e -> {
+            if (box.getValue() != null) {
+                onPick.accept(box.getValue().getCode());
+            }
+        });
+        return box;
+    }
+
+    /** Al cambiar el pozo: el comandante elegido puede haberse quedado fuera. */
+    private void poolChanged() {
+        if (commander != null && !pool().allows(commander)) {
+            commander = null;
+        }
+        page = 0;
+        rebuild();
+    }
+
     /** Empezar, y avisar si eso se lleva por delante una run. */
     private Region footer() {
         final Button start = new Button(NeoText.get(runInProgress
                 ? "ascent.setup.startOver" : "ascent.setup.start"));
         start.getStyleClass().addAll("ascent-button", "btn-primary");
+        // Un pozo con el que no se puede jugar no deja empezar: el motivo sale
+        // debajo de las expansiones (poolBox), no aqui.
+        start.setDisable(pool().problem(mode) != null);
         start.setOnAction(e -> {
             if (runInProgress) {
                 confirmOverwrite();
             } else {
-                actions.start(mode, commander, ascension, colours);
+                actions.start(mode, commander, ascension, colours, pool());
             }
         });
 
@@ -612,7 +799,7 @@ public class AscentSetupScreen extends StackPane {
         no.getStyleClass().addAll("ascent-button", "btn-primary");
         final Button yes = new Button(NeoText.get("ascent.setup.confirm.yes"));
         yes.getStyleClass().addAll("ascent-button", "ascent-button-danger");
-        yes.setOnAction(e -> actions.start(mode, commander, ascension, colours));
+        yes.setOnAction(e -> actions.start(mode, commander, ascension, colours, pool()));
 
         final HBox buttons = new HBox(12, no, yes);
         buttons.setAlignment(Pos.CENTER);

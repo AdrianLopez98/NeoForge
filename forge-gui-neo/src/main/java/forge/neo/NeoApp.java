@@ -718,7 +718,12 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                     // -Dneo.settings.art=all|decks|every entra en la descarga de
                     // arte, por el mismo boton que la abre jugando.
                     final String art = System.getProperty("neo.settings.art");
-                    if (art != null && !art.isBlank()) {
+                    // -Dneo.settings.art=set:BLB | format:Modern, para capturarlas.
+                    if (art != null && art.startsWith("set:")) {
+                        mockSettings.showArtDownload(forge.neo.card.ArtDownload.Scope.SET, art.substring(4));
+                    } else if (art != null && art.startsWith("format:")) {
+                        mockSettings.showArtDownload(forge.neo.card.ArtDownload.Scope.FORMAT, art.substring(7));
+                    } else if (art != null && !art.isBlank()) {
                         mockSettings.showArtDownload("decks".equalsIgnoreCase(art)
                                 ? forge.neo.card.ArtDownload.Scope.MY_DECKS
                                 : "every".equalsIgnoreCase(art)
@@ -2990,7 +2995,9 @@ public class NeoApp extends Application implements SettingsPanel.Host {
         startLiveGame(deck, opponents,
                 watch ? NeoMatchUI.Mode.OBSERVE : NeoMatchUI.Mode.HUMAN,
                 (int) java.util.concurrent.TimeUnit.DAYS.toSeconds(1),
-                false, aiProfile, true);
+                // La partida normal: cada rival con la forma de jugar que le
+                // hayas puesto en Personalizar (o la general). Ver RivalSetup.
+                false, forge.neo.look.RivalSetup.perRival(aiProfile), true);
     }
 
     /**
@@ -3008,7 +3015,11 @@ public class NeoApp extends Application implements SettingsPanel.Host {
         // Un puzzle SIN su objetivo delante no se puede jugar: la posicion no
         // dice si hay que ganar este turno, sobrevivir o robar una carta
         // concreta. Forge lo trae escrito; solo hay que ensenyarlo.
-        table.showInfo(puzzle.getName(), puzzle.getGoalDescription());
+        // -Dneo.puzzle.noIntro=true no lo ensenya: para capturar lo que pasa
+        // detras (un puzzle de prueba de -Dneo.puzzleDir) sin tener que clicar.
+        if (!Boolean.getBoolean("neo.puzzle.noIntro")) {
+            table.showInfo(puzzle.getName(), puzzle.getGoalDescription());
+        }
 
         final TableBinder liveBinder = new TableBinder(table);
         this.binder = liveBinder;

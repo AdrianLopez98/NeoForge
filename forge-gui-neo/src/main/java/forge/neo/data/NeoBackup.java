@@ -499,11 +499,13 @@ public final class NeoBackup {
      * demas (la run de Ascenso, los desbloqueos, tus ajustes de partida) si.
      * La zona de ampliar de la mano de Android y su aviso tambien son del
      * aparato: en un plegable se pone en el centro de un lado y en un movil en
-     * una esquina (decision 192 de Android, 01-10-2026).
+     * una esquina (decision 192 de Android, 01-10-2026). Y la orientacion de la
+     * mesa (decision 193): un movil en vertical, una tablet en horizontal.
      */
     static final Set<String> DEVICE_KEYS = new HashSet<>(Arrays.asList(
             "uiScale", "fullscreen", "hoverZoom", "textZoom", "soundVolume", "musicVolume",
-            "touchHand", "neo.adventure.process", "language", "handZoomCorner", "handZoomHint"));
+            "touchHand", "neo.adventure.process", "language", "handZoomCorner", "handZoomHint", "tableOrientation",
+            "promptPosition", "promptCollapsed"));
 
     /**
      * Los ajustes se funden clave a clave: con ADD entran solo las que no

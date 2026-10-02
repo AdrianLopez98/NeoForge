@@ -54,14 +54,18 @@ public final class DeckRulesCheck {
         collectionsKeepDecksApart();
         otherFormatsFilterThePool();
         generatesADeckForTheCommander();
+        generatedDeckSkipsWhatIsAlreadyInTheDeck();
+        generatedDeckFitsTheCommandZone();
         generatesARandomOpponentDeck();
-        ascentCardsStayOutOfTheCatalogue();
         adventureIgnoresTheBanList();
         newestFirstOrdersByAcquisition();
         catalogueSorts();
         oathbreakerHasTwoSlots();
         oathbreakerDoesNotChangeCommander();
         companionGoesToTheSideboard();
+        // La ultima: mete las reliquias de Ascenso en el catalogo del motor y
+        // ya no las saca. Ver su javadoc.
+        ascentCardsStayOutOfTheCatalogue();
 
         System.out.println();
         System.out.printf("  %d comprobaciones OK, %d fallos%n", passed, failed);
@@ -689,6 +693,21 @@ public final class DeckRulesCheck {
         if (saved == null) {
             return;
         }
+
+        // Un preconstruido que se llama IGUAL que uno tuyo: retocas "Abzan
+        // Armor [TDC] [2025]" y lo guardas tal cual, y decks() trae los dos.
+        // Hace de preconstruido una copia suelta del mismo mazo — mismo
+        // nombre, otro objeto y fuera de tu carpeta —, que es justo lo que
+        // llega en ese caso, sin escribir en el disco un fichero con el
+        // nombre de un precon de verdad. Preguntando por el nombre salia
+        // tuyo, con papelera, y esa papelera borraba TU fichero.
+        final Deck twin = new Deck(saved, name);
+        check("Papelera: un preconstruido con el nombre de uno tuyo no es tuyo",
+                !format.isMine(twin));
+        check("Papelera: ni lleva papelera", !format.canDelete(twin));
+        check("Papelera: y borrarlo no se lleva el tuyo",
+                !format.delete(twin) && format.storage().get(name) == saved);
+
         check("Papelera: un mazo tuyo se puede borrar", format.canDelete(saved));
         check("Papelera: y se borra de verdad", format.delete(saved));
 
@@ -1015,6 +1034,210 @@ public final class DeckRulesCheck {
     }
 
     /**
+     * "Generar mazo" con el hechizo insignia o el companero ya puestos.
+     *
+     * <p>El generador de Forge solo recibe el comandante: el hechizo insignia
+     * del jugador (Oathbreaker) y el companero del banquillo no los conoce, y
+     * los metia tambien en el principal. Medido el 02-10-2026: 18 de 30 mazos
+     * de Arlinn Kord traian su Moonmist y 18 de 30 de Runo Stromkirk su
+     * Gyruda, y salian ya sin poderse guardar (<i>"must not contain more than
+     * 1 copies"</i>). Lo limpia {@code GeneratedDecks.fixCopyLimits} con lo
+     * que el mazo lleva fuera del principal.
+     *
+     * <p>Primero a mano, que no depende del azar: con el hechizo metido en el
+     * principal el motor rechaza el mazo, y el arreglo lo cambia por una
+     * basica. Despues por el editor de verdad, seis veces cada uno: con 3 de
+     * cada 5 mazos trayendolo, seis seguidos limpios sin el arreglo saldrian
+     * un 0,4% de las veces.
+     */
+    private static void generatedDeckSkipsWhatIsAlreadyInTheDeck() {
+        final PaperCard arlinn = card("Arlinn Kord");
+        // El hechizo que mas se juega con ella: el que mas le sale al generador.
+        final PaperCard spell = mostPlayedWith("Oathbreaker", arlinn,
+                c -> c.getRules().canBeSignatureSpell());
+        check("Generar con hechizo insignia: la matriz de Oathbreaker le da hechizos a "
+                + arlinn.getName() + (spell == null ? "" : " (" + spell.getName() + ")"), spell != null);
+        if (spell == null) {
+            return;
+        }
+
+        // 1. A mano.
+        final DeckEditor byHand = DeckEditor.createNew(NeoFormat.OATHBREAKER, "prueba-gen-insignia");
+        byHand.setCommander(arlinn);
+        byHand.setCommander(spell);
+        byHand.add(card("Forest"), 57);
+        byHand.addAnyway(spell, 1);
+        final Deck deck = byHand.getDeck();
+        final String before = byHand.problem();
+        check("Generar con hechizo insignia: el motor rechaza el hechizo repetido en el principal ("
+                + before + ")", before != null);
+        final int swapped = GeneratedDecks.fixCopyLimits(deck, byHand.deckFormat(),
+                deck.get(forge.deck.DeckSection.Commander));
+        final String after = byHand.problem();
+        check("Generar con hechizo insignia: sale del principal por una basica y el mazo es legal"
+                        + (after == null ? "" : " -> " + after),
+                swapped == 1 && deck.getMain().countByName(spell.getName()) == 0
+                        && deck.getMain().countAll() == 58 && after == null);
+        check("Generar con hechizo insignia: y el de la zona de mando sigue puesto",
+                spell.equals(byHand.signatureSpell()));
+
+        // 2. Por el editor, como el boton.
+        generatesWithout(NeoFormat.OATHBREAKER, arlinn, spell, null, spell);
+
+        final PaperCard runo = card("Runo Stromkirk");
+        final PaperCard gyruda = card("Gyruda, Doom of Depths");
+        check("Generar con companero: la matriz de Commander trae a Gyruda para Runo Stromkirk",
+                mostPlayedWith("Commander", runo, c -> c.getName().equals(gyruda.getName())) != null);
+        generatesWithout(NeoFormat.COMMANDER, runo, null, gyruda, gyruda);
+    }
+
+    /** Seis mazos generados con esa zona de mando y ese companero: ninguno repite {@code watch}. */
+    private static void generatesWithout(final NeoFormat format, final PaperCard head,
+            final PaperCard signature, final PaperCard companion, final PaperCard watch) {
+        int repeated = 0;
+        int bad = 0;
+        String last = null;
+        for (int i = 0; i < 6; i++) {
+            final DeckEditor editor = DeckEditor.createNew(format, "prueba-gen-fuera-" + i);
+            editor.setCommander(head);
+            if (signature != null) {
+                editor.setCommander(signature);
+            }
+            if (companion != null) {
+                editor.setCompanion(companion);
+            }
+            if (editor.generateForCommander() < 0) {
+                bad++;
+                last = "el generador no ha devuelto nada";
+                continue;
+            }
+            if (editor.getDeck().getMain().countByName(watch.getName()) > 0) {
+                repeated++;
+            }
+            final String problem = editor.problem();
+            if (problem != null) {
+                bad++;
+                last = problem;
+            }
+        }
+        check("Generar " + format + " (" + head.getName() + " + " + watch.getName()
+                        + "): seis mazos sin repetirlo y legales"
+                        + (last == null ? "" : " -> " + repeated + " lo repiten; " + last),
+                repeated == 0 && bad == 0);
+    }
+
+    /** La carta de la matriz del generador que mas se juega con ese comandante y cumple {@code which}. */
+    private static PaperCard mostPlayedWith(final String matrix, final PaperCard commander,
+            final java.util.function.Predicate<PaperCard> which) {
+        final java.util.Map<String, List<java.util.Map.Entry<PaperCard, Integer>>> pools =
+                forge.deck.CardRelationMatrixGenerator.cardPools.get(matrix);
+        final List<java.util.Map.Entry<PaperCard, Integer>> pool =
+                pools == null ? null : pools.get(commander.getName());
+        if (pool == null) {
+            return null;
+        }
+        PaperCard best = null;
+        int most = 0;
+        for (final java.util.Map.Entry<PaperCard, Integer> e : pool) {
+            if (which.test(e.getKey()) && e.getValue() > most) {
+                best = e.getKey();
+                most = e.getValue();
+            }
+        }
+        return best;
+    }
+
+    /**
+     * "Generar mazo" con un comandante que admite companero de mando (Partner,
+     * Background, Doctor...).
+     *
+     * <p>El generador de Forge le busca <b>siempre</b> un companero suyo, al
+     * azar, y monta 98 cartas para la identidad de los dos; el editor tiraba
+     * ese companero y se quedaba el principal. Medido el 02-10-2026: Thrasios
+     * solo, <b>20 de 20</b> mazos con 7-30 cartas fuera de su identidad y una
+     * carta de menos (98 + 1); Thrasios con Tymna, <b>14 de 30</b> fuera de
+     * identidad (cuando el generador le elegia a Rograkh o a Kraum). Ahora se
+     * monta para la zona de mando del jugador:
+     * {@link GeneratedDecks#forCommandZone}.
+     *
+     * <p>Seis mazos de cada. Sin el arreglo, Thrasios solo sale en rojo
+     * siempre, y la pareja sale seis veces limpia un 2% de las veces. Y lo
+     * mismo en Tiny Leaders, que el generador monta con la misma matriz y el
+     * mismo companero al azar.
+     */
+    private static void generatedDeckFitsTheCommandZone() {
+        final PaperCard thrasios = card("Thrasios, Triton Hero");
+        final PaperCard tymna = card("Tymna the Weaver");
+        generatesForCommandZone(NeoFormat.COMMANDER, thrasios, null);
+        generatesForCommandZone(NeoFormat.COMMANDER, thrasios, tymna);
+        generatesForCommandZone(NeoFormat.TINY_LEADERS, thrasios, tymna);
+    }
+
+    /**
+     * Seis mazos para esa zona de mando: dentro de su identidad, legales, con
+     * la zona de mando tal cual y, si hay companero, con cartas de sus colores.
+     * La identidad se calcula aqui aparte, sin preguntarle al editor: es
+     * justo lo que se esta comprobando.
+     */
+    private static void generatesForCommandZone(final NeoFormat format, final PaperCard head,
+                                                final PaperCard partner) {
+        final forge.card.ColorSet own = head.getRules().getColorIdentity();
+        final forge.card.ColorSet identity = partner == null ? own
+                : forge.card.ColorSet.combine(own, partner.getRules().getColorIdentity());
+        final String who = format.deckFormat() + " " + head.getName()
+                + (partner == null ? " solo" : " + " + partner.getName());
+        int outside = 0;
+        int withPartnerColours = 0;
+        int bad = 0;
+        String last = null;
+        for (int i = 0; i < 6; i++) {
+            final DeckEditor editor = DeckEditor.createNew(format, "prueba-gen-partner-" + i);
+            editor.setCommander(head);
+            if (partner != null && !editor.setCommander(partner)) {
+                bad++;
+                last = "el editor no acepta a " + partner.getName() + " de companero";
+                continue;
+            }
+            if (editor.generateForCommander() < 0) {
+                bad++;
+                last = "el generador no ha devuelto nada";
+                continue;
+            }
+            boolean partnerColours = false;
+            for (final java.util.Map.Entry<PaperCard, Integer> e : editor.getDeck().getMain()) {
+                final forge.card.ColorSet ci = e.getKey().getRules().getColorIdentity();
+                if (!ci.hasNoColorsExcept(identity)) {
+                    outside += e.getValue();
+                } else if (!ci.hasNoColorsExcept(own)) {
+                    partnerColours = true;
+                }
+            }
+            if (partnerColours) {
+                withPartnerColours++;
+            }
+            if (editor.commanders().size() != (partner == null ? 1 : 2)) {
+                bad++;
+                last = "la zona de mando ha cambiado: " + editor.commanders();
+                continue;
+            }
+            final String problem = editor.problem();
+            if (problem != null) {
+                bad++;
+                last = problem;
+            }
+        }
+        check("Generar " + who + ": seis mazos dentro de su identidad y legales"
+                        + (outside == 0 && last == null ? ""
+                                : " -> " + outside + " cartas fuera de la identidad"
+                                        + (last == null ? "" : "; " + last)),
+                outside == 0 && bad == 0);
+        if (partner != null) {
+            check("Generar " + who + ": con cartas de los colores del companero ("
+                    + withPartnerColours + " de 6)", withPartnerColours == 6);
+        }
+    }
+
+    /**
      * "Genérame uno" en el selector de rival (la auditoría del motor, apartado B6, segunda
      * mitad): {@code DeckgenUtil.generateCommanderDeck}, la fachada que
      * elige el comandante Y monta el mazo en la misma llamada.
@@ -1023,12 +1246,17 @@ public final class DeckRulesCheck {
      * {@code RegisteredPlayer} del rival, como cualquier mazo elegido a mano
      * — así que la comprobación es independiente: que el motor lo declare
      * conforme con {@code DeckFormat.Commander.getDeckConformanceProblem}.
+     *
+     * <p>Se prueba {@link GeneratedDecks#commanderDeck}, que es lo que recibe
+     * el jugador, y no el generador pelado: el 02-10-2026 esto falló UNA vez
+     * con Brad Boimler y tres pasadas seguidas salieron verdes. Era Gleemox
+     * ({@code DeckLimit:0}), que el generador mete en ~1 de cada 100 mazos.
+     * Si vuelve a fallar, el motivo del motor sale en la propia linea.
      */
     private static void generatesARandomOpponentDeck() {
         Deck generated = null;
         try {
-            generated = forge.deck.DeckgenUtil.generateCommanderDeck(
-                    true, forge.game.GameType.Commander);
+            generated = GeneratedDecks.commanderDeck(true, forge.game.GameType.Commander);
         } catch (final RuntimeException e) {
             System.out.println("        (Generar rival: excepcion " + e + ")");
         }
@@ -1037,13 +1265,67 @@ public final class DeckRulesCheck {
             return;
         }
         check("Generar rival: tiene comandante", !generated.getCommanders().isEmpty());
-        check("Generar rival: cumple las reglas de construcción de Commander",
-                forge.game.GameType.Commander.getDeckFormat()
-                        .getDeckConformanceProblem(generated) == null);
+        final String problem = commanderProblem(generated);
+        check("Generar rival: cumple las reglas de construcción de Commander"
+                + (problem == null ? "" : " -> " + problem), problem == null);
         System.out.printf(java.util.Locale.ROOT,
                 "        (Generar rival: comandante %s, %d cartas en el principal)%n",
                 generated.getCommanders().isEmpty() ? "?" : generated.getCommanders().get(0).getName(),
                 generated.getMain().countAll());
+
+        // Con otro problema ya puesto, la prueba de Gleemox saldria en rojo
+        // por arrastre: un fallo de verdad contado tres veces.
+        if (problem == null) {
+            generatedDecksDropGleemox(generated);
+        }
+    }
+
+    /**
+     * Lo que arregla {@link GeneratedDecks#fixCopyLimits}, sin esperar al 1%
+     * en que el generador saca Gleemox: se le mete a mano en el sitio de un
+     * hechizo y se mira que salga por una basica, con el mazo en su tamaño.
+     *
+     * <p>Antes, que el motor la rechace de verdad: si algun dia Forge le quita
+     * el {@code DeckLimit:0}, el arreglo sobra y esta prueba lo dice en vez de
+     * dar un verde que no demuestra nada.
+     */
+    private static void generatedDecksDropGleemox(final Deck deck) {
+        final PaperCard gleemox = FModel.getMagicDb().getCommonCards().getCard("Gleemox");
+        if (gleemox == null) {
+            System.out.println("        (Gleemox ya no esta en Forge: nada que probar)");
+            return;
+        }
+        PaperCard spell = null;
+        for (final java.util.Map.Entry<PaperCard, Integer> e : deck.getMain()) {
+            if (!e.getKey().getRules().getType().isLand()) {
+                spell = e.getKey();
+                break;
+            }
+        }
+        if (spell == null) {
+            check("Gleemox: el mazo generado trae algun hechizo que cambiar", false);
+            return;
+        }
+        final int size = deck.getMain().countAll();
+        deck.getMain().remove(spell, 1);
+        deck.getMain().add(gleemox, 1);
+        final String before = commanderProblem(deck);
+        check("Gleemox: el motor la da por ilegal (" + before + ")",
+                before != null && before.contains("Gleemox"));
+
+        final int swapped = GeneratedDecks.fixCopyLimits(deck, forge.deck.DeckFormat.Commander);
+        final String after = commanderProblem(deck);
+        check("Gleemox: se cambia por una basica y el mazo vuelve a ser legal"
+                        + (after == null ? "" : " -> " + after),
+                swapped == 1 && deck.getMain().countByName("Gleemox") == 0
+                        && deck.getMain().countAll() == size && after == null);
+        check("Gleemox: un mazo sin nada de mas no se toca",
+                GeneratedDecks.fixCopyLimits(deck, forge.deck.DeckFormat.Commander) == 0
+                        && deck.getMain().countAll() == size);
+    }
+
+    private static String commanderProblem(final Deck deck) {
+        return forge.game.GameType.Commander.getDeckFormat().getDeckConformanceProblem(deck);
     }
 
     /**
@@ -1054,20 +1336,32 @@ public final class DeckRulesCheck {
      * {@code AscentRelics} las registra con {@code AI:RemoveDeck:All}, que
      * solo evita que un mazo ALEATORIO las incluya — no las saca de
      * {@code getUniqueCards()}, que es de donde tira {@link CardIndex}.
-     * Medido: nada mas registrarlas no aparecen ahi (el motor todavia no ha
-     * reindexado), pero en cuanto se juega una partida de verdad
-     * {@code CardDb} reindexa y <b>si</b> aparecen — asi que un comprobador
-     * que mirara justo despues de registrarlas, sin jugar nada, pasaria en
-     * verde sin que el fallo estuviera arreglado. Por eso aqui se fuerza
-     * {@code AscentRelics.install()} y se construye un {@link CardIndex}
-     * de verdad sobre el catalogo completo, que es exactamente el camino que
-     * sigue la pantalla del jugador.
+     * Nada mas registrarlas no aparecen ahi ({@code CardDb.addCard} no
+     * reindexa), pero <b>si</b> en cuanto el motor rehace la base entera.
+     *
+     * <p>⚠️ Y eso hay que <b>forzarlo</b>. Hasta el 02-10-2026 esto miraba
+     * justo despues de {@code install()}, contando con que la reindexacion
+     * "llega jugando" — y desde Forge #11763 (rebase del 09-09-2026) ya no
+     * llega: el catalogo no traia ni una reliquia y el verde no demostraba
+     * nada, con o sin filtro. Ahora se meten a la fuerza
+     * ({@code AscentRelics.exposeInUniqueCardsForTest}), se exige que esten
+     * todas, y solo entonces se construye el {@link CardIndex} de verdad,
+     * que es el camino que sigue la pantalla del jugador. Va la ultima del
+     * comprobador porque ya no se pueden sacar.
      */
     private static void ascentCardsStayOutOfTheCatalogue() {
         AscentRelics.install();
         final Set<String> ours = AscentRelics.allCardNames();
         if (ours.isEmpty()) {
             check("hay reliquias de Ascenso que comprobar", false);
+            return;
+        }
+        final int solas = AscentRelics.countInUniqueCards();
+        final int dentro = AscentRelics.exposeInUniqueCardsForTest();
+        check("las " + ours.size() + " cartas de Ascenso estan en el catalogo del motor, que es"
+                + " el caso que el filtro tiene que aguantar (forzado: " + dentro
+                + "; solas habia " + solas + ")", dentro == ours.size());
+        if (dentro != ours.size()) {
             return;
         }
         final CardIndex index = CardIndex.of(FModel.getMagicDb().getCommonCards().getUniqueCards());

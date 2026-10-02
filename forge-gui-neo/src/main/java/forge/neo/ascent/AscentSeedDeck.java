@@ -13,6 +13,7 @@ import forge.deck.DeckSection;
 import forge.deck.DeckgenUtil;
 import forge.item.PaperCard;
 import forge.model.FModel;
+import forge.neo.deck.GeneratedDecks;
 import forge.util.MyRandom;
 
 /**
@@ -226,9 +227,29 @@ public final class AscentSeedDeck {
      */
     public static Deck generate(final AscentRun.Mode mode, final PaperCard commander,
                                 final String name, final int ascension, final byte colours) {
-        final Deck deck = mode == AscentRun.Mode.COMMANDER
-                ? commander(commander, name)
-                : standard(name, colours);
+        return generate(mode, commander, name, ascension, colours, AscentPool.ALL);
+    }
+
+    /**
+     * Igual, con las cartas de solo unas expansiones ({@link AscentPool}).
+     *
+     * <p>El generador de Estandar ya admite un filtro y se le pasa; el de
+     * Commander no, asi que su mazo se convierte despues ({@link AscentPool#restrict}).
+     * Y se convierte tambien el de Estandar, por si el generador colara una
+     * tierra o una carta que el filtro no ve: el mazo de salida de una run
+     * "hasta Fourth Edition" no puede traer UNA sola carta moderna. La
+     * maldicion va despues, porque es una carta de la Ascension y no del pozo.
+     */
+    public static Deck generate(final AscentRun.Mode mode, final PaperCard commander,
+                                final String name, final int ascension, final byte colours,
+                                final AscentPool pool) {
+        final AscentPool p = pool == null ? AscentPool.ALL : pool;
+        Deck deck = mode == AscentRun.Mode.COMMANDER
+                ? commander(commander, name, p)
+                : standard(name, colours, p);
+        if (!p.isAll()) {
+            deck = p.restrict(deck, mode, MyRandom.getRandom());
+        }
         if (ascension >= 3) {
             curse(deck);
         }
@@ -282,7 +303,7 @@ public final class AscentSeedDeck {
     //  Estandar: mono o dos colores, y de principiante
     // ------------------------------------------------------------------
 
-    private static Deck standard(final String name, final byte colours) {
+    private static Deck standard(final String name, final byte colours, final AscentPool pool) {
         // El motor ofrece {1,2,3} y {1,2,3,5} colores; ninguno vale para un
         // mazo de 30 cartas, asi que se le pasa la seleccion a mano.
         //
@@ -303,7 +324,8 @@ public final class AscentSeedDeck {
                 selection.add("Random");
             }
         }
-        final Deck full = DeckgenUtil.buildColorDeck(selection, BEGINNER, false);
+        final Deck full = DeckgenUtil.buildColorDeck(selection,
+                pool.isAll() ? BEGINNER : BEGINNER.and(pool::allows), false);
         return trim(full, null, STANDARD_SIZE, name);
     }
 
@@ -345,8 +367,8 @@ public final class AscentSeedDeck {
     //  Commander: el que elijas, y con techo de potencia
     // ------------------------------------------------------------------
 
-    private static Deck commander(final PaperCard chosen, final String name) {
-        final PaperCard cmd = chosen != null ? chosen : randomCommander();
+    private static Deck commander(final PaperCard chosen, final String name, final AscentPool pool) {
+        final PaperCard cmd = chosen != null ? chosen : randomCommander(pool);
         if (cmd == null) {
             // Sin comandante no hay mazo de Commander. Falla ruidoso: montar
             // uno sin comandante daria una run rarisima sin decir por que.
@@ -373,6 +395,9 @@ public final class AscentSeedDeck {
             full = DeckgenUtil.generateRandomCommanderDeck(
                     cmd, DeckFormat.Commander, false, false, MAX_BRACKET);
         }
+        // Antes de recortar: Gleemox cuesta 0, y el recorte se queda primero
+        // con lo barato. Ver GeneratedDecks.
+        GeneratedDecks.fixCopyLimits(full, DeckFormat.Commander);
         return trim(full, cmd, COMMANDER_SIZE, name);
     }
 
@@ -383,6 +408,11 @@ public final class AscentSeedDeck {
      * ochocientos legendarios antes de empezar una run de cuarenta minutos.
      */
     public static PaperCard randomCommander() {
+        return randomCommander(AscentPool.ALL);
+    }
+
+    /** Uno al azar de los que deja el pozo. */
+    public static PaperCard randomCommander(final AscentPool pool) {
         // ⚠️ Del pozo YA filtrado, no de FModel.getCommanderPool() en crudo.
         // Aquel trae UNA ENTRADA POR IMPRESION, y eso rompia el sorteo de dos
         // maneras que no se ven: un comandante con ocho ediciones salia ocho
@@ -390,11 +420,11 @@ public final class AscentSeedDeck {
         // rebalanceadas de Arena ("A-algo"), que el selector de al lado si
         // esconde. O sea que "Que elija el juego" y la lista que tienes
         // delante no ofrecian lo mismo. Cazado el 22-09-2026.
-        final List<PaperCard> pool = commanderPool();
-        if (pool.isEmpty()) {
+        final List<PaperCard> candidates = commanderPool(pool);
+        if (candidates.isEmpty()) {
             return null;
         }
-        return pool.get(MyRandom.getRandom().nextInt(pool.size()));
+        return candidates.get(MyRandom.getRandom().nextInt(candidates.size()));
     }
 
     /**
@@ -411,6 +441,28 @@ public final class AscentSeedDeck {
      * literal y no hay ninguna carta de Magic de verdad que empiece asi.
      */
     public static List<PaperCard> commanderPool() {
+        return commanderPool(AscentPool.ALL);
+    }
+
+    /**
+     * Los que deja el pozo de la run, con SU impresion: quien elige "hasta
+     * Fourth Edition" quiere ver a los de Legends con el arte de Legends.
+     */
+    public static List<PaperCard> commanderPool(final AscentPool pool) {
+        final List<PaperCard> all = allCommanders();
+        if (pool == null || pool.isAll()) {
+            return all;
+        }
+        final List<PaperCard> out = new ArrayList<>();
+        for (final PaperCard c : all) {
+            if (pool.allows(c)) {
+                out.add(pool.printing(c));
+            }
+        }
+        return out;
+    }
+
+    private static List<PaperCard> allCommanders() {
         // ⚠️ UNA CARTA POR NOMBRE. FModel.getCommanderPool() se construye con
         // getAllCards(), o sea TODAS LAS IMPRESIONES: el mismo legendario
         // aparecia cuatro u ocho veces seguidas en la rejilla. Reportado

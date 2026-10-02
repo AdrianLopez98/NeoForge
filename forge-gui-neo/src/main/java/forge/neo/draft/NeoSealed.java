@@ -177,6 +177,66 @@ public final class NeoSealed {
         return group;
     }
 
+    /**
+     * Un sellado de JUMPSTART ({@link Jumpstart}): dos sobres tematicos para
+     * ti, los que elijas (null = al azar), y dos al azar para cada rival.
+     *
+     * <p>Dos sobres de Jumpstart <b>son</b> un mazo de 40, tierras incluidas:
+     * asi se juega Jumpstart de verdad, "baraja los dos y a jugar". Por eso van
+     * al <b>principal</b> y no a la banda como en el sellado normal, y los
+     * rivales juegan sus dos sobres tal cual, sin {@code SealedDeckBuilder}.
+     * En el editor se pueden retocar igual.
+     */
+    public static DeckGroup createJumpstart(final String name, final Jumpstart.Product product,
+                                            final Jumpstart.Theme first, final Jumpstart.Theme second) {
+        if (name == null || name.trim().isEmpty() || product == null) {
+            return null;
+        }
+        final java.util.Random rnd = forge.util.MyRandom.getRandom();
+        final List<Jumpstart.Theme> mineThemes = Jumpstart.pick(product, first, second, rnd);
+        final Deck deck = jumpstartDeck(name, mineThemes);
+        if (deck.getMain().isEmpty()) {
+            return null;
+        }
+        final DeckGroup group = new DeckGroup(name);
+        group.setHumanDeck(deck);
+        for (int i = 0; i < OPPONENTS; i++) {
+            final Deck ai = jumpstartDeck("Rival " + (i + 1), Jumpstart.pick(product, null, null, rnd));
+            if (!ai.getMain().isEmpty()) {
+                group.addAiDeck(ai);
+            }
+        }
+        try {
+            group.rankAiDecks(new forge.gamemodes.limited.LimitedDeckEvaluator.LimitedDeckComparer());
+        } catch (final RuntimeException e) {
+            System.err.println("[sellado] no se han podido ordenar los rivales: " + e);
+        }
+        DraftRun.Kind.SEALED.storage().add(group);
+        System.out.printf(Locale.ROOT, "[sellado] %s: Jumpstart %s, %s + %s (%d cartas), %d rivales%n",
+                name, product.code, mineThemes.get(0).name, mineThemes.get(1).name,
+                deck.getMain().countAll(), group.getAiDecks().size());
+        return group;
+    }
+
+    /** Los dos sobres abiertos, al principal; los temas, apuntados en el comentario. */
+    private static Deck jumpstartDeck(final String name, final List<Jumpstart.Theme> themes) {
+        final Deck deck = new Deck(name);
+        final StringBuilder about = new StringBuilder();
+        for (final Jumpstart.Theme t : themes) {
+            try {
+                deck.getMain().add(Jumpstart.open(t));
+            } catch (final RuntimeException e) {
+                System.err.println("[sellado] no se ha podido abrir el tema " + t.template + ": " + e);
+            }
+            if (about.length() > 0) {
+                about.append(" + ");
+            }
+            about.append(t.name);
+        }
+        deck.setComment(about.toString());
+        return deck;
+    }
+
     /** Los sellados guardados. */
     public static Iterable<DeckGroup> saved() {
         return DraftRun.Kind.SEALED.storage();
