@@ -86,7 +86,8 @@ To start over from scratch, delete the `datos` folder (Windows) or that one (mac
 - **A tutorial** of three lessons, played on prepared board states.
 - **A deck builder** with a searchable catalog, mana curve, art swapping and decklist import
   from Moxfield and Archidekt.
-- **Ten languages**, the same ones Forge has, and in eight of them the card names too.
+- **Eleven languages**: the ten Forge has, plus Arabic (its menus read right to left), and in eight
+  of them the card names too.
 - **Configurable keyboard shortcuts**, with three in-game presets to start from: NeoForge's,
   Forge's and Arena's (see below).
 
