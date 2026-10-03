@@ -1,14 +1,10 @@
-**NeoForge para macOS 1.0.11 (beta).** El mismo número que en itch.io, en PC, Mac y Android.
+**NeoForge para macOS 1.0.12 (beta).** El mismo número que en itch.io, en PC, Mac y Android.
 
 Novedades:
-- **El árabe, undécimo idioma** (Ajustes → Idioma → العربية): los menús se leen de derecha a izquierda; la mesa y las cartas quedan igual. Las cartas siguen en inglés, y la Aventura también.
-- **"Todas foil"** en el constructor: pone o quita el foil a todo el mazo. En Quest, la Aventura, draft y sellado, solo a las cartas cuya foil tienes.
-- **El constructor, más cómodo**: "Filtrar" en la columna del mazo (colores y texto, y la curva se aparta mientras está puesto), "Ocultar las ya puestas" en los filtros y ordenar tu colección por cantidad.
-- **Ascenso con un bloque a medida**: eliges las expansiones una a una (todo Zendikar, todo Marvel...).
-- **Quest con solo unas expansiones**: todas, desde/hasta o elegidas a mano, al empezar una Quest nueva.
-- **Preguntar antes de no bloquear con nada** (Ajustes, apagado de fábrica).
-- **La IA de la partida en red** sale con la cara y el carácter que le pusiste en Personalizar → Rivales.
-- Arreglos: un rival de Commander convertido en Ascenso podía llevar dos copias de su comandante incoloro.
+- **A quién va una maldición y a quién protege una batalla**: siguen en la mesa de quien las controla, como dicen las reglas, pero ahora el jugador maldito o el que protege la batalla lleva una pastilla en su barra (clic para ver la carta), y la carta dice "Encanta a X" o "La protege X".
+- **El constructor**: el orden se puede invertir (la flecha ▲/▼ al lado), el mazo tiene su propio orden dentro de cada tipo, y su filtro suma tipo, coste y rareza a color y texto. Por nombre, las cartas con tilde ya no se van detrás de la Z.
+- **La carta ampliada con muchas auras o equipos** ya no deja nada fuera: la ficha de al lado se desplaza y nunca pasa del alto de la carta.
+- **Montar una run de Ascenso**: con Ascensión 10 la lista de efectos ya no se sale del pergamino, y Volver/Empezar quedan siempre a la vista.
 
 Descarga el `.dmg` de tu Mac:
 
@@ -31,7 +27,7 @@ La primera vez tarda en abrir (~45 s): está leyendo las 33.000 cartas. Trae su 
 
 ---
 
-**NeoForge for macOS 1.0.10 (beta).** What's new, all of it from Discord requests: **Jumpstart in Sealed** — the nine Jumpstart products Forge ships, pick the theme of each of your two packs or leave them on Random, and the two packs are already your 40-card deck; **customize each rival** with their own face, name and AI (Customise → Rivals), including a Random AI that draws from the profiles you tick; **Ascent with the cards of chosen sets** — all, from/to (e.g. Alpha to Fourth Edition) or just one set, applied to everything including the rival decks, with those sets' art; **download card art by set or by format**; **optional payments are no longer paid for you** (Paralyze, "unless" costs, echo: Auto pays, Cancel doesn't); the library-ordering dialog now says the card marked 1 ends up on top; and **Generate deck** no longer adds Gleemox or repeats your signature spell or companion, and builds Partner commanders within your colour identity. Download the `.dmg` for your Mac: `arm64` for Apple Silicon (M1–M4), `x64` for Intel.
+**NeoForge for macOS 1.0.12 (beta).** What's new: **see who a curse enchants and who protects a battle** — they still sit on their controller's battlefield, as the rules say, but the cursed or protecting player gets a pill on their bar and the card says "Enchants X" / "Protected by X"; **deck builder**: reverse any sort (the ▲/▼ button), sort your deck within each card type, and filter it by type, mana value and rarity as well as colour and text; **enlarged cards with lots of auras or equipment** now scroll instead of pushing things off screen; and the **new Ascent run screen** scrolls at Ascension 10, with Back / Begin always visible. Download the `.dmg` for your Mac: `arm64` for Apple Silicon (M1–M4), `x64` for Intel.
 
 1. Open the `.dmg` and drag **NeoForge** into **Applications**.
 2. macOS blocks it the first time because it isn't signed with an Apple developer account: double-click it, dismiss the warning, then **System Settings → Privacy & Security → Open Anyway**.
