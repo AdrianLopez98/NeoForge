@@ -235,6 +235,12 @@ public final class NeoMain {
                 banner("Avisos de objetivo: que se traduzcan enteros");
                 TextCheck.run();
                 break;
+            case "langcheck":
+                // Los idiomas: el arabe (que pone NeoForge, no Forge) sin
+                // tocar los diez de siempre. Solo res/languages, sin cartas.
+                banner("Idiomas: el arabe sin tocar los diez de Forge");
+                LanguageCheck.run();
+                break;
             case "deckcheck":
                 // Las reglas de construccion no se ven en una captura: hay que
                 // intentar romperlas para saber que se aplican.

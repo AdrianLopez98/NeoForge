@@ -3730,6 +3730,48 @@ public class NeoMatchUI extends NetworkGuiGame {
         return true;
     }
 
+    /**
+     * "No has puesto a nadie a bloquear: ¿seguro?" (Discord, 03-10-2026).
+     *
+     * <p>El gemelo de {@link #confirmLeavingMain} para los bloqueos, con el
+     * ajuste apagado de fabrica. Cuando preguntar lo decide
+     * {@link BlockGuard} (lo comparte Android); aqui solo el dialogo, en medio
+     * y con la respuesta segura marcada, por lo mismo que alli: la inercia va
+     * al boton de la derecha.
+     *
+     * @return true si nos hemos quedado la pulsacion para preguntar
+     */
+    private boolean confirmNoBlockers() {
+        if (table == null || !interactive() || finished.get()) {
+            return false;
+        }
+        if (table.getOverlay().isShowing() || !BlockGuard.shouldAsk(getGameController())) {
+            return false;
+        }
+        final AtomicBoolean answered = new AtomicBoolean();
+        final ConfirmDialog dialog = new ConfirmDialog(
+                NeoText.get("block.ask.title"),
+                NeoText.get("block.ask.detail"),
+                List.of(NeoText.get("block.ask.stay"), NeoText.get("block.ask.go")),
+                0,
+                index -> {
+                    if (!answered.compareAndSet(false, true)) {
+                        return;
+                    }
+                    table.getOverlay().hide();
+                    if (index != null && index == 1) {
+                        respondLater(() -> getGameController().selectButtonOk());
+                    }
+                });
+        dialog.getStyleClass().add("phase-ask");
+        if (dialog.option(1) != null) {
+            dialog.option(1).getStyleClass().add("phase-ask-go");
+        }
+        table.getOverlay().show(dialog);
+        table.requestLayout();
+        return true;
+    }
+
     /** Lo que anyade {@code InputSelectTargets} en cuanto hay algo apuntado. */
     private static final String TARGETED_MARK = "Targeted:";
 
@@ -4004,6 +4046,10 @@ public class NeoMatchUI extends NetworkGuiGame {
                         }
                         // Y antes de dejar tu fase principal, tambien.
                         if (confirmLeavingMain()) {
+                            return;
+                        }
+                        // Y antes de no bloquear con nada, si se ha pedido.
+                        if (confirmNoBlockers()) {
                             return;
                         }
                         // Solo el OK de PASAR PRIORIDAD: es el que se da en

@@ -43,7 +43,7 @@ public final class UpdateCheck {
 
     private static final String[] LANGS = {
         "en-US", "es-ES", "de-DE", "fr-FR", "it-IT",
-        "pt-BR", "ru-RU", "ja-JP", "ko-KR", "zh-CN",
+        "pt-BR", "ru-RU", "ja-JP", "ko-KR", "zh-CN", "ar-MA",
     };
 
     private static final String[] KEYS = {
@@ -214,7 +214,7 @@ public final class UpdateCheck {
     }
 
     private static void textsInEveryLanguage() {
-        System.out.println("  Los diez idiomas");
+        System.out.println("  Los once idiomas (los diez de Forge y el arabe)");
         for (final String lang : LANGS) {
             final Properties p = read(lang);
             if (p == null) {

@@ -110,12 +110,13 @@ public class AscentSetupScreen extends StackPane {
     /**
      * De que expansiones salen las cartas (ver {@link forge.neo.ascent.AscentPool}).
      * De fabrica, todas. {@code -Dneo.ascent.setupPool=range:LEA:4ED} o
-     * {@code set:LEG} lo deja puesto al abrir, para capturarlo.
+     * {@code set:ZEN,WWK,ROE} lo deja puesto al abrir, para capturarlo.
      */
     private forge.neo.ascent.AscentPool.Kind poolKind;
     private String poolFrom;
     private String poolTo;
-    private String poolSet;
+    /** Las expansiones elegidas una a una (un bloque a medida). */
+    private final List<String> poolSets = new java.util.ArrayList<>();
 
     {
         final forge.neo.ascent.AscentPool preset = forge.neo.ascent.AscentPool.parse(
@@ -125,7 +126,7 @@ public class AscentSetupScreen extends StackPane {
             poolFrom = preset.from;
             poolTo = preset.to;
         } else if (preset.kind == forge.neo.ascent.AscentPool.Kind.SET) {
-            poolSet = preset.from;
+            poolSets.addAll(preset.sets);
         }
     }
 
@@ -135,7 +136,7 @@ public class AscentSetupScreen extends StackPane {
             case RANGE:
                 return forge.neo.ascent.AscentPool.range(poolFrom, poolTo);
             case SET:
-                return forge.neo.ascent.AscentPool.set(poolSet);
+                return forge.neo.ascent.AscentPool.sets(poolSets);
             default:
                 return forge.neo.ascent.AscentPool.ALL;
         }
@@ -645,9 +646,6 @@ public class AscentSetupScreen extends StackPane {
                     poolFrom = eds.get(0).getCode();
                     poolTo = eds.get(eds.size() - 1).getCode();
                 }
-                if (k == forge.neo.ascent.AscentPool.Kind.SET && poolSet == null && !eds.isEmpty()) {
-                    poolSet = eds.get(eds.size() - 1).getCode();
-                }
                 poolChanged();
             });
             row.getChildren().add(b);
@@ -669,12 +667,34 @@ public class AscentSetupScreen extends StackPane {
             pick.setAlignment(Pos.CENTER);
             box.getChildren().add(pick);
         } else if (poolKind == forge.neo.ascent.AscentPool.Kind.SET) {
-            final HBox pick = new HBox(10, editionBox(poolSet, c -> {
-                poolSet = c;
-                poolChanged();
-            }));
+            // Un bloque a medida (Discord, 03-10-2026): se anyaden con el
+            // desplegable y cada una sale como una pastilla; clicarla la quita.
+            final Region adder = editionBox(null, c -> {
+                if (!poolSets.contains(c)) {
+                    poolSets.add(c);
+                    poolChanged();
+                }
+            });
+            ((javafx.scene.control.ComboBox<?>) adder).setPromptText(NeoText.get("ascent.pool.add"));
+            final HBox pick = new HBox(10, adder);
             pick.setAlignment(Pos.CENTER);
             box.getChildren().add(pick);
+            if (!poolSets.isEmpty()) {
+                final javafx.scene.layout.FlowPane chips = new javafx.scene.layout.FlowPane(6, 6);
+                chips.setAlignment(Pos.CENTER);
+                chips.setMaxWidth(UiScale.px(720));
+                for (final String code : pool().sets) {
+                    final Button chip = new Button(editionName(code) + "  \u00d7");
+                    chip.getStyleClass().add("ascent-set-chip");
+                    chip.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("ascent.pool.remove")));
+                    chip.setOnAction(ev -> {
+                        poolSets.remove(code);
+                        poolChanged();
+                    });
+                    chips.getChildren().add(chip);
+                }
+                box.getChildren().add(chips);
+            }
         }
         if (poolKind != forge.neo.ascent.AscentPool.Kind.ALL) {
             final forge.neo.ascent.AscentPool p = pool();
@@ -691,6 +711,16 @@ public class AscentSetupScreen extends StackPane {
             box.getChildren().add(info);
         }
         return box;
+    }
+
+    /** "Zendikar (ZEN)", o el codigo si el motor no la conoce. */
+    private static String editionName(final String code) {
+        try {
+            final forge.card.CardEdition ed = forge.model.FModel.getMagicDb().getEditions().get(code);
+            return ed == null ? code : ed.getName() + " (" + code + ")";
+        } catch (final RuntimeException ex) {
+            return code;
+        }
     }
 
     /** Un desplegable de expansiones, de la mas vieja a la mas nueva. */

@@ -16,6 +16,8 @@ public final class DeckArtStrip extends Region {
     private final String key;
 
     public DeckArtStrip(final PaperCard card) {
+        // Arabe (de derecha a izquierda): esto se dibuja como siempre. Ver Rtl.
+        Rtl.keepLtr(this);
         getStyleClass().add("deck-art-strip");
         setMouseTransparent(true);
         key = CardView.getCardForUi(card).getCurrentState().getImageKey();

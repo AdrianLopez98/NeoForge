@@ -40,11 +40,14 @@ public final class NeoQuestShop {
      * {@code CardEdition.Predicates.CAN_MAKE_BOOSTER}.
      *
      * <p>De la mas nueva a la mas vieja: es el orden en que se busca un sobre.
+     *
+     * <p>En una Quest limitada a unas expansiones ({@link NeoQuest#allowsSet}),
+     * solo esas. De aqui salen tambien el sobre de premio y los de colector.
      */
     public static List<CardEdition> editions() {
         final List<CardEdition> out = new ArrayList<>();
         for (final CardEdition e : FModel.getMagicDb().getEditions()) {
-            if (e != null && e.hasBoosterTemplate()) {
+            if (e != null && e.hasBoosterTemplate() && NeoQuest.allowsSet(e.getCode())) {
                 out.add(e);
             }
         }
@@ -573,6 +576,9 @@ public final class NeoQuestShop {
      * sobres: si se reutiliza el mismo, salen las mismas cartas.
      */
     public static List<PaperCard> secretLairPack() {
+        if (!secretLairAllowed()) {
+            return List.of();
+        }
         final List<PaperCard> pool = new ArrayList<>(secretLairPool());
         if (pool.isEmpty()) {
             return List.of();
@@ -582,7 +588,25 @@ public final class NeoQuestShop {
     }
 
     public static boolean canAffordSecretLair() {
-        return NeoQuest.isActive() && NeoQuest.credits() >= SECRET_LAIR_PRICE;
+        return NeoQuest.isActive() && secretLairAllowed() && NeoQuest.credits() >= SECRET_LAIR_PRICE;
+    }
+
+    /**
+     * Si Secret Lair se vende en esta Quest: siempre, salvo en una limitada a
+     * unas expansiones que no lo incluyan (un bloque de Zendikar no trae
+     * exclusivas de 2024).
+     */
+    public static boolean secretLairAllowed() {
+        final java.util.Set<String> sets = NeoQuest.chosenSets();
+        if (sets == null) {
+            return true;
+        }
+        for (final String code : SECRET_LAIR_SETS) {
+            if (sets.contains(code)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -617,7 +641,7 @@ public final class NeoQuestShop {
      * {@link SecretLairDrops}, que explica por que no se puede deducir.
      */
     public static List<SecretLairDrops.Drop> drops() {
-        return SecretLairDrops.all();
+        return secretLairAllowed() ? SecretLairDrops.all() : List.of();
     }
 
     public static boolean canAffordDrop(final SecretLairDrops.Drop drop) {

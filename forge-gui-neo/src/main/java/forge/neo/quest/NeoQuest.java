@@ -155,6 +155,47 @@ public final class NeoQuest {
     public static void start(final String name, final Modalidad modalidad,
                              final Dificultad dificultad, final Deck startingDeck,
                              final String worldName) {
+        start(name, modalidad, dificultad, startingDeck, worldName, null);
+    }
+
+    /**
+     * Y solo con unas expansiones (Discord, 03-10-2026: <i>"something similar
+     * for Quest (choosing sets by year)"</i>). El mismo pozo que Ascenso
+     * ({@link forge.neo.ascent.AscentPool}: todas, desde/hasta o las que se
+     * elijan), y se cumple por tres sitios:
+     *
+     * <ul>
+     *   <li><b>El formato de la Quest</b> ({@code newGame(..., formatPrizes,
+     *       ...)}): es lo que hace el "formato a medida" del Forge de
+     *       siempre. Con el, el motor ya limita las sueltas de la tienda, los
+     *       preconstruidos, las cajas, los premios en cartas y los drafts. Sin
+     *       desbloquear otras expansiones: quien elige un bloque quiere ESE
+     *       bloque.</li>
+     *   <li><b>Lo nuestro</b>: los sobres, el de colector, el sobre de premio
+     *       y Secret Lair preguntan a {@link #allowsSet}.</li>
+     *   <li><b>El mazo de salida</b>, convertido como los rivales de Ascenso
+     *       ({@code AscentPool.restrict}): un preconstruido o el mazo de tu
+     *       comandante siguen siendo un mazo jugable desde el primer duelo.</li>
+     * </ul>
+     *
+     * <p><b>Los rivales no cambian</b>: son los mazos de Forge, como en el
+     * Forge de siempre con un formato a medida. Y un pozo no se combina con un
+     * mundo (los dos dicen con que expansiones se juega): con pozo, el
+     * principal.
+     *
+     * @param pool las expansiones, o null / {@code AscentPool.ALL} para todas
+     */
+    public static void start(final String name, final Modalidad modalidad,
+                             final Dificultad dificultad, final Deck startingDeck,
+                             final String worldName, final forge.neo.ascent.AscentPool pool) {
+        final boolean limited = pool != null && !pool.isAll();
+        final forge.game.GameFormat format = limited ? formatOf(pool) : null;
+        Deck deck = startingDeck;
+        if (limited && deck != null) {
+            deck = pool.restrict(deck, modalidad == Modalidad.COMMANDER
+                    ? forge.neo.ascent.AscentRun.Mode.COMMANDER : forge.neo.ascent.AscentRun.Mode.STANDARD,
+                    new java.util.Random(name == null ? 0 : name.hashCode()));
+        }
         final StartingPoolPreferences prefs = new StartingPoolPreferences(
                 StartingPoolPreferences.PoolType.BALANCED,
                 Collections.emptyList(),   // sin colores preferidos: que salga de todo
@@ -168,15 +209,15 @@ public final class NeoQuest {
         // sacando los "duelos" de la carpeta de DESAFIOS: rivales que no son los
         // que tocan y con la dificultad mal. Con "Main world" usa
         // res/quest/duels, que trae 238 rivales faciles.
-        final String world = worldName == null || worldName.isBlank()
+        final String world = limited || worldName == null || worldName.isBlank()
                 ? QuestWorld.MAINWORLDNAME : worldName;
         FModel.getQuest().newGame(name, dificultad.getIndex(), QuestMode.Classic,
-                null, true, startingDeck, null, world, prefs,
+                format, !limited, deck, format, world, prefs,
                 modalidad.getRules());
-        if (startingDeck != null) {
+        if (deck != null) {
             // newGame lo mete en la coleccion y en tus mazos, pero no lo deja
             // ELEGIDO: sin esto el primer duelo te dice que no tienes mazo.
-            setCurrentDeck(startingDeck.getName());
+            setCurrentDeck(deck.getName());
         }
         oneGamePerDuel();
         dropSideboards();
@@ -184,6 +225,62 @@ public final class NeoQuest {
         forgetChallenges();
         save();
         remember(name);
+    }
+
+    /** El formato de Forge con las expansiones de ese pozo. */
+    private static forge.game.GameFormat formatOf(final forge.neo.ascent.AscentPool pool) {
+        final List<String> codes = new java.util.ArrayList<>(pool.codes());
+        java.util.Collections.sort(codes);
+        return new forge.game.GameFormat("NeoForge", codes, null);
+    }
+
+    /**
+     * Las expansiones a las que se limito ESTA Quest al crearla, o null si se
+     * juega con todas.
+     *
+     * <p>Es el formato propio de la Quest ({@code getMainFormat}), no el del
+     * mundo: las Quest de siempre lo tienen a null y para ellas no cambia
+     * nada. Lo que hacen los mundos con la tienda es otra historia.
+     */
+    public static java.util.Set<String> chosenSets() {
+        if (!isActive()) {
+            return null;
+        }
+        try {
+            final forge.gamemodes.quest.data.GameFormatQuest f = engine().getMainFormat();
+            final List<String> codes = f == null ? null : f.getAllowedSetCodes();
+            return codes == null || codes.isEmpty() ? null : new java.util.HashSet<>(codes);
+        } catch (final RuntimeException ex) {
+            return null;
+        }
+    }
+
+    /**
+     * Si alguna expansion del pozo tiene sobres. Sin ninguna, la tienda de
+     * sobres y el sobre de premio de la Quest se quedan vacios: la pantalla de
+     * Quest nueva no deja empezar asi (PC y Android).
+     */
+    public static boolean hasPacks(final forge.neo.ascent.AscentPool pool) {
+        if (pool == null || pool.isAll()) {
+            return true;
+        }
+        for (final String code : pool.codes()) {
+            try {
+                final forge.card.CardEdition ed = FModel.getMagicDb().getEditions().get(code);
+                if (ed != null && ed.hasBoosterTemplate()) {
+                    return true;
+                }
+            } catch (final RuntimeException ex) {
+                // se mira la siguiente
+            }
+        }
+        return false;
+    }
+
+    /** Si en esta Quest se puede conseguir algo de esa expansion. */
+    public static boolean allowsSet(final String code) {
+        final java.util.Set<String> sets = chosenSets();
+        return sets == null || sets.contains(code);
     }
 
     /** Deja cargada una aventura ya guardada. */
@@ -515,6 +612,21 @@ public final class NeoQuest {
      */
     public static String worldLabel(final QuestWorld world) {
         if (world == null || QuestWorld.MAINWORLDNAME.equals(world.getName())) {
+            // Una Quest limitada a unas expansiones no es "Todo Magic": se dice
+            // cuales (hasta tres por su nombre; mas, cuantas).
+            final java.util.Set<String> sets = chosenSets();
+            if (sets != null) {
+                final List<String> codes = forge.neo.ascent.AscentPool.sets(sets).sets;
+                if (codes.size() > 3) {
+                    return forge.neo.NeoText.get("quest.block.many", codes.size());
+                }
+                final List<String> names = new ArrayList<>();
+                for (final String c : codes) {
+                    final forge.card.CardEdition ed = FModel.getMagicDb().getEditions().get(c);
+                    names.add(ed == null ? c : ed.getName());
+                }
+                return String.join(", ", names);
+            }
             return forge.neo.NeoText.get("questNew.worldMain");
         }
         return world.getName();

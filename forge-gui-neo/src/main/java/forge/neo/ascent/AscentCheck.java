@@ -4203,6 +4203,38 @@ public final class AscentCheck {
             fail("pozo: minimos o lectura mal (The Dark " + tiny.spellCount() + " cartas, problema "
                     + tiny.problem(AscentRun.Mode.STANDARD) + ")");
         }
+
+        // Un bloque a medida (Discord, 03-10-2026: "manually choose the sets ...
+        // an all-Marvel block, Zendikar, Eldrazi"). Elegidas en cualquier orden
+        // son el mismo pozo; entra lo de las tres y nada mas; la carta se ve
+        // con SU impresion del bloque; y la run vieja de "una sola" se lee igual.
+        final AscentPool zen = AscentPool.sets(java.util.Arrays.asList("ROE", "ZEN", "WWK"));
+        final AscentPool zenAgain = AscentPool.parse(zen.serialize());
+        final PaperCard jace = FModel.getMagicDb().getCommonCards().getCard("Jace, the Mind Sculptor");
+        final PaperCard emrakul = FModel.getMagicDb().getCommonCards().getCard("Emrakul, the Aeons Torn");
+        final PaperCard cobra = FModel.getMagicDb().getCommonCards().getCard("Lotus Cobra");
+        final PaperCard serra = FModel.getMagicDb().getCommonCards().getCard("Serra Angel");
+        final boolean order = "set:ZEN,WWK,ROE".equals(zen.serialize()) && zen.equals(zenAgain)
+                && zen.codes().size() == 3;
+        final boolean inside = zen.allows(jace) && zen.allows(emrakul) && zen.allows(cobra) && !zen.allows(serra)
+                && "WWK".equals(zen.printing(jace).getEdition()) && "ROE".equals(zen.printing(emrakul).getEdition());
+        final boolean bigger = zen.spellCount() > AscentPool.set("ZEN").spellCount()
+                && zen.problem(AscentRun.Mode.COMMANDER) == null;
+        final boolean legacy = AscentPool.parse("set:LEG").equals(AscentPool.set("LEG"))
+                && AscentPool.parse("set:LEG").sets.equals(java.util.Collections.singletonList("LEG"));
+        final AscentPool none = AscentPool.parse("set:");
+        final boolean empty = !none.isAll() && "ascent.pool.problem.none".equals(none.problem(AscentRun.Mode.STANDARD));
+        final AscentPool marvel = AscentPool.sets(java.util.Arrays.asList("SPM", "SPE", "MAR", "MSH", "MSC"));
+        final boolean marvelOk = marvel.problem(AscentRun.Mode.COMMANDER) == null;
+        if (order && inside && bigger && legacy && empty && marvelOk) {
+            ok("pozo a medida: Zendikar+Worldwake+Eldrazi en cualquier orden es el mismo (" + zen.spellCount()
+                    + " cartas), Jace con su arte de WWK y Serra Angel fuera; 'set:LEG' de antes se lee igual;"
+                    + " 'set:' vacio pide elegir; el bloque Marvel se puede jugar (" + marvel.spellCount() + " cartas, "
+                    + marvel.commanderCount() + " comandantes)");
+        } else {
+            fail("pozo a medida: orden " + order + ", dentro " + inside + ", mayor " + bigger + ", antiguo " + legacy
+                    + ", vacio " + empty + ", Marvel " + marvelOk + " (" + zen.serialize() + ")");
+        }
     }
 
     private static void ok(final String msg) {

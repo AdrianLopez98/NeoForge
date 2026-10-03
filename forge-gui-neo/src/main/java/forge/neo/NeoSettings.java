@@ -627,6 +627,18 @@ public final class NeoSettings {
     }
 
     /**
+     * Preguntar antes de dejar pasar un combate sin bloquear con nada,
+     * pudiendo (Discord, 03-10-2026). Apagado de fabrica: lo pidio asi quien
+     * lo propuso. Ver {@code forge.neo.match.BlockGuard}. La misma clave en
+     * Android.
+     */
+    public static final String CONFIRM_NO_BLOCK = "confirmNoBlock";
+
+    public static boolean confirmNoBlock() {
+        return getBool(CONFIRM_NO_BLOCK, false);
+    }
+
+    /**
      * A que ritmo juega la IA, en centesimas de multiplicador.
      *
      * <p>{@code 100} es x1, o sea la pausa base entre carta y carta

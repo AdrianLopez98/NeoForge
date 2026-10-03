@@ -35,7 +35,11 @@ import forge.model.FModel;
  *   <li><b>Desde una expansion hasta otra</b>, por fecha: "de Alpha a Fourth
  *       Edition". Vale una carta con <b>alguna</b> impresion en una expansion
  *       de esas fechas.</li>
- *   <li><b>Solo una expansion</b>.</li>
+ *   <li><b>Las expansiones que se elijan</b>, una a una: un bloque a medida
+ *       ("Zendikar, Worldwake y Rise of the Eldrazi", o todo lo de Marvel).
+ *       Pedido en Discord el 03-10-2026: <i>"being able to manually choose the
+ *       sets instead of selecting a time range"</i>. Hasta entonces era "solo
+ *       una"; una run guardada con una sola se sigue leyendo igual.</li>
  * </ul>
  *
  * <p><b>Las promociones no cuentan</b> ({@link #COUNTED}): Forge fecha algunos
@@ -89,15 +93,26 @@ public final class AscentPool {
     public static final AscentPool ALL = new AscentPool(Kind.ALL, null, null);
 
     public final Kind kind;
-    /** Codigo de la primera expansion (o de la unica, en {@link Kind#SET}). */
+    /** Codigo de la primera expansion (en {@link Kind#SET}, la primera de {@link #sets}). */
     public final String from;
     /** Codigo de la ultima expansion del rango; null en {@link Kind#SET}. */
     public final String to;
+    /**
+     * Las expansiones elegidas en {@link Kind#SET}, de la mas vieja a la mas
+     * nueva (asi "A,B" y "B,A" son el mismo pozo y la misma cache). Vacia en
+     * los otros dos.
+     */
+    public final List<String> sets;
 
     private AscentPool(final Kind kind, final String from, final String to) {
+        this(kind, from, to, Collections.<String>emptyList());
+    }
+
+    private AscentPool(final Kind kind, final String from, final String to, final List<String> sets) {
         this.kind = kind;
         this.from = from;
         this.to = to;
+        this.sets = Collections.unmodifiableList(sets);
     }
 
     /** De la expansion {@code from} a la {@code to}, las dos incluidas (en cualquier orden). */
@@ -115,20 +130,41 @@ public final class AscentPool {
     }
 
     public static AscentPool set(final String code) {
-        return code == null ? ALL : new AscentPool(Kind.SET, code, null);
+        return code == null ? ALL : sets(Collections.singletonList(code));
+    }
+
+    /**
+     * Las expansiones que se elijan, sin repetir y ordenadas por fecha. Sin
+     * ninguna, un pozo {@link Kind#SET} vacio: no es "todas", es "aun no has
+     * elegido", y {@link #problem} lo dice ("Elige las expansiones").
+     */
+    public static AscentPool sets(final java.util.Collection<String> codes) {
+        final List<String> list = new ArrayList<>();
+        if (codes != null) {
+            for (final String c : codes) {
+                if (c != null && !c.trim().isEmpty() && !list.contains(c.trim())) {
+                    list.add(c.trim());
+                }
+            }
+        }
+        list.sort(Comparator.comparing((String c) -> {
+            final CardEdition ed = edition(c);
+            return ed == null || ed.getDate() == null ? new Date(Long.MAX_VALUE) : ed.getDate();
+        }).thenComparing(c -> c));
+        return new AscentPool(Kind.SET, list.isEmpty() ? null : list.get(0), null, list);
     }
 
     public boolean isAll() {
         return kind == Kind.ALL;
     }
 
-    /** Como se guarda en la run: "", "range:LEA:4ED" o "set:LEG". */
+    /** Como se guarda en la run: "", "range:LEA:4ED", "set:LEG" o "set:ZEN,WWK,ROE". */
     public String serialize() {
         switch (kind) {
             case RANGE:
                 return "range:" + from + ":" + to;
             case SET:
-                return "set:" + from;
+                return "set:" + String.join(",", sets);
             default:
                 return "";
         }
@@ -139,12 +175,18 @@ public final class AscentPool {
         if (raw == null || raw.trim().isEmpty()) {
             return ALL;
         }
+        // "set:" a secas es "aun no has elegido ninguna", no "todas": la
+        // pantalla de Android lo manda asi mientras se eligen, y tomarlo por
+        // "todas" encenderia Empezar con un pozo que el jugador no ha pedido.
+        if ("set:".equals(raw.trim())) {
+            return sets(Collections.<String>emptyList());
+        }
         final String[] parts = raw.trim().split(":");
         if ("range".equals(parts[0]) && parts.length == 3) {
             return range(parts[1], parts[2]);
         }
         if ("set".equals(parts[0]) && parts.length == 2) {
-            return set(parts[1]);
+            return sets(java.util.Arrays.asList(parts[1].split(",")));
         }
         return ALL;
     }
@@ -195,7 +237,7 @@ public final class AscentPool {
     public Set<String> codes() {
         final Set<String> out = new HashSet<>();
         if (kind == Kind.SET) {
-            out.add(from);
+            out.addAll(sets);
         } else if (kind == Kind.RANGE) {
             final CardEdition a = edition(from);
             final CardEdition b = edition(to);
@@ -383,6 +425,15 @@ public final class AscentPool {
 
         final CardPool main = deck.getMain();
         final Set<String> used = new HashSet<>();
+        // El comandante cuenta como usado: si no, el cambio de una carta de
+        // fuera podia ser EL MISMO (un incoloro como Kozilek cabe en cualquier
+        // identidad) y el mazo salia con dos copias, ilegal. Visto en
+        // questcheck el 03-10-2026 con el bloque de Zendikar.
+        if (deck.has(DeckSection.Commander)) {
+            for (final Map.Entry<PaperCard, Integer> e : deck.get(DeckSection.Commander)) {
+                used.add(e.getKey().getName());
+            }
+        }
         final List<PaperCard> gone = new ArrayList<>();
         final List<Integer> goneCopies = new ArrayList<>();
         int lands = 0;

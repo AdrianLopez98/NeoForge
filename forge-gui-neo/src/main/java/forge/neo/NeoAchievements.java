@@ -83,7 +83,7 @@ public final class NeoAchievements {
             // has hecho nada, y eso repetido en toda la rejilla no es
             // informacion, es ruido. Quien sabe si hay marca es needSave(): es
             // lo mismo que decide si el logro llega siquiera a escribirse.
-            this.progress = a.needSave() ? a.getSubTitle(true) : null;
+            this.progress = a.needSave() ? ArabicLang.tidy(a.getSubTitle(true)) : null;
             this.tier = tierOf(a);
             final IPaperCard paper = a.getPaperCard();
             this.card = paper instanceof PaperCard pc ? pc : null;

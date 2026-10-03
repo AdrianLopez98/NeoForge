@@ -523,6 +523,17 @@ public class SettingsPanel extends VBox {
                     NeoSettings.save();
                 }));
 
+        // --- preguntar antes de no bloquear con nada (BlockGuard) ---
+        //
+        // Lo mismo que lo de arriba, en el paso de bloqueos: tras una rafaga de
+        // OK a disparos, el siguiente deja pasar el combate sin bloquear.
+        // Apagado de fabrica: lo pidio asi quien lo propuso.
+        getChildren().add(toggleRow(NeoText.get("settings.confirmBlock"),
+                NeoSettings.confirmNoBlock(), on -> {
+                    NeoSettings.setBool(NeoSettings.CONFIRM_NO_BLOCK, on);
+                    NeoSettings.save();
+                }));
+
         // --- pararse cuando pasa algo importante ---
         //
         // Es el YieldController de Forge, que ya estaba escrito entero y solo

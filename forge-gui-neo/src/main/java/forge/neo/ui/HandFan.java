@@ -123,6 +123,8 @@ public class HandFan extends Pane {
     private double appliedWidth;
 
     public HandFan(final double cardWidth) {
+        // Arabe (de derecha a izquierda): esto se dibuja como siempre. Ver Rtl.
+        Rtl.keepLtr(this);
         this.cardWidth = cardWidth;
         setPickOnBounds(false);
         setClip(clip);

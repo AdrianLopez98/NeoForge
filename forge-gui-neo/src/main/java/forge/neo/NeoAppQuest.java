@@ -82,9 +82,10 @@ final class NeoAppQuest {
                               final forge.neo.quest.NeoQuest.Modalidad modalidad,
                               final forge.neo.quest.NeoQuest.Dificultad dificultad,
                               final forge.deck.Deck starter,
-                              final forge.item.PaperCard commander, final String world) {
+                              final forge.item.PaperCard commander, final String world,
+                              final forge.neo.ascent.AscentPool pool) {
                 if (commander == null) {
-                    forge.neo.quest.NeoQuest.start(name, modalidad, dificultad, starter, world);
+                    forge.neo.quest.NeoQuest.start(name, modalidad, dificultad, starter, world, pool);
                     showQuestHome();
                     return;
                 }
@@ -104,7 +105,7 @@ final class NeoAppQuest {
                             from.buildFailed();
                             return;
                         }
-                        forge.neo.quest.NeoQuest.start(name, modalidad, dificultad, deck, world);
+                        forge.neo.quest.NeoQuest.start(name, modalidad, dificultad, deck, world, pool);
                         showQuestHome();
                     });
                 }, "neo-quest-starter");

@@ -244,8 +244,13 @@ public final class DeckEditor {
      * la Aventura: <i>"a lot fewer sorting and filtering options ... than in
      * standard forge adventure"</i>. {@link Sort#NEWEST} solo tiene sentido
      * donde se lleva la cuenta ({@link #tracksAcquisition}).
+     *
+     * <p>{@link Sort#COUNT} (cuantas TIENES, de mas a menos) vino de Discord el
+     * 03-10-2026 (<i>"by quantities, mana cost, cardprice, alphabetical, or by
+     * the time it's collected"</i>), y solo vale con coleccion
+     * ({@link #isLimited}): fuera de ella todas son infinitas.
      */
-    public enum Sort { NAME, COST, COLOR, TYPE, RARITY, SET, POWER, TOUGHNESS, PRICE, NEWEST }
+    public enum Sort { NAME, COST, COLOR, TYPE, RARITY, SET, POWER, TOUGHNESS, COUNT, PRICE, NEWEST }
 
     public void setSort(final Sort s) {
         sort = s == null ? Sort.NAME : s;
@@ -777,6 +782,36 @@ public final class DeckEditor {
                 ? Integer.MAX_VALUE : Math.max(0, owned - used);
 
         return Math.min(roomByRules, roomByOwned);
+    }
+
+    /**
+     * Los nombres de lo que ya no cabe en el mazo PORQUE YA ESTA EN EL: todas
+     * las copias que tienes (en una coleccion) o el maximo que dejan las reglas
+     * (cuatro, una en Commander). Es el "Ocultar las ya puestas" del catalogo
+     * (Discord, 03-10-2026: <i>"having it still in the list is really
+     * cluttering the list"</i>).
+     *
+     * <p>Lo que no cabe por otra razon — fuera de la identidad del comandante —
+     * no esta en el mazo y por tanto no sale aqui: para eso es "Solo lo que
+     * cabe".
+     *
+     * <p>Se calcula sobre el mazo, no sobre el catalogo: {@link #countOf}
+     * recorre el mazo entero en cada llamada, y preguntarlo carta a carta con
+     * el buscador vacio serian 33.000 recorridos. Asi son cien.
+     */
+    public java.util.Set<String> usedUpNames() {
+        final java.util.Set<String> out = new java.util.HashSet<>();
+        for (final PaperCard c : commanders()) {
+            if (roomFor(c) <= 0) {
+                out.add(c.getName());
+            }
+        }
+        for (final Map.Entry<PaperCard, Integer> e : deck.getMain()) {
+            if (roomFor(e.getKey()) <= 0) {
+                out.add(e.getKey().getName());
+            }
+        }
+        return out;
     }
 
     /**
@@ -1540,6 +1575,120 @@ public final class DeckEditor {
         return changed;
     }
 
+    // ---------------------------------------------------------------
+    // Foil para todo el mazo
+
+    /**
+     * Si TODAS las cartas del mazo (principal, zona de mando y companero) son
+     * foil. Con el mazo vacio, no.
+     */
+    public boolean isAllFoil() {
+        boolean any = false;
+        final CardPool side = deck.has(DeckSection.Sideboard) ? deck.get(DeckSection.Sideboard) : null;
+        for (final CardPool pool : foilPools()) {
+            for (final java.util.Map.Entry<PaperCard, Integer> e : pool) {
+                if (pool != side || isCompanionCard(e.getKey())) {
+                    any = true;
+                    if (!e.getKey().isFoil()) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return any;
+    }
+
+    /**
+     * Pone (o quita) el foil a TODAS las cartas del mazo de golpe (Discord,
+     * 03-10-2026: <i>"foil all cards option in your deck editing"</i>).
+     *
+     * <p>Las mismas reglas que el foil de una carta ({@code foilAction} en el
+     * constructor): fuera de un pool cerrado, libre; en Quest, draft o sellado
+     * solo las cartas cuya version foil tienes de verdad. Quitarlo, siempre.
+     *
+     * <p><b>No toca el arte preferido de cada carta</b>, a diferencia de
+     * {@link #switchPrinting}: el foil no cambia ni la edicion ni el arte, y
+     * guardar las preferencias de cien cartas solo por ponerles brillo seria
+     * cambiar algo que el jugador no ha pedido (y escribir el fichero cien
+     * veces).
+     *
+     * @return cuantas copias han cambiado
+     */
+    public int setAllFoil(final boolean foil) {
+        int changed = 0;
+        final CardPool side = deck.has(DeckSection.Sideboard) ? deck.get(DeckSection.Sideboard) : null;
+        for (final CardPool pool : foilPools()) {
+            final List<PaperCard> cards = new java.util.ArrayList<>();
+            for (final java.util.Map.Entry<PaperCard, Integer> e : pool) {
+                cards.add(e.getKey());
+            }
+            for (final PaperCard from : cards) {
+                if (from.isFoil() == foil) {
+                    continue;
+                }
+                // Del banquillo, solo el companero: el resto no se ve en
+                // ninguna pantalla, y en un draft o un sellado es tu pool.
+                if (pool == side && !isCompanionCard(from)) {
+                    continue;
+                }
+                final PaperCard to = foil ? from.getFoiled() : from.getUnFoiled();
+                if (to == null || to.equals(from)) {
+                    continue;
+                }
+                if (foil && !canFoil(from)) {
+                    continue;
+                }
+                final int n = pool.count(from);
+                pool.remove(from, n);
+                pool.add(to, n);
+                changed += n;
+                if (from.equals(chosenCompanion)) {
+                    chosenCompanion = to;
+                }
+            }
+        }
+        if (changed > 0) {
+            dirty = true;
+        }
+        return changed;
+    }
+
+    /**
+     * Si se le puede poner el foil a esa carta: fuera de un pool cerrado,
+     * siempre; en Quest, la aventura, draft o sellado, <b>solo si tienes la
+     * version foil de esa impresion</b> (Ana, 03-10-2026: "solo se ponga foil
+     * si tienes foil, sino no").
+     *
+     * <p>Se mira lo que dice el CONTEXTO, no {@link #printingsOf}: para las
+     * basicas el contexto contesta null ("todas las impresiones, salen
+     * gratis") y {@code printingsOf} lo traduce a las 95.000 de Forge, foil
+     * incluido. Gratis es el arte, no el brillo: una basica foil tambien hay
+     * que haberla abierto.
+     */
+    public boolean canFoil(final PaperCard card) {
+        if (card == null || card.isFoil()) {
+            return false;
+        }
+        if (!isLimited()) {
+            return true;
+        }
+        final List<PaperCard> mine = format.printingsOf(card);
+        return mine != null && mine.contains(card.getFoiled());
+    }
+
+    /** Donde se mira el foil: el principal, la zona de mando y el banquillo (por el companero). */
+    private List<CardPool> foilPools() {
+        final List<CardPool> out = new java.util.ArrayList<>();
+        out.add(deck.getMain());
+        if (deck.has(DeckSection.Commander)) {
+            out.add(deck.get(DeckSection.Commander));
+        }
+        if (deck.has(DeckSection.Sideboard)) {
+            out.add(deck.get(DeckSection.Sideboard));
+        }
+        return out;
+    }
+
     /** Deja esta impresion como la preferida para esa carta, en todo Forge. */
     private static void rememberArt(final PaperCard card) {
         try {
@@ -1630,6 +1779,16 @@ public final class DeckEditor {
             // por nombre.
             hits.sort(Comparator
                     .comparingLong((PaperCard c) -> -format.acquiredAt(c))
+                    .thenComparing(byName));
+        } else if (sort == Sort.COUNT && format.isLimited()) {
+            // De las que mas tienes a las que menos. Lo que no tiene techo (las
+            // basicas de la Aventura, que salen gratis) va al final: "infinitas"
+            // arriba del todo taparia justo lo que se quiere ver.
+            hits.sort(Comparator
+                    .comparingInt((PaperCard c) -> {
+                        final int n = format.owned(c);
+                        return n == Integer.MAX_VALUE ? 1 : -n;
+                    })
                     .thenComparing(byName));
         } else if (sort == Sort.NAME || sort == Sort.NEWEST) {
             // Lo que empieza por lo buscado va primero: si escribes "sol" quieres

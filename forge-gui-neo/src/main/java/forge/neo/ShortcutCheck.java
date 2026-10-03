@@ -219,7 +219,7 @@ public final class ShortcutCheck {
 
     private static void textsInEveryLanguage() {
         System.out.println("  Textos");
-        final String[] langs = {"en-US", "es-ES", "de-DE", "fr-FR", "it-IT", "ja-JP", "ko-KR", "pt-BR", "ru-RU", "zh-CN"};
+        final String[] langs = {"en-US", "es-ES", "de-DE", "fr-FR", "it-IT", "ja-JP", "ko-KR", "pt-BR", "ru-RU", "zh-CN", "ar-MA"};
         for (final String lang : langs) {
             final Properties props = new Properties();
             final String path = "/forge/neo/lang/neo-" + lang + ".properties";

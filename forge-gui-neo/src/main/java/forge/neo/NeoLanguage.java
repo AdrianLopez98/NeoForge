@@ -74,6 +74,143 @@ public final class NeoLanguage {
         NAMES.put("ja-JP", "\u65e5\u672c\u8a9e");
         NAMES.put("ko-KR", "\ud55c\uad6d\uc5b4");
         NAMES.put("zh-CN", "\u7b80\u4f53\u4e2d\u6587");
+        // El arabe (ARABIC, mas abajo; aqui con su valor porque un campo
+        // estatico no se puede usar antes de declararlo).
+        NAMES.put("ar-MA", "\u0627\u0644\u0639\u0631\u0628\u064a\u0629");
+    }
+
+    /**
+     * <b>El arabe</b> (pedido en Discord el 02-10-2026), el primer idioma que
+     * NO trae Forge: su fichero del motor lo ponemos nosotros (ver
+     * {@link #PROVIDED}) y se escribe de derecha a izquierda.
+     *
+     * <p><b>Por que "ar-MA" y no "ar-SA".</b> El {@code Localizer} de Forge
+     * formatea sus mensajes con el {@code Locale} de este codigo, y Java en
+     * arabe de Arabia, Egipto o los Emiratos escribe las cifras arabigo-indicas
+     * (\u0662\u0660 en vez de 20), mientras las cartas llevan 20 en el coste, la fuerza y
+     * la vida. El de Marruecos (como Argelia y Tunez) usa las occidentales.
+     * El jugador no ve el codigo: ve "\u0627\u0644\u0639\u0631\u0628\u064a\u0629".
+     */
+    public static final String ARABIC = "ar-MA";
+
+    /**
+     * Los idiomas cuyo fichero del MOTOR trae NeoForge, porque Forge no lo
+     * tiene. Viven en la raiz de nuestro jar ({@code ar-MA.properties}) y el
+     * {@code Localizer} los encuentra solo: los busca con un cargador sobre
+     * {@code res/languages} cuyo padre es el classpath de la aplicacion, y el
+     * padre se mira primero. Asi no se toca ni un fichero de Forge.
+     */
+    private static final String[] PROVIDED = {ARABIC};
+
+    /**
+     * Si el arabe sale en la lista de idiomas. <b>Si, como los demas</b>
+     * (Ana, 02-10-2026: tenerlo aparte no tiene sentido). Mientras se hacia
+     * fue al reves, detras de {@code -Dneo.arabic=true}; ahora queda solo como
+     * valvula: {@code -Dneo.arabic=false} lo vuelve a esconder (y entonces la
+     * lista es exactamente la de los diez de Forge) por si un dia hiciera falta
+     * de urgencia.
+     */
+    public static boolean arabicEnabled() {
+        return !"false".equalsIgnoreCase(System.getProperty("neo.arabic"));
+    }
+
+    /** Si ese idioma se escribe de derecha a izquierda. */
+    public static boolean isRightToLeft(final String id) {
+        return id != null && id.startsWith("ar-");
+    }
+
+    /**
+     * Si el idioma elegido se escribe de derecha a izquierda.
+     *
+     * <p>Con el arabe escondido ({@code -Dneo.arabic=false}) ni se mira el
+     * idioma: la respuesta es "no" sin leer ajustes ni carpetas.
+     */
+    public static boolean isRightToLeft() {
+        if (!arabicEnabled()) {
+            return false;
+        }
+        return isRightToLeft(current());
+    }
+
+    /**
+     * <b>Solo Android</b>: deja los ficheros del motor de {@link #PROVIDED} en
+     * {@code res/languages} del dispositivo, que es donde alli los busca el
+     * {@code Localizer} (su cargador no ve el APK). Se reescribe solo si ha
+     * cambiado, y nunca falla hacia fuera: sin el fichero, el motor cae al
+     * ingles como con cualquier idioma que no tiene.
+     *
+     * <p><b>En el PC no se llama nunca</b>: alli {@code res/languages} es la
+     * carpeta del repositorio de Forge, y un fichero nuevo ahi es justo lo que
+     * prohibe la regla de oro. En el PC el motor ya lo encuentra en el jar.
+     *
+     * <p>Java de la 8 a proposito (lo usa Android 8, API 26).
+     */
+    public static void installProvided(final File langDir) {
+        for (final String id : PROVIDED) {
+            final String name = id + ".properties";
+            try (java.io.InputStream in = NeoLanguage.class.getResourceAsStream("/" + name)) {
+                if (in == null) {
+                    continue;
+                }
+                final java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream();
+                final byte[] chunk = new byte[16384];
+                int n;
+                while ((n = in.read(chunk)) > 0) {
+                    buf.write(chunk, 0, n);
+                }
+                final byte[] wanted = buf.toByteArray();
+                final File target = new File(langDir, name);
+                if (target.isFile() && target.length() == wanted.length
+                        && java.util.Arrays.equals(readAll(target), wanted)) {
+                    continue;
+                }
+                langDir.mkdirs();
+                try (java.io.OutputStream out = new java.io.FileOutputStream(target)) {
+                    out.write(wanted);
+                }
+            } catch (final java.io.IOException | RuntimeException e) {
+                System.err.println("[neo] no se ha podido dejar " + name + " en " + langDir + ": " + e);
+            }
+        }
+    }
+
+    /**
+     * <b>Solo Android</b>, y lo contrario de {@link #installProvided}: quita
+     * de {@code res/languages} los ficheros que pusimos nosotros (por su nombre
+     * exacto, nada mas). Se llama cuando el idioma elegido NO es uno de los
+     * nuestros: la pantalla de ajustes del Forge de movil (la de dentro de la
+     * Aventura) lista los idiomas mirando esa carpeta, y el arabe no puede
+     * aparecerle a quien juega en otro idioma.
+     */
+    public static void removeProvided(final File langDir) {
+        for (final String id : PROVIDED) {
+            final File f = new File(langDir, id + ".properties");
+            if (f.isFile() && !f.delete()) {
+                System.err.println("[neo] no se ha podido quitar " + f);
+            }
+        }
+    }
+
+    private static byte[] readAll(final File f) throws java.io.IOException {
+        try (java.io.InputStream in = new java.io.FileInputStream(f)) {
+            final java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream();
+            final byte[] chunk = new byte[16384];
+            int n;
+            while ((n = in.read(chunk)) > 0) {
+                buf.write(chunk, 0, n);
+            }
+            return buf.toByteArray();
+        }
+    }
+
+    /** Si el fichero del motor de ese idioma lo trae NeoForge (y no Forge). */
+    public static boolean isProvided(final String id) {
+        for (final String p : PROVIDED) {
+            if (p.equals(id)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Un idioma disponible. */
@@ -115,8 +252,12 @@ public final class NeoLanguage {
      * nombre, y el resto detras con su codigo.
      */
     public static List<Option> available() {
+        return available(new File(ForgeConstants.LANG_DIR));
+    }
+
+    /** Lo mismo mirando otra carpeta: para langcheck, que imita la de Android. */
+    static List<Option> available(final File dir) {
         final List<Option> out = new ArrayList<>();
-        final File dir = new File(ForgeConstants.LANG_DIR);
         final File[] files = dir.listFiles();
         if (files == null) {
             return List.of(new Option(DEFAULT, NAMES.get(DEFAULT), false));
@@ -127,6 +268,18 @@ public final class NeoLanguage {
             final String name = f.getName();
             if (name.endsWith(".properties")) {
                 found.add(name.substring(0, name.length() - ".properties".length()));
+            }
+        }
+        // Los que pone NeoForge (el arabe), solo con su interruptor y si su
+        // fichero del motor esta de verdad (en el jar, o copiado a
+        // res/languages, que es lo que hace Android: alli el Localizer no ve el
+        // classpath). Apagado, esta lista es exactamente la de antes, AUNQUE el
+        // fichero este en la carpeta.
+        for (final String id : PROVIDED) {
+            final boolean there = found.remove(id)
+                    || NeoLanguage.class.getResource("/" + id + ".properties") != null;
+            if (there && arabicEnabled()) {
+                found.add(id);
             }
         }
 
@@ -240,6 +393,10 @@ public final class NeoLanguage {
     public static java.util.function.Function<ForgePreferences, Void> hook() {
         return prefs -> {
             final String wanted = current();
+            // El arabe trae su propio Lang (posesivos y ordinales): tiene que
+            // estar puesto antes de que FModel llame a Lang.createInstance,
+            // que es justo despues de este gancho. Otro idioma: no hace nada.
+            ArabicLang.installIfArabic(wanted);
             engineValueBefore = prefs.getPref(FPref.UI_LANGUAGE);
             if (!wanted.equals(engineValueBefore)) {
                 prefs.setPref(FPref.UI_LANGUAGE, wanted);

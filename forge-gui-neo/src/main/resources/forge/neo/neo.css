@@ -3216,6 +3216,26 @@
     -fx-background-color: #4C3B24;
 }
 
+/* Una expansion elegida a mano en el pozo de la run (bloque a medida). Va
+   sobre el papel: tinta oscura sobre pastilla clara, y clicarla la quita. */
+.ascent-set-chip {
+    -fx-background-color: rgba(250,244,228,0.9);
+    -fx-border-color: rgba(59,46,28,0.45);
+    -fx-border-width: 1;
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+    -fx-text-fill: #3B2E1C;
+    -fx-font-weight: 700;
+    -fx-padding: 4 10 4 10;
+    -fx-cursor: hand;
+}
+
+.ascent-set-chip:hover {
+    -fx-background-color: rgba(140,47,43,0.14);
+    -fx-border-color: #8C2F2B;
+    -fx-text-fill: #8C2F2B;
+}
+
 .ascent-button-danger {
     -fx-text-fill: #8C2F2B;
 }

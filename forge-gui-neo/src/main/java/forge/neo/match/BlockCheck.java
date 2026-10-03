@@ -73,6 +73,10 @@ public final class BlockCheck {
                 JUGGERNAUT + ";" + FOREST,
                 WATCHDOG + ";" + FOREST));
 
+        System.out.println();
+        System.out.println("  Mesa 3: Juggernaut de la IA contra tus Grizzly Bears, sin nada que obligue a bloquear.");
+        guard(position(JUGGERNAUT + ";" + FOREST, BEARS + ";" + FOREST));
+
         System.out.printf(Locale.ROOT, "%n  %d bien, %d mal%n", passed, failed);
         if (failed > 0) {
             throw new IllegalStateException(failed + " comprobacion(es) del bloqueo obligado han fallado");
@@ -119,6 +123,52 @@ public final class BlockCheck {
                 "la partida llego al final (" + result.turns + " turnos)",
                 "la partida no termino: se corto por tiempo en el turno " + result.turns
                         + ". Es la firma del OK rechazado en la declaracion de bloqueadores");
+    }
+
+    /**
+     * "No has puesto a nadie a bloquear: ¿seguro?" ({@link BlockGuard},
+     * Discord, 03-10-2026). Se mira en el momento exacto en que el motor pide
+     * los bloqueadores: el piloto pregunta a su "retencion" dentro de
+     * {@code updateButtons}, con {@code InputBlock} ya activo. Ahi:
+     * sin bloqueadores tiene que avisar; con el oso bloqueando, no; y con el
+     * ajuste apagado (de fabrica) no pregunta. Despues se deja todo como
+     * estaba y el piloto sigue a lo suyo.
+     */
+    private static void guard(final TutorialLesson lesson) {
+        final TutorialState state = new TutorialState(lesson.getState());
+        final java.util.concurrent.atomic.AtomicReference<Boolean> empty = new java.util.concurrent.atomic.AtomicReference<>();
+        final java.util.concurrent.atomic.AtomicReference<Boolean> blocking = new java.util.concurrent.atomic.AtomicReference<>();
+        final java.util.concurrent.atomic.AtomicReference<Boolean> settingOff = new java.util.concurrent.atomic.AtomicReference<>();
+        NeoGame.playTutorial(lesson, state, NeoMatchUI.Mode.AUTO_PLAY, SECONDS, null, false, ui -> {
+            ui.setAutoPlayHold(() -> {
+                if (empty.get() != null || !(ui.getGameController() instanceof forge.player.PlayerControllerHuman gc)
+                        || !(gc.getInputQueue().getInput() instanceof forge.gamemodes.match.input.InputBlock)) {
+                    return false;
+                }
+                final Combat combat = gc.getGame().getCombat();
+                final Card bears = gc.getPlayer().getCardsIn(ZoneType.Battlefield).stream()
+                        .filter(c -> "Grizzly Bears".equals(c.getName())).findFirst().orElse(null);
+                empty.set(BlockGuard.wouldSkipBlocking(gc));
+                settingOff.set(BlockGuard.shouldAsk(gc) == (forge.neo.NeoSettings.confirmNoBlock() && empty.get()));
+                if (bears != null && combat != null && !combat.getAttackers().isEmpty()) {
+                    final Card attacker = combat.getAttackers().get(0);
+                    combat.addBlocker(attacker, bears);
+                    blocking.set(BlockGuard.wouldSkipBlocking(gc));
+                    combat.undoBlockingAssignment(bears);
+                }
+                return false;
+            });
+        });
+        check(Boolean.TRUE.equals(empty.get()),
+                "sin bloqueadores y con el oso libre: se avisa",
+                empty.get() == null ? "no se llego a declarar bloqueadores: la prueba no prueba nada"
+                        : "sin bloqueadores y con el oso libre NO se avisa");
+        check(Boolean.FALSE.equals(blocking.get()),
+                "con el oso bloqueando: no se avisa",
+                "con el oso bloqueando se avisa igual (" + blocking.get() + ")");
+        check(Boolean.TRUE.equals(settingOff.get()),
+                "el ajuste manda: se pregunta solo con el puesto (ahora " + (forge.neo.NeoSettings.confirmNoBlock() ? "encendido" : "apagado, como de fabrica") + ")",
+                "el ajuste no manda: se preguntaria sin el, o no con el");
     }
 
     /**

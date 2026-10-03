@@ -327,6 +327,14 @@ public class QuestShopScreen extends StackPane {
                 tabButton(NeoText.get("shop.tab.boxes"), Tab.BOXES),
                 tabButton(NeoText.get("shop.tab.lair"), Tab.LAIR),
                 tabButton(NeoText.get("shop.tab.sell"), Tab.SELL));
+        // En una Quest limitada a unas expansiones sin Secret Lair, su pestanya
+        // sobra: no hay nada que vender ahi. Se esconde sin quitarla, porque
+        // las pestanyas se casan con Tab por su posicion (neo.shop.tab).
+        if (!NeoQuestShop.secretLairAllowed()) {
+            final javafx.scene.Node lair = tabBar.getChildren().get(Tab.LAIR.ordinal());
+            lair.setVisible(false);
+            lair.setManaged(false);
+        }
 
         page.getChildren().add(packsPage);
         VBox.setVgrow(page, Priority.ALWAYS);

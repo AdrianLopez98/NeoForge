@@ -57,6 +57,8 @@ public final class QuestCheck {
         ok &= checkBazaar();
         System.out.println();
         ok &= checkEnginePrefs();
+        System.out.println();
+        ok &= checkSetPool();
 
         System.out.println();
         System.out.println(ok
@@ -1753,6 +1755,138 @@ public final class QuestCheck {
      * comparar. Se busca en la coleccion y no en la base entera para que la
      * carta sea manipulable con {@code addSingleCard} sin inventarse nada.
      */
+    /**
+     * Una Quest con solo unas expansiones (Discord, 03-10-2026: "choosing
+     * sets by year"). Con el bloque de Zendikar, en las dos modalidades: el
+     * mazo de salida convertido y legal, la tienda de sobres, las sueltas y
+     * el sobre de premio de esas expansiones, sin Secret Lair, y que se
+     * guarda con la Quest. Y una Quest de las de siempre, sin cambiar nada.
+     */
+    private static boolean checkSetPool() {
+        System.out.println("  --- Quest con solo unas expansiones (Zendikar, Worldwake, Rise of the Eldrazi) ---");
+        boolean ok = true;
+        final forge.neo.ascent.AscentPool pool = forge.neo.ascent.AscentPool.sets(
+                java.util.Arrays.asList("ZEN", "WWK", "ROE"));
+        final java.util.Set<String> codes = pool.codes();
+
+        // Estandar, con un preconstruido moderno: se convierte.
+        final String name = "neo-check-pool";
+        NeoQuest.delete(name);
+        Deck precon = null;
+        for (final Deck d : NeoQuest.starterDecks(NeoQuest.Modalidad.ESTANDAR)) {
+            if (!d.getMain().toFlatList().stream().allMatch(pool::allows)) {
+                precon = d;
+                break;
+            }
+        }
+        if (precon == null) {
+            System.out.println("  FALLO: ningun preconstruido con cartas de fuera del bloque");
+            return false;
+        }
+        try {
+            NeoQuest.start(name, NeoQuest.Modalidad.ESTANDAR, NeoQuest.Dificultad.NORMAL, precon, null, pool);
+            final java.util.Set<String> chosen = NeoQuest.chosenSets();
+            final Deck mine = NeoQuest.currentDeck();
+            final boolean deckIn = mine != null && mine.getMain().toFlatList().stream().allMatch(pool::allows)
+                    && mine.getMain().countAll() == precon.getMain().countAll()
+                    && NeoQuest.problemWith(mine) == null;
+            final List<CardEdition> packs = forge.neo.quest.NeoQuestShop.editions();
+            final boolean packsIn = !packs.isEmpty() && packs.stream().allMatch(ed -> codes.contains(ed.getCode()));
+            int outside = 0;
+            final List<PaperCard> singles = forge.neo.quest.NeoQuestShop.singles();
+            for (final PaperCard c : singles) {
+                if (!c.getRules().getType().isBasicLand() && !codes.contains(c.getEdition())) {
+                    outside++;
+                }
+            }
+            final boolean prizeIn = forge.neo.quest.NeoQuestPrize.choices().stream()
+                    .allMatch(ed -> codes.contains(ed.getCode()));
+            final boolean noLair = !forge.neo.quest.NeoQuestShop.secretLairAllowed()
+                    && forge.neo.quest.NeoQuestShop.drops().isEmpty()
+                    && forge.neo.quest.NeoQuestShop.secretLairPack().isEmpty();
+            NeoQuest.save();
+            final boolean kept = NeoQuest.load(name) && codes.equals(NeoQuest.chosenSets());
+            final String label = NeoQuest.worldLabel(NeoQuestWorlds.current());
+            forge.gamemodes.quest.QuestWorld elsewhere = null;
+            for (final forge.gamemodes.quest.QuestWorld w : NeoQuestWorlds.all()) {
+                if (!forge.gamemodes.quest.QuestWorld.MAINWORLDNAME.equals(w.getName())) {
+                    elsewhere = w;
+                    break;
+                }
+            }
+            final boolean stays = elsewhere == null || !NeoQuestWorlds.travelTo(elsewhere);
+            System.out.printf(Locale.ROOT, "  En la cabecera: %s | viajar: %s%n", label, stays ? "no (bien)" : "HA VIAJADO");
+            ok &= "Zendikar, Worldwake, Rise of the Eldrazi".equals(label) && stays;
+            System.out.printf(Locale.ROOT,
+                    "  Estandar con %s: mazo %s (%d cartas, %s) | sobres %d %s | sueltas %d, %d de fuera | premio %s | Secret Lair %s | al recargar %s%n",
+                    precon.getName(), deckIn ? "convertido" : "MAL", mine == null ? 0 : mine.getMain().countAll(),
+                    mine == null ? "-" : String.valueOf(NeoQuest.problemWith(mine) == null ? "legal" : NeoQuest.problemWith(mine)),
+                    packs.size(), packsIn ? "del bloque" : "CON OTRAS", singles.size(), outside,
+                    prizeIn ? "del bloque" : "CON OTRAS", noLair ? "fuera" : "SIGUE", kept ? "igual" : "PERDIDO");
+            ok &= chosen != null && chosen.equals(codes) && deckIn && packsIn && outside == 0
+                    && prizeIn && noLair && kept;
+        } finally {
+            NeoQuest.delete(name);
+        }
+
+        // Commander: un comandante del bloque y su mazo, convertido y legal.
+        // Kozilek SIEMPRE (incoloro: el cambio de una carta de fuera podia ser
+        // el mismo y salian dos copias) y otro al azar.
+        final List<PaperCard> cmds = new java.util.ArrayList<>();
+        final PaperCard kozilek = pool.printing(FModel.getMagicDb().getCommonCards()
+                .getUniqueByName("Kozilek, Butcher of Truth"));
+        if (kozilek != null) {
+            cmds.add(kozilek);
+        }
+        cmds.add(forge.neo.ascent.AscentSeedDeck.randomCommander(pool));
+        for (final PaperCard cmd : cmds) {
+            final String cname = "neo-check-pool-cmd";
+            NeoQuest.delete(cname);
+            try {
+                final Deck d = cmd == null ? null : NeoCommanderDuels.starter(cmd);
+                if (d == null) {
+                    System.out.println("  FALLO: sin comandante o sin mazo en el bloque");
+                    return false;
+                }
+                NeoQuest.start(cname, NeoQuest.Modalidad.COMMANDER, NeoQuest.Dificultad.NORMAL, d, null, pool);
+                final Deck mine = NeoQuest.currentDeck();
+                final String problem = mine == null ? "(sin mazo)" : NeoQuest.problemWith(mine);
+                final boolean in = mine != null && mine.getMain().toFlatList().stream().allMatch(pool::allows)
+                        && mine.get(DeckSection.Commander).toFlatList().stream().allMatch(pool::allows);
+                System.out.printf(Locale.ROOT, "  Commander con %s: %d cartas, %s, %s%n", cmd.getName(),
+                        mine == null ? 0 : mine.getMain().countAll(), in ? "todas del bloque" : "CON OTRAS",
+                        problem == null ? "legal" : problem);
+                ok &= in && problem == null;
+            } finally {
+                NeoQuest.delete(cname);
+            }
+        }
+
+        // Y una de siempre: nada cambia.
+        final String plain = "neo-check-pool-plain";
+        NeoQuest.delete(plain);
+        try {
+            NeoQuest.start(plain, NeoQuest.Modalidad.ESTANDAR, NeoQuest.Dificultad.NORMAL, precon, null);
+            int all = 0;
+            for (final CardEdition ed : FModel.getMagicDb().getEditions()) {
+                if (ed != null && ed.hasBoosterTemplate()) {
+                    all++;
+                }
+            }
+            final boolean same = NeoQuest.chosenSets() == null
+                    && forge.neo.quest.NeoQuestShop.editions().size() == all
+                    && forge.neo.quest.NeoQuestShop.secretLairAllowed();
+            System.out.printf(Locale.ROOT, "  Quest de siempre: %d sobres de %d, Secret Lair %s%n",
+                    forge.neo.quest.NeoQuestShop.editions().size(), all,
+                    forge.neo.quest.NeoQuestShop.secretLairAllowed() ? "si" : "NO");
+            ok &= same;
+        } finally {
+            NeoQuest.delete(plain);
+        }
+        System.out.println(ok ? "  OK" : "  FALLO");
+        return ok;
+    }
+
     private static PaperCard pickWithSeveralPrintings() {
         for (final java.util.Map.Entry<PaperCard, Integer> e : NeoQuest.collection()) {
             final PaperCard c = e.getKey();

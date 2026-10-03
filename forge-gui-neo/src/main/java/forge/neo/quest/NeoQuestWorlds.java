@@ -131,6 +131,12 @@ public final class NeoQuestWorlds {
         if (world == null || !NeoQuest.isActive()) {
             return false;
         }
+        // Una Quest limitada a unas expansiones no viaja: el mundo traeria
+        // las suyas, y la tienda (que mira las dos cosas) se quedaria con lo
+        // que tengan en comun, que puede ser nada.
+        if (NeoQuest.chosenSets() != null) {
+            return false;
+        }
         final QuestWorld before = current();
         if (before != null && before.getName().equals(world.getName())) {
             return false;

@@ -60,9 +60,11 @@ public final class DeckRulesCheck {
         adventureIgnoresTheBanList();
         newestFirstOrdersByAcquisition();
         catalogueSorts();
+        collectionCountAndUsedUp();
         oathbreakerHasTwoSlots();
         oathbreakerDoesNotChangeCommander();
         companionGoesToTheSideboard();
+        foilAllAtOnce();
         // La ultima: mete las reliquias de Ascenso en el catalogo del motor y
         // ya no las saca. Ver su javadoc.
         ascentCardsStayOutOfTheCatalogue();
@@ -300,6 +302,116 @@ public final class DeckRulesCheck {
             System.out.printf(java.util.Locale.ROOT,
                     "        (Goblin Chainwhirler suma %d simbolos rojos)%n", after - before);
             check("Estadisticas: una carta de {R}{R}{R} suma 3, no 1", after - before == 3);
+        }
+    }
+
+    /**
+     * "Todas foil" (Discord, 03-10-2026): todo el mazo de golpe, comandante
+     * incluido, y vuelta atras; y sin cambiar ni la edicion ni el numero de
+     * copias de nada.
+     */
+    private static void foilAllAtOnce() {
+        final DeckEditor editor = DeckEditor.createNew(NeoFormat.COMMANDER, "foil");
+        editor.setCommander(card("Krenko, Mob Boss"));
+        editor.add(card("Lightning Bolt"), 1);
+        editor.add(card("Mountain"), 5);
+        final int before = editor.getDeck().getMain().countAll();
+        check("Todas foil: un mazo nuevo no es todo foil", !editor.isAllFoil());
+        final int changed = editor.setAllFoil(true);
+        check("Todas foil: cambian las 7 copias (" + changed + ")", changed == 7);
+        check("Todas foil: ahora lo es entero, comandante incluido", editor.isAllFoil());
+        boolean commanderFoil = true;
+        for (final java.util.Map.Entry<PaperCard, Integer> e : editor.getDeck().get(forge.deck.DeckSection.Commander)) {
+            commanderFoil &= e.getKey().isFoil();
+        }
+        check("Todas foil: el comandante tambien", commanderFoil);
+        check("Todas foil: las mismas cartas en el principal", editor.getDeck().getMain().countAll() == before);
+        editor.setAllFoil(false);
+        boolean anyFoil = false;
+        for (final java.util.Map.Entry<PaperCard, Integer> e : editor.getDeck().getMain()) {
+            anyFoil |= e.getKey().isFoil();
+        }
+        check("Todas foil: quitarlo las deja normales otra vez", !anyFoil && !editor.isAllFoil());
+
+        // Quest y aventura (Ana, 03-10-2026): "solo se ponga foil si tienes
+        // foil, sino no". Tienes el Rayo normal y el Shock foil; de la Montana,
+        // ninguna foil. Las basicas son la trampa: el contexto de la aventura
+        // contesta null ("cualquier arte") y eso no puede valer para el brillo.
+        final PaperCard bolt = card("Lightning Bolt");
+        final PaperCard shock = card("Shock");
+        final PaperCard mountain = card("Mountain");
+        final DeckEditor quest = new DeckEditor(new OwnedPrintings(java.util.Map.of(
+                bolt.getName(), List.of(bolt),
+                shock.getName(), List.of(shock, shock.getFoiled()))),
+                new Deck("coleccion"));
+        quest.add(bolt, 1);
+        quest.add(shock, 1);
+        quest.add(mountain, 3);
+        check("Todas foil en tu coleccion: es limitado", quest.isLimited());
+        check("Todas foil en tu coleccion: el mazo tiene las 5 cartas de la prueba",
+                quest.getDeck().getMain().countAll() == 5);
+        final int owned = quest.setAllFoil(true);
+        int foils = 0;
+        boolean boltFoil = false;
+        boolean mountainFoil = false;
+        for (final java.util.Map.Entry<PaperCard, Integer> c : quest.getDeck().getMain()) {
+            if (c.getKey().isFoil()) {
+                foils += c.getValue();
+                boltFoil |= c.getKey().getName().equals(bolt.getName());
+                mountainFoil |= c.getKey().getName().equals(mountain.getName());
+            }
+        }
+        check("Todas foil en tu coleccion: solo el Shock, que lo tienes foil (" + owned + ")",
+                owned == 1 && foils == 1);
+        check("Todas foil en tu coleccion: el Rayo normal se queda normal", !boltFoil);
+        check("Todas foil en tu coleccion: la basica tampoco, aunque su arte sea libre", !mountainFoil);
+        check("Foil de una carta: la misma regla (Shock si, Rayo y Montana no)",
+                !quest.canFoil(bolt) && !quest.canFoil(mountain)
+                        && editor.canFoil(mountain));
+    }
+
+    /** Una coleccion con los artes que has abierto, y las basicas libres (como la aventura). */
+    private static final class OwnedPrintings implements DeckContext {
+
+        private final java.util.Map<String, List<PaperCard>> printings;
+
+        OwnedPrintings(final java.util.Map<String, List<PaperCard>> printings) {
+            this.printings = printings;
+        }
+
+        @Override
+        public String getLabel() {
+            return "Quest";
+        }
+
+        @Override
+        public forge.deck.DeckFormat deckFormat() {
+            return forge.game.GameType.Constructed.getDeckFormat();
+        }
+
+        @Override
+        public forge.util.storage.IStorage<Deck> storage() {
+            return new forge.util.storage.StorageBase<>("quest", "quest", new java.util.HashMap<>());
+        }
+
+        @Override
+        public List<PaperCard> pool() {
+            final List<PaperCard> out = new java.util.ArrayList<>();
+            printings.values().forEach(out::addAll);
+            return out;
+        }
+
+        @Override
+        public int owned(final PaperCard card) {
+            return Integer.MAX_VALUE;
+        }
+
+        @Override
+        public List<PaperCard> printingsOf(final PaperCard card) {
+            if (card.getRules().getType().isBasicLand()) {
+                return null;
+            }
+            return printings.getOrDefault(card.getName(), List.of());
         }
     }
 
@@ -1593,6 +1705,40 @@ public final class DeckRulesCheck {
         adv.setSort(DeckEditor.Sort.NAME);
     }
 
+    /**
+     * Ordenar por cuantas tienes y "Ocultar las ya puestas" (Discord,
+     * 03-10-2026). La cantidad pone arriba la que mas tienes y las infinitas
+     * (las basicas de la Aventura) al final; y lo que ya esta puesto del todo
+     * sale en {@code usedUpNames}, pero no la basica ni lo que no esta en el
+     * mazo. Sin empates de cantidad a proposito: a igual numero manda el
+     * nombre TRADUCIDO, y eso depende del idioma con que se pase.
+     */
+    private static void collectionCountAndUsedUp() {
+        final List<PaperCard> pool = List.of(card("Counterspell"), card("Lightning Bolt"),
+                card("Llanowar Elves"), card("Serra Angel"), card("Forest"));
+        final DeckEditor adv = new DeckEditor(new AdventureLike(pool, java.util.Map.of(),
+                java.util.Map.of("Counterspell", 1, "Lightning Bolt", 4,
+                        "Llanowar Elves", 2, "Serra Angel", 3)),
+                new Deck("__neocheck-count__"));
+        adv.setSort(DeckEditor.Sort.COUNT);
+        final List<String> byCount = names(adv.find("", false, null, 10, false).cards);
+        check("Orden por cantidad: de la que mas tienes a la que menos, las infinitas al final -> "
+                        + byCount,
+                byCount.equals(List.of("Lightning Bolt", "Serra Angel", "Llanowar Elves",
+                        "Counterspell", "Forest")));
+        final List<String> firstTwo = names(adv.find("", false, null, 2, false).cards);
+        check("Orden por cantidad: ANTES del corte -> " + firstTwo,
+                firstTwo.equals(List.of("Lightning Bolt", "Serra Angel")));
+        adv.setSort(DeckEditor.Sort.NAME);
+
+        // Este contexto juega con las reglas de Commander: una copia de cada.
+        adv.add(card("Lightning Bolt"), 1);
+        adv.add(card("Forest"), 3);
+        final java.util.Set<String> used = adv.usedUpNames();
+        check("Ya puestas: el Rayo (una en Commander) si; la basica y lo que no esta, no -> " + used,
+                used.equals(java.util.Set.of("Lightning Bolt")));
+    }
+
     private static List<String> names(final List<PaperCard> cards) {
         final List<String> out = new java.util.ArrayList<>();
         for (final PaperCard c : cards) {
@@ -1711,14 +1857,22 @@ public final class DeckRulesCheck {
 
         private final List<PaperCard> pool;
         private final java.util.Map<String, Long> acquired;
+        /** Cuantas tienes de cada una; la que no esta, sin techo. */
+        private final java.util.Map<String, Integer> ownedBy;
 
         AdventureLike(final List<PaperCard> pool) {
             this(pool, java.util.Map.of());
         }
 
         AdventureLike(final List<PaperCard> pool, final java.util.Map<String, Long> acquired) {
+            this(pool, acquired, java.util.Map.of());
+        }
+
+        AdventureLike(final List<PaperCard> pool, final java.util.Map<String, Long> acquired,
+                      final java.util.Map<String, Integer> ownedBy) {
             this.pool = pool;
             this.acquired = acquired;
+            this.ownedBy = ownedBy;
         }
 
         @Override
@@ -1753,7 +1907,7 @@ public final class DeckRulesCheck {
 
         @Override
         public int owned(final PaperCard card) {
-            return Integer.MAX_VALUE;
+            return ownedBy.getOrDefault(card.getName(), Integer.MAX_VALUE);
         }
 
         @Override

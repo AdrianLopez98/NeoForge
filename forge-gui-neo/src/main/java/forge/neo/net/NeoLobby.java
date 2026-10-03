@@ -433,8 +433,51 @@ public final class NeoLobby {
      * nombres distintos.
      */
     public static UpdateLobbyPlayerEvent aiSeatEvent(final GameLobby lobby) {
+        // Y con SU cara y SU forma de jugar (Discord, 03-10-2026: "AI
+        // customization for online play"): la ficha de ese rival en
+        // Personalizar -> Rivales, como en una partida normal. Solo lo que el
+        // jugador haya personalizado: un rival sin cara propia sigue con la de
+        // siempre (-1) y uno con "la general", sin perfil (null), igual que
+        // antes. Una cara importada no viaja por el cable: los invitados no
+        // tienen el fichero, asi que en red se queda la de siempre.
+        final int rival = freeAiRival(lobby);
+        int avatar = -1;
+        String profile = null;
+        if (rival >= 0) {
+            final int sprite = forge.neo.look.RivalSetup.spriteIndexOf(forge.neo.look.RivalSetup.avatar(rival));
+            if (sprite >= 0) {
+                avatar = sprite;
+            }
+            final String own = forge.neo.look.RivalSetup.mode(rival);
+            if (!own.isEmpty()) {
+                profile = forge.neo.look.RivalSetup.resolve(own, rival, SEAT_RANDOM);
+            }
+        }
         return UpdateLobbyPlayerEvent.create(LobbySlotType.AI, freeAiName(lobby),
-                -1, -1, -1, false, false, java.util.Collections.emptySet(), null);
+                avatar, -1, -1, false, false, java.util.Collections.emptySet(), profile);
+    }
+
+    private static final java.util.Random SEAT_RANDOM = new java.util.Random();
+
+    /**
+     * El numero del rival cuyo nombre esta libre en la sala (el mismo que
+     * escoge {@link #freeAiName}), o -1 si estan todos cogidos.
+     */
+    public static int freeAiRival(final GameLobby lobby) {
+        final List<String> taken = new ArrayList<>();
+        for (int i = 0; i < lobby.getNumberOfSlots(); i++) {
+            final LobbySlot s = lobby.getSlot(i);
+            if (s != null && s.getName() != null) {
+                taken.add(s.getName());
+            }
+        }
+        for (int i = 0; i < MAX_SEATS; i++) {
+            final String candidate = forge.neo.look.NeoPlayers.aiName(i);
+            if (candidate != null && !candidate.isBlank() && !taken.contains(candidate)) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     /** Un nombre de IA que no este ya cogido en esta sala. Nunca null. */

@@ -160,6 +160,10 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             scene.getStylesheets().add(css.toExternalForm());
         }
         forge.neo.platform.NeoFonts.apply(scene);
+        // El arabe se escribe de derecha a izquierda: los menus se dan la
+        // vuelta (la mesa y las cartas no, ver Rtl). Con cualquier otro
+        // idioma no hace nada.
+        forge.neo.ui.Rtl.applyTo(scene);
 
         // Escala de interfaz: la hoja de estilos usa em, asi que fijando el
         // tamano de fuente de la raiz se escala todo el texto de golpe. Se
@@ -419,7 +423,7 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 || args.contains("--mock-banner") || args.contains("--mock-alert")
                 || args.contains("--mock-notice")
                 || args.contains("--mock-error")
-                || args.contains("--mock-prompt") || args.contains("--mock-phase-ask")
+                || args.contains("--mock-prompt") || args.contains("--mock-phase-ask") || args.contains("--mock-block-ask")
                 || args.contains("--mock-prompt-nocard") || args.contains("--mock-trigger-subject")
                 || args.contains("--anim-test") || args.contains("--mock-turn")
                 || args.contains("--mock-picked") || args.contains("--mock-crowded") || args.contains("--mock-stack")
@@ -941,6 +945,19 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                             forge.neo.NeoText.get("phase.ask.combatDetail"),
                             List.of(forge.neo.NeoText.get("phase.ask.stay"),
                                     forge.neo.NeoText.get("phase.ask.combatGo")),
+                            0, i -> table.getOverlay().hide());
+                    ask.getStyleClass().add("phase-ask");
+                    table.getOverlay().show(ask);
+                    table.requestLayout();
+                }
+                if (args.contains("--mock-block-ask")) {
+                    // Su gemelo de los bloqueos (BlockGuard): "no has puesto a
+                    // nadie a bloquear". Igual: para mirarlo sin jugar un combate.
+                    final forge.neo.ui.ConfirmDialog ask = new forge.neo.ui.ConfirmDialog(
+                            forge.neo.NeoText.get("block.ask.title"),
+                            forge.neo.NeoText.get("block.ask.detail"),
+                            List.of(forge.neo.NeoText.get("block.ask.stay"),
+                                    forge.neo.NeoText.get("block.ask.go")),
                             0, i -> table.getOverlay().hide());
                     ask.getStyleClass().add("phase-ask");
                     table.getOverlay().show(ask);

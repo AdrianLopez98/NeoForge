@@ -48,6 +48,8 @@ public class CardStackNode extends Pane {
     private double cardWidth;
 
     public CardStackNode(final double cardWidth, final CardView card, final int size) {
+        // Arabe (de derecha a izquierda): esto se dibuja como siempre. Ver Rtl.
+        Rtl.keepLtr(this);
         this.size = size;
         this.front = new CardNode(cardWidth);
         this.front.setCard(card);

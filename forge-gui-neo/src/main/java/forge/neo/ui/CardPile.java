@@ -52,6 +52,8 @@ public class CardPile extends Pane {
     private int opened = -1;
 
     public CardPile(final double cardWidth, final double cardHeight) {
+        // Arabe (de derecha a izquierda): esto se dibuja como siempre. Ver Rtl.
+        Rtl.keepLtr(this);
         this.cardWidth = cardWidth;
         this.cardHeight = cardHeight;
         // Entre carta y carta no se cierra (se veria un parpadeo): solo al salir

@@ -56,7 +56,7 @@ public class QuestSetupScreen extends BorderPane {
          */
         void start(String name, NeoQuest.Modalidad modalidad,
                    NeoQuest.Dificultad dificultad, Deck starter, PaperCard commander,
-                   String world);
+                   String world, forge.neo.ascent.AscentPool pool);
 
         void back();
     }
@@ -83,6 +83,15 @@ public class QuestSetupScreen extends BorderPane {
      * premios y los rivales salen de ahi. Ver {@link forge.neo.quest.NeoQuestWorlds}.
      */
     private String world;
+
+    /**
+     * Con que expansiones (Discord, 03-10-2026: "choosing sets by year"). De
+     * fabrica, todas. Es lo mismo que un mundo pero a medida, asi que no se
+     * combinan: elegir uno devuelve el otro a lo de siempre. Ver
+     * {@code NeoQuest.start(..., pool)}.
+     */
+    private forge.neo.ascent.AscentPool pool = forge.neo.ascent.AscentPool.ALL;
+    private SetPoolPicker poolPicker;
 
     private final double cardWidth;
     private final FlowPane deckGrid = new FlowPane(12, 12);
@@ -133,6 +142,10 @@ public class QuestSetupScreen extends BorderPane {
                 section(NeoText.get("questNew.step1"), modeRow),
                 section(NeoText.get("questNew.step2"), deckStep),
                 section(NeoText.get("questNew.step3"), diffRow),
+                // Las expansiones, opcional como el mundo y por lo mismo: de
+                // fabrica se juega con todo.
+                section(NeoText.get("questNew.stepCards"),
+                        poolPicker = new SetPoolPicker(this::poolChanged, this::describePool)),
                 // El mundo va EL ULTIMO y es opcional, a proposito.
                 //
                 // Estuvo un rato en el paso 2 y estaba mal: restringir la
@@ -148,6 +161,11 @@ public class QuestSetupScreen extends BorderPane {
         sp.setFitToWidth(true);
         sp.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         setCenter(sp);
+        // Para capturar los pasos de abajo (expansiones y mundo) sin rueda:
+        // run.cmd ui --quest-new -Dneo.quest.setupBottom=true
+        if (Boolean.getBoolean("neo.quest.setupBottom")) {
+            javafx.application.Platform.runLater(() -> javafx.application.Platform.runLater(() -> sp.setVvalue(1)));
+        }
 
         buildModes();
         buildDifficulties();
@@ -157,6 +175,14 @@ public class QuestSetupScreen extends BorderPane {
         fromCommander = "commander".equalsIgnoreCase(System.getProperty("neo.quest.setupTab", ""));
         syncDeckStep();
         syncWorld();
+        // Para capturarla con un pozo puesto:
+        // run.cmd ui --quest-new -Dneo.quest.setupPool=set:ZEN,WWK,ROE
+        final forge.neo.ascent.AscentPool preset = forge.neo.ascent.AscentPool.parse(
+                System.getProperty("neo.quest.setupPool", ""));
+        if (!preset.isAll()) {
+            poolPicker.preset(preset);
+            poolChanged(preset);
+        }
 
         // --- pie ---
         final TextField name = new TextField(suggestName());
@@ -166,6 +192,7 @@ public class QuestSetupScreen extends BorderPane {
 
         final Button go = new Button(NeoText.get("questNew.start"));
         goButton = go;
+        syncGo();
         go.getStyleClass().add("btn-primary");
         go.setMinWidth(Region.USE_PREF_SIZE);
         go.setOnAction(e -> {
@@ -175,15 +202,15 @@ public class QuestSetupScreen extends BorderPane {
                 // "Al azar" se sortea aqui, del mismo pozo que ensenya la
                 // rejilla: asi el que llama recibe siempre un comandante.
                 final PaperCard cmd = commander != null ? commander
-                        : AscentSeedDeck.randomCommander();
+                        : AscentSeedDeck.randomCommander(pool);
                 // Montar el mazo tarda un momento (la primera vez carga la
                 // matriz): que se vea que ha pillado el clic, y que no se
                 // pueda tocar nada mas — start() ya se ha llevado los valores,
                 // y cambiar las reglas en ese rato no haria nada (principio 1).
                 setBuilding(true);
-                actions.start(n, modalidad, dificultad, null, cmd, world);
+                actions.start(n, modalidad, dificultad, null, cmd, world, pool);
             } else {
-                actions.start(n, modalidad, dificultad, starter, null, world);
+                actions.start(n, modalidad, dificultad, starter, null, world, pool);
             }
         });
 
@@ -316,6 +343,11 @@ public class QuestSetupScreen extends BorderPane {
         tile.setOnMouseClicked(e -> {
             if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY) {
                 world = isMain ? null : w.getName();
+                if (world != null && !pool.isAll()) {
+                    // Un mundo ya dice con que expansiones se juega.
+                    poolPicker.reset();
+                    poolChanged(forge.neo.ascent.AscentPool.ALL);
+                }
                 paintWorlds();
                 if (worldState != null) {
                     worldState.setText(world == null ? NeoText.get("questNew.worldDefault")
@@ -324,6 +356,66 @@ public class QuestSetupScreen extends BorderPane {
             }
         });
         return tile;
+    }
+
+    /** Al cambiar las expansiones: el mundo, los comandantes y Empezar. */
+    private void poolChanged(final forge.neo.ascent.AscentPool p) {
+        pool = p;
+        if (!p.isAll() && world != null) {
+            world = null;
+            paintWorlds();
+            if (worldState != null) {
+                worldState.setText(NeoText.get("questNew.worldDefault"));
+            }
+        }
+        if (commander != null && !p.allows(commander)) {
+            commander = null;
+        }
+        allCommanders = null;
+        if (fromCommander) {
+            reloadCommanders();
+        }
+        syncChosen();
+        syncGo();
+    }
+
+    private forge.neo.ascent.AscentRun.Mode runMode() {
+        return modalidad == NeoQuest.Modalidad.COMMANDER
+                ? forge.neo.ascent.AscentRun.Mode.COMMANDER : forge.neo.ascent.AscentRun.Mode.STANDARD;
+    }
+
+    /**
+     * Por que no se puede empezar con ese pozo, o null. Lo de Ascenso (pocas
+     * cartas, ningun comandante) y lo propio de la Quest: si ninguna tiene
+     * sobres, la tienda y el sobre de premio se quedarian vacios.
+     */
+    private String poolProblem(final forge.neo.ascent.AscentPool p) {
+        if (p.isAll()) {
+            return null;
+        }
+        final String problem = p.problem(runMode());
+        if (problem != null) {
+            return NeoText.get(problem, forge.neo.ascent.AscentPool.MIN_CARDS);
+        }
+        return forge.neo.quest.NeoQuest.hasPacks(p) ? null : NeoText.get("questNew.cards.noPacks");
+    }
+
+    private String[] describePool(final forge.neo.ascent.AscentPool p) {
+        final String problem = poolProblem(p);
+        if (problem != null) {
+            return new String[] {problem, "problem"};
+        }
+        final String count = String.format(Locale.getDefault(), "%,d", p.spellCount());
+        return new String[] {modalidad == NeoQuest.Modalidad.COMMANDER
+                ? NeoText.get("questNew.cards.countCommander", count, p.commanderCount())
+                : NeoText.get("questNew.cards.count", count), null};
+    }
+
+    /** Empezar, apagado con un pozo con el que no se puede jugar. */
+    private void syncGo() {
+        if (goButton != null) {
+            goButton.setDisable(poolProblem(pool) != null);
+        }
     }
 
     private static Region section(final String caption, final Region content) {
@@ -358,6 +450,10 @@ public class QuestSetupScreen extends BorderPane {
                 reloadDecks();
                 syncDeckStep();
                 syncWorld();
+                // Lo que pide un pozo cambia con las reglas (en Commander hacen
+                // falta comandantes).
+                poolPicker.refresh();
+                syncGo();
             });
             modeRow.getChildren().add(tile);
         }
@@ -619,7 +715,7 @@ public class QuestSetupScreen extends BorderPane {
 
     private void reloadCommanders() {
         if (allCommanders == null) {
-            allCommanders = AscentSeedDeck.commanderPool();
+            allCommanders = AscentSeedDeck.commanderPool(pool);
         }
         final String q = cmdSearch.getText() == null ? ""
                 : cmdSearch.getText().trim().toLowerCase(Locale.ROOT);

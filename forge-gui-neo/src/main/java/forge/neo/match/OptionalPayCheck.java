@@ -115,6 +115,24 @@ public final class OptionalPayCheck {
             // oso: antes hay que dejar pasar el mantenimiento (el disparo de
             // Paralyze se resuelve pasando la prioridad).
             ui.setAutoPlayHold(() -> {
+                // El pago se mira AQUI, sincronizado: el piloto pregunta esto
+                // justo cuando el motor ensenya el pago (updateButtons, con el
+                // input ya activo). El hilo de abajo, que mira cada 5 ms, a
+                // veces llegaba tarde: el piloto pagaba antes y la prueba decia
+                // "no se llego a ver el pago" (03-10-2026, con el ordenador
+                // ocupado; en un idioma pasaba y en otro no, segun el reparto).
+                if (ui.getGameController() instanceof PlayerControllerHuman gc
+                        && gc.getInputQueue().getInput() instanceof InputPayMana in) {
+                    final SpellAbility sa = NeoPaymentPeek.paidFor(in);
+                    final String host = sa == null || sa.getHostCard() == null ? "" : sa.getHostCard().getName();
+                    if ("Paralyze".equals(host) && paralyzeEffect.get() == null) {
+                        paralyzeEffect.set(NeoPaymentPeek.isEffectPayment(in));
+                        paralyzeUi.set(ui.isOptionalPayment());
+                    } else if ("Grizzly Bears".equals(host) && bearsEffect.get() == null) {
+                        bearsEffect.set(NeoPaymentPeek.isEffectPayment(in));
+                        bearsUi.set(ui.isOptionalPayment());
+                    }
+                }
                 if (!alive.get() || bearsEffect.get() != null) {
                     return false;
                 }

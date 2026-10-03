@@ -126,7 +126,10 @@ public class QuestBazaarScreen extends StackPane {
         // es una decision de veterano, y lo primero que se ve al entrar al
         // bazar tiene que ser lo que se viene a hacer aqui, que es comprar. De
         // fabrica se juega con todo.
-        content.getChildren().add(worlds());
+        // Una Quest limitada a unas expansiones no viaja (NeoQuestWorlds.travelTo).
+        if (forge.neo.quest.NeoQuest.chosenSets() == null) {
+            content.getChildren().add(worlds());
+        }
     }
 
     private Region stallBox(final NeoQuestBazaar.Stall stall) {

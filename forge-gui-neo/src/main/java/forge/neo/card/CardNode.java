@@ -317,6 +317,8 @@ public class CardNode extends StackPane {
     private double baseViewOrder;
 
     public CardNode(final double width) {
+        // Arabe (de derecha a izquierda): esto se dibuja como siempre. Ver Rtl.
+        forge.neo.ui.Rtl.keepLtr(this);
         getStyleClass().add("card");
         setAlignment(Pos.CENTER);
         setPickOnBounds(true);

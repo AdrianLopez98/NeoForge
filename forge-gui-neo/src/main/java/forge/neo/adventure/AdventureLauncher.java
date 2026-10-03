@@ -244,7 +244,16 @@ public final class AdventureLauncher {
         }
         // El idioma forzado para grabar (-Dneo.language) tambien vale dentro:
         // la Aventura lee NeoLanguage en su propio proceso.
-        final String forcedLanguage = System.getProperty("neo.language");
+        String forcedLanguage = System.getProperty("neo.language");
+        // Un idioma que NO trae Forge (el arabe, que ponemos nosotros): la
+        // Aventura entera en ingles. Su mapa es libGDX, cuyas letras no tienen
+        // arabe ni saben escribir de derecha a izquierda, y el motor ya cae al
+        // ingles ahi (AdventureSettings.engineLanguage); sin esto nuestros
+        // duelos y el editor saldrian en arabe en medio de una Aventura en
+        // ingles.
+        if (forge.neo.NeoLanguage.isProvided(forge.neo.NeoLanguage.current())) {
+            forcedLanguage = "en-US";
+        }
         if (forcedLanguage != null) {
             l.cmd.add("-Dneo.language=" + forcedLanguage);
         }

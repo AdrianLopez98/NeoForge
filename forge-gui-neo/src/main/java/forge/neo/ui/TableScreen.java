@@ -236,6 +236,9 @@ public class TableScreen extends Pane {
     private Consumer<String> gestureSpy;
 
     public TableScreen(final double cardWidth, final double sideWidth) {
+        // Arabe (de derecha a izquierda): la MESA no se espeja, es geometria
+        // de juego. Ver Rtl.
+        Rtl.keepLtr(this);
         this.cardWidth = cardWidth;
         this.sideWidth = sideWidth;
         this.hand = new HandFan(cardWidth * 1.12);

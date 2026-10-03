@@ -54,6 +54,8 @@ public final class FlagIcon {
         flag.setMinSize(w, h);
         flag.setMaxSize(w, h);
         flag.setMouseTransparent(true);
+        // Arabe (de derecha a izquierda): la bandera, sin espejar. Ver Rtl.
+        Rtl.keepLtr(flag);
 
         final boolean known = paint(flag, langId, w, h);
         if (!known) {
@@ -136,6 +138,21 @@ public final class FlagIcon {
                 diamond.setFill(Color.web("#FFDF00"));
                 add(flag, diamond);
                 add(flag, new Circle(w / 2, h / 2, h * 0.2, Color.web("#002776")));
+                return true;
+            }
+            case "ar-MA": {
+                // El arabe no es de un pais: una bandera cualquiera dejaria
+                // fuera a los demas. Una placa con la letra ain, que es la
+                // inicial de "arabe" (\u0639\u0631\u0628\u064a), sobre un verde sobrio.
+                add(flag, rect(0, 0, w, h, Color.web("#1F6B52")));
+                final javafx.scene.text.Text ain = new javafx.scene.text.Text("\u0639");
+                ain.setFont(javafx.scene.text.Font.font("Segoe UI", javafx.scene.text.FontWeight.BOLD, h * 0.8));
+                ain.setFill(Color.WHITE);
+                ain.setTextOrigin(javafx.geometry.VPos.CENTER);
+                final double tw = ain.getLayoutBounds().getWidth();
+                ain.setX((w - tw) / 2);
+                ain.setY(h * 0.42);
+                add(flag, ain);
                 return true;
             }
             default:

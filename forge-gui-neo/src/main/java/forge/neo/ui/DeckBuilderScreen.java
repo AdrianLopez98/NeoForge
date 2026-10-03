@@ -1,5 +1,6 @@
 package forge.neo.ui;
 
+import forge.neo.NeoSettings;
 import forge.neo.NeoText;
 import forge.neo.card.CardText;
 import java.util.ArrayList;
@@ -113,6 +114,8 @@ public class DeckBuilderScreen extends StackPane {
      * abrirlo para saber cual llevas puesta.
      */
     private final Button sleeveButton = new Button(NeoText.get("deck.sleeve"));
+    /** Todo el mazo foil, o quitarselo (Discord, 03-10-2026). Ver DeckEditor.setAllFoil. */
+    private final Button foilAllButton = new Button(NeoText.get("deck.foilAll"));
 
     private final Button cleanup = new Button(NeoText.get("deck.cleanup"));
     private final Button generate = new Button(NeoText.get("deck.generate"));
@@ -314,7 +317,11 @@ public class DeckBuilderScreen extends StackPane {
         final VBox identity = new VBox(4, format, title);
         identity.setMinWidth(0);
         HBox.setHgrow(identity, Priority.ALWAYS);
-        final HBox row = new HBox(14, identity, rename, sleeveButton, views);
+        foilAllButton.getStyleClass().add("btn-secondary");
+        foilAllButton.setMinWidth(Region.USE_PREF_SIZE);
+        foilAllButton.setOnAction(e -> foilAll());
+        refreshFoilAllButton();
+        final HBox row = new HBox(14, identity, rename, foilAllButton, sleeveButton, views);
         row.setAlignment(Pos.CENTER_LEFT);
 
         final VBox box = new VBox(4, row, status);
@@ -435,6 +442,21 @@ public class DeckBuilderScreen extends StackPane {
             refreshCatalogue();
         });
 
+        // "Ocultar las ya puestas" (Discord, 03-10-2026: "having it still in
+        // the list is really cluttering the list"). Apagado de fabrica - lo
+        // que ya no cabe se ve apagado y sigue ahi, porque es parte de tu
+        // coleccion - y RECORDADO: quien no quiere verlo no lo quiere nunca.
+        hideUsedButton.setId("builder-hide-used");
+        hideUsedButton.getStyleClass().add("segment");
+        hideUsedButton.setMinWidth(Region.USE_PREF_SIZE);
+        hideUsedButton.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("deck.hideUsed.tip")));
+        filterButtons.add(hideUsedButton);
+        hideUsedButton.pseudoClassStateChanged(SELECTED, hideUsed);
+        hideUsedButton.setOnAction(e -> {
+            setHideUsed(!hideUsed);
+            refreshCatalogue();
+        });
+
         final Button clear = new Button(NeoText.get("deck.clearFilters"));
         clear.getStyleClass().add("segment");
         clear.setMinWidth(Region.USE_PREF_SIZE);
@@ -506,7 +528,7 @@ public class DeckBuilderScreen extends StackPane {
                 new HBox(6, label(caps("deck.toughness")), toughRow),
                 new HBox(6, label(caps("deck.set")), setBox),
                 new HBox(6, label(caps("library.format")), formatBox),
-                rules, clear);
+                rules, hideUsedButton, clear);
         fine.setAlignment(Pos.CENTER_LEFT);
 
         // El tipo va en SU PROPIA fila, antes que rareza y coste: es lo
@@ -600,6 +622,19 @@ public class DeckBuilderScreen extends StackPane {
 
     private Region filterRow;
 
+    /** Donde se recuerda "Ocultar las ya puestas" (la misma clave que Android). */
+    private static final String HIDE_USED_KEY = "deckEditorHideUsed";
+
+    /** Ver el boton en {@link #catalogue()}: sin lo que ya esta todo en el mazo. */
+    private boolean hideUsed = NeoSettings.getBool(HIDE_USED_KEY, false);
+    private final Button hideUsedButton = new Button(NeoText.get("deck.hideUsed"));
+
+    private void setHideUsed(final boolean on) {
+        hideUsed = on;
+        NeoSettings.setBool(HIDE_USED_KEY, on);
+        hideUsedButton.pseudoClassStateChanged(SELECTED, on);
+    }
+
     /**
      * Lo que se eligio la ultima vez: la Aventura abre un editor nuevo cada
      * vez, y quien ordena por lo ultimo lo quiere asi en la siguiente.
@@ -619,7 +654,8 @@ public class DeckBuilderScreen extends StackPane {
         box.getStyleClass().add("builder-sort");
         for (final DeckEditor.Sort s : DeckEditor.Sort.values()) {
             if ((s != DeckEditor.Sort.NEWEST || editor.tracksAcquisition())
-                    && (s != DeckEditor.Sort.PRICE || editor.hasPrices())) {
+                    && (s != DeckEditor.Sort.PRICE || editor.hasPrices())
+                    && (s != DeckEditor.Sort.COUNT || editor.isLimited())) {
                 box.getItems().add(s);
             }
         }
@@ -680,6 +716,8 @@ public class DeckBuilderScreen extends StackPane {
                 return NeoText.get("deck.sort.toughness");
             case PRICE:
                 return NeoText.get("deck.sort.price");
+            case COUNT:
+                return NeoText.get("deck.sort.count");
             default:
                 return NeoText.get("deck.sort.name");
         }
@@ -918,6 +956,7 @@ public class DeckBuilderScreen extends StackPane {
         for (final Button n : filterButtons) {
             n.pseudoClassStateChanged(SELECTED, false);
         }
+        setHideUsed(false);
         search.setPromptText(NeoText.get("deck.search"));
         refreshCatalogue();
     }
@@ -961,21 +1000,156 @@ public class DeckBuilderScreen extends StackPane {
         VBox.setVgrow(scroll, Priority.ALWAYS);
 
         deckCount.getStyleClass().add("builder-deck-count");
+        deckCount.setMinWidth(0);
         final Region gap = new Region();
         HBox.setHgrow(gap, Priority.ALWAYS);
-        final HBox heading = new HBox(8, label(NeoText.get("deck.theDeck")), gap, deckCount);
+        deckFilterToggle.setId("builder-deck-filter");
+        deckFilterToggle.getStyleClass().add("segment");
+        deckFilterToggle.setMinWidth(Region.USE_PREF_SIZE);
+        deckFilterToggle.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("deck.filterDeck.tip")));
+        deckFilterToggle.setOnAction(e -> {
+            final boolean show = !deckFilterRow.isVisible();
+            deckFilterRow.setVisible(show);
+            deckFilterRow.setManaged(show);
+            refreshDeckFilterToggle();
+        });
+        final HBox heading = new HBox(8, label(NeoText.get("deck.theDeck")), gap, deckCount,
+                deckFilterToggle);
         heading.setAlignment(Pos.CENTER_LEFT);
+        deckFilterRow = deckFilterRow();
+        refreshDeckFilterToggle();
         final javafx.scene.control.TitledPane details = new javafx.scene.control.TitledPane(NeoText.get("stats.caption"), stats);
         details.setExpanded(false);
         details.setAnimated(false);
         details.getStyleClass().add("builder-statistics");
         companionRow.setAlignment(Pos.CENTER_LEFT);
-        final VBox box = new VBox(8, heading, commanderRow, companionRow, scroll, curve, details);
+        final VBox box = new VBox(8, heading, deckFilterRow, commanderRow, companionRow, scroll,
+                curve, details);
         scroll.setMinHeight(UiScale.px(60));
         box.setId("builder-deck-panel");
         box.getStyleClass().add("deck-panel");
         box.setPadding(new Insets(12, 14, 12, 14));
         return box;
+    }
+
+    // ---- el filtro del mazo ----
+    //
+    // Discord, 03-10-2026: "sometime you just wanna change a couple card in
+    // spessific color, then you need to scroll and search that one card". Es
+    // solo de la pantalla: esconde filas, no toca el mazo. El color es la
+    // IDENTIDAD, como en el catalogo, y vale cualquiera de los marcados.
+
+    private final java.util.Set<Byte> deckColours = new java.util.LinkedHashSet<>();
+    private boolean deckColourless;
+    private final TextField deckSearch = new TextField();
+    private final Button deckFilterToggle = new Button();
+    private HBox deckFilterRow;
+
+    private HBox deckFilterRow() {
+        final HBox colourRow = new HBox(4);
+        colourRow.setAlignment(Pos.CENTER_LEFT);
+        final String[] letters = {"W", "U", "B", "R", "G"};
+        final byte[] masks = {MagicColor.WHITE, MagicColor.BLUE, MagicColor.BLACK,
+                MagicColor.RED, MagicColor.GREEN};
+        final List<Button> buttons = new ArrayList<>();
+        for (int i = 0; i < letters.length; i++) {
+            final byte colour = masks[i];
+            final Button b = new Button(letters[i]);
+            b.getStyleClass().addAll("segment", "colour-filter",
+                    "mana-" + letters[i].toLowerCase(java.util.Locale.ROOT));
+            b.setOnAction(e -> {
+                if (!deckColours.remove(colour)) {
+                    deckColours.add(colour);
+                }
+                b.pseudoClassStateChanged(SELECTED, deckColours.contains(colour));
+                refreshDeck();
+            });
+            buttons.add(b);
+        }
+        // Incoloras aparte: en un mazo son artefactos y tierras, que es justo lo
+        // que se repasa cuando sobra o falta mana.
+        final Button colourless = new Button("C");
+        colourless.getStyleClass().addAll("segment", "colour-filter", "mana-c");
+        colourless.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("deck.colorless")));
+        colourless.setOnAction(e -> {
+            deckColourless = !deckColourless;
+            colourless.pseudoClassStateChanged(SELECTED, deckColourless);
+            refreshDeck();
+        });
+        buttons.add(colourless);
+        colourRow.getChildren().addAll(buttons);
+
+        final Button clear = new Button("×");
+        clear.getStyleClass().add("segment");
+        clear.setMinWidth(Region.USE_PREF_SIZE);
+        clear.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("deck.clearFilters")));
+        clear.setOnAction(e -> {
+            deckColours.clear();
+            deckColourless = false;
+            for (final Button b : buttons) {
+                b.pseudoClassStateChanged(SELECTED, false);
+            }
+            deckSearch.clear();
+            refreshDeck();
+        });
+
+        deckSearch.setPromptText(NeoText.get("deck.filterDeck.search"));
+        deckSearch.getStyleClass().add("text-input");
+        // -Dneo.builder.deckSearch=texto la rellena ANTES del oyente: escrito
+        // despues, repintaria el mazo con la pantalla aun a medio montar.
+        final String typed = System.getProperty("neo.builder.deckSearch", "");
+        deckSearch.setText(typed);
+        deckSearch.textProperty().addListener((o, was, is) -> refreshDeck());
+        deckSearch.setMinWidth(UiScale.px(70));
+        deckSearch.setPrefColumnCount(6);
+        HBox.setHgrow(deckSearch, Priority.ALWAYS);
+
+        // UNA sola fila, colores + texto + x: en 1080 la columna del mazo ya
+        // va justa de alto (comandante, curva, estadisticas), y con dos filas
+        // a la lista le quedaban dos cartas a la vista.
+        final HBox row = new HBox(4, colourRow, deckSearch, clear);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.setId("builder-deck-filter-row");
+        // -Dneo.builder.deckFilter=true la abre al entrar (y deckSearch, ver arriba):
+        // solo para capturarla.
+        final boolean open = Boolean.getBoolean("neo.builder.deckFilter") || !typed.isEmpty();
+        row.setVisible(open);
+        row.setManaged(open);
+        return row;
+    }
+
+    private boolean deckFilterActive() {
+        return !deckColours.isEmpty() || deckColourless || !deckSearch.getText().isBlank();
+    }
+
+    private boolean deckFilterAccepts(final PaperCard card) {
+        if (!deckColours.isEmpty() || deckColourless) {
+            final ColorSet id = card.getRules().getColorIdentity();
+            boolean ok = deckColourless && id.isColorless();
+            for (final byte c : deckColours) {
+                ok |= id.hasAnyColor(c);
+            }
+            if (!ok) {
+                return false;
+            }
+        }
+        final String q = deckSearch.getText().trim().toLowerCase(java.util.Locale.ROOT);
+        if (q.isEmpty()) {
+            return true;
+        }
+        // El nombre en el idioma de la partida Y en ingles, y la linea de tipo:
+        // se busca "elfo" igual que "Llanowar" o "artifact".
+        return CardText.nameOf(card).toLowerCase(java.util.Locale.ROOT).contains(q)
+                || card.getName().toLowerCase(java.util.Locale.ROOT).contains(q)
+                || card.getRules().getType().toString().toLowerCase(java.util.Locale.ROOT).contains(q);
+    }
+
+    /** El punto dice que hay filtro aunque la fila este plegada: un mazo de 40 que ensenya 6 parece roto. */
+    private void refreshDeckFilterToggle() {
+        final boolean active = deckFilterActive();
+        final boolean open = deckFilterRow != null && deckFilterRow.isVisible();
+        deckFilterToggle.setText(NeoText.get("deck.filterDeck") + (active ? "  •" : ""));
+        deckFilterToggle.pseudoClassStateChanged(SELECTED, active || open);
     }
 
     /** Un rotulo de filtro en mayusculas, como TIPO, RAREZA y COSTE. */
@@ -1149,7 +1323,7 @@ public class DeckBuilderScreen extends StackPane {
     private void updateFilterToggle() {
         final int active = colours.size() + (colourlessOn ? 1 : 0) + (multicolourOn ? 1 : 0)
                 + rarities.size() + cmcs.size() + types.size() + (searchRules ? 1 : 0)
-                + powers.size() + toughnesses.size()
+                + powers.size() + toughnesses.size() + (hideUsed ? 1 : 0)
                 + (setBox.getValue() != null ? 1 : 0) + (formatBox.getValue() != null ? 1 : 0);
         filterToggle.setText(NeoText.get("deck.filters") + (active == 0 ? "" : " · " + active)
                 + (filterRow != null && filterRow.isVisible() ? "  −" : "  +"));
@@ -1173,9 +1347,18 @@ public class DeckBuilderScreen extends StackPane {
             return multicolourOn && id.countColors() > 1;
         };
 
+        // Lo ya puesto del todo se pregunta UNA vez, sobre el mazo: carta a
+        // carta del catalogo serian 33.000 recorridos (ver usedUpNames). En
+        // modo comandante no pinta nada: ahi se elige quien manda.
+        final java.util.Set<String> usedUp = hideUsed && !commanderMode
+                ? editor.usedUpNames() : java.util.Set.of();
+
         // Los filtros finos se componen con el de color en un solo predicado:
         // el buscador ya recorre el catalogo una vez y pasa cada carta por el.
         final Predicate<PaperCard> fine = card -> {
+            if (usedUp.contains(card.getName())) {
+                return false;
+            }
             if (!rarities.isEmpty() && !rarities.contains(card.getRarity())) {
                 return false;
             }
@@ -1539,6 +1722,7 @@ public class DeckBuilderScreen extends StackPane {
 
     private void refreshDeck() {
         title.setText(editor.getName() + (editor.isDirty() ? " *" : ""));
+        refreshFoilAllButton();
 
         // Estado: cuantas cartas y que le falta para ser legal. El problema lo
         // dice el motor palabra por palabra; no lo reescribimos — pero SI lo
@@ -1570,20 +1754,42 @@ public class DeckBuilderScreen extends StackPane {
         cleanup.setManaged(!illegal.isEmpty());
         clearMain.setDisable(main == 0);
 
+        // Con el filtro del mazo puesto, un grupo sin nada que ensenyar no sale,
+        // y su numero es el de lo que se ve: "Criaturas (12)" encima de tres
+        // filas haria pensar que faltan nueve.
+        final boolean filtering = deckFilterActive();
+        int shown = 0;
         deckList.getChildren().clear();
         for (final Map.Entry<String, Integer> group : editor.typeCounts().entrySet()) {
-            final Label heading = new Label(DeckEditor.groupLabel(group.getKey())
-                    + "  (" + group.getValue() + ")");
-            heading.getStyleClass().add("deck-group");
-            deckList.getChildren().add(heading);
+            final List<Region> rows = new ArrayList<>();
+            int inGroup = 0;
             for (final Map.Entry<PaperCard, Integer> e : editor.cardsInGroup(group.getKey())) {
+                if (filtering && !deckFilterAccepts(e.getKey())) {
+                    continue;
+                }
                 final Region row = deckRow(e.getKey(), e.getValue());
                 row.pseudoClassStateChanged(INVALID, illegal.contains(e.getKey().getName()));
-                deckList.getChildren().add(row);
+                rows.add(row);
+                inGroup += e.getValue();
             }
+            if (rows.isEmpty()) {
+                continue;
+            }
+            shown += inGroup;
+            final Label heading = new Label(DeckEditor.groupLabel(group.getKey())
+                    + "  (" + (filtering ? inGroup : group.getValue()) + ")");
+            heading.getStyleClass().add("deck-group");
+            deckList.getChildren().add(heading);
+            deckList.getChildren().addAll(rows);
         }
+        if (filtering) {
+            deckCount.setText(NeoText.get("count.cards", main) + "  ·  "
+                    + NeoText.get("deck.filterDeck.showing", shown));
+        }
+        refreshDeckFilterToggle();
         if (deckList.getChildren().isEmpty()) {
-            final Label empty = new Label(NeoText.get("deck.empty"));
+            final Label empty = new Label(NeoText.get(filtering && main > 0
+                    ? "deck.filterDeck.none" : "deck.empty"));
             empty.getStyleClass().add("home-subtitle");
             empty.setWrapText(true);
             deckList.getChildren().add(empty);
@@ -1591,6 +1797,12 @@ public class DeckBuilderScreen extends StackPane {
 
         curve.update(editor);
         stats.update(editor);
+        // Con el filtro del mazo PUESTO la curva se esconde (Ana, 03-10-2026):
+        // en 1080 a la lista le quedaban dos o tres cartas a la vista, y la
+        // curva habla del mazo entero, no de lo que se esta mirando. Con la
+        // fila abierta y vacia se queda: ahi la lista ya se ve entera.
+        curve.setVisible(!filtering);
+        curve.setManaged(!filtering);
 
         // La vista visual se repinta solo si esta puesta; construirla cuando no
         // se ve seria trabajo tirado.
@@ -1867,14 +2079,14 @@ public class DeckBuilderScreen extends StackPane {
      * ser un adorno y pasa a ser parte de lo que coleccionas — si un sobre
      * te ha dado el Rayo normal, llevas el normal, y el foil hay que
      * ganarselo abriendolo. Por eso solo se ofrece "marcar como foil" si
-     * {@code editor.printingsOf(card)} ya incluye la version foil de ESTA
-     * impresion exacta: es la misma comprobacion que ya usa
-     * {@code QuestDeckContext}/{@code DraftDeckContext} para el arte, sin
-     * inventar una regla nueva.
+     * el contexto incluye la version foil de ESTA impresion exacta. La regla
+     * vive en {@code DeckEditor.canFoil}, la misma del boton "Todas foil";
+     * y desde el 03-10-2026 tambien las basicas de la aventura y del draft
+     * piden el foil abierto (el arte de una basica es gratis, el brillo no).
      */
     private CardActionMenu.Action foilAction(final PaperCard card) {
         final boolean toFoil = !card.isFoil();
-        final boolean allowed = !toFoil || !editor.isLimited() || ownsFoilOf(card);
+        final boolean allowed = !toFoil || editor.canFoil(card);
         return new CardActionMenu.Action(
                 NeoText.get(toFoil ? "deck.makeFoil" : "deck.removeFoil"),
                 allowed ? null : NeoText.get("deck.foilLocked"),
@@ -1888,9 +2100,25 @@ public class DeckBuilderScreen extends StackPane {
                 });
     }
 
-    /** Si tienes (has abierto) la version foil de esta impresion exacta. */
-    private boolean ownsFoilOf(final PaperCard card) {
-        return editor.printingsOf(card).contains(card.getFoiled());
+    /**
+     * Todo el mazo foil de golpe, o quitarselo si ya lo es entero. Mismas
+     * reglas que el de una carta: en Quest, draft o sellado, solo las que te
+     * han salido foil.
+     */
+    private void foilAll() {
+        final boolean toFoil = !editor.isAllFoil();
+        if (editor.setAllFoil(toFoil) > 0) {
+            refreshDeck();
+            refreshCatalogue();
+        }
+        refreshFoilAllButton();
+    }
+
+    private void refreshFoilAllButton() {
+        final boolean all = editor.isAllFoil();
+        foilAllButton.setText(NeoText.get(all ? "deck.foilAll.remove" : "deck.foilAll"));
+        foilAllButton.setTooltip(new javafx.scene.control.Tooltip(NeoText.get(
+                editor.isLimited() ? "deck.foilAll.limited" : "deck.foilAll.tip")));
     }
 
     /** Levanta el menu de una carta sobre la capa de dialogos. */

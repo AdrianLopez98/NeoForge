@@ -296,6 +296,34 @@ public final class LobbyCheck {
                     ai != null && ai.getName() != null && !ai.getName().isBlank());
             ok &= check("y es una IA", ai != null && ai.getType() == LobbySlotType.AI);
 
+            // ---- 4-bis-bis. con la ficha de su rival (Personalizar -> Rivales) ----
+            //
+            // Toca los ajustes del jugador: se guardan antes y se reponen siempre.
+            final String[] rivalKeys = {forge.neo.look.RivalSetup.MODES, forge.neo.look.RivalSetup.AVATARS};
+            final String[] rivalBefore = new String[rivalKeys.length];
+            for (int k = 0; k < rivalKeys.length; k++) {
+                rivalBefore[k] = forge.neo.NeoSettings.get(rivalKeys[k], null);
+            }
+            try {
+                final int next = NeoLobby.freeAiRival(lobby);
+                forge.neo.look.RivalSetup.setMode(next, "Reckless");
+                forge.neo.look.RivalSetup.setAvatar(next, "sprite:avatar:7");
+                final UpdateLobbyPlayerEvent custom = NeoLobby.aiSeatEvent(lobby);
+                ok &= check("una IA de la sala lleva la forma de jugar de SU rival (Reckless): " + custom.getAiProfile(),
+                        "Reckless".equals(custom.getAiProfile()));
+                ok &= check("y su cara de la hoja (7): " + custom.getAvatarIndex(), custom.getAvatarIndex() == 7);
+                forge.neo.look.RivalSetup.setMode(next, "");
+                forge.neo.look.RivalSetup.setAvatar(next, "");
+                final UpdateLobbyPlayerEvent plain = NeoLobby.aiSeatEvent(lobby);
+                ok &= check("sin personalizar, igual que antes (sin perfil y la cara de siempre)",
+                        plain.getAiProfile() == null && plain.getAvatarIndex() == -1);
+            } finally {
+                for (int k = 0; k < rivalKeys.length; k++) {
+                    forge.neo.NeoSettings.set(rivalKeys[k], rivalBefore[k]);
+                }
+                forge.neo.NeoSettings.save();
+            }
+
             // ---- 4-ter. por equipos, si se pide ----
             //
             // -Dneo.lobby.check.teams=true: tu y una IA contra el invitado y

@@ -132,6 +132,7 @@ public final class NeoBoot {
      */
     public static void prepareTexts() {
         final String idioma = NeoLanguage.current();
+        ArabicLang.installIfArabic(idioma);
         forge.util.Lang.createInstance(idioma);
         forge.util.Localizer.getInstance().initialize(idioma,
                 forge.localinstance.properties.ForgeConstants.LANG_DIR);
