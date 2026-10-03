@@ -1,15 +1,14 @@
-**NeoForge para macOS 1.0.10 (beta).** El mismo numero que en itch.io, en PC, Mac y Android.
+**NeoForge para macOS 1.0.11 (beta).** El mismo número que en itch.io, en PC, Mac y Android.
 
 Novedades:
-- **Jumpstart en el Sellado**: los nueve Jumpstart de Forge; eliges el tema de cada uno de los dos sobres o al azar, y los dos juntos ya son tu mazo de 40.
-- **Cada rival con su cara, su nombre y su IA** (Personalizar → Rivales), con un "Al azar" que sortea entre los perfiles que marques.
-- **Ascenso con las cartas de unas expansiones**: todas, desde/hasta (por ejemplo de Alpha a Fourth Edition) o solo una. Vale para todo, rivales incluidos, y con el arte de esas expansiones.
-- **Bajar el arte de una expansion o de un formato**, ademas de todo el arte.
-- **Los pagos opcionales ya no se pagan solos** (Paralyze, "a menos que", eco): Auto paga y Cancelar no.
-- **Ordenar la biblioteca** dice que la marcada con 1 queda arriba: es la proxima que robas.
-- **Generar mazo**: sin Gleemox, sin repetir el hechizo insignia ni el compañero, y con Partner dentro de tu identidad y con 99 cartas.
-- Un mazo tuyo que se llama igual que un precon ya no mete el precon en "Mis mazos".
-- Arreglos y pruebas nuevas.
+- **El árabe, undécimo idioma** (Ajustes → Idioma → العربية): los menús se leen de derecha a izquierda; la mesa y las cartas quedan igual. Las cartas siguen en inglés, y la Aventura también.
+- **"Todas foil"** en el constructor: pone o quita el foil a todo el mazo. En Quest, la Aventura, draft y sellado, solo a las cartas cuya foil tienes.
+- **El constructor, más cómodo**: "Filtrar" en la columna del mazo (colores y texto, y la curva se aparta mientras está puesto), "Ocultar las ya puestas" en los filtros y ordenar tu colección por cantidad.
+- **Ascenso con un bloque a medida**: eliges las expansiones una a una (todo Zendikar, todo Marvel...).
+- **Quest con solo unas expansiones**: todas, desde/hasta o elegidas a mano, al empezar una Quest nueva.
+- **Preguntar antes de no bloquear con nada** (Ajustes, apagado de fábrica).
+- **La IA de la partida en red** sale con la cara y el carácter que le pusiste en Personalizar → Rivales.
+- Arreglos: un rival de Commander convertido en Ascenso podía llevar dos copias de su comandante incoloro.
 
 Descarga el `.dmg` de tu Mac:
 
