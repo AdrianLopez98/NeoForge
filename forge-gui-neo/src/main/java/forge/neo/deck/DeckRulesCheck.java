@@ -1654,10 +1654,13 @@ public final class DeckRulesCheck {
                 "Sol Ring", 300L, "Lightning Bolt", 100L, "Llanowar Elves", 200L)),
                 new Deck("__neocheck-newest__"));
         check("Lo ultimo primero: el contexto de la Aventura lo ofrece", adv.tracksAcquisition());
-        // Por el nombre que SE VE, que en otro idioma es otro orden.
+        // Por el nombre que SE VE, que en otro idioma es otro orden, y sin
+        // tildes (DeckEditor.sortName): en castellano "Angel de Serra" con
+        // tilde va el primero, no detras de la Z.
         final List<PaperCard> sorted = new java.util.ArrayList<>(pool);
         sorted.sort(java.util.Comparator.comparing((PaperCard c) ->
-                forge.neo.card.CardText.nameOf(c).toLowerCase(java.util.Locale.ROOT)));
+                org.apache.commons.lang3.StringUtils.stripAccents(
+                        forge.neo.card.CardText.nameOf(c).toLowerCase(java.util.Locale.ROOT))));
         final List<String> byName = names(adv.find("", false, null, 3, false).cards);
         check("Lo ultimo primero: apagado, por nombre -> " + byName,
                 byName.equals(names(sorted.subList(0, 3))));
