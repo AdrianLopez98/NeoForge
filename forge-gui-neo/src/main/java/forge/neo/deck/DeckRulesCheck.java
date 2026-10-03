@@ -1702,7 +1702,84 @@ public final class DeckRulesCheck {
         final List<String> colour = names(adv.find("", false, null, 10, false).cards);
         check("Orden por color: el incoloro al final -> " + colour,
                 colour.indexOf("Sol Ring") > colour.indexOf("Counterspell"));
+
+        // AL REVES (itch.io, 03-10-2026: "You can't change sort ascending or
+        // decending"). Se invierte el criterio, no la lista: lo que no aplica
+        // sigue al final, y se ordena ANTES del corte.
+        adv.setSort(DeckEditor.Sort.COST);
+        adv.setSortReversed(true);
+        final List<String> costDown = names(adv.find("", false, null, 1, false).cards);
+        check("Coste al reves: lo mas caro arriba, antes del corte -> " + costDown,
+                costDown.equals(List.of("Serra Angel")));
+        adv.setSort(DeckEditor.Sort.POWER);
+        final List<String> powerUp = names(adv.find("", false, null, 10, false).cards);
+        check("Fuerza al reves: la mas debil arriba y lo que no es criatura sigue al final -> " + powerUp,
+                powerUp.get(0).equals("Llanowar Elves")
+                        && powerUp.indexOf("Serra Angel") < powerUp.indexOf("Counterspell")
+                        && powerUp.indexOf("Serra Angel") < powerUp.indexOf("Forest"));
+        // Por nombre, justo la lista de al derecho dada la vuelta. Sin nombres
+        // escritos: se ordena por el TRADUCIDO, y eso depende del idioma.
         adv.setSort(DeckEditor.Sort.NAME);
+        final List<String> nameDown = names(adv.find("", false, null, 10, false).cards);
+        adv.setSortReversed(false);
+        final List<String> nameUp = new java.util.ArrayList<>(names(adv.find("", false, null, 10, false).cards));
+        java.util.Collections.reverse(nameUp);
+        check("Nombre al reves: la lista de la A a la Z dada la vuelta -> " + nameDown,
+                nameDown.equals(nameUp));
+
+        // EL ORDEN DEL MAZO, dentro de cada tipo (itch.io: "No sort in deck, Why ?").
+        adv.add(card("Serra Angel"), 1);
+        adv.add(card("Llanowar Elves"), 1);
+        final String creatures = groupWith(adv, "Serra Angel");
+        check("De fabrica el mazo va por coste, como antes -> " + groupNames(adv, creatures),
+                groupNames(adv, creatures).equals(List.of("Llanowar Elves", "Serra Angel")));
+        adv.setDeckSort(DeckEditor.Sort.COST, true);
+        check("El mazo por coste al reves -> " + groupNames(adv, creatures),
+                groupNames(adv, creatures).equals(List.of("Serra Angel", "Llanowar Elves")));
+        adv.setDeckSort(DeckEditor.Sort.TYPE, false);
+        check("TIPO no es un orden del mazo (los grupos ya son los tipos): vuelve a coste",
+                adv.getDeckSort() == DeckEditor.Sort.COST);
+        adv.setDeckSort(DeckEditor.Sort.COST, false);
+
+        // EL FILTRO DEL MAZO (itch.io: "the best a filter can do ... only split
+        // the deck into 2"): tipo, coste y rareza, ademas de color y texto.
+        final java.util.Set<forge.card.CardType.CoreType> none = java.util.Collections.emptySet();
+        final java.util.Set<Integer> noCost = java.util.Collections.emptySet();
+        final java.util.Set<forge.card.CardRarity> noRarity = java.util.Collections.emptySet();
+        check("Filtro del mazo: un instantaneo pasa por tipo Instantaneo",
+                DeckFilter.accepts(card("Counterspell"), 0, false, "",
+                        java.util.EnumSet.of(forge.card.CardType.CoreType.Instant), noCost, noRarity));
+        check("Filtro del mazo: una criatura no pasa por tipo Instantaneo",
+                !DeckFilter.accepts(card("Serra Angel"), 0, false, "",
+                        java.util.EnumSet.of(forge.card.CardType.CoreType.Instant), noCost, noRarity));
+        check("Filtro del mazo: por coste, 7 es 7 o mas y el 5 no entra en el 2",
+                !DeckFilter.accepts(card("Serra Angel"), 0, false, "", none, java.util.Set.of(2), noRarity)
+                        && DeckFilter.accepts(card("Serra Angel"), 0, false, "", none, java.util.Set.of(5), noRarity));
+        check("Filtro del mazo: las incoloras solo con su boton",
+                DeckFilter.accepts(card("Sol Ring"), 0, true, "", none, noCost, noRarity)
+                        && !DeckFilter.accepts(card("Sol Ring"),
+                        forge.card.MagicColor.GREEN, false, "", none, noCost, noRarity));
+        adv.setSort(DeckEditor.Sort.NAME);
+    }
+
+    /** El grupo del mazo en el que esta esa carta. */
+    private static String groupWith(final DeckEditor ed, final String name) {
+        for (final String g : DeckEditor.GROUPS) {
+            for (final java.util.Map.Entry<PaperCard, Integer> e : ed.cardsInGroup(g)) {
+                if (e.getKey().getName().equals(name)) {
+                    return g;
+                }
+            }
+        }
+        return "";
+    }
+
+    private static List<String> groupNames(final DeckEditor ed, final String group) {
+        final List<String> out = new java.util.ArrayList<>();
+        for (final java.util.Map.Entry<PaperCard, Integer> e : ed.cardsInGroup(group)) {
+            out.add(e.getKey().getName());
+        }
+        return out;
     }
 
     /**

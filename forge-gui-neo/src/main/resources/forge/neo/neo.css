@@ -2968,6 +2968,20 @@
 
 /* Monarca, iniciativa: lo que un jugador "tiene" de la mesa. Dorado, que es
    lo que se busca con la vista cuando se pregunta "quien es el monarca". */
+/* Lo que esta en la mesa de otro pero va con este jugador: una maldicion que
+   le encanta (morado de aura) o una batalla que protege (rojo de batalla). */
+.player-counter-curse {
+    -fx-border-color: #A77BD6;
+    -fx-text-fill: #C9A6F0;
+    -fx-cursor: hand;
+}
+
+.player-counter-battle {
+    -fx-border-color: #D06A5A;
+    -fx-text-fill: #F09A8C;
+    -fx-cursor: hand;
+}
+
 .player-counter-title {
     -fx-background-color: #D9B44A;
     -fx-border-color: #D9B44A;

@@ -75,6 +75,18 @@ public class AscentSetupScreen extends StackPane {
     private final boolean runInProgress;
 
     private final VBox body = new VBox(14);
+    /**
+     * Todo lo de la pantalla menos el pie, con su propio desplazamiento.
+     *
+     * <p>itch.io, 03-10-2026, con captura: con Ascension 10 la lista de "con lo
+     * que vas a jugar" son diez lineas, y el pergamino ya no daba de si. Se salia
+     * por abajo — debajo del papel, en blanco — y en una pantalla mas baja el
+     * titulo se cortaba por arriba y Volver/Empezar se iban fuera. El pie queda
+     * FUERA del desplazamiento: los botones siempre en su sitio (principio 12).
+     */
+    private final VBox content = new VBox(14);
+    private final javafx.scene.control.ScrollPane scroll =
+            new javafx.scene.control.ScrollPane(content);
     private AscentRun.Mode mode = AscentRun.Mode.STANDARD;
     private PaperCard commander;
     /**
@@ -168,6 +180,15 @@ public class AscentSetupScreen extends StackPane {
         body.setAlignment(Pos.CENTER);
         // El borde del papel esta ROTO: ver Parchment.SAFE_EDGE.
         body.setPadding(new Insets(20, 34, Parchment.SAFE_EDGE, 34));
+        content.setAlignment(Pos.CENTER);
+        scroll.getStyleClass().add("dialog-scroll");
+        scroll.setFitToWidth(true);
+        // Para que con poco contenido siga centrado en el papel (los huecos
+        // elasticos de rebuild): el contenido llena el alto si cabe, y si no
+        // cabe sale la barra.
+        scroll.setFitToHeight(true);
+        scroll.setHbarPolicy(javafx.scene.control.ScrollPane.ScrollBarPolicy.NEVER);
+        VBox.setVgrow(scroll, javafx.scene.layout.Priority.ALWAYS);
         // Para capturar el modo Commander, que es el que trae el selector de
         // 10.824 comandantes — o sea la mitad de esta pantalla.
         if ("commander".equalsIgnoreCase(System.getProperty("neo.ascent.setupMode", ""))) {
@@ -181,6 +202,11 @@ public class AscentSetupScreen extends StackPane {
             }
         }
         rebuild();
+        // Para capturar el final de la lista (los efectos de Ascension) sin
+        // rueda: -Dneo.ascent.setupBottom=true
+        if (Boolean.getBoolean("neo.ascent.setupBottom")) {
+            javafx.application.Platform.runLater(() -> javafx.application.Platform.runLater(() -> scroll.setVvalue(1)));
+        }
 
         getChildren().addAll(paper, body);
         // -Dneo.ascent.setupStartAt=N pulsa Empezar a los N ms, por el camino
@@ -206,39 +232,46 @@ public class AscentSetupScreen extends StackPane {
     // ------------------------------------------------------------------
 
     private void rebuild() {
-        body.getChildren().clear();
-        // Un hueco elastico arriba y otro antes de los botones: el contenido
-        // sigue centrado y los botones quedan al pie del pergamino, donde
-        // estan en todas las pantallas (las notas de diseño, principio 12).
-        body.getChildren().add(stretch());
+        // rebuild() se llama en cada clic (un nivel, una pagina): que la lista
+        // no salte arriba del todo cada vez.
+        final double kept = scroll.getVvalue();
+        content.getChildren().clear();
+        // Un hueco elastico arriba y otro abajo: el contenido sigue centrado
+        // y los botones quedan al pie del pergamino, donde estan en todas las
+        // pantallas (las notas de diseño, principio 12).
+        content.getChildren().add(stretch());
 
         final Label title = new Label(NeoText.get("ascent.setup.title"));
         title.getStyleClass().add("ascent-act");
         final Label sub = new Label(NeoText.get("ascent.setup.subtitle"));
         sub.getStyleClass().add("ascent-hint");
-        body.getChildren().addAll(title, sub);
+        content.getChildren().addAll(title, sub);
 
-        body.getChildren().addAll(label("ascent.setup.mode"), modeRow());
-        body.getChildren().addAll(label("ascent.pool.title"), poolBox());
+        content.getChildren().addAll(label("ascent.setup.mode"), modeRow());
+        content.getChildren().addAll(label("ascent.pool.title"), poolBox());
 
         if (mode == AscentRun.Mode.COMMANDER) {
-            body.getChildren().addAll(label("ascent.setup.commander"), commanderBox());
+            content.getChildren().addAll(label("ascent.setup.commander"), commanderBox());
         } else {
-            body.getChildren().addAll(label("ascent.setup.colours"), coloursBox());
+            content.getChildren().addAll(label("ascent.setup.colours"), coloursBox());
         }
 
         if (AscentUnlocks.maxAscension() > 0) {
             // Solo se ensenya si hay algo que elegir: una fila con un unico
             // boton pulsado no es una pregunta, es ruido.
-            body.getChildren().addAll(label("ascent.setup.ascension"), ascensionRow());
+            content.getChildren().addAll(label("ascent.setup.ascension"), ascensionRow());
             // Y QUE trae ese nivel. rebuild() se llama al pulsar un numero, asi
             // que la lista se rehace sola con la eleccion nueva.
             if (ascension > 0) {
-                body.getChildren().add(ascensionEffects());
+                content.getChildren().add(ascensionEffects());
             }
         }
 
-        body.getChildren().addAll(stretch(), footer());
+        content.getChildren().add(stretch());
+        body.getChildren().setAll(scroll, footer());
+        if (kept > 0) {
+            javafx.application.Platform.runLater(() -> scroll.setVvalue(kept));
+        }
     }
 
     private static Region stretch() {

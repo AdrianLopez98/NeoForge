@@ -570,6 +570,7 @@ public class DeckBuilderScreen extends StackPane {
         // Ordenar, como las columnas del editor de Forge. En la Aventura,
         // ademas, "lo ultimo primero".
         caption.getChildren().add(caption.getChildren().indexOf(legal), sortBox());
+        caption.getChildren().add(caption.getChildren().indexOf(legal), sortDirection);
         // Y en la Aventura, copiar la coleccion entera (lo tiene su editor).
         if (editor.getFormat().collectionText() != null) {
             final Button copy = new Button(NeoText.get("deck.copyCollection"));
@@ -645,6 +646,40 @@ public class DeckBuilderScreen extends StackPane {
     private static DeckEditor.Sort sortChosen;
 
     /**
+     * Y si iba al reves (itch.io, 03-10-2026: <i>"You can't change sort
+     * ascending or decending"</i>). Cambiar de orden lo devuelve al derecho,
+     * como una columna de tabla.
+     */
+    private static boolean sortReversedChosen;
+
+    /** La flecha del orden del catalogo. */
+    private final Button sortDirection = new Button();
+
+    /**
+     * La flecha de un orden: arriba de menos a mas, abajo de mas a menos. El
+     * sentido "de fabrica" depende del orden (el coste sube, la rareza baja),
+     * asi que se calcula con los dos.
+     */
+    private static void showDirection(final Button b, final DeckEditor.Sort s, final boolean reversed) {
+        final boolean up = DeckEditor.ascendingByDefault(s) != reversed;
+        b.setText(up ? "\u25B2" : "\u25BC");
+        b.setTooltip(new javafx.scene.control.Tooltip(NeoText.get(up ? "deck.sort.up" : "deck.sort.down")));
+    }
+
+    private static Button directionButton(final String id) {
+        final Button b = new Button();
+        b.setId(id);
+        b.getStyleClass().add("segment");
+        b.setMinWidth(Region.USE_PREF_SIZE);
+        return b;
+    }
+
+    /** El orden del MAZO, dentro de cada tipo (itch.io: "No sort in deck, Why ?"). */
+    private static DeckEditor.Sort deckSortChosen;
+    private static boolean deckSortReversedChosen;
+    private final Button deckSortDirection = directionButton("builder-deck-sort-direction");
+
+    /**
      * El selector de orden. Los criterios de las columnas del editor de Forge;
      * "lo ultimo primero" solo donde se lleva la cuenta (la Aventura).
      */
@@ -681,6 +716,17 @@ public class DeckBuilderScreen extends StackPane {
         }
         box.setValue(start);
         editor.setSort(start);
+        editor.setSortReversed(sortReversedChosen);
+        sortDirection.setId("builder-sort-direction");
+        sortDirection.getStyleClass().add("segment");
+        sortDirection.setMinWidth(Region.USE_PREF_SIZE);
+        showDirection(sortDirection, start, sortReversedChosen);
+        sortDirection.setOnAction(e -> {
+            sortReversedChosen = !sortReversedChosen;
+            editor.setSortReversed(sortReversedChosen);
+            showDirection(sortDirection, editor.getSort(), sortReversedChosen);
+            refreshCatalogue();
+        });
         if (editor.tracksAcquisition()) {
             box.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("deck.newest.tip")));
         }
@@ -691,6 +737,10 @@ public class DeckBuilderScreen extends StackPane {
             sortChosen = is;
             newestFirstChosen = is == DeckEditor.Sort.NEWEST;
             editor.setSort(is);
+            // Otro orden empieza al derecho, como una columna de tabla.
+            sortReversedChosen = false;
+            editor.setSortReversed(false);
+            showDirection(sortDirection, is, false);
             refreshCatalogue();
         });
         return box;
@@ -699,7 +749,7 @@ public class DeckBuilderScreen extends StackPane {
     private static String sortName(final DeckEditor.Sort s) {
         switch (s) {
             case NEWEST:
-                return NeoText.get("deck.newest");
+                return NeoText.get("deck.sort.acquired");
             case COST:
                 return NeoText.get("deck.sort.cost");
             case COLOR:
@@ -1013,9 +1063,16 @@ public class DeckBuilderScreen extends StackPane {
             deckFilterRow.setManaged(show);
             refreshDeckFilterToggle();
         });
-        final HBox heading = new HBox(8, label(NeoText.get("deck.theDeck")), gap, deckCount,
-                deckFilterToggle);
-        heading.setAlignment(Pos.CENTER_LEFT);
+        final HBox title = new HBox(8, label(NeoText.get("deck.theDeck")), gap, deckCount);
+        title.setAlignment(Pos.CENTER_LEFT);
+        // El orden y el filtro en su propia fila: en la misma que el titulo no
+        // cabian y se cortaban los dos ("THE D...", "99 ca..."). Juntos, porque
+        // son la misma pregunta: como quiero ver el mazo.
+        final Region gap3 = new Region();
+        HBox.setHgrow(gap3, Priority.ALWAYS);
+        final HBox view = new HBox(6, deckSortBox(), deckSortDirection, gap3, deckFilterToggle);
+        view.setAlignment(Pos.CENTER_LEFT);
+        final VBox heading = new VBox(6, title, view);
         deckFilterRow = deckFilterRow();
         refreshDeckFilterToggle();
         final javafx.scene.control.TitledPane details = new javafx.scene.control.TitledPane(NeoText.get("stats.caption"), stats);
@@ -1032,6 +1089,52 @@ public class DeckBuilderScreen extends StackPane {
         return box;
     }
 
+    /**
+     * El orden del mazo, dentro de cada grupo de tipo. Solo los ordenes que
+     * tienen sentido en un mazo ({@code DeckEditor.deckSorts}); de fabrica,
+     * por coste, que es como iba siempre.
+     */
+    private javafx.scene.control.ComboBox<DeckEditor.Sort> deckSortBox() {
+        final javafx.scene.control.ComboBox<DeckEditor.Sort> box = new javafx.scene.control.ComboBox<>();
+        box.setId("builder-deck-sort");
+        box.getStyleClass().add("builder-sort");
+        box.getItems().addAll(editor.deckSorts());
+        box.setConverter(new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(final DeckEditor.Sort s) {
+                return s == null ? "" : NeoText.get("deck.sort", sortName(s));
+            }
+
+            @Override
+            public DeckEditor.Sort fromString(final String t) {
+                return null;
+            }
+        });
+        box.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("deck.sort.deck.tip")));
+        final DeckEditor.Sort start = deckSortChosen != null && box.getItems().contains(deckSortChosen)
+                ? deckSortChosen : DeckEditor.Sort.COST;
+        box.setValue(start);
+        editor.setDeckSort(start, deckSortReversedChosen);
+        showDirection(deckSortDirection, start, deckSortReversedChosen);
+        box.valueProperty().addListener((o, was, is) -> {
+            if (is == null) {
+                return;
+            }
+            deckSortChosen = is;
+            deckSortReversedChosen = false;
+            editor.setDeckSort(is, false);
+            showDirection(deckSortDirection, is, false);
+            refreshDeck();
+        });
+        deckSortDirection.setOnAction(e -> {
+            deckSortReversedChosen = !deckSortReversedChosen;
+            editor.setDeckSort(editor.getDeckSort(), deckSortReversedChosen);
+            showDirection(deckSortDirection, editor.getDeckSort(), deckSortReversedChosen);
+            refreshDeck();
+        });
+        return box;
+    }
+
     // ---- el filtro del mazo ----
     //
     // Discord, 03-10-2026: "sometime you just wanna change a couple card in
@@ -1043,9 +1146,39 @@ public class DeckBuilderScreen extends StackPane {
     private boolean deckColourless;
     private final TextField deckSearch = new TextField();
     private final Button deckFilterToggle = new Button();
-    private HBox deckFilterRow;
+    private VBox deckFilterRow;
+    /**
+     * Tipo, coste y rareza, ademas de color y texto (itch.io, 03-10-2026:
+     * <i>"Imagine editing your 100 card 2 deck color the best a filter can do
+     * ... only split the deck into 2"</i>). El criterio es el de
+     * {@code DeckFilter}, el mismo que en Android.
+     */
+    private final java.util.Set<forge.card.CardType.CoreType> deckTypes =
+            java.util.EnumSet.noneOf(forge.card.CardType.CoreType.class);
+    private final java.util.Set<Integer> deckCosts = new java.util.TreeSet<>();
+    private final java.util.Set<forge.card.CardRarity> deckRarities =
+            java.util.EnumSet.noneOf(forge.card.CardRarity.class);
+    private final List<Button> deckFineButtons = new ArrayList<>();
 
-    private HBox deckFilterRow() {
+    /** Un boton del filtro del mazo que enciende o apaga un valor de un conjunto. */
+    private <T> Button deckToggle(final String text, final java.util.Set<T> set, final T value,
+                                  final String... styles) {
+        final Button b = new Button(text);
+        b.getStyleClass().add("segment");
+        b.getStyleClass().addAll(styles);
+        b.setMinWidth(Region.USE_PREF_SIZE);
+        b.setOnAction(e -> {
+            if (!set.remove(value)) {
+                set.add(value);
+            }
+            b.pseudoClassStateChanged(SELECTED, set.contains(value));
+            refreshDeck();
+        });
+        deckFineButtons.add(b);
+        return b;
+    }
+
+    private VBox deckFilterRow() {
         final HBox colourRow = new HBox(4);
         colourRow.setAlignment(Pos.CENTER_LEFT);
         final String[] letters = {"W", "U", "B", "R", "G"};
@@ -1090,6 +1223,12 @@ public class DeckBuilderScreen extends StackPane {
                 b.pseudoClassStateChanged(SELECTED, false);
             }
             deckSearch.clear();
+            deckTypes.clear();
+            deckCosts.clear();
+            deckRarities.clear();
+            for (final Button b : deckFineButtons) {
+                b.pseudoClassStateChanged(SELECTED, false);
+            }
             refreshDeck();
         });
 
@@ -1107,9 +1246,44 @@ public class DeckBuilderScreen extends StackPane {
         // UNA sola fila, colores + texto + x: en 1080 la columna del mazo ya
         // va justa de alto (comandante, curva, estadisticas), y con dos filas
         // a la lista le quedaban dos cartas a la vista.
-        final HBox row = new HBox(4, colourRow, deckSearch, clear);
-        row.setAlignment(Pos.CENTER_LEFT);
+        final HBox top = new HBox(4, colourRow, deckSearch, clear);
+        top.setAlignment(Pos.CENTER_LEFT);
+
+        // Y debajo, tipo, coste y rareza. Solo ocupan sitio con el filtro
+        // abierto, que es cuando se esta filtrando.
+        final FlowPane typeRow = new FlowPane(4, 4);
+        for (final forge.card.CardType.CoreType t : new forge.card.CardType.CoreType[] {
+                forge.card.CardType.CoreType.Creature, forge.card.CardType.CoreType.Instant,
+                forge.card.CardType.CoreType.Sorcery, forge.card.CardType.CoreType.Artifact,
+                forge.card.CardType.CoreType.Enchantment, forge.card.CardType.CoreType.Planeswalker,
+                forge.card.CardType.CoreType.Battle, forge.card.CardType.CoreType.Land}) {
+            typeRow.getChildren().add(deckToggle(t.getTranslatedName(), deckTypes, t, "type-filter"));
+        }
+        final HBox costRow = new HBox(4);
+        costRow.setAlignment(Pos.CENTER_LEFT);
+        costRow.getChildren().add(label(NeoText.get("deck.cmc")));
+        for (int i = 0; i <= 7; i++) {
+            costRow.getChildren().add(deckToggle(i == 7 ? "7+" : String.valueOf(i), deckCosts, i, "cmc-filter"));
+        }
+        final String[] letters2 = {"C", "I", "R", "M"};
+        final forge.card.CardRarity[] rarityValues = {forge.card.CardRarity.Common,
+                forge.card.CardRarity.Uncommon, forge.card.CardRarity.Rare, forge.card.CardRarity.MythicRare};
+        final HBox rarityRow = new HBox(4);
+        rarityRow.setAlignment(Pos.CENTER_LEFT);
+        rarityRow.getChildren().add(label(NeoText.get("deck.rarity")));
+        for (int i = 0; i < letters2.length; i++) {
+            rarityRow.getChildren().add(deckToggle(letters2[i], deckRarities, rarityValues[i], "rarity-filter",
+                    "rarity-" + letters2[i].toLowerCase(java.util.Locale.ROOT)));
+        }
+        final FlowPane fine = new FlowPane(10, 4, costRow, rarityRow);
+
+        final VBox row = new VBox(4, top, typeRow, fine);
         row.setId("builder-deck-filter-row");
+        // Que salten de linea al ancho de la columna: sin esto un FlowPane mide
+        // su alto con su ancho de fabrica y deja coste y rareza en dos lineas
+        // aunque quepan en una.
+        typeRow.prefWrapLengthProperty().bind(row.widthProperty());
+        fine.prefWrapLengthProperty().bind(row.widthProperty());
         // -Dneo.builder.deckFilter=true la abre al entrar (y deckSearch, ver arriba):
         // solo para capturarla.
         final boolean open = Boolean.getBoolean("neo.builder.deckFilter") || !typed.isEmpty();
@@ -1119,29 +1293,17 @@ public class DeckBuilderScreen extends StackPane {
     }
 
     private boolean deckFilterActive() {
-        return !deckColours.isEmpty() || deckColourless || !deckSearch.getText().isBlank();
+        return !deckColours.isEmpty() || deckColourless || !deckSearch.getText().isBlank()
+                || !deckTypes.isEmpty() || !deckCosts.isEmpty() || !deckRarities.isEmpty();
     }
 
     private boolean deckFilterAccepts(final PaperCard card) {
-        if (!deckColours.isEmpty() || deckColourless) {
-            final ColorSet id = card.getRules().getColorIdentity();
-            boolean ok = deckColourless && id.isColorless();
-            for (final byte c : deckColours) {
-                ok |= id.hasAnyColor(c);
-            }
-            if (!ok) {
-                return false;
-            }
+        int mask = 0;
+        for (final byte c : deckColours) {
+            mask |= c;
         }
-        final String q = deckSearch.getText().trim().toLowerCase(java.util.Locale.ROOT);
-        if (q.isEmpty()) {
-            return true;
-        }
-        // El nombre en el idioma de la partida Y en ingles, y la linea de tipo:
-        // se busca "elfo" igual que "Llanowar" o "artifact".
-        return CardText.nameOf(card).toLowerCase(java.util.Locale.ROOT).contains(q)
-                || card.getName().toLowerCase(java.util.Locale.ROOT).contains(q)
-                || card.getRules().getType().toString().toLowerCase(java.util.Locale.ROOT).contains(q);
+        return forge.neo.deck.DeckFilter.accepts(card, mask, deckColourless, deckSearch.getText(),
+                deckTypes, deckCosts, deckRarities);
     }
 
     /** El punto dice que hay filtro aunque la fila este plegada: un mazo de 40 que ensenya 6 parece roto. */

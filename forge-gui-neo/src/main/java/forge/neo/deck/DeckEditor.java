@@ -262,6 +262,87 @@ public final class DeckEditor {
 
     private Sort sort = Sort.NAME;
 
+    /**
+     * El orden del catalogo AL REVES (itch.io, 03-10-2026: <i>"You can't change
+     * sort ascending or decending, usually when you tapping the sort category
+     * again it will change"</i>). Da la vuelta al criterio, no a la lista: lo
+     * que no aplica (la fuerza de un conjuro, una incolora por color, una carta
+     * sin hora) sigue al final, y los empates siguen por nombre de la A a la Z.
+     */
+    private boolean sortReversed;
+
+    public void setSortReversed(final boolean reversed) {
+        sortReversed = reversed;
+    }
+
+    public boolean isSortReversed() {
+        return sortReversed;
+    }
+
+    /**
+     * Si un orden va, sin invertir, de menos a mas. Es lo que deja pintar la
+     * flecha bien en las dos pantallas: el coste va hacia arriba y la rareza,
+     * de mitica a comun, hacia abajo.
+     */
+    public static boolean ascendingByDefault(final Sort s) {
+        switch (s == null ? Sort.NAME : s) {
+            case PRICE:
+            case NEWEST:
+            case COUNT:
+            case RARITY:
+            case SET:
+            case POWER:
+            case TOUGHNESS:
+                return false;
+            default:
+                return true;
+        }
+    }
+
+    /**
+     * Como se ordena el MAZO dentro de cada grupo de tipo (itch.io, 03-10-2026:
+     * <i>"No sort in deck, Why ?"</i>). Los grupos siguen siendo los tipos; esto
+     * decide el orden de dentro. De fabrica, por coste: es lo que habia.
+     */
+    private Sort deckSort = Sort.COST;
+    private boolean deckSortReversed;
+
+    public void setDeckSort(final Sort s, final boolean reversed) {
+        deckSort = s == null || !deckSorts().contains(s) ? Sort.COST : s;
+        deckSortReversed = reversed;
+    }
+
+    public Sort getDeckSort() {
+        return deckSort;
+    }
+
+    public boolean isDeckSortReversed() {
+        return deckSortReversed;
+    }
+
+    /**
+     * Los ordenes que tienen sentido en el mazo. Sin TIPO (los grupos ya son
+     * los tipos) ni CANTIDAD (es de la coleccion, no del mazo); precio y "lo
+     * ultimo" solo donde existen.
+     */
+    public List<Sort> deckSorts() {
+        final List<Sort> out = new ArrayList<>();
+        out.add(Sort.NAME);
+        out.add(Sort.COST);
+        out.add(Sort.COLOR);
+        out.add(Sort.RARITY);
+        out.add(Sort.SET);
+        out.add(Sort.POWER);
+        out.add(Sort.TOUGHNESS);
+        if (format.hasPrices()) {
+            out.add(Sort.PRICE);
+        }
+        if (format.tracksAcquisition()) {
+            out.add(Sort.NEWEST);
+        }
+        return out;
+    }
+
     /** Si el catalogo tiene precios (ver DeckContext.hasPrices). */
     public boolean hasPrices() {
         return format.hasPrices();
@@ -645,10 +726,10 @@ public final class DeckEditor {
                 out.add(e);
             }
         }
-        out.sort(Comparator
-                .comparingInt((Map.Entry<PaperCard, Integer> e) ->
-                        e.getKey().getRules().getManaCost().getCMC())
-                .thenComparing(e -> e.getKey().getName()));
+        // El orden que haya elegido el jugador (ver deckSort); de fabrica, por
+        // coste y luego por nombre, que es lo que habia.
+        final Comparator<PaperCard> order = orderOf(deckSort, deckSortReversed, "");
+        out.sort((a, b) -> order.compare(a.getKey(), b.getKey()));
         return out;
     }
 
@@ -1770,37 +1851,9 @@ public final class DeckEditor {
             hits.add(card);
         }
 
-        final Comparator<PaperCard> byName = Comparator.comparing(DeckEditor::displayName);
-        if (sort == Sort.PRICE && format.hasPrices()) {
-            // La mas cara primero, como la columna PRICE de Forge (DESC).
-            hits.sort(Comparator.comparingInt((PaperCard c) -> -format.price(c)).thenComparing(byName));
-        } else if (sort == Sort.NEWEST && format.tracksAcquisition()) {
-            // Lo que no tiene hora (lo de antes de llevar la cuenta) va detras,
-            // por nombre.
-            hits.sort(Comparator
-                    .comparingLong((PaperCard c) -> -format.acquiredAt(c))
-                    .thenComparing(byName));
-        } else if (sort == Sort.COUNT && format.isLimited()) {
-            // De las que mas tienes a las que menos. Lo que no tiene techo (las
-            // basicas de la Aventura, que salen gratis) va al final: "infinitas"
-            // arriba del todo taparia justo lo que se quiere ver.
-            hits.sort(Comparator
-                    .comparingInt((PaperCard c) -> {
-                        final int n = format.owned(c);
-                        return n == Integer.MAX_VALUE ? 1 : -n;
-                    })
-                    .thenComparing(byName));
-        } else if (sort == Sort.NAME || sort == Sort.NEWEST) {
-            // Lo que empieza por lo buscado va primero: si escribes "sol" quieres
-            // ver el Sol Ring arriba, no un Consul's Lieutenant.
-            hits.sort(Comparator
-                    .comparingInt((PaperCard c) -> displayName(c).startsWith(q) ? 0 : 1)
-                    .thenComparing(byName));
-        } else {
-            // Se ordena ANTES de cortar en las mil primeras, por la misma razon
-            // que "lo ultimo primero": despues del corte faltaria lo de abajo.
-            hits.sort(sortKey(sort).thenComparing(byName));
-        }
+        // Se ordena ANTES de cortar en las mil primeras: despues del corte
+        // faltaria lo de abajo (lo ultimo, lo mas caro, de lo que mas tienes).
+        hits.sort(orderOf(sort, sortReversed, q));
 
         final int total = hits.size();
         return new SearchResult(
@@ -1808,38 +1861,92 @@ public final class DeckEditor {
     }
 
     /**
-     * El criterio de cada orden. Lo que no aplica (la fuerza de un conjuro) va
-     * detras. Todo sale de la carta en papel: no se inventa nada.
+     * El criterio de cada orden, el mismo para el catalogo y para el mazo.
+     *
+     * <p>Tres capas, y por eso se puede invertir sin estropear nada: primero
+     * lo que <b>no aplica</b> va al final (la fuerza de un conjuro, el color de
+     * una incolora, la hora de lo que se consiguio antes de llevar la cuenta, las
+     * infinitas por cantidad), luego el criterio en el sentido pedido, y los
+     * empates por nombre de la A a la Z. Todo sale de la carta en papel o del
+     * contexto: no se inventa nada.
+     *
+     * @param q lo buscado, para que por nombre salga primero lo que EMPIEZA
+     *          por ello (escribes "sol" y quieres el Sol Ring arriba)
      */
-    private static Comparator<PaperCard> sortKey(final Sort s) {
+    private Comparator<PaperCard> orderOf(final Sort wanted, final boolean reversed, final String q) {
+        final Comparator<PaperCard> byName = Comparator.comparing(DeckEditor::sortName);
+        final Sort s = wanted == null ? Sort.NAME : wanted;
+        Predicate<PaperCard> missing = c -> false;
+        Comparator<PaperCard> key;
         switch (s) {
+            case PRICE:
+                if (!format.hasPrices()) {
+                    return byNameFirst(q, reversed);
+                }
+                // La mas cara primero, como la columna PRICE de Forge (DESC).
+                key = Comparator.comparingInt((PaperCard c) -> format.price(c)).reversed();
+                break;
+            case NEWEST:
+                if (!format.tracksAcquisition()) {
+                    return byNameFirst(q, reversed);
+                }
+                missing = c -> format.acquiredAt(c) <= 0;
+                key = Comparator.comparingLong((PaperCard c) -> format.acquiredAt(c)).reversed();
+                break;
+            case COUNT:
+                if (!format.isLimited()) {
+                    return byNameFirst(q, reversed);
+                }
+                // Lo que no tiene techo (las basicas de la Aventura, que salen
+                // gratis) va al final: "infinitas" arriba taparia lo que se busca.
+                missing = c -> format.owned(c) == Integer.MAX_VALUE;
+                key = Comparator.comparingInt((PaperCard c) -> format.owned(c)).reversed();
+                break;
             case COST:
-                return Comparator.comparingInt(c -> c.getRules().getManaCost().getCMC());
+                key = Comparator.comparingInt(c -> c.getRules().getManaCost().getCMC());
+                break;
             case COLOR:
-                // Incoloras al final, como en la curva: primero los cinco colores
-                // en el orden de Magic y luego las multicolor.
-                return Comparator.comparingDouble(c -> {
-                    final forge.card.ColorSet cs = c.getRules().getColor();
-                    return cs.isColorless() ? Double.MAX_VALUE : cs.getOrderWeight();
-                });
+                // Los cinco colores en el orden de Magic, luego las multicolor;
+                // las incoloras al final, como en la curva.
+                missing = c -> c.getRules().getColor().isColorless();
+                key = Comparator.comparingDouble(c -> c.getRules().getColor().getOrderWeight());
+                break;
             case TYPE:
-                return Comparator.comparingInt(DeckEditor::typeRank);
+                key = Comparator.comparingInt(DeckEditor::typeRank);
+                break;
             case RARITY:
                 // De la mas rara a la mas comun.
-                return Comparator.comparingInt(c -> -rarityRank(c.getRarity()));
+                key = Comparator.comparingInt((PaperCard c) -> rarityRank(c.getRarity())).reversed();
+                break;
             case SET:
                 // La edicion mas nueva primero.
-                return Comparator.comparing((PaperCard c) -> editionDate(c),
-                        Comparator.reverseOrder());
+                key = Comparator.comparing((PaperCard c) -> editionDate(c), Comparator.reverseOrder());
+                break;
             case POWER:
-                return Comparator.comparingInt(c -> -statOrLowest(c.getRules().getIntPower(),
-                        c.getRules().getType().isCreature()));
+                missing = c -> !c.getRules().getType().isCreature();
+                key = Comparator.comparingInt((PaperCard c) -> c.getRules().getIntPower()).reversed();
+                break;
             case TOUGHNESS:
-                return Comparator.comparingInt(c -> -statOrLowest(c.getRules().getIntToughness(),
-                        c.getRules().getType().isCreature()));
+                missing = c -> !c.getRules().getType().isCreature();
+                key = Comparator.comparingInt((PaperCard c) -> c.getRules().getIntToughness()).reversed();
+                break;
             default:
-                return (a, b) -> 0;
+                return byNameFirst(q, reversed);
         }
+        if (reversed) {
+            key = key.reversed();
+        }
+        final Predicate<PaperCard> last = missing;
+        return Comparator.comparing((PaperCard c) -> last.test(c)).thenComparing(key).thenComparing(byName);
+    }
+
+    /** Por nombre: lo que empieza por lo buscado primero, y luego A-Z (o Z-A). */
+    private static Comparator<PaperCard> byNameFirst(final String q, final boolean reversed) {
+        final Comparator<PaperCard> byName = Comparator.comparing(DeckEditor::sortName);
+        final String typed = q == null ? "" : q;
+        return Comparator
+                .comparingInt((PaperCard c) -> !typed.isEmpty() && displayName(c).startsWith(typed) ? 0 : 1)
+                .thenComparing(reversed ? byName.reversed() : byName);
     }
 
     /** El orden de tipos de un mazo: criaturas primero, tierras al final. */
@@ -1892,10 +1999,6 @@ public final class DeckEditor {
         }
     }
 
-    private static int statOrLowest(final int value, final boolean creature) {
-        return creature ? value : Integer.MIN_VALUE / 2;
-    }
-
     private static java.util.Date editionDate(final PaperCard c) {
         final forge.card.CardEdition ed = forge.StaticData.instance().getEditions().get(c.getEdition());
         return ed == null || ed.getDate() == null ? new java.util.Date(0) : ed.getDate();
@@ -1904,6 +2007,15 @@ public final class DeckEditor {
     /** El nombre por el que se ordena y se compara: el que se ve. */
     private static String displayName(final PaperCard card) {
         return forge.neo.card.CardText.nameOf(card).toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * El nombre por el que se ORDENA: el que se ve, sin tildes. Sin esto
+     * "Ultimo" con tilde iba detras de la Z (se compara letra a letra por su
+     * codigo), y con el orden al reves salia el primero.
+     */
+    private static String sortName(final PaperCard card) {
+        return org.apache.commons.lang3.StringUtils.stripAccents(displayName(card));
     }
 
     /** Solo las cartas, cuando el total da igual. */
@@ -2078,7 +2190,7 @@ public final class DeckEditor {
         }
         hits.sort(Comparator
                 .comparingInt((PaperCard c) -> displayName(c).startsWith(q) ? 0 : 1)
-                .thenComparing(DeckEditor::displayName));
+                .thenComparing(DeckEditor::sortName));
         return hits.size() > limit ? new ArrayList<>(hits.subList(0, limit)) : hits;
     }
 

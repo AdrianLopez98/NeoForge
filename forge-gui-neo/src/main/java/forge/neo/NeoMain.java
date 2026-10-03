@@ -336,6 +336,13 @@ public final class NeoMain {
                 banner("Piloto automatico: el bloqueo obligado");
                 forge.neo.match.BlockCheck.run();
                 break;
+            case "attachcheck":
+                // A quien va una maldicion y a quien protege una batalla: estan
+                // en la mesa de su controlador (Discord, 03-10-2026). Ver
+                // AttachedToPlayer.
+                banner("Maldiciones y batallas: a quien van");
+                forge.neo.match.AttachCheck.run();
+                break;
             case "topcheck":
                 // Jugar desde lo alto de la biblioteca (Bolas's Citadel y
                 // familia): que el motor deje MIRAR esa carta y JUGARLA, que

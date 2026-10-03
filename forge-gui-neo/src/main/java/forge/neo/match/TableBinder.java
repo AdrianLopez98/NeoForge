@@ -712,6 +712,10 @@ public class TableBinder {
         // Y si es el monarca o tiene la iniciativa: del rival no se veia (ver
         // PlayerBar.setTitles).
         bar.setTitles(PlayerTitles.of(p));
+        // Y las maldiciones que le encantan y las batallas que protege: estan
+        // en la mesa de quien las controla (Discord, 03-10-2026). Ver
+        // AttachedToPlayer.
+        bar.setAttached(AttachedToPlayer.enchanting(gv, p), AttachedToPlayer.protecting(gv, p));
 
         // Las reliquias de Ascenso del RIVAL, en su barra.
         //

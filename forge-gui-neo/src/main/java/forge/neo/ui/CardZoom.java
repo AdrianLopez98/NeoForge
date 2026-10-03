@@ -219,7 +219,22 @@ public final class CardZoom {
         if (!side) {
             return refresh == null ? new StackPane(big) : withRefresh(big, refresh);
         }
-        final HBox row = new HBox(w * 0.06, big, statePanel(card, w * SIDE_RATIO));
+        // La ficha, con su PROPIO desplazamiento y nunca mas alta que la carta
+        // (Discord, 03-10-2026: "too many equipment and/or auras makes the
+        // rules text buttons and updated P/T and such appear off screen and
+        // I'm not seeing a way to scroll"). Era un VBox a pelo: con cuatro auras
+        // crecia mas que la ventana y lo de debajo se quedaba fuera. La rueda
+        // dentro desplaza la ficha y no pasa a la carta siguiente
+        // (isInsideScrollPane).
+        final double sideWidth = w * SIDE_RATIO;
+        final javafx.scene.control.ScrollPane sideScroll =
+                new javafx.scene.control.ScrollPane(statePanel(card, sideWidth));
+        sideScroll.getStyleClass().add("dialog-scroll");
+        sideScroll.setFitToWidth(true);
+        sideScroll.setHbarPolicy(javafx.scene.control.ScrollPane.ScrollBarPolicy.NEVER);
+        sideScroll.setPrefViewportWidth(sideWidth);
+        sideScroll.setMaxHeight(w * 7 / 5);
+        final HBox row = new HBox(w * 0.06, big, sideScroll);
         row.setAlignment(Pos.CENTER);
         return refresh == null ? new StackPane(row) : withRefresh(row, refresh);
     }
@@ -1001,7 +1016,17 @@ public final class CardZoom {
         box.getChildren().add(title);
 
         final FlowPane flow = new FlowPane(8, 8);
-        final double w = on.size() > 2 ? width * 0.46 : width * 0.66;
+        // Que salte de linea al ancho de la ficha: sin esto el FlowPane se
+        // quedaba con su ancho por defecto y las ponia una debajo de otra.
+        flow.setPrefWrapLength(width - 34);
+        // Dos por fila desde la tercera, con un pelo de margen para la barra
+        // de desplazamiento de la ficha. Mas pequenyas no: el nombre de debajo
+        // se partia a media palabra.
+        // El ancho que de verdad queda: el de la ficha menos su relleno y su
+        // borde (.zoom-state: 16 + 16 + 2), el hueco entre las dos (8) y algo
+        // de aire. Con un porcentaje no cabian dos y salian en columna.
+        final double inner = width - 34;
+        final double w = on.size() > 2 ? (inner - 12) / 2 : width * 0.66;
         for (final CardView cv : on) {
             final CardNode n = new CardNode(w);
             n.setRotationEnabled(false);

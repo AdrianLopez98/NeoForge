@@ -1329,6 +1329,20 @@ public class CardNode extends StackPane {
         if (isPrepared()) {
             lines.add(0, NeoText.get("marker.prepared"));
         }
+        // A quien va, si no es a quien la controla: una maldicion encanta a un
+        // jugador y una batalla la protege otro (Discord, 03-10-2026). Estan
+        // en la mesa de su controlador, como dicen las reglas, y sin esto no
+        // se sabia a quien sin mirar el registro. Ver AttachedToPlayer.
+        final forge.game.player.PlayerView enchanted =
+                forge.neo.match.AttachedToPlayer.enchantedPlayer(card);
+        if (enchanted != null) {
+            lines.add(NeoText.get("marker.enchants", enchanted.getName()));
+        }
+        final forge.game.player.PlayerView protector =
+                forge.neo.match.AttachedToPlayer.protector(card);
+        if (protector != null) {
+            lines.add(NeoText.get("marker.protector", protector.getName()));
+        }
         if (st != null) {
             if (st.isContraption() && card.getSprocket() > 0) {
                 lines.add(NeoText.get("marker.sprocket", card.getSprocket()));

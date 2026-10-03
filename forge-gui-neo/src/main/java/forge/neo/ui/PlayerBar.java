@@ -741,6 +741,54 @@ public class PlayerBar extends HBox {
         playerCounters.setManaged(any);
     }
 
+    /**
+     * Las maldiciones que encantan a este jugador y las batallas que protege
+     * (Discord, 03-10-2026: <i>"there's no way to actually tell who is
+     * actually cursed without simply remembering or checking the log"</i>).
+     *
+     * <p>Por las reglas estan en la mesa de quien las controla, y ahi se
+     * quedan; lo que faltaba era verlas desde el lado del que las SUFRE. Van en
+     * la fila de pastillas, detras de monarca e iniciativa, con el nombre de la
+     * carta; clicarla la ensenya entera. La carta, en su mesa, lleva ademas un
+     * marcador con a quien va ({@code CardNode.refreshMarkers}). Ver
+     * {@link forge.neo.match.AttachedToPlayer}.
+     *
+     * <p>Se llama despues de {@link #setCounters}, como {@link #setTitles}:
+     * quita las suyas y las vuelve a poner.
+     */
+    public void setAttached(final java.util.List<forge.game.card.CardView> curses,
+                            final java.util.List<forge.game.card.CardView> battles) {
+        playerCounters.getChildren().removeIf(n -> n.getStyleClass().contains("player-counter-attached"));
+        if (curses != null) {
+            for (final forge.game.card.CardView c : curses) {
+                playerCounters.getChildren().add(attachedPill(c, "player-counter-curse", "bar.curse.tip"));
+            }
+        }
+        if (battles != null) {
+            for (final forge.game.card.CardView c : battles) {
+                playerCounters.getChildren().add(attachedPill(c, "player-counter-battle", "bar.battle.tip"));
+            }
+        }
+        final boolean any = !playerCounters.getChildren().isEmpty();
+        playerCounters.setVisible(any);
+        playerCounters.setManaged(any);
+    }
+
+    private Label attachedPill(final forge.game.card.CardView card, final String style, final String tipKey) {
+        final Label pill = new Label(forge.neo.match.AttachedToPlayer.nameOf(card));
+        pill.getStyleClass().addAll("player-counter", "player-counter-attached", style);
+        final forge.game.player.PlayerView owner = card.getController();
+        pill.setTooltip(new javafx.scene.control.Tooltip(
+                NeoText.get(tipKey, owner == null ? "?" : owner.getName())));
+        pill.setCursor(javafx.scene.Cursor.HAND);
+        // Como las reliquias: mirarla no es elegir a este jugador de objetivo.
+        pill.setOnMouseClicked(e -> {
+            e.consume();
+            forge.neo.ui.CardZoom.show(pill, card);
+        });
+        return pill;
+    }
+
     private static final javafx.css.PseudoClass COUNTER_LETHAL =
             javafx.css.PseudoClass.getPseudoClass("lethal");
 
