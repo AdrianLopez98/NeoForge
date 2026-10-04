@@ -804,7 +804,10 @@ public class TableBinder {
 
     private boolean hasPlayable(final PlayerView owner, final ZoneType zone) {
         for (final CardView cv : playableOutside()) {
-            if (cv != null && cv.getZone() == zone && owner.equals(cv.getOwner())) {
+            // Y que se pueda AHORA (NeoMatchUI.castableNow): la lista del motor
+            // no mira la fase, y con Ninja Teen el cementerio brillaba siempre.
+            if (cv != null && cv.getZone() == zone && owner.equals(cv.getOwner())
+                    && (matchUi == null || matchUi.isPlayableOutside(cv))) {
                 return true;
             }
         }

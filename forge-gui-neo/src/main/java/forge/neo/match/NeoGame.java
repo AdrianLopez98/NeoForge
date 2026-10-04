@@ -330,10 +330,21 @@ public final class NeoGame {
         final int aiCount = mode == NeoMatchUI.Mode.OBSERVE ? opponents + 1 : opponents;
         // Las caras importadas de la partida anterior no valen para esta.
         forge.neo.look.NeoPlayers.newMatch();
+        // HOT SEAT: los rivales que juega una persona en este aparato. Solo en
+        // una partida normal (el perfil "por rival"): los demas modos sientan a
+        // sus rivales a su manera. Ver RivalSetup.isHuman.
+        final List<RegisteredPlayer> hotSeats = new ArrayList<>();
         for (int i = 0; i < aiCount; i++) {
             final Deck aiDeck = deckForOpponent(opponentDecks, i, deck);
             final RegisteredPlayer ai = seating == null ? format.register(aiDeck, seats)
                     : seating.opponent(i, aiDeck, seats);
+            if (mode == NeoMatchUI.Mode.HUMAN && forge.neo.look.RivalSetup.isPerRival(aiProfile)
+                    && forge.neo.look.RivalSetup.isHuman(i)) {
+                ai.setPlayer(forge.neo.look.NeoPlayers.hotSeat(i));
+                hotSeats.add(ai);
+                players.add(ai);
+                continue;
+            }
             // El perfil vacio significa "el que tenga puesto Forge": es lo que
             // hace la sobrecarga corta, asi que no hay que tratar el null aparte.
             ai.setPlayer(forge.neo.look.NeoPlayers.ai(i, aiProfile));
@@ -415,6 +426,16 @@ public final class NeoGame {
             NeoGuiBase.setGuiGameFactory(() -> gui);
             // Casts necesarios: hay dos sobrecargas de startMatch que encajan con null.
             match.startMatch(rules, null, players, (RegisteredPlayer) null, (IGuiGame) null);
+        } else if (!hotSeats.isEmpty()) {
+            // Varias personas, UNA interfaz: el motor la agrupa y llama a
+            // openView una sola vez con todos los asientos (HostedMatch,
+            // playersPerGui). Con una interfaz por asiento habria dos mesas.
+            final java.util.Map<RegisteredPlayer, IGuiGame> guis = new java.util.LinkedHashMap<>();
+            guis.put(humanSeat, gui);
+            for (final RegisteredPlayer seat : hotSeats) {
+                guis.put(seat, gui);
+            }
+            match.startMatch(rules, null, players, guis, null);
         } else {
             match.startMatch(rules, null, players, humanSeat, gui);
         }

@@ -729,6 +729,21 @@ public class BattlefieldPane extends Pane {
             node.setLayoutY(Math.max(0, (availH - cardH) / 2));
             node.setViewOrder(node.getFront().isLifted() ? -10 : -i * .001);
         }
+        // CUANTO SE VE DE CADA UNA: la de la derecha va encima, asi que de cada
+        // carta derecha asoma hasta donde empieza la siguiente. Es lo que deja el
+        // "xN" de una pila a la vista (CardStackNode.setVisibleWidth). Una
+        // girada mide distinto de lado y su contador gira con ella: sin tope.
+        for (int i = 0; i < n; i++) {
+            final CardStackNode node = entries.get(i).node;
+            if (i == n - 1 || node.getFront().isTapped()) {
+                node.setVisibleWidth(0);
+                continue;
+            }
+            final CardStackNode next = entries.get(i + 1).node;
+            final double nextLeft = next.getLayoutX()
+                    - (next.getFront().isTapped() ? extra / 2 : 0);
+            node.setVisibleWidth(nextLeft - node.getLayoutX());
+        }
 
         previous.setVisible(scrollMax > .5);
         next.setVisible(scrollMax > .5);

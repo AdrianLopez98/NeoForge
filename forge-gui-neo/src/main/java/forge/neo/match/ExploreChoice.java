@@ -86,8 +86,8 @@ public final class ExploreChoice {
         public boolean confirmAction(final SpellAbility sa, final PlayerActionConfirmMode mode,
                                      final String message, final List<String> options,
                                      final Card cardToShow, final Map<String, Object> params) {
-            if (!isExploreQuestion(sa, cardToShow, params)
-                    || !(getGui() instanceof NeoMatchUI ui)) {
+            final NeoMatchUI ui = NeoMatchUI.of(getGui());
+            if (!isExploreQuestion(sa, cardToShow, params) || ui == null) {
                 return super.confirmAction(sa, mode, message, options, cardToShow, params);
             }
             final int turn = getGame().getPhaseHandler().getTurn();
@@ -111,7 +111,7 @@ public final class ExploreChoice {
                                            final Player owner, final String message) {
             if (owner != getPlayer() || zone != ZoneType.Library || message == null
                     || cards == null || cards.size() != 1 || cards.getFirst().isLand()
-                    || !(getGui() instanceof NeoMatchUI)) {
+                    || NeoMatchUI.of(getGui()) == null) {
                 return false;
             }
             return message.startsWith(Localizer.getInstance().getMessage("lblRevealedForExplore"));

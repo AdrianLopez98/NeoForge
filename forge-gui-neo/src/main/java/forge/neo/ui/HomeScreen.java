@@ -148,6 +148,20 @@ et}) y no se tocan.
     private final Overlay overlay = new Overlay();
 
     private Deck selected;
+
+    /**
+     * TU MAZO AL AZAR (itch.io, 04-10-2026: <i>"Could you add a 'Random Deck From
+     * My List' when booting up a commander vs ai game? I meant for myself"</i>).
+     * Los rivales ya podian ir al azar; tu no.
+     *
+     * <p>De que lista se sortea, o null si has elegido un mazo:
+     * {@code "mine"}, {@code "stock"}, {@code "net"} o {@code "c:<coleccion>"} —
+     * la pestanya que estabas mirando al pulsar "Al azar". Con esto puesto
+     * {@link #selected} es null. Se sortea al EMPEZAR ({@link #launch}), solo
+     * entre los legales, y se recuerda por formato ({@link #randomKey}).
+     */
+    private String randomFrom;
+    private final Button randomMine = new Button(NeoText.get("home.random.mine"));
     private int opponents;
     private String aiProfile;
 
@@ -309,7 +323,128 @@ et}) y no se tocan.
             initial = source().isEmpty() ? decks.get(0) : source().get(0);
         }
         select(initial);
+        restoreRandom();
         maybeShowDeleteTest();
+        // -Dneo.home.playAt=N: pulsa JUGAR a los N ms, por el boton de verdad
+        // (asi se prueba el mazo al azar de punta a punta sin raton).
+        final int playAt = Integer.getInteger("neo.home.playAt", -1);
+        if (playAt >= 0) {
+            final javafx.animation.PauseTransition p =
+                    new javafx.animation.PauseTransition(javafx.util.Duration.millis(playAt));
+            p.setOnFinished(e -> play.fire());
+            p.play();
+        }
+    }
+
+    // ---------------------------------------------------------------
+    //  Tu mazo al azar
+    // ---------------------------------------------------------------
+
+    /** Donde se recuerda, uno por formato: jugar al azar en Commander no es jugarlo en Estandar. */
+    private String randomKey() {
+        return "deckRandom." + format.name();
+    }
+
+    /** La lista que se esta mirando, como la guarda {@link #randomFrom}. */
+    private String currentListKey() {
+        switch (showing) {
+            case STOCK: return "stock";
+            case NET: return "net";
+            case COLLECTION: return collection == null ? "mine" : "c:" + collection;
+            default: return "mine";
+        }
+    }
+
+    /** Los mazos de esa lista; vacia si ya no existe (una coleccion borrada). */
+    private List<Deck> randomPool() {
+        if (randomFrom == null) {
+            return java.util.Collections.emptyList();
+        }
+        if (randomFrom.startsWith("c:")) {
+            final List<Deck> in = collections.get(randomFrom.substring(2));
+            return in == null ? java.util.Collections.emptyList() : in;
+        }
+        switch (randomFrom) {
+            case "stock": return stock;
+            case "net": return net;
+            default: return mine;
+        }
+    }
+
+    /** Como se llama esa lista en la linea de estado. */
+    private String randomPoolName() {
+        if (randomFrom == null) {
+            return "";
+        }
+        if (randomFrom.startsWith("c:")) {
+            return randomFrom.substring(2);
+        }
+        switch (randomFrom) {
+            case "stock": return NeoText.get("home.randomPool.stock");
+            case "net": return NeoText.get("home.randomPool.net");
+            default: return NeoText.get("home.randomPool.mine");
+        }
+    }
+
+    /** "Al azar": a partir de ahora tu mazo sale de la lista que estas viendo. */
+    private void chooseRandom() {
+        if (source().isEmpty()) {
+            return;
+        }
+        final String key = currentListKey();
+        select(null);
+        randomFrom = key;
+        NeoSettings.set(randomKey(), key);
+        NeoSettings.save();
+        markRandom();
+        updateSummary();
+    }
+
+    /** Si la ultima vez fuiste al azar en este formato, sigues al azar. */
+    private void restoreRandom() {
+        if (Integer.getInteger("neo.home.tab", -1) >= 0
+                || System.getProperty("neo.home.collection") != null) {
+            return;
+        }
+        final String saved = NeoSettings.get(randomKey(), "");
+        if (saved == null || saved.isBlank()) {
+            return;
+        }
+        randomFrom = saved;
+        if (randomPool().isEmpty()) {
+            // La lista ya no tiene mazos (o la coleccion no existe): se vuelve
+            // a lo de siempre en vez de dejar JUGAR apagado sin motivo.
+            randomFrom = null;
+            return;
+        }
+        select(null);
+        randomFrom = saved;
+        markRandom();
+        updateSummary();
+    }
+
+    private void markRandom() {
+        randomMine.pseudoClassStateChanged(SELECTED, randomFrom != null);
+    }
+
+    /**
+     * El sorteo: uno de la lista que se pueda jugar en este formato, con su
+     * comandante elegido si lo tiene. null si no hay ninguno legal.
+     */
+    private Deck drawRandom() {
+        final List<Deck> pool = new ArrayList<>(randomPool());
+        java.util.Collections.shuffle(pool);
+        final forge.deck.DeckFormat df = format.getGameType().getDeckFormat();
+        for (final Deck d : pool) {
+            final Deck playable = forge.neo.deck.CommanderChoice.applies(format.getGameType())
+                    ? forge.neo.deck.CommanderChoice.apply(d,
+                            forge.neo.deck.CommanderChoice.remembered(d, df))
+                    : d;
+            if (df.getDeckConformanceProblem(playable) == null) {
+                return playable;
+            }
+        }
+        return null;
     }
 
     // ---------------------------------------------------------------
@@ -394,7 +529,14 @@ et}) y no se tocan.
         // colecciones; paginador y buscador a la derecha, siempre enteros.
         tabRow.setAlignment(Pos.CENTER_LEFT);
         tabRow.setMinWidth(0);
-        final HBox right = new HBox(8, pager, search, gridCount);
+        // AL AZAR: tu mazo, sorteado de la lista que estas viendo. Va junto al
+        // buscador porque es lo mismo: actua sobre lo que se ve.
+        randomMine.getStyleClass().add("segment");
+        randomMine.setId("home-random-mine");
+        randomMine.setMinWidth(Region.USE_PREF_SIZE);
+        randomMine.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("home.random.mine.tip")));
+        randomMine.setOnAction(e -> chooseRandom());
+        final HBox right = new HBox(8, pager, randomMine, search, gridCount);
         right.setAlignment(Pos.CENTER_RIGHT);
         right.setMinWidth(Region.USE_PREF_SIZE);
         final BorderPane bar = new BorderPane();
@@ -1087,8 +1229,10 @@ et}) y no se tocan.
             b.setMinWidth(Region.USE_PREF_SIZE);
             b.setOnAction(e -> pickOpponentDeck(index));
             opponentButtons.add(b);
-            final javafx.scene.Node who = rivalCommanderButton(index) == null ? b
+            final HBox who = rivalCommanderButton(index) == null ? new HBox(2, b)
                     : new HBox(2, b, rivalCommanderButton(index));
+            who.getChildren().add(seatKindButton(index));
+            who.setAlignment(Pos.CENTER_LEFT);
             row.getChildren().add(withTeams ? seat(who, teamBox(i + 1)) : who);
         }
         refreshOpponentLabels();
@@ -1118,6 +1262,32 @@ et}) y no se tocan.
     }
 
     private final java.util.Map<Integer, Button> rivalCommanderButtons = new java.util.HashMap<>();
+
+    /**
+     * IA o PERSONA en este asiento (hot seat, itch.io 04-10-2026: <i>"Forge
+     * allows for setting up all players in a match to human - switch from AI to
+     * human during game setup"</i>). Una persona juega ese mazo en este mismo
+     * ordenador: la mesa se gira hacia quien tenga que decidir, con una cortina
+     * para no verle la mano al otro. Se recuerda (RivalSetup.HUMANS).
+     */
+    private Button seatKindButton(final int index) {
+        final Button b = new Button();
+        b.getStyleClass().addAll("segment", "seat-kind");
+        b.setMinWidth(Region.USE_PREF_SIZE);
+        b.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("home.seat.tip")));
+        final Runnable paint = () -> {
+            final boolean human = forge.neo.look.RivalSetup.isHuman(index);
+            b.setText(NeoText.get(human ? "home.seat.human" : "home.seat.ai"));
+            b.pseudoClassStateChanged(javafx.css.PseudoClass.getPseudoClass("selected"), human);
+        };
+        paint.run();
+        b.setOnAction(e -> {
+            forge.neo.look.RivalSetup.setHuman(index, !forge.neo.look.RivalSetup.isHuman(index));
+            paint.run();
+            updateSummary();
+        });
+        return b;
+    }
 
     /** Tu mazo tal y como se va a jugar: con el comandante elegido, si hay. */
     private Deck effectiveDeck() {
@@ -1439,6 +1609,24 @@ et}) y no se tocan.
         // Todos en el mismo equipo: JUGAR ya esta apagado (updateSummary), pero
         // VER no, y con un solo equipo el motor da la partida por acabada
         // antes de empezar.
+        if (selected == null && randomFrom != null && !notEnoughTeams()) {
+            // Al azar: se sortea ahora, solo entre los que se pueden jugar.
+            final Deck drawn = drawRandom();
+            if (drawn == null) {
+                summary.setText(NeoText.get("home.random.noneLegal", randomPoolName()));
+                summary.pseudoClassStateChanged(INVALID, true);
+                play.setDisable(true);
+                return;
+            }
+            NeoSettings.setOpponents(format, opponents);
+            NeoSettings.set(NeoSettings.AI_PROFILE, aiProfile);
+            NeoSettings.setTeams(format, forge.neo.match.NeoTeams.toSetting(teams));
+            NeoSettings.save();
+            System.out.println("[home] mazo al azar de " + randomPoolName() + ": " + drawn.getName());
+            onStart.start(drawn, opponents, aiProfile, watch, resolvedOpponentDecks(),
+                    hasTeams() ? teams.clone() : null);
+            return;
+        }
         if (selected == null || notEnoughTeams()) {
             return;
         }
@@ -1589,6 +1777,12 @@ et}) y no se tocan.
         }
         if (deck != null) {
             NeoSettings.set(NeoSettings.DECK, deck.getName());
+            // Elegir un mazo es dejar de ir al azar.
+            if (randomFrom != null) {
+                randomFrom = null;
+                NeoSettings.set(randomKey(), "");
+                markRandom();
+            }
         }
         edit.setDisable(deck == null);
         refreshCommander();
@@ -1608,6 +1802,17 @@ et}) y no se tocan.
      * ({@code DeckFormat.getDeckConformanceProblem}), no nosotros.
      */
     private void updateSummary() {
+        if (selected == null && randomFrom != null) {
+            final int n = randomPool().size();
+            final boolean noTeams = notEnoughTeams();
+            summary.setText(noTeams
+                    ? forge.util.Localizer.getInstance().getMessage("lblNotEnoughTeams")
+                    : NeoText.get("home.summary.random", format.getLabel(), randomPoolName(), n,
+                            opponents + 1, LookScreen.aiSummary(aiProfile, opponents)));
+            summary.pseudoClassStateChanged(INVALID, n == 0 || noTeams);
+            play.setDisable(n == 0 || noTeams);
+            return;
+        }
         if (selected == null) {
             summary.setText(NeoText.get("home.noDecks"));
             play.setDisable(true);
@@ -1647,6 +1852,18 @@ et}) y no se tocan.
         } else {
             summary.setText(NeoText.get("home.summary.invalid",
                     format.getLabel(), selected.getName(), problem));
+        }
+        // Hot seat: que se vea que esta partida la juegan varias personas.
+        if (problem == null) {
+            int people = 1;
+            for (int i = 0; i < opponents; i++) {
+                if (forge.neo.look.RivalSetup.isHuman(i)) {
+                    people++;
+                }
+            }
+            if (people > 1) {
+                summary.setText(summary.getText() + "  ·  " + NeoText.get("home.seat.summary", people));
+            }
         }
         summary.pseudoClassStateChanged(INVALID, problem != null);
         play.setDisable(problem != null);

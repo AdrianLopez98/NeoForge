@@ -71,6 +71,24 @@ public final class NeoPlayers {
         return GamePlayerUtil.createAiPlayer(name, sprite >= 0 ? sprite : index, profile);
     }
 
+    /**
+     * El rival numero {@code index} jugado por una PERSONA en este aparato (hot
+     * seat): su nombre y su cara de siempre, pero humano. Un
+     * {@code LobbyPlayerHuman} aparte, nunca el tuyo: el motor tiene que poder
+     * distinguirlos (ver {@code GamePlayerUtil.getGuiPlayer}, "use separate
+     * LobbyPlayerHuman instance for human players beyond first").
+     */
+    public static LobbyPlayer hotSeat(final int index) {
+        final String name = aiName(index);
+        final String face = RivalSetup.avatar(index);
+        final int sprite = RivalSetup.spriteIndexOf(face);
+        if (sprite < 0 && !face.isEmpty()) {
+            CUSTOM_FACES.put(name, face);
+        }
+        System.out.printf(java.util.Locale.ROOT, "  Rival %d: %s | PERSONA (hot seat)%n", index + 1, name);
+        return GamePlayerUtil.getGuiPlayer(name, sprite >= 0 ? sprite : index, 0, false);
+    }
+
     private static final java.util.Random RANDOM = new java.util.Random();
 
     /**

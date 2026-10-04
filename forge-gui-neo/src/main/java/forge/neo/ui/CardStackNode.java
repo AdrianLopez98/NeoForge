@@ -43,6 +43,25 @@ public class CardStackNode extends Pane {
     private final CardNode front;
     private final Rectangle[] shadows = new Rectangle[MAX_SHADOWS];
     private final Label count = new Label();
+
+    /**
+     * Cuanto de esta pila se VE, de izquierda a derecha, cuando la fila no
+     * cabe y la de al lado se monta encima (itch.io, 04-10-2026, con captura:
+     * <i>"can this number be put on top instead of being able to be buried
+     * like this?"</i>). El "xN" iba en la esquina de arriba a la derecha de la
+     * carta entera, que es justo lo primero que tapa la vecina; ahora va en la
+     * esquina de la parte visible. Lo pone {@code BattlefieldPane}; fuera de
+     * una fila apretada no hay tope.
+     */
+    private double visibleWidth = Double.MAX_VALUE;
+
+    public void setVisibleWidth(final double width) {
+        final double w = width <= 0 ? Double.MAX_VALUE : width;
+        if (w != visibleWidth) {
+            visibleWidth = w;
+            requestLayout();
+        }
+    }
     private final int size;
 
     private double cardWidth;
@@ -392,8 +411,10 @@ public class CardStackNode extends Pane {
         count.setStyle("-fx-font-size:" + (badge * 0.58) + "px;");
         count.setMinSize(badgeW, badge * 0.72);
         count.setPrefSize(badgeW, badge * 0.72);
-        count.setLayoutX(w - badgeW * 0.9);
-        count.setLayoutY(-badge * 0.18);
+        // En la esquina de lo que se VE (ver visibleWidth), y DENTRO de la
+        // carta: asomando por arriba la recortaba el borde de la fila.
+        count.setLayoutX(Math.max(0, Math.min(w - badgeW - 2, visibleWidth - badgeW - 2)));
+        count.setLayoutY(badge * 0.08);
 
         setPrefSize(w, h);
         setMinSize(w, h);

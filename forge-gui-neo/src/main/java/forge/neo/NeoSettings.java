@@ -577,6 +577,40 @@ public final class NeoSettings {
     public static final String STACK_CARDS = "stackCards";
 
     /**
+     * La carta grande del stack en mitad de la mesa ({@code PromptBanner}).
+     *
+     * <p>Pedido en itch.io el 04-10-2026: poder moverla, agrandarla <i>o
+     * quitarla</i>. Encendida de fabrica — es lo de siempre —, y apagarla no
+     * esconde nada: el stack de la derecha dice lo mismo. El aviso de "esto te
+     * acaba de pasar", que usa el mismo cartel, sale igual: ahi el motor espera
+     * su boton. {@code -Dneo.stackBanner=true|false} lo fuerza sin escribir.
+     */
+    public static final String STACK_BANNER = "stackBanner";
+
+    /**
+     * Poder mover y agrandar esa carta (arrastrar, rueda, esquina). <b>Apagado
+     * de fabrica</b>: apagado es el cartel de siempre, sin un gesto nuevo que
+     * se pueda disparar sin querer. Ver {@code PromptBanner}.
+     */
+    public static final String STACK_BANNER_EDIT = "stackBannerEdit";
+
+    public static boolean stackBannerEditable() {
+        final String forced = System.getProperty("neo.stackBannerEdit");
+        if (forced != null && !forced.isBlank()) {
+            return Boolean.parseBoolean(forced);
+        }
+        return getBool(STACK_BANNER_EDIT, false);
+    }
+
+    public static boolean stackBanner() {
+        final String forced = System.getProperty("neo.stackBanner");
+        if (forced != null && !forced.isBlank()) {
+            return Boolean.parseBoolean(forced);
+        }
+        return getBool(STACK_BANNER, true);
+    }
+
+    /**
      * Si el stack pinta las cartas.
      *
      * <p>{@code -Dneo.stackCards=true|false} lo fuerza en los dos sentidos sin

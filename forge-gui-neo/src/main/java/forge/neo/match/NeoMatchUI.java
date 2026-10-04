@@ -678,8 +678,8 @@ public class NeoMatchUI extends NetworkGuiGame {
 
     private void rememberAttackPlayer(final PlayerView player) {
         final GameView gv = getGameView();
-        if (gv == null || player == null || isLocalPlayer(player) || payingMana || isSelecting() || getSelectionMax() > 0
-                || !isLocalPlayer(gv.getPlayerTurn()) || !player.isOpponentOf(gv.getPlayerTurn())) return;
+        if (gv == null || player == null || isMe(player) || payingMana || isSelecting() || getSelectionMax() > 0
+                || !isMe(gv.getPlayerTurn()) || !player.isOpponentOf(gv.getPlayerTurn())) return;
         final PhaseType phase = gv.getPhase();
         if (phase != PhaseType.MAIN1 && phase != PhaseType.COMBAT_BEGIN
                 && phase != PhaseType.COMBAT_DECLARE_ATTACKERS) return;
@@ -692,7 +692,7 @@ public class NeoMatchUI extends NetworkGuiGame {
         final GameView gv = getGameView();
         if (!isDeclaringAttackers() || chosenAttackPlayer == null || gv == null
                 || gv.getId() != chosenAttackGame || gv.getTurn() != chosenAttackTurn
-                || card.getZone() != ZoneType.Battlefield || !isLocalPlayer(card.getController())
+                || card.getZone() != ZoneType.Battlefield || !isMe(card.getController())
                 || card.getCurrentState() == null || !card.getCurrentState().isCreature()) return null;
         for (final PlayerView player : gv.getPlayers()) {
             if (player.equals(chosenAttackPlayer) && !player.getHasLost()) return player;
@@ -759,7 +759,7 @@ public class NeoMatchUI extends NetworkGuiGame {
         if (gv == null || gv.getPhase() != PhaseType.COMBAT_DECLARE_ATTACKERS) {
             return false;
         }
-        return !payingMana && !isSelecting() && getSelectionMax() <= 0 && isLocalPlayer(gv.getPlayerTurn());
+        return !payingMana && !isSelecting() && getSelectionMax() <= 0 && isMe(gv.getPlayerTurn());
     }
 
     private void onCardClicked(final CardView card) {
@@ -770,7 +770,7 @@ public class NeoMatchUI extends NetworkGuiGame {
         // A planeswalker/battle explicitly selected for attack supersedes a player choice.
         if (isDeclaringAttackers() && card.getCurrentState() != null
                 && (card.getCurrentState().isBattle() || (card.getCurrentState().isPlaneswalker()
-                && !isLocalPlayer(card.getController())))) chosenAttackPlayer = null;
+                && !isMe(card.getController())))) chosenAttackPlayer = null;
         final PlayerView chosen = attackPlayerFor(card);
         if (chosen != null) {
             lastClicked = card;
@@ -920,7 +920,7 @@ public class NeoMatchUI extends NetworkGuiGame {
     private CardView attackerToSelectFirst(final CardView card) {
         final GameView gv = getGameView();
         if (gv == null || gv.getPhase() != PhaseType.COMBAT_DECLARE_BLOCKERS
-                || card == null || !isLocalPlayer(card.getController()) || !card.isBlocking()
+                || card == null || !isMe(card.getController()) || !card.isBlocking()
                 || isSelecting() || getSelectionMax() > 0 || payingMana) {
             return null;
         }
@@ -1341,7 +1341,7 @@ public class NeoMatchUI extends NetworkGuiGame {
         if (gc == null || top == null || !top.isAbility() || key == null || key.isEmpty()) {
             return NeoText.get("shortcuts.autoYield.none");
         }
-        final boolean decides = top.isOptionalTrigger() && isLocalPlayer(top.getActivatingPlayer());
+        final boolean decides = top.isOptionalTrigger() && isMe(top.getActivatingPlayer());
         if (decides) {
             gc.setTriggerDecision(key, yes ? AutoYieldStore.TriggerDecision.ACCEPT
                     : AutoYieldStore.TriggerDecision.DECLINE, abilityScope(gc));
@@ -1548,7 +1548,7 @@ public class NeoMatchUI extends NetworkGuiGame {
         }
         final GameView gv = getGameView();
         final boolean ownCreature = source.getZone() == ZoneType.Battlefield
-                && isLocalPlayer(source.getController()) && source.getCurrentState() != null
+                && isMe(source.getController()) && source.getCurrentState() != null
                 && source.getCurrentState().isCreature();
         final boolean attacking = ownCreature && isDeclaringAttackers();
         final boolean blocking = ownCreature && gv != null
@@ -2402,6 +2402,13 @@ public class NeoMatchUI extends NetworkGuiGame {
             return;
         }
 
+        // Quitado en Ajustes (itch.io, 04-10-2026): el stack de la derecha ya
+        // lo dice. Va DESPUES del aviso de arriba, que no se quita nunca.
+        if (!forge.neo.NeoSettings.stackBanner()) {
+            banner.hide();
+            return;
+        }
+
         // ---- EL CARTEL CENTRAL ES UN ESPEJO DEL STACK. NADA MAS. ----
         //
         // Antes tambien repetia aqui el prompt del motor, y de ahi salieron
@@ -2599,10 +2606,165 @@ public class NeoMatchUI extends NetworkGuiGame {
      * el primero es el correcto.
      */
     private PlayerView localPlayer() {
+        // Con varias personas (hot seat), el que tiene la mesa delante.
+        final PlayerView f = front;
+        if (f != null && hotSeat()) {
+            return live(f);
+        }
         for (final PlayerView p : getLocalPlayers()) {
             return live(p);
         }
         return null;
+    }
+
+    // ---------------------------------------------------------------
+    // HOT SEAT: varias personas en el mismo aparato (itch.io, 04-10-2026)
+    // ---------------------------------------------------------------
+    //
+    // "Forge allows for setting up all players in a match to human ... This hot
+    // seat mode has been helpful in testing decks and strategies." El motor ya
+    // sabe: una interfaz para todos los asientos humanos (NeoGame.play), y
+    // InputProxy le dice en cada pregunta de quien es (setCurrentPlayer). Lo
+    // que faltaba era nuestro: la mesa daba por hecho UN jugador local, siempre
+    // abajo. Ahora abajo esta "el de delante", que sigue a quien decide, y al
+    // cambiar sale una cortina para no verle la mano al otro.
+
+    /** El asiento que tiene la mesa delante. Null fuera de un hot seat. */
+    private volatile PlayerView front;
+
+    /** Cada cambio de asiento pedido: el que llega tarde no pisa al nuevo. */
+    private final java.util.concurrent.atomic.AtomicInteger frontAsk =
+            new java.util.concurrent.atomic.AtomicInteger();
+
+    /** Si hay varias personas jugando en este aparato. */
+    boolean hotSeat() {
+        return mode == Mode.HUMAN && getLocalPlayers().size() > 1;
+    }
+
+    /**
+     * Si este jugador es "el que juega ahora". Fuera de un hot seat es
+     * exactamente {@code isLocalPlayer}; dentro, solo el de delante. Es la
+     * pregunta que hacen atacar, bloquear, lanzar desde el cementerio, equipar
+     * o el "te toca": con dos personas, "mio" es del que tiene el turno de
+     * decidir, no de cualquiera de las dos.
+     */
+    private boolean isMe(final PlayerView p) {
+        if (p == null) {
+            return false;
+        }
+        if (!hotSeat()) {
+            return isLocalPlayer(p);
+        }
+        final PlayerView f = front;
+        return f != null && f.getId() == p.getId();
+    }
+
+    /**
+     * Gira la mesa hacia este asiento, con su cortina. Lo llama la interfaz de
+     * cada asiento ({@link HotSeatGui}) antes de preguntarle algo, desde el
+     * hilo del motor; el cambio en pantalla va por el hilo de la interfaz.
+     */
+    void bringToFront(final PlayerView seat) {
+        if (seat == null || !hotSeat()) {
+            return;
+        }
+        final PlayerView f = front;
+        if (f != null && f.getId() == seat.getId()) {
+            return;
+        }
+        frontAsk.incrementAndGet();
+        switchFront(seat);
+    }
+
+    private void switchFront(final PlayerView seat) {
+        front = seat;
+        final PlayerView who = live(seat);
+        trace("hot seat: delante %s", nameOf(who));
+        forge.neo.ui.CardZoom.setLocalViewers(java.util.Collections.singletonList(who));
+        final TableBinder b = binder;
+        if (b != null) {
+            b.setSelf(who);
+        }
+        if (interactive()) {
+            final String name = nameOf(who);
+            uiRunLater(() -> table.showCurtain(name));
+        }
+        pushToTable();
+        // El "Te toca / Juega X" se escribio al llegar la pregunta, 300 ms
+        // ANTES de girar la mesa: con el de antes delante. Se rehace.
+        refreshHighlights();
+    }
+
+    /**
+     * La parada de fase vista desde el asiento que pregunta (la manda
+     * {@link HotSeatGui}). Con varias personas cada una usa las paradas de "mi
+     * turno" en el suyo y las del rival en el de las demas; con una sola, es lo
+     * de siempre.
+     */
+    boolean isUiSetToSkipPhaseFor(final PlayerView asking, final PlayerView turn,
+                                  final PhaseType phase) {
+        if (phase == null) {
+            return false;
+        }
+        if (!hotSeat() || asking == null) {
+            return isUiSetToSkipPhase(turn, phase);
+        }
+        final boolean mine = turn == null || turn.getId() == asking.getId();
+        return !(mine ? stops : theirStops).contains(phase);
+    }
+
+    /**
+     * La {@link NeoMatchUI} que hay detras de una interfaz: ella misma, o la de
+     * un asiento de hot seat ({@link HotSeatGui}). Para quien antes preguntaba
+     * {@code getGui() instanceof NeoMatchUI}.
+     */
+    public static NeoMatchUI of(final Object gui) {
+        if (gui instanceof NeoMatchUI ui) {
+            return ui;
+        }
+        return HotSeatGui.unwrap(gui) instanceof NeoMatchUI ui ? ui : null;
+    }
+
+    /** Lo que {@link HotSeatGui} le pide a esta interfaz. */
+    private final HotSeatGui.Host hotSeatHost = new HotSeatGui.Host() {
+        @Override
+        public void bringToFront(final PlayerView seat) {
+            NeoMatchUI.this.bringToFront(seat);
+        }
+
+        @Override
+        public boolean isUiSetToSkipPhaseFor(final PlayerView asking, final PlayerView turn,
+                                             final PhaseType phase) {
+            return NeoMatchUI.this.isUiSetToSkipPhaseFor(asking, turn, phase);
+        }
+    };
+
+    /**
+     * Lo que se ve de una carta: con varias personas, solo lo que puede ver el
+     * de delante (sin esto el morfo de B o la carta de arriba de su biblioteca
+     * se le ensenyaban a A, porque los dos son "locales").
+     */
+    @Override
+    public boolean mayView(final CardView c) {
+        final PlayerView f = front;
+        if (f == null || !hotSeat() || c == null) {
+            return super.mayView(c);
+        }
+        final IGameController gc = getGameController();
+        if (gc != null && gc.mayLookAtAllCards()) {
+            return true;
+        }
+        return c.canBeShownToAny(java.util.Collections.singletonList(live(f)));
+    }
+
+    @Override
+    public boolean mayFlip(final CardView cv) {
+        final boolean any = super.mayFlip(cv);
+        final PlayerView f = front;
+        if (!any || f == null || !hotSeat() || cv == null || !cv.isFaceDown()) {
+            return any;
+        }
+        return cv.canFaceDownBeShownToAny(java.util.Collections.singletonList(live(f)));
     }
 
     /** El mismo, para quien lo necesite desde fuera ({@code TableBinder}). */
@@ -2640,7 +2802,7 @@ public class NeoMatchUI extends NetworkGuiGame {
                 // Por id: los CardView que llegan por la red son copias, y la
                 // identidad de objeto no vale (ver las trampas conocidas).
                 if (cv != null && cv.getId() == card.getId()) {
-                    return true;
+                    return castableNow(card);
                 }
             }
         }
@@ -2673,10 +2835,59 @@ public class NeoMatchUI extends NetworkGuiGame {
      * planeado). Es solo para marcarla y dejarla clicar: quien decide de
      * verdad, al clicar, es el motor.
      */
+    /**
+     * Si esta carta de la lista de {@code getFlashback()} se puede lanzar
+     * <b>ahora mismo</b>.
+     *
+     * <p>Esa lista dice "desde esta zona SE PUEDE lanzar", sin mirar cuando.
+     * Con Ninja Teen el cementerio entero salia marcado en cualquier fase,
+     * aunque el sneak solo vale en el paso de declarar bloqueadores (itch.io,
+     * 04-10-2026: <i>"I was not able to cast the creatures. The strange part is
+     * that the system is reflecting that I have casteable creatures in my
+     * graveyard"</i>, con la captura en la segunda fase principal). Pasa igual
+     * con un flashback de conjuro en el turno del rival.
+     *
+     * <p>Se pregunta al motor con lo MISMO que usa al clicar
+     * ({@code Card.getAllPossibleAbilities(jugador, true)}, que es lo que llama
+     * {@code InputPassPriority}), y solo cuando el motor esta parado esperando
+     * que pases prioridad: ahi no corre nada en su hilo, y fuera de ahi no se
+     * puede lanzar nada de todas formas. En red el invitado no tiene
+     * {@code Game}: se queda lo de antes, la lista sola.
+     */
+    private boolean castableNow(final CardView card) {
+        final GameView gv = getGameView();
+        final Game game = gv == null ? null : gv.getGame();
+        if (game == null) {
+            return true;
+        }
+        if (!(getGameController() instanceof forge.player.PlayerControllerHuman human)
+                || !(human.getInputQueue().getInput()
+                        instanceof forge.gamemodes.match.input.InputPassPriority)) {
+            return false;
+        }
+        try {
+            final forge.game.player.Player me = game.getPlayer(localPlayer());
+            final forge.game.player.Player owner = game.getPlayer(card.getOwner());
+            if (me == null || owner == null || card.getZone() == null) {
+                return true;
+            }
+            for (final forge.game.card.Card c : owner.getCardsIn(card.getZone())) {
+                if (c.getId() == card.getId()) {
+                    return !c.getAllPossibleAbilities(me, true).isEmpty();
+                }
+            }
+            return true;
+        } catch (final RuntimeException e) {
+            // Ante la duda, lo de siempre: marcarla. Quien decide al clicar es
+            // el motor.
+            return true;
+        }
+    }
+
     boolean isMayhemCastable(final CardView card) {
         final GameView gv = getGameView();
         if (gv == null || card.getZone() != ZoneType.Graveyard
-                || !isLocalPlayer(card.getOwner()) || isSelecting() || payingMana) {
+                || !isMe(card.getOwner()) || isSelecting() || payingMana) {
             return false;
         }
         final Game game = gv.getGame();
@@ -2704,7 +2915,7 @@ public class NeoMatchUI extends NetworkGuiGame {
                 return true;
             }
             final PhaseType phase = gv.getPhase();
-            return isLocalPlayer(gv.getPlayerTurn()) && phase != null && phase.isMain()
+            return isMe(gv.getPlayerTurn()) && phase != null && phase.isMain()
                     && (gv.getStack() == null || gv.getStack().isEmpty());
         } catch (final RuntimeException e) {
             // Se lee el motor desde el hilo de interfaz: si justo esta moviendo
@@ -2771,14 +2982,14 @@ public class NeoMatchUI extends NetworkGuiGame {
     boolean isPlottedCastable(final CardView card) {
         final GameView gv = getGameView();
         if (gv == null || gv.getId() != plottedGame || plotted.isEmpty()
-                || card.getZone() != ZoneType.Exile || !isLocalPlayer(card.getOwner())
+                || card.getZone() != ZoneType.Exile || !isMe(card.getOwner())
                 || isSelecting() || payingMana) {
             return false;
         }
         final Integer turn = plotted.get(card.getId());
         final PhaseType phase = gv.getPhase();
         return turn != null && gv.getTurn() > turn
-                && isLocalPlayer(gv.getPlayerTurn())
+                && isMe(gv.getPlayerTurn())
                 && phase != null && phase.isMain()
                 && (gv.getStack() == null || gv.getStack().isEmpty());
     }
@@ -2861,6 +3072,27 @@ public class NeoMatchUI extends NetworkGuiGame {
     @Override
     public void updateCurrentPlayer(final PlayerView player) {
         trace("jugador actual: %s", nameOf(player));
+        // HOT SEAT: se gira la mesa hacia quien decide, pero no en el acto. El
+        // pase automatico contesta en milisegundos cuando no tienes nada que
+        // hacer, y girar en cada pase haria saltar la cortina sin parar. Si a
+        // los 300 ms sigue siendo el, es que de verdad le toca.
+        final PlayerView f = front;
+        if (player != null && hotSeat() && (f == null || f.getId() != player.getId())) {
+            final int ask = frontAsk.incrementAndGet();
+            uiRunLater(() -> {
+                final javafx.animation.PauseTransition wait =
+                        new javafx.animation.PauseTransition(javafx.util.Duration.millis(300));
+                wait.setOnFinished(e -> {
+                    final PlayerView now = getCurrentPlayer();
+                    final PlayerView before = front;
+                    if (ask == frontAsk.get() && now != null && now.getId() == player.getId()
+                            && (before == null || before.getId() != player.getId())) {
+                        switchFront(player);
+                    }
+                });
+                wait.play();
+            });
+        }
         pushToTable();
     }
 
@@ -2915,9 +3147,16 @@ public class NeoMatchUI extends NetworkGuiGame {
             // Nuestro asiento va abajo, como en cualquier juego de cartas.
             b.setSelf(myPlayers.iterator().next());
         }
+        // HOT SEAT: empieza delante el primero de los asientos (el tuyo).
+        front = null;
+        if (myPlayers != null && myPlayers.size() > 1 && mode == Mode.HUMAN) {
+            front = myPlayers.iterator().next();
+            log("Hot seat: %d personas en este aparato", myPlayers.size());
+        }
         // Quien somos, para que el click derecho no ensenye el morfo del
         // rival. Ver el porque en forge.neo.ui.CardZoom.localViewers.
-        forge.neo.ui.CardZoom.setLocalViewers(getLocalPlayers());
+        forge.neo.ui.CardZoom.setLocalViewers(front != null
+                ? java.util.Collections.singletonList(front) : getLocalPlayers());
         // Si ampliar una carta va a parar la partida de verdad, la mesa lo
         // dice al ampliarla. Aqui, que es por donde pasan TODAS las partidas
         // (principio 8): en red no para nadie, y una maqueta no tiene motor.
@@ -2934,6 +3173,18 @@ public class NeoMatchUI extends NetworkGuiGame {
                 if (ManaColor.install(getGameController(seat))) {
                     log("Tierras de dos colores: preguntaran el color (%s)",
                             PlayerName.of(seat));
+                }
+            }
+            // HOT SEAT: cada asiento con su propia interfaz, para que las
+            // preguntas por dialogo giren la mesa hacia quien las contesta.
+            // En el controlador SENTADO, que es por donde salen. Ver HotSeatGui.
+            if (front != null) {
+                for (final PlayerView seat : myPlayers) {
+                    if (getGameController(seat) instanceof forge.player.PlayerControllerHuman pch
+                            && pch.getPlayer() != null
+                            && pch.getPlayer().getController() instanceof forge.player.PlayerControllerHuman seated) {
+                        seated.setGui(HotSeatGui.wrap(this, hotSeatHost, seat));
+                    }
                 }
             }
         }
@@ -3204,7 +3455,7 @@ public class NeoMatchUI extends NetworkGuiGame {
             return;
         }
 
-        if (showGameOverScreen(localPlayerWon())) {
+        if (showGameOverScreen(hotSeat() ? anyLocalPlayerWon() : localPlayerWon())) {
             return;
         }
         // Aqui NUNCA hay un Bo3 de verdad esperando "siguiente partida": el
@@ -3276,8 +3527,9 @@ public class NeoMatchUI extends NetworkGuiGame {
         // jugar — nunca la que viene.
         final int gameNumber = gv == null ? 0 : gv.getNumPlayedGamesInMatch() + 1;
         gameOverShowing = true;
+        final boolean hotSeatOver = hotSeat();
         ui.runLater(() -> table.getOverlay().show(new GameOverScreen(
-                won, winner, turns, ending, matchOver, gameNumber, totalGames,
+                won, winner, turns, ending, matchOver, gameNumber, totalGames, hotSeatOver,
                 decision -> {
                     table.getOverlay().hide();
                     gameOverShowing = false;
@@ -3319,6 +3571,21 @@ public class NeoMatchUI extends NetworkGuiGame {
      * cuatro puede ganar un tercero, y comparar nombres se rompe en cuanto dos
      * asientos se llaman igual.
      */
+    /** Hot seat: si ha ganado alguna de las personas (y no una IA). */
+    private boolean anyLocalPlayerWon() {
+        final GameView gv = getGameView();
+        final String winner = gv == null ? null : gv.getWinningPlayerName();
+        if (winner == null) {
+            return false;
+        }
+        for (final PlayerView p : getLocalPlayers()) {
+            if (winner.equals(live(p).getName())) {
+                return true;
+            }
+        }
+        return localPlayerWon();
+    }
+
     private boolean localPlayerWon() {
         if (!hasLocalPlayers()) {
             return false;
@@ -3411,7 +3678,7 @@ public class NeoMatchUI extends NetworkGuiGame {
             return "";
         }
         final PlayerView active = gv.getPlayerTurn();
-        final boolean mine = active != null && isLocalPlayer(active);
+        final boolean mine = active != null && isMe(active);
 
         final StringBuilder sb = new StringBuilder();
         sb.append(mine ? NeoText.get("turn.yours")
@@ -3680,7 +3947,7 @@ public class NeoMatchUI extends NetworkGuiGame {
         if (!toCombat && (phase != PhaseType.MAIN2 || mode < 2)) {
             return false;
         }
-        if (!isLocalPlayer(gv.getPlayerTurn())) {
+        if (!isMe(gv.getPlayerTurn())) {
             return false;
         }
         if (payingMana || isSelecting() || getSelectionMax() > 0 || topOfStack() != null) {
@@ -3973,6 +4240,10 @@ public class NeoMatchUI extends NetworkGuiGame {
         }
         // El motor vuelve a preguntar: el OK vuelve a valer. Ver okAwaitingEngine.
         askGen.incrementAndGet();
+        // Y lo que se puede lanzar desde el cementerio o el exilio depende de
+        // QUE pregunta (castableNow): al llegar o irse la prioridad, el brillo
+        // de las pilas se recalcula. El binder agrupa los avisos: no cuesta.
+        pushToTable();
         // Lo PRIMERO: saber si hay un pago de mana en curso, y saberlo por lo
         // que dice el motor. Ver setPayingMana.
         setPayingMana(isAutoPayLabel(okLabel));
@@ -5518,7 +5789,7 @@ public class NeoMatchUI extends NetworkGuiGame {
         // "siempre" — y solo si es TUYO: el motor no te pregunta por los del
         // rival. isOptionalTrigger() es justo el dato que hacia falta.
         final boolean mineTrigger = hasKey && item.isOptionalTrigger()
-                && isLocalPlayer(item.getActivatingPlayer());
+                && isMe(item.getActivatingPlayer());
         final boolean canYield = hasKey && item.isAbility();
 
         final List<String> labels = new ArrayList<>();
@@ -5757,11 +6028,11 @@ public class NeoMatchUI extends NetworkGuiGame {
      */
     private String equipLabel(final CardView card) {
         if (!interactive() || card == null || finished.get() || payingMana || isSelecting()
-                || card.getZone() != ZoneType.Battlefield || !isLocalPlayer(card.getController())) {
+                || card.getZone() != ZoneType.Battlefield || !isMe(card.getController())) {
             return null;
         }
         final GameView gv = getGameView();
-        if (gv == null || !isLocalPlayer(gv.getPlayerTurn())
+        if (gv == null || !isMe(gv.getPlayerTurn())
                 || (gv.getPhase() != PhaseType.MAIN1 && gv.getPhase() != PhaseType.MAIN2)
                 || (gv.getStack() != null && !gv.getStack().isEmpty())) {
             return null;

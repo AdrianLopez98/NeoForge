@@ -764,6 +764,43 @@ public class SettingsPanel extends VBox {
                     host.refreshTable();
                 }));
 
+        // --- la carta grande del stack en mitad de la mesa ---
+        //
+        // Pedido en itch.io el 04-10-2026: moverla, agrandarla o quitarla. Lo
+        // primero y lo segundo se hacen en la propia carta (arrastrar, rueda,
+        // esquina); aqui se quita y se devuelve a su sitio. Ver PromptBanner.
+        getChildren().add(toggleRow(NeoText.get("settings.stackBanner"),
+                NeoSettings.stackBanner(),
+                on -> {
+                    NeoSettings.setBool(NeoSettings.STACK_BANNER, on);
+                    NeoSettings.save();
+                    PromptBanner.refreshLive();
+                    host.refreshTable();
+                }));
+        getChildren().add(toggleRow(NeoText.get("settings.stackBanner.edit"),
+                NeoSettings.stackBannerEditable(),
+                on -> {
+                    NeoSettings.setBool(NeoSettings.STACK_BANNER_EDIT, on);
+                    NeoSettings.save();
+                    PromptBanner.refreshLive();
+                }));
+        final Button bannerReset = new Button(NeoText.get("settings.stackBanner.reset"));
+        bannerReset.getStyleClass().add("segment");
+        bannerReset.setMinWidth(Region.USE_PREF_SIZE);
+        bannerReset.setOnAction(e -> {
+            PromptBanner.resetPlacement();
+            host.refreshTable();
+        });
+        getChildren().add(row(NeoText.get("settings.stackBanner.place"), bannerReset));
+        // Como se mueve y se agranda: se hace en la propia carta, y un gesto que
+        // nadie sabe que existe no le sirve a nadie.
+        final Label bannerNote = new Label(NeoText.get("settings.stackBanner.note"));
+        bannerNote.getStyleClass().add("settings-note");
+        bannerNote.setWrapText(true);
+        bannerNote.setMaxWidth(UiScale.px(560));
+        bannerNote.setMinHeight(Region.USE_PREF_SIZE);
+        getChildren().add(bannerNote);
+
         // --- apilar las cartas iguales, no solo las fichas ---
         //
         // Como Forge. Pedido en itch.io el 29-09-2026 con treinta Rat Colony

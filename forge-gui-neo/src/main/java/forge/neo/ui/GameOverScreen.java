@@ -63,6 +63,17 @@ public class GameOverScreen extends VBox {
                           final NeoMatchUI.Ending ending, final boolean matchOver,
                           final int gameNumber, final int totalGames,
                           final Consumer<NextGameDecision> onDecision) {
+        this(won, winner, turns, ending, matchOver, gameNumber, totalGames, false, onDecision);
+    }
+
+    /**
+     * @param hotSeat varias personas en el mismo aparato: no hay "has ganado" ni
+     *                "has perdido" que valga para todas, asi que se dice quien
+     */
+    public GameOverScreen(final boolean won, final String winner, final int turns,
+                          final NeoMatchUI.Ending ending, final boolean matchOver,
+                          final int gameNumber, final int totalGames, final boolean hotSeat,
+                          final Consumer<NextGameDecision> onDecision) {
         getStyleClass().addAll("dialog", "game-over");
         setSpacing(14);
         setPadding(new Insets(34, 44, 28, 44));
@@ -70,7 +81,9 @@ public class GameOverScreen extends VBox {
         setMaxWidth(Region.USE_PREF_SIZE);
         setMaxHeight(Region.USE_PREF_SIZE);
 
-        final Label title = new Label(won ? NeoText.get("over.won") : NeoText.get("over.lost"));
+        final Label title = new Label(hotSeat && won && winner != null && !winner.isBlank()
+                ? NeoText.get("over.hotseat", winner)
+                : won ? NeoText.get("over.won") : NeoText.get("over.lost"));
         title.getStyleClass().addAll("game-over-title", won ? "victory" : "defeat");
 
         final StringBuilder detail = new StringBuilder();

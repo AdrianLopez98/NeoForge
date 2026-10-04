@@ -59,6 +59,13 @@ public final class RivalSetup {
     public static final String MODES = "rivalAi";
     public static final String AVATARS = "rivalAvatars";
     public static final String POOL = "aiPool";
+    /**
+     * Que asientos de rival juega una PERSONA en el mismo aparato ("hot seat",
+     * itch.io 04-10-2026: <i>"Forge allows for setting up all players in a match
+     * to human ... This hot seat mode has been helpful in testing decks"</i>).
+     * Una lista de "1"/"" por asiento, como las demas.
+     */
+    public static final String HUMANS = "rivalHuman";
 
     /** La marca de "partida normal: cada rival con su forma de jugar". */
     private static final String PER_RIVAL = "neo:perRival:";
@@ -107,6 +114,38 @@ public final class RivalSetup {
         } catch (final NumberFormatException e) {
             return -1;
         }
+    }
+
+    // ---------------------------------------------------------------
+    // Persona o IA (hot seat)
+    // ---------------------------------------------------------------
+
+    /** Si el rival numero {@code rival} lo juega una persona en este aparato. */
+    public static boolean isHuman(final int rival) {
+        return "1".equals(slot(HUMANS, rival));
+    }
+
+    public static void setHuman(final int rival, final boolean human) {
+        setSlot(HUMANS, rival, human ? "1" : "");
+    }
+
+    /** Si hay alguno de los {@code opponents} primeros rivales que juega una persona. */
+    public static boolean anyHuman(final int opponents) {
+        for (int i = 0; i < opponents; i++) {
+            if (isHuman(i)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Si este perfil es el de una partida normal, la unica en la que los
+     * asientos de persona cuentan. Ascenso, Quest, torneo, draft y la red
+     * montan sus rivales a su manera y no lo miran.
+     */
+    public static boolean isPerRival(final String aiProfile) {
+        return aiProfile != null && aiProfile.startsWith(PER_RIVAL);
     }
 
     // ---------------------------------------------------------------

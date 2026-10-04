@@ -171,6 +171,61 @@ public class TableScreen extends Pane {
     private final Overlay zoomOverlay = new Overlay();
 
     /**
+     * <b>La cortina del hot seat</b>: varias personas en el mismo aparato, y al
+     * pasar el turno de decidir a otra se tapa la mesa entera hasta que esa
+     * persona dice que esta delante. Sin ella, al girar la mesa se veia un
+     * instante la mano del otro. Por encima de TODO, tambien de los dialogos
+     * del motor: la pregunta se queda debajo esperando, no se pierde.
+     */
+    private final Overlay curtain = new Overlay();
+    private volatile boolean curtainUp;
+
+    /** Tapa la mesa: "Le toca a X". Se quita con su boton (o Intro / Espacio). */
+    public void showCurtain(final String who) {
+        final javafx.scene.control.Label title = new javafx.scene.control.Label(
+                forge.neo.NeoText.get("hotseat.curtain.title", who));
+        title.getStyleClass().add("hotseat-curtain-title");
+        title.setWrapText(true);
+        final javafx.scene.control.Label hint = new javafx.scene.control.Label(
+                forge.neo.NeoText.get("hotseat.curtain.hint", who));
+        hint.getStyleClass().add("hotseat-curtain-hint");
+        hint.setWrapText(true);
+        final javafx.scene.control.Button go = new javafx.scene.control.Button(
+                forge.neo.NeoText.get("hotseat.curtain.go", who));
+        go.getStyleClass().addAll("btn-primary", "btn-play");
+        go.setOnAction(e -> hideCurtain());
+        final javafx.scene.layout.VBox box = new javafx.scene.layout.VBox(18, title, hint, go);
+        box.setAlignment(javafx.geometry.Pos.CENTER);
+        box.setMaxWidth(forge.neo.ui.UiScale.px(720));
+        curtain.show(box);
+        curtainUp = true;
+        javafx.application.Platform.runLater(go::requestFocus);
+        // Solo pruebas: -Dneo.hotseat.autoReveal=ms la quita sola, para poder
+        // capturar lo que hay detras sin clicar (y jugar con --autopilot).
+        final int auto = Integer.getInteger("neo.hotseat.autoReveal", 0);
+        if (auto > 0) {
+            final javafx.animation.PauseTransition later =
+                    new javafx.animation.PauseTransition(javafx.util.Duration.millis(auto));
+            later.setOnFinished(e -> {
+                if (curtain.getChildren().contains(box)) {
+                    hideCurtain();
+                }
+            });
+            later.play();
+        }
+    }
+
+    public void hideCurtain() {
+        curtainUp = false;
+        curtain.hide();
+    }
+
+    /** Si la cortina esta puesta: el teclado de la partida no actua debajo. */
+    public boolean isCurtainUp() {
+        return curtainUp;
+    }
+
+    /**
      * El tapete, detras de todo.
      *
      * <p>Y encima, un velo oscuro. No es decoracion: la mesa tiene que ser
@@ -362,7 +417,8 @@ public class TableScreen extends Pane {
         getChildren().addAll(opponentTabs, opponentBar, viewport,
                 selfBar, hand, commandZone, phaseRail, side, combatOverlay, logButton, menuButton, chatButton, macroRecordButton, macroPlayButton, cooldownBadge,
                 promptBanner, notices, turnBanner, playerDetails, zoomBadge, macroBadge, spotlight,
-                handPeek, overlay, menuOverlay, zoomOverlay);
+                handPeek, overlay, menuOverlay, zoomOverlay, curtain);
+        curtain.getStyleClass().add("hotseat-curtain");
 
         // Se cierra con un click en cualquier sitio, como en Arena.
         //
@@ -514,6 +570,7 @@ public class TableScreen extends Pane {
         overlay.resizeRelocate(0, 0, w, h);
         menuOverlay.resizeRelocate(0, 0, w, h);
         zoomOverlay.resizeRelocate(0, 0, w, h);
+        curtain.resizeRelocate(0, 0, w, h);
 
         // La banda del tutorial, si la hay, se cobra su alto ANTES de repartir:
         // asi la mesa se encoge un poco y no queda nada tapado. Ver CoachPanel.
@@ -605,6 +662,8 @@ public class TableScreen extends Pane {
             final double bw = Math.min(contentW - PAD * 4, promptBanner.prefWidth(-1));
             final double bh = promptBanner.prefHeight(bw);
             promptBanner.resizeRelocate((contentW - bw) / 2, y + LINE_H / 2 - bh / 2, bw, bh);
+            // Y de ahi, a donde lo haya arrastrado el jugador (sin salirse).
+            promptBanner.fitInto(contentW, getHeight());
         }
 
         y += LINE_H;
@@ -3702,7 +3761,12 @@ public class TableScreen extends Pane {
             if (found == null && n instanceof CardNode cn) {
                 found = cn;
             }
-            if (n == side || n == overlay || n == menuOverlay) {
+            // El cartel del stack tampoco: es informativo y su carta no se
+            // arrastra a ningun sitio. Antes cogerlo por la carta era el
+            // arrastre de una carta de la mesa, y soltar el hechizo del stack
+            // era clicarlo — elegirlo como objetivo si el motor lo pedia. Ahora
+            // arrastrarlo lo mueve (si el ajuste lo deja) y si no, nada.
+            if (n == side || n == overlay || n == menuOverlay || n == promptBanner) {
                 return null;
             }
             n = n.getParent();

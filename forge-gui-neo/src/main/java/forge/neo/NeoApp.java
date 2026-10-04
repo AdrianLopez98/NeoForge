@@ -173,6 +173,17 @@ public class NeoApp extends Application implements SettingsPanel.Host {
 
         scene.setOnKeyPressed(ev -> {
             final boolean inGame = table != null && table.getScene() != null;
+            // Hot seat: con la cortina puesta no se juega nada desde el teclado
+            // (seria jugar con la mano del otro delante). Intro o Espacio son
+            // "ya estoy yo", como su boton.
+            if (inGame && table.isCurtainUp()) {
+                if (ev.getCode() == javafx.scene.input.KeyCode.ENTER
+                        || ev.getCode() == javafx.scene.input.KeyCode.SPACE) {
+                    table.hideCurtain();
+                }
+                ev.consume();
+                return;
+            }
             if (ev.getCode() == javafx.scene.input.KeyCode.ESCAPE) {
                 // Escape NO es un atajo configurable: es la valvula de escape
                 // (principio 7), y es por donde se llega a cambiar los atajos.
@@ -784,6 +795,47 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                             "IA-2\nAsesinato\nDestruye la criatura objetivo. Su controlador"
                             + " pierde 2 vidas.\n" + NeoText.get("stack.targets", "Grizzly Bears"));
                     table.requestLayout();
+
+                    // -Dneo.banner.drag=dx,dy  y  -Dneo.banner.wheel=N: a los
+                    // 800 ms se arrastra el cartel y se le dan N muescas de
+                    // rueda (sin Ctrl), por el camino real (itch.io,
+                    // 04-10-2026: moverlo y cambiarle el tamanyo).
+                    // ⚠️ Lo que se mueve SE GUARDA: usar con -Dneo.settingsFile.
+                    final String bannerDrag = System.getProperty("neo.banner.drag", "");
+                    final int bannerWheel = Integer.getInteger("neo.banner.wheel", 0);
+                    if (!bannerDrag.isBlank() || bannerWheel != 0) {
+                        final PauseTransition bd = new PauseTransition(Duration.millis(800));
+                        bd.setOnFinished(ev -> {
+                            final forge.neo.ui.PromptBanner pb = table.getPromptBanner();
+                            final javafx.geometry.Point2D c = NeoAppDebug.centreOf(pb);
+                            for (int i = 0; i < Math.abs(bannerWheel); i++) {
+                                javafx.event.Event.fireEvent(pb, new javafx.scene.input.ScrollEvent(
+                                        javafx.scene.input.ScrollEvent.SCROLL,
+                                        c.getX(), c.getY(), c.getX(), c.getY(),
+                                        false, false, false, false, true, false,
+                                        0, bannerWheel > 0 ? 40 : -40, 0, bannerWheel > 0 ? 40 : -40,
+                                        javafx.scene.input.ScrollEvent.HorizontalTextScrollUnits.NONE, 0,
+                                        javafx.scene.input.ScrollEvent.VerticalTextScrollUnits.NONE, 0,
+                                        0, null));
+                            }
+                            if (!bannerDrag.isBlank()) {
+                                final String[] d = bannerDrag.split(",");
+                                // Cogido POR LA CARTA, que es casi todo el cartel:
+                                // ahi es donde la mesa podia tomarlo por el
+                                // arrastre de una carta suya.
+                                final CardNode grabbed = NeoAppDebug.firstCardNode(pb);
+                                NeoAppDebug.simulateDrag(grabbed != null ? grabbed : pb, c.add(
+                                        Double.parseDouble(d[0].trim()),
+                                        Double.parseDouble(d[1].trim())));
+                                NeoAppDebug.fire(pb, javafx.scene.input.MouseEvent.MOUSE_CLICKED,
+                                        c);
+                            }
+                            System.out.printf(java.util.Locale.ROOT,
+                                    "[banner] visible=%s centro=%s ancho=%.0f%n",
+                                    pb.isVisible(), NeoAppDebug.centreOf(pb), pb.getWidth());
+                        });
+                        bd.play();
+                    }
 
                     // -Dneo.banner.swapAt=N: y a los N ms, OTRA carta.
                     //
