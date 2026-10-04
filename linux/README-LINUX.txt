@@ -53,6 +53,9 @@ normal desktop they're already there; on a minimal system install your
 distribution's GTK 3 package (libgtk-3-0 on Debian/Ubuntu, gtk3 on
 Fedora/Arch).
 
+No sound? Music and effects use your system's audio through JavaFX; if it
+stays silent, check that sound works in other apps (PulseAudio/PipeWire).
+
 Run it from a terminal to see what it says, and tell me on Discord or on the
 itch.io page:
 

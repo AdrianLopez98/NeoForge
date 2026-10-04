@@ -49,7 +49,10 @@ grep -q '<module>forge-gui-neo</module>' "$FORGE/pom.xml"
 
 echo "== 3. Compilar (siempre dentro del reactor, con -am)"
 export MAVEN_OPTS="-Dfile.encoding=UTF-8 -Xmx2g"
-(cd "$FORGE" && mvn -B -ntp install -DskipTests -pl forge-gui-neo -am)
+# -DskipLaunch4j: forge-gui-mobile-dev fabrica un .exe de Windows con launch4j,
+# cuya herramienta (windres) solo existe para x86 y revienta en ARM. En Linux
+# ese .exe no hace falta para nada.
+(cd "$FORGE" && mvn -B -ntp install -DskipTests -DskipLaunch4j=true -pl forge-gui-neo -am)
 
 echo "== 4. El programa y sus librerias, en una carpeta plana"
 STAGE="$WORK/stage"
