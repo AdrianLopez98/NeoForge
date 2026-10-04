@@ -1,10 +1,11 @@
-**NeoForge para macOS 1.0.12 (beta).** El mismo número que en itch.io, en PC, Mac y Android.
+**NeoForge para macOS 1.0.13 (beta).** El mismo número que en itch.io, en PC, Mac y Android.
 
 Novedades:
-- **A quién va una maldición y a quién protege una batalla**: siguen en la mesa de quien las controla, como dicen las reglas, pero ahora el jugador maldito o el que protege la batalla lleva una pastilla en su barra (clic para ver la carta), y la carta dice "Encanta a X" o "La protege X".
-- **El constructor**: el orden se puede invertir (la flecha ▲/▼ al lado), el mazo tiene su propio orden dentro de cada tipo, y su filtro suma tipo, coste y rareza a color y texto. Por nombre, las cartas con tilde ya no se van detrás de la Z.
-- **La carta ampliada con muchas auras o equipos** ya no deja nada fuera: la ficha de al lado se desplaza y nunca pasa del alto de la carta.
-- **Montar una run de Ascenso**: con Ascensión 10 la lista de efectos ya no se sale del pergamino, y Volver/Empezar quedan siempre a la vista.
+- **Hot seat: varias personas en el mismo Mac.** Cada rival lleva un botón **IA / Persona**. Con personas, la mesa se gira hacia quien tiene que decidir (su mano a la vista, la de los demás oculta), y una cortina pide pasar el ordenador antes de enseñar nada. Las preguntas del motor (descartar, ordenar disparos...) van a quien toca, y cada uno tiene sus paradas de fase.
+- **La carta grande del stack**: en Ajustes se puede quitar, y si lo permites, moverla arrastrándola y cambiarle el tamaño con la rueda o la esquina. Se recuerda.
+- **Tu mazo, al azar**: botón **"Al azar"** junto a las pestañas de mazos; se sortea de la lista que estás viendo, solo entre los legales.
+- **El cementerio solo dice "se puede lanzar" cuando se puede lanzar ya** (Sneak de Ninja Teen solo vale al declarar bloqueadores).
+- **El "x3" de una pila de cartas iguales ya no queda tapado** por la carta de al lado.
 
 Descarga el `.dmg` de tu Mac:
 
@@ -27,14 +28,4 @@ La primera vez tarda en abrir (~45 s): está leyendo las 33.000 cartas. Trae su 
 
 ---
 
-**NeoForge for macOS 1.0.12 (beta).** What's new: **see who a curse enchants and who protects a battle** — they still sit on their controller's battlefield, as the rules say, but the cursed or protecting player gets a pill on their bar and the card says "Enchants X" / "Protected by X"; **deck builder**: reverse any sort (the ▲/▼ button), sort your deck within each card type, and filter it by type, mana value and rarity as well as colour and text; **enlarged cards with lots of auras or equipment** now scroll instead of pushing things off screen; and the **new Ascent run screen** scrolls at Ascension 10, with Back / Begin always visible. Download the `.dmg` for your Mac: `arm64` for Apple Silicon (M1–M4), `x64` for Intel.
-
-1. Open the `.dmg` and drag **NeoForge** into **Applications**.
-2. macOS blocks it the first time because it isn't signed with an Apple developer account: double-click it, dismiss the warning, then **System Settings → Privacy & Security → Open Anyway**.
-3. If it says the app "is damaged", run `xattr -dr com.apple.quarantine /Applications/NeoForge.app` in Terminal.
-
-First launch takes ~45 s while it reads 33,000 cards. Java is bundled. On a Mac: right-click (or Ctrl+click) zooms a card, pinch zooms the table, Cmd+drag pans it, and "Ctrl" shortcuts work with Cmd.
-
-> Beta: built and smoke-tested on GitHub's Mac runners, not yet played on real Mac hardware. If something breaks, please open an issue with `~/Library/Application Support/Forge/neo/neo.log`.
-
-Card images are downloaded from Scryfall as you play and are not bundled. NeoForge is unofficial Fan Content, not approved/endorsed by Wizards of the Coast. GPL-3.0.
+**NeoForge for macOS 1.0.13 (beta).** What's new: **hot seat** — mark any opponent as **Human** and play with friends on the same Mac: the table turns to whoever has to decide, with a curtain so nobody sees anyone else's hand; the **big stack card** in the middle can now be turned off, or moved and resized (drag it, mouse wheel or its corner) if you allow it in Settings; a **Random** button picks your own deck at random from the list you're viewing (only legal ones); the graveyard only lights up when you can actually cast from it right now; and the "x3" on a pile of identical cards is never buried. Download the `.dmg` for your Mac: `arm64` for Apple Silicon (M1–M4), `x64` for Intel.
