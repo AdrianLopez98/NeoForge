@@ -39,6 +39,14 @@ public final class NeoOs {
     public static final boolean MAC = System.getProperty("os.name", "")
             .toLowerCase(Locale.ROOT).contains("mac");
 
+    /**
+     * Linux (y la Steam Deck). Solo lo mira el aviso de version nueva, para
+     * preguntar por el canal del paquete de Linux: el resto de la interfaz se
+     * porta en Linux igual que en Windows.
+     */
+    public static final boolean LINUX = System.getProperty("os.name", "")
+            .toLowerCase(Locale.ROOT).contains("linux");
+
     private NeoOs() {
     }
 

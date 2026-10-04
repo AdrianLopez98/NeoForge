@@ -134,15 +134,29 @@ public final class ItchVersion {
      * El canal del PC en itch.io: los nombres, tal cual se subieron (con
      * espacios: con guiones itch.io contesta {@code invalid channel}).
      *
-     * <p>Mac por arquitectura; todo lo demas, el zip de Windows — que es lo que
-     * se baja tambien en Linux y en la Steam Deck. Un Mac con Apple Silicon que
-     * corre la version Intel (Rosetta) dice {@code x86_64}, y es justo la que
-     * tiene instalada.
+     * <p>Mac por arquitectura; todo lo demas, el zip de Windows. Un Mac con
+     * Apple Silicon que corre la version Intel (Rosetta) dice {@code x86_64}, y
+     * es justo la que tiene instalada.
      */
     public static String channelFor(final boolean mac, final String arch) {
+        return channelFor(mac, false, arch);
+    }
+
+    /**
+     * Lo mismo, sabiendo si es Linux. Desde la 1.0.14 Linux tiene su propio
+     * paquete (un {@code .tar.gz} con Java dentro, compilado en GitHub como el
+     * de Mac): canal {@code linux}, y {@code linux arm64} en ARM. Antes en
+     * Linux y en la Steam Deck se bajaba el zip de Windows, y se le avisaba por
+     * {@code win64}.
+     */
+    public static String channelFor(final boolean mac, final boolean linux, final String arch) {
+        final String a = arch == null ? "" : arch.toLowerCase(Locale.ROOT);
+        final boolean arm = a.contains("aarch64") || a.contains("arm");
         if (mac) {
-            final String a = arch == null ? "" : arch.toLowerCase(Locale.ROOT);
-            return a.contains("aarch64") || a.contains("arm") ? "mac apple silicon" : "mac apple intel";
+            return arm ? "mac apple silicon" : "mac apple intel";
+        }
+        if (linux) {
+            return arm ? "linux arm64" : "linux";
         }
         return "win64";
     }

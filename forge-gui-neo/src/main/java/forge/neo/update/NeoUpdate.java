@@ -196,6 +196,6 @@ public final class NeoUpdate {
         if (forced != null && !forced.isBlank()) {
             return forced;
         }
-        return ItchVersion.channelFor(NeoOs.MAC, System.getProperty("os.arch", ""));
+        return ItchVersion.channelFor(NeoOs.MAC, NeoOs.LINUX, System.getProperty("os.arch", ""));
     }
 }

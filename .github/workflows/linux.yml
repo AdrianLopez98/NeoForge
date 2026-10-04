@@ -1,0 +1,112 @@
+name: Linux
+
+# Compila NeoForge para Linux en las maquinas de GitHub, lo prueba ya
+# empaquetado (con una pantalla virtual) y deja los .tar.gz como artefactos.
+# Con "release" puesto, ademas los sube a un BORRADOR de release con esa
+# etiqueta: se publica a mano despues de mirarlo. Igual que macos.yml.
+
+on:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Etiqueta del borrador de release (vacio = solo compilar)"
+        required: false
+        default: ""
+
+env:
+  # El commit de Forge sobre el que se ha probado este codigo. El MISMO que en
+  # macos.yml: se suben los dos a la vez cuando se rebasa.
+  FORGE_REF: 0089d460b5f1951c1bc7d925d59f3d5cee8ee97a
+  # La version NO va aqui: linux/empaquetar.sh la lee de <neo.version> del pom.
+
+jobs:
+  build:
+    name: Linux ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: x64
+            optional: false
+          # ARM (Raspberry Pi 5, portatiles ARM...): si falla, no tumba el x64.
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+            optional: true
+    runs-on: ${{ matrix.runner }}
+    continue-on-error: ${{ matrix.optional }}
+    timeout-minutes: 90
+    env:
+      ARCH: ${{ matrix.arch }}
+      WORK: ${{ github.workspace }}/_linux
+      OUT: ${{ github.workspace }}/_linux/out
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      - name: Pantalla virtual y GTK (para las pruebas con ventana)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q xvfb libgtk-3-0t64 || sudo apt-get install -y -q xvfb libgtk-3-0
+
+      - name: Compilar y empaquetar
+        run: bash linux/empaquetar.sh
+
+      - name: Probar el paquete
+        run: bash linux/probar.sh
+
+      - name: Subir el .tar.gz
+        uses: actions/upload-artifact@v4
+        with:
+          name: NeoForge-linux-${{ matrix.arch }}
+          path: _linux/out/*.tar.gz
+          compression-level: 0
+          retention-days: 14
+
+      - name: Subir capturas y registros
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pruebas-linux-${{ matrix.arch }}
+          path: |
+            _linux/out/*.png
+            _linux/out/*.log
+          retention-days: 14
+
+  release:
+    name: Borrador de release
+    needs: build
+    if: ${{ always() && inputs.release != '' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: NeoForge-linux-*
+          merge-multiple: true
+          path: tgz
+
+      - name: Crear o actualizar el borrador
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release }}
+        run: |
+          ls -lh tgz
+          # Sin el x64 no hay nada que publicar.
+          ls tgz/NeoForge-linux-x64.tar.gz
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" tgz/*.tar.gz --clobber
+          else
+            gh release create "$TAG" tgz/*.tar.gz --draft --prerelease \
+              --target "$GITHUB_SHA" \
+              --title "NeoForge para Linux (beta)" \
+              --notes-file linux/NOTAS-RELEASE.md
+          fi

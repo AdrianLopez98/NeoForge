@@ -118,7 +118,11 @@ public final class UpdateCheck {
     private static void channelsAsInItch() {
         System.out.println("  Los canales, como en itch.io");
         check("win64".equals(ItchVersion.channelFor(false, "amd64")), "Windows -> win64");
-        check("win64".equals(ItchVersion.channelFor(false, "x86_64")), "Linux -> win64 (baja el mismo zip)");
+        check("win64".equals(ItchVersion.channelFor(false, "x86_64")), "sin saber el sistema -> win64");
+        check("linux".equals(ItchVersion.channelFor(false, true, "amd64")), "Linux -> linux (su paquete, 1.0.14)");
+        check("linux arm64".equals(ItchVersion.channelFor(false, true, "aarch64")), "Linux ARM -> linux arm64");
+        check("win64".equals(ItchVersion.channelFor(false, false, "amd64")), "Windows -> win64 (con el sistema)");
+        check("mac apple silicon".equals(ItchVersion.channelFor(true, false, "aarch64")), "Mac M1 -> mac apple silicon (con el sistema)");
         check("mac apple silicon".equals(ItchVersion.channelFor(true, "aarch64")), "Mac M1 -> mac apple silicon");
         check("mac apple intel".equals(ItchVersion.channelFor(true, "x86_64")), "Mac Intel -> mac apple intel");
         final String url = ItchVersion.url("mac apple silicon");
