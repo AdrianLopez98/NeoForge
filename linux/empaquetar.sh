@@ -52,7 +52,15 @@ export MAVEN_OPTS="-Dfile.encoding=UTF-8 -Xmx2g"
 # -DskipLaunch4j: forge-gui-mobile-dev fabrica un .exe de Windows con launch4j,
 # cuya herramienta (windres) solo existe para x86 y revienta en ARM. En Linux
 # ese .exe no hace falta para nada.
-(cd "$FORGE" && mvn -B -ntp install -DskipTests -DskipLaunch4j=true -pl forge-gui-neo -am)
+#
+# En ARM, JavaFX 21.0.1: de la rama 21 (la nuestra) Maven Central solo publica
+# para linux-aarch64 la 21.0.1 (de la 21.0.2 en adelante solo hay x64). El x64
+# se queda con la del pom.
+EXTRA=()
+if [ "$ARCH" = "arm64" ]; then
+    EXTRA+=(-Djavafx.version=21.0.1)
+fi
+(cd "$FORGE" && mvn -B -ntp install -DskipTests -DskipLaunch4j=true "${EXTRA[@]}" -pl forge-gui-neo -am)
 
 echo "== 4. El programa y sus librerias, en una carpeta plana"
 STAGE="$WORK/stage"
