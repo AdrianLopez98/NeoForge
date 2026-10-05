@@ -179,6 +179,8 @@ ever modified.** The only exception is one line in the parent `pom.xml`. That wa
 expansions — arrives for free. When the engine has a bug that affects us, it gets **wrapped**
 from this module instead of patched.
 
+How AI was used to build it is declared in [AI-DECLARATION.md](AI-DECLARATION.md).
+
 ---
 
 ## Building from source
