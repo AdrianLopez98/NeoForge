@@ -571,10 +571,31 @@ public class BattlefieldPane extends Pane {
         if (lastCards == null || lastCards.isEmpty()) {
             return;
         }
-        if (groupCards(lastCards).keySet().equals(nodeCache.keySet())) {
+        final Map<String, List<CardView>> groups = groupCards(lastCards);
+        if (groups.keySet().equals(nodeCache.keySet()) && sameSizes(groups)) {
             return;
         }
         setCards(lastCards, lastAttachedTo);
+    }
+
+    /**
+     * Y con las mismas claves, si cada pila sigue teniendo las mismas cartas.
+     *
+     * <p>Las claves solas no bastaban (itch.io, 05-10-2026, improvisar con tres
+     * Ornitopteros): con una ya elegida hay una pila de elegidas y otra de
+     * libres, y al elegir la segunda las claves siguen siendo esas dos — solo
+     * cambia cuantas hay en cada una. Sin reagrupar, la marca caia en la pila de
+     * libres, y al repintar la mesa la pila de elegidas salia nueva y sin marca:
+     * no se veia cual estaba cogida y clicarla la soltaba.
+     */
+    private boolean sameSizes(final Map<String, List<CardView>> groups) {
+        for (final Map.Entry<String, List<CardView>> g : groups.entrySet()) {
+            final CardStackNode node = nodeCache.get(g.getKey());
+            if (node == null || node.getStackSize() != g.getValue().size()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private boolean picked(final CardView cv) {

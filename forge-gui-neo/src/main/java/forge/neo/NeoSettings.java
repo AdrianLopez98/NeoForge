@@ -588,6 +588,16 @@ public final class NeoSettings {
     public static final String STACK_BANNER = "stackBanner";
 
     /**
+     * La columna de la derecha plegada (itch.io, 04-10-2026): la mesa con todo
+     * el ancho, los botones en tu barra y el stack en una chapa. Apagado de
+     * fabrica, y SOLO desde Ajustes (Ana: nada cambia para quien no lo pida).
+     */
+    public static final String SIDE_FOLDED = "sideFolded";
+
+    /** Barras de jugador compactas (mismo pedido): menos alto, ningun dato menos. */
+    public static final String SLIM_BARS = "slimBars";
+
+    /**
      * Poder mover y agrandar esa carta (arrastrar, rueda, esquina). <b>Apagado
      * de fabrica</b>: apagado es el cartel de siempre, sin un gesto nuevo que
      * se pueda disparar sin querer. Ver {@code PromptBanner}.

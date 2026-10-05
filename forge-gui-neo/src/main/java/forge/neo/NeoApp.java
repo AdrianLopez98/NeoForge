@@ -725,6 +725,25 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                     final SettingsPanel mockSettings = new SettingsPanel(
                             this, () -> table.getMenuOverlay().hide());
                     table.getMenuOverlay().show(mockSettings);
+                    // -Dneo.settings.tab=general|game|table|display|sound|art|modes|data
+                    final String settingsTab = System.getProperty("neo.settings.tab");
+                    if (settingsTab != null) {
+                        mockSettings.showTab(settingsTab);
+                    }
+                    // -Dneo.settings.audit=true lista las filas de cada pestanya;
+                    // -Dneo.settings.press="Fila=Boton;Otra=Boton" las pulsa.
+                    if (Boolean.getBoolean("neo.settings.audit")) {
+                        mockSettings.rowsByTab().forEach((t, rows) ->
+                                rows.forEach(r -> System.out.println("[ajustes] " + t + " | " + r)));
+                    }
+                    final String press = System.getProperty("neo.settings.press");
+                    if (press != null) {
+                        for (final String one : press.split(";")) {
+                            final int eq = one.lastIndexOf('=');
+                            System.out.println("[ajustes] pulso " + one + " -> "
+                                    + mockSettings.pressForTest(one.substring(0, eq), one.substring(eq + 1)));
+                        }
+                    }
                     // -Dneo.settings.shortcuts=true entra en la pantalla de
                     // atajos, por el mismo boton que tiene Ajustes.
                     if (Boolean.getBoolean("neo.settings.shortcuts")) {
@@ -1682,6 +1701,55 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 System.out.println("[mano] clico " + debug.nameOf(card.getCard()));
                 debug.fire(card, javafx.scene.input.MouseEvent.MOUSE_CLICKED, debug.centreOf(card));
             });
+            t.play();
+        }
+
+        // Una SERIE de clicks sobre la mesa propia, por nombre, y "@ok" para el
+        // boton grande: -Dneo.field.clicks=Ornithopter,Ornithopter,@ok,Island.
+        // Salio de improvisar (itch.io, 05-10-2026): pagar con artefactos es
+        // clicarlos uno a uno, y de una pila de fichas iguales hay que acertar
+        // con la que AUN no esta elegida — por eso se salta la resaltada.
+        if (args.contains("--field-click")) {
+            final String[] steps = System.getProperty("neo.field.clicks", "").split(",");
+            final java.util.concurrent.atomic.AtomicInteger next =
+                    new java.util.concurrent.atomic.AtomicInteger();
+            final javafx.css.PseudoClass picked = javafx.css.PseudoClass.getPseudoClass("highlighted");
+            final javafx.animation.Timeline loop = new javafx.animation.Timeline();
+            loop.setCycleCount(steps.length);
+            loop.getKeyFrames().add(new javafx.animation.KeyFrame(
+                    Duration.millis(Long.getLong("neo.field.every", 900L)), e -> {
+                final String step = steps[next.getAndIncrement()].trim();
+                if (table == null || step.isEmpty()) {
+                    return;
+                }
+                if (step.equals("@ok")) {
+                    System.out.println("[mesa] pulso el boton grande");
+                    table.getActionBar().pressPrimary();
+                    return;
+                }
+                final StringBuilder seen = new StringBuilder();
+                for (final CardNode n : table.selfFieldNodes()) {
+                    if (n.getCard() != null && debug.nameOf(n.getCard()).contains(step)) {
+                        seen.append(' ').append(n.getCard().getId())
+                                .append(n.getPseudoClassStates().contains(picked) ? "*" : "")
+                                .append(n.isVisible() && n.getScene() != null ? "" : "(oculta)");
+                    }
+                }
+                System.out.println("[mesa] " + step + ":" + seen + "   (* = elegida)");
+                for (final CardNode n : table.selfFieldNodes()) {
+                    final String name = n.getCard() == null ? "" : debug.nameOf(n.getCard());
+                    if (name.contains(step) && !n.isTapped()
+                            && !n.getPseudoClassStates().contains(picked)) {
+                        System.out.println("[mesa] clico " + name + " (" + n.getCard().getId() + ")");
+                        debug.fire(n, javafx.scene.input.MouseEvent.MOUSE_CLICKED, debug.centreOf(n));
+                        return;
+                    }
+                }
+                System.out.println("[mesa] no hay " + step + " sin girar ni elegir");
+            }));
+            final PauseTransition t = new PauseTransition(Duration.millis(
+                    Long.getLong("neo.field.clickAt", 8000L)));
+            t.setOnFinished(e -> loop.play());
             t.play();
         }
 

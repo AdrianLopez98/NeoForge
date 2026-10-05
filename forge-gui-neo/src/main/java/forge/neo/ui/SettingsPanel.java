@@ -125,7 +125,9 @@ public class SettingsPanel extends VBox {
 
         title.getStyleClass().add("dialog-title");
 
-        getChildren().addAll(title, section(NeoText.get("settings.language")));
+        getChildren().add(title);
+        tab(Tab.GENERAL);
+        getChildren().add(section(NeoText.get("settings.language")));
 
         // --- idioma ---
         //
@@ -164,7 +166,7 @@ public class SettingsPanel extends VBox {
                 }));
         getChildren().add(note);
 
-        getChildren().add(section(NeoText.get("settings.graphics")));
+        tab(Tab.DISPLAY);
 
         // --- escala de interfaz ---
         final Double savedScale = NeoSettings.getScale();
@@ -393,7 +395,7 @@ public class SettingsPanel extends VBox {
                     NeoSettings.save();
                 }));
 
-        getChildren().add(section(NeoText.get("settings.game")));
+        tab(Tab.GAME);
 
         // --- pago de mana ---
         getChildren().add(toggleRow(NeoText.get("settings.autoMana"),
@@ -725,6 +727,8 @@ public class SettingsPanel extends VBox {
                 }, aiNote)));
         getChildren().add(aiNote);
 
+        tab(Tab.TABLE);
+
         // --- todas las mesas a la vez ---
         //
         // Solo cambia algo a mas de dos jugadores: con un rival ya se ve su
@@ -760,6 +764,25 @@ public class SettingsPanel extends VBox {
                 NeoSettings.stackCards(),
                 on -> {
                     NeoSettings.setBool(NeoSettings.STACK_CARDS, on);
+                    NeoSettings.save();
+                    host.refreshTable();
+                }));
+
+        // --- sitio para la mesa: columna plegada y barras compactas ---
+        //
+        // Pedido en itch.io el 04-10-2026 jugando a cuatro. Apagados de
+        // fabrica. La mesa los lee en cada reparto, asi que se notan en el acto.
+        getChildren().add(toggleRow(NeoText.get("settings.sideFolded"),
+                NeoSettings.getBool(NeoSettings.SIDE_FOLDED, false),
+                on -> {
+                    NeoSettings.setBool(NeoSettings.SIDE_FOLDED, on);
+                    NeoSettings.save();
+                    host.refreshTable();
+                }));
+        getChildren().add(toggleRow(NeoText.get("settings.slimBars"),
+                NeoSettings.getBool(NeoSettings.SLIM_BARS, false),
+                on -> {
+                    NeoSettings.setBool(NeoSettings.SLIM_BARS, on);
                     NeoSettings.save();
                     host.refreshTable();
                 }));
@@ -839,6 +862,9 @@ public class SettingsPanel extends VBox {
                     NeoSettings.save();
                 }));
 
+        tab(Tab.GAME);
+        getChildren().add(section(NeoText.get("settings.rivalsSection")));
+
         // --- el aviso de la IA ---
         //
         // Forge lo suelta antes de CADA partida y hay que cerrarlo a mano. La
@@ -870,6 +896,9 @@ public class SettingsPanel extends VBox {
                     NeoSettings.save();
                 }, rivalsNote)));
         getChildren().add(rivalsNote);
+
+        tab(Tab.MODES);
+        getChildren().add(section(NeoText.get("settings.modesSection")));
 
         // --- vender solas las repetidas (aventura) ---
         //
@@ -925,6 +954,7 @@ public class SettingsPanel extends VBox {
         // esperar la prioridad de cada jugador (FServerManager.armAfkTimeout).
         // Solo faltaba donde cambiarla. Cuenta la del ANFITRION; se guarda en
         // las preferencias de red de Forge, que es donde la lee el motor.
+        tab(Tab.GENERAL);
         getChildren().add(section(NeoText.get("settings.net")));
         final forge.localinstance.properties.ForgeNetPreferences netPrefs =
                 forge.model.FModel.getNetPreferences();
@@ -974,7 +1004,7 @@ public class SettingsPanel extends VBox {
                     forge.neo.update.NeoUpdate.enabledChanged(on);
                 }));
 
-        getChildren().add(section(NeoText.get("settings.sound")));
+        tab(Tab.SOUND);
 
         // --- volumen ---
         getChildren().add(sliderRow(NeoText.get("settings.sfx"),
@@ -1011,7 +1041,7 @@ public class SettingsPanel extends VBox {
         //
         // Aqui, y no en el menu: una casilla del menu es una PREGUNTA distinta
         // (la auditoría del motor 2), y esto es mantenimiento.
-        getChildren().add(section(NeoText.get("settings.art")));
+        tab(Tab.ART);
         final Button artAll = new Button(NeoText.get("settings.art.all"));
         artAll.getStyleClass().add("segment");
         artAll.setMinWidth(Region.USE_PREF_SIZE);
@@ -1088,6 +1118,7 @@ public class SettingsPanel extends VBox {
 
         addDataSection(host);
 
+        tab(Tab.GENERAL);
         getChildren().add(section(NeoText.get("settings.keyboard")));
         final Button shortcuts = new Button(NeoText.get("settings.shortcuts.open"));
         shortcuts.getStyleClass().add("segment");
@@ -1104,26 +1135,182 @@ public class SettingsPanel extends VBox {
         footer.getChildren().addAll(gap, close);
         footer.setPadding(new Insets(12, 0, 0, 0));
 
-        // Se reparte lo montado: el titulo arriba, el pie abajo y TODO lo demas
-        // dentro del visor. Se hace al final y no fila a fila para no tener que
-        // acordarse en cada ajuste nuevo de meterlo en el sitio correcto.
+        // LAS PESTANYAS (itch.io, 05-10-2026: "separate into different tabs
+        // each config part, it would be easier to find stuff other than having
+        // to scroll through everything"). Cada bloque de arriba va detras de su
+        // marca (tab) y aqui se reparten los MISMOS nodos en paginas: ningun
+        // ajuste cambia, solo donde vive. Se hace al final, como antes el
+        // visor, para que una fila nueva no tenga que saber nada de pestanyas:
+        // basta con que vaya detras de la marca que le toca.
         final List<javafx.scene.Node> middle =
                 new ArrayList<>(getChildren().subList(1, getChildren().size()));
-        content.getChildren().setAll(middle);
-        content.setSpacing(getSpacing());
+        Tab current = Tab.GENERAL;
+        for (final javafx.scene.Node n : middle) {
+            if (n.getProperties().get(TAB_MARK) instanceof Tab t) {
+                current = t;
+                continue;
+            }
+            pages.computeIfAbsent(current, k -> {
+                final VBox page = new VBox(getSpacing());
+                page.getStyleClass().add("settings-page");
+                return page;
+            }).getChildren().add(n);
+        }
 
+        final javafx.scene.control.ToggleGroup group = new javafx.scene.control.ToggleGroup();
+        rail.getStyleClass().add("settings-tabs");
+        rail.setMinWidth(Region.USE_PREF_SIZE);
+        for (final Tab t : Tab.values()) {
+            if (!pages.containsKey(t)) {
+                continue;
+            }
+            final javafx.scene.control.ToggleButton b =
+                    new javafx.scene.control.ToggleButton(NeoText.get("settings.tab." + t.id));
+            b.getStyleClass().add("settings-tab");
+            b.setToggleGroup(group);
+            b.setMaxWidth(Double.MAX_VALUE);
+            b.setOnAction(e -> showTab(t));
+            tabButtons.put(t, b);
+            rail.getChildren().add(b);
+        }
+        // Siempre hay una puesta: clicar otra vez la que ya esta no la apaga.
+        group.selectedToggleProperty().addListener((o, was, now) -> {
+            if (now == null && was != null) {
+                was.setSelected(true);
+            }
+        });
+        showTab(Tab.byId(NeoSettings.get(LAST_TAB, Tab.GAME.id)), false);
+
+        content.setSpacing(getSpacing());
         scroll.getStyleClass().add("dialog-scroll");
         scroll.setFitToWidth(true);
         scroll.setHbarPolicy(javafx.scene.control.ScrollPane.ScrollBarPolicy.NEVER);
-        VBox.setVgrow(scroll, Priority.ALWAYS);
+
+        final HBox body = new HBox(UiScale.px(18), rail, scroll);
+        HBox.setHgrow(scroll, Priority.ALWAYS);
+        VBox.setVgrow(body, Priority.ALWAYS);
 
         // Lo que no se encoge: si el VBox tuviera que recortar por arriba o por
         // abajo, se llevaria por delante justo lo que hay que dejar quieto.
         title.setMinHeight(Region.USE_PREF_SIZE);
         footer.setMinHeight(Region.USE_PREF_SIZE);
 
-        getChildren().setAll(title, scroll, footer);
+        getChildren().setAll(title, body, footer);
     }
+
+    /** Las pestanyas, en el orden del carril. El id es el de su texto y el que se guarda. */
+    public enum Tab {
+        GENERAL("general"), GAME("game"), TABLE("table"), DISPLAY("display"),
+        SOUND("sound"), ART("art"), MODES("modes"), DATA("data");
+
+        public final String id;
+
+        Tab(final String id) {
+            this.id = id;
+        }
+
+        static Tab byId(final String id) {
+            for (final Tab t : values()) {
+                if (t.id.equalsIgnoreCase(id)) {
+                    return t;
+                }
+            }
+            return GAME;
+        }
+    }
+
+    /** La ultima pestanya abierta: se vuelve a ella. Es comodidad, no un ajuste. */
+    private static final String LAST_TAB = "settingsTab";
+
+    private static final String TAB_MARK = "neo.settings.tab";
+
+    private final java.util.Map<Tab, VBox> pages = new java.util.EnumMap<>(Tab.class);
+    private final java.util.Map<Tab, javafx.scene.control.ToggleButton> tabButtons =
+            new java.util.EnumMap<>(Tab.class);
+    private final VBox rail = new VBox(4);
+
+    /** Lo que se anyada a partir de aqui va a esa pestanya. No se pinta. */
+    private void tab(final Tab t) {
+        final Region mark = new Region();
+        mark.getProperties().put(TAB_MARK, t);
+        getChildren().add(mark);
+    }
+
+    /**
+     * Que filas hay en cada pestanya, por su etiqueta. Para la auditoria de
+     * las maquetas ({@code -Dneo.settings.audit}): comprobar que al repartir en
+     * pestanyas no se ha perdido ni duplicado ningun ajuste.
+     */
+    public java.util.Map<String, List<String>> rowsByTab() {
+        final java.util.Map<String, List<String>> out = new java.util.LinkedHashMap<>();
+        for (final Tab t : Tab.values()) {
+            final VBox page = pages.get(t);
+            if (page == null) {
+                continue;
+            }
+            final List<String> labels = new ArrayList<>();
+            for (final javafx.scene.Node n : page.lookupAll(".settings-label")) {
+                if (n instanceof Label l) {
+                    labels.add(l.getText());
+                }
+            }
+            out.put(t.id, labels);
+        }
+        return out;
+    }
+
+    /**
+     * Pulsa el boton {@code button} de la fila {@code caption}, este en la
+     * pestanya que este, por el mismo {@code fire()} que un clic. Para las
+     * maquetas: demuestra que cada fila sigue haciendo lo que hacia.
+     */
+    public boolean pressForTest(final String caption, final String button) {
+        for (final VBox page : pages.values()) {
+            for (final javafx.scene.Node n : page.lookupAll(".settings-label")) {
+                if (!(n instanceof Label l) || !caption.equals(l.getText()) || l.getParent() == null) {
+                    continue;
+                }
+                for (final javafx.scene.Node b : l.getParent().lookupAll(".button")) {
+                    if (b instanceof javafx.scene.control.ButtonBase bb && button.equals(bb.getText())) {
+                        bb.fire();
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /** Abre esa pestanya (por su id: "game", "table"...). Para las maquetas. */
+    public void showTab(final String id) {
+        showTab(Tab.byId(id));
+    }
+
+    public void showTab(final Tab t) {
+        showTab(t, true);
+    }
+
+    private void showTab(final Tab wanted, final boolean remember) {
+        final Tab t = pages.containsKey(wanted) ? wanted : Tab.GAME;
+        final VBox page = pages.get(t);
+        if (page == null) {
+            return;
+        }
+        content.getChildren().setAll(page);
+        scroll.setVvalue(0);
+        final javafx.scene.control.ToggleButton b = tabButtons.get(t);
+        if (b != null) {
+            b.setSelected(true);
+        }
+        if (remember) {
+            NeoSettings.set(LAST_TAB, t.id);
+            NeoSettings.save();
+        }
+    }
+
+    /** Lo mas alto y lo mas ancho que ha pedido una pestanya: ver layoutChildren. */
+    private double tallest;
+    private double widest;
 
     /**
      * Cuanto puede medir el visor sin salirse de la ventana.
@@ -1145,9 +1332,18 @@ public class SettingsPanel extends VBox {
                     + getPadding().getTop() + getPadding().getBottom()
                     + getSpacing() * 2 + 8;
             final double room = sc.getHeight() * 0.90 - chrome;
-            final double wanted = content.prefHeight(content.getWidth() > 0
-                    ? content.getWidth() : content.prefWidth(-1));
-            final double h = Math.max(160, Math.min(wanted + 2, room));
+            final double wanted = Math.max(rail.prefHeight(-1), content.prefHeight(
+                    content.getWidth() > 0 ? content.getWidth() : content.prefWidth(-1)));
+            // Con pestanyas, lo MAS alto que se haya visto: si no, cada cambio
+            // de pestanya encogia o estiraba el panel y el carril saltaba de
+            // sitio bajo el raton. Y lo mismo a lo ancho.
+            tallest = Math.max(tallest, wanted);
+            final double h = Math.max(160, Math.min(tallest + 2, room));
+            final double w = content.prefWidth(-1);
+            if (w > widest + 1) {
+                widest = w;
+                scroll.setMinViewportWidth(w);
+            }
             if (Math.abs(h - scroll.getPrefViewportHeight()) > 1) {
                 scroll.setPrefViewportHeight(h);
             }
@@ -1301,7 +1497,7 @@ public class SettingsPanel extends VBox {
      * al arrancar (ver NeoBackup).
      */
     private void addDataSection(final Host host) {
-        getChildren().add(section(NeoText.get("settings.data")));
+        tab(Tab.DATA);
         final Label help = new Label(NeoText.get("settings.data.help"));
         help.getStyleClass().add("home-subtitle");
         help.setWrapText(true);

@@ -308,9 +308,16 @@ public final class SafeActions {
             // Dos huecos del motor de la misma familia — evalua antes de que
             // exista la eleccion de la que depende —: el mana de color elegido
             // (HiddenMana) y los objetivos que se comparan con X (XTargets).
+            // Y el tercero, que ademas apaga la luz de la carta: improvisar y
+            // convocar, que la IA no cuenta como forma de pagar (TapToPay).
+            final TapToPay.Verdict tap = "true".equalsIgnoreCase(highlights)
+                    || "true".equalsIgnoreCase(autoPass)
+                    ? TapToPay.evaluate(getPlayer()) : null;
+            overlooked = tap == null ? List.of() : tap.cards();
             hiddenMana = "true".equalsIgnoreCase(autoPass)
                     && (HiddenMana.evaluate(getPlayer()).holds()
-                        || XTargets.evaluate(getPlayer()).holds());
+                        || XTargets.evaluate(getPlayer()).holds()
+                        || (tap != null && tap.holds()));
             try {
                 return super.chooseSpellAbilityToPlay();
             } catch (final RuntimeException e) {
@@ -324,6 +331,9 @@ public final class SafeActions {
          * cuenta ({@link HiddenMana}) o con objetivo en X ({@link XTargets}).
          */
         private volatile boolean hiddenMana;
+
+        /** Lo que se puede lanzar girando y el motor no ha iluminado ({@link TapToPay}). */
+        private volatile List<CardView> overlooked = List.of();
 
         /**
          * El auto-pass de "no tienes nada que hacer", menos cuando el motor
@@ -347,6 +357,12 @@ public final class SafeActions {
             } catch (final RuntimeException e) {
                 rescue(this, e, "pushActionableCards",
                         () -> super.pushActionableCards(paymentMode, emphasized));
+            }
+            // Detras del motor, que acaba de borrar los suyos: la luz de lo que
+            // se paga girando. Pagando no — ahi lo que se ilumina es el mana.
+            if (getGui() instanceof OverlookedSink ui) {
+                ui.setOverlooked(!paymentMode && getYieldController()
+                        .getBoolPref(FPref.UI_SHOW_ACTIONABLE_HIGHLIGHTS) ? overlooked : List.of());
             }
         }
 

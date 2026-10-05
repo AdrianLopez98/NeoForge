@@ -314,6 +314,8 @@ public class TableBinder {
         if (matchUi != null) {
             table.setActionable(matchUi::actionableStrength);
         }
+        // Y el del motor (lo ya elegido al convocar o improvisar), por lo mismo.
+        table.reapplyHighlighted();
     }
 
     /**

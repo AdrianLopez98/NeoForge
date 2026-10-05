@@ -117,6 +117,50 @@ public class PlayerBar extends HBox {
     private final Region spacer;
     private boolean compact;
 
+    /**
+     * BARRA COMPACTA (itch.io, 04-10-2026: <i>"the part where it shows our stats
+     * is so big and take so much space, turning the hand small"</i>). Ajuste,
+     * apagado de fabrica: la misma barra con letra y avatar mas pequenyos y
+     * menos relleno. No se esconde ningun dato.
+     */
+    private boolean slim;
+
+    /**
+     * Lo que se deja libre a la derecha: ahi van el texto y los botones cuando
+     * la columna de la derecha esta plegada (ver {@code TableScreen}). Sin esto
+     * la reserva de mana, que va al final de la barra, quedaria debajo.
+     */
+    private double rightReserve;
+
+    private static final javafx.css.PseudoClass SLIM =
+            javafx.css.PseudoClass.getPseudoClass("slim");
+
+    public void setSlim(final boolean on) {
+        if (slim == on) {
+            return;
+        }
+        slim = on;
+        pseudoClassStateChanged(SLIM, on);
+        avatar.setRadius(on ? 13 : 18);
+        applyPadding();
+        requestLayout();
+    }
+
+    public void setRightReserve(final double px) {
+        if (Math.abs(px - rightReserve) < 0.5) {
+            return;
+        }
+        rightReserve = px;
+        applyPadding();
+    }
+
+    /** El relleno segun la forma de la barra: dos filas o una, normal o compacta. */
+    private void applyPadding() {
+        final double v = slim ? 2 : (compact ? 6 : 5);
+        final double hz = compact ? 10 : (slim ? 12 : 18);
+        setPadding(new Insets(v, hz + rightReserve, v, hz));
+    }
+
     public PlayerBar(final boolean opponent) {
         getStyleClass().addAll("player-bar", opponent ? "player-bar-opponent" : "player-bar-self");
         setAlignment(Pos.CENTER_LEFT);
@@ -231,7 +275,7 @@ public class PlayerBar extends HBox {
             info.getChildren().setAll(nameRow, zones, manaBox, playerCounters, relics);
             zones.setSpacing(6);
             setSpacing(10);
-            setPadding(new Insets(6, 10, 6, 10));
+            applyPadding();
             getChildren().setAll(avatar, info);
             HBox.setHgrow(info, Priority.ALWAYS);
         } else {
@@ -239,7 +283,7 @@ public class PlayerBar extends HBox {
             info.getChildren().setAll(nameRow, zones, playerCounters);
             zones.setSpacing(14);
             setSpacing(18);
-            setPadding(new Insets(5, 18, 5, 18));
+            applyPadding();
             getChildren().setAll(avatar, lifeBox, info, spacer, relics, manaBox);
         }
         requestLayout();

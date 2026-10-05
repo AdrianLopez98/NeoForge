@@ -114,7 +114,10 @@ public class NeoImageFetcher extends ImageFetcher {
             // El pool se traga las excepciones: capturamos todo aqui o los
             // fallos se pierden en silencio y parece que no pasa nada.
             try {
-                for (final String url : downloadUrls) {
+                for (final String original : downloadUrls) {
+                    // Las fichas que Forge pide con un numero que Scryfall no
+                    // tiene (el Anillo de LTR): ver TokenImageFixes.
+                    final String url = forge.neo.card.TokenImageFixes.fix(original);
                     try {
                         if (DEBUG) {
                             System.out.println("[neo-img] intentando " + url);

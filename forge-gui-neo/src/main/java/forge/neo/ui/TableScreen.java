@@ -258,6 +258,24 @@ public class TableScreen extends Pane {
 
     private final ArenaBackdrop arenaBackdrop = new ArenaBackdrop();
     private final VBox side;
+
+    // ---------------------------------------------------------------
+    // La columna de la derecha, plegada (itch.io, 04-10-2026)
+    // ---------------------------------------------------------------
+    //
+    // "is there a way for the stack column on the right dont use that much
+    // space? ... so little space to check whenever playing 4 people". Plegada,
+    // la mesa se queda con TODO el ancho, como en Arena: el texto y los botones
+    // pasan a la barra del jugador (que tiene sitio de sobra a la derecha) y el
+    // stack a una chapa a su lado que se despliega al clicarla. Los botones
+    // siguen en UN solo sitio (principio 1): se mueven, no se duplican. SOLO
+    // desde Ajustes y apagado de fabrica (NeoSettings.SIDE_FOLDED): sin el
+    // ajuste la mesa es exactamente la de siempre, sin un boton nuevo.
+    private boolean folded;
+    private boolean slimBars;
+    private final Button stackChip = new Button();
+    /** Plegada: el stack entero, desplegado encima de la barra. */
+    private boolean stackPeek;
     private final Line combatLine = new Line();
 
     private final List<CardNode> extraNodes = new ArrayList<>();
@@ -348,6 +366,14 @@ public class TableScreen extends Pane {
         side.setPadding(new Insets(PAD));
         applyDetailSetting();
 
+        stackChip.getStyleClass().add("stack-chip");
+        stackChip.setFocusTraversable(false);
+        stackChip.setVisible(false);
+        stackChip.setOnAction(e -> {
+            stackPeek = !stackPeek;
+            requestLayout();
+        });
+
         commandZone.setOnCardHover(this::hovered);
         // Un click en el comandante lo lanza, como una carta de la mano.
         // CommandZone tenia su setOnCardClick desde el principio, pero nadie lo
@@ -416,7 +442,7 @@ public class TableScreen extends Pane {
 
         getChildren().addAll(opponentTabs, opponentBar, viewport,
                 selfBar, hand, commandZone, phaseRail, side, combatOverlay, logButton, menuButton, chatButton, macroRecordButton, macroPlayButton, cooldownBadge,
-                promptBanner, notices, turnBanner, playerDetails, zoomBadge, macroBadge, spotlight,
+                stackChip, promptBanner, notices, turnBanner, playerDetails, zoomBadge, macroBadge, spotlight,
                 handPeek, overlay, menuOverlay, zoomOverlay, curtain);
         curtain.getStyleClass().add("hotseat-curtain");
 
@@ -499,15 +525,91 @@ public class TableScreen extends Pane {
     // Layout: presupuesto de alto explicito
     // ---------------------------------------------------------------
 
+    /**
+     * Pliega o despliega la columna de la derecha. Plegada, el stack y la barra
+     * de botones salen de la columna y van a la mesa (ver el campo
+     * {@code folded}); desplegada, vuelven exactamente donde estaban.
+     */
+    private void setFolded(final boolean on) {
+        folded = on;
+        stackPeek = false;
+        if (on) {
+            side.getChildren().removeAll(stackBox, actionBar);
+            final int at = getChildren().indexOf(promptBanner);
+            getChildren().addAll(at < 0 ? getChildren().size() : at, List.of(stackBox, actionBar));
+            stackBox.getStyleClass().add("stack-floating");
+            actionBar.setInline(true);
+            side.setVisible(false);
+            stackChip.setVisible(true);
+        } else {
+            getChildren().removeAll(stackBox, actionBar);
+            stackBox.getStyleClass().remove("stack-floating");
+            stackBox.setVisible(true);
+            side.getChildren().add(0, stackBox);
+            side.getChildren().add(actionBar);
+            actionBar.setInline(false);
+            side.setVisible(true);
+            stackChip.setVisible(false);
+            selfBar.setRightReserve(0);
+        }
+        refreshStackChip();
+    }
+
+    /** "STACK · 2" en la chapa, encendida mientras hay algo que resolver. */
+    private void refreshStackChip() {
+        stackChip.setText(stackSize == 0 ? NeoText.get("table.stack")
+                : NeoText.get("table.stack.count", stackSize));
+        stackChip.pseudoClassStateChanged(ACTIVE_STACK, stackSize > 0);
+        if (stackSize == 0) {
+            stackPeek = false;
+        }
+    }
+
+    private static final javafx.css.PseudoClass ACTIVE_STACK =
+            javafx.css.PseudoClass.getPseudoClass("active");
+
+    /**
+     * Los dos ajustes de sitio (columna plegada y barras compactas), leidos en
+     * cada reparto: asi se notan en el acto al cambiarlos en Ajustes, sin
+     * referencias a esta mesa desde fuera. Solo se toca algo si han cambiado.
+     */
+    private void syncSpaceSettings() {
+        final boolean wantFold = forge.neo.NeoSettings.getBool(forge.neo.NeoSettings.SIDE_FOLDED, false);
+        if (wantFold != folded) {
+            setFolded(wantFold);
+        }
+        slimBars = forge.neo.NeoSettings.getBool(forge.neo.NeoSettings.SLIM_BARS, false);
+        selfBar.setSlim(slimBars);
+        opponentBar.setSlim(slimBars);
+        for (final PlayerBar b : oppBars) {
+            b.setSlim(slimBars);
+        }
+    }
+
     @Override
     protected void layoutChildren() {
+        syncSpaceSettings();
         final double w = getWidth();
         final double h = getHeight();
-        final double railW = Math.max(230, Math.min(sideWidth, w * 0.145));
+        final double panelW = Math.max(230, Math.min(sideWidth, w * 0.145));
+        final double railW = folded ? 0 : panelW;
         final double contentW = Math.max(200, w - railW);
         arenaBackdrop.resizeRelocate(0, 0, contentW, h);
 
-        side.resizeRelocate(contentW, 0, railW, h);
+        if (!folded) {
+            side.resizeRelocate(contentW, 0, railW, h);
+        }
+        // Plegada: la barra de botones, en una fila, a la derecha de la barra
+        // del jugador; su alto manda sobre el de esa barra si es mayor.
+        double abW = 0;
+        double abH = 0;
+        double chipW = 0;
+        if (folded) {
+            abW = Math.min(UiScale.px(620), Math.max(UiScale.px(400), contentW * 0.40));
+            abH = actionBar.prefHeight(abW);
+            chipW = stackChip.prefWidth(-1);
+            selfBar.setRightReserve(abW + chipW + PAD * 3);
+        }
 
         // El estado del jugador, pegado a su barra y hacia el centro de la
         // mesa: fuera de la pantalla no sirve, y sobre la mano taparia cartas.
@@ -594,7 +696,7 @@ public class TableScreen extends Pane {
         for (final PlayerBar b : oppBars) {
             oppBarH = Math.max(oppBarH, b.prefHeight(seatW));
         }
-        final double selfBarH = selfBar.prefHeight(contentW);
+        final double selfBarH = Math.max(selfBar.prefHeight(contentW), abH);
         double handH = Math.min(hand.prefHeight(contentW), h * 0.205);
 
         // Si la ventana es baja, la mano cede altura antes que los campos:
@@ -696,6 +798,22 @@ public class TableScreen extends Pane {
         }
 
         selfBar.resizeRelocate(0, y, contentW, selfBarH);
+        if (folded) {
+            actionBar.resizeRelocate(w - abW - PAD, y + (selfBarH - abH) / 2, abW, abH);
+            final double chipH = stackChip.prefHeight(chipW);
+            stackChip.resizeRelocate(w - abW - PAD - 8 - chipW, y + (selfBarH - chipH) / 2, chipW, chipH);
+            // El stack entero, encima de la barra, solo mientras se mira.
+            // -Dneo.table.stackPeek=true lo deja abierto (capturas).
+            if (Boolean.getBoolean("neo.table.stackPeek")) {
+                stackPeek = true;
+            }
+            stackBox.setVisible(stackPeek);
+            if (stackPeek) {
+                final double room = Math.max(UiScale.px(120), y - boardTop - PAD);
+                final double sh = Math.min(stackBox.prefHeight(panelW), room);
+                stackBox.resizeRelocate(w - panelW - PAD, y - sh - 6, panelW, sh);
+            }
+        }
         y += selfBarH;
 
         // La zona de mando va a la derecha de la mano, a su misma altura:
@@ -1415,7 +1533,7 @@ public class TableScreen extends Pane {
         if (w <= 0) {
             return 1;
         }
-        final double railW = Math.max(230, Math.min(sideWidth, w * 0.145));
+        final double railW = folded ? 0 : Math.max(230, Math.min(sideWidth, w * 0.145));
         final double contentW = Math.max(200, w - railW);
 
 
@@ -1619,6 +1737,7 @@ public class TableScreen extends Pane {
         stackSize = list.size();
         lastStack = list;
         lastStackMe = me;
+        refreshStackChip();
 
         // Lo que ya se ha resuelto se olvida. Los ids del motor se reciclan, y
         // uno guardado como "abierto" de hace tres turnos abriria por su cuenta
@@ -3125,6 +3244,20 @@ public class TableScreen extends Pane {
         return null;
     }
 
+    /**
+     * Vuelve a repartir el resaltado del motor, para los nodos que acaban de
+     * nacer. Lo llama {@code TableBinder} tras cada repintado, igual que el
+     * resaltado debil: una pila que cambia de tamanyo se rehace con nodos
+     * nuevos, y sin esto lo ya elegido se quedaba sin marca.
+     */
+    public void reapplyHighlighted() {
+        if (highlighted != null) {
+            setHighlighted(highlighted);
+        }
+    }
+
+    private Predicate<Object> highlighted;
+
     public int nodeCount() {
         return everyNode().size();
     }
@@ -3382,6 +3515,12 @@ public class TableScreen extends Pane {
             // el evento: el click sigue su camino y hace lo que fuera a hacer.
             if (promptBanner.isVisible() && !isInside(e.getTarget(), promptBanner)) {
                 promptBanner.fireDismiss();
+            }
+            // Plegada: el stack desplegado se recoge con un click fuera, como
+            // un menu. No se consume: el click sigue su camino.
+            if (stackPeek && !isInside(e.getTarget(), stackBox) && !isInside(e.getTarget(), stackChip)) {
+                stackPeek = false;
+                requestLayout();
             }
 
             // Click derecho: ampliar la carta para poder leerla. No entra en
@@ -3851,6 +3990,7 @@ public class TableScreen extends Pane {
      * mientras declaras bloqueadores.
      */
     public void setHighlighted(final Predicate<Object> test) {
+        this.highlighted = test;
         // PRIMERO se parten las pilas: una ficha ya elegida deja de ser
         // indistinguible de su gemela, y sin esto la segunda no se puede
         // clicar (itch.io, 20-09-2026: convocar con dos fichas iguales).

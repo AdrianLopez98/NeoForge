@@ -1,11 +1,11 @@
-**NeoForge para macOS 1.0.13 (beta).** El mismo número que en itch.io, en PC, Mac y Android.
+**NeoForge para macOS 1.0.14 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Hot seat: varias personas en el mismo Mac.** Cada rival lleva un botón **IA / Persona**. Con personas, la mesa se gira hacia quien tiene que decidir (su mano a la vista, la de los demás oculta), y una cortina pide pasar el ordenador antes de enseñar nada. Las preguntas del motor (descartar, ordenar disparos...) van a quien toca, y cada uno tiene sus paradas de fase.
-- **La carta grande del stack**: en Ajustes se puede quitar, y si lo permites, moverla arrastrándola y cambiarle el tamaño con la rueda o la esquina. Se recuerda.
-- **Tu mazo, al azar**: botón **"Al azar"** junto a las pestañas de mazos; se sortea de la lista que estás viendo, solo entre los legales.
-- **El cementerio solo dice "se puede lanzar" cuando se puede lanzar ya** (Sneak de Ninja Teen solo vale al declarar bloqueadores).
-- **El "x3" de una pila de cartas iguales ya no queda tapado** por la carta de al lado.
+- **Ajustes por pestañas**: General, Partida, Mesa, Pantalla, Sonido, Arte, Modos y Datos, en vez de una lista larguísima. No cambia ningún ajuste, solo dónde está.
+- **Más sitio para la mesa** (dos opciones en Ajustes → Mesa, apagadas de fábrica): **plegar la columna de la derecha** (la mesa usa todo el ancho y el stack pasa a un botón "STACK") y **barras de jugador compactas**.
+- **Improvisar y convocar funcionan como deben**: con artefactos-criatura el juego ya no se salta tu fase principal, la carta se ilumina como jugable, y las fichas iguales que ya has elegido no pierden la marca.
+- **El Anillo** de *El Señor de los Anillos* sale con su arte.
+- **Un pequeño cambio en el logo**: gemas en vez de los símbolos de maná, que son de Wizards of the Coast.
 
 Descarga el `.dmg` de tu Mac:
 

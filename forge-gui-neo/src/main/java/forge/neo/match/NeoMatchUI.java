@@ -91,7 +91,7 @@ import forge.util.ITriggerEvent;
  *
  * No anyade ni un metodo abstracto, asi que el cambio es esta linea y ya.
  */
-public class NeoMatchUI extends NetworkGuiGame {
+public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
 
     public enum Mode {
         /** Todo IA; solo miramos. */
@@ -5601,8 +5601,30 @@ public class NeoMatchUI extends NetworkGuiGame {
     @Override
     public void clearWeaklySelectable() {
         super.clearWeaklySelectable();
+        overlookedIds = java.util.Set.of();
         pushActionable();
     }
+
+    /**
+     * Lo que se puede lanzar pagando con artefactos o criaturas girados
+     * (improvisar, convocar) y el motor no ilumina, porque lo estima la IA y
+     * la IA no los cuenta. Lo pone {@code SafeActions.Guarded} justo despues
+     * del resaltado del motor. Ver {@link TapToPay}.
+     */
+    @Override
+    public void setOverlooked(final Collection<CardView> cards) {
+        final java.util.Set<Integer> ids = new java.util.HashSet<>();
+        for (final CardView cv : cards) {
+            ids.add(cv.getId());
+        }
+        if (ids.equals(overlookedIds)) {
+            return;
+        }
+        overlookedIds = java.util.Set.copyOf(ids);
+        pushActionable();
+    }
+
+    private volatile java.util.Set<Integer> overlookedIds = java.util.Set.of();
 
     private void pushActionable() {
         if (verbose) {
@@ -5648,6 +5670,9 @@ public class NeoMatchUI extends NetworkGuiGame {
             final int engine = getWeakSelectableStrength(card);
             if (engine > 0) {
                 return engine;
+            }
+            if (overlookedIds.contains(card.getId())) {
+                return 1;
             }
             // Una criatura preparada cuyo hechizo se puede lanzar YA.
             //

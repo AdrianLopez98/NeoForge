@@ -308,6 +308,12 @@ public final class NeoMain {
                 banner("Auto-pass: los objetivos que dependen de X");
                 forge.neo.match.XTargetCheck.run();
                 break;
+            case "improvisecheck":
+                // Que el auto-pass no pase con un hechizo de improvisar o
+                // convocar: la IA no cuenta lo que se gira. Ver TapToPay.
+                banner("Auto-pass: improvisar y convocar");
+                forge.neo.match.ImproviseCheck.run();
+                break;
             case "leakcheck":
                 // Varias partidas seguidas en la misma escena, y que las
                 // acabadas se suelten. La pantalla en blanco de la Aventura

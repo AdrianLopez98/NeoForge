@@ -46,6 +46,45 @@ public class ActionBar extends VBox {
 
     private Runnable onOk;
     private Runnable onCancel;
+    private final HBox buttons;
+
+    /**
+     * En una fila (la columna plegada, itch.io 04-10-2026): el texto a la
+     * izquierda y los botones a la derecha, para caber en la barra del
+     * jugador. En columna, lo de siempre: texto arriba y botones debajo.
+     */
+    private boolean inline;
+    private final VBox textColumn = new VBox(4);
+    private final HBox inlineRow = new HBox(12);
+
+    private static final javafx.css.PseudoClass INLINE =
+            javafx.css.PseudoClass.getPseudoClass("inline");
+
+    public void setInline(final boolean on) {
+        if (inline == on) {
+            return;
+        }
+        inline = on;
+        pseudoClassStateChanged(INLINE, on);
+        if (on) {
+            textColumn.getChildren().setAll(prompt, warning);
+            textColumn.setAlignment(Pos.CENTER_LEFT);
+            HBox.setHgrow(textColumn, Priority.ALWAYS);
+            textColumn.setMinWidth(0);
+            // Los botones no se encogen: un "Fin de tu..." cortado no se lee.
+            buttons.setMinWidth(Region.USE_PREF_SIZE);
+            HBox.setHgrow(buttons, Priority.NEVER);
+            inlineRow.setAlignment(Pos.CENTER_LEFT);
+            inlineRow.getChildren().setAll(textColumn, buttons);
+            getChildren().setAll(inlineRow);
+        } else {
+            inlineRow.getChildren().clear();
+            textColumn.getChildren().clear();
+            buttons.setMinWidth(Region.USE_COMPUTED_SIZE);
+            getChildren().setAll(prompt, warning, buttons);
+        }
+        requestLayout();
+    }
 
     public ActionBar() {
         getStyleClass().add("action-bar");
@@ -74,7 +113,7 @@ public class ActionBar extends VBox {
 
         HBox.setHgrow(ok, Priority.ALWAYS);
         HBox.setHgrow(cancel, Priority.ALWAYS);
-        final HBox buttons = new HBox(8, cancel, ok);
+        buttons = new HBox(8, cancel, ok);
         buttons.setAlignment(Pos.CENTER_RIGHT);
 
         getChildren().addAll(prompt, warning, buttons);

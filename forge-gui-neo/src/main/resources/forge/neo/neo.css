@@ -730,6 +730,23 @@
     -fx-stroke-width: 2;
 }
 
+/* Barra compacta (ajuste): menos alto, los mismos datos. */
+.player-bar:slim .life {
+    -fx-font-size: 1.4em;
+}
+
+.player-bar:slim .player-name {
+    -fx-font-size: 0.95em;
+}
+
+.player-bar:slim .zone-count {
+    -fx-font-size: 0.95em;
+}
+
+.player-bar:slim .caption {
+    -fx-font-size: 0.62em;
+}
+
 .player-name {
     -fx-font-size: 1.077em;
     -fx-font-weight: bold;
@@ -1712,6 +1729,35 @@
     -fx-font-weight: bold;
     -fx-text-fill: -neo-accent;
     -fx-padding: 14 0 2 0;
+}
+
+/* Las pestanyas de Ajustes (itch.io, 05-10-2026): un carril a la izquierda,
+   una por fila y del mismo ancho. La elegida con el acento, como un .segment. */
+.settings-tabs {
+    -fx-padding: 6 14 0 0;
+    -fx-border-color: transparent -neo-line transparent transparent;
+    -fx-border-width: 0 1 0 0;
+}
+
+.settings-tab {
+    -fx-background-color: transparent;
+    -fx-text-fill: -neo-text-dim;
+    -fx-font-size: 0.95em;
+    -fx-alignment: center-left;
+    -fx-padding: 8 18 8 12;
+    -fx-background-radius: 5;
+    -fx-cursor: hand;
+}
+
+.settings-tab:hover {
+    -fx-background-color: -neo-panel;
+    -fx-text-fill: -neo-text;
+}
+
+.settings-tab:selected {
+    -fx-background-color: -neo-accent;
+    -fx-text-fill: #0B0E13;
+    -fx-font-weight: bold;
 }
 
 .settings-label {
@@ -3678,3 +3724,38 @@
     -fx-border-color: #E0A63C;
     -fx-text-fill: #E0A63C;
 }
+
+/* ---------- La columna de la derecha, plegada (itch.io, 04-10-2026) ---------- */
+.stack-chip {
+    -fx-background-color: rgba(27, 33, 42, 0.92);
+    -fx-border-color: -neo-line;
+    -fx-border-width: 1;
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+    -fx-text-fill: -neo-text-dim;
+    -fx-font-size: 0.85em;
+    -fx-font-weight: bold;
+    -fx-padding: 6 10 6 10;
+    -fx-cursor: hand;
+}
+
+.stack-chip:active {
+    -fx-text-fill: -neo-text;
+    -fx-border-color: -neo-accent;
+}
+
+.stack-box.stack-floating {
+    -fx-background-color: rgba(27, 33, 42, 0.97);
+    -fx-border-color: -neo-accent;
+    -fx-border-width: 1;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.6), 16, 0.2, 0, 4);
+}
+
+.action-bar:inline {
+    -fx-background-color: rgba(27, 33, 42, 0.88);
+    -fx-background-radius: 8;
+    -fx-padding: 6 10 6 12;
+}
+
