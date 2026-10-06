@@ -77,7 +77,9 @@ public class AscentPickScreen extends StackPane {
 
         final Label title = new Label(NeoText.get("ascent.pick.title"));
         title.getStyleClass().add("ascent-act");
-        final Label sub = new Label(NeoText.get("ascent.pick.subtitle", run.getAct(), AscentRun.ACTS));
+        final Label sub = new Label(run.isEndless()
+                ? NeoText.get("ascent.pick.endless", run.endlessLevel())
+                : NeoText.get("ascent.pick.subtitle", run.getAct(), AscentRun.ACTS));
         sub.getStyleClass().add("ascent-hint");
         final Label hint = new Label(NeoText.get("ascent.pick.hint"));
         hint.getStyleClass().add("ascent-info-text");

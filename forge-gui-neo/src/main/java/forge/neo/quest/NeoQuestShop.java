@@ -51,6 +51,22 @@ public final class NeoQuestShop {
                 out.add(e);
             }
         }
+        // Con el ajuste del mundo (NeoQuest.WORLD_SHOP), solo las de ese mundo.
+        // Si ninguna de ellas tiene sobre, se queda como estaba: una tienda sin
+        // sobres y un premio que no sale serian peores que no limitar.
+        final java.util.Set<String> world = NeoQuest.worldSets();
+        if (world != null) {
+            final List<CardEdition> local = new ArrayList<>();
+            for (final CardEdition e : out) {
+                if (world.contains(e.getCode())) {
+                    local.add(e);
+                }
+            }
+            if (!local.isEmpty()) {
+                out.clear();
+                out.addAll(local);
+            }
+        }
         out.sort(Comparator.comparing(CardEdition::getDate).reversed());
         return out;
     }

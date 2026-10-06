@@ -54,10 +54,25 @@ public class AscentOverScreen extends StackPane {
 
         /** Al menu principal. */
         void menu();
+
+        /**
+         * Si se ofrece seguir en modo infinito: solo en el resumen de la
+         * victoria, con la run todavia viva.
+         */
+        default boolean offersEndless() {
+            return false;
+        }
+
+        /** Seguir la run en modo infinito. */
+        default void endless() {
+        }
     }
 
     private final AscentSummary summary;
     private final double cardWidth;
+
+    /** La linea que explica el modo infinito, si se ofrece. */
+    private Label endlessHint;
 
     /** El mazo del final, que es lo que crece. Puede no haberlo. */
     private AscentDeckView deckView;
@@ -100,6 +115,19 @@ public class AscentOverScreen extends StackPane {
             body.getChildren().add(trophy());
         }
         body.getChildren().addAll(sub, stats());
+        // El codigo de la run: para retar a otro a la misma (AscentSeed).
+        final javafx.scene.control.Button code = AscentCodeButton.of(summary.getCode());
+        if (code != null) {
+            body.getChildren().add(code);
+        }
+        // Superado un reto: la racha, con su llama. Es la pantalla que se
+        // captura para presumir (Ana, 06-10-2026).
+        final forge.neo.ascent.AscentChallenges.Kind challenge = summary.isWon()
+                ? forge.neo.ascent.AscentChallenges.kindOf(summary.getCode()) : null;
+        final javafx.scene.layout.Region streak = challenge == null ? null : AscentStreakView.of(challenge, false);
+        if (streak != null) {
+            body.getChildren().add(streak);
+        }
 
         if (summary.isUnlocked()) {
             // Lo UNICO que sobrevive a la run, asi que se dice aqui y con
@@ -117,6 +145,16 @@ public class AscentOverScreen extends StackPane {
             adds.setWrapText(true);
             adds.setMaxWidth(UiScale.px(560));
             body.getChildren().add(adds);
+        }
+
+        if (summary.getEndless() > 0) {
+            // Hasta donde llegaste en modo infinito, y si es record: es lo que
+            // se viene a mirar, y lo que se ensenya en una captura.
+            final Label best = new Label(summary.isEndlessRecord()
+                    ? NeoText.get("ascent.over.endless.record", summary.getEndlessBest())
+                    : NeoText.get("ascent.over.endless.best", summary.getEndlessBest()));
+            best.getStyleClass().addAll("ascent-pill-base", "ascent-pill-relic");
+            body.getChildren().add(best);
         }
 
         body.getChildren().addAll(feats());
@@ -143,6 +181,24 @@ public class AscentOverScreen extends StackPane {
 
         final HBox buttons = new HBox(14, menu, again);
         buttons.setAlignment(Pos.CENTER);
+        if (actions.offersEndless()) {
+            // MODO INFINITO (Discord, 05-10-2026): la run ya esta ganada y
+            // apuntada; las otras dos salidas la cierran, esta la sigue. Va la
+            // ultima y como accion principal (principio 12), con una linea que
+            // dice que es antes de pulsarla.
+            again.getStyleClass().remove("btn-primary");
+            final Button endless = new Button(NeoText.get("ascent.over.endless"));
+            endless.getStyleClass().addAll("ascent-button", "ascent-button-on");
+            endless.setOnAction(e -> actions.endless());
+            buttons.getChildren().add(endless);
+            final Label hint = new Label(NeoText.get("ascent.over.endless.hint"));
+            hint.getStyleClass().add("ascent-info-text");
+            hint.setWrapText(true);
+            hint.setMaxWidth(UiScale.px(620));
+            hint.setAlignment(Pos.CENTER);
+            hint.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
+            endlessHint = hint;
+        }
         // El borde del papel esta ROTO: ver Parchment.SAFE_EDGE.
         buttons.setPadding(new Insets(10, 0, Parchment.SAFE_EDGE, 0));
 
@@ -152,7 +208,17 @@ public class AscentOverScreen extends StackPane {
             BorderPane.setMargin(deckView, new Insets(0, 28, 0, 28));
             chrome.setCenter(deckView);
         }
-        chrome.setBottom(buttons);
+        if (endlessHint != null) {
+            // La explicacion justo encima de los botones, no entre el mazo: es
+            // lo que se lee antes de decidir.
+            buttons.setPadding(new Insets(6, 0, Parchment.SAFE_EDGE, 0));
+            final VBox bottom = new VBox(4, endlessHint, buttons);
+            bottom.setAlignment(Pos.CENTER);
+            bottom.setPadding(new Insets(8, 0, 0, 0));
+            chrome.setBottom(bottom);
+        } else {
+            chrome.setBottom(buttons);
+        }
 
         getChildren().addAll(paper, chrome);
         // Click derecho = la carta grande, aqui tambien: el mazo del final es
@@ -164,6 +230,9 @@ public class AscentOverScreen extends StackPane {
 
     /** Hasta donde llegaste, en una linea. */
     private String subtitle() {
+        if (summary.getEndless() > 0) {
+            return NeoText.get("ascent.over.endless.reached", summary.getEndless());
+        }
         if (summary.isWon()) {
             return NeoText.get("ascent.over.completed", AscentRun.ACTS);
         }

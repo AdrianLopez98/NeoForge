@@ -102,6 +102,9 @@ public final class NeoBoot {
         System.out.println("        idioma: " + NeoLanguage.currentLabel());
         FModel.initialize(bar, NeoLanguage.hook());
         NeoLanguage.restoreEngineValue();
+        // Antes de que nadie lea los mazos: uno roto, Forge lo borra o tumba la
+        // carpeta entera (BrokenDecks).
+        forge.neo.deck.BrokenDecks.atStartup();
         loaded = true;
         System.out.printf(Locale.ROOT, "        %,d cartas . %,d ediciones . %ds%n",
                 FModel.getMagicDb().getCommonCards().getAllCards().size(),

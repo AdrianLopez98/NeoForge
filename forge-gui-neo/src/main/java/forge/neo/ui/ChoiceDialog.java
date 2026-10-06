@@ -72,6 +72,32 @@ public class ChoiceDialog<T> extends VBox {
     private final boolean anyCard;
     private boolean sized;
 
+    // ---- LISTAS ENORMES: buscador (Discord, 06-10-2026) ----
+    //
+    // "Elige un nombre de carta" manda los ~33.000 nombres del juego. Pintarlos
+    // como botones congelaba la mesa un buen rato, y luego no habia forma de
+    // encontrar uno sin bajar a mano: "couldn't find a box to type the name".
+    // Con mas de SEARCH_FROM opciones de texto el dialogo lleva un buscador y
+    // solo pinta las primeras SHOWN que coinciden; cada boton se crea la
+    // primera vez que hace falta y se guarda, asi que lo marcado sigue marcado
+    // al cambiar la busqueda.
+
+    /** A partir de cuantas opciones (de texto) sale el buscador. */
+    static final int SEARCH_FROM = 60;
+    /** Cuantas coincidencias se pintan a la vez. */
+    static final int SHOWN = 120;
+
+    private final boolean searchMode;
+    private javafx.scene.control.TextField search;
+    private final Label searchNote = new Label();
+    private List<T> allOptions;
+    private String[] searchKeys;
+    private Region[] nodeCache;
+    private Function<T, String> searchDisplay;
+    private double searchCardWidth;
+    /** El ancho de cada opcion de texto, cuando ya se ha medido (layoutChildren). */
+    private double optionWidth = -1;
+
     public ChoiceDialog(final String title, final List<T> options, final int min, final int max,
                         final Function<T, String> display, final double cardWidth,
                         final Consumer<List<T>> onDone) {
@@ -131,7 +157,15 @@ public class ChoiceDialog<T> extends VBox {
         items.setAlignment(Pos.CENTER);
         items.setPrefWrapLength(UiScale.px(760));
 
+        boolean card0 = false;
         for (final T option : options) {
+            if (option instanceof CardView || option instanceof forge.item.PaperCard) {
+                card0 = true;
+                break;
+            }
+        }
+        searchMode = !card0 && !readOnly && options.size() > SEARCH_FROM;
+        for (final T option : searchMode ? List.<T>of() : options) {
             final Region node = optionNode(option, display, cardWidth, items);
             if (readOnly) {
                 node.setOnMouseClicked(null);
@@ -260,7 +294,48 @@ public class ChoiceDialog<T> extends VBox {
         final HBox footer = new HBox(10, counter, remember, gap, selectAll, auto, accept);
         footer.setAlignment(Pos.CENTER_LEFT);
 
-        getChildren().addAll(heading, scroll, footer);
+        if (searchMode) {
+            // "Todas en orden" y "Auto" son para listas cortas que se ven
+            // enteras; con un buscador no se sabe que es "todas".
+            selectAll.setVisible(false);
+            selectAll.setManaged(false);
+            auto.setVisible(false);
+            auto.setManaged(false);
+            allOptions = new ArrayList<>(options);
+            searchDisplay = display;
+            searchCardWidth = cardWidth;
+            nodeCache = new Region[allOptions.size()];
+            searchKeys = new String[allOptions.size()];
+            for (int i = 0; i < searchKeys.length; i++) {
+                final T o = allOptions.get(i);
+                searchKeys[i] = fold(display == null ? String.valueOf(o) : display.apply(o));
+            }
+            search = new javafx.scene.control.TextField();
+            search.setId("choice-search");
+            search.getStyleClass().add("text-input");
+            search.setPromptText(NeoText.get("choice.search.prompt"));
+            search.textProperty().addListener((obs, was, now) -> refilter());
+            // Intro elige la primera coincidencia: escribir "lightning bolt" e
+            // Intro, sin tocar el raton.
+            search.setOnAction(e -> {
+                final Region first = items.getChildren().isEmpty() ? null
+                        : (Region) items.getChildren().get(0);
+                final int idx = indexOfNode(first);
+                if (idx >= 0 && !selected.containsKey(first)) {
+                    toggle(allOptions.get(idx), first);
+                }
+            });
+            searchNote.getStyleClass().add("dialog-counter");
+            getChildren().addAll(heading, search, searchNote, scroll, footer);
+            refilter();
+            sceneProperty().addListener((obs, was, now) -> {
+                if (now != null) {
+                    javafx.application.Platform.runLater(search::requestFocus);
+                }
+            });
+        } else {
+            getChildren().addAll(heading, scroll, footer);
+        }
 
         // Lo que venga ya elegido, marcado. Se hace despues de construir los
         // nodos porque marcar es justo lo mismo que clicarlos.
@@ -281,7 +356,7 @@ public class ChoiceDialog<T> extends VBox {
                 }
                 if (idx >= 0) {
                     used.add(idx);
-                    toggle(option, nodesInOrder.get(idx));
+                    toggle(option, searchMode ? searchNode(idx) : nodesInOrder.get(idx));
                 }
             }
         }
@@ -450,6 +525,13 @@ public class ChoiceDialog<T> extends VBox {
                     r.setMaxWidth(each);
                     r.setPrefWidth(each);
                 }
+                optionWidth = each;
+                if (searchMode) {
+                    for (final javafx.scene.Node n : items.getChildren()) {
+                        ((Region) n).setMaxWidth(each);
+                        ((Region) n).setPrefWidth(each);
+                    }
+                }
             }
             // Lo que va encima de las opciones sale de ese mismo alto: sin
             // restarlo, con la fila de contexto puesta el dialogo se salia de
@@ -549,6 +631,69 @@ public class ChoiceDialog<T> extends VBox {
             }
             i++;
         }
+    }
+
+    /** Pinta las primeras {@link #SHOWN} opciones que contienen lo escrito. */
+    private void refilter() {
+        final String q = fold(search.getText() == null ? "" : search.getText().trim());
+        final List<javafx.scene.Node> shown = new ArrayList<>();
+        int matches = 0;
+        // Dos pasadas: primero lo que EMPIEZA por lo escrito ("light" ->
+        // Lightning Bolt), despues lo que solo lo contiene. Cada una en el orden
+        // del motor, que es alfabetico.
+        for (int pass = 0; pass < 2; pass++) {
+            for (int i = 0; i < searchKeys.length; i++) {
+                final boolean hit = q.isEmpty() ? pass == 0
+                        : pass == 0 ? searchKeys[i].startsWith(q)
+                        : !searchKeys[i].startsWith(q) && searchKeys[i].contains(q);
+                if (hit) {
+                    if (shown.size() < SHOWN) {
+                        shown.add(searchNode(i));
+                    }
+                    matches++;
+                }
+            }
+        }
+        items.getChildren().setAll(shown);
+        searchNote.setText(matches == 0 ? NeoText.get("choice.search.none")
+                : matches > shown.size() ? NeoText.get("choice.search.more", shown.size(), matches)
+                : "");
+        searchNote.setVisible(!searchNote.getText().isEmpty());
+        searchNote.setManaged(searchNote.isVisible());
+        scroll.setVvalue(0);
+    }
+
+    /** El boton de la opcion {@code i}, creado la primera vez que hace falta. */
+    private Region searchNode(final int i) {
+        Region node = nodeCache[i];
+        if (node == null) {
+            node = optionNode(allOptions.get(i), searchDisplay, searchCardWidth, items);
+            if (optionWidth > 0) {
+                node.setMaxWidth(optionWidth);
+                node.setPrefWidth(optionWidth);
+            }
+            nodeCache[i] = node;
+        }
+        return node;
+    }
+
+    private int indexOfNode(final Region node) {
+        if (node == null) {
+            return -1;
+        }
+        for (int i = 0; i < nodeCache.length; i++) {
+            if (nodeCache[i] == node) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /** Minusculas y sin tildes: "aether" encuentra "Æther" y "lim-dul" "Lim-Dûl". */
+    private static String fold(final String s) {
+        final String n = java.text.Normalizer.normalize(s.toLowerCase(java.util.Locale.ROOT),
+                java.text.Normalizer.Form.NFD).replaceAll("\\p{M}", "");
+        return n.replace("æ", "ae");
     }
 
     private void updateState() {

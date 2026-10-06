@@ -80,6 +80,27 @@ final class NeoAppAscent {
             showSetup();
             return;
         }
+        if ("victory".equals(System.getProperty("neo.ascent.skipTo")) && !run.isEndless()) {
+            // SOLO PRUEBAS: da por resueltos todos los nodos de los tres actos
+            // (sin jugarlos) para llegar a la victoria de verdad y probar el modo
+            // infinito sin jugar una run entera. Usar con -Dneo.settingsFile.
+            for (int vueltas = 0; vueltas < AscentRun.ACTS * 4; vueltas++) {
+                while (!run.actCleared() && !run.available().isEmpty()) {
+                    run.clear(run.available().get(0));
+                }
+                if (run.advance() != AscentRun.Step.NEXT_ACT) {
+                    break;
+                }
+            }
+            System.out.println("[ascenso] prueba: saltado a la victoria — " + run);
+        }
+        if (Boolean.getBoolean("neo.ascent.loseNow")) {
+            // SOLO PRUEBAS: cierra la run como si se hubiera perdido el duelo,
+            // por el mismo gameOver del juego (el resumen y, en modo infinito,
+            // el record).
+            gameOver(run, false);
+            return;
+        }
         if (Integer.getInteger("neo.ascent.enterAt", 0) > 0
                 || Integer.getInteger("neo.ascent.hoverAt", 0) > 0) {
             showMap(run);
@@ -91,7 +112,7 @@ final class NeoAppAscent {
         // apareceria en el 2 — que se lee como otro fallo. advance() es
         // idempotente, asi que volver a llamarlo desde showMap no hace nada.
         if (run.advance() == AscentRun.Step.RUN_COMPLETED) {
-            gameOver(run, true);
+            victory(run);
             return;
         }
         // Con una run a medias, primero se pregunta: continuar la lleva a SU
@@ -115,6 +136,13 @@ final class NeoAppAscent {
 
             @Override
             public void abandon() {
+                if (run.isEndless()) {
+                    // Abandonar en modo infinito tambien cuenta hasta donde
+                    // llegaste: la run ya estaba ganada.
+                    AscentUnlocks.recordEndless(run.getMode(), run.endlessLevel());
+                }
+                // Si era el reto de hoy o el de la semana, cuenta como jugado.
+                forge.neo.ascent.AscentChallenges.recordAbandoned(run);
                 run.discard();
                 app.showMainMenu();
             }
@@ -154,6 +182,15 @@ final class NeoAppAscent {
                     }
 
                     @Override
+                    public void startRecipe(final forge.neo.ascent.AscentSeed.Recipe recipe) {
+                        final AscentRun previous = AscentRun.current();
+                        if (previous != null) {
+                            previous.discard();
+                        }
+                        showMap(AscentRun.begin(recipe));
+                    }
+
+                    @Override
                     public void back() {
                         app.showMainMenu();
                     }
@@ -180,7 +217,7 @@ final class NeoAppAscent {
         // sus nodos sin resolver) o se acabo la run, y esta ganada.
         final AscentRun.Step paso = run.advance();
         if (paso == AscentRun.Step.RUN_COMPLETED) {
-            gameOver(run, true);
+            victory(run);
             return;
         }
         if (paso == AscentRun.Step.NEXT_ACT) {
@@ -209,6 +246,13 @@ final class NeoAppAscent {
 
             @Override
             public void abandon() {
+                if (run.isEndless()) {
+                    // Abandonar en modo infinito tambien cuenta hasta donde
+                    // llegaste: la run ya estaba ganada.
+                    AscentUnlocks.recordEndless(run.getMode(), run.endlessLevel());
+                }
+                // Si era el reto de hoy o el de la semana, cuenta como jugado.
+                forge.neo.ascent.AscentChallenges.recordAbandoned(run);
                 run.discard();
                 app.showMainMenu();
             }
@@ -336,8 +380,20 @@ final class NeoAppAscent {
             // esta pantalla cuando se ha perdido. NO se apunta de verdad
             // (nada de AscentUnlocks.record): una maqueta que le regalara al
             // jugador un desbloqueo seria peor que no tener maqueta.
-            showOver(AscentSummary.of(demo, won, won)
-                    .withFeats(java.util.List.of(AscentFeat.REACH_ACT_2)));
+            // -Dneo.ascent.overEndless=offer: la victoria con el boton de seguir
+            // en modo infinito; =N: el final de una run infinita en el nivel N
+            // (con record si N > 3). Nada se apunta de verdad.
+            final String endless = System.getProperty("neo.ascent.overEndless");
+            final AscentSummary photo = AscentSummary.of(demo, won, won)
+                    .withFeats(java.util.List.of(AscentFeat.REACH_ACT_2));
+            if ("offer".equals(endless)) {
+                showOver(photo, demo);
+            } else if (endless != null) {
+                final int nivel = Integer.parseInt(endless);
+                showOver(photo.withEndlessForMock(nivel, Math.max(3, nivel), nivel > 3));
+            } else {
+                showOver(photo);
+            }
             return;
         }
         if ("rest".equals(which)) {
@@ -502,12 +558,16 @@ final class NeoAppAscent {
      * roguelike no puede permitir.
      */
     private void gameOver(final AscentRun run, final boolean won) {
+        if (run.isEndless()) {
+            endlessOver(run);
+            return;
+        }
         final boolean completed = won && run.isCompleted();
         final boolean unlocked = completed
                 // Lo unico que sobrevive a la run. Va ANTES de discard(), que
                 // borra todo lo que empieza por "ascent." — los desbloqueos
                 // viven en sus propias claves justo para no irse con ella.
-                && AscentUnlocks.recordWin(run.getAscension());
+                && AscentUnlocks.recordWin(run);
         // ⚠️ Y la FOTO tambien va antes: discard() se lleva el .dck y el bloque
         // entero, o sea todo lo que el resumen tiene que ensenyar. Ver
         // AscentSummary.
@@ -524,15 +584,93 @@ final class NeoAppAscent {
     }
 
     /**
+     * <b>El jefe final ha caido: enhorabuena, y se puede seguir.</b>
+     *
+     * <p>La victoria se apunta AQUI y no al salir: la Ascension, las victorias y
+     * los hitos son de haber ganado, asi que seguir en modo infinito no puede
+     * costarlos. Y se apunta una sola vez ({@link AscentRun#markVictoryRecorded}):
+     * si se cierra el juego en esta pantalla, al volver se pregunta otra vez sin
+     * contar la run dos veces.
+     *
+     * <p>La run NO se borra todavia: «Seguir» la necesita. Se borra al elegir
+     * cualquiera de las otras dos salidas.
+     */
+    private void victory(final AscentRun run) {
+        boolean unlocked = false;
+        java.util.List<forge.neo.ascent.AscentFeat> feats = java.util.List.of();
+        if (!run.isVictoryRecorded()) {
+            unlocked = AscentUnlocks.recordWin(run);
+            feats = AscentUnlocks.record(AscentSummary.of(run, true, unlocked));
+            run.markVictoryRecorded();
+        }
+        final AscentSummary summary = AscentSummary.of(run, true, unlocked).withFeats(feats);
+        System.out.println("[ascenso] run ganada: " + summary + " — se ofrece el modo infinito");
+        showOver(summary, run);
+    }
+
+    /**
+     * Se acabo una run en modo infinito. Ya estaba ganada: lo que se cierra es
+     * hasta donde llegaste, y si es record.
+     */
+    private void endlessOver(final AscentRun run) {
+        final int level = run.endlessLevel();
+        final boolean record = AscentUnlocks.recordEndless(run.getMode(), level);
+        final AscentSummary photo = AscentSummary.of(run, true, false)
+                .withEndlessRecord(AscentUnlocks.bestEndless(run.getMode()), record);
+        final AscentSummary summary = photo.withFeats(AscentUnlocks.record(photo));
+        run.discard();
+        System.out.println("[ascenso] modo infinito terminado: " + summary
+                + (record ? " — RECORD" : ""));
+        showOver(summary);
+    }
+
+    /**
      * El resumen de la run, que es donde se decide si hay otra.
      *
      * <p>La run ya no existe cuando esto se ve: lo que se pinta es la foto.
      */
     void showOver(final AscentSummary summary) {
+        showOver(summary, null);
+    }
+
+    /**
+     * Igual, y con {@code run} distinto de null ofrece ademas <b>seguir en modo
+     * infinito</b>: es el resumen de la victoria. Las otras dos salidas cierran
+     * la run (se borra entonces, no antes).
+     */
+    private void showOver(final AscentSummary summary, final AscentRun endlessRun) {
+        final AscentOverScreen.Actions[] actions = new AscentOverScreen.Actions[1];
+        final int pressAt = Integer.getInteger("neo.ascent.pressEndlessAt", 0);
+        if (pressAt > 0 && endlessRun != null) {
+            // SOLO PRUEBAS: pulsa "Seguir en modo infinito" por el camino real.
+            final javafx.animation.PauseTransition t =
+                    new javafx.animation.PauseTransition(javafx.util.Duration.millis(pressAt));
+            t.setOnFinished(e -> {
+                System.out.println("[ascenso] prueba: pulso seguir en modo infinito");
+                actions[0].endless();
+            });
+            t.play();
+        }
         app.scene.setRoot(new AscentOverScreen(summary, app.cardWidth,
-                new AscentOverScreen.Actions() {
+                actions[0] = new AscentOverScreen.Actions() {
+                    @Override
+                    public boolean offersEndless() {
+                        return endlessRun != null;
+                    }
+
+                    @Override
+                    public void endless() {
+                        if (endlessRun != null && endlessRun.enterEndless()) {
+                            System.out.println("[ascenso] modo infinito: " + endlessRun);
+                            showMap(endlessRun);
+                        }
+                    }
+
                     @Override
                     public void again() {
+                        if (endlessRun != null) {
+                            endlessRun.discard();
+                        }
                         // A la pantalla de montar, NO a empezar una run: de una
                         // run no se vuelve atras (principio 6).
                         showSetup();
@@ -540,6 +678,9 @@ final class NeoAppAscent {
 
                     @Override
                     public void menu() {
+                        if (endlessRun != null) {
+                            endlessRun.discard();
+                        }
                         app.showMainMenu();
                     }
                 }));

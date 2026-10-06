@@ -285,6 +285,24 @@ public final class SafeActions {
             return owner.macros();
         }
 
+        /** Mulligan amistoso: la pregunta no avisa de que haya que devolver nada. Ver {@link FriendlyMulligan}. */
+        @Override
+        public boolean mulliganKeepHand(final Player firstPlayer, final int cardsToReturn) {
+            final Boolean forced = FriendlyMulligan.noteKeepPrompt(getPlayer());
+            if (forced != null) {
+                return forced;
+            }
+            return super.mulliganKeepHand(firstPlayer, FriendlyMulligan.toReturn(cardsToReturn));
+        }
+
+        /** Mulligan amistoso: no se devuelve ninguna carta al fondo. */
+        @Override
+        public forge.game.card.CardCollectionView tuckCardsViaMulligan(
+                final forge.game.card.CardCollectionView hand, final int cardsToReturn) {
+            final forge.game.card.CardCollectionView none = FriendlyMulligan.tuck(cardsToReturn);
+            return none != null ? none : super.tuckCardsViaMulligan(hand, cardsToReturn);
+        }
+
         /**
          * Aqui es donde murio la partida del jugador.
          *

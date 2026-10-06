@@ -6,7 +6,9 @@ import java.util.List;
 import forge.game.card.CardView;
 import forge.item.PaperCard;
 import forge.neo.NeoText;
+import forge.neo.ascent.AscentChallenges;
 import forge.neo.ascent.AscentRun;
+import forge.neo.ascent.AscentSeed;
 import forge.neo.ascent.AscentSeedDeck;
 import forge.neo.ascent.AscentUnlocks;
 import forge.neo.card.CardNode;
@@ -45,6 +47,15 @@ import javafx.scene.paint.Color;
  *   <li><b>La Ascension</b>, que solo se ofrece hasta la que hayas desbloqueado.
  * </ol>
  *
+ * <h2>Y los retos, en su pestanya</h2>
+ *
+ * <p>La primera fila es <b>Estandar · Commander · Retos</b> (Ana, 06-10-2026).
+ * En Retos estan las runs que son las mismas para todos: <b>la de hoy</b>
+ * ({@link AscentSeed#daily}, una nueva cada dia), la de la semana y la de un
+ * codigo pegado. Las dos primeras salen de la fecha: sin internet, sin copiar
+ * nada, a un clic de empezar. Antes eran una fila "Semilla" encima de todo, que
+ * habia que encontrar.
+ *
  * <h2>Y avisa de lo que va a pasar</h2>
  *
  * <p>Si ya hay una run a medias, el boton de empezar <b>lo dice</b> y pide
@@ -63,6 +74,10 @@ public class AscentSetupScreen extends StackPane {
          */
         void start(AscentRun.Mode mode, PaperCard commander, int ascension, byte colours,
                    forge.neo.ascent.AscentPool pool);
+
+        /** Empezar la run de un codigo o del reto de la semana ({@link AscentSeed}). */
+        default void startRecipe(final AscentSeed.Recipe recipe) {
+        }
 
         void back();
     }
@@ -154,12 +169,423 @@ public class AscentSetupScreen extends StackPane {
         }
     }
 
+    // ------------------------------------------------------------------
+    //  La semilla (Discord, 06-10-2026: "a seeded run ... a weekly challenge")
+    // ------------------------------------------------------------------
+
+    /**
+     * De donde sale la run: nueva (las pestanyas de Estandar y Commander) o un
+     * reto — el de hoy, el de la semana o el de un codigo.
+     */
+    private enum SeedSource { RANDOM, DAILY, WEEKLY, CODE }
+
+    /**
+     * {@code -Dneo.ascent.setupSeed=daily}, {@code =weekly} o {@code =<codigo>}
+     * la deja puesta al abrir, para capturarla con {@code --snapshot}.
+     */
+    private SeedSource seedSource = SeedSource.RANDOM;
+
+    /** El ultimo reto elegido: volver a la pestanya de Retos lo deja donde estaba. */
+    private SeedSource challenge = SeedSource.DAILY;
+
+    /**
+     * Lo que falta para el reto siguiente, y de que dia es el que se ensenya.
+     * El reloj lo refresca, y si ha cambiado el dia rehace la pantalla: quien
+     * la deje abierta a medianoche UTC no se queda con el reto de ayer.
+     */
+    private Label countdown;
+    private java.time.LocalDate shownDay;
+
+    /**
+     * Cada 15 s. Se para al salir de la escena y vuelve al entrar: un
+     * temporizador en marcha sujeta la pantalla para siempre (principio 11).
+     */
+    private final javafx.animation.Timeline clock = new javafx.animation.Timeline(
+            new javafx.animation.KeyFrame(javafx.util.Duration.seconds(15), e -> tick()));
+
+    {
+        clock.setCycleCount(javafx.animation.Animation.INDEFINITE);
+        sceneProperty().addListener((o, was, now) -> {
+            if (now == null) {
+                clock.stop();
+            } else {
+                clock.play();
+            }
+        });
+    }
+
+    private void tick() {
+        if (seedSource != SeedSource.DAILY && seedSource != SeedSource.WEEKLY) {
+            return;
+        }
+        if (!AscentSeed.today().equals(shownDay)) {
+            rebuild();
+        } else if (countdown != null) {
+            countdown.setText(countdownText());
+        }
+    }
+
+    /** "Nuevo reto en 14 h 3 min, a las 02:00." — la hora, en la del jugador. */
+    private String countdownText() {
+        final java.time.Instant now = java.time.Instant.now();
+        final boolean daily = seedSource == SeedSource.DAILY;
+        final java.time.Instant next = daily ? AscentSeed.nextDaily(now) : AscentSeed.nextWeekly(now);
+        final int[] left = AscentSeed.timeLeft(now, next);
+        final String span = left[0] > 0 ? NeoText.get("ascent.seed.left.dh", left[0], left[1])
+                : left[1] > 0 ? NeoText.get("ascent.seed.left.hm", left[1], left[2])
+                : NeoText.get("ascent.seed.left.m", left[2]);
+        if (!daily) {
+            return NeoText.get("ascent.seed.next", span);
+        }
+        final String at = next.atZone(java.time.ZoneId.systemDefault()).toLocalTime()
+                .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"));
+        return NeoText.get("ascent.seed.next.at", span, at);
+    }
+
+    /**
+     * El campo del codigo. UNO para toda la vida de la pantalla: rebuild() lo
+     * vuelve a colocar en vez de crear otro, que si no se perderia lo escrito y
+     * el foco en cada tecla.
+     */
+    private final TextField codeField = new TextField();
+
+    /**
+     * Con un codigo pegado: jugarla con el mazo del codigo (false) o con uno
+     * elegido aqui (true). Ver {@link AscentSeed.Recipe#withDeck}. El reto de la
+     * semana no lo ofrece. {@code -Dneo.ascent.setupOwnDeck=true} para capturarlo.
+     */
+    private boolean ownDeck = Boolean.getBoolean("neo.ascent.setupOwnDeck");
+
+    {
+        final String preset = System.getProperty("neo.ascent.setupSeed", "").trim();
+        if ("daily".equalsIgnoreCase(preset)) {
+            seedSource = SeedSource.DAILY;
+        } else if ("weekly".equalsIgnoreCase(preset)) {
+            seedSource = SeedSource.WEEKLY;
+        } else if (!preset.isEmpty()) {
+            seedSource = SeedSource.CODE;
+            codeField.setText(preset);
+        }
+        if (seedSource != SeedSource.RANDOM) {
+            challenge = seedSource;
+        }
+        codeField.setId("ascent-seed-field");
+        codeField.setPromptText(NeoText.get("ascent.seed.paste"));
+        codeField.setMaxWidth(UiScale.px(460));
+        codeField.textProperty().addListener((o, a, b) -> {
+            rebuild();
+            javafx.application.Platform.runLater(() -> {
+                codeField.requestFocus();
+                codeField.positionCaret(codeField.getText().length());
+            });
+        });
+    }
+
+    /** La receta puesta, o {@code null} con "nueva al azar" o un codigo que no vale. */
+    private AscentSeed.Recipe recipe() {
+        switch (seedSource) {
+            case DAILY:
+                return AscentSeed.daily(AscentSeed.today());
+            case WEEKLY:
+                return AscentSeed.weekly(AscentSeed.today());
+            case CODE:
+                final AscentSeed.Parsed parsed = AscentSeed.parse(codeField.getText());
+                return parsed.ok() ? parsed.recipe : null;
+            default:
+                return null;
+        }
+    }
+
+    /** Lo ultimo comprobado: buscar el comandante son diez mil cartas, y esto se llama en cada tecla. */
+    private String checkedFor;
+    private String checkedProblem;
+
+    /**
+     * Por que no se puede empezar con esa semilla, ya escrito; {@code null} si se
+     * puede. Con "nueva al azar", siempre {@code null}: ahi manda el resto de la
+     * pantalla.
+     */
+    private String seedProblem() {
+        if (seedSource == SeedSource.RANDOM) {
+            return null;
+        }
+        if (seedSource == SeedSource.CODE) {
+            final AscentSeed.Parsed parsed = AscentSeed.parse(codeField.getText());
+            if (!parsed.ok()) {
+                return NeoText.get(parsed.error);
+            }
+        }
+        final AscentSeed.Recipe r = recipe();
+        final boolean own = seedSource == SeedSource.CODE && ownDeck;
+        final String key = r.code() + (own ? "+own" : "") + "/" + seedSource;
+        if (key.equals(checkedFor)) {
+            return checkedProblem;
+        }
+        String problem = null;
+        if (!r.sameVersion()) {
+            // No se deja empezar (decision del autor, 06-10-2026): con otra version
+            // cambian las cartas y no seria la misma run, aunque lo pareciera.
+            problem = NeoText.get("ascent.seed.err.version", r.version, forge.neo.NeoVersion.neoVersion());
+        } else if (seedSource != SeedSource.WEEKLY && r.ascension > AscentUnlocks.maxAscension()) {
+            // El de la semana va a WEEKLY_ASCENSION la tengas o no: los retos no
+            // desbloquean nada, asi que tampoco piden nada (Ana, 06-10-2026).
+            problem = AscentUnlocks.maxAscension() == 0
+                    ? NeoText.get("ascent.seed.err.ascensionNone", r.ascension)
+                    : NeoText.get("ascent.seed.err.ascension", r.ascension, AscentUnlocks.maxAscension());
+        } else if (r.pool.problem(r.mode) != null) {
+            problem = NeoText.get(r.pool.problem(r.mode), forge.neo.ascent.AscentPool.MIN_CARDS);
+        } else if (!own && r.hasCommander() && AscentSeedDeck.commanderFor(r) == null) {
+            problem = NeoText.get("ascent.seed.err.commander");
+        }
+        checkedFor = key;
+        checkedProblem = problem;
+        return problem;
+    }
+
+    /** Empezar con lo que haya puesto: la semilla, o lo elegido en la pantalla. */
+    private void startNow() {
+        if (seedSource == SeedSource.RANDOM) {
+            actions.start(mode, commander, ascension, colours, pool());
+        } else {
+            final AscentSeed.Recipe r = recipe();
+            if (r != null && seedProblem() == null) {
+                actions.startRecipe(seedSource == SeedSource.CODE && ownDeck
+                        ? r.withDeck(r.mode == AscentRun.Mode.STANDARD ? colours : AscentSeedDeck.NO_COLOURS,
+                                r.mode == AscentRun.Mode.COMMANDER && commander != null ? commander.getName() : null)
+                        : r);
+            }
+        }
+    }
+
+    /** Se puede pulsar Empezar. */
+    private boolean canStart() {
+        return seedSource == SeedSource.RANDOM
+                ? pool().problem(mode) == null
+                : recipe() != null && seedProblem() == null;
+    }
+
+    /**
+     * Los retos: el de hoy, el de la semana o el de un codigo.
+     *
+     * <p>Con cualquiera de los tres, el modo, las cartas, los colores y la
+     * Ascension los pone el reto: el resto de la pantalla se cambia por lo que
+     * se va a jugar ({@link #recipeBox}).
+     */
+    private Region challengeBox() {
+        final HBox row = new HBox(12);
+        row.setAlignment(Pos.CENTER);
+        for (final SeedSource src : new SeedSource[] {SeedSource.DAILY, SeedSource.WEEKLY, SeedSource.CODE}) {
+            final Button b = choice(NeoText.get("ascent.seed." + src.name().toLowerCase(java.util.Locale.ROOT)),
+                    src == seedSource);
+            b.setOnAction(e -> {
+                seedSource = src;
+                challenge = src;
+                rebuild();
+                if (src == SeedSource.CODE) {
+                    javafx.application.Platform.runLater(codeField::requestFocus);
+                }
+            });
+            row.getChildren().add(b);
+        }
+        final VBox box = new VBox(8, row);
+        box.setAlignment(Pos.CENTER);
+        if (seedSource == SeedSource.CODE) {
+            box.getChildren().add(codeField);
+        }
+        final java.time.LocalDate today = AscentSeed.today();
+        shownDay = today;
+        if (seedSource == SeedSource.WEEKLY) {
+            // El tema, en grande: "Esta semana: Kamigawa y Khans of Tarkir".
+            final List<String> worlds = AscentSeed.weeklyWorlds(today);
+            if (worlds.size() >= 2) {
+                final Label theme = line(NeoText.get("ascent.seed.weekly.theme", worlds.get(0), worlds.get(1)));
+                theme.setId("ascent-weekly-theme");
+                theme.getStyleClass().setAll("ascent-info-title");
+                box.getChildren().add(theme);
+            }
+        }
+        box.getChildren().add(line(seedSource == SeedSource.DAILY
+                ? NeoText.get("ascent.seed.daily.desc")
+                : seedSource == SeedSource.WEEKLY
+                ? NeoText.get("ascent.seed.weekly.desc", AscentSeed.weekOf(today), AscentSeed.weekYear(today),
+                        AscentSeed.WEEKLY_ASCENSION)
+                : NeoText.get("ascent.seed.code.desc")));
+        countdown = null;
+        if (seedSource != SeedSource.CODE) {
+            countdown = line(countdownText());
+            countdown.setId("ascent-challenge-countdown");
+            box.getChildren().add(countdown);
+        }
+        // Si ya lo has jugado, y como te fue (AscentChallenges). Solo el de
+        // AHORA: el de ayer se borra al mirarlo, y el nuevo no sale hecho.
+        final AscentChallenges.Result done = played();
+        if (done != null) {
+            final Label mark = new Label(playedText(done));
+            mark.setId("ascent-challenge-done");
+            mark.getStyleClass().addAll("ascent-pill-base", "ascent-pill-relic");
+            mark.setWrapText(true);
+            mark.setMaxWidth(UiScale.px(620));
+            // En su propia fila: la columna estira a todo el ancho, y una
+            // pastilla tiene que abrazar su texto.
+            final HBox holder = new HBox(mark);
+            holder.setAlignment(Pos.CENTER);
+            box.getChildren().add(holder);
+        }
+        // La racha, con su llama (AscentStreakView).
+        if (seedSource == SeedSource.DAILY || seedSource == SeedSource.WEEKLY) {
+            final Region streak = AscentStreakView.of(seedSource == SeedSource.DAILY
+                    ? AscentChallenges.Kind.DAILY : AscentChallenges.Kind.WEEKLY, true);
+            if (streak != null) {
+                box.getChildren().add(streak);
+            }
+        }
+        return box;
+    }
+
+    /** Como te fue en el reto puesto (hoy o la semana), o null. Un codigo pegado no lleva registro. */
+    private AscentChallenges.Result played() {
+        return seedSource == SeedSource.DAILY ? AscentChallenges.resultFor(AscentChallenges.Kind.DAILY)
+                : seedSource == SeedSource.WEEKLY ? AscentChallenges.resultFor(AscentChallenges.Kind.WEEKLY)
+                : null;
+    }
+
+    private static String playedText(final AscentChallenges.Result r) {
+        if (r.won) {
+            return r.endless > 0 ? NeoText.get("ascent.challenge.wonEndless", r.endless)
+                    : NeoText.get("ascent.challenge.won");
+        }
+        return NeoText.get("ascent.challenge.reached", r.act, r.cleared);
+    }
+
+    /**
+     * Con que se va a jugar, segun la semilla: en vez de los controles, porque
+     * los pone el codigo — dos sitios que dicen cosas distintas seria un control
+     * que no hace lo que parece (principio 1).
+     */
+    private Region recipeBox() {
+        final VBox box = new VBox(6);
+        box.setAlignment(Pos.CENTER);
+        box.setMaxWidth(UiScale.px(620));
+        final AscentSeed.Recipe r = recipe();
+        if (r == null) {
+            if (!codeField.getText().isBlank()) {
+                box.getChildren().add(warning(seedProblem()));
+            }
+            return box;
+        }
+        box.getChildren().add(label("ascent.seed.plays"));
+        box.getChildren().add(line(NeoText.get("ascent.seed.sum.mode",
+                NeoText.get(r.mode == AscentRun.Mode.COMMANDER
+                        ? "ascent.setup.mode.commander" : "ascent.setup.mode.standard"),
+                r.ascension == 0 ? NeoText.get("ascent.setup.ascension.none") : String.valueOf(r.ascension))));
+        if (seedSource == SeedSource.CODE && ownDeck) {
+            // El mazo lo eliges debajo: aqui no se dice el del codigo.
+        } else if (r.mode == AscentRun.Mode.COMMANDER) {
+            final PaperCard cmd = r.hasCommander() ? AscentSeedDeck.commanderFor(r) : null;
+            box.getChildren().add(line(r.hasCommander()
+                    ? (cmd == null ? NeoText.get("ascent.seed.err.commander")
+                            : NeoText.get("ascent.setup.chosen", forge.neo.card.CardText.nameOf(cmd)))
+                    : NeoText.get("ascent.seed.sum.commanderRandom")));
+        } else {
+            box.getChildren().add(line(r.colours == AscentSeedDeck.NO_COLOURS
+                    ? NeoText.get("ascent.seed.sum.coloursRandom") : coloursCaption(r.colours)));
+        }
+        switch (r.pool.kind) {
+            case RANGE:
+                box.getChildren().add(line(NeoText.get("ascent.seed.sum.poolRange",
+                        editionName(r.pool.from), editionName(r.pool.to))));
+                break;
+            case SET:
+                final List<String> names = new ArrayList<>();
+                for (final String c : r.pool.sets) {
+                    names.add(editionName(c));
+                }
+                box.getChildren().add(line(NeoText.get("ascent.seed.sum.poolSets", String.join(", ", names))));
+                break;
+            default:
+                box.getChildren().add(line(NeoText.get("ascent.seed.sum.poolAll")));
+                break;
+        }
+        // El de los retos tambien a la vista: para comprobar entre amigos que
+        // es el mismo, y para pegarlo con el resultado en Discord.
+        if (seedSource != SeedSource.CODE) {
+            final Button code = AscentCodeButton.of(r.code());
+            if (code != null) {
+                box.getChildren().add(code);
+            }
+        }
+        final String problem = seedProblem();
+        if (problem != null) {
+            box.getChildren().add(warning(problem));
+        } else if (r.ascension > 0) {
+            box.getChildren().add(ascensionEffects(r.ascension));
+        }
+        return box;
+    }
+
+    /** "Jugar el reto de hoy": lo mismo que Empezar, con lo que se va a jugar escrito. */
+    private Button playButton() {
+        final Button play = new Button(NeoText.get(played() != null ? "ascent.seed.play.again"
+                : "ascent.seed.play." + seedSource.name().toLowerCase(java.util.Locale.ROOT)));
+        play.setId("ascent-challenge-play");
+        play.getStyleClass().addAll("ascent-button", "btn-primary");
+        play.setDisable(!canStart());
+        play.setOnAction(e -> {
+            if (runInProgress) {
+                confirmOverwrite();
+            } else {
+                startNow();
+            }
+        });
+        VBox.setMargin(play, new Insets(UiScale.px(6), 0, 0, 0));
+        return play;
+    }
+
+    /** El mazo del codigo, o elegir el tuyo. */
+    private Region deckChoice() {
+        final HBox row = new HBox(12);
+        row.setAlignment(Pos.CENTER);
+        final Button same = choice(NeoText.get("ascent.seed.deck.code"), !ownDeck);
+        same.setOnAction(e -> {
+            ownDeck = false;
+            rebuild();
+        });
+        final Button own = choice(NeoText.get("ascent.seed.deck.own"), ownDeck);
+        own.setOnAction(e -> {
+            ownDeck = true;
+            page = 0;
+            rebuild();
+        });
+        row.getChildren().addAll(same, own);
+        final Label what = line(NeoText.get(ownDeck ? "ascent.seed.deck.own.desc" : "ascent.seed.deck.code.desc"));
+        final VBox box = new VBox(6, row, what);
+        box.setAlignment(Pos.CENTER);
+        return box;
+    }
+
+    private static Label line(final String text) {
+        final Label l = new Label(text);
+        l.getStyleClass().add("ascent-info-text");
+        l.setWrapText(true);
+        l.setMaxWidth(UiScale.px(620));
+        l.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
+        l.setAlignment(Pos.CENTER);
+        return l;
+    }
+
+    private static Label warning(final String text) {
+        final Label l = line(text == null ? "" : text);
+        l.getStyleClass().setAll("ascent-info-duel");
+        return l;
+    }
+
     /** Los comandantes del pozo puesto: recalcularlos son once mil cartas. */
     private List<PaperCard> commandersCache;
     private forge.neo.ascent.AscentPool commandersFor;
 
     private List<PaperCard> commanders() {
-        final forge.neo.ascent.AscentPool p = pool();
+        final AscentSeed.Recipe r = seedSource == SeedSource.CODE ? recipe() : null;
+        final forge.neo.ascent.AscentPool p = r != null ? r.pool : pool();
         if (commandersCache == null || !p.equals(commandersFor)) {
             commandersCache = AscentSeedDeck.commanderPool(p);
             commandersFor = p;
@@ -218,8 +644,8 @@ public class AscentSetupScreen extends StackPane {
             final javafx.animation.PauseTransition later =
                     new javafx.animation.PauseTransition(javafx.util.Duration.millis(startAt));
             later.setOnFinished(e -> {
-                if (pool().problem(mode) == null) {
-                    actions.start(mode, commander, ascension, colours, pool());
+                if (canStart()) {
+                    startNow();
                 }
             });
             later.play();
@@ -247,7 +673,34 @@ public class AscentSetupScreen extends StackPane {
         sub.getStyleClass().add("ascent-hint");
         content.getChildren().addAll(title, sub);
 
+        // Estandar · Commander · Retos: la primera pregunta, siempre arriba.
         content.getChildren().addAll(label("ascent.setup.mode"), modeRow());
+        if (seedSource != SeedSource.RANDOM) {
+            content.getChildren().add(challengeBox());
+            content.getChildren().add(recipeBox());
+            final AscentSeed.Recipe r = recipe();
+            if (seedSource == SeedSource.CODE && r != null) {
+                content.getChildren().addAll(label("ascent.seed.deck"), deckChoice());
+                if (ownDeck) {
+                    if (r.mode == AscentRun.Mode.COMMANDER) {
+                        content.getChildren().addAll(label("ascent.setup.commander"), commanderBox());
+                    } else {
+                        content.getChildren().addAll(label("ascent.setup.colours"), coloursBox());
+                    }
+                }
+            }
+            // Jugarlo, justo debajo de lo que se esta mirando (Ana, 06-10-2026):
+            // en una pantalla ancha el pie queda en la esquina, lejos del centro.
+            // El del pie se queda (principio 12). Con un codigo y "elegir el mio"
+            // en Commander no: debajo van diez mil comandantes.
+            if (r != null && !(seedSource == SeedSource.CODE && ownDeck && r.mode == AscentRun.Mode.COMMANDER)) {
+                content.getChildren().add(playButton());
+            }
+            content.getChildren().add(stretch());
+            body.getChildren().setAll(scroll, footer());
+            return;
+        }
+
         content.getChildren().addAll(label("ascent.pool.title"), poolBox());
 
         if (mode == AscentRun.Mode.COMMANDER) {
@@ -263,7 +716,7 @@ public class AscentSetupScreen extends StackPane {
             // Y QUE trae ese nivel. rebuild() se llama al pulsar un numero, asi
             // que la lista se rehace sola con la eleccion nueva.
             if (ascension > 0) {
-                content.getChildren().add(ascensionEffects());
+                content.getChildren().add(ascensionEffects(ascension));
             }
         }
 
@@ -303,28 +756,56 @@ public class AscentSetupScreen extends StackPane {
         return l;
     }
 
-    /** Estandar o Commander. */
+    /** Estandar, Commander o Retos. */
     private Region modeRow() {
         final HBox row = new HBox(12);
         row.setAlignment(Pos.CENTER);
+        final boolean challenges = seedSource != SeedSource.RANDOM;
         for (final AscentRun.Mode m : AscentRun.Mode.values()) {
             final Button b = choice(NeoText.get(m == AscentRun.Mode.COMMANDER
-                    ? "ascent.setup.mode.commander" : "ascent.setup.mode.standard"), m == mode);
+                    ? "ascent.setup.mode.commander" : "ascent.setup.mode.standard"), !challenges && m == mode);
             b.setOnAction(e -> {
                 mode = m;
                 commander = null;
                 page = 0;
+                seedSource = SeedSource.RANDOM;
                 rebuild();
             });
             row.getChildren().add(b);
         }
-        final Label what = new Label(NeoText.get(mode == AscentRun.Mode.COMMANDER
+        final Button retos = choice(NeoText.get("ascent.setup.mode.challenges"), challenges);
+        retos.setId("ascent-challenges");
+        retos.setOnAction(e -> {
+            if (seedSource == SeedSource.RANDOM) {
+                seedSource = challenge;
+                rebuild();
+                if (seedSource == SeedSource.CODE) {
+                    javafx.application.Platform.runLater(codeField::requestFocus);
+                }
+            }
+        });
+        row.getChildren().add(retos);
+        final Label what = new Label(NeoText.get(challenges ? "ascent.setup.mode.challenges.desc"
+                : mode == AscentRun.Mode.COMMANDER
                 ? "ascent.setup.mode.commander.desc" : "ascent.setup.mode.standard.desc"));
         what.getStyleClass().add("ascent-info-text");
         what.setWrapText(true);
         what.setMaxWidth(UiScale.px(620));
+        // Centrada como todo lo de debajo: con la fila de los retos debajo,
+        // una linea a la izquierda se ve torcida.
+        what.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
+        what.setAlignment(Pos.CENTER);
         final VBox box = new VBox(6, row, what);
         box.setAlignment(Pos.CENTER);
+        if (challenges) {
+            // Los retos no suben la Ascension (AscentUnlocks.recordWin(AscentRun)),
+            // y se dice en su propia linea, no escondido en la descripcion: quien
+            // gane uno y no vea subir nada tiene que saber por que (Ana, 06-10-2026).
+            final Label notice = line(NeoText.get("ascent.seed.noAscension"));
+            notice.setId("ascent-challenge-no-ascension");
+            notice.getStyleClass().setAll("ascent-notice");
+            box.getChildren().add(notice);
+        }
         return box;
     }
 
@@ -509,10 +990,13 @@ public class AscentSetupScreen extends StackPane {
      * <p>Va aqui y no detras de un boton de "ver detalles": es la unica
      * pantalla donde esta decision se toma, y de una run no se vuelve atras.
      */
-    private Region ascensionEffects() {
+    private Region ascensionEffects(final int ascension) {
         final VBox box = new VBox(3);
         box.setAlignment(Pos.CENTER_LEFT);
-        box.setMaxWidth(UiScale.px(560));
+        // Abraza su texto (hasta 560) para que la columna la CENTRE: estirada al
+        // ancho de la columna, con el texto a la izquierda, en 4K se iba al
+        // borde del pergamino (06-10-2026).
+        box.setMaxWidth(Region.USE_PREF_SIZE);
         final Label head = new Label(NeoText.get("ascent.setup.ascension.active"));
         head.getStyleClass().add("ascent-hint");
         box.getChildren().add(head);
@@ -626,6 +1110,10 @@ public class AscentSetupScreen extends StackPane {
 
     /** Lo que va a pasar al pulsar Empezar, dicho con todas las letras. */
     private String coloursCaption() {
+        return coloursCaption(colours);
+    }
+
+    private static String coloursCaption(final byte colours) {
         final List<String> names = new ArrayList<>();
         for (int i = 0; i < COLOUR_ORDER.length; i++) {
             if ((colours & COLOUR_ORDER[i]) != 0) {
@@ -810,12 +1298,12 @@ public class AscentSetupScreen extends StackPane {
         start.getStyleClass().addAll("ascent-button", "btn-primary");
         // Un pozo con el que no se puede jugar no deja empezar: el motivo sale
         // debajo de las expansiones (poolBox), no aqui.
-        start.setDisable(pool().problem(mode) != null);
+        start.setDisable(!canStart());
         start.setOnAction(e -> {
             if (runInProgress) {
                 confirmOverwrite();
             } else {
-                actions.start(mode, commander, ascension, colours, pool());
+                startNow();
             }
         });
 
@@ -862,7 +1350,7 @@ public class AscentSetupScreen extends StackPane {
         no.getStyleClass().addAll("ascent-button", "btn-primary");
         final Button yes = new Button(NeoText.get("ascent.setup.confirm.yes"));
         yes.getStyleClass().addAll("ascent-button", "ascent-button-danger");
-        yes.setOnAction(e -> actions.start(mode, commander, ascension, colours, pool()));
+        yes.setOnAction(e -> startNow());
 
         final HBox buttons = new HBox(12, no, yes);
         buttons.setAlignment(Pos.CENTER);

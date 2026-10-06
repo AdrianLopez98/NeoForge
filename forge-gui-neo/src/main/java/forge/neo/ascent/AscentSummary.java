@@ -55,11 +55,22 @@ public final class AscentSummary {
      */
     private final List<AscentFeat> feats;
 
+    /** El nivel infinito al que se llego, o 0 si la run no entro en modo infinito. */
+    private final int endless;
+    /** La mejor profundidad infinita de ese modo, despues de esta run. */
+    private final int endlessBest;
+    /** Si esta run acaba de batir el record de profundidad. */
+    private final boolean endlessRecord;
+    /** El codigo de la run para compartirla ({@link AscentSeed}), o null en runs viejas. */
+    private final String code;
+
     private AscentSummary(final boolean won, final AscentRun.Mode mode, final int act,
                           final int cleared, final int life, final int maxLife,
                           final int credits, final int ascension, final boolean unlocked,
                           final List<AscentRelic> relics, final List<PaperCard> deck,
-                          final String commander, final List<AscentFeat> feats) {
+                          final String commander, final List<AscentFeat> feats,
+                          final int endless, final int endlessBest, final boolean endlessRecord,
+                          final String code) {
         this.won = won;
         this.mode = mode;
         this.act = act;
@@ -73,6 +84,10 @@ public final class AscentSummary {
         this.deck = deck;
         this.commander = commander;
         this.feats = feats;
+        this.endless = endless;
+        this.endlessBest = endlessBest;
+        this.endlessRecord = endlessRecord;
+        this.code = code;
     }
 
     /**
@@ -84,7 +99,20 @@ public final class AscentSummary {
     public AscentSummary withFeats(final List<AscentFeat> earned) {
         return new AscentSummary(won, mode, act, cleared, life, maxLife, credits,
                 ascension, unlocked, relics, deck, commander,
-                earned == null ? List.of() : List.copyOf(earned));
+                earned == null ? List.of() : List.copyOf(earned),
+                endless, endlessBest, endlessRecord, code);
+    }
+
+    /** La misma foto como final de modo infinito en ese nivel. Para la maqueta. */
+    public AscentSummary withEndlessForMock(final int level, final int best, final boolean isNew) {
+        return new AscentSummary(won, mode, act, cleared, life, maxLife, credits,
+                ascension, unlocked, relics, deck, commander, feats, level, best, isNew, code);
+    }
+
+    /** La misma foto, con el record de profundidad infinita ya apuntado. */
+    public AscentSummary withEndlessRecord(final int best, final boolean isNew) {
+        return new AscentSummary(won, mode, act, cleared, life, maxLife, credits,
+                ascension, unlocked, relics, deck, commander, feats, endless, best, isNew, code);
     }
 
     /**
@@ -112,7 +140,8 @@ public final class AscentSummary {
         }
         return new AscentSummary(won, run.getMode(), run.getAct(), run.getCleared(),
                 run.getLife(), run.getMaxLife(), run.getCredits(), run.getAscension(),
-                unlocked, run.relics(), cards, commander, List.of());
+                unlocked, run.relics(), cards, commander, List.of(),
+                run.endlessLevel(), 0, false, run.getCode());
     }
 
     // ------------------------------------------------------------------
@@ -171,6 +200,26 @@ public final class AscentSummary {
         return commander;
     }
 
+    /** El nivel infinito al que se llego, o 0 si no hubo modo infinito. */
+    public int getEndless() {
+        return endless;
+    }
+
+    /** La mejor profundidad infinita de ese modo. */
+    public int getEndlessBest() {
+        return endlessBest;
+    }
+
+    /** Si esta run ha batido el record de profundidad. */
+    public boolean isEndlessRecord() {
+        return endlessRecord;
+    }
+
+    /** El codigo de la run para compartirla, o {@code null} si es de antes de que existiera. */
+    public String getCode() {
+        return code;
+    }
+
     /** Los hitos que esta run acaba de conseguir. Vacio si ninguno. */
     public List<AscentFeat> getFeats() {
         return feats;
@@ -178,7 +227,8 @@ public final class AscentSummary {
 
     @Override
     public String toString() {
-        return (won ? "completada" : "derrota") + " en el acto " + act
+        return (won ? "completada" : "derrota") + (endless > 0 ? " (infinito " + endless + ")" : "")
+                + " en el acto " + act
                 + " | " + cleared + " nodos | " + life + "/" + maxLife + " vidas | "
                 + relics.size() + " reliquias | mazo de " + deck.size();
     }

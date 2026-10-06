@@ -243,6 +243,21 @@ public enum NeoFormat implements forge.neo.deck.DeckContext {
      * lista vacia y el modo no sirve de nada.
      */
     public List<Deck> decks() {
+        try {
+            return decksUnguarded();
+        } catch (final RuntimeException e) {
+            // Un .dck que Forge no sabe leer tumba la carpeta entera: se aparta
+            // (BrokenDecks, se renombra a .dck.roto) y se lee otra vez.
+            if (!forge.neo.deck.BrokenDecks.isLoadFailure(e)) {
+                throw e;
+            }
+            forge.neo.deck.BrokenDecks.quarantine(
+                    new java.io.File(forge.localinstance.properties.ForgeConstants.DECK_BASE_DIR));
+            return decksUnguarded();
+        }
+    }
+
+    private List<Deck> decksUnguarded() {
         final List<Deck> out = new ArrayList<>();
         switch (this) {
             case COMMANDER:

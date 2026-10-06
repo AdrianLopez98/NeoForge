@@ -80,6 +80,39 @@ public final class AscentUnlocks {
      */
     private static final String FEATS = "ascentUnlock.feats";
 
+    /**
+     * La mejor profundidad del modo infinito, por modo
+     * ({@code ascentUnlock.endless.COMMANDER}). Fuera de {@code ascent.} por lo
+     * mismo que todo lo de aqui: sobrevive a la run.
+     */
+    private static final String ENDLESS_BEST = "ascentUnlock.endless.";
+
+    /** El nivel infinito mas alto alcanzado en ese modo, 0 si ninguno. */
+    public static int bestEndless(final AscentRun.Mode mode) {
+        return Math.max(0, NeoSettings.getInt(ENDLESS_BEST + mode.name(), 0));
+    }
+
+    /**
+     * Apunta la profundidad a la que llego una run infinita.
+     *
+     * @return {@code true} si es un record nuevo
+     */
+    public static boolean recordEndless(final AscentRun.Mode mode, final int level) {
+        if (level <= bestEndless(mode)) {
+            return false;
+        }
+        if (!AscentRun.isDemo()) {
+            NeoSettings.setInt(ENDLESS_BEST + mode.name(), level);
+            NeoSettings.save();
+        }
+        return true;
+    }
+
+    /** Solo para los comprobadores: reponer el record como estaba. */
+    public static void setBestEndlessForTest(final AscentRun.Mode mode, final int level) {
+        NeoSettings.set(ENDLESS_BEST + mode.name(), level <= 0 ? null : String.valueOf(level));
+    }
+
     /** La Ascension mas alta a la que se puede jugar hoy. */
     public static int maxAscension() {
         return Math.max(0, Math.min(MAX, NeoSettings.getInt(MAX_ASCENSION, 0)));
@@ -178,6 +211,22 @@ public final class AscentUnlocks {
     }
 
     /**
+     * <b>La victoria de esta run</b>, si cuenta: solo las empezadas <b>al
+     * azar</b> suben la Ascension y suman victorias (Ana, 06-10-2026). Una de
+     * un codigo o de un reto (el de hoy, el de la semana) no: la Ascension tiene
+     * que salir de una run tuya, no de una facil que te pase un amigo. Su
+     * resultado va a {@link AscentChallenges}.
+     *
+     * @return si ha subido la Ascension maxima
+     */
+    public static boolean recordWin(final AscentRun run) {
+        if (run == null || run.isFromCode()) {
+            return false;
+        }
+        return recordWin(run.getAscension());
+    }
+
+    /**
      * Apunta los hitos que esta run acaba de conseguir.
      *
      * <p>Se llama <b>una vez</b>, al terminar la run, con la foto ya hecha — y
@@ -188,6 +237,9 @@ public final class AscentUnlocks {
      *         consiguiendo veinte runs seguidas deja de significar nada.
      */
     public static List<AscentFeat> record(final AscentSummary summary) {
+        // Y si era el reto de hoy o el de la semana, como te fue: es el sitio
+        // por el que pasan los tres finales, aqui y en Android (06-10-2026).
+        AscentChallenges.record(summary);
         final Set<AscentFeat> had = feats();
         final List<AscentFeat> fresh = new ArrayList<>();
         for (final AscentFeat f : AscentFeat.values()) {

@@ -54,6 +54,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * <p>Un fichero por personaje, junto a sus partidas:
  * {@code <adventure>/<plano>/neo-adquiridas-<nombre>.txt}. No toca nada del
  * Adventure: si se borra, solo se pierde el orden.
+ *
+ * <p><b>Tambien lo usa Android</b> (06-10-2026, Discord: <i>"sort by recent in
+ * the deck part seems not working"</i>): alli nadie lo armaba, todas las cartas
+ * tenian hora 0 y "Lo ultimo conseguido" era el orden por nombre — invertirlo no
+ * cambiaba nada. Lo arma su {@code AccesoAventura}. Por eso nada de aqui toca
+ * clases con JavaFX (el registro va por {@link #log}). Y dos seguros que hoy no
+ * hacen falta: {@link #arm} vale una vez por proceso, y un repaso en cola de un
+ * libGDX que ya no existe se olvida ({@code queuedFor}). Alli la Aventura vive
+ * en el proceso de la app, y si un dia se vuelve a entrar sin reiniciarlo — hoy
+ * se reinicia, {@code AventuraActivity.abrir} — el registro no se queda mudo.
  */
 public final class AcquiredLedger {
 
@@ -64,7 +74,14 @@ public final class AcquiredLedger {
     private static final long PERIOD_MS = 3000;
 
     private static final Book book = new Book();
+    private static final AtomicBoolean armed = new AtomicBoolean();
     private static final AtomicBoolean queued = new AtomicBoolean();
+    /**
+     * El libGDX al que se le pidio el repaso que esta en cola. En Android cada
+     * visita a la Aventura trae uno nuevo, y lo pedido al de antes no se hara
+     * nunca: sin esto, {@code queued} se quedaba en true y no se volvia a mirar.
+     */
+    private static volatile com.badlogic.gdx.Application queuedFor;
     private static volatile boolean listening;
     /** Hubo una carga: los proximos totales se toman como estan. */
     private static volatile boolean rebase = true;
@@ -72,9 +89,15 @@ public final class AcquiredLedger {
     private static volatile boolean fresh;
     private static volatile String owner;
 
-    /** Arranca el vigilante. Lo llama {@link AdventureNeoMain}. */
+    /**
+     * Arranca el vigilante. Lo llaman {@link AdventureNeoMain} y, en Android,
+     * {@code AccesoAventura}. Una vez por proceso: llamarlo otra vez no hace nada.
+     */
     static void arm() {
         if ("false".equalsIgnoreCase(System.getProperty("neo.adventure.acquired"))) {
+            return;
+        }
+        if (!armed.compareAndSet(false, true)) {
             return;
         }
         final Thread t = new Thread(() -> {
@@ -85,11 +108,16 @@ public final class AcquiredLedger {
                     return;
                 }
                 try {
-                    if (Gdx.app != null && FModel.getMagicDb() != null
+                    final com.badlogic.gdx.Application app = Gdx.app;
+                    if (app != null && queued.get() && queuedFor != app) {
+                        queued.set(false); // lo pedido a un libGDX que ya no esta
+                    }
+                    if (app != null && FModel.getMagicDb() != null
                             && queued.compareAndSet(false, true)) {
                         // Uno en cola como mucho: si libGDX esta parado (un
                         // duelo nuestro delante), no se amontonan.
-                        Gdx.app.postRunnable(() -> {
+                        queuedFor = app;
+                        app.postRunnable(() -> {
                             queued.set(false);
                             syncNow();
                         });
@@ -146,8 +174,13 @@ public final class AcquiredLedger {
             book.update(counts, rebase, System.currentTimeMillis());
             rebase = false;
         } catch (final Throwable e) {
-            NeoDuelBridge.log("registro de cartas conseguidas: " + e);
+            log("registro de cartas conseguidas: " + e);
         }
+    }
+
+    /** Como {@code NeoDuelBridge.log}, sin cargar esa clase: trae JavaFX, y en Android no hay. */
+    private static void log(final String s) {
+        System.out.println("[aventura] " + s);
     }
 
     /** Cuando entro esa carta (milisegundos), o 0 si no se sabe. */
@@ -235,7 +268,7 @@ public final class AcquiredLedger {
                     }
                 }
             } catch (final IOException e) {
-                NeoDuelBridge.log("no se ha podido leer " + f + ": " + e);
+                log("no se ha podido leer " + f + ": " + e);
             }
         }
 
@@ -256,7 +289,7 @@ public final class AcquiredLedger {
                         java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                 dirty = false;
             } catch (final IOException e) {
-                NeoDuelBridge.log("no se ha podido guardar " + f + ": " + e);
+                log("no se ha podido guardar " + f + ": " + e);
             }
         }
     }

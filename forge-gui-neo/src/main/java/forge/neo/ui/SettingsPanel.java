@@ -425,13 +425,15 @@ public class SettingsPanel extends VBox {
         // Houston — MulliganDefs.MulliganRule) pero el jugador nunca podia
         // elegir: se aplicaba siempre la de fabrica (London) sin ni un
         // ajuste que lo dijera. Se aplica en NeoGame.applyEnginePrefs.
-        final String[] mulliganRules = {"London", "Vancouver", "Paris", "Original", "Houston"};
+        final String[] mulliganRules = {"London", "Vancouver", "Paris", "Original", "Houston",
+                forge.neo.match.FriendlyMulligan.RULE};
         final String[] mulliganLabels = {
                 NeoText.get("settings.mulligan.london"),
                 NeoText.get("settings.mulligan.vancouver"),
                 NeoText.get("settings.mulligan.paris"),
                 NeoText.get("settings.mulligan.original"),
-                NeoText.get("settings.mulligan.houston")};
+                NeoText.get("settings.mulligan.houston"),
+                NeoText.get("settings.mulligan.friendly")};
         final String mulliganNow =
                 NeoSettings.get(NeoSettings.MULLIGAN_RULE, NeoSettings.MULLIGAN_RULE_DEFAULT);
         String mulliganCurrent = mulliganLabels[0];
@@ -807,6 +809,15 @@ public class SettingsPanel extends VBox {
                     NeoSettings.save();
                     PromptBanner.refreshLive();
                 }));
+        // Como se mueve y se agranda: se hace en la propia carta, y un gesto que
+        // nadie sabe que existe no le sirve a nadie. Va pegada a SU interruptor:
+        // debajo del Reset parecia hablar del boton (itch.io, 06-10-2026).
+        final Label bannerNote = new Label(NeoText.get("settings.stackBanner.note"));
+        bannerNote.getStyleClass().add("settings-note");
+        bannerNote.setWrapText(true);
+        bannerNote.setMaxWidth(UiScale.px(560));
+        bannerNote.setMinHeight(Region.USE_PREF_SIZE);
+        getChildren().add(bannerNote);
         final Button bannerReset = new Button(NeoText.get("settings.stackBanner.reset"));
         bannerReset.getStyleClass().add("segment");
         bannerReset.setMinWidth(Region.USE_PREF_SIZE);
@@ -815,14 +826,6 @@ public class SettingsPanel extends VBox {
             host.refreshTable();
         });
         getChildren().add(row(NeoText.get("settings.stackBanner.place"), bannerReset));
-        // Como se mueve y se agranda: se hace en la propia carta, y un gesto que
-        // nadie sabe que existe no le sirve a nadie.
-        final Label bannerNote = new Label(NeoText.get("settings.stackBanner.note"));
-        bannerNote.getStyleClass().add("settings-note");
-        bannerNote.setWrapText(true);
-        bannerNote.setMaxWidth(UiScale.px(560));
-        bannerNote.setMinHeight(Region.USE_PREF_SIZE);
-        getChildren().add(bannerNote);
 
         // --- apilar las cartas iguales, no solo las fichas ---
         //
@@ -910,6 +913,16 @@ public class SettingsPanel extends VBox {
                 NeoSettings.getBool(forge.neo.quest.NeoQuestRewards.AUTO_SELL, true),
                 on -> {
                     NeoSettings.setBool(forge.neo.quest.NeoQuestRewards.AUTO_SELL, on);
+                    NeoSettings.save();
+                }));
+
+        // --- sobres solo del mundo en que estas (Quest) ---
+        //
+        // Apagado de fabrica: cambia la tienda de quien ya juegue en un mundo.
+        getChildren().add(toggleRow(NeoText.get("settings.questWorldShop"),
+                NeoSettings.getBool(forge.neo.quest.NeoQuest.WORLD_SHOP, false),
+                on -> {
+                    NeoSettings.setBool(forge.neo.quest.NeoQuest.WORLD_SHOP, on);
                     NeoSettings.save();
                 }));
 

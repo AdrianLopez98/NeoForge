@@ -208,7 +208,10 @@ public final class AscentMap {
         // "duro" (descanso, tienda). Solo las elites: adelantar tambien el
         // descanso quitaria tension en vez de darla.
         final boolean eliteAllowed = row >= (ascension >= 1 ? NO_HARD_BEFORE - 1 : NO_HARD_BEFORE);
-        final int elite = eliteAllowed ? 8 + act * 4 : 0;
+        // En modo infinito el acto pasa de 3, pero la MEZCLA de nodos se queda en
+        // la del acto 3: lo que sube alli es el rival (AscentBattle), no cuantas
+        // elites hay. Si no, a partir del acto 6 el mapa seria casi todo elites.
+        final int elite = eliteAllowed ? 8 + Math.min(act, AscentRun.ACTS) * 4 : 0;
         // ⚠️ Nada de descanso justo debajo de la fila de descanso obligatorio.
         // repeatsParent() mira los PADRES, y la fila REST_ROW se fija antes del
         // sorteo, asi que por ahi se colaban dos descansos seguidos: se veia en

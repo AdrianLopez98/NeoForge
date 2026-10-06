@@ -141,11 +141,22 @@ final class StarterDeck {
         }
     }
 
-    /** Si esta senal la ha lanzado una partida nueva, y no una carga. */
+    /**
+     * Si esta senal la ha lanzado una partida nueva, y no una carga.
+     *
+     * <p>Con la pila de un {@code Throwable} y no con {@code StackWalker}: este
+     * jar lo usa Android, y {@code StackWalker} solo existe desde Android 14
+     * (API 34). En un movil mas viejo lanzaba {@code NoClassDefFoundError}: la
+     * eleccion de comandante del mazo de salida no salia nunca, y el registro de
+     * cartas conseguidas ({@link AcquiredLedger}) habria roto la carga.
+     */
     static boolean fromNewWorld() {
-        return StackWalker.getInstance().walk(frames -> frames.anyMatch(f ->
-                "generateNewWorld".equals(f.getMethodName())
-                        && f.getClassName().endsWith("WorldSave")));
+        for (final StackTraceElement f : new Throwable().getStackTrace()) {
+            if ("generateNewWorld".equals(f.getMethodName()) && f.getClassName().endsWith("WorldSave")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void openPicker(final AdventurePlayer player, final ColorSet color,

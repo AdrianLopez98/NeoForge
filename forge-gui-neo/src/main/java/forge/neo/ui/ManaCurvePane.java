@@ -35,10 +35,36 @@ public class ManaCurvePane extends VBox {
 
         caption.getStyleClass().add("caption");
         bars.setAlignment(Pos.BOTTOM_LEFT);
-        bars.setMinHeight(UiScale.px(MAX_HEIGHT + 18));
-        bars.setPrefHeight(UiScale.px(MAX_HEIGHT + 18));
+        bars.setMinHeight(UiScale.px(MAX_HEIGHT + 38));
+        bars.setPrefHeight(UiScale.px(MAX_HEIGHT + 38));
+        // Aire para la cifra de la barra mas alta: sin el, se montaba encima
+        // del titulo.
+        bars.setPadding(new Insets(UiScale.px(20), 0, 0, 0));
 
+        // PLEGABLE (Ana, 06-10-2026: "se ensenyan demasiado pocas cartas del
+        // mazo y la curva ocupa mucha"). Plegada de fabrica: queda su titulo en
+        // una linea, y al clicarlo se abre. Se recuerda en neo.properties.
+        caption.setCursor(javafx.scene.Cursor.HAND);
+        caption.setId("mana-curve-toggle");
+        caption.setOnMouseClicked(e -> {
+            open = !open;
+            forge.neo.NeoSettings.set(OPEN_KEY, open ? "true" : null);
+            forge.neo.NeoSettings.save();
+            applyOpen();
+        });
         getChildren().addAll(caption, bars);
+        applyOpen();
+    }
+
+    private static final String OPEN_KEY = "deck.curveOpen";
+    private boolean open = forge.neo.NeoSettings.getBool(OPEN_KEY, false)
+            || Boolean.getBoolean("neo.deck.curveOpen");
+    private String captionText = NeoText.get("curve.caption");
+
+    private void applyOpen() {
+        bars.setVisible(open);
+        bars.setManaged(open);
+        caption.setText((open ? "▾  " : "▸  ") + captionText);
     }
 
     /** Vuelve a dibujar con la curva que le pase el editor. */
@@ -56,9 +82,10 @@ public class ManaCurvePane extends VBox {
             bars.getChildren().add(bar(cmc, curve[cmc], peak, curve.length));
         }
 
-        caption.setText(total == 0
+        captionText = total == 0
                 ? NeoText.get("curve.caption")
-                : NeoText.get("curve.captionWith", total));
+                : NeoText.get("curve.captionWith", total);
+        applyOpen();
     }
 
     /**

@@ -226,7 +226,9 @@ public class AscentMapScreen extends StackPane {
      */
 
     private Region statusBar() {
-        final Label title = new Label(NeoText.get("ascent.map.act", run.getAct()));
+        final Label title = new Label(run.isEndless()
+                ? NeoText.get("ascent.map.endless", run.endlessLevel())
+                : NeoText.get("ascent.map.act", run.getAct()));
         title.getStyleClass().add("ascent-act");
 
         // De que SITIO es este acto. Es lo unico que queda del plano, y va
@@ -318,6 +320,12 @@ public class AscentMapScreen extends StackPane {
         // lo que no se deshace no puede estar donde va la inercia de volver
         // (principio 6b). Pregunta antes igual, pero mejor no llegar ahi.
         final HBox bar = new HBox(10, abandon, hint, gap, relicsButton, deck, back);
+        // El codigo de la run, para compartirla (AscentSeed): a la vista, no
+        // detras de un menu, y a un clic de copiarse.
+        final Button code = AscentCodeButton.of(run.getCode());
+        if (code != null) {
+            bar.getChildren().add(bar.getChildren().indexOf(gap), code);
+        }
         bar.getStyleClass().add("ascent-bar");
         bar.setAlignment(Pos.CENTER_LEFT);
         // ⚠️ 38 abajo y no 16, exactamente por lo mismo que la barra de arriba

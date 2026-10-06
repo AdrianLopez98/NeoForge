@@ -1473,6 +1473,147 @@ public final class DeckEditor {
      */
     private PaperCard chosenCompanion;
 
+    /**
+     * Cuantas cartas sobran en el BANQUILLO por el limite del formato (Commander:
+     * de 0 a 10), o 0. Discord, 06-10-2026: un mazo importado con un banquillo
+     * grande (el "maybeboard" de Moxfield) no se podia guardar ni jugar —
+     * <i>"I don't know where the sideboard is"</i> — porque ninguna pantalla lo
+     * ensenya. En limitado no cuenta: alli el banquillo es el pozo.
+     */
+    public int sideboardOverflow() {
+        if (format.poolInSideboard() || !deck.has(DeckSection.Sideboard)) {
+            return 0;
+        }
+        final org.apache.commons.lang3.Range<Integer> range = deckFormat().getSideRange();
+        if (range == null || range.getMaximum() == null) {
+            return 0;
+        }
+        return Math.max(0, deck.get(DeckSection.Sideboard).countAll() - range.getMaximum());
+    }
+
+    /**
+     * Las cartas del BANQUILLO, sin el companero (tiene su fila), ordenadas por
+     * nombre; vacio en limitado, donde el banquillo es el pozo y ya se ve en el
+     * catalogo. Ana, 06-10-2026: "no es normal que se anyadan cosas al
+     * banquillo y no se pueda consultar".
+     */
+    public List<Map.Entry<PaperCard, Integer>> sideboardCards() {
+        final List<Map.Entry<PaperCard, Integer>> out = new ArrayList<>();
+        if (format.poolInSideboard() || !deck.has(DeckSection.Sideboard)) {
+            return out;
+        }
+        final PaperCard keep = companion();
+        for (final Map.Entry<PaperCard, Integer> e : deck.get(DeckSection.Sideboard)) {
+            if (!e.getKey().equals(keep)) {
+                out.add(new java.util.AbstractMap.SimpleEntry<>(e.getKey(), e.getValue()));
+            }
+        }
+        out.sort(Comparator.comparing((Map.Entry<PaperCard, Integer> e) -> sortName(e.getKey())));
+        return out;
+    }
+
+    /** Quita N copias de esa carta del banquillo. */
+    public void removeFromSideboard(final PaperCard card, final int amount) {
+        if (card == null || amount <= 0 || format.poolInSideboard() || !deck.has(DeckSection.Sideboard)) {
+            return;
+        }
+        final CardPool side = deck.get(DeckSection.Sideboard);
+        final int had = side.count(card);
+        side.remove(card, Math.min(had, amount));
+        if (had > 0) {
+            dirty = true;
+        }
+    }
+
+    /**
+     * Pasa una copia del banquillo al mazo principal. Los limites de copias
+     * cuentan las dos zonas juntas ({@link #countOf}), asi que moverla no puede
+     * pasarse de ninguno.
+     *
+     * @return true si se ha movido
+     */
+    public boolean moveSideboardToMain(final PaperCard card) {
+        if (card == null || format.poolInSideboard() || !deck.has(DeckSection.Sideboard)
+                || deck.get(DeckSection.Sideboard).count(card) <= 0) {
+            return false;
+        }
+        deck.get(DeckSection.Sideboard).remove(card, 1);
+        deck.getMain().add(card, 1);
+        dirty = true;
+        return true;
+    }
+
+    /** Si este mazo tiene banquillo que se pueda tocar (no en limitado, ni en la Aventura). */
+    public boolean hasSideboard() {
+        return !format.poolInSideboard() && deckFormat().getSideRange() != null
+                && (deckFormat().getSideRange().getMaximum() == null || deckFormat().getSideRange().getMaximum() > 0);
+    }
+
+    /** Pasa una copia del mazo principal al banquillo (el contrario de {@link #moveSideboardToMain}). */
+    public boolean moveMainToSideboard(final PaperCard card) {
+        if (card == null || !hasSideboard() || deck.getMain().count(card) <= 0) {
+            return false;
+        }
+        deck.getMain().remove(card, 1);
+        deck.getOrCreate(DeckSection.Sideboard).add(card, 1);
+        dirty = true;
+        return true;
+    }
+
+    /**
+     * Pone una copia del catalogo directamente en el banquillo. Las reglas son
+     * las de anyadir al mazo ({@link #rejectionReason}): los limites de copias
+     * cuentan las dos zonas juntas.
+     *
+     * @return null si se ha puesto; si no, por que
+     */
+    public String addToSideboard(final PaperCard card) {
+        if (card == null || !hasSideboard()) {
+            return forge.neo.NeoText.get("reject.noCard");
+        }
+        final String no = rejectionReason(card);
+        if (no != null) {
+            return no;
+        }
+        deck.getOrCreate(DeckSection.Sideboard).add(card, 1);
+        dirty = true;
+        return null;
+    }
+
+    /** Cuantas cartas hay en el banquillo, sin contar al companero. */
+    public int sideboardWithoutCompanion() {
+        if (!deck.has(DeckSection.Sideboard)) {
+            return 0;
+        }
+        final PaperCard keep = companion();
+        final CardPool side = deck.get(DeckSection.Sideboard);
+        return side.countAll() - (keep == null ? 0 : side.count(keep));
+    }
+
+    /**
+     * Vacia el banquillo, menos el companero si lo hay (va ahi por las reglas).
+     *
+     * @return cuantas cartas se han quitado
+     */
+    public int clearSideboard() {
+        if (format.poolInSideboard() || !deck.has(DeckSection.Sideboard)) {
+            return 0;
+        }
+        final PaperCard keep = companion();
+        final CardPool side = deck.get(DeckSection.Sideboard);
+        final int keepCount = keep == null ? 0 : side.count(keep);
+        final int removed = side.countAll() - keepCount;
+        if (removed <= 0) {
+            return 0;
+        }
+        side.clear();
+        if (keep != null) {
+            side.add(keep, keepCount);
+        }
+        dirty = true;
+        return removed;
+    }
+
     /** El companero que lleva el mazo, o null. */
     public PaperCard companion() {
         if (!usesCompanion() || !deck.has(DeckSection.Sideboard)) {
@@ -1601,10 +1742,42 @@ public final class DeckEditor {
     }
 
     /**
+     * Cambia el arte de SOLO {@code copies} copias del mazo principal (Discord,
+     * 06-10-2026: <i>"alt arts for the same cards, like for 9 Nazgul"</i>; y
+     * Ana: 30 llanuras, 15 de un arte y 15 de otro). Las cambiadas salen como su
+     * propia fila; el motor guarda el mazo por impresion, asi que se juega y se
+     * guarda tal cual, y los limites de copias cuentan por NOMBRE
+     * ({@link #countOf}). Si son todas, es {@link #switchPrinting} (que ademas lo
+     * recuerda como arte preferido); si son unas pocas, no se recuerda: es para
+     * esas copias, no para la carta.
+     *
+     * @return cuantas se han cambiado
+     */
+    public int switchPrinting(final PaperCard from, final PaperCard to, final int copies) {
+        final int inMain = deck.getMain().count(from);
+        if (copies >= inMain) {
+            return switchPrinting(from, to);
+        }
+        if (from == null || to == null || from.equals(to) || copies <= 0) {
+            return 0;
+        }
+        deck.getMain().remove(from, copies);
+        deck.getMain().add(to, copies);
+        dirty = true;
+        return copies;
+    }
+
+    /** Cuantas copias de ESTA impresion hay en el principal: si son varias, se puede cambiar solo una. */
+    public int copiesOfPrintingInMain(final PaperCard card) {
+        return card == null ? 0 : deck.getMain().count(card);
+    }
+
+    /**
      * Cambia el arte de una carta del mazo.
      *
-     * <p>Se cambian TODAS las copias de golpe: llevar la misma carta con dos
-     * artes distintos es un caso que nadie quiere y que solo lia la lista.
+     * <p>Se cambian TODAS las copias de golpe (de esta impresion): es lo que
+     * quiere casi siempre. Para llevar varios artes de la misma carta esta
+     * {@link #switchPrinting(PaperCard, PaperCard, int)}.
      *
      * <p>Ademas se guarda como arte preferido en las preferencias de Forge, que
      * es lo que hace que la eleccion valga tambien la proxima vez y en el resto

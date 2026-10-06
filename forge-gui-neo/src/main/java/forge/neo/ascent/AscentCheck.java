@@ -85,6 +85,7 @@ public final class AscentCheck {
             elJefeNoEsArchienemigo();
             recorrerRuns();
             elActoPasaSolo();
+            modoInfinito();
             elRouterLoLlama();
             sueloDeCombate();
             nivelesExplicados();
@@ -1351,6 +1352,128 @@ public final class AscentCheck {
      * seguir jugando, que es exactamente lo que el jugador reporto que no
      * pasaba.
      */
+    /**
+     * <b>El modo infinito</b> (Discord, 05-10-2026): ganada la run, se sigue con
+     * el mismo mazo y cada nivel es mas duro, hasta perder.
+     *
+     * <p>Se juega por el mismo camino que el juego ({@code advance()}, nunca
+     * {@code nextAct()} a mano: la leccion del 17-09) y se mide lo que el
+     * jugador nota: que se puede entrar, que hay mapa, que el rival de cada
+     * nivel es mas duro que el del anterior, que se guarda y que el record se
+     * apunta. Y lo que no debe pasar: entrar dos veces, o que el mapa infinito
+     * se llene de elites.
+     */
+    private static void modoInfinito() {
+        final AscentRun run = demoRun(AscentRun.Mode.STANDARD);
+        if (run == null) {
+            fail("modo infinito: no se ha podido montar la run");
+            return;
+        }
+        final int recordAntes = AscentUnlocks.bestEndless(AscentRun.Mode.STANDARD);
+        try {
+            final Random rnd = new Random(20261005L);
+            AscentRun.Step paso = AscentRun.Step.CONTINUE;
+            for (int act = 1; act <= AscentRun.ACTS; act++) {
+                if (!walkToBoss(run, rnd)) {
+                    fail("modo infinito: no se ha llegado al jefe del acto " + act);
+                    return;
+                }
+                paso = run.advance();
+            }
+            if (paso != AscentRun.Step.RUN_COMPLETED || run.isEndless()) {
+                fail("modo infinito: la run no se ha ganado como siempre (" + paso + ")");
+                return;
+            }
+            // El jefe del acto 3, como referencia de lo que es "normal".
+            final AscentBattle.Plan jefeNormal = AscentBattle.plan(run, firstOfKind(run, AscentNode.Kind.BOSS));
+
+            if (!run.enterEndless()) {
+                fail("modo infinito: con la run ganada no deja entrar");
+                return;
+            }
+            if (run.enterEndless()) {
+                fail("modo infinito: deja entrar DOS veces");
+                return;
+            }
+            if (!run.isEndless() || run.endlessLevel() != 1 || run.getAct() != AscentRun.ACTS + 1
+                    || run.isCompleted() || !run.isVictoryRecorded()) {
+                fail("modo infinito: al entrar, " + run + " nivel " + run.endlessLevel()
+                        + (run.isCompleted() ? " y se da por completada" : ""));
+                return;
+            }
+            if (run.getLife() != run.getMaxLife() || run.getCleared() != 0 || run.available().isEmpty()) {
+                fail("modo infinito: el primer nivel no empieza con la vida llena y un mapa nuevo ("
+                        + run + ", " + run.available().size() + " nodos a mano)");
+                return;
+            }
+            // La mezcla de nodos es la del acto 3: lo que sube es el rival.
+            final int elites = countKindAt(run.map(), AscentNode.Kind.ELITE, -1);
+            if (elites > AscentMap.ROWS * AscentMap.COLS / 2) {
+                fail("modo infinito: el mapa del nivel 1 trae " + elites + " elites");
+                return;
+            }
+
+            final AscentBattle.Plan jefe1 = AscentBattle.plan(run, firstOfKind(run, AscentNode.Kind.BOSS));
+            if (!walkToBoss(run, rnd) || run.advance() != AscentRun.Step.NEXT_ACT
+                    || run.endlessLevel() != 2) {
+                fail("modo infinito: ganado el jefe del nivel 1 no se pasa al 2 (" + run + ")");
+                return;
+            }
+            final AscentBattle.Plan jefe2 = AscentBattle.plan(run, firstOfKind(run, AscentNode.Kind.BOSS));
+            if (jefe1.opponentRelics.size() <= jefeNormal.opponentRelics.size()
+                    || jefe2.opponentRelics.size() <= jefe1.opponentRelics.size()) {
+                fail("modo infinito: las reliquias del jefe no suben (acto 3 "
+                        + jefeNormal.opponentRelics.size() + ", nivel 1 " + jefe1.opponentRelics.size()
+                        + ", nivel 2 " + jefe2.opponentRelics.size() + ")");
+                return;
+            }
+            if (jefe2.opponentHeadStart.size() <= jefe1.opponentHeadStart.size()) {
+                fail("modo infinito: el nivel 2 no da mas tierras de salida que el 1 ("
+                        + jefe1.opponentHeadStart.size() + " y " + jefe2.opponentHeadStart.size() + ")");
+                return;
+            }
+            // La vida depende ademas del mazo de cada uno, asi que se mide la
+            // formula, que es lo que se le suma encima.
+            if (!(AscentBattle.endlessLife(30, 0) < AscentBattle.endlessLife(30, 1)
+                    && AscentBattle.endlessLife(30, 1) < AscentBattle.endlessLife(30, 3))) {
+                fail("modo infinito: la vida del rival no sube con el nivel");
+                return;
+            }
+            if (AscentBattle.endlessRelics(AscentNode.Kind.COMBAT, 1) < 1
+                    || AscentBattle.endlessRelics(AscentNode.Kind.BOSS, 20) + 2 < AscentBattle.ENDLESS_MAX_RELICS) {
+                fail("modo infinito: reliquias de un combate normal o tope mal puestos");
+                return;
+            }
+
+            // Se guarda y se recarga como cualquier run.
+            final AscentRun recargada = AscentRun.current();
+            if (recargada == null || !recargada.isEndless() || recargada.endlessLevel() != 2) {
+                fail("modo infinito: al recargar no sigue en el nivel 2 (" + recargada + ")");
+                return;
+            }
+
+            // El resumen dice hasta donde llegaste, y el record se apunta.
+            if (AscentSummary.of(run, true, false).getEndless() != 2) {
+                fail("modo infinito: el resumen no dice el nivel al que llegaste");
+                return;
+            }
+            AscentUnlocks.setBestEndlessForTest(AscentRun.Mode.STANDARD, 0);
+            if (!AscentUnlocks.recordEndless(AscentRun.Mode.STANDARD, 2)
+                    || AscentUnlocks.recordEndless(AscentRun.Mode.STANDARD, 1)
+                    || AscentUnlocks.bestEndless(AscentRun.Mode.STANDARD) != 2) {
+                fail("modo infinito: el record de profundidad no se apunta bien");
+                return;
+            }
+            ok("modo infinito: tras ganar se entra una sola vez; cada nivel es un mapa nuevo con"
+                    + " la vida llena, el jefe pasa de " + jefeNormal.opponentRelics.size() + " a "
+                    + jefe1.opponentRelics.size() + " y " + jefe2.opponentRelics.size()
+                    + " reliquias y gana tierras de salida; se guarda y el record se apunta");
+        } finally {
+            AscentUnlocks.setBestEndlessForTest(AscentRun.Mode.STANDARD, recordAntes);
+            run.discard();
+        }
+    }
+
     private static void elActoPasaSolo() {
         final AscentRun run = demoRun(AscentRun.Mode.STANDARD);
         if (run == null) {

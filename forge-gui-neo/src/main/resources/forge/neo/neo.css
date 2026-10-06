@@ -3287,6 +3287,37 @@
     -fx-background-color: #4C3B24;
 }
 
+/* La accion principal de una pantalla de Ascenso (Empezar, Continuar, la
+   respuesta segura de un aviso). Llevaban btn-primary desde el principio, y
+   .ascent-button se lo pisaba igual que al elegido: salian identicos a Volver,
+   y en una pantalla ancha "Empezar la ascension" no se encontraba (Ana,
+   06-10-2026). Dos clases ganan a una sea cual sea el orden de la hoja. La
+   sombra es lo que la separa de un boton elegido, que es plano. */
+.ascent-button.btn-primary {
+    -fx-background-color: #3B2E1C;
+    -fx-text-fill: #F3E7C8;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.35), 8, 0.2, 0, 2);
+}
+
+.ascent-button.btn-primary:hover {
+    -fx-background-color: #4C3B24;
+}
+
+/* Una regla del modo que hay que leer (los retos no suben la Ascension): la
+   tinta del pergamino, en negrita. Ni rojo de error ni gris de pie de pagina. */
+/* La racha de retos superados, junto a su llama: el naranja de la llama. */
+.ascent-streak {
+    -fx-text-fill: #B4501E;
+    -fx-font-weight: 900;
+    -fx-font-size: 1.2em;
+}
+
+.ascent-notice {
+    -fx-text-fill: #3B2E1C;
+    -fx-font-weight: 800;
+    -fx-font-size: 1.0em;
+}
+
 /* Una expansion elegida a mano en el pozo de la run (bloque a medida). Va
    sobre el papel: tinta oscura sobre pastilla clara, y clicarla la quita. */
 .ascent-set-chip {

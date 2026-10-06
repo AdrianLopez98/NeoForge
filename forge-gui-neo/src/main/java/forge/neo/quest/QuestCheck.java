@@ -1712,6 +1712,29 @@ public final class QuestCheck {
             // Y viajar al mismo sitio no hace nada, que es lo que evita
             // regenerar rivales por clicar dos veces.
             ok &= !forge.neo.quest.NeoQuestWorlds.travelTo(target);
+
+            // Los sobres del mundo (ajuste NeoQuest.WORLD_SHOP, apagado de
+            // fabrica): sin el, todas; con el, solo las de este mundo.
+            final String was = forge.neo.NeoSettings.get(NeoQuest.WORLD_SHOP, null);
+            try {
+                forge.neo.NeoSettings.set(NeoQuest.WORLD_SHOP, null);
+                final int allPacks = NeoQuestShop.editions().size();
+                forge.neo.NeoSettings.setBool(NeoQuest.WORLD_SHOP, true);
+                final java.util.Set<String> world = NeoQuest.worldSets();
+                final java.util.List<forge.card.CardEdition> local = NeoQuestShop.editions();
+                boolean inside = world != null && !local.isEmpty();
+                for (final forge.card.CardEdition e : local) {
+                    inside &= world.contains(e.getCode());
+                }
+                for (final forge.card.CardEdition e : NeoQuestPrize.choices()) {
+                    inside &= world != null && world.contains(e.getCode());
+                }
+                System.out.printf(Locale.ROOT, "  Sobres del mundo: %d de todas -> %d de %s%n",
+                        allPacks, local.size(), target.getName());
+                ok &= inside && local.size() < allPacks;
+            } finally {
+                forge.neo.NeoSettings.set(NeoQuest.WORLD_SHOP, was);
+            }
         }
 
         // Y todo esto sobrevive a guardar y recargar, que es donde se pierde

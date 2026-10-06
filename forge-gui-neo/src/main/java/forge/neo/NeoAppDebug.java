@@ -1018,6 +1018,41 @@ final class NeoAppDebug {
         app.table.setPrompt("Maqueta: Paige revela su mano (--mock-revealed)");
     }
 
+    /**
+     * "Elige un nombre de carta": TODOS los nombres, como los manda el motor
+     * ({@code PlayerControllerHuman.chooseSingleCardFace}), en el dialogo de
+     * elegir. Con {@code -Dneo.choice.search=texto} lo escribe en el buscador.
+     */
+    void mockCardName() {
+        final long t0 = System.nanoTime();
+        final List<String> names = forge.model.FModel.getMagicDb().getCommonCards().streamAllFaces()
+                .map(forge.card.ICardFace::getName).distinct().sorted()
+                .collect(java.util.stream.Collectors.toList());
+        final forge.neo.ui.ChoiceDialog<String> dialog = new forge.neo.ui.ChoiceDialog<>(
+                "Choose a card name", names, 1, 1, null, 132,
+                picked -> System.out.println("[card-name] elegido: " + picked));
+        app.table.getOverlay().show(dialog);
+        System.out.printf(java.util.Locale.ROOT, "[card-name] %d nombres, dialogo en %d ms%n",
+                names.size(), (System.nanoTime() - t0) / 1_000_000);
+        final String q = System.getProperty("neo.choice.search");
+        if (q != null) {
+            final javafx.scene.Node f = dialog.lookup("#choice-search");
+            if (f instanceof javafx.scene.control.TextField tf) {
+                tf.setText(q);
+                // -Dneo.choice.enter=true: Intro (la primera coincidencia) y
+                // Aceptar, para ver que lo elegido es lo que se ve.
+                if (Boolean.getBoolean("neo.choice.enter")) {
+                    tf.fireEvent(new javafx.event.ActionEvent());
+                    for (final javafx.scene.Node n : dialog.lookupAll(".btn-primary")) {
+                        if (n instanceof javafx.scene.control.Button btn && !btn.isDisabled()) {
+                            btn.fire();
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     void mockZonePick() {
         final forge.trackable.Tracker t = new forge.trackable.Tracker();
         final CardView pickable = new CardView(9101, t, "Criatura elegible");

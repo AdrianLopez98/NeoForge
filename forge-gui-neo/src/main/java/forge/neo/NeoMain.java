@@ -314,6 +314,39 @@ public final class NeoMain {
                 banner("Auto-pass: improvisar y convocar");
                 forge.neo.match.ImproviseCheck.run();
                 break;
+            case "seedcheck":
+                // La misma semilla, la misma run: en este proceso y en otro.
+                // Ver AscentSeed y AscentSeedCheck.
+                banner("Ascenso: la semilla y el codigo de una run");
+                forge.neo.ascent.AscentSeedCheck.run();
+                break;
+            case "seed":
+                // Una semilla para el canal de Discord, con su ficha. Ver
+                // AscentSeedCheck.describe.
+                forge.neo.ascent.AscentSeedCheck.describe();
+                break;
+            case "seedprint":
+                // El segundo proceso de seedcheck: solo las huellas.
+                forge.neo.ascent.AscentSeedCheck.print();
+                break;
+            case "extracombatcheck":
+                // Un combate extra (Relentless Assault) desde la segunda fase
+                // principal: por que fases pasa y si pregunta atacantes.
+                banner("Combate extra: Relentless Assault");
+                forge.neo.match.ExtraCombatCheck.run();
+                break;
+            case "mulligancheck":
+                // El mulligan amistoso: siempre a siete, tambien para la IA.
+                // Ver FriendlyMulligan.
+                banner("Mulligan: la regla amistosa");
+                forge.neo.match.MulliganCheck.run();
+                break;
+            case "phasestopcheck":
+                // Que te pare en una fase sin parada cuando tienes algo que solo
+                // vale ahi (Desert y el final del combate). Ver PhaseOnlyAbilities.
+                banner("Auto-pass: lo que solo se puede activar en una fase");
+                forge.neo.match.PhaseStopCheck.run();
+                break;
             case "leakcheck":
                 // Varias partidas seguidas en la misma escena, y que las
                 // acabadas se suelten. La pantalla en blanco de la Aventura

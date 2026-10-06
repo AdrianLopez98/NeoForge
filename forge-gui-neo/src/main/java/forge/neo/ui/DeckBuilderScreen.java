@@ -118,6 +118,12 @@ public class DeckBuilderScreen extends StackPane {
     private final Button foilAllButton = new Button(NeoText.get("deck.foilAll"));
 
     private final Button cleanup = new Button(NeoText.get("deck.cleanup"));
+    /**
+     * Vaciar el banquillo cuando se pasa del limite del formato (Discord,
+     * 06-10-2026): el banquillo no se ve en ninguna pantalla, y un mazo
+     * importado con uno grande no se podia arreglar.
+     */
+    private final Button clearSide = new Button();
     private final Button generate = new Button(NeoText.get("deck.generate"));
     private final Button importer = new Button(NeoText.get("deck.import"));
 
@@ -1382,6 +1388,11 @@ public class DeckBuilderScreen extends StackPane {
         cleanup.setOnAction(e -> removeIllegal());
         cleanup.setVisible(false);
         cleanup.setManaged(false);
+        clearSide.getStyleClass().add("btn-secondary");
+        clearSide.setId("deck-clear-sideboard");
+        clearSide.setOnAction(e -> clearSideboard());
+        clearSide.setVisible(false);
+        clearSide.setManaged(false);
 
         final Button save = new Button(NeoText.get("common.save"));
         save.getStyleClass().add("btn-primary");
@@ -1392,13 +1403,13 @@ public class DeckBuilderScreen extends StackPane {
 
         // Ningun boton se encoge por debajo de su texto: cuando la fila no cabe,
         // JavaFX lo corta con puntos suspensivos y queda un pie ilegible.
-        for (final Button b : new Button[] {back, cleanup, commander, spellButton, generate,
+        for (final Button b : new Button[] {back, cleanup, clearSide, commander, spellButton, generate,
                 autoBuild, clearMain, importer, export, save}) {
             b.setMinWidth(Region.USE_PREF_SIZE);
         }
 
         final FlowPane actions =
-                new FlowPane(8, 8, cleanup, commander, spellButton, generate, autoBuild, clearMain,
+                new FlowPane(8, 8, cleanup, clearSide, commander, spellButton, generate, autoBuild, clearMain,
                         importer, export);
         actions.setAlignment(Pos.CENTER_RIGHT);
         actions.setMinWidth(0);
@@ -1914,6 +1925,10 @@ public class DeckBuilderScreen extends StackPane {
         }
         cleanup.setVisible(!illegal.isEmpty());
         cleanup.setManaged(!illegal.isEmpty());
+        final boolean sideTooBig = editor.sideboardOverflow() > 0;
+        clearSide.setText(NeoText.get("deck.clearSideboard", editor.sideboardWithoutCompanion()));
+        clearSide.setVisible(sideTooBig);
+        clearSide.setManaged(sideTooBig);
         clearMain.setDisable(main == 0);
 
         // Con el filtro del mazo puesto, un grupo sin nada que ensenyar no sale,
@@ -1943,6 +1958,25 @@ public class DeckBuilderScreen extends StackPane {
             heading.getStyleClass().add("deck-group");
             deckList.getChildren().add(heading);
             deckList.getChildren().addAll(rows);
+        }
+        // EL BANQUILLO, al final (Ana, 06-10-2026: no se podia consultar). Un
+        // mazo importado de Moxfield lo trae con el "maybeboard", y sin verlo
+        // no habia forma de saber por que el mazo no valia.
+        if (!filtering) {
+            final List<Map.Entry<PaperCard, Integer>> side = editor.sideboardCards();
+            if (!side.isEmpty()) {
+                int inSide = 0;
+                final List<Region> rows = new ArrayList<>();
+                for (final Map.Entry<PaperCard, Integer> e : side) {
+                    rows.add(sideboardRow(e.getKey(), e.getValue()));
+                    inSide += e.getValue();
+                }
+                final Label heading = new Label(NeoText.get("deck.sideboard", inSide));
+                heading.getStyleClass().add("deck-group");
+                heading.setId("deck-sideboard");
+                deckList.getChildren().add(heading);
+                deckList.getChildren().addAll(rows);
+            }
         }
         if (filtering) {
             deckCount.setText(NeoText.get("count.cards", main) + "  ·  "
@@ -2033,6 +2067,45 @@ public class DeckBuilderScreen extends StackPane {
             if (e.getButton() == MouseButton.SECONDARY) {
                 cardMenu(card, row, e.getScreenX(), e.getScreenY());
             } else if (e.getButton() == MouseButton.PRIMARY) {
+                zoom(card);
+            }
+        });
+        return row;
+    }
+
+    /** Una linea del banquillo: quitarla, o pasarla al mazo. */
+    private Region sideboardRow(final PaperCard card, final int amount) {
+        final Label qty = new Label(String.valueOf(amount));
+        qty.getStyleClass().add("deck-row-qty");
+        qty.setMinWidth(UiScale.px(22));
+        final Label name = new Label(CardText.nameOf(card));
+        name.getStyleClass().add("deck-row-name");
+        name.setMaxWidth(Double.MAX_VALUE);
+        name.setMinWidth(0);
+        HBox.setHgrow(name, Priority.ALWAYS);
+        final Button toMain = stepper("↑", () -> {
+            editor.moveSideboardToMain(card);
+            refreshDeck();
+            refreshCatalogue();
+        });
+        javafx.scene.control.Tooltip.install(toMain,
+                new javafx.scene.control.Tooltip(NeoText.get("deck.sideboard.toMain")));
+        final Button less = stepper("-", () -> {
+            editor.removeFromSideboard(card, 1);
+            refreshDeck();
+            refreshCatalogue();
+        });
+        final HBox content = new HBox(7, qty, name, manaCost(card), new HBox(2, toMain, less));
+        content.setAlignment(Pos.CENTER_LEFT);
+        content.setPadding(new Insets(7, 8, 7, 8));
+        final StackPane row = new StackPane(new DeckArtStrip(card), content);
+        row.setMinHeight(UiScale.px(44));
+        row.setPrefHeight(UiScale.px(44));
+        row.getStyleClass().add("deck-row");
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.setOpacity(0.8);
+        row.setOnMouseClicked(e -> {
+            if (e.getButton() == MouseButton.PRIMARY) {
                 zoom(card);
             }
         });
@@ -2132,7 +2205,15 @@ public class DeckBuilderScreen extends StackPane {
                             editor.remove(card, have);
                             refreshDeck();
                             refreshCatalogue();
-                        }) : null));
+                        }) : null,
+                // Al banquillo (Ana, 06-10-2026: "como anyado algo al banquillo?").
+                editor.hasSideboard() && editor.copiesOfPrintingInMain(card) > 0
+                        ? new CardActionMenu.Action(NeoText.get("deck.toSideboard"), null, true,
+                                () -> {
+                                    editor.moveMainToSideboard(card);
+                                    refreshDeck();
+                                    refreshCatalogue();
+                                }) : null));
     }
 
     /**
@@ -2301,13 +2382,18 @@ public class DeckBuilderScreen extends StackPane {
             return;
         }
         overlay.setOnBackgroundClick(overlay::hide);
-        overlay.show(new PrintingDialog(card, printings, cardWidth, picked -> {
+        final PrintingDialog[] dialog = new PrintingDialog[1];
+        dialog[0] = new PrintingDialog(card, printings, cardWidth, picked -> {
             overlay.hide();
-            if (editor.switchPrinting(card, picked) > 0) {
+            // Las copias que diga el contador (de fabrica todas): nueve Nazgul
+            // con nueve artes, treinta llanuras de dos (Discord, 06-10-2026).
+            final int changed = editor.switchPrinting(card, picked, dialog[0].copies());
+            if (changed > 0) {
                 refreshDeck();
                 refreshCatalogue();
             }
-        }, overlay::hide));
+        }, overlay::hide).offerCopies(editor.copiesOfPrintingInMain(card));
+        overlay.show(dialog[0]);
     }
 
     /** Boton pequenyo de mas/menos de una fila del mazo. */
@@ -2396,6 +2482,26 @@ public class DeckBuilderScreen extends StackPane {
                     overlay.hide();
                     if (choice == 0) {
                         editor.removeIllegal();
+                        refreshDeck();
+                        refreshCatalogue();
+                    }
+                }));
+    }
+
+    /** Vaciar el banquillo, preguntando antes: no se deshace. */
+    private void clearSideboard() {
+        final int n = editor.sideboardWithoutCompanion();
+        if (n <= 0) {
+            return;
+        }
+        overlay.setOnBackgroundClick(null);
+        overlay.show(new ConfirmDialog(NeoText.get("deck.clearSideboard", n),
+                NeoText.get("deck.clearSideboard.ask", n),
+                java.util.List.of(NeoText.get("deck.clearSideboard.yes"), NeoText.get("common.cancel")), 0,
+                choice -> {
+                    overlay.hide();
+                    if (choice == 0) {
+                        editor.clearSideboard();
                         refreshDeck();
                         refreshCatalogue();
                     }
@@ -2928,6 +3034,16 @@ public class DeckBuilderScreen extends StackPane {
                 refreshCatalogue();
             }));
         }
+        if (editor.hasSideboard()) {
+            actions.add(new CardActionMenu.Action(NeoText.get("deck.addToSideboard"), no, no == null, () -> {
+                final String why = editor.addToSideboard(card);
+                refreshDeck();
+                refreshCatalogue();
+                if (why != null) {
+                    message(NeoText.get("deck.noMoreCopies"), why);
+                }
+            }));
+        }
         if (editor.countOf(card) > 0) {
             actions.add(new CardActionMenu.Action(NeoText.get("deck.removeOne"), null, true, () -> {
                 editor.remove(card, 1);
@@ -3295,6 +3411,21 @@ public class DeckBuilderScreen extends StackPane {
             if (!cards.isEmpty()) {
                 zoom(cards.get(0).getKey());
                 return;
+            }
+        }
+    }
+
+    /**
+     * El selector de arte de la primera carta del mazo con mas de una copia
+     * ({@code --printing}), para capturar la eleccion "todas / solo una".
+     */
+    public void choosePrintingForTest() {
+        for (final Map.Entry<String, Integer> group : editor.typeCounts().entrySet()) {
+            for (final Map.Entry<PaperCard, Integer> e : editor.cardsInGroup(group.getKey())) {
+                if (e.getValue() > 1 && editor.printingsOf(e.getKey()).size() > 1) {
+                    choosePrinting(e.getKey());
+                    return;
+                }
             }
         }
     }

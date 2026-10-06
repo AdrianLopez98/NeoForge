@@ -292,7 +292,19 @@ public final class AscentBattle {
             headStartCount++;
         }
 
-        final List<PaperCard> opponentRelics = relicsFor(kind, act, rnd);
+        // MODO INFINITO: la escalera de mazos ya esta arriba del todo en el acto
+        // 3, asi que cada nivel de mas sube lo que si se puede seguir subiendo:
+        // vida, reliquias y tierras de ventaja. Sin techo de dificultad a
+        // proposito — el jugador lo pidio "even if it's unbalanced", y la gracia
+        // es ver hasta donde llegas —, pero con tope en lo que cuesta TIEMPO
+        // (las reliquias: la IA evalua cada una en cada prioridad).
+        final int endless = run.endlessLevel();
+        if (endless > 0) {
+            life = endlessLife(life, endless);
+            headStartCount += endlessHeadStart(endless);
+        }
+
+        final List<PaperCard> opponentRelics = relicsFor(kind, act, rnd, endlessRelics(kind, endless));
         if (kind == AscentNode.Kind.BOSS && act == AscentRun.ACTS && run.getAscension() >= 10) {
             // Ascension 10: el jefe del acto 3 tiene una "segunda fase". No es
             // una regla de Magic — hay que inventar que significa — y se hace
@@ -530,7 +542,10 @@ public final class AscentBattle {
         // El plan, al registro. Es lo unico que deja saber despues por que un
         // nodo salio como salio: la vida del rival, su caracter y su ventaja no
         // se pueden deducir mirando la mesa.
-        System.out.println("[ascenso] " + plan);
+        // En modo infinito el plan dice "acto 3" (la curva se recorta ahi): se
+        // dice delante el nivel de verdad, que es lo que hace falta al leerlo.
+        System.out.println("[ascenso] " + (run.isEndless() ? "infinito " + run.endlessLevel() + " · " : "")
+                + plan);
         // Ending.ASCENT: la pantalla de fin de partida de un nodo ofrece UN
         // boton, "continuar Ascenso". Los dos de una partida suelta mentian los
         // dos — "otra partida" se leia como dejar el duelo a medias y borraba
@@ -757,11 +772,42 @@ public final class AscentBattle {
         return out;
     }
 
+    /** Cuanto sube la vida del rival por cada nivel infinito: +15%. */
+    static final double ENDLESS_LIFE = 0.15;
+
+    /** Las reliquias, como mucho, que lleva un rival en modo infinito. */
+    static final int ENDLESS_MAX_RELICS = 8;
+
+    /** Las tierras de ventaja de mas, como mucho, en modo infinito. */
+    static final int ENDLESS_MAX_HEAD_START = 4;
+
+    /** La vida de un rival en ese nivel infinito. */
+    static int endlessLife(final int life, final int level) {
+        return (int) Math.round(life * (1.0 + ENDLESS_LIFE * Math.max(0, level)));
+    }
+
+    /** Las tierras de ventaja de mas: una cada dos niveles. */
+    static int endlessHeadStart(final int level) {
+        return Math.min(ENDLESS_MAX_HEAD_START, Math.max(0, level) / 2);
+    }
+
+    /**
+     * Las reliquias de mas en ese nivel infinito: un combate normal una cada
+     * dos niveles (empieza a llevar desde el primero), una elite y un jefe una
+     * por nivel.
+     */
+    static int endlessRelics(final AscentNode.Kind kind, final int level) {
+        if (level <= 0) {
+            return 0;
+        }
+        return kind == AscentNode.Kind.COMBAT ? (level + 1) / 2 : level;
+    }
+
     /** Las reliquias que le tocan al rival de ese nodo. */
     private static List<PaperCard> relicsFor(final AscentNode.Kind kind, final int act,
-                                             final Random rnd) {
-        final int howMany = kind == AscentNode.Kind.ELITE ? 1
-                : kind == AscentNode.Kind.BOSS ? bossRelics(act) : 0;
+                                             final Random rnd, final int extra) {
+        final int howMany = Math.min(ENDLESS_MAX_RELICS, extra + (kind == AscentNode.Kind.ELITE ? 1
+                : kind == AscentNode.Kind.BOSS ? bossRelics(act) : 0));
         final List<PaperCard> out = new ArrayList<>();
         if (howMany == 0) {
             return out;

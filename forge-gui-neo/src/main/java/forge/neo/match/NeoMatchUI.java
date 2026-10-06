@@ -846,6 +846,13 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             return;
         }
 
+        // Una tierra mientras se elige que girar para waterbend, convocar o
+        // improvisar: el motor no la acepta ahi, asi que se pasa al pago y se
+        // gira alli. Ver landPaysTheRest.
+        if (landPaysTheRest(card)) {
+            return;
+        }
+
         clickTrace(card, "activar");
         lastClicked = card;
         respondLater(() -> getGameController().selectCard(card, null, null));
@@ -3116,6 +3123,15 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         // FModel.getPreferences()), asi que llegar aqui no es tarde.
         if (mode == Mode.HUMAN) {
             NeoGame.applyEnginePrefs();
+            // Un nodo de Ascenso, con London siempre: con semillas, todos con las
+            // mismas reglas (FriendlyMulligan.ASCENT_RULE).
+            if (ending == Ending.ASCENT) {
+                forge.StaticData.instance().setMulliganRule(
+                        FriendlyMulligan.apply(FriendlyMulligan.ASCENT_RULE));
+                log("Ascenso: mulligan %s (el ajuste dice %s)", FriendlyMulligan.ASCENT_RULE,
+                        forge.neo.NeoSettings.get(forge.neo.NeoSettings.MULLIGAN_RULE,
+                                forge.neo.NeoSettings.MULLIGAN_RULE_DEFAULT));
+            }
             // applyEnginePrefs acaba de encender los resaltados: la marca de
             // setActionableScans tiene que decir lo mismo, o la proxima vez que
             // haya que apagarlos se creera que ya estan apagados.
@@ -3622,6 +3638,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             return;
         }
         lastPrompt = message == null ? "" : message;
+        tapToPayStep = TapToPayStep.parse(message);
         // CR 903.9a: el comandante que se ha ido al cementerio o al exilio. El
         // motor lo pregunta como un si/no cualquiera y asi se pasa de largo.
         // Ver offerCommanderZone: es una decision que NO se puede deshacer.
@@ -3652,7 +3669,11 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             // pregunta del comandante, el prompt rutinario -, y reconocer sobre
             // un texto que ya hemos reescrito seria reconocer lo nuestro. Ver
             // EngineText, que no es EnginePhrase.
-            final String shown = forge.neo.EngineText.prompt(
+            // Girar para pagar (waterbend, convocar, improvisar): el texto del
+            // motor no dice que OK lleva al pago con mana. Ver tapToPayPrompt.
+            final String tapToPay = tapToPayPrompt(tapToPayStep);
+            final String shown = tapToPay != null ? tapToPay
+                    : forge.neo.EngineText.prompt(
                     (isRoutinePriorityPrompt(message)
                             ? routinePrompt() : frontLoadInstruction(message)))
                     + pickedSuffix();
@@ -3785,6 +3806,63 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
 
     /** El ultimo mensaje que mando el motor, tal cual. */
     private volatile String lastPrompt = "";
+
+    // ------------------------------------------------------------------
+    // Girar para pagar: waterbend, convocar, improvisar. Ver TapToPayStep,
+    // que es lo que se comparte con Android.
+    // ------------------------------------------------------------------
+
+    /**
+     * El paso de girar mientras dura, o null fuera de el. Lo pone
+     * {@link #showPromptMessage}, que el motor llama justo antes de
+     * {@link #updateButtons}.
+     */
+    private volatile TapToPayStep.Step tapToPayStep;
+
+    /** La tierra que se clico en ese paso: se gira en cuanto llegue el pago. */
+    private volatile CardView pendingManaClick;
+
+    /**
+     * El texto nuestro para ese paso, o null si el mensaje no es el suyo: que
+     * se gira, cuanto paga cada uno, y que OK (o una tierra) lleva al pago con
+     * mana. Lo de delante (la carta y su habilidad) se queda debajo, como
+     * contexto.
+     */
+    private static String tapToPayPrompt(final TapToPayStep.Step step) {
+        if (step == null) {
+            return null;
+        }
+        // La mecanica y luego "o pulsa Pagar con mana (o clica una tierra)":
+        // Android usa las mismas claves, con su "toca" (taptopay.restTouch).
+        final StringBuilder sb = new StringBuilder(NeoText.get("taptopay." + step.kind))
+                .append(' ').append(NeoText.get("taptopay.rest", step.left));
+        if (!step.head.isEmpty()) {
+            sb.append(System.lineSeparator()).append(forge.neo.EngineText.prompt(step.head));
+        }
+        return sb.toString();
+    }
+
+    /** En ese paso, y con algo por pagar todavia. */
+    private boolean tapToPayPending() {
+        final TapToPayStep.Step step = tapToPayStep;
+        return step != null && step.somethingLeft() && TapToPayStep.isActive(getGameController());
+    }
+
+    /**
+     * Clicar una tierra en el paso de girar = "lo pago con mana, empezando por
+     * esta". Es lo que intenta cualquiera, y antes no hacia nada.
+     *
+     * @return si el click se ha quedado aqui
+     */
+    private boolean landPaysTheRest(final CardView card) {
+        if (!TapToPayStep.isLandThatPays(card, isMe(card.getController())) || !tapToPayPending()) {
+            return false;
+        }
+        clickTrace(card, "pagar el resto con mana");
+        pendingManaClick = card;
+        respondLater(() -> getGameController().selectButtonOk());
+        return true;
+    }
 
     /** Ya hemos avisado en esta eleccion. */
     private final AtomicBoolean noPickWarned = new AtomicBoolean();
@@ -4247,6 +4325,23 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         // Lo PRIMERO: saber si hay un pago de mana en curso, y saberlo por lo
         // que dice el motor. Ver setPayingMana.
         setPayingMana(isAutoPayLabel(okLabel));
+        // La tierra clicada en el paso de girar para pagar: ya ha llegado el
+        // pago, se gira ella, y el resto lo paga el Auto de siempre (o el
+        // jugador). Si lo que llega no es el pago — lo cubrian todo las
+        // criaturas —, se olvida. Ver landPaysTheRest. Se mira el pago y no
+        // el prompt: InputPayMana pide los botones ANTES de mandar su texto.
+        final CardView manaClick = pendingManaClick;
+        if (manaClick != null && (payingMana || !TapToPayStep.isActive(getGameController()))) {
+            pendingManaClick = null;
+            if (payingMana && interactive()) {
+                trace("pago: giro la tierra clicada al elegir que girar: %s", manaClick);
+                respondLater(() -> getGameController().selectCard(manaClick, null, null));
+                return;
+            }
+        }
+        // Y en ese paso, OK es "lo demas lo pago con mana": que lo diga.
+        final String shownOk = tapToPayPending()
+                ? NeoText.get("taptopay.ok") : okLabel;
         if (interactive()) {
             // Modo humano: el motor esta esperando. Le enseñamos al jugador
             // que puede hacer y esperamos a que pulse. Las etiquetas vienen
@@ -4297,7 +4392,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             final UiDispatcher ui = uiDispatcher();
             if (ui != null) {
                 ui.runLater(() -> {
-                    table.getActionBar().setButtons(okLabel, cancelLabel, okEnabled, cancelEnabled);
+                    table.getActionBar().setButtons(shownOk, cancelLabel, okEnabled, cancelEnabled);
                     table.getActionBar().setOnOk(() -> {
                         // Un OK por pregunta del motor. Lo demas, fuera: ver
                         // okAwaitingEngine.
@@ -4340,7 +4435,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                     // Y en el centro de la mesa, GRANDE y con la carta, lo que
                     // esta pasando. Sin botones: los de verdad son estos de
                     // arriba, en la barra de la derecha.
-                    showCentralPrompt(okLabel, cancelLabel, okEnabled, cancelEnabled);
+                    showCentralPrompt(shownOk, cancelLabel, okEnabled, cancelEnabled);
                     table.requestLayout();
                     // Con una seleccion en curso, cada ficha tiene que poder
                     // clicarse por separado: apiladas, siempre se elige la
@@ -6920,7 +7015,16 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         // El motor pasa el jugador del TURNO (PlayerControllerHuman), no a quien
         // pregunta: con eso se elige la lista.
         final boolean mine = player == null || isLocalPlayer(player);
-        return !(mine ? stops : theirStops).contains(phase);
+        if ((mine ? stops : theirStops).contains(phase)) {
+            return false;
+        }
+        // Una fase sin parada se salta... salvo que tengas algo que SOLO se puede
+        // activar en ella (Desert y el final del combate): si no, esa carta no
+        // se podria usar nunca. Solo desde el hilo del motor, que es el que
+        // pregunta antes de dar prioridad y el unico que puede leer la partida.
+        return !(!forge.gui.FThreads.isGuiThread()
+                && getGameController() instanceof forge.player.PlayerControllerHuman human
+                && PhaseOnlyAbilities.worthStopping(human.getPlayer(), phase));
     }
 
     @Override

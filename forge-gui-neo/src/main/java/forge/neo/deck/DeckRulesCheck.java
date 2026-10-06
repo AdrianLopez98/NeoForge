@@ -540,6 +540,88 @@ public final class DeckRulesCheck {
                     mixed.countOf(arts.get(1)) == 4);
             check("Estandar: y no deja meter una quinta con otro arte",
                     mixed.add(arts.get(1), 1) == 0);
+
+            // Arte por copia (Discord, 06-10-2026: nueve Nazgul con nueve artes).
+            final int one = mixed.switchPrinting(arts.get(0), arts.get(1), 1);
+            check("Arte por copia: cambia UNA copia, y quedan 3 de un arte y 1 del otro, 4 por nombre",
+                    one == 1 && twoArts.getMain().count(arts.get(0)) == 3
+                            && twoArts.getMain().count(arts.get(1)) == 1 && mixed.countOf(arts.get(0)) == 4);
+            check("Arte por copia: no se puede cambiar una que no esta en el mazo",
+                    mixed.switchPrinting(arts.size() > 2 ? arts.get(2) : arts.get(1), arts.get(0), 1) == 0
+                            || arts.size() <= 2);
+            Deck back = null;
+            try {
+                final java.io.File tmp = java.io.File.createTempFile("neocheck-arts", ".dck");
+                forge.deck.io.DeckSerializer.writeDeck(twoArts, tmp);
+                back = forge.deck.io.DeckSerializer.fromFile(tmp);
+                tmp.delete();
+            } catch (final java.io.IOException e) {
+                System.out.println("  no se pudo escribir el mazo de prueba: " + e);
+            }
+            check("Arte por copia: se guarda y se lee con los dos artes",
+                    back != null && back.getMain().count(arts.get(0)) == 3 && back.getMain().count(arts.get(1)) == 1);
+            check("Arte por copia: cambiar todas las de un arte no toca las del otro",
+                    mixed.switchPrinting(arts.get(1), arts.get(0)) == 1
+                            && twoArts.getMain().count(arts.get(0)) == 4);
+        }
+        // Un banquillo de mas en Commander (Discord, 06-10-2026): se ve que sobra
+        // y se vacia, y el motor deja de quejarse de el.
+        final Deck bigSide = new Deck("banquillo");
+        bigSide.getOrCreate(forge.deck.DeckSection.Sideboard).add(
+                FModel.getMagicDb().getCommonCards().getCard("Plains"), 15);
+        final DeckEditor sideEd = new DeckEditor(NeoFormat.COMMANDER, bigSide);
+        final java.util.List<java.util.Map.Entry<PaperCard, Integer>> seen = sideEd.sideboardCards();
+        final boolean movedToMain = sideEd.moveSideboardToMain(seen.isEmpty() ? null : seen.get(0).getKey());
+        check("Banquillo: se ve (1 fila, 15) y se puede pasar una al mazo",
+                seen.size() == 1 && seen.get(0).getValue() == 15 && movedToMain
+                        && bigSide.getMain().countAll() == 1 && sideEd.sideboardCards().get(0).getValue() == 14);
+        // Y meter: del mazo al banquillo, y del catalogo directo al banquillo.
+        final boolean back = sideEd.moveMainToSideboard(seen.get(0).getKey());
+        final String added = sideEd.addToSideboard(FModel.getMagicDb().getCommonCards().getCard("Sol Ring"));
+        check("Banquillo: una del mazo vuelve al banquillo y se anyade otra del catalogo",
+                back && added == null && bigSide.getMain().countAll() == 0
+                        && bigSide.get(forge.deck.DeckSection.Sideboard).countAll() == 16);
+        // Un mazo que no se puede leer se aparta, no se borra.
+        try {
+            final java.io.File dir = java.nio.file.Files.createTempDirectory("neocheck-roto").toFile();
+            final java.io.File good = new java.io.File(dir, "bueno.dck");
+            final java.io.File bad = new java.io.File(dir, "roto.dck");
+            java.nio.file.Files.writeString(good.toPath(), "[metadata]\nName=bueno\n[Main]\n4 Plains\n");
+            java.nio.file.Files.write(bad.toPath(), new byte[] {(byte) 0xEF, (byte) 0xBB, (byte) 0xBF, 'x'});
+            final java.util.List<String> moved = BrokenDecks.quarantine(dir);
+            BrokenDecks.takePending();
+            check("Mazo roto: se aparta (roto.dck -> roto.dck.roto) y el bueno se queda",
+                    moved.equals(java.util.List.of("roto.dck")) && good.isFile() && !bad.exists()
+                            && new java.io.File(dir, "roto.dck.roto").isFile());
+            for (final java.io.File f : dir.listFiles()) {
+                f.delete();
+            }
+            dir.delete();
+        } catch (final java.io.IOException e) {
+            check("Mazo roto: no se pudo preparar la prueba (" + e + ")", false);
+        }
+        bigSide.getMain().clear();
+        bigSide.get(forge.deck.DeckSection.Sideboard).clear();
+        bigSide.get(forge.deck.DeckSection.Sideboard).add(seen.get(0).getKey(), 14);
+        bigSide.get(forge.deck.DeckSection.Sideboard).add(seen.get(0).getKey(), 1);
+        final int overflow = sideEd.sideboardOverflow();
+        final int cleared = sideEd.clearSideboard();
+        final String after = String.valueOf(forge.game.GameType.Commander.getDeckFormat()
+                .getDeckConformanceProblem(bigSide));
+        check("Banquillo: 15 en Commander sobran 5; se vacia y el motor ya no se queja del banquillo",
+                overflow == 5 && cleared == 15 && sideEd.sideboardOverflow() == 0
+                        && !after.toLowerCase(java.util.Locale.ROOT).contains("sideboard"));
+        // Treinta llanuras, quince de cada arte (Ana, 06-10-2026).
+        final PaperCard plains = FModel.getMagicDb().getCommonCards().getCard("Plains");
+        final List<PaperCard> plainsArts = FModel.getMagicDb().getCommonCards().getAllCards(plains);
+        if (plainsArts.size() >= 2) {
+            final Deck lands = new Deck("llanuras");
+            lands.getMain().add(plainsArts.get(0), 30);
+            final DeckEditor basics = new DeckEditor(NeoFormat.ESTANDAR, lands);
+            final int moved = basics.switchPrinting(plainsArts.get(0), plainsArts.get(1), 15);
+            check("Arte por copia: 30 llanuras, 15 de un arte y 15 de otro",
+                    moved == 15 && lands.getMain().count(plainsArts.get(0)) == 15
+                            && lands.getMain().count(plainsArts.get(1)) == 15 && basics.countOf(plains) == 30);
         }
     }
 

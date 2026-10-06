@@ -1,11 +1,10 @@
-**NeoForge para macOS 1.0.14 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.15 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Ajustes por pestañas**: General, Partida, Mesa, Pantalla, Sonido, Arte, Modos y Datos, en vez de una lista larguísima. No cambia ningún ajuste, solo dónde está.
-- **Más sitio para la mesa** (dos opciones en Ajustes → Mesa, apagadas de fábrica): **plegar la columna de la derecha** (la mesa usa todo el ancho y el stack pasa a un botón "STACK") y **barras de jugador compactas**.
-- **Improvisar y convocar funcionan como deben**: con artefactos-criatura el juego ya no se salta tu fase principal, la carta se ilumina como jugable, y las fichas iguales que ya has elegido no pierden la marca.
-- **El Anillo** de *El Señor de los Anillos* sale con su arte.
-- **Un pequeño cambio en el logo**: gemas en vez de los símbolos de maná, que son de Wizards of the Coast.
+- **Ascenso: retos del día y de la semana.** Una pestaña Retos junto a Estándar y Commander: una run nueva cada día, la misma para todos (sale de la fecha, sin internet), y un reto semanal más difícil con dos mundos de Magic. Con rachas 🔥 y el código de cada run para compartirla. Y un **modo infinito** al ganar.
+- **Editor de mazos:** arte por copias (nueve Nazgûl con nueve artes), el banquillo a la vista, selector de arte paginado y con filtro de colección, y la curva de maná plegable.
+- **Quest:** opción para que los sobres salgan solo del mundo en que estás.
+- **Mulligan amistoso**, Desert y lo que solo se activa en una fase, y búsqueda al elegir un nombre de carta.
 
 Descarga el `.dmg` de tu Mac:
 

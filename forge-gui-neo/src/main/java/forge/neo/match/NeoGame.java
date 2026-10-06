@@ -985,7 +985,8 @@ public final class NeoGame {
         // StaticData.instance(), no de FModel.getPreferences(). Aplicarla aqui
         // (y no solo al arrancar) es lo que hace que cambiarla en Ajustes se
         // note en la SIGUIENTE partida sin reiniciar el programa.
-        forge.StaticData.instance().setMulliganRule(forge.MulliganDefs.GetRuleByName(
+        // "Friendly" no es de Forge: London sin devolver cartas (FriendlyMulligan).
+        forge.StaticData.instance().setMulliganRule(FriendlyMulligan.apply(
                 NeoSettings.get(NeoSettings.MULLIGAN_RULE, NeoSettings.MULLIGAN_RULE_DEFAULT)));
 
         // ---- tope de tiempo de la IA para el combate (la auditoría del motor, apartado B4) ----

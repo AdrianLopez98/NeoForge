@@ -147,6 +147,14 @@ et}) y no se tocan.
      */
     private final Overlay overlay = new Overlay();
 
+    /** Aviso de los mazos que no se podian leer y se han apartado (BrokenDecks). */
+    public void showBrokenDecks(final java.util.List<String> names) {
+        overlay.setOnBackgroundClick(overlay::hide);
+        overlay.show(new ConfirmDialog(NeoText.get("home.brokenDecks.title"),
+                NeoText.get("home.brokenDecks.text", String.join(", ", names)),
+                java.util.List.of(NeoText.get("common.accept")), 0, choice -> overlay.hide()));
+    }
+
     private Deck selected;
 
     /**

@@ -440,6 +440,7 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 || args.contains("--mock-picked") || args.contains("--mock-crowded") || args.contains("--mock-stack")
                 || args.contains("--mock-token-pick") || args.contains("--mock-topdeck")
                 || args.contains("--mock-aura") || args.contains("--mock-zone-pick")
+                || args.contains("--mock-card-name")
                 || args.contains("--mock-revealed")
                 || args.contains("--mock-amount") || optionOf(args, "--mock-amount") != null
                 || args.contains("--mock-mechanics")
@@ -656,6 +657,9 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 }
                 if (args.contains("--mock-zone-pick")) {
                     debug.mockZonePick();
+                }
+                if (args.contains("--mock-card-name")) {
+                    debug.mockCardName();
                 }
                 if (args.contains("--anim-test")) {
                     debug.animTest(deck);
@@ -1309,6 +1313,11 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             // el Escape y la siguiente captura tiene que ser el mazo otra vez.
             if (args.contains("--zoom") && builder != null) {
                 builder.zoomFirstCardForTest();
+            }
+            // --printing: el selector de arte de una carta con varias copias
+            // (la eleccion "todas / solo una"; -Dneo.printing.one=true la marca).
+            if (args.contains("--printing") && builder != null) {
+                builder.choosePrintingForTest();
             }
             if (args.contains("--generate") && builder != null) {
                 builder.generateForTest();
@@ -2970,6 +2979,11 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 () -> showNetDecks(format));
         scene.setRoot(home);
         applyScale();
+        // Si se acaba de apartar algun mazo que no se podia leer, se dice.
+        final List<String> broken = forge.neo.deck.BrokenDecks.takePending();
+        if (!broken.isEmpty()) {
+            home.showBrokenDecks(broken);
+        }
     }
 
     /**

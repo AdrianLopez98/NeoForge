@@ -278,6 +278,33 @@ public final class NeoQuest {
     }
 
     /** Si en esta Quest se puede conseguir algo de esa expansion. */
+    /**
+     * Ajuste: los sobres de la tienda y el sobre de premio, solo del MUNDO en
+     * que estas (Discord, 06-10-2026: <i>"limit prize packs and boosters in the
+     * shop to the currently selected world ... travel to Ravnica for guild
+     * stuff"</i>). Apagado de fabrica: cambia lo que sale en la tienda de quien
+     * ya este jugando en un mundo.
+     */
+    public static final String WORLD_SHOP = "quest.worldShop";
+
+    /**
+     * Las expansiones del mundo en que estas, si el ajuste esta puesto y ese
+     * mundo las tiene (Ravnica: RAV, GPT, DIS, RTR, GTC, DGM); si no, null. El
+     * mundo principal y los "Random ..." no las tienen.
+     */
+    public static java.util.Set<String> worldSets() {
+        if (!isActive() || !forge.neo.NeoSettings.getBool(WORLD_SHOP, false)) {
+            return null;
+        }
+        try {
+            final forge.gamemodes.quest.data.GameFormatQuest f = engine().getWorldFormat();
+            final List<String> codes = f == null ? null : f.getAllowedSetCodes();
+            return codes == null || codes.isEmpty() ? null : new java.util.HashSet<>(codes);
+        } catch (final RuntimeException ex) {
+            return null;
+        }
+    }
+
     public static boolean allowsSet(final String code) {
         final java.util.Set<String> sets = chosenSets();
         return sets == null || sets.contains(code);

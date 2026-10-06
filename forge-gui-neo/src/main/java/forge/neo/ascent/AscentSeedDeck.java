@@ -84,6 +84,10 @@ import forge.util.MyRandom;
  * deja mazos de nueve tierras y cuatro bombas de coste siete, que no es
  * "variado": es roto.
  *
+ * <p>Y con <b>dos colores pedidos</b> en Estandar, un tercio de los hechizos y
+ * de las basicas es de cada uno (06-10-2026, {@link #COLOUR_SHARE}): el recorte
+ * por coste, a secas, sacaba blanco-negro con una sola carta negra.
+ *
  * <p><b>Lo que tiene que variar son las cartas, no si el mazo se puede jugar.</b>
  */
 public final class AscentSeedDeck {
@@ -324,9 +328,137 @@ public final class AscentSeedDeck {
                 selection.add("Random");
             }
         }
-        final Deck full = DeckgenUtil.buildColorDeck(selection,
-                pool.isAll() ? BEGINNER : BEGINNER.and(pool::allows), false);
-        return trim(full, null, STANDARD_SIZE, name);
+        final Predicate<PaperCard> filter = pool.isAll() ? BEGINNER : BEGINNER.and(pool::allows);
+        final Deck full = DeckgenUtil.buildColorDeck(selection, filter, false);
+        // La mascara de lo que de verdad se ha pedido: namesOf ya ha recortado
+        // a dos, asi que tres letras marcadas no llegan aqui como tres. Y el
+        // "Random" de toda la vida da 0, o sea que sin pedir nada esto no hace
+        // nada.
+        byte wanted = NO_COLOURS;
+        for (final String nombre : selection) {
+            wanted |= forge.card.MagicColor.fromName(nombre);
+        }
+        if (Integer.bitCount(wanted & 0xFF) == MAX_COLOURS) {
+            topUpColours(full, wanted, filter);
+        } else {
+            wanted = NO_COLOURS; // uno o al azar: el recorte de siempre
+        }
+        return trim(full, null, STANDARD_SIZE, name, wanted);
+    }
+
+    /**
+     * Que parte de los hechizos se le guarda <b>a cada uno de los dos colores
+     * pedidos</b>: un tercio ({@code 1 / COLOUR_SHARE}). Y lo mismo de las
+     * basicas, en {@link #ensureColorSources}.
+     *
+     * <p><b>Un fallo medido (06-10-2026), no una preferencia.</b> Pidiendo
+     * blanco-negro, 1 mazo de cada 40 salia mono-color y 25 de cada 40 dejaban
+     * uno de los dos por debajo de un tercio — W=13 B=1, por ejemplo. Y
+     * {@code ascentcheck} se ponia en rojo de vez en cuando con <i>"pidiendo
+     * blanco-negro el mazo solo usa B"</i>.
+     *
+     * <p>La culpa era sobre todo del recorte, no del generador. El generador de
+     * Forge mete unas <b>16 cartas distintas</b> con hasta cuatro copias, y
+     * {@link #trim} se queda con los 18 hechizos mas baratos: unas <b>ocho
+     * distintas</b>, casi todas del tramo de coste 0-2. Ocho tiradas de
+     * "blanca o negra" salen torcidas mas a menudo de lo que parece: un mazo
+     * bruto equilibrado (W=13 B=16) salia recortado W=13 B=1. A veces, ademas,
+     * el generador ya viene torcido (W=4 B=21), y ahi no hay recorte que lo
+     * salve: por eso existe {@link #topUpColours}.
+     *
+     * <p>Un tercio y no la mitad: deja otro tercio libre para lo que el
+     * generador quiera (artefactos, multicolores, lo barato de cualquiera de
+     * los dos), que es lo que hace que dos mazos blanco-negro no salgan
+     * calcados.
+     *
+     * <p>⚠️ <b>Solo con DOS colores pedidos.</b> Con uno, o sin pedir, el
+     * mazo sale exactamente como antes: asi los codigos de run de Commander,
+     * de mono-color y del reto de la semana (que no pide colores) siguen
+     * dando el mismo mazo que daban. Los de dos colores de la 1.0.15 previos
+     * a esto, no.
+     */
+    private static final int COLOUR_SHARE = 3;
+
+    /**
+     * Si el generador trae <b>menos de un tercio</b> de hechizos de alguno de los
+     * dos colores pedidos, se completa con los mas baratos de ese color sacados
+     * de un mazo mono-color <b>del mismo generador</b>.
+     *
+     * <p>No se elige ninguna carta a mano: es {@code buildColorDeck} con el
+     * mismo filtro (principiante y el pozo de la run), asi que lo que entra es
+     * lo mismo que habria entrado en un mazo de ese color. Solo se anyaden
+     * <b>los que faltan</b> — meter el mazo mono entero torceria el recorte
+     * hacia el otro lado.
+     *
+     * <p>Y con el tope de copias del generador: las dos tiradas no se conocen,
+     * asi que sin mirarlo podria salir una quinta copia.
+     *
+     * <p>Tira del mismo azar que el resto del mazo ({@code MyRandom}, que
+     * {@link AscentRun#begin} siembra con la semilla de la run): la misma
+     * semilla sigue dando el mismo mazo, en este ordenador y en otro. Lo vigila
+     * {@code seedcheck}, que tiene una receta blanco-negro.
+     */
+    private static void topUpColours(final Deck full, final byte wanted,
+                                     final Predicate<PaperCard> filter) {
+        final int need = (STANDARD_SIZE - landsFor(STANDARD_SIZE)) / COLOUR_SHARE;
+        final int maxCopies = FModel.getPreferences().getPrefBoolean(
+                forge.localinstance.properties.ForgePreferences.FPref.DECKGEN_SINGLETONS) ? 1 : 4;
+        for (int idx = 0; idx < forge.card.MagicColor.WUBRG.length; idx++) {
+            final byte colour = forge.card.MagicColor.WUBRG[idx];
+            if ((wanted & colour) == 0) {
+                continue;
+            }
+            int have = 0;
+            for (final Map.Entry<PaperCard, Integer> e : full.getMain()) {
+                if (!e.getKey().getRules().getType().isLand() && hasColour(e.getKey(), colour)) {
+                    have += e.getValue();
+                }
+            }
+            if (have >= need) {
+                continue;
+            }
+            final String colourName = forge.card.MagicColor.Constant.ONLY_COLORS.get(idx);
+            final Deck mono = DeckgenUtil.buildColorDeck(List.of(colourName), filter, false);
+            final List<PaperCard> candidates = new ArrayList<>();
+            for (final Map.Entry<PaperCard, Integer> e : mono.getMain()) {
+                if (!e.getKey().getRules().getType().isLand() && hasColour(e.getKey(), colour)) {
+                    for (int i = 0; i < e.getValue(); i++) {
+                        candidates.add(e.getKey());
+                    }
+                }
+            }
+            candidates.sort(Comparator.comparingInt(c -> c.getRules().getManaCost().getCMC()));
+            final int before = have;
+            for (final PaperCard c : candidates) {
+                if (have >= need) {
+                    break;
+                }
+                if (copiesOf(full, c.getName()) >= maxCopies) {
+                    continue;
+                }
+                full.getMain().add(c);
+                have++;
+            }
+            System.out.println("[ascenso] mazo de salida: el generador trajo " + before
+                    + " hechizos " + colourName + " (hacen falta " + need + "); se anyaden "
+                    + (have - before) + " de un mazo " + colourName);
+        }
+    }
+
+    /** Si el coste de la carta lleva ese color (un multicolor cuenta para los dos). */
+    private static boolean hasColour(final PaperCard card, final byte colour) {
+        return (card.getRules().getManaCost().getColorProfile() & colour) != 0;
+    }
+
+    /** Cuantas copias hay de esa carta en el mazo, de cualquier edicion. */
+    private static int copiesOf(final Deck deck, final String cardName) {
+        int n = 0;
+        for (final Map.Entry<PaperCard, Integer> e : deck.getMain()) {
+            if (e.getKey().getName().equals(cardName)) {
+                n += e.getValue();
+            }
+        }
+        return n;
     }
 
     /**
@@ -398,7 +530,7 @@ public final class AscentSeedDeck {
         // Antes de recortar: Gleemox cuesta 0, y el recorte se queda primero
         // con lo barato. Ver GeneratedDecks.
         GeneratedDecks.fixCopyLimits(full, DeckFormat.Commander);
-        return trim(full, cmd, COMMANDER_SIZE, name);
+        return trim(full, cmd, COMMANDER_SIZE, name, NO_COLOURS);
     }
 
     /**
@@ -460,6 +592,24 @@ public final class AscentSeedDeck {
             }
         }
         return out;
+    }
+
+    /**
+     * El comandante que pide un codigo de run ({@link AscentSeed}): por nombre
+     * si la receta es de aqui, o por su huella si se ha leido de un codigo.
+     * {@code null} si no lo tienes (otra version de las cartas, u otro pozo).
+     */
+    public static PaperCard commanderFor(final AscentSeed.Recipe r) {
+        if (r == null || !r.hasCommander()) {
+            return null;
+        }
+        for (final PaperCard c : commanderPool(r.pool)) {
+            if (r.commander != null ? c.getName().equals(r.commander)
+                    : AscentSeed.commanderHash(c.getName()).equals(r.commanderHash)) {
+                return c;
+            }
+        }
+        return null;
     }
 
     private static List<PaperCard> allCommanders() {
@@ -608,8 +758,14 @@ public final class AscentSeedDeck {
      * los premios —, y se rompio de verdad con los mazos de cinco colores y
      * tres basicas (ver el bucle del presupuesto). Por eso ademas se comprueba
      * antes de tocar el mazo, en vez de confiar en que las cuentas salgan.
+     *
+     * <p>Con <b>dos colores pedidos</b> ({@code wanted}), el suelo de cada uno
+     * no es una basica sino <b>un tercio</b> de los huecos ({@link #COLOUR_SHARE}):
+     * es lo mismo que se le guarda en los hechizos, y un mazo con seis cartas
+     * blancas de {W} y doce negras de {B}{B} se quedaria, por simbolos, con dos
+     * Llanuras de diez.
      */
-    private static void ensureColorSources(final Deck deck) {
+    private static void ensureColorSources(final Deck deck, final byte wanted) {
         // 1. Que colores PIDEN los hechizos, y cuanto. Los simbolos y no la
         //    identidad: un mazo con una sola carta blanca de coste {4}{W} no
         //    necesita la mitad de sus tierras blancas.
@@ -669,7 +825,9 @@ public final class AscentSeedDeck {
                 continue;
             }
             final double exact = (double) slots * pips[i] / totalPips;
-            want[i] = Math.max(1, (int) Math.floor(exact));
+            final int floor = (wanted & forge.card.MagicColor.WUBRG[i]) != 0
+                    ? Math.max(1, slots / COLOUR_SHARE) : 1;
+            want[i] = Math.max(floor, (int) Math.floor(exact));
             rest[i] = exact - Math.floor(exact);
             given += want[i];
         }
@@ -868,8 +1026,60 @@ public final class AscentSeedDeck {
         return lastRawLands;
     }
 
+    /** Cuantas tierras lleva un mazo de salida de ese tamanyo. */
+    private static int landsFor(final int size) {
+        return (int) Math.round(size * LAND_RATIO);
+    }
+
+    /**
+     * Los hechizos que se guardan <b>a cada uno de los dos colores pedidos</b>
+     * antes de recortar por coste: un tercio de los huecos para cada uno
+     * ({@link #COLOUR_SHARE}), y de cada color <b>los mas baratos</b>, que es
+     * el mismo criterio que el recorte.
+     *
+     * <p>Un multicolor de los dos cuenta para los dos. Y si el mazo no trae
+     * bastantes de un color se guardan los que haya: completar es cosa de
+     * {@link #topUpColours}, que ya ha pasado antes.
+     *
+     * <p>Sin dos colores pedidos devuelve la lista vacia, y el recorte es
+     * exactamente el de siempre.
+     *
+     * @param spells los hechizos, <b>ya ordenados por coste</b>
+     * @param slots  los huecos de hechizo que quedan en el mazo
+     */
+    private static List<PaperCard> colourFloor(final List<PaperCard> spells, final byte wanted,
+                                               final int slots) {
+        final List<PaperCard> out = new ArrayList<>();
+        if (Integer.bitCount(wanted & 0xFF) != MAX_COLOURS || slots <= 0) {
+            return out;
+        }
+        final int floor = slots / COLOUR_SHARE;
+        // Por posicion y no por carta: la lista trae una entrada por COPIA, y
+        // guardar "Doom Blade" no puede gastar las cuatro.
+        final boolean[] taken = new boolean[spells.size()];
+        for (final byte colour : forge.card.MagicColor.WUBRG) {
+            if ((wanted & colour) == 0) {
+                continue;
+            }
+            int have = 0;
+            for (int i = 0; i < taken.length; i++) {
+                if (taken[i] && hasColour(spells.get(i), colour)) {
+                    have++;
+                }
+            }
+            for (int i = 0; i < taken.length && have < floor; i++) {
+                if (!taken[i] && hasColour(spells.get(i), colour)) {
+                    taken[i] = true;
+                    out.add(spells.get(i));
+                    have++;
+                }
+            }
+        }
+        return out;
+    }
+
     private static Deck trim(final Deck full, final PaperCard commander,
-                             final int size, final String name) {
+                             final int size, final String name, final byte wanted) {
         final List<PaperCard> lands = new ArrayList<>();
         final List<PaperCard> spells = new ArrayList<>();
         for (final Map.Entry<PaperCard, Integer> e : full.getMain()) {
@@ -892,7 +1102,7 @@ public final class AscentSeedDeck {
         // Pasandole a ensureManaBase el segundo, un mazo que llegaba con CERO
         // tierras le pedia "garantizame cero" y se iba de vacio: justo el caso
         // que esa funcion existe para tapar. Ver el comentario de ensureManaBase.
-        final int needLands = (int) Math.round(size * LAND_RATIO);
+        final int needLands = landsFor(size);
         final int takeLands = Math.min(lands.size(), needLands);
         final Deck out = new Deck(name);
         for (int i = 0; i < takeLands; i++) {
@@ -904,6 +1114,13 @@ public final class AscentSeedDeck {
             spells.remove(sign);
             out.getMain().add(sign);
         }
+        // Con dos colores pedidos, un tercio para cada uno antes del recorte
+        // por coste: si no, ocho cartas distintas del tramo barato deciden
+        // solas el color del mazo. Ver COLOUR_SHARE.
+        for (final PaperCard pick : colourFloor(spells, wanted, size - out.getMain().countAll())) {
+            spells.remove(pick);
+            out.getMain().add(pick);
+        }
         for (int i = 0; i < spells.size() && out.getMain().countAll() < size; i++) {
             out.getMain().add(spells.get(i));
         }
@@ -914,7 +1131,7 @@ public final class AscentSeedDeck {
         }
 
         ensureManaBase(out, needLands, size);
-        ensureColorSources(out);
+        ensureColorSources(out, wanted);
 
         if (commander != null) {
             out.getOrCreate(DeckSection.Commander).add(commander);

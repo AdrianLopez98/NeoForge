@@ -62,6 +62,34 @@ public final class AscentRun {
     private String deckName;
     /** De que expansiones salen las cartas (ver {@link AscentPool}). De fabrica, todas. */
     private AscentPool pool = AscentPool.ALL;
+    /**
+     * <b>Modo infinito</b> (Discord, 05-10-2026: <i>"I'd love to be able to use
+     * it in an endless mode, even if it's unbalanced"</i>). La run ya se gano
+     * —desbloqueo e hitos apuntados— y se sigue con el mismo mazo: acto 4, 5,
+     * 6... cada uno mas duro ({@link AscentBattle}) hasta que pierdes. Como el
+     * ante infinito de Balatro.
+     */
+    private boolean endless;
+    /**
+     * La victoria (Ascension e hitos) ya esta apuntada. Hace falta por la
+     * pregunta de despues del jefe final: si se cierra el juego ahi, al volver
+     * se vuelve a preguntar, y sin esto la run contaria como ganada DOS veces.
+     */
+    private boolean victoryRecorded;
+    /**
+     * <b>El codigo de la run</b> ({@link AscentSeed}): lo que hay que pasarle a
+     * otro para que juegue la misma (Discord, 06-10-2026). {@code null} en las
+     * runs empezadas antes de que existiera.
+     */
+    private String code;
+    /**
+     * <b>Empezada desde un codigo o un reto</b> (el de hoy, el de la semana o
+     * uno pegado), no al azar. Ganarla <b>no sube la Ascension</b> ni cuenta
+     * como victoria (Ana, 06-10-2026): la Ascension sale solo de tus runs al
+     * azar; si no, un amigo te pasa una run facil y subes sin haberla ganado tu.
+     * Las de antes de existir esto, {@code false}: eran todas al azar.
+     */
+    private boolean fromCode;
 
     private AscentRun() {
     }
@@ -130,10 +158,16 @@ public final class AscentRun {
     /** Igual, con las cartas de solo unas expansiones ({@link AscentPool}). */
     public static AscentRun start(final Mode mode, final int ascension,
                                   final int maxLife, final String deckName, final AscentPool pool) {
+        return start(mode, ascension, maxLife, deckName, pool, AscentSeed.newSeed());
+    }
+
+    /** Igual, con la semilla puesta (la de un codigo, o una nueva). */
+    public static AscentRun start(final Mode mode, final int ascension, final int maxLife,
+                                  final String deckName, final AscentPool pool, final long seed) {
         final AscentRun run = new AscentRun();
         run.pool = pool == null ? AscentPool.ALL : pool;
         run.mode = mode;
-        run.seed = System.nanoTime();
+        run.seed = seed;
         run.act = 1;
         run.maxLife = maxLife;
         // Ascension 8: se empieza magullado, al 90% del techo. Redondeado
@@ -176,6 +210,10 @@ public final class AscentRun {
         split(NeoSettings.get(PREFIX + "relics", ""), rel);
         run.relics.addAll(rel);
         run.pool = AscentPool.parse(NeoSettings.get(PREFIX + "pool", ""));
+        run.endless = NeoSettings.getBool(PREFIX + "endless", false);
+        run.victoryRecorded = NeoSettings.getBool(PREFIX + "won", false);
+        run.code = NeoSettings.get(PREFIX + "code", null);
+        run.fromCode = NeoSettings.getBool(PREFIX + "fromCode", false);
         return run;
     }
 
@@ -198,6 +236,10 @@ public final class AscentRun {
         NeoSettings.set(PREFIX + "cleared", String.join(";", clearedNodes));
         NeoSettings.set(PREFIX + "relics", String.join(";", relics));
         NeoSettings.set(PREFIX + "pool", pool.isAll() ? null : pool.serialize());
+        NeoSettings.set(PREFIX + "endless", endless ? "true" : null);
+        NeoSettings.set(PREFIX + "won", victoryRecorded ? "true" : null);
+        NeoSettings.set(PREFIX + "code", code);
+        NeoSettings.set(PREFIX + "fromCode", fromCode ? "true" : null);
         NeoSettings.save();
     }
 
@@ -238,11 +280,59 @@ public final class AscentRun {
     public static AscentRun begin(final Mode mode, final int ascension, final int maxLife,
                                   final forge.item.PaperCard commander, final byte colours,
                                   final AscentPool pool) {
-        final String name = deckNameFor(mode);
-        final forge.deck.Deck deck =
-                AscentSeedDeck.generate(mode, commander, name, ascension, colours, pool);
+        // La unica entrada AL AZAR: todas las demas son de una receta dada.
+        return begin(AscentSeed.fresh(mode, ascension, colours,
+                commander == null ? null : commander.getName(), pool), maxLife, false);
+    }
+
+    /** Una run desde su receta, con la vida de su modo (40 en Commander, 20 en Estandar). */
+    public static AscentRun begin(final AscentSeed.Recipe recipe) {
+        return begin(recipe, recipe.mode == Mode.COMMANDER ? 40 : 20);
+    }
+
+    /**
+     * <b>Una run desde su receta</b> ({@link AscentSeed}): la misma receta da la
+     * misma run en cualquier ordenador con la misma version.
+     *
+     * <p>Lo unico que no salia ya de la semilla era el mazo de salida: los
+     * generadores de Forge tiran del azar general ({@code MyRandom}). Se le
+     * presta uno sembrado mientras se genera y se le devuelve el suyo despues,
+     * pase lo que pase. Es el asiento que el propio Forge deja para esto
+     * ({@code setRandom}: "Used for deterministic simulation"), asi que no se
+     * toca el motor.
+     *
+     * @throws IllegalStateException si el codigo pide un comandante que no esta
+     *         entre los tuyos (otra version de las cartas, u otro pozo)
+     */
+    public static AscentRun begin(final AscentSeed.Recipe recipe, final int maxLife) {
+        return begin(recipe, maxLife, true);
+    }
+
+    /** @param fromCode empezada desde un codigo o un reto: no sube la Ascension ({@link #isFromCode}) */
+    private static AscentRun begin(final AscentSeed.Recipe recipe, final int maxLife, final boolean fromCode) {
+        final forge.item.PaperCard commander = AscentSeedDeck.commanderFor(recipe);
+        if (recipe.hasCommander() && commander == null) {
+            throw new IllegalStateException("el comandante del codigo no esta: " + recipe.code());
+        }
+        final String name = deckNameFor(recipe.mode);
+        final java.util.Random previous = forge.util.MyRandom.getRandom();
+        final forge.deck.Deck deck;
+        forge.util.MyRandom.setRandom(AscentSeed.deckRandom(recipe.seed));
+        try {
+            deck = AscentSeedDeck.generate(recipe.mode, commander, name, recipe.ascension,
+                    recipe.colours, recipe.pool);
+        } finally {
+            forge.util.MyRandom.setRandom(previous);
+        }
         AscentDecks.save(deck);
-        return start(mode, ascension, maxLife, name, pool);
+        final AscentRun run = start(recipe.mode, recipe.ascension, maxLife, name, recipe.pool,
+                recipe.seed);
+        run.code = recipe.code();
+        run.fromCode = fromCode;
+        run.save();
+        System.out.println("[ascenso] run nueva con el codigo " + run.code
+                + (fromCode ? " (de un codigo o un reto: no sube la Ascension)" : ""));
+        return run;
     }
 
     /**
@@ -303,7 +393,8 @@ public final class AscentRun {
             return;
         }
         for (final String k : new String[]{"mode", "seed", "act", "life", "maxLife",
-                "credits", "ascension", "deck", "node", "cleared", "relics", "pool"}) {
+                "credits", "ascension", "deck", "node", "cleared", "relics", "pool",
+                "endless", "won", "code", "fromCode"}) {
             NeoSettings.set(PREFIX + k, null);
         }
         NeoSettings.setBool(ACTIVE, false);
@@ -427,7 +518,7 @@ public final class AscentRun {
      * @return {@code false} si ya no hay mas actos (o sea, run completada)
      */
     public boolean nextAct() {
-        if (act >= ACTS) {
+        if (act >= ACTS && !endless) {
             return false;
         }
         act++;
@@ -707,6 +798,19 @@ public final class AscentRun {
         return seed;
     }
 
+    /**
+     * Si se empezo desde un codigo o un reto y no al azar: entonces ganarla no
+     * sube la Ascension ({@link AscentUnlocks#recordWin(AscentRun)}).
+     */
+    public boolean isFromCode() {
+        return fromCode;
+    }
+
+    /** El codigo para compartir la run, o {@code null} si es de antes de que existiera. */
+    public String getCode() {
+        return code;
+    }
+
     public int getAct() {
         return act;
     }
@@ -741,9 +845,60 @@ public final class AscentRun {
         return clearedNodes.size();
     }
 
-    /** Si la run esta ganada del todo. */
+    /**
+     * Si la run esta ganada del todo (el jefe del acto 3 ha caido).
+     *
+     * <p>En modo infinito no lo esta nunca: ahi no se gana, se llega lejos.
+     */
     public boolean isCompleted() {
-        return act >= ACTS && actCleared();
+        return !endless && act >= ACTS && actCleared();
+    }
+
+    // ------------------------------------------------------------------
+    //  El modo infinito
+    // ------------------------------------------------------------------
+
+    /** Si la run sigue despues de ganarla. */
+    public boolean isEndless() {
+        return endless;
+    }
+
+    /**
+     * El nivel infinito en el que estas: 1 en el primer acto despues del jefe
+     * final, 2 en el siguiente... 0 si no es modo infinito. Es lo que endurece
+     * a los rivales ({@link AscentBattle}) y lo que se ensenya y se apunta.
+     */
+    public int endlessLevel() {
+        return endless ? Math.max(1, act - ACTS) : 0;
+    }
+
+    /** Si la victoria de esta run ya se ha apuntado. */
+    public boolean isVictoryRecorded() {
+        return victoryRecorded || endless;
+    }
+
+    /** Apunta que la victoria ya se ha contado (Ascension e hitos). */
+    public void markVictoryRecorded() {
+        victoryRecorded = true;
+        save();
+    }
+
+    /**
+     * Sigue la run despues de ganarla: el primer acto infinito.
+     *
+     * <p>Solo con la run ganada y sin haber entrado ya. Pasa por
+     * {@link #nextAct()}, asi que hace lo mismo que cualquier cambio de acto:
+     * mapa nuevo y vida llena; el mazo, las reliquias y los creditos se quedan.
+     *
+     * @return {@code false} si no se podia (la run no estaba ganada)
+     */
+    public boolean enterEndless() {
+        if (endless || !isCompleted()) {
+            return false;
+        }
+        endless = true;
+        victoryRecorded = true;
+        return nextAct();
     }
 
     private static void split(final String raw, final java.util.Collection<String> into) {
@@ -759,7 +914,8 @@ public final class AscentRun {
 
     @Override
     public String toString() {
-        return "Ascenso[" + mode + " acto " + act + " vida " + life + "/" + maxLife
+        return "Ascenso[" + mode + " acto " + act + (endless ? " (infinito " + endlessLevel() + ")" : "")
+                + " vida " + life + "/" + maxLife
                 + " creditos " + credits + " reliquias " + relics.size() + "]";
     }
 }
