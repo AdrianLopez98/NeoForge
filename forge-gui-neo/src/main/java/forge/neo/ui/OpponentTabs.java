@@ -34,6 +34,23 @@ public class OpponentTabs extends HBox {
     private final List<PlayerView> players = new ArrayList<>();
     private Consumer<PlayerView> onSelect;
 
+    private static final javafx.css.PseudoClass REVEALED =
+            javafx.css.PseudoClass.getPseudoClass("revealed");
+    private static final javafx.css.PseudoClass PLAYABLE =
+            javafx.css.PseudoClass.getPseudoClass("playable");
+
+    /**
+     * Cuantas cartas de la mano de cada rival se ven y cuantas se lanzan
+     * (Discord, 07-10-2026): con cuatro jugadores solo se ve la barra de UN
+     * rival, asi que la pestanya de los otros tiene que decirlo. La pone
+     * {@code TableBinder}; sin ella no se marca nada.
+     */
+    private java.util.function.Function<PlayerView, int[]> handReveal;
+
+    public void setHandReveal(final java.util.function.Function<PlayerView, int[]> f) {
+        this.handReveal = f;
+    }
+
     public OpponentTabs() {
         getStyleClass().add("opponent-tabs");
         setSpacing(4);
@@ -77,6 +94,15 @@ public class OpponentTabs extends HBox {
             tab.pseudoClassStateChanged(ALLY, ally);
             tab.pseudoClassStateChanged(SELECTED, p.equals(selected));
             tab.pseudoClassStateChanged(ACTIVE, p.equals(activeTurn));
+            final int[] seen = handReveal == null ? null : handReveal.apply(p);
+            if (seen != null && (seen[0] > 0 || seen[1] > 0)) {
+                tab.pseudoClassStateChanged(REVEALED, seen[1] == 0);
+                tab.pseudoClassStateChanged(PLAYABLE, seen[1] > 0);
+                tab.setText(tab.getText() + "  ◉");
+                tab.setTooltip(new javafx.scene.control.Tooltip(seen[1] > 0
+                        ? NeoText.get("bar.hand.castable", seen[1])
+                        : NeoText.get("bar.hand.revealed", seen[0])));
+            }
             tab.setOnMouseClicked(e -> {
                 if (onSelect != null) {
                     onSelect.accept(p);

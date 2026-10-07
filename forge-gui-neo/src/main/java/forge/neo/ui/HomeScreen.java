@@ -1667,6 +1667,13 @@ et}) y no se tocan.
         if (!NeoSettings.getBool(NeoSettings.MODERN_RIVALS, true)) {
             java.util.Collections.shuffle(pool);
         }
+        // Los que no son legales (un mazo tuyo a medio hacer, sin tierras),
+        // detras: solo salen si no queda otro (Discord, 07-10-2026). Ver
+        // forge.neo.deck.RivalDecks.
+        final forge.game.GameType type = format.getGameType();
+        final List<Deck> ordered = forge.neo.deck.RivalDecks.readyFirst(pool, type);
+        pool.clear();
+        pool.addAll(ordered);
         final java.util.Set<String> used = new java.util.HashSet<>();
 
         for (int i = 0; i < opponents; i++) {
@@ -1682,6 +1689,9 @@ et}) y no se tocan.
             if (fromPool != null && !fromPool.isEmpty()) {
                 final List<Deck> shuffled = new ArrayList<>(fromPool);
                 java.util.Collections.shuffle(shuffled);
+                final List<Deck> readyOnes = forge.neo.deck.RivalDecks.readyFirst(shuffled, type);
+                shuffled.clear();
+                shuffled.addAll(readyOnes);
                 Deck inPool = null;
                 for (final Deck d : shuffled) {
                     if (used.add(d.getName())) {

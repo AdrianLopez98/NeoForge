@@ -313,6 +313,12 @@ public class TableBinder {
         // repinta con cada tierra que tapas.
         if (matchUi != null) {
             table.setActionable(matchUi::actionableStrength);
+            // La mano del rival a la vista, tambien en su pestanya (a cuatro
+            // solo se ve la barra de uno). Ver RevealedHand.
+            final NeoMatchUI forTabs = matchUi;
+            table.getOpponentTabs().setHandReveal(p -> mockHandReveal() != null ? mockHandReveal() : new int[] {
+                    RevealedHand.visible(p, forTabs::mayView),
+                    RevealedHand.castable(p, forTabs::isPlayableOutside)});
         }
         // Y el del motor (lo ya elegido al convocar o improvisar), por lo mismo.
         table.reapplyHighlighted();
@@ -664,6 +670,24 @@ public class TableBinder {
     }
 
     /**
+     * Solo pruebas: {@code -Dneo.mock.handRevealed=V:C} pinta la mano de cada
+     * rival como si vieras V cartas y pudieras lanzar C, para capturarlo sin
+     * montar un Sen Triplets.
+     */
+    private static int[] mockHandReveal() {
+        final String v = System.getProperty("neo.mock.handRevealed");
+        if (v == null || !v.contains(":")) {
+            return null;
+        }
+        try {
+            return new int[] {Integer.parseInt(v.substring(0, v.indexOf(':'))),
+                    Integer.parseInt(v.substring(v.indexOf(':') + 1))};
+        } catch (final NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /**
      * Vuelca un jugador en su asiento.
      *
      * @param seat -1 eres tu (la mesa de abajo); 0..N-1, el asiento de rival.
@@ -692,6 +716,15 @@ public class TableBinder {
         // motor (NeoTeams.isAlly); en todos contra todos no sale nunca.
         if (opponent) {
             bar.setAlly(NeoTeams.isAlly(bottomNow, p));
+        }
+        // Su mano, si el motor te deja verla o lanzar de ella (Sen Triplets,
+        // Telepathy...): el contador lo dice. Ver RevealedHand.
+        if (opponent) {
+            final NeoMatchUI ui = matchUi;
+            final int[] mock = mockHandReveal();
+            bar.setHandRevealed(
+                    mock != null ? mock[0] : ui == null ? 0 : RevealedHand.visible(p, ui::mayView),
+                    mock != null ? mock[1] : ui == null ? 0 : RevealedHand.castable(p, ui::isPlayableOutside));
         }
         bar.setZones(
                 p.getZoneSize(ZoneType.Hand),

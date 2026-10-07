@@ -136,6 +136,86 @@ public final class AscentDecks {
         return run == null ? null : load(run.getDeckName());
     }
 
+    // ------------------------------------------------------------------
+    //  El arte, a mitad de run
+    // ------------------------------------------------------------------
+
+    /**
+     * Con que arte se puede llevar esa carta: <b>todas sus impresiones</b>,
+     * tambien en una run de unas expansiones. Discord, 06-10-2026: <i>"change
+     * the printing of some of these because, 1) final fantasy sets duh, 2) some
+     * of them are the Japanese cards lol 3) I hate marvel cards"</i>.
+     *
+     * <p>Es solo el dibujo y no hace trampa: el pozo de la run deja pasar
+     * <b>por nombre</b> ({@link AscentPool#allows}), no por edicion, y la semilla
+     * no mira el mazo despues de generarlo.
+     */
+    public static List<PaperCard> printingsOf(final PaperCard card) {
+        if (card == null) {
+            return List.of();
+        }
+        final List<PaperCard> all = new ArrayList<>(
+                forge.model.FModel.getMagicDb().getCommonCards().getAllCards(card.getName()));
+        all.sort(Comparator.comparing(PaperCard::getEdition)
+                .thenComparing(PaperCard::getCollectorNumber));
+        return all;
+    }
+
+    /** Cuantas copias de ESTA impresion lleva el mazo (principal y mando). */
+    public static int copiesOf(final AscentRun run, final PaperCard card) {
+        final Deck deck = load(run);
+        if (deck == null || card == null) {
+            return 0;
+        }
+        int n = deck.getMain().count(card);
+        if (deck.has(forge.deck.DeckSection.Commander)) {
+            n += deck.get(forge.deck.DeckSection.Commander).count(card);
+        }
+        return n;
+    }
+
+    /**
+     * Cambia el arte de {@code copies} copias de {@code from} y guarda el mazo
+     * de la run. Mira el principal y el comandante; una foil sigue foil. No
+     * toca las preferencias de Forge: es el mazo de esta run, no la carta.
+     *
+     * @return cuantas se han cambiado
+     */
+    public static int switchPrinting(final AscentRun run, final PaperCard from, PaperCard to,
+                                     final int copies) {
+        final Deck deck = load(run);
+        if (deck == null || from == null || to == null || copies <= 0
+                || !from.getName().equals(to.getName())) {
+            return 0;
+        }
+        if (from.isFoil() && !to.isFoil()) {
+            to = to.getFoiled();
+        }
+        if (from.equals(to)) {
+            return 0;
+        }
+        int left = copies;
+        int changed = 0;
+        final List<forge.deck.CardPool> pools = new ArrayList<>();
+        pools.add(deck.getMain());
+        if (deck.has(forge.deck.DeckSection.Commander)) {
+            pools.add(deck.get(forge.deck.DeckSection.Commander));
+        }
+        for (final forge.deck.CardPool pool : pools) {
+            final int n = Math.min(left, pool.count(from));
+            if (n > 0) {
+                pool.remove(from, n);
+                pool.add(to, n);
+                left -= n;
+                changed += n;
+            }
+        }
+        if (changed > 0) {
+            save(deck);
+        }
+        return changed;
+    }
+
     /**
      * Las cartas del mazo, <b>de mas caro a mas barato</b>.
      *

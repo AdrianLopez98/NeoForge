@@ -1,10 +1,12 @@
-**NeoForge para macOS 1.0.15 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.16 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Ascenso: retos del día y de la semana.** Una pestaña Retos junto a Estándar y Commander: una run nueva cada día, la misma para todos (sale de la fecha, sin internet), y un reto semanal más difícil con dos mundos de Magic. Con rachas 🔥 y el código de cada run para compartirla. Y un **modo infinito** al ganar.
-- **Editor de mazos:** arte por copias (nueve Nazgûl con nueve artes), el banquillo a la vista, selector de arte paginado y con filtro de colección, y la curva de maná plegable.
-- **Quest:** opción para que los sobres salgan solo del mundo en que estás.
-- **Mulligan amistoso**, Desert y lo que solo se activa en una fase, y búsqueda al elegir un nombre de carta.
+- **La mano del rival, cuando el juego te la deja ver**: con Sen Triplets, Telepathy y parecidas, su contador de mano se enciende (azul si ves cartas, verde si puedes jugarlas) y un clic la abre lista para lanzar. A cuatro, las pestañas de los demás rivales llevan un ◉.
+- **Ascenso:** cambiar el arte de las cartas de tu mazo a mitad de run, **comandantes favoritos** con su estrella, y con muchas reliquias (el modo infinito) el mapa ya no se sale de la ventana.
+- **Repartir contadores escribiendo el número**, y un botón **A partes iguales** (44 entre 3: 15/15/14).
+- **Buscar por nombre o tipo** en los diálogos con muchas cartas, como al mirar tu biblioteca.
+- **Quest:** las sueltas que no tienes salen como **Nueva**, el cuartel dice cuántas te faltan del mundo, y empezar sin mazo en un mundo da cartas de ese mundo.
+- **Rivales al azar** sin tus mazos a medio hacer, y la **carta grande al pasar el ratón**, como en Forge (en Ajustes).
 
 Descarga el `.dmg` de tu Mac:
 

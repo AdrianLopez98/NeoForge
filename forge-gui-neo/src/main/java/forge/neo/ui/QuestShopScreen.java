@@ -509,8 +509,12 @@ public class QuestShopScreen extends StackPane {
         return box;
     }
 
+    /** Los nombres que ya tienes: lo que no este aqui lleva "Nueva". */
+    private java.util.Set<String> ownedNames = java.util.Set.of();
+
     private void reloadSingles() {
         singles = NeoQuestShop.singles();
+        ownedNames = forge.neo.quest.NeoQuestCollection.ownedNames();
         final String q = singleSearch.getText() == null ? ""
                 : singleSearch.getText().trim().toLowerCase(Locale.ROOT);
         singlesShown = new ArrayList<>();
@@ -556,7 +560,16 @@ public class QuestShopScreen extends StackPane {
         final Label cost = new Label(NeoText.get("shop.credits.short", price));
         cost.getStyleClass().add(NeoQuest.credits() >= price ? "set-price-ok" : "set-price-no");
 
-        final VBox tile = new VBox(2, node, cost);
+        // "Nueva": no tienes ninguna con este nombre (Discord, 07-10-2026: "a
+        // New tag to singles in the shop that aren't in your collection").
+        final HBox under = new HBox(6, cost);
+        under.setAlignment(Pos.CENTER);
+        if (forge.neo.quest.NeoQuestCollection.isNew(card, ownedNames)) {
+            final Label fresh = new Label(NeoText.get("shop.new"));
+            fresh.getStyleClass().add("shop-new");
+            under.getChildren().add(fresh);
+        }
+        final VBox tile = new VBox(2, node, under);
         tile.setAlignment(Pos.CENTER);
         tile.getStyleClass().add("set-tile");
         tile.setPadding(new Insets(6, 6, 6, 6));

@@ -13,6 +13,7 @@ import forge.game.phase.PhaseType;
 import forge.game.player.Player;
 import forge.game.spellability.SpellAbility;
 import forge.game.spellability.SpellAbilityView;
+import forge.gamemodes.match.input.InputPassPriority;
 import forge.neo.tutorial.TutorialLesson;
 import forge.neo.tutorial.TutorialState;
 import forge.neo.ui.AbilityMenu;
@@ -50,12 +51,20 @@ public final class AbilityGroupCheck {
         final AtomicReference<List<String>> grouped = new AtomicReference<>();
         final AtomicReference<String> pointsTo = new AtomicReference<>();
         final AtomicBoolean alive = new AtomicBoolean(true);
+        // Se lee con la partida QUIETA: el piloto se retiene en tu prioridad
+        // de la primera fase principal hasta tener la lectura (o 20 s). Antes
+        // se leia al vuelo, y si caia mientras el motor montaba la posicion
+        // Marvin salia con dos de las tres habilidades (rojo suelto el 04 y
+        // el 07-10-2026, sin nada roto en el juego).
+        final long holdUntil = System.currentTimeMillis() + 20_000L;
 
         final Thread poller = new Thread(() -> {
-            while (alive.get() && grouped.get() == null) {
+            while (alive.get() && grouped.get() == null && System.currentTimeMillis() < holdUntil) {
                 try {
                     final NeoMatchUI ui = gui[0];
-                    if (ui != null && ui.getGameView() != null && ui.getGameView().getGame() != null) {
+                    if (ui != null && ui.getGameView() != null && ui.getGameView().getGame() != null
+                            && ui.getGameController() instanceof forge.player.PlayerControllerHuman ctrl
+                            && ctrl.getInputQueue().getInput() instanceof InputPassPriority) {
                         final Game game = ui.getGameView().getGame();
                         final Player me = human(game);
                         if (me != null && game.getPhaseHandler().isPlayerTurn(me)
@@ -96,12 +105,18 @@ public final class AbilityGroupCheck {
                     // La partida puede estar a medio montar: se vuelve a mirar.
                 }
             }
+            // Leida (o agotado el plazo): el piloto sigue.
+            if (gui[0] != null) {
+                gui[0].nudgeAutoPlay();
+            }
         }, "abilitygroupcheck-poll");
         poller.setDaemon(true);
 
         System.out.println("  Mesa: Marvin, Murderous Mimic con tres Prodigal Sorcerer y un Elvish Visionary.");
         NeoGame.playTutorial(lesson, state, NeoMatchUI.Mode.AUTO_PLAY, 30, null, false, ui -> {
             gui[0] = ui;
+            ui.setAutoPlayHold(() -> grouped.get() == null && System.currentTimeMillis() < holdUntil
+                    && humanMain1(ui));
             poller.start();
         });
         alive.set(false);
@@ -136,6 +151,18 @@ public final class AbilityGroupCheck {
         System.out.printf(Locale.ROOT, "%n  %d bien, %d mal%n", passed, failed);
         if (failed > 0) {
             throw new IllegalStateException(failed + " comprobacion(es) del menu de habilidades han fallado");
+        }
+    }
+
+    /** Tu turno, primera fase principal: donde se retiene al piloto para leer. */
+    private static boolean humanMain1(final NeoMatchUI ui) {
+        try {
+            final Game game = ui.getGameView() == null ? null : ui.getGameView().getGame();
+            final Player me = game == null ? null : human(game);
+            return me != null && game.getPhaseHandler().isPlayerTurn(me)
+                    && game.getPhaseHandler().getPhase() == PhaseType.MAIN1;
+        } catch (final RuntimeException e) {
+            return false;
         }
     }
 

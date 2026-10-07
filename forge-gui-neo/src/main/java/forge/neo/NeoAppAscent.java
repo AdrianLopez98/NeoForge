@@ -288,6 +288,25 @@ final class NeoAppAscent {
         final AscentRun demo = cmd
                 ? AscentRun.demo(AscentRun.Mode.COMMANDER, 40)
                 : AscentRun.demo(AscentRun.Mode.STANDARD, 20);
+        // -Dneo.ascent.relicCount=N: la run de mentira con N reliquias, para
+        // ver las filas de reliquias llenas (RelicChipRow).
+        final int relicCount = Integer.getInteger("neo.ascent.relicCount", 0);
+        for (final forge.neo.ascent.AscentRelic r : AscentRelics.all()) {
+            if (demo.relics().size() >= relicCount) {
+                break;
+            }
+            if (!demo.relics().contains(r)) {
+                demo.addRelic(r);
+            }
+        }
+        if ("map".equals(which)) {
+            showMap(demo);
+            return;
+        }
+        if ("pick".equals(which)) {
+            showPick(demo);
+            return;
+        }
         if ("shop".equals(which)) {
             // Con dinero: una tienda sin creditos ensenya lo mismo pero todo
             // apagado, que es justo lo que NO hay que mirar.

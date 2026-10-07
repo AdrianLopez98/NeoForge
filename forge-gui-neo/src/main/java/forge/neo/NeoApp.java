@@ -1108,6 +1108,14 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             // El resumen del final. Es el unico que NO se puede provocar de
             // ninguna manera razonable: hay que perder una run entera.
             ascent.showMock("over");
+        } else if (args.contains("--ascent-map")) {
+            // El MAPA de una run de mentira, sin tocar la del jugador. Con
+            // -Dneo.ascent.relicCount=N lleva N reliquias (Discord, 07-10-2026:
+            // con 28 el mapa se salia de la ventana). Ver RelicChipRow.
+            ascent.showMock("map");
+        } else if (args.contains("--ascent-pick")) {
+            // "Tu ascenso" (continuar o abandonar) con una run de mentira.
+            ascent.showMock("pick");
         } else if (args.contains("--ascent-relics")) {
             // Las reliquias de la run, con su texto. La maqueta le pone cinco.
             ascent.showMock("relics");

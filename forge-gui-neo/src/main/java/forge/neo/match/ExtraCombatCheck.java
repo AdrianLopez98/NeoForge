@@ -50,6 +50,13 @@ public final class ExtraCombatCheck {
         final AtomicBoolean hold = new AtomicBoolean(true);
         final List<String> phases = new ArrayList<>();
         final AtomicBoolean askedAttack = new AtomicBoolean();
+        // Mientras dura el turno del hechizo. El piloto contesta en
+        // milisegundos: mirando la cola cada 5 ms, un InputAttack podia
+        // empezar y acabar entre dos miradas (rojo suelto en la bateria del
+        // 07-10-2026, con el combate extra jugado de verdad). Por eso se apunta
+        // tambien desde el freno del piloto, que se consulta con la pregunta
+        // viva, justo antes de contestarla.
+        final AtomicBoolean watching = new AtomicBoolean();
         final AtomicBoolean cast = new AtomicBoolean();
         final List<String> notes = new ArrayList<>();
 
@@ -98,9 +105,10 @@ public final class ExtraCombatCheck {
                 notes.add("tras el clic: " + (me.getCardsIn(ZoneType.Hand).contains(toCast)
                         ? "sigue en la mano" : "fuera de la mano") + ", entrada "
                         + ctrl.getInputQueue().getInput());
+                final int turn = game.getPhaseHandler().getTurn();
+                watching.set(true);
                 hold.set(false);
                 gui[0].nudgeAutoPlay();
-                final int turn = game.getPhaseHandler().getTurn();
                 if (Boolean.getBoolean("neo.extra.endTurn")) {
                     // Esperar a que este en el cementerio y pulsar "Fin de turno".
                     for (int i = 0; i < 200 && !me.getCardsIn(ZoneType.Graveyard).contains(toCast); i++) {
@@ -108,21 +116,17 @@ public final class ExtraCombatCheck {
                     }
                     gui[0].passTurn();
                 }
-                PhaseType last = null;
                 for (int i = 0; i < 2000 && game.getPhaseHandler().getTurn() == turn; i++) {
                     if (me.getCardsIn(ZoneType.Graveyard).contains(toCast)) {
                         cast.set(true);
                     }
-                    final PhaseType ph = game.getPhaseHandler().getPhase();
-                    if (ph != last) {
-                        phases.add(String.valueOf(ph));
-                        last = ph;
-                    }
+                    note(phases, game);
                     if (ctrl.getInputQueue().getInput() instanceof InputAttack) {
                         askedAttack.set(true);
                     }
                     Thread.sleep(5L);
                 }
+                watching.set(false);
             } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
             } catch (final RuntimeException e) {
@@ -137,22 +141,51 @@ public final class ExtraCombatCheck {
         NeoGame.playTutorial(lesson, new TutorialState(lesson.getState()), NeoMatchUI.Mode.AUTO_PLAY, 40,
                 null, false, ui -> {
                     gui[0] = ui;
-                    ui.setAutoPlayHold(hold::get);
+                    ui.setAutoPlayHold(() -> {
+                        if (watching.get() && ui.getGameController() instanceof PlayerControllerHuman c) {
+                            final Game g = ui.getGameView() == null ? null : ui.getGameView().getGame();
+                            if (g != null) {
+                                note(phases, g);
+                            }
+                            if (c.getInputQueue().getInput() instanceof InputAttack) {
+                                askedAttack.set(true);
+                            }
+                        }
+                        return hold.get();
+                    });
                     driver.start();
                 });
 
+        final List<String> seen;
+        synchronized (phases) {
+            seen = new ArrayList<>(phases);
+        }
         System.out.printf(Locale.ROOT, "  lanzada: %s%n  fases tras lanzarla: %s%n  pregunto atacantes: %s%n",
-                cast.get(), phases, askedAttack.get());
+                cast.get(), seen, askedAttack.get());
         notes.forEach(n -> System.out.println("  - " + n));
         // Despues de la MAIN2 en la que se lanza: combate (con declarar
         // atacantes) y otra MAIN2.
-        final int main = phases.indexOf("MAIN2");
-        final boolean extra = main >= 0 && phases.subList(main + 1, phases.size()).contains("COMBAT_DECLARE_ATTACKERS")
-                && phases.lastIndexOf("MAIN2") > phases.indexOf("COMBAT_DECLARE_ATTACKERS");
+        final int main = seen.indexOf("MAIN2");
+        final boolean extra = main >= 0 && seen.subList(main + 1, seen.size()).contains("COMBAT_DECLARE_ATTACKERS")
+                && seen.lastIndexOf("MAIN2") > seen.indexOf("COMBAT_DECLARE_ATTACKERS");
         final boolean ok = cast.get() && extra && askedAttack.get();
         System.out.println(ok ? "%n  1 bien, 0 mal".formatted() : "%n  0 bien, 1 mal".formatted());
         if (!ok) {
             throw new IllegalStateException("el combate extra no ha salido como debe");
+        }
+    }
+
+    /**
+     * Apunta la fase si es distinta de la ultima. La llaman dos hilos (la
+     * prueba y el piloto): leer y anyadir van juntos para que el orden sea el
+     * de verdad.
+     */
+    private static void note(final List<String> phases, final Game game) {
+        synchronized (phases) {
+            final String s = String.valueOf(game.getPhaseHandler().getPhase());
+            if (phases.isEmpty() || !phases.get(phases.size() - 1).equals(s)) {
+                phases.add(s);
+            }
         }
     }
 }

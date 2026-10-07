@@ -563,9 +563,12 @@ final class NeoAppQuest {
         final java.util.List<forge.deck.Deck> starters =
                 forge.neo.quest.NeoQuest.starterDecks(modalidad);
         forge.neo.quest.NeoQuest.delete("neo-demo");
+        // -Dneo.quest.demoWorld=Shandalar: la de prueba, en ese mundo (para ver
+        // lo que llevas de el en el cuartel y "Nueva" en la tienda).
         forge.neo.quest.NeoQuest.start("neo-demo", modalidad,
                 forge.neo.quest.NeoQuest.Dificultad.NORMAL,
-                starters.isEmpty() ? null : starters.get(0));
+                starters.isEmpty() ? null : starters.get(0),
+                System.getProperty("neo.quest.demoWorld"));
         for (int i = 0; i < Integer.getInteger("neo.quest.demoWins", 0); i++) {
             forge.model.FModel.getQuest().getAchievements().addWin();
         }

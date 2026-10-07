@@ -59,6 +59,8 @@ public final class QuestCheck {
         ok &= checkEnginePrefs();
         System.out.println();
         ok &= checkSetPool();
+        System.out.println();
+        ok &= checkWorldStartingPool();
 
         System.out.println();
         System.out.println(ok
@@ -1908,6 +1910,76 @@ public final class QuestCheck {
         }
         System.out.println(ok ? "  OK" : "  FALLO");
         return ok;
+    }
+
+    /**
+     * Empezar en un mundo con sus expansiones (Shandalar) y SIN mazo: las
+     * cartas sueltas de salida son de ese mundo (Discord, 07-10-2026: "The
+     * cards I got were not from Shandalar"). Las basicas no cuentan: el motor
+     * las regala aparte.
+     */
+    private static boolean checkWorldStartingPool() {
+        System.out.println("  Quest en Shandalar sin mazo: las cartas de salida, de Shandalar");
+        final forge.gamemodes.quest.QuestWorld w = FModel.getWorlds().get("Shandalar");
+        if (w == null || w.getFormat() == null) {
+            System.out.println("  FALLO: no esta el mundo Shandalar o no tiene expansiones");
+            return false;
+        }
+        final java.util.Set<String> sets = new java.util.HashSet<>(w.getFormat().getAllowedSetCodes());
+        final String name = "neo-check-world-pool";
+        NeoQuest.delete(name);
+        try {
+            NeoQuest.start(name, NeoQuest.Modalidad.ESTANDAR, NeoQuest.Dificultad.NORMAL, null, "Shandalar");
+            int total = 0;
+            int outside = 0;
+            String example = null;
+            for (final java.util.Map.Entry<PaperCard, Integer> e : NeoQuest.collection()) {
+                final PaperCard c = e.getKey();
+                if (c == null || (c.getRules() != null && c.getRules().getType().isBasicLand())) {
+                    continue;
+                }
+                total += e.getValue();
+                if (!sets.contains(c.getEdition())) {
+                    outside += e.getValue();
+                    if (example == null) {
+                        example = c.getName() + " (" + c.getEdition() + ")";
+                    }
+                }
+            }
+            boolean ok = total > 0 && outside == 0;
+            System.out.printf(Locale.ROOT, "  %d cartas sueltas, %d de fuera de %s%s%n", total, outside, sets,
+                    example == null ? "" : " - p. ej. " + example);
+
+            // Y lo que llevas del mundo (NeoQuestCollection, Discord 07-10-2026):
+            // todo lo que tienes es de Shandalar, asi que "tienes" son tus nombres
+            // distintos (sin basicas), y una carta tuya no es "Nueva".
+            final java.util.Set<String> owned = NeoQuestCollection.ownedNames();
+            final NeoQuestCollection.Progress pr = NeoQuestCollection.worldProgress();
+            int mine = 0;
+            PaperCard sample = null;
+            for (final java.util.Map.Entry<PaperCard, Integer> e : NeoQuest.collection()) {
+                if (e.getKey() != null && !e.getKey().getRules().getType().isBasicLand()) {
+                    sample = e.getKey();
+                }
+            }
+            for (final String n : owned) {
+                final PaperCard c = FModel.getMagicDb().getCommonCards().getCard(n);
+                if (c != null && !c.getRules().getType().isBasicLand()) {
+                    mine++;
+                }
+            }
+            final boolean progressOk = pr != null && "Shandalar".equals(pr.world) && pr.total > 500
+                    && pr.owned == mine && pr.missing() == pr.total - mine
+                    && sample != null && !NeoQuestCollection.isNew(sample, owned);
+            System.out.printf(Locale.ROOT, "  de Shandalar: tienes %d de %d (te faltan %d); %s no sale como nueva%n",
+                    pr == null ? -1 : pr.owned, pr == null ? -1 : pr.total, pr == null ? -1 : pr.missing(),
+                    sample == null ? "?" : sample.getName());
+            ok &= progressOk;
+            System.out.println(ok ? "  OK" : "  FALLO");
+            return ok;
+        } finally {
+            NeoQuest.delete(name);
+        }
     }
 
     private static PaperCard pickWithSeveralPrintings() {

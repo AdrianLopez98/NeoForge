@@ -193,8 +193,9 @@ public class PlayerBar extends HBox {
         final VBox lifeBox = new VBox(-4, life, lifeCaption);
         lifeBox.setAlignment(Pos.CENTER);
 
+        handBox = zone(NeoText.get("zone.hand"), hand, forge.game.zone.ZoneType.Hand);
         final HBox zones = new HBox(14,
-                zone(NeoText.get("zone.hand"), hand, forge.game.zone.ZoneType.Hand),
+                handBox,
                 zone(NeoText.get("zone.library"), library, forge.game.zone.ZoneType.Library),
                 zone(NeoText.get("zone.graveyard"), graveyard, forge.game.zone.ZoneType.Graveyard),
                 zone(NeoText.get("zone.exile"), exile, forge.game.zone.ZoneType.Exile),
@@ -664,6 +665,39 @@ public class PlayerBar extends HBox {
 
     private static final javafx.css.PseudoClass ALLY =
             javafx.css.PseudoClass.getPseudoClass("ally");
+
+    /** El contador de la mano, para marcarlo cuando se puede ver (setHandRevealed). */
+    private Region handBox;
+
+    private static final javafx.css.PseudoClass REVEALED =
+            javafx.css.PseudoClass.getPseudoClass("revealed");
+    private static final javafx.css.PseudoClass PLAYABLE =
+            javafx.css.PseudoClass.getPseudoClass("playable");
+
+    /**
+     * <b>Su mano, si la puedes ver</b> (Discord, 07-10-2026, con Sen Triplets).
+     * El contador se pinta en azul si el motor te deja mirar alguna carta y en
+     * verde si ademas puedes lanzar alguna; clicarlo abre su mano, con lo que se
+     * ve boca arriba y lo que se lanza listo para clicar. Ver
+     * {@code forge.neo.match.RevealedHand}.
+     */
+    public void setHandRevealed(final int visible, final int castable) {
+        if (handBox == null) {
+            return;
+        }
+        handBox.pseudoClassStateChanged(REVEALED, visible > 0 && castable == 0);
+        handBox.pseudoClassStateChanged(PLAYABLE, castable > 0);
+        final String tip = castable > 0 ? NeoText.get("bar.hand.castable", castable)
+                : visible > 0 ? NeoText.get("bar.hand.revealed", visible) : null;
+        javafx.scene.control.Tooltip.uninstall(handBox, handTip);
+        handTip = null;
+        if (tip != null) {
+            handTip = new javafx.scene.control.Tooltip(tip);
+            javafx.scene.control.Tooltip.install(handBox, handTip);
+        }
+    }
+
+    private javafx.scene.control.Tooltip handTip;
 
     public void setZones(final int handSize, final int librarySize, final int graveSize,
                          final int exileSize, final int commandSize) {

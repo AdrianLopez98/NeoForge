@@ -10,9 +10,7 @@ import forge.neo.NeoText;
 import forge.neo.ascent.AscentBattle;
 import forge.neo.ascent.AscentMap;
 import forge.neo.ascent.AscentNode;
-import forge.neo.ascent.AscentRelic;
 import forge.neo.ascent.AscentPlanes;
-import forge.neo.ascent.AscentRelics;
 import forge.neo.ascent.AscentRewards;
 import forge.neo.ascent.AscentRun;
 import javafx.geometry.Insets;
@@ -253,24 +251,18 @@ public class AscentMapScreen extends StackPane {
         // ⚠️ No vale con CardZoom.install: ese busca un CardNode bajo el raton
         // y una pastilla no lo es. Asi que la pastilla lleva el suyo, que
         // acaba en la MISMA capa (CardZoom.show).
-        final HBox relics = new HBox(6);
-        relics.setAlignment(Pos.CENTER_RIGHT);
-        for (final AscentRelic r : run.relics()) {
-            final Label chip = pill(r.getCardName(), "ascent-pill-relic");
-            final forge.item.PaperCard card = AscentRelics.cardOf(r);
-            if (card != null) {
-                chip.setOnMouseClicked(e -> {
-                    if (e.getButton() == javafx.scene.input.MouseButton.SECONDARY) {
-                        CardZoom.show(chip, forge.game.card.CardView.getCardForUi(card));
-                    }
-                });
-            }
-            relics.getChildren().add(chip);
-        }
-
-        final Region gap = new Region();
-        HBox.setHgrow(gap, javafx.scene.layout.Priority.ALWAYS);
-        final HBox bar = new HBox(16, title, where, stats, gap, relics);
+        //
+        // ⚠️ Y en una fila que NO ensancha la pantalla (RelicChipRow): con 28
+        // reliquias el HBox de antes pasaba del ancho de la ventana, el mapa se
+        // iba de lado y no habia forma de llegar al primer combate (Discord,
+        // 07-10-2026). Las que no caben van en una "+N" que abre el visor.
+        final RelicChipRow relics = new RelicChipRow(run.relics(), Pos.CENTER_RIGHT, actions::relics);
+        // No pide ancho propio: se queda con LO QUE SOBRA despues del titulo,
+        // el plano y la vida, y ahi pinta las que quepan. Pidiendo el de todas,
+        // el HBox encogia a los demas hasta dejarlos en "...".
+        relics.setPrefWidth(0);
+        HBox.setHgrow(relics, javafx.scene.layout.Priority.ALWAYS);
+        final HBox bar = new HBox(16, title, where, stats, relics);
         bar.getStyleClass().add("ascent-bar");
         bar.setAlignment(Pos.CENTER_LEFT);
         // ⚠️ 38 arriba y no 14: las pastillas son mas altas que el titulo y
@@ -326,6 +318,16 @@ public class AscentMapScreen extends StackPane {
         if (code != null) {
             bar.getChildren().add(bar.getChildren().indexOf(gap), code);
         }
+        // En una ventana estrecha (1366, la del reporte del 07-10-2026) los
+        // botones se quedaban en "Tu m..." y "Vol...": el HBox encogia a todos
+        // por igual. Los botones y el codigo no encogen; lo que cede es la
+        // pista, que es la unica que se puede leer cortada.
+        for (final javafx.scene.Node n : bar.getChildren()) {
+            if (n instanceof Button) {
+                ((Button) n).setMinWidth(Region.USE_PREF_SIZE);
+            }
+        }
+        hint.setMinWidth(0);
         bar.getStyleClass().add("ascent-bar");
         bar.setAlignment(Pos.CENTER_LEFT);
         // ⚠️ 38 abajo y no 16, exactamente por lo mismo que la barra de arriba

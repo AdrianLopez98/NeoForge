@@ -211,8 +211,22 @@ public final class NeoQuest {
         // res/quest/duels, que trae 238 rivales faciles.
         final String world = limited || worldName == null || worldName.isBlank()
                 ? QuestWorld.MAINWORLDNAME : worldName;
+        // Las cartas sueltas de salida, de las expansiones del MUNDO si tiene
+        // (Discord, 07-10-2026: "I just created a new Quest game and selected
+        // to start with random cards (no deck). The cards I got were not from
+        // Shandalar"). Es lo que hace el Forge de siempre
+        // (CSubmenuQuestStart: fmtStartPool = worldFormat). Solo el pozo de
+        // salida: los premios siguen como estaban, que el mundo ya los limita
+        // mientras estas en el.
+        forge.game.GameFormat startFormat = format;
+        if (!limited && worldName != null && !worldName.isBlank()) {
+            final QuestWorld w = FModel.getWorlds().get(worldName);
+            if (w != null && w.getFormat() != null) {
+                startFormat = w.getFormat();
+            }
+        }
         FModel.getQuest().newGame(name, dificultad.getIndex(), QuestMode.Classic,
-                format, !limited, deck, format, world, prefs,
+                format, !limited, deck, startFormat, world, prefs,
                 modalidad.getRules());
         if (deck != null) {
             // newGame lo mete en la coleccion y en tus mazos, pero no lo deja

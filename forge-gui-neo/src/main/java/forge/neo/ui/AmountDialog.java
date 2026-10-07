@@ -72,7 +72,8 @@ public class AmountDialog extends VBox {
     private final List<Object> targets = new ArrayList<>();
     private final List<Integer> amounts = new ArrayList<>();
     private final List<Integer> maxima = new ArrayList<>();
-    private final List<Label> valueLabels = new ArrayList<>();
+    /** El numero de cada uno: se ESCRIBE (Discord, 07-10-2026: 44 clics al "+"). */
+    private final List<javafx.scene.control.TextField> valueLabels = new ArrayList<>();
     private final List<Button> minusButtons = new ArrayList<>();
     private final List<Button> plusButtons = new ArrayList<>();
 
@@ -169,9 +170,12 @@ public class AmountDialog extends VBox {
         // que sepa pulsar se quedaria plantado aqui para siempre.
         auto.getStyleClass().addAll("btn-secondary", "amount-auto");
         // En el de mana, "lo sugerido" es mucho mejor reparto que el
-        // automatico (que lo amontona todo en el primer color).
+        // automatico. En los demas, A PARTES IGUALES (Discord, 07-10-2026: "the
+        // split for me just puts all of the counters into the first creature,
+        // maybe ... distribute them equally"): con 44 contadores para tres
+        // criaturas, 15/15/14. Ver EvenSplit.
         auto.setOnAction(e -> {
-            applySplit(mana ? suggested : autoSplit(targetsIn, amount, atLeastOne));
+            applySplit(mana ? suggested : evenSplit());
             update();
         });
 
@@ -233,8 +237,48 @@ public class AmountDialog extends VBox {
         face.setCursor(javafx.scene.Cursor.HAND);
         faces.add(face);
 
-        final Label value = new Label("0");
-        value.getStyleClass().add("amount-value");
+        // Se ESCRIBE (Discord, 07-10-2026: "you could edit the number directly
+        // instead of having to manualy click the + a thousand times ... I had to
+        // manualy click 44 times"). Se aplica al momento, recortado a lo que
+        // cabe; al salir del campo o con Intro se pone el numero que quedo.
+        final javafx.scene.control.TextField value = new javafx.scene.control.TextField("0");
+        value.getStyleClass().addAll("amount-value", "amount-value-field");
+        value.setPrefColumnCount(3);
+        value.setAlignment(Pos.CENTER);
+        value.textProperty().addListener((obs, was, now) -> {
+            if (now == null || !value.isFocused()) {
+                return;
+            }
+            final String digits = now.replaceAll("[^0-9]", "");
+            if (!digits.equals(now)) {
+                javafx.application.Platform.runLater(() -> value.setText(digits));
+                return;
+            }
+            if (!digits.isEmpty() && digits.length() <= 5) {
+                final int typed = Integer.parseInt(digits);
+                set(index, typed);
+                // Mas de lo que cabe: se corrige al momento, que un "99" a la
+                // vista con 42 de verdad seria un numero que miente.
+                final int real = amounts.get(index);
+                if (real != typed) {
+                    javafx.application.Platform.runLater(() -> {
+                        value.setText(String.valueOf(real));
+                        value.end();
+                    });
+                }
+            }
+        });
+        value.focusedProperty().addListener((obs, was, now) -> {
+            if (!now) {
+                value.setText(String.valueOf(amounts.get(index)));
+            } else {
+                javafx.application.Platform.runLater(value::selectAll);
+            }
+        });
+        value.setOnAction(e -> {
+            value.setText(String.valueOf(amounts.get(index)));
+            value.selectAll();
+        });
         valueLabels.add(value);
 
         final Button minus = new Button("-");
@@ -339,6 +383,27 @@ public class AmountDialog extends VBox {
         update();
     }
 
+    /**
+     * Pone ese numero a uno (lo escrito en su campo), recortado a lo legal:
+     * entre su suelo y lo que queda mas lo que ya tiene, sin pasar de su tope.
+     */
+    private void set(final int index, final int value) {
+        final int floor = atLeastOne ? 1 : 0;
+        final int room = Math.min(maxima.get(index), amounts.get(index) + (total - spent()));
+        amounts.set(index, Math.max(floor, Math.min(value, Math.max(floor, room))));
+        update();
+    }
+
+    /** A partes iguales, con los topes de cada uno (EvenSplit). */
+    private Map<Object, Integer> evenSplit() {
+        final List<Integer> even = forge.neo.match.EvenSplit.of(maxima, total, atLeastOne);
+        final Map<Object, Integer> out = new LinkedHashMap<>();
+        for (int i = 0; i < targets.size(); i++) {
+            out.put(targets.get(i), even.get(i));
+        }
+        return out;
+    }
+
     /** El que mas lleva, sin contar este; -1 si nadie tiene nada que ceder. */
     private int richestOtherThan(final int index) {
         final int floor = atLeastOne ? 1 : 0;
@@ -388,7 +453,10 @@ public class AmountDialog extends VBox {
     private void update() {
         final int left = total - spent();
         for (int i = 0; i < targets.size(); i++) {
-            valueLabels.get(i).setText(String.valueOf(amounts.get(i)));
+            // El que se esta escribiendo no se toca: le pisaria la tecla.
+            if (!valueLabels.get(i).isFocused()) {
+                valueLabels.get(i).setText(String.valueOf(amounts.get(i)));
+            }
             minusButtons.get(i).setDisable(amounts.get(i) <= (atLeastOne ? 1 : 0));
             plusButtons.get(i).setDisable(amounts.get(i) >= maxima.get(i)
                     || (left <= 0 && !(mana && richestOtherThan(i) >= 0)));

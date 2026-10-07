@@ -431,6 +431,16 @@
 }
 
 /* Verde lo que puedes pagar, apagado lo que no. Se lee sin contar. */
+/* "Nueva" en las sueltas de la tienda de la Quest: no tienes ninguna con ese nombre. */
+.shop-new {
+    -fx-font-size: 0.72em;
+    -fx-font-weight: bold;
+    -fx-text-fill: #12161C;
+    -fx-background-color: -neo-accent;
+    -fx-background-radius: 999;
+    -fx-padding: 0 0.55em 0.05em 0.55em;
+}
+
 .set-price-ok {
     -fx-font-size: 0.8em;
     -fx-font-weight: bold;
@@ -2826,6 +2836,23 @@
     -fx-alignment: center;
 }
 
+/* El numero del reparto, que se escribe (AmountDialog): un TextField con el
+   aspecto de la pastilla de siempre, y el borde de foco para que se vea que
+   se puede escribir en el. */
+.amount-value-field {
+    -fx-pref-width: 4.2em;
+    -fx-max-width: 4.2em;
+    -fx-padding: 3 6 3 6;
+    -fx-background-insets: 0;
+    -fx-highlight-fill: -neo-accent;
+    -fx-highlight-text-fill: #10141A;
+    -fx-cursor: text;
+}
+.amount-value-field:focused {
+    -fx-border-color: -neo-accent;
+    -fx-border-radius: 4;
+}
+
 .amount-step {
     -fx-background-color: -neo-panel-hi;
     -fx-background-radius: 4;
@@ -3306,6 +3333,22 @@
 /* Una regla del modo que hay que leer (los retos no suben la Ascension): la
    tinta del pergamino, en negrita. Ni rojo de error ni gris de pie de pagina. */
 /* La racha de retos superados, junto a su llama: el naranja de la llama. */
+/* La estrella de favorito de un comandante (Ascenso, AscentFavorites). */
+.ascent-fav-star {
+    -fx-font-size: 1.5em;
+    -fx-text-fill: #F2E6C9;
+    -fx-background-color: rgba(18, 22, 28, 0.78);
+    -fx-background-radius: 999;
+    -fx-padding: 0 0.3em 0.05em 0.3em;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.6), 4, 0, 0, 1);
+}
+.ascent-fav-star:hover {
+    -fx-text-fill: #FFD36B;
+}
+.ascent-fav-star.on {
+    -fx-text-fill: #F5B82E;
+}
+
 .ascent-streak {
     -fx-text-fill: #B4501E;
     -fx-font-weight: 900;
@@ -3790,3 +3833,21 @@
     -fx-padding: 6 10 6 12;
 }
 
+/* La mano de un rival que puedes ver (azul) o de la que puedes lanzar (verde):
+   Sen Triplets, Telepathy... Ver forge.neo.match.RevealedHand. */
+.zone-button:revealed {
+    -fx-background-color: rgba(74, 155, 224, 0.22);
+    -fx-border-color: -neo-accent;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+}
+.zone-button:revealed .zone-count { -fx-text-fill: -neo-accent; }
+.zone-button:playable {
+    -fx-background-color: rgba(79, 180, 119, 0.22);
+    -fx-border-color: -neo-valid;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+}
+.zone-button:playable .zone-count { -fx-text-fill: -neo-valid; }
+.opponent-tab:revealed { -fx-border-color: -neo-accent; -fx-text-fill: -neo-accent; }
+.opponent-tab:playable { -fx-border-color: -neo-valid; -fx-text-fill: -neo-valid; }

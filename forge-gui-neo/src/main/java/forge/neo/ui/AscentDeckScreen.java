@@ -21,7 +21,8 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 
 /**
- * Tu mazo, a mitad de run. <b>Se mira, no se toca</b> (el plan de Ascenso).
+ * Tu mazo, a mitad de run. <b>Se mira, no se toca</b> (el plan de Ascenso) — salvo
+ * el ARTE, que es solo el dibujo (Discord, 06-10-2026): clic en una carta.
  *
  * <h2>Por que hasta ahora no estaba</h2>
  *
@@ -45,9 +46,54 @@ import javafx.scene.paint.Color;
  */
 public class AscentDeckScreen extends StackPane {
 
-    public AscentDeckScreen(final AscentRun run, final double cardWidth, final Runnable back) {
-        getStyleClass().add("ascent-map-root");
+    private final AscentRun run;
+    private final double cardWidth;
+    private final Runnable back;
+    /** El selector de arte, por encima de todo (Overlay: lo que contesta va en su capa). */
+    private final Overlay overlay = new Overlay();
 
+    /** Si se puede cambiar el arte: desde el mapa si, por encima de un nodo no. */
+    private final boolean editable;
+
+    public AscentDeckScreen(final AscentRun run, final double cardWidth, final Runnable back) {
+        this(run, cardWidth, back, true);
+    }
+
+    /**
+     * @param editable {@code false} encima de un premio, una tienda o un
+     *        descanso ({@link AscentQuickLook}): esas pantallas tienen YA su
+     *        copia del mazo (la lista de "quitar una carta", por ejemplo), y
+     *        cambiar ahi una impresion la dejaria apuntando a una carta que ya
+     *        no esta. El arte se cambia desde el mapa.
+     */
+    public AscentDeckScreen(final AscentRun run, final double cardWidth, final Runnable back,
+                            final boolean editable) {
+        this.editable = editable;
+        this.run = run;
+        this.cardWidth = cardWidth;
+        this.back = back;
+        getStyleClass().add("ascent-map-root");
+        build();
+        // Click derecho = la carta grande, como en todas partes.
+        CardZoom.install(this);
+        // Para capturarlo: -Dneo.ascent.deckPrinting=N abre el selector de arte
+        // de la N-esima carta (en el orden de la rejilla, de cara a barata).
+        final int test = Integer.getInteger("neo.ascent.deckPrinting", -1);
+        if (test >= 0 && editable) {
+            final List<PaperCard> cards = AscentDecks.sortedByCost(AscentDecks.load(run));
+            // La primera desde la N con mas de un arte: con uno solo no se abre nada.
+            for (int i = test; i < cards.size(); i++) {
+                final PaperCard c = cards.get(i);
+                if (AscentDecks.printingsOf(c).size() > 1) {
+                    javafx.application.Platform.runLater(() -> choosePrinting(c));
+                    break;
+                }
+            }
+        }
+    }
+
+    /** Monta (o vuelve a montar, tras cambiar un arte) la pantalla entera. */
+    private void build() {
         final Parchment paper = new Parchment(run.getSeed() + 91L, Color.web("#E4D3AC"));
         StackPane.setMargin(paper, new Insets(10));
 
@@ -60,7 +106,16 @@ public class AscentDeckScreen extends StackPane {
         final Label stats = new Label(summary(cards));
         stats.getStyleClass().add("ascent-hint");
 
-        final AscentDeckView grid = new AscentDeckView(cards, cardWidth * 0.85, null);
+        // El arte SI se toca (Discord, 06-10-2026: Final Fantasy, cartas en
+        // japones, Marvel...). Es solo el dibujo: ver AscentDecks.printingsOf.
+        final Label printHint = new Label(editable ? NeoText.get("ascent.deck.printHint") : "");
+        printHint.setManaged(editable);
+        printHint.setVisible(editable);
+        printHint.getStyleClass().add("ascent-hint");
+        printHint.setWrapText(true);
+
+        final AscentDeckView grid = new AscentDeckView(cards, cardWidth * 0.85,
+                editable ? this::choosePrinting : null);
 
         final Button close = new Button(NeoText.get("common.back"));
         close.getStyleClass().addAll("ascent-button", "btn-primary");
@@ -70,7 +125,7 @@ public class AscentDeckScreen extends StackPane {
         // El borde del papel esta ROTO: ver Parchment.SAFE_EDGE.
         buttons.setPadding(new Insets(10, 0, Parchment.SAFE_EDGE, 0));
 
-        final VBox head = new VBox(8, title, stats);
+        final VBox head = new VBox(8, title, stats, printHint);
         head.setAlignment(Pos.TOP_CENTER);
         head.setPadding(new Insets(22, 28, 6, 28));
 
@@ -81,16 +136,34 @@ public class AscentDeckScreen extends StackPane {
         chrome.setCenter(grid);
         chrome.setBottom(buttons);
         BorderPane.setMargin(grid, new Insets(0, 28, 0, 28));
-        final VBox commander = commanderColumn(deck, cardWidth);
+        final VBox commander = commanderColumn(deck, cardWidth, editable ? this::choosePrinting : null);
         if (commander != null) {
             chrome.setLeft(commander);
             BorderPane.setMargin(grid, new Insets(0, 28, 0, 0));
         }
 
-        getChildren().addAll(paper, chrome);
-        // Click derecho = la carta grande. Es lo unico que se puede hacer aqui,
-        // y es justo para lo que se entra.
-        CardZoom.install(this);
+        getChildren().setAll(paper, chrome, overlay);
+    }
+
+    /**
+     * El selector de arte de siempre ({@link PrintingDialog}), con su contador
+     * de copias si hay varias. Al elegir se guarda el mazo de la run y se
+     * vuelve a pintar.
+     */
+    private void choosePrinting(final PaperCard card) {
+        final List<PaperCard> printings = AscentDecks.printingsOf(card);
+        if (printings.size() <= 1) {
+            return;
+        }
+        overlay.setOnBackgroundClick(overlay::hide);
+        final PrintingDialog[] dialog = new PrintingDialog[1];
+        dialog[0] = new PrintingDialog(card, printings, cardWidth, picked -> {
+            overlay.hide();
+            if (AscentDecks.switchPrinting(run, card, picked, dialog[0].copies()) > 0) {
+                build();
+            }
+        }, overlay::hide).offerCopies(AscentDecks.copiesOf(run, card));
+        overlay.show(dialog[0]);
     }
 
     /**
@@ -108,7 +181,8 @@ public class AscentDeckScreen extends StackPane {
      * en la rejilla se ordena por coste y se mezclaria justo con lo que tiene
      * que distinguirse (principio 3 del las notas de diseño, el estado se ve).
      */
-    private static VBox commanderColumn(final Deck deck, final double cardWidth) {
+    private static VBox commanderColumn(final Deck deck, final double cardWidth,
+                                        final java.util.function.Consumer<PaperCard> onPick) {
         if (deck == null || !deck.has(DeckSection.Commander)) {
             return null;
         }
@@ -125,6 +199,14 @@ public class AscentDeckScreen extends StackPane {
             final CardNode node = new CardNode(cardWidth * 1.35);
             node.setRotationEnabled(false);
             node.setCard(CardView.getCardForUi(c));
+            if (onPick != null) {
+                node.setCursor(javafx.scene.Cursor.HAND);
+                node.setOnMouseClicked(e -> {
+                    if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY) {
+                        onPick.accept(c);
+                    }
+                });
+            }
             column.getChildren().add(node);
         }
         return column;

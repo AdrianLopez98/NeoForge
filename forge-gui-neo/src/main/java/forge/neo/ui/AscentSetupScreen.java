@@ -828,7 +828,18 @@ public class AscentSetupScreen extends StackPane {
             rebuild();
         });
 
-        final HBox tools = new HBox(12, field, random);
+        // Favoritos (Discord, 06-10-2026): con la estrella de cada carta salen
+        // los primeros; esto deja ver SOLO esos. Ver AscentFavorites.
+        final int favCount = forge.neo.ascent.AscentFavorites.only(commanders()).size();
+        final Button favorites = choice(NeoText.get("ascent.setup.favorites", favCount), onlyFavorites);
+        favorites.setDisable(favCount == 0 && !onlyFavorites);
+        favorites.setOnAction(e -> {
+            onlyFavorites = !onlyFavorites;
+            page = 0;
+            rebuild();
+        });
+
+        final HBox tools = new HBox(12, field, random, favorites);
         tools.setAlignment(Pos.CENTER);
 
         grid.getChildren().clear();
@@ -848,6 +859,9 @@ public class AscentSetupScreen extends StackPane {
     }
 
     private final FlowPane grid = new FlowPane(10, 10);
+
+    /** El filtro de "solo favoritos" del selector de comandante. */
+    private boolean onlyFavorites = Boolean.getBoolean("neo.ascent.onlyFavorites");
 
     /** Los comandantes que casan con lo escrito, la pagina actual. */
     private void refreshCommanders() {
@@ -876,12 +890,54 @@ public class AscentSetupScreen extends StackPane {
                 commander = chosen ? null : c;
                 rebuild();
             });
-            grid.getChildren().add(node);
+            grid.getChildren().add(withStar(node, c));
         }
     }
 
+    /**
+     * La carta con su estrella de favorito en la esquina. La estrella se come su
+     * clic: marcar un favorito no es elegirlo para esta run.
+     */
+    private Region withStar(final CardNode node, final PaperCard c) {
+        final boolean fav = forge.neo.ascent.AscentFavorites.isFavorite(c.getName());
+        final Label star = new Label(fav ? "★" : "☆");
+        star.getStyleClass().add("ascent-fav-star");
+        if (fav) {
+            star.getStyleClass().add("on");
+        }
+        star.setCursor(javafx.scene.Cursor.HAND);
+        star.setTooltip(new javafx.scene.control.Tooltip(NeoText.get(
+                fav ? "ascent.setup.favorite.remove" : "ascent.setup.favorite.add")));
+        star.setOnMouseClicked(e -> {
+            e.consume();
+            if (e.getButton() != javafx.scene.input.MouseButton.PRIMARY) {
+                return;
+            }
+            forge.neo.ascent.AscentFavorites.toggle(c.getName());
+            if (onlyFavorites && forge.neo.ascent.AscentFavorites.only(commanders()).isEmpty()) {
+                onlyFavorites = false;
+            }
+            rebuild();
+        });
+        final StackPane box = new StackPane(node, star);
+        // Al pasar el raton, CardNode baja su viewOrder para ponerse delante
+        // (entering -> -1): dentro de esta caja eso la ponia ENCIMA de la
+        // estrella, que desaparecia (Ana, 06-10-2026). La estrella va siempre
+        // por delante, y la caja sigue a la carta para que la ampliada no
+        // quede debajo de la vecina de la derecha.
+        star.setViewOrder(-10);
+        box.viewOrderProperty().bind(node.viewOrderProperty());
+        // Abajo a la izquierda: arriba tapaba el coste, que es justo lo que se
+        // mira al elegir comandante; abajo solo tapa la firma del ilustrador.
+        StackPane.setAlignment(star, Pos.BOTTOM_LEFT);
+        StackPane.setMargin(star, new Insets(UiScale.px(4)));
+        return box;
+    }
+
     private List<PaperCard> matches() {
-        final List<PaperCard> all = commanders();
+        final List<PaperCard> all = onlyFavorites
+                ? forge.neo.ascent.AscentFavorites.only(commanders())
+                : forge.neo.ascent.AscentFavorites.favoritesFirst(commanders());
         if (search == null || search.isBlank()) {
             return all;
         }

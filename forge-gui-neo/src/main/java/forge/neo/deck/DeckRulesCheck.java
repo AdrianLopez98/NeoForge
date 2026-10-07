@@ -57,6 +57,7 @@ public final class DeckRulesCheck {
         generatedDeckSkipsWhatIsAlreadyInTheDeck();
         generatedDeckFitsTheCommandZone();
         generatesARandomOpponentDeck();
+        unfinishedDecksAreNotRivals();
         adventureIgnoresTheBanList();
         newestFirstOrdersByAcquisition();
         catalogueSorts();
@@ -1472,6 +1473,39 @@ public final class DeckRulesCheck {
         if (problem == null) {
             generatedDecksDropGleemox(generated);
         }
+    }
+
+    /**
+     * Un mazo a medio hacer no sale de rival al azar (Discord, 07-10-2026:
+     * "the ai rolled the unfinished deck ... I hadn't added lands yet"). Con
+     * uno a medias y uno legal, el legal va delante; el orden de los legales no
+     * cambia; y si solo hay a medias, salen igual.
+     */
+    private static void unfinishedDecksAreNotRivals() {
+        final Deck full;
+        try {
+            full = GeneratedDecks.commanderDeck(true, forge.game.GameType.Commander);
+        } catch (final RuntimeException e) {
+            check("Rival al azar: no se pudo generar un mazo legal (" + e + ")", false);
+            return;
+        }
+        final Deck half = new Deck("a medias");
+        half.getOrCreate(forge.deck.DeckSection.Commander).add(full.getCommanders().get(0), 1);
+        int n = 0;
+        for (final java.util.Map.Entry<forge.item.PaperCard, Integer> e : full.getMain()) {
+            if (!e.getKey().getRules().getType().isLand() && n < 25) {
+                half.getMain().add(e.getKey(), 1);
+                n++;
+            }
+        }
+        final forge.game.GameType t = forge.game.GameType.Commander;
+        final java.util.List<Deck> order = RivalDecks.readyFirst(java.util.List.of(half, full), t);
+        check("Rival al azar: un mazo de 25 cartas sin tierras no vale de rival",
+                !RivalDecks.ready(half, t) && RivalDecks.ready(full, t));
+        check("Rival al azar: el legal sale antes que el que esta a medias",
+                order.get(0) == full && order.get(1) == half);
+        check("Rival al azar: si solo hay mazos a medias, siguen saliendo",
+                RivalDecks.readyFirst(java.util.List.of(half), t).size() == 1);
     }
 
     /**

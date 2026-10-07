@@ -442,6 +442,21 @@ public final class NeoSettings {
     public static final String HOVER_DETAIL = "hoverDetail";
 
     /**
+     * <b>La carta GRANDE al pasar el raton, como en el Forge de siempre</b>
+     * (Discord, 07-10-2026: <i>"i really want the large card on hover ... like
+     * in default forge"</i>). El Forge de escritorio ensenya siempre la carta
+     * que tienes bajo el raton, grande, en su panel de imagen; aqui sale a un
+     * lado de la mesa, en el contrario a la carta, y se va al salir de ella.
+     * Apagado de fabrica (la auditoría del motor 1.1): tapa media mesa mientras miras.
+     * Ver {@code TableScreen.showBigCard}.
+     */
+    public static final String BIG_HOVER_CARD = "bigHoverCard";
+
+    public static boolean bigHoverCard() {
+        return Boolean.getBoolean("neo.bigHoverCard") || getBool(BIG_HOVER_CARD, false);
+    }
+
+    /**
      * <b>Como se ensenya lo enganchado</b> (equipos, auras, fortificaciones):
      * abanico bajo la criatura (de fabrica) o <b>apilado detras</b> de ella.
      *

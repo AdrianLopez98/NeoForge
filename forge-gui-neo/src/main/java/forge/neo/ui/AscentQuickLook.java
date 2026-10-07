@@ -47,7 +47,7 @@ final class AscentQuickLook {
             b.setMinWidth(Region.USE_PREF_SIZE);
             b.setFocusTraversable(false);
         }
-        deck.setOnAction(e -> open(host, back -> new AscentDeckScreen(run, cardWidth, back)));
+        deck.setOnAction(e -> open(host, back -> new AscentDeckScreen(run, cardWidth, back, false)));
         relics.setOnAction(e -> open(host, back -> new AscentRelicsScreen(run, cardWidth, back)));
         final Runnable refresh = () -> {
             final int n = run.relics().size();

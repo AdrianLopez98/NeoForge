@@ -865,6 +865,23 @@ public class SettingsPanel extends VBox {
                     NeoSettings.save();
                 }));
 
+        // --- la carta GRANDE al pasar el raton, como en Forge ---
+        //
+        // Discord, 07-10-2026: "i really want the large card on hover ... like
+        // in default forge". Apagado de fabrica: tapa media mesa mientras miras.
+        getChildren().add(toggleRow(NeoText.get("settings.bigHoverCard"),
+                NeoSettings.getBool(NeoSettings.BIG_HOVER_CARD, false),
+                on -> {
+                    NeoSettings.setBool(NeoSettings.BIG_HOVER_CARD, on);
+                    NeoSettings.save();
+                }));
+        final Label bigNote = new Label(NeoText.get("settings.bigHoverCard.note"));
+        bigNote.getStyleClass().add("settings-note");
+        bigNote.setWrapText(true);
+        bigNote.setMaxWidth(UiScale.px(560));
+        bigNote.setMinHeight(Region.USE_PREF_SIZE);
+        getChildren().add(bigNote);
+
         tab(Tab.GAME);
         getChildren().add(section(NeoText.get("settings.rivalsSection")));
 

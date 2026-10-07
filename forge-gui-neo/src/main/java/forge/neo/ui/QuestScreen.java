@@ -152,6 +152,32 @@ public class QuestScreen extends BorderPane {
                 clickable(tile(String.valueOf(NeoQuest.collectionSize()),
                         NeoText.get("quest.collectionSize"), null), actions::collection),
                 tile(String.valueOf(NeoQuest.life()), NeoText.get("quest.duelLife"), null));
+        // Cuanto llevas del MUNDO (Discord, 07-10-2026: "the count of cards your
+        // collection is missing from the current world"). Solo en un mundo con
+        // expansiones propias: en el principal "te faltan 33.000" no dice nada.
+        final forge.neo.quest.NeoQuestCollection.Progress progress =
+                forge.neo.quest.NeoQuestCollection.worldProgress();
+        if (progress != null) {
+            // El numero grande es lo que te FALTA, que es lo que se pregunto;
+            // lo que tienes de cuantas, en el tooltip. La etiqueta envuelve:
+            // hay mundos con nombre largo ("Streets of New Capenna (*)").
+            final Region worldTile = tile(
+                    String.format(java.util.Locale.getDefault(), "%,d", progress.missing()),
+                    NeoText.get("quest.worldProgress", progress.world.toUpperCase(java.util.Locale.ROOT)), null);
+            for (final javafx.scene.Node n : ((VBox) worldTile).getChildren()) {
+                if (n instanceof Label l && l.getStyleClass().contains("caption")) {
+                    l.setWrapText(true);
+                    l.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
+                    l.setMaxWidth(UiScale.px(190));
+                }
+            }
+            javafx.scene.control.Tooltip.install(worldTile, new javafx.scene.control.Tooltip(
+                    NeoText.get("quest.worldProgress.tip",
+                            String.format(java.util.Locale.getDefault(), "%,d", progress.owned),
+                            String.format(java.util.Locale.getDefault(), "%,d", progress.total),
+                            progress.world)));
+            row.getChildren().add(3, clickable(worldTile, actions::collection));
+        }
 
         final Region grow = tierPanel();
         HBox.setHgrow(grow, Priority.ALWAYS);

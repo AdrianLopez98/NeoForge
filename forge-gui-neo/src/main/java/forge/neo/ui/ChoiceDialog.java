@@ -95,6 +95,20 @@ public class ChoiceDialog<T> extends VBox {
     private Region[] nodeCache;
     private Function<T, String> searchDisplay;
     private double searchCardWidth;
+    /**
+     * A partir de cuantas CARTAS sale el buscador de cartas (Discord,
+     * 07-10-2026: <i>"add the option to type for the name of the card when
+     * looking inside the library instead of having to find among all of the
+     * cards"</i>). Con una docena ya no se ven todas de un vistazo.
+     */
+    static final int CARD_SEARCH_FROM = 12;
+    /** El buscador de cartas, si lo hay: filtra las cartas que ya estan pintadas. */
+    private javafx.scene.control.TextField cardSearch;
+    /** Lo que se mete en {@link #items} por cada carta (la carta, o su caja con numero). */
+    private final List<javafx.scene.Node> cardBoxes = new ArrayList<>();
+    /** Nombre (ingles y traducido) y tipo de cada carta, sin tildes ni mayusculas. */
+    private final List<String> cardKeys = new ArrayList<>();
+
     /** El ancho de cada opcion de texto, cuando ya se ha medido (layoutChildren). */
     private double optionWidth = -1;
 
@@ -177,9 +191,14 @@ public class ChoiceDialog<T> extends VBox {
                 }
                 node.setOpacity(0.95);
             }
-            items.getChildren().add(this.ordered ? withBadge(node) : node);
+            final Region box = this.ordered ? withBadge(node) : node;
+            items.getChildren().add(box);
             nodesInOrder.add(node);
             optionsInOrder.add(option);
+            if (card0) {
+                cardBoxes.add(box);
+                cardKeys.add(cardKey(option));
+            }
         }
 
         boolean card = false;
@@ -333,6 +352,41 @@ public class ChoiceDialog<T> extends VBox {
                     javafx.application.Platform.runLater(search::requestFocus);
                 }
             });
+        } else if (card0 && options.size() >= CARD_SEARCH_FROM) {
+            // Buscar entre CARTAS: aqui ya estan todas pintadas (son decenas, no
+            // treinta mil), asi que basta con esconder las que no casan. Vale
+            // tambien en las de solo mirar ("Looking at cards in your library").
+            cardSearch = new javafx.scene.control.TextField();
+            cardSearch.setId("choice-card-search");
+            cardSearch.getStyleClass().add("text-input");
+            cardSearch.setPromptText(NeoText.get("choice.search.cards"));
+            cardSearch.setMaxWidth(UiScale.px(420));
+            cardSearch.textProperty().addListener((obs, was, now) -> refilterCards());
+            // Intro marca la primera que se ve (si se puede elegir).
+            cardSearch.setOnAction(e -> {
+                if (readOnly) {
+                    return;
+                }
+                for (int i = 0; i < cardBoxes.size(); i++) {
+                    if (cardBoxes.get(i).isVisible() && !selected.containsKey(nodesInOrder.get(i))) {
+                        toggle(optionsInOrder.get(i), nodesInOrder.get(i));
+                        break;
+                    }
+                }
+            });
+            searchNote.getStyleClass().add("dialog-counter");
+            searchNote.setVisible(false);
+            searchNote.setManaged(false);
+            getChildren().addAll(heading, cardSearch, searchNote, scroll, footer);
+            // Para capturarlo: -Dneo.choice.search=texto lo deja escrito.
+            // Un segundo despues, como quien escribe: ya con el dialogo medido.
+            final String pre = System.getProperty("neo.choice.search");
+            if (pre != null) {
+                final javafx.animation.PauseTransition later =
+                        new javafx.animation.PauseTransition(javafx.util.Duration.seconds(1));
+                later.setOnFinished(e -> cardSearch.setText(pre));
+                later.play();
+            }
         } else {
             getChildren().addAll(heading, scroll, footer);
         }
@@ -661,6 +715,53 @@ public class ChoiceDialog<T> extends VBox {
         searchNote.setVisible(!searchNote.getText().isEmpty());
         searchNote.setManaged(searchNote.isVisible());
         scroll.setVvalue(0);
+    }
+
+    /** Esconde las cartas que no casan con lo escrito (nombre o tipo). */
+    private void refilterCards() {
+        final String q = fold(cardSearch.getText() == null ? "" : cardSearch.getText().trim());
+        // El visor se queda del alto que tenia: si no, con dos cartas el
+        // dialogo encoge y salta de sitio en cada tecla.
+        final double h = scroll.getViewportBounds() == null ? 0 : scroll.getViewportBounds().getHeight();
+        if (h > 0 && scroll.getMinViewportHeight() < h) {
+            scroll.setMinViewportHeight(h);
+        }
+        int shown = 0;
+        for (int i = 0; i < cardBoxes.size(); i++) {
+            final boolean hit = q.isEmpty() || cardKeys.get(i).contains(q);
+            cardBoxes.get(i).setVisible(hit);
+            cardBoxes.get(i).setManaged(hit);
+            if (hit) {
+                shown++;
+            }
+        }
+        searchNote.setText(shown == 0 ? NeoText.get("choice.search.none")
+                : q.isEmpty() ? "" : NeoText.get("choice.search.cardsShown", shown, cardBoxes.size()));
+        searchNote.setVisible(!searchNote.getText().isEmpty());
+        searchNote.setManaged(searchNote.isVisible());
+        scroll.setVvalue(0);
+    }
+
+    /** Lo que se busca de una carta: su nombre en ingles, el traducido y el tipo. */
+    private static String cardKey(final Object option) {
+        final StringBuilder sb = new StringBuilder();
+        try {
+            if (option instanceof CardView cv) {
+                final forge.game.card.CardView.CardStateView st = cv.getCurrentState();
+                if (st != null) {
+                    sb.append(st.getName()).append(" | ")
+                            .append(forge.neo.card.CardText.nameOf(st)).append(" | ")
+                            .append(forge.neo.card.CardText.typeOf(st));
+                }
+            } else if (option instanceof forge.item.PaperCard pc) {
+                sb.append(pc.getName()).append(" | ")
+                        .append(forge.neo.card.CardText.nameOf(pc)).append(" | ")
+                        .append(forge.neo.card.CardText.typeOf(pc));
+            }
+        } catch (final RuntimeException e) {
+            sb.append(String.valueOf(option));
+        }
+        return fold(sb.toString());
     }
 
     /** El boton de la opcion {@code i}, creado la primera vez que hace falta. */

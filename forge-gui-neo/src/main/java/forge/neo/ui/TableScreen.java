@@ -1609,9 +1609,87 @@ public class TableScreen extends Pane {
     private void hovered(final CardNode n) {
         applyDetailSetting();
         detail.show(n.getCard());
+        showBigCard(n);
         if (onCardHover != null) {
             onCardHover.accept(n);
         }
+    }
+
+    // ---------------------------------------------------------------
+    // La carta grande al pasar el raton (NeoSettings.BIG_HOVER_CARD)
+    // ---------------------------------------------------------------
+
+    /** La carta grande: no se toca (el raton la atraviesa) y va por encima de la mesa. */
+    private final CardNode bigCard = new CardNode(300);
+    /** Sobre cual esta el raton, para saber cuando se va. */
+    private CardNode bigCardOf;
+    /** Esconderla un pelin despues de salir: pasar de una carta a la de al lado no parpadea. */
+    private final javafx.animation.PauseTransition bigCardHide =
+            new javafx.animation.PauseTransition(javafx.util.Duration.millis(120));
+
+    {
+        bigCard.setMouseTransparent(true);
+        bigCard.setManaged(false);
+        bigCard.setVisible(false);
+        bigCard.setRotationEnabled(false);
+        bigCard.setHoverEnabled(false);
+        bigCard.getStyleClass().add("big-hover-card");
+        bigCardHide.setOnFinished(e -> bigCard.setVisible(false));
+    }
+
+    /**
+     * <b>La carta bajo el raton, en grande</b>, como el panel de imagen del
+     * Forge de siempre (Discord, 07-10-2026). Sale en el lado CONTRARIO al de
+     * la carta que se mira — si no, la taparia — centrada en alto, y se va al
+     * salir de la carta. El raton la atraviesa: la mesa se sigue clicando.
+     */
+    private void showBigCard(final CardNode n) {
+        if (!forge.neo.NeoSettings.bigHoverCard() || n == null || n.getCard() == null
+                || zoomOverlay.isShowing()) {
+            return;
+        }
+        bigCardHide.stop();
+        if (bigCardOf != n) {
+            bigCardOf = n;
+            n.hoverProperty().addListener(new javafx.beans.value.ChangeListener<Boolean>() {
+                @Override
+                public void changed(final javafx.beans.value.ObservableValue<? extends Boolean> o,
+                                    final Boolean was, final Boolean is) {
+                    if (!is) {
+                        o.removeListener(this);
+                        if (bigCardOf == n) {
+                            bigCardOf = null;
+                            bigCardHide.playFromStart();
+                        }
+                    }
+                }
+            });
+        }
+        // Del tamanyo del panel de imagen de Forge: el 62% del alto de la mesa,
+        // sin pasar de 720 px (en 4K seria un cartel).
+        final double h = Math.min(getHeight() * 0.62, UiScale.px(720));
+        final double w = h / CardNode.ASPECT;
+        bigCard.setCardWidth(w);
+        bigCard.setCard(n.getCard());
+        final javafx.geometry.Bounds b = sceneToLocal(n.localToScene(n.getBoundsInLocal()));
+        final double margin = UiScale.px(24);
+        final boolean cardOnLeft = b != null && b.getCenterX() < getWidth() / 2;
+        // resizeRelocate y no relocate: va fuera del layout (setManaged false),
+        // asi que nadie mas le da su tamanyo y se quedaba con el del arranque.
+        bigCard.resizeRelocate(cardOnLeft ? getWidth() - w - margin - sideWidthNow() : margin,
+                Math.max(margin, (getHeight() - h) / 2), w, h);
+        if (!getChildren().contains(bigCard)) {
+            // Debajo de los dialogos y de la carta ampliada: lo que el motor
+            // pregunta manda sobre cualquier cartel nuestro (principio 4).
+            final int at = getChildren().indexOf(overlay);
+            getChildren().add(at < 0 ? getChildren().size() : at, bigCard);
+        }
+        bigCard.setVisible(true);
+    }
+
+    /** Lo que mide la columna de la derecha, para que la carta grande no la tape. */
+    private double sideWidthNow() {
+        return side.isVisible() ? side.getWidth() : 0;
     }
 
     /**
@@ -2575,6 +2653,11 @@ public class TableScreen extends Pane {
 
     public Overlay getOverlay() {
         return overlay;
+    }
+
+    /** Las pestanyas de rival (a cuatro): para marcar el que tiene la mano a la vista. */
+    public OpponentTabs getOpponentTabs() {
+        return opponentTabs;
     }
 
     /**

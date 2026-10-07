@@ -1,17 +1,12 @@
 package forge.neo.ui;
 
-import forge.game.card.CardView;
-import forge.item.PaperCard;
 import forge.neo.NeoText;
-import forge.neo.ascent.AscentRelic;
-import forge.neo.ascent.AscentRelics;
 import forge.neo.ascent.AscentRun;
 import forge.neo.ascent.AscentSummary;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
-import javafx.scene.input.MouseButton;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Region;
@@ -325,23 +320,9 @@ public class AscentOverScreen extends StackPane {
 
     /** Las reliquias que llevabas, con su carta detras del click derecho. */
     private Region relicRow() {
-        final HBox row = new HBox(8);
-        row.setAlignment(Pos.CENTER);
-        for (final AscentRelic r : summary.getRelics()) {
-            final Label chip = pill(r.getCardName(), "ascent-pill-relic");
-            final PaperCard card = AscentRelics.cardOf(r);
-            if (card != null) {
-                // Igual que en el mapa: una pastilla no es un CardNode, asi que
-                // CardZoom.install no la ve y hay que llamarlo a mano.
-                chip.setOnMouseClicked(e -> {
-                    if (e.getButton() == MouseButton.SECONDARY) {
-                        CardZoom.show(chip, CardView.getCardForUi(card));
-                    }
-                });
-            }
-            row.getChildren().add(chip);
-        }
-        return row;
+        // Las que caben y "+N" con las demas (RelicChipRow): con una run
+        // infinita larga, la fila de antes ensanchaba la pantalla entera.
+        return new RelicChipRow(summary.getRelics(), Pos.CENTER, null);
     }
 
     private Label pill(final String text, final String style) {

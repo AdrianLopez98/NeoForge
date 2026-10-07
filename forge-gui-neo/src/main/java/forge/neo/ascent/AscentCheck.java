@@ -114,6 +114,8 @@ public final class AscentCheck {
             desbloqueos();
             hitos();
             nivelesDeAscension();
+            elArteSeCambia();
+            comandantesFavoritos();
         } finally {
             final List<String> sobras = prestado.restore();
             if (!sobras.isEmpty()) {
@@ -4357,6 +4359,98 @@ public final class AscentCheck {
         } else {
             fail("pozo a medida: orden " + order + ", dentro " + inside + ", mayor " + bigger + ", antiguo " + legacy
                     + ", vacio " + empty + ", Marvel " + marvelOk + " (" + zen.serialize() + ")");
+        }
+    }
+
+    /**
+     * El arte del mazo de una run se puede cambiar a mitad (Discord, 06-10-2026)
+     * y es SOLO el dibujo: misma carta, mismas copias, se guarda y la run sigue
+     * siendo la misma.
+     */
+    private static void elArteSeCambia() {
+        final AscentRun run = begin(AscentRun.Mode.COMMANDER, 0);
+        if (run == null) {
+            return;
+        }
+        try {
+            final Deck before = AscentDecks.load(run);
+            PaperCard from = null;
+            for (final Map.Entry<PaperCard, Integer> e : before.getMain()) {
+                if (AscentDecks.printingsOf(e.getKey()).size() > 1 && !e.getKey().getRules().getType().isBasicLand()) {
+                    from = e.getKey();
+                    break;
+                }
+            }
+            final PaperCard cmd = before.getCommanders().isEmpty() ? null : before.getCommanders().get(0);
+            if (from == null) {
+                fail("arte a mitad de run: ninguna carta del mazo tiene otro arte");
+                return;
+            }
+            PaperCard to = null;
+            for (final PaperCard p : AscentDecks.printingsOf(from)) {
+                if (!p.equals(from)) {
+                    to = p;
+                    break;
+                }
+            }
+            final int size = before.getMain().countAll();
+            final long seed = run.getSeed();
+            final int changed = AscentDecks.switchPrinting(run, from, to, 99);
+            final Deck after = AscentDecks.load(run);
+            final boolean moved = changed >= 1 && after.getMain().count(from) == 0 && after.getMain().count(to) == changed;
+            final boolean same = after.getMain().countAll() == size && run.getSeed() == seed;
+            boolean cmdOk = true;
+            if (cmd != null) {
+                PaperCard other = null;
+                for (final PaperCard p : AscentDecks.printingsOf(cmd)) {
+                    if (!p.equals(cmd)) {
+                        other = p;
+                        break;
+                    }
+                }
+                if (other != null) {
+                    cmdOk = AscentDecks.switchPrinting(run, cmd, other, 1) == 1
+                            && AscentDecks.load(run).getCommanders().get(0).equals(other);
+                }
+            }
+            // Cambiar una carta por OTRA (otro nombre) no es cambiar el arte: no cuela.
+            final boolean refused = cmd == null || AscentDecks.switchPrinting(run, to, cmd, 1) == 0;
+            if (moved && same && cmdOk && refused) {
+                ok("arte a mitad de run: " + from.getName() + " " + from.getEdition() + " -> " + to.getEdition()
+                        + " (" + changed + "), el comandante tambien, mismo mazo y misma semilla; otra carta no cuela");
+            } else {
+                fail("arte a mitad de run: cambiada " + moved + ", mismo mazo " + same + ", comandante " + cmdOk
+                        + ", rechaza otra carta " + refused);
+            }
+        } finally {
+            discard(run);
+        }
+    }
+
+    /** Los favoritos salen primeros, se filtran y se guardan; y se deja todo como estaba. */
+    private static void comandantesFavoritos() {
+        final String saved = forge.neo.NeoSettings.get(AscentFavorites.KEY, null);
+        try {
+            forge.neo.NeoSettings.set(AscentFavorites.KEY, null);
+            final List<PaperCard> pool = AscentSeedDeck.commanderPool();
+            final PaperCard a = pool.get(pool.size() - 1);
+            final PaperCard b = pool.get(pool.size() / 2);
+            final boolean on = AscentFavorites.toggle(a.getName()) && AscentFavorites.toggle(b.getName());
+            final List<PaperCard> sorted = AscentFavorites.favoritesFirst(pool);
+            final boolean first = sorted.size() == pool.size()
+                    && sorted.get(0).getName().equals(b.getName()) && sorted.get(1).getName().equals(a.getName());
+            final boolean only = AscentFavorites.only(pool).size() == 2;
+            final boolean off = !AscentFavorites.toggle(a.getName()) && AscentFavorites.only(pool).size() == 1
+                    && !AscentFavorites.isFavorite(a.getName()) && AscentFavorites.isFavorite(b.getName());
+            if (on && first && only && off) {
+                ok("comandantes favoritos: salen los primeros (en el orden del pozo), el filtro deja solo esos"
+                        + " y la estrella se quita");
+            } else {
+                fail("comandantes favoritos: marcar " + on + ", primeros " + first + ", filtro " + only + ", quitar " + off);
+            }
+        } finally {
+            forge.neo.NeoSettings.set(AscentFavorites.KEY, saved);
+            forge.neo.NeoSettings.save();
         }
     }
 

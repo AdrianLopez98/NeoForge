@@ -1559,7 +1559,9 @@ final class NeoAppDebug {
         }
         final boolean entities = "cartas".equals(NeoApp.optionOf(args, "--mock-amount"));
         final java.util.Map<Object, Integer> targets = new java.util.LinkedHashMap<>();
-        final int amount = entities ? 4 : 2;
+        // -Dneo.amount.total=44: el reporte del 07-10-2026 (44 contadores entre
+        // tres criaturas, sin tope por criatura).
+        final int amount = Integer.getInteger("neo.amount.total", entities ? 4 : 2);
         if (entities) {
             // Las cartas hay que FABRICARLAS, no cogerlas de la mesa: las
             // vistas "para interfaz" comparten id (-1), y la igualdad de un
@@ -1568,7 +1570,11 @@ final class NeoAppDebug {
             // ids son distintos y el mapa lo monta el motor.
             final forge.trackable.Tracker t = new forge.trackable.Tracker();
             int id = 1;
-            for (final CardView c : app.table.selfCreatureViews()) {
+            // Tres siempre: si la mesa de la maqueta tiene menos criaturas, se
+            // repiten (son vistas fabricadas con id propio, asi que no chocan).
+            final java.util.List<CardView> mine = app.table.selfCreatureViews();
+            for (int k = 0; k < 3 && !mine.isEmpty(); k++) {
+                final CardView c = mine.get(k % mine.size());
                 final String name = c.getCurrentState() == null
                         ? "Criatura" : c.getCurrentState().getName();
                 final CardView fake = new CardView(id++, t, name);
@@ -1576,9 +1582,6 @@ final class NeoAppDebug {
                         forge.trackable.TrackableProperty.ImageKey,
                         c.getCurrentState() == null ? "" : c.getCurrentState().getImageKey());
                 targets.put(fake, amount);
-                if (targets.size() >= 3) {
-                    break;
-                }
             }
         } else {
             // El orden es el de ColorSet, que es justo el que ponia el rojo
@@ -1592,9 +1595,36 @@ final class NeoAppDebug {
         }
         final CardView source = app.table.selfFieldNodes().isEmpty()
                 ? null : app.table.selfFieldNodes().get(0).getCard();
-        app.table.getOverlay().show(new forge.neo.ui.AmountDialog(
+        final forge.neo.ui.AmountDialog dialog = new forge.neo.ui.AmountDialog(
                 source, targets, amount, entities, entities ? "contadores" : "maná",
-                132, map -> app.table.getOverlay().hide()));
+                132, map -> app.table.getOverlay().hide());
+        app.table.getOverlay().show(dialog);
+        // -Dneo.amount.type=I:N escribe N en el campo I (como quien teclea);
+        // -Dneo.amount.auto=true pulsa "A partes iguales". Un segundo despues.
+        final String type = System.getProperty("neo.amount.type");
+        final boolean auto = Boolean.getBoolean("neo.amount.auto");
+        if (type != null || auto) {
+            final javafx.animation.PauseTransition later =
+                    new javafx.animation.PauseTransition(javafx.util.Duration.seconds(1));
+            later.setOnFinished(e -> {
+                if (auto) {
+                    final javafx.scene.Node b = dialog.lookup(".amount-auto");
+                    if (b instanceof javafx.scene.control.Button btn) {
+                        btn.fire();
+                    }
+                }
+                if (type != null && type.contains(":")) {
+                    final int idx = Integer.parseInt(type.substring(0, type.indexOf(':')));
+                    final java.util.List<javafx.scene.Node> fields =
+                            new java.util.ArrayList<>(dialog.lookupAll(".amount-value-field"));
+                    if (idx < fields.size() && fields.get(idx) instanceof javafx.scene.control.TextField f) {
+                        f.requestFocus();
+                        f.setText(type.substring(type.indexOf(':') + 1));
+                    }
+                }
+            });
+            later.play();
+        }
     }
 
     /**
