@@ -986,6 +986,46 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         respondLater(() -> getGameController().undoLastAction());
     }
 
+    /**
+     * <b>"Resolverlo todo"</b>: pasar la prioridad hasta que el stack se vacie
+     * (Discord, 08-10-2026, Munkster). Todo lo delicado esta en
+     * {@link ResolveAll}, que es de las dos interfaces.
+     */
+    public boolean resolveStack() {
+        if (!interactive() || finished.get()) {
+            return false;
+        }
+        final IGameController gc = getGameController();
+        final PlayerView me = getCurrentPlayer();
+        if (gc == null || me == null) {
+            return false;
+        }
+        respondLater(() -> ResolveAll.arm(gc, me));
+        return true;
+    }
+
+    /** Ver {@link ResolveAll#mirrorOff}: lo que lo apaga, tambien al sentado. */
+    @Override
+    public void applyYieldUpdate(final forge.gamemodes.match.YieldUpdate update) {
+        super.applyYieldUpdate(update);
+        ResolveAll.mirrorOff(getGameController(), update);
+    }
+
+    /** Solo pruebas: si sigue puesto en alguno de los dos controladores. */
+    public static boolean resolvingStack(final IGameController gc) {
+        return ResolveAll.isOn(gc);
+    }
+
+    /**
+     * Cuantas cosas resolveria "Resolverlo todo" ahora, o 0 si no toca: solo
+     * con la prioridad de siempre delante (el aviso rutinario, OK encendido,
+     * nada que elegir ni pagar). Ver {@link ResolveAll#count}.
+     */
+    private int resolveAllCount(final boolean okEnabled) {
+        return ResolveAll.count(getGameView(), getGameController(), okEnabled && !payingMana
+                && !isSelecting() && getSelectionMax() <= 0 && isRoutinePriorityPrompt(lastPrompt));
+    }
+
     // ---- lo que piden los atajos de teclado (ver forge.neo.NeoShortcuts) ----
 
     /**
@@ -2504,7 +2544,16 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
      * {@link TableScreen#bannerText}.
      */
     private String stackText(final StackItemView item) {
-        return TableScreen.bannerText(item, localPlayerView());
+        // Con los disparos iguales juntos (StackGroups), el cartel dice
+        // cuantos hay seguidos, como la fila del stack.
+        int count = 1;
+        final GameView gv = getGameView();
+        final StackItemView top = topOfStack();
+        if (item != null && top != null && top.getId() == item.getId() && gv != null
+                && forge.neo.NeoSettings.groupStack()) {
+            count = StackGroups.topRun(gv.getStack());
+        }
+        return TableScreen.bannerText(item, localPlayerView(), count);
     }
 
     /**
@@ -3638,6 +3687,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             return;
         }
         lastPrompt = message == null ? "" : message;
+        lastPreparedPrompt = null;
         tapToPayStep = TapToPayStep.parse(message);
         // CR 903.9a: el comandante que se ha ido al cementerio o al exilio. El
         // motor lo pregunta como un si/no cualquiera y asi se pasa de largo.
@@ -3671,18 +3721,51 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             // EngineText, que no es EnginePhrase.
             // Girar para pagar (waterbend, convocar, improvisar): el texto del
             // motor no dice que OK lleva al pago con mana. Ver tapToPayPrompt.
+            // Y el "Chooser:" de "un rival elige una pila" con varios rivales:
+            // el motor espera que elijas a CUAL y no lo dice. Ver PlayerPick.
+            // Los botones solo salen si el motor es el de esta maquina: el
+            // invitado de una partida en red no los tiene, y prometerselos
+            // seria un texto que habla de un control que no existe.
+            final String asked = PlayerPick.explainChooser(message, NeoText.get(
+                    getGameController() instanceof forge.player.PlayerControllerHuman
+                            ? "pick.chooser" : "pick.chooser.portrait"));
             final String tapToPay = tapToPayPrompt(tapToPayStep);
-            final String shown = tapToPay != null ? tapToPay
-                    : forge.neo.EngineText.prompt(
-                    (isRoutinePriorityPrompt(message)
-                            ? routinePrompt() : frontLoadInstruction(message)))
-                    + pickedSuffix();
+            final String prepared = forge.neo.EngineText.prompt(
+                    isRoutinePriorityPrompt(message) ? routinePrompt() : frontLoadInstruction(asked))
+                    + proliferateHint(message);
+            lastPreparedPrompt = isRoutinePriorityPrompt(message) ? null : prepared;
+            final String shown = tapToPay != null ? tapToPay : prepared + pickedSuffix();
             if (!shown.equals(message)) {
                 trace("prompt reordenado: %s", shown.replace(System.lineSeparator(), " | "));
             }
             b.setPrompt(shown);
         }
         refreshCentralPrompt();
+    }
+
+    /**
+     * Proliferar (Discord, 08-10-2026, Atraxa: <i>"I can't select the opponents
+     * permanents"</i>). El motor solo ofrece lo que YA tiene contadores — de
+     * cualquiera, rivales incluidos — y no lo dice; y su segundo boton ("Mine",
+     * luego "All", luego "Clear all") no se explica solo. Una linea debajo de
+     * la pregunta. Se reconoce por el texto del motor, en el idioma que sea.
+     */
+    private static String proliferateHint(final String message) {
+        return isProliferatePrompt(message) ? System.lineSeparator() + NeoText.get("prolif.hint") : "";
+    }
+
+    /**
+     * Si es la pregunta de proliferar. Tambien la usa Android (decision 273).
+     * Con {@code contains} y no {@code startsWith}: con la descripcion
+     * detallada encendida el motor pone DELANTE la carta y su habilidad, y la
+     * pregunta va detras (la que la sube al principio es frontLoadInstruction).
+     */
+    public static boolean isProliferatePrompt(final String message) {
+        if (message == null) {
+            return false;
+        }
+        final String asked = forge.util.Localizer.getInstance().getMessage("lblChooseProliferateTarget");
+        return asked != null && !asked.isEmpty() && message.contains(asked);
     }
 
     /**
@@ -3806,6 +3889,8 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
 
     /** El ultimo mensaje que mando el motor, tal cual. */
     private volatile String lastPrompt = "";
+    /** {@link #lastPrompt} tal y como se ensenyo (sin el "llevas N de M"); null en la de prioridad. */
+    private volatile String lastPreparedPrompt;
 
     // ------------------------------------------------------------------
     // Girar para pagar: waterbend, convocar, improvisar. Ver TapToPayStep,
@@ -4389,10 +4474,20 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             // Y si el "Auto" viene APAGADO, decir por que.
             noteAutoPayState(okEnabled);
 
+            // Si lo que espera el motor es un JUGADOR, un boton por cada uno.
+            // Se lee AQUI, con el input vivo (las notas de diseño, fase 1, punto 3).
+            final List<forge.neo.ui.ActionBar.PlayerChoice> playerChoices = playerChoices();
+            // Y con dos o mas cosas en el stack, "Resolverlo todo".
+            final int resolveAll = resolveAllCount(okEnabled);
+
             final UiDispatcher ui = uiDispatcher();
             if (ui != null) {
                 ui.runLater(() -> {
                     table.getActionBar().setButtons(shownOk, cancelLabel, okEnabled, cancelEnabled);
+                    table.getActionBar().setPlayerChoices(playerChoices);
+                    table.getActionBar().setResolveAll(resolveAll > 0
+                                    ? NeoText.get("stack.resolveAll", resolveAll) : null,
+                            NeoText.get("stack.resolveAll.tip"), this::resolveStack);
                     table.getActionBar().setOnOk(() -> {
                         // Un OK por pregunta del motor. Lo demas, fuera: ver
                         // okAwaitingEngine.
@@ -4515,10 +4610,29 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         // que se elige es un jugador.
         if (getSelectionMax() > 0 && countPickedSelectables() < getSelectionMin()
                 && selectables.isEmpty()) {
-            final PlayerView who = localPlayer();
+            // Uno que VALGA: "un rival elige la pila" no admite al que lanza,
+            // y elegirte a ti mismo ahi dejaba la partida clavada (el motor
+            // descarta el clic y sigue esperando). Para quien empieza vale
+            // cualquiera, y se sigue eligiendo al jugador local.
+            final List<PlayerPick.Choice> valid = PlayerPick.pending(getGameController());
+            PlayerView who = localPlayer();
+            if (!valid.isEmpty()) {
+                PlayerView first = null;
+                boolean localValid = false;
+                for (final PlayerPick.Choice c : valid) {
+                    if (first == null) {
+                        first = c.player();
+                    }
+                    localValid |= c.player().equals(who);
+                }
+                if (!localValid) {
+                    who = first;
+                }
+            }
             if (who != null) {
                 trace("eligiendo jugador: %s", nameOf(who));
-                respondLater(() -> getGameController().selectPlayer(who, null));
+                final PlayerView chosen = who;
+                respondLater(() -> getGameController().selectPlayer(chosen, null));
                 return;
             }
         }
@@ -5029,8 +5143,12 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                 // un prompt nuevo, y durante una eleccion no manda ninguno.
                 final TableBinder b = binder;
                 if (b != null) {
-                    b.setPrompt((isRoutinePriorityPrompt(lastPrompt)
-                            ? routinePrompt() : lastPrompt) + pickedSuffix());
+                    // El texto YA PREPARADO (traducido, reordenado, con el
+                    // "Chooser:" explicado), no el crudo del motor: si no, al
+                    // marcar algo volvia a salir el ingles a pelo.
+                    final String prepared = lastPreparedPrompt;
+                    b.setPrompt((isRoutinePriorityPrompt(lastPrompt) ? routinePrompt()
+                            : prepared != null ? prepared : lastPrompt) + pickedSuffix());
                 }
             });
         }
@@ -5166,6 +5284,40 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
      * dandole al OK, que ahi no hace nada, y la partida no arranca <b>la mitad
      * de las veces</b> — segun caiga la moneda.
      */
+    /**
+     * Los botones de jugador de la barra, si el motor espera un jugador.
+     * Ver {@link PlayerPick}: aqui solo se les pone nombre y se cablea el clic.
+     */
+    private List<forge.neo.ui.ActionBar.PlayerChoice> playerChoices() {
+        final List<forge.neo.ui.ActionBar.PlayerChoice> out = new ArrayList<>();
+        for (final PlayerPick.Choice c : PlayerPick.pending(getGameController())) {
+            final PlayerView pv = c.player();
+            out.add(new forge.neo.ui.ActionBar.PlayerChoice(PlayerName.of(pv), c.picked(),
+                    () -> pickPlayer(pv)));
+        }
+        return out;
+    }
+
+    /**
+     * El clic en uno de esos botones: lo mismo que clicar su retrato, pero
+     * solo si la pregunta sigue siendo esa. El boton se pinto con un aviso
+     * del motor y se clica despues, y un {@code selectPlayer} contra otra
+     * pregunta (un objetivo, a quien atacas) no es inofensivo.
+     */
+    private void pickPlayer(final PlayerView player) {
+        if (!interactive() || player == null || finished.get()) {
+            return;
+        }
+        respondLater(() -> {
+            for (final PlayerPick.Choice c : PlayerPick.pending(getGameController())) {
+                if (c.player().equals(player)) {
+                    getGameController().selectPlayer(player, null);
+                    return;
+                }
+            }
+        });
+    }
+
     public boolean isWaitingForPlayerPick() {
         return getSelectionMax() > 0
                 && countPickedSelectables() < getSelectionMin()
@@ -6296,6 +6448,10 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         if (option instanceof forge.card.MagicColor.Color c) {
             return c.getTranslatedName();
         }
+        // "Nombra una carta": traducido y con el ingles, para buscar por los dos.
+        if (option instanceof forge.game.card.CardFaceView face) {
+            return forge.neo.card.CardText.nameOf(face);
+        }
         return String.valueOf(option);
     }
 
@@ -6393,8 +6549,12 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         final String heading = top == null || top.isBlank() ? title
                 : (title == null || title.isBlank() ? top : title + " — " + top);
 
+        // Separar en dos pilas tambien llega por aqui, y "Select cards for a
+        // face down pile" no dice que pasa con las que NO marcas. Ahi no hay
+        // orden que numerar. Ver pileHint.
+        final String pile = pileHint(title);
         final List<T> picked = askChoice(heading, source, pickMin, Math.max(pickMin, pickMax), null,
-                List.of(), true, orderHint(top, Math.max(pickMin, pickMax)));
+                List.of(), pile == null, pile != null ? pile : orderHint(top, Math.max(pickMin, pickMax)));
         final List<T> ordered = new ArrayList<>(already);
         if (picked != null) {
             ordered.addAll(picked);
@@ -6417,6 +6577,34 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
      *
      * @return la linea de ayuda, o null si no es de biblioteca o hay una sola carta
      */
+    /**
+     * Que pasa con las cartas que marcas, y con las que no, al separar en dos
+     * pilas ({@code TwoPilesEffect}: <i>Curator of Destinies</i>, <i>Fact or
+     * Fiction</i>, <i>Steam Augury</i>...). Discord, 08-10-2026: <i>"I could
+     * not find a way to actually select or move the cards into the appropriate
+     * piles"</i>. El motor manda solo "Select cards for a face down pile": las
+     * que marcas forman esa pila, y el resto, la otra. Se reconoce el titulo por
+     * su clave en el idioma de la partida.
+     *
+     * @return la linea de ayuda, o null si no es separar en pilas
+     */
+    public static String pileHint(final String title) {
+        if (title == null) {
+            return null;
+        }
+        final forge.util.Localizer l = forge.util.Localizer.getInstance();
+        if (title.equals(l.getMessage("lblSelectCardForFaceDownPile"))) {
+            return NeoText.get("pile.split.faceDown");
+        }
+        if (title.equals(l.getMessage("lblDivideCardIntoTwoPiles"))) {
+            return NeoText.get("pile.split.two");
+        }
+        if (title.equals(l.getMessage("lblSelectCardForLeftPile"))) {
+            return NeoText.get("pile.split.left");
+        }
+        return null;
+    }
+
     public static String orderHint(final String top, final int count) {
         if (top == null || count < 2) {
             return null;

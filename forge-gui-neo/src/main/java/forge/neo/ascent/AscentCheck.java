@@ -2532,10 +2532,82 @@ public final class AscentCheck {
                 }
                 parte[a] = total == 0 ? 0 : (double) dentro / total;
             }
+
+            // 5. Siempre una carta libre (Discord, 08-10-2026: "that should be
+            // my choice as the player"): arriba del todo, ni un premio con las
+            // tres de tu comandante.
+            final Random rndLibre = new Random(777L);
+            int todasTematicas = 0;
+            for (int i = 0; i < 60; i++) {
+                int tematicas = 0;
+                final List<PaperCard> premio = AscentRewards.offer(run, 1.0, rndLibre, 3);
+                for (final PaperCard c : premio) {
+                    if (pozo.contains(c.getName())) {
+                        tematicas++;
+                    }
+                }
+                if (premio.size() == 3 && tematicas == 3) {
+                    todasTematicas++;
+                }
+            }
+            if (todasTematicas == 0) {
+                ok("premios: arriba del todo, ninguno de 60 sale con las tres cartas de tu comandante"
+                        + " (siempre hay una libre)");
+            } else {
+                fail("premios: " + todasTematicas + " de 60 salen con las tres de tu comandante");
+            }
+
+            // 6. Lo que quitas no vuelve (Discord, 08-10-2026: "Cut cards don't
+            // appear again"), y se guarda con la run.
+            final PaperCard quitada = AscentRewards.offer(run, 1.0, new Random(31L), 3).get(0);
+            run.noteCut(quitada.getName());
+            final Random rndCut = new Random(32L);
+            boolean vuelve = false;
+            for (int i = 0; i < 80 && !vuelve; i++) {
+                for (final PaperCard c : AscentRewards.offer(run, 1.0, rndCut, 3)) {
+                    vuelve |= c.getName().equals(quitada.getName());
+                }
+            }
+            final AscentRun releida = AscentRun.current();
+            final boolean guardada = releida != null && releida.getCut().contains(quitada.getName());
+            if (!vuelve && guardada) {
+                ok("premios: " + quitada.getName() + ", quitada, no sale en 80 premios y sigue apuntada"
+                        + " al releer la run");
+            } else {
+                fail("premios: la quitada " + quitada.getName() + (vuelve ? " vuelve a salir" : "")
+                        + (guardada ? "" : " no se guarda con la run"));
+            }
+
+            // 7. Devolver lo cogido (Discord, 08-10-2026: "Add the ability to
+            // deselect a choice"): coger y devolver una carta y la tierra extra
+            // deja el mazo exactamente como estaba.
+            final java.util.Map<String, Integer> antes = mainCounts(AscentDecks.load(run));
+            final PaperCard cogida = AscentRewards.offer(run, 1.0, new Random(41L), 3).get(0);
+            final PaperCard llano = forge.model.FModel.getMagicDb().getCommonCards().getCard("Plains");
+            final int copiasLlano = AscentRewards.copiesOf(run, llano);
+            AscentRewards.take(run, cogida);
+            AscentRewards.takeLands(run, llano);
+            final boolean entraron = !mainCounts(AscentDecks.load(run)).equals(antes);
+            AscentRewards.untake(run, cogida);
+            AscentRewards.untakeLands(run, llano, copiasLlano);
+            final boolean comoAntes = mainCounts(AscentDecks.load(run)).equals(antes);
+            if (entraron && comoAntes && !run.getCut().contains(cogida.getName())) {
+                ok("premios: coger y devolver " + cogida.getName() + " y la tierra deja el mazo como estaba"
+                        + " (y no cuenta como quitada)");
+            } else {
+                fail("premios: devolver lo cogido" + (entraron ? "" : " (ni siquiera entro)")
+                        + (comoAntes ? "" : " no deja el mazo como estaba"));
+            }
         } finally {
             // Sin esto, un mazo con Malcolm en decks/ascenso por cada pasada:
             // 106 el 02-10-2026 (ver AscentCheckGuard).
             run.discard();
+        }
+        final String sobra = forge.neo.NeoSettings.get("ascent.cut", null);
+        if (sobra == null) {
+            ok("premios: al acabar la run, lo quitado se va con ella");
+        } else {
+            fail("premios: lo quitado sobrevive a la run: " + sobra);
         }
         if (parte[1] > parte[0] && parte[0] > 0.15) {
             ok(String.format(Locale.ROOT, "sinergia: los premios van del %.0f%% al %.0f%% de"
@@ -4360,6 +4432,70 @@ public final class AscentCheck {
             fail("pozo a medida: orden " + order + ", dentro " + inside + ", mayor " + bigger + ", antiguo " + legacy
                     + ", vacio " + empty + ", Marvel " + marvelOk + " (" + zen.serialize() + ")");
         }
+
+        // Una expansion al azar (Discord, 08-10-2026): siempre una que de para
+        // una run en los dos modos, y otro toque da otra.
+        final java.util.Random dice = new java.util.Random(8);
+        final List<String> drawn = new ArrayList<>();
+        boolean playable = true;
+        String previous = null;
+        for (int i = 0; i < 4; i++) {
+            final AscentRun.Mode m = i % 2 == 0 ? AscentRun.Mode.STANDARD : AscentRun.Mode.COMMANDER;
+            final String code = AscentPool.randomSet(m, dice, previous);
+            playable &= code != null && !code.equals(previous) && AscentPool.set(code).problem(m) == null;
+            drawn.add(code + (m == AscentRun.Mode.COMMANDER ? "(C)" : ""));
+            previous = code;
+        }
+        if (playable) {
+            ok("expansion al azar: cuatro tiradas, todas jugables y cada una distinta de la anterior " + drawn);
+        } else {
+            fail("expansion al azar: alguna no vale o repite " + drawn);
+        }
+
+        // Los artes favoritos (Discord, 08-10-2026): con un favorito de mentira
+        // (sin tocar las preferencias de nadie), la carta sale con el, tambien
+        // foil; un pozo que no deja esa expansion se queda con la suya; y el
+        // mazo entero cambia de dibujo sin cambiar de carta ni de cuenta.
+        final List<PaperCard> bolts = AscentDecks.printingsOf(
+                FModel.getMagicDb().getCommonCards().getCard("Lightning Bolt"));
+        PaperCard plain = null;
+        PaperCard fav = null;
+        for (final PaperCard p : bolts) {
+            if (plain == null) {
+                plain = p;
+            } else if (!p.getEdition().equals(plain.getEdition())) {
+                fav = p;
+                break;
+            }
+        }
+        if (plain == null || fav == null) {
+            fail("artes favoritos: no hay dos ediciones de Lightning Bolt para probar");
+            return;
+        }
+        final PaperCard favourite = fav;
+        final java.util.function.Function<String, PaperCard> prefs =
+                n -> "Lightning Bolt".equals(n) ? favourite : null;
+        final boolean takes = AscentArt.favourite(plain, AscentPool.ALL, prefs) == favourite
+                && AscentArt.favourite(plain.getFoiled(), AscentPool.ALL, prefs).equals(favourite.getFoiled());
+        final boolean poolWins = AscentArt.favourite(plain, AscentPool.set(plain.getEdition()), prefs) == plain
+                && AscentArt.favourite(plain, AscentPool.sets(java.util.Arrays.asList(
+                        plain.getEdition(), favourite.getEdition())), prefs) == favourite;
+        // serra: la Serra Angel de arriba (la del bloque a medida).
+        final boolean untouched = AscentArt.favourite(serra, AscentPool.ALL, prefs) == serra;
+        final Deck runDeck = new Deck("favoritos");
+        runDeck.getMain().add(plain, 3);
+        runDeck.getMain().add(serra, 2);
+        AscentArt.withFavourites(runDeck, AscentPool.ALL, prefs);
+        final boolean deckOk = runDeck.getMain().count(favourite) == 3 && runDeck.getMain().count(plain) == 0
+                && runDeck.getMain().count(serra) == 2 && runDeck.getMain().countAll() == 5;
+        if (takes && poolWins && untouched && deckOk) {
+            ok("artes favoritos: Lightning Bolt de " + plain.getEdition() + " sale con el de "
+                    + favourite.getEdition() + " (tambien foil); un pozo sin esa expansion se queda el suyo;"
+                    + " el mazo cambia el dibujo y no las cartas");
+        } else {
+            fail("artes favoritos: toma " + takes + ", pozo " + poolWins + ", intacta " + untouched
+                    + ", mazo " + deckOk);
+        }
     }
 
     /**
@@ -4452,6 +4588,17 @@ public final class AscentCheck {
             forge.neo.NeoSettings.set(AscentFavorites.KEY, saved);
             forge.neo.NeoSettings.save();
         }
+    }
+
+    /** Cuantas copias de cada carta hay en el mazo principal, por nombre. */
+    private static java.util.Map<String, Integer> mainCounts(final Deck deck) {
+        final java.util.Map<String, Integer> out = new java.util.TreeMap<>();
+        if (deck != null) {
+            for (final java.util.Map.Entry<PaperCard, Integer> e : deck.getMain()) {
+                out.merge(e.getKey().getName() + "|" + e.getKey().getEdition(), e.getValue(), Integer::sum);
+            }
+        }
+        return out;
     }
 
     private static void ok(final String msg) {

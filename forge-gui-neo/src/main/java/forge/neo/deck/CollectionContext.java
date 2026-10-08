@@ -60,6 +60,7 @@ public final class CollectionContext implements DeckContext {
     @Override public boolean isLimited() { return format.isLimited(); }
     @Override public String catalogueLabel() { return format.catalogueLabel(); }
     @Override public boolean canRename() { return format.canRename(); }
+    @Override public boolean canCopy() { return format.canCopy(); }
     @Override public int owned(final PaperCard card) { return format.owned(card); }
     @Override public List<PaperCard> printingsOf(final PaperCard card) { return format.printingsOf(card); }
     @Override public boolean onlyFitsByDefault() { return format.onlyFitsByDefault(); }

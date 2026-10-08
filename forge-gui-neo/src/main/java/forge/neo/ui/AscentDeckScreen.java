@@ -125,7 +125,21 @@ public class AscentDeckScreen extends StackPane {
         // El borde del papel esta ROTO: ver Parchment.SAFE_EDGE.
         buttons.setPadding(new Insets(10, 0, Parchment.SAFE_EDGE, 0));
 
-        final VBox head = new VBox(8, title, stats, printHint);
+        // RECORDAR LOS ARTES (Discord, 08-10-2026: "every time I start a new
+        // run, I have to edit the deck styles over again"). Apagado de fabrica;
+        // con el puesto, el arte que eliges aqui es tu favorito y las runs
+        // siguientes salen con el. Ver AscentArt.
+        final javafx.scene.control.CheckBox remember =
+                new javafx.scene.control.CheckBox(NeoText.get("ascent.deck.rememberArt"));
+        remember.setId("ascent-remember-art");
+        remember.getStyleClass().add("ascent-remember");
+        remember.setSelected(forge.neo.ascent.AscentArt.enabled());
+        remember.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("ascent.deck.rememberArt.tip")));
+        remember.selectedProperty().addListener((obs, was, now) -> forge.neo.ascent.AscentArt.setEnabled(now));
+        remember.setManaged(editable);
+        remember.setVisible(editable);
+
+        final VBox head = new VBox(8, title, stats, printHint, remember);
         head.setAlignment(Pos.TOP_CENTER);
         head.setPadding(new Insets(22, 28, 6, 28));
 
@@ -160,6 +174,8 @@ public class AscentDeckScreen extends StackPane {
         dialog[0] = new PrintingDialog(card, printings, cardWidth, picked -> {
             overlay.hide();
             if (AscentDecks.switchPrinting(run, card, picked, dialog[0].copies()) > 0) {
+                // Y si recuerdas los artes, este es ya el tuyo (AscentArt).
+                forge.neo.ascent.AscentArt.remember(picked);
                 build();
             }
         }, overlay::hide).offerCopies(AscentDecks.copiesOf(run, card));

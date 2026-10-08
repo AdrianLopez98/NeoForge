@@ -171,6 +171,8 @@ public class AscentRestScreen extends StackPane {
                     }
                     deck.getMain().remove(card);
                     AscentDecks.save(deck);
+                    // Y no se te vuelve a ofrecer (ver AscentRun.noteCut).
+                    run.noteCut(card.getName());
                     // ⚠️ El suelo del mazo manda sobre la tanda: antes que
                     // dejarlo bajo minimos se corta y se sale. Un mazo vacio no
                     // arranca partida.

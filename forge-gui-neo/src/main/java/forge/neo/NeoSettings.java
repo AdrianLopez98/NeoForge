@@ -174,6 +174,22 @@ public final class NeoSettings {
         return getBool(ORDER_HAND, false);
     }
 
+    /**
+     * Planechase en las partidas normales (Discord, 08-10-2026). Se elige en el
+     * pie de la pantalla de inicio, al lado de los rivales, y se recuerda.
+     * Apagado de fabrica. {@code -Dneo.planechase=true} lo fuerza sin escribir
+     * nada. Ver {@code forge.neo.match.Planechase}.
+     */
+    public static final String PLANECHASE = "planechase";
+
+    public static boolean planechase() {
+        final String forced = System.getProperty("neo.planechase");
+        if (forced != null && !forced.isEmpty()) {
+            return Boolean.parseBoolean(forced);
+        }
+        return getBool(PLANECHASE, false);
+    }
+
     public static boolean handFan() {
         final String forced = System.getProperty("neo.handFan");
         if (forced != null && !forced.isEmpty()) {
@@ -643,6 +659,26 @@ public final class NeoSettings {
      * encendido: con el patron de {@code Boolean.getBoolean} no habria forma de
      * capturar la lista compacta sin cambiarle el ajuste al jugador.
      */
+    /**
+     * Juntar en una fila, con su "×6", las entradas IGUALES y seguidas del
+     * stack (Discord, 08-10-2026, Munkster: <i>"collapse similar triggers"</i>).
+     * Solo como se pinta: ver {@code forge.neo.match.StackGroups}.
+     *
+     * <p><b>Encendido de fabrica</b>, como {@link #STACK_CARDS} y por lo mismo:
+     * lo ha pedido un jugador que se lo encuentra cada partida. El ajuste esta
+     * para volver a ver una fila por disparo.
+     * {@code -Dneo.groupStack=true|false} lo fuerza sin escribir.
+     */
+    public static final String GROUP_STACK = "groupStack";
+
+    public static boolean groupStack() {
+        final String forced = System.getProperty("neo.groupStack");
+        if (forced != null && !forced.isEmpty()) {
+            return Boolean.parseBoolean(forced);
+        }
+        return getBool(GROUP_STACK, true);
+    }
+
     public static boolean stackCards() {
         final String forced = System.getProperty("neo.stackCards");
         if (forced != null && !forced.isBlank()) {

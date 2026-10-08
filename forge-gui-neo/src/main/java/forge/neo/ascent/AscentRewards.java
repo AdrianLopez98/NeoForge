@@ -239,6 +239,44 @@ public final class AscentRewards {
     }
 
     /**
+     * <b>Devuelve</b> una carta que acabas de coger de ESTE premio (Discord,
+     * 08-10-2026: <i>"Add the ability to deselect a choice. I meant to long
+     * press and examine this card, not select it before I could read it. Now
+     * it's stuck"</i>). En Android tocar coge y mantener pulsado lee, y un
+     * toque de mas se llevaba la carta sin vuelta atras.
+     *
+     * <p>Quita <b>una copia de la misma impresion</b> que entro con
+     * {@link #take}, asi que el mazo queda exactamente como estaba, aunque ya
+     * tuvieras otra igual. No cuenta como "quitada" ({@code AscentRun.noteCut}):
+     * no la has rechazado, te has equivocado de dedo. Solo tiene sentido
+     * mientras sigues en la pantalla del premio; eso lo controla quien llama.
+     */
+    public static Deck untake(final AscentRun run, final PaperCard card) {
+        final Deck deck = AscentDecks.load(run);
+        if (deck == null || card == null) {
+            return deck;
+        }
+        deck.getMain().remove(card);
+        AscentDecks.save(deck);
+        return deck;
+    }
+
+    /**
+     * Lo mismo con la tierra extra: quita las {@code copies} que entraron con
+     * {@link #takeLands}. Las copias las da quien llama (las que se ofrecieron),
+     * no {@link #copiesOf}: con la tierra ya en el mazo, esa cuenta dice 0.
+     */
+    public static Deck untakeLands(final AscentRun run, final PaperCard land, final int copies) {
+        final Deck deck = AscentDecks.load(run);
+        if (deck == null || land == null || copies <= 0) {
+            return deck;
+        }
+        deck.getMain().remove(land, copies);
+        AscentDecks.save(deck);
+        return deck;
+    }
+
+    /**
      * Cuantas copias entran al coger la tierra del premio. <b>Una.</b>
      *
      * <p>Eran dos cuando la tierra <b>costaba</b> tu carta: una sola a cambio
@@ -605,13 +643,31 @@ public final class AscentRewards {
             return out;
         }
         final Set<String> seen = new HashSet<>();
+        // SIEMPRE UNA CARTA LIBRE (Discord, 08-10-2026: "that should be my
+        // choice as the player"). Cada carta se sortea por su lado, asi que
+        // arriba del todo (2 de 3 tematicas) uno de cada tres premios salia
+        // con las TRES de la sinergia de tu comandante: ni una que mirara a
+        // tus reliquias o a lo que la run te ha ido pidiendo. Si al llegar al
+        // ultimo hueco no ha salido ninguna libre, ese se tira de las que no
+        // pegan con el comandante. Lo demas, la curva incluida, no cambia.
+        final boolean wantsFree = count >= 2 && pools.hasSynergy();
+        boolean gotFree = false;
+        boolean forced = false;
         // Se tira un numero acotado de veces en vez de barajar el pozo entero:
         // son miles de cartas y esto se llama al acabar cada combate.
         for (int tries = 0; tries < 400 && out.size() < count; tries++) {
-            final PaperCard c = pools.roll(climb, rnd);
+            final boolean free = wantsFree && !gotFree && out.size() == count - 1;
+            final PaperCard c = pools.roll(climb, rnd, free);
             if (c != null && seen.add(c.getName())) {
                 out.add(c);
+                gotFree |= !pools.isSynergy(c);
+                forced |= free;
             }
+        }
+        // La libre no va siempre a la derecha: eso seria una pista de mas.
+        if (forced && out.size() > 1) {
+            final int at = rnd.nextInt(out.size());
+            out.add(at, out.remove(out.size() - 1));
         }
         return out;
     }
@@ -759,6 +815,17 @@ public final class AscentRewards {
 
         private final Tier all = new Tier();
         private final Tier synergy = new Tier();
+        /** Lo que NO pega con tu comandante: de aqui sale la carta libre. */
+        private final Tier open = new Tier();
+        private final Set<String> synergyNames = new HashSet<>();
+
+        boolean hasSynergy() {
+            return !synergy.isEmpty();
+        }
+
+        boolean isSynergy(final PaperCard c) {
+            return c != null && synergyNames.contains(c.getName());
+        }
         private final List<PaperCard> gameChangers = new ArrayList<>();
 
         boolean isEmpty() {
@@ -780,13 +847,29 @@ public final class AscentRewards {
          * por ser tiquismiquis con la tematica seria un premio peor, no mejor.
          */
         PaperCard roll(final double climb, final Random rnd) {
+            return roll(climb, rnd, false);
+        }
+
+        /**
+         * @param free la carta LIBRE del premio: de la misma calidad, pero de
+         *             las que no pegan con tu comandante. Ver {@link #offer}.
+         */
+        PaperCard roll(final double climb, final Random rnd, final boolean free) {
             if (!gameChangers.isEmpty() && rnd.nextDouble() < gameChangerChance(climb)) {
-                return gameChangers.get(rnd.nextInt(gameChangers.size()));
+                final PaperCard gc = gameChangers.get(rnd.nextInt(gameChangers.size()));
+                // En la libre, uno de tu comandante no vale: se sigue al pozo libre.
+                if (!free || !isSynergy(gc)) {
+                    return gc;
+                }
             }
             final double r = rnd.nextDouble();
             final double mythicP = mythicChance(climb);
             final double rareP = RARE_LOW + (RARE_HIGH - RARE_LOW) * Math.max(0, Math.min(1, climb));
             final int order = r < mythicP ? 0 : r < mythicP + rareP ? 1 : 2;
+            if (free) {
+                final PaperCard c = open.pick(order, rnd);
+                return c != null ? c : all.pick(order, rnd);
+            }
             if (!synergy.isEmpty() && rnd.nextDouble() < synergyChance(climb)) {
                 final PaperCard c = synergy.pick(order, rnd);
                 if (c != null) {
@@ -827,7 +910,10 @@ public final class AscentRewards {
         // siquiera pregunta: mete la carta y guarda. Salio al doblar el premio
         // a 2 de 6 (§24.6), que multiplica por dos las ocasiones de que pase,
         // pero el agujero estaba desde el principio.
-        final Set<String> owned = new HashSet<>();
+        // Y lo que has QUITADO tampoco (Discord, 08-10-2026: "Cut cards don't
+        // appear again"), en los dos modos: si la has quitado, ya has dicho
+        // que no la quieres. Ver AscentRun.noteCut.
+        final Set<String> owned = new HashSet<>(run.getCut());
         final Deck mine = run.getMode() == AscentRun.Mode.COMMANDER ? AscentDecks.load(run) : null;
         if (mine != null) {
             for (final Map.Entry<PaperCard, Integer> e : mine.getMain()) {
@@ -843,6 +929,10 @@ public final class AscentRewards {
                 ? AscentSynergy.namesFor(mine.getCommanders())
                 : Set.of();
         final Pools out = new Pools();
+        // Todas las tematicas por NOMBRE, tambien los gamechangers (que van a
+        // su propio cubo): para la carta libre, un gamechanger de tu
+        // comandante no es libre.
+        out.synergyNames.addAll(synergy);
         for (final PaperCard raw : FModel.getMagicDb().getCommonCards().getUniqueCards()) {
             // Solo las de las expansiones de la run, y con su impresion de
             // ahi (AscentPool). Con "todas", la carta tal cual.
@@ -882,6 +972,8 @@ public final class AscentRewards {
             out.all.add(c);
             if (synergy.contains(c.getName())) {
                 out.synergy.add(c);
+            } else {
+                out.open.add(c);
             }
         }
         return out;

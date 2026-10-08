@@ -1715,13 +1715,15 @@ public final class QuestCheck {
             // regenerar rivales por clicar dos veces.
             ok &= !forge.neo.quest.NeoQuestWorlds.travelTo(target);
 
-            // Los sobres del mundo (ajuste NeoQuest.WORLD_SHOP, apagado de
-            // fabrica): sin el, todas; con el, solo las de este mundo.
+            // Los sobres del mundo (ajuste NeoQuest.WORLD_SHOP, encendido de
+            // fabrica): apagado, todas; encendido - o sin tocar -, solo las de
+            // este mundo.
             final String was = forge.neo.NeoSettings.get(NeoQuest.WORLD_SHOP, null);
             try {
-                forge.neo.NeoSettings.set(NeoQuest.WORLD_SHOP, null);
+                forge.neo.NeoSettings.setBool(NeoQuest.WORLD_SHOP, false);
                 final int allPacks = NeoQuestShop.editions().size();
-                forge.neo.NeoSettings.setBool(NeoQuest.WORLD_SHOP, true);
+                // Sin tocar es encendido: el de fabrica tiene que limitar.
+                forge.neo.NeoSettings.set(NeoQuest.WORLD_SHOP, null);
                 final java.util.Set<String> world = NeoQuest.worldSets();
                 final java.util.List<forge.card.CardEdition> local = NeoQuestShop.editions();
                 boolean inside = world != null && !local.isEmpty();

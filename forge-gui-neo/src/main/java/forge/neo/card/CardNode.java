@@ -325,6 +325,12 @@ public class CardNode extends StackPane {
 
         art.setPreserveRatio(false);
         art.setSmooth(true);
+        // LAS CARTAS APAISADAS (Planechase, 08-10-2026): un plano, un fenomeno o
+        // una batalla traen la imagen tumbada; metida tal cual en el marco de
+        // 5:7 salia aplastada. Se gira 90 grados como la carta fisica puesta de
+        // lado. Solo esas: el recorte de arte (UI_CARD_ART_FORMAT) tambien es
+        // ancho y no hay que girarlo. CardZoom gira la carta entera para leerla.
+        art.imageProperty().addListener((o, was, now) -> updateSideways());
 
         border.setFill(Color.TRANSPARENT);
         border.getStyleClass().add("card-border");
@@ -544,6 +550,57 @@ public class CardNode extends StackPane {
     // Geometria
     // ---------------------------------------------------------------
 
+    private final javafx.beans.property.ReadOnlyBooleanWrapper sideways =
+            new javafx.beans.property.ReadOnlyBooleanWrapper(false);
+
+    /** Si el arte va girado dentro del marco (una carta apaisada con la imagen ancha). */
+    public javafx.beans.property.ReadOnlyBooleanProperty sidewaysArtProperty() {
+        return sideways.getReadOnlyProperty();
+    }
+
+    private final javafx.beans.property.ReadOnlyDoubleWrapper readRotation =
+            new javafx.beans.property.ReadOnlyDoubleWrapper(0);
+
+    /**
+     * Cuanto hay que girar la carta ENTERA para leerla derecha: 0 casi siempre;
+     * en un plano, un fenomeno o una batalla, +90 — Scryfall las sirve en
+     * vertical con el dibujo girado a la izquierda (488x680, medido) — o -90 si
+     * la imagen viniera ancha y la hubieramos girado aqui. Lo usa CardZoom.
+     */
+    public javafx.beans.property.ReadOnlyDoubleProperty readRotationProperty() {
+        return readRotation.getReadOnlyProperty();
+    }
+
+    private void updateSideways() {
+        final Image img = art.getImage();
+        final CardStateView st = card == null ? null
+                : forcedFace != null ? forcedFace : card.getCurrentState();
+        final forge.card.CardTypeView t = st == null ? null : st.getType();
+        final boolean landscapeCard = t != null && (t.isPlane() || t.isPhenomenon() || t.isBattle());
+        final boolean wide = img != null && img.getWidth() > img.getHeight() * 1.15;
+        final boolean on = landscapeCard && wide;
+        readRotation.set(!landscapeCard || img == null ? 0 : wide ? -90 : 90);
+        if (on != sideways.get()) {
+            sideways.set(on);
+            fitArt();
+        }
+    }
+
+    /** El arte del tamanyo de la carta; girado, con ancho y alto cambiados. */
+    private void fitArt() {
+        final double w = cardWidth;
+        final double h = w * ASPECT;
+        if (sideways.get()) {
+            art.setFitWidth(h);
+            art.setFitHeight(w);
+            art.setRotate(90);
+        } else {
+            art.setFitWidth(w);
+            art.setFitHeight(h);
+            art.setRotate(0);
+        }
+    }
+
     public final void setCardWidth(final double w) {
         this.cardWidth = w;
         final double h = w * ASPECT;
@@ -553,8 +610,7 @@ public class CardNode extends StackPane {
         setMinSize(w, h);
         setMaxSize(w, h);
 
-        art.setFitWidth(w);
-        art.setFitHeight(h);
+        fitArt();
 
         clip.setWidth(w);
         clip.setHeight(h);
@@ -836,6 +892,7 @@ public class CardNode extends StackPane {
             }
         }
         sharpenArt();
+        updateSideways();
         final boolean hasArt = art.getImage() != null;
         art.setVisible(hasArt);
 

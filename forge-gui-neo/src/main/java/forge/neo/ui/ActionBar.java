@@ -5,6 +5,7 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -49,6 +50,33 @@ public class ActionBar extends VBox {
     private final HBox buttons;
 
     /**
+     * <b>Los jugadores entre los que hay que elegir</b>, un boton por cada uno
+     * (Discord, 08-10-2026, <i>Curator of Destinies</i>). Cuando el motor
+     * espera un JUGADOR — "un rival elige una de las pilas", y hay tres — solo
+     * se contestaba clicando un retrato, y nada lo decia: el prompt era
+     * "Chooser:" y los botones estaban apagados. Van aqui, entre la pregunta y
+     * OK, porque es donde se mira cuando no se sabe que hacer (principio 1:
+     * lo que contesta al motor vive en esta barra). El retrato sigue valiendo.
+     * Ver {@code forge.neo.match.PlayerPick}.
+     */
+    private final FlowPane players = new FlowPane(6, 6);
+
+    /**
+     * <b>"Resolverlo todo (6)"</b> (Discord, 08-10-2026, Munkster: seis disparos
+     * iguales, seis OK). Sale solo cuando tienes la prioridad con dos o mas
+     * cosas en el stack, y pasa la prioridad hasta que se vacie. Va encima de
+     * OK y no a su lado: tres botones en la columna no caben, y este no es
+     * otra forma de decir OK, es otra pregunta. Ver
+     * {@code NeoMatchUI.resolveStack}.
+     */
+    private final Button resolveAll = new Button();
+    private Runnable onResolveAll;
+
+    /** Un jugador elegible: su nombre, si ya esta elegido y que hacer al clicarlo. */
+    public record PlayerChoice(String name, boolean picked, Runnable onPick) {
+    }
+
+    /**
      * En una fila (la columna plegada, itch.io 04-10-2026): el texto a la
      * izquierda y los botones a la derecha, para caber en la barra del
      * jugador. En columna, lo de siempre: texto arriba y botones debajo.
@@ -67,7 +95,7 @@ public class ActionBar extends VBox {
         inline = on;
         pseudoClassStateChanged(INLINE, on);
         if (on) {
-            textColumn.getChildren().setAll(prompt, warning);
+            textColumn.getChildren().setAll(prompt, warning, players, resolveAll);
             textColumn.setAlignment(Pos.CENTER_LEFT);
             HBox.setHgrow(textColumn, Priority.ALWAYS);
             textColumn.setMinWidth(0);
@@ -81,7 +109,7 @@ public class ActionBar extends VBox {
             inlineRow.getChildren().clear();
             textColumn.getChildren().clear();
             buttons.setMinWidth(Region.USE_COMPUTED_SIZE);
-            getChildren().setAll(prompt, warning, buttons);
+            getChildren().setAll(prompt, warning, players, resolveAll, buttons);
         }
         requestLayout();
     }
@@ -116,7 +144,24 @@ public class ActionBar extends VBox {
         buttons = new HBox(8, cancel, ok);
         buttons.setAlignment(Pos.CENTER_RIGHT);
 
-        getChildren().addAll(prompt, warning, buttons);
+        players.getStyleClass().add("player-choices");
+        players.setVisible(false);
+        players.setManaged(false);
+
+        resolveAll.getStyleClass().addAll("btn-secondary", "resolve-all");
+        resolveAll.setMaxWidth(Double.MAX_VALUE);
+        resolveAll.setVisible(false);
+        resolveAll.setManaged(false);
+        resolveAll.setOnAction(e -> {
+            // Fuera en el acto, como los botones de jugador: la pregunta ya
+            // esta contestada, y un segundo clic iria contra la siguiente.
+            // La accion se coge ANTES: quitar el boton la borra.
+            final Runnable action = onResolveAll;
+            setResolveAll(null, null, null);
+            fire(action);
+        });
+
+        getChildren().addAll(prompt, warning, players, resolveAll, buttons);
         setButtons(NeoText.get("action.ok"), NeoText.get("common.cancel"), false, false);
     }
 
@@ -187,6 +232,86 @@ public class ActionBar extends VBox {
         cancel.setDisable(!cancelEnabled);
     }
 
+    /**
+     * Pone (o quita, con una lista vacia) los botones de jugador. Al clicar uno
+     * se quitan todos en el acto: la pregunta se ha contestado, y un boton
+     * que se queda puesto hasta el siguiente aviso del motor se puede pulsar
+     * contra la pregunta siguiente.
+     */
+    public void setPlayerChoices(final java.util.List<PlayerChoice> choices) {
+        players.getChildren().clear();
+        final boolean show = choices != null && !choices.isEmpty();
+        if (show) {
+            for (final PlayerChoice c : choices) {
+                final Button b = new Button(c.name());
+                b.getStyleClass().addAll("btn-secondary", "player-choice");
+                b.pseudoClassStateChanged(SELECTED, c.picked());
+                b.setOnAction(e -> {
+                    setPlayerChoices(null);
+                    fire(c.onPick());
+                });
+                players.getChildren().add(b);
+            }
+        }
+        players.setVisible(show);
+        players.setManaged(show);
+    }
+
+    /**
+     * Pone el boton de "Resolverlo todo", o lo quita con {@code label} null.
+     */
+    public void setResolveAll(final String label, final String tip, final Runnable onClick) {
+        final boolean show = label != null && !label.isEmpty();
+        resolveAll.setText(show ? label : "");
+        if (!show || tip == null) {
+            resolveAll.setTooltip(null);
+        } else if (resolveAll.getTooltip() == null || !tip.equals(resolveAll.getTooltip().getText())) {
+            resolveAll.setTooltip(new javafx.scene.control.Tooltip(tip));
+        }
+        onResolveAll = show ? onClick : null;
+        resolveAll.setVisible(show);
+        resolveAll.setManaged(show);
+    }
+
+    /** Solo pruebas: el texto del boton de "Resolverlo todo", o null si no esta. */
+    public String resolveAllText() {
+        return resolveAll.isVisible() ? resolveAll.getText() : null;
+    }
+
+    /** Solo pruebas: pulsarlo, como el raton. */
+    public boolean clickResolveAll() {
+        if (!resolveAll.isVisible()) {
+            return false;
+        }
+        resolveAll.fire();
+        return true;
+    }
+
+    /** Solo pruebas: los nombres de los botones de jugador puestos ahora. */
+    public java.util.List<String> playerChoiceNames() {
+        final java.util.List<String> out = new java.util.ArrayList<>();
+        for (final javafx.scene.Node n : players.getChildren()) {
+            if (n instanceof Button b) {
+                out.add(b.getText());
+            }
+        }
+        return out;
+    }
+
+    /** Solo pruebas: clica el boton de ese jugador, como el raton. */
+    public boolean clickPlayerChoice(final String name) {
+        for (final javafx.scene.Node n : players.getChildren()) {
+            if (n instanceof Button b && b.getText().equals(name)) {
+                b.fire();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static final javafx.css.PseudoClass SELECTED =
+            javafx.css.PseudoClass.getPseudoClass("selected");
+
     public void setOnOk(final Runnable r) {
         this.onOk = r;
     }
@@ -199,6 +324,15 @@ public class ActionBar extends VBox {
     public boolean pressPrimary() {
         if (!ok.isDisabled()) {
             fire(onOk);
+            return true;
+        }
+        return false;
+    }
+
+    /** Solo pruebas: el boton de la izquierda (Cancelar), si esta activo. */
+    public boolean pressSecondary() {
+        if (!cancel.isDisabled()) {
+            fire(onCancel);
             return true;
         }
         return false;

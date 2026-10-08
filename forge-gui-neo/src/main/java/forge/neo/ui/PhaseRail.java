@@ -128,6 +128,20 @@ public class PhaseRail extends VBox {
         dayNight.setVisible(false);
         dayNight.setManaged(false);
         getChildren().add(dayNight);
+        // El plano activo (Planechase): como el dia y la noche, solo si lo hay.
+        plane.getStyleClass().addAll("day-night", "active-plane");
+        plane.setMaxWidth(Double.MAX_VALUE);
+        plane.setCursor(javafx.scene.Cursor.HAND);
+        plane.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("phase.plane.tip")));
+        plane.setOnMouseClicked(e -> {
+            if (!planes.isEmpty()) {
+                CardZoom.show(plane, planes.size(), 0, planes::get);
+            }
+            e.consume();
+        });
+        plane.setVisible(false);
+        plane.setManaged(false);
+        getChildren().add(plane);
         phases.setHgap(3); phases.setVgap(3);
         getChildren().add(phases);
 
@@ -244,6 +258,42 @@ public class PhaseRail extends VBox {
         dayNight.setManaged(day || night);
     }
 
+    /**
+     * <b>El plano activo</b> (Planechase, 08-10-2026). Esta en la zona de mando
+     * de quien lo controla — el jugador del turno — y la de un rival en la mesa
+     * es solo un contador: en su turno no se veia el plano, que es justo la carta
+     * que afecta a todos. Aqui se ve siempre su nombre, y un clic la amplia
+     * (girada para leerla: ver {@code CardNode.sidewaysArtProperty}).
+     */
+    private final Label plane = new Label();
+    private java.util.List<forge.game.card.CardView> planes = java.util.List.of();
+
+    /** Los planos (o fenomenos) activos; vacio sin Planechase. */
+    public void setPlanes(final java.util.List<forge.game.card.CardView> now) {
+        planes = now == null ? java.util.List.of() : java.util.List.copyOf(now);
+        final boolean on = !planes.isEmpty();
+        if (on) {
+            final StringBuilder names = new StringBuilder();
+            for (final forge.game.card.CardView c : planes) {
+                if (names.length() > 0) {
+                    names.append(" · ");
+                }
+                names.append(forge.neo.card.CardText.nameOf(c));
+            }
+            plane.setText("⬡ " + NeoText.get("phase.plane", names));
+        }
+        plane.setVisible(on);
+        plane.setManaged(on);
+        // Solo pruebas: -Dneo.zoom.plane=true amplia el plano la primera vez que
+        // sale, para capturar la carta girada para leerla.
+        if (on && !zoomedForTest && Boolean.getBoolean("neo.zoom.plane")) {
+            zoomedForTest = true;
+            javafx.application.Platform.runLater(() -> CardZoom.show(plane, planes.size(), 0, planes::get));
+        }
+    }
+
+    private boolean zoomedForTest;
+
     private static final javafx.css.PseudoClass NIGHT =
             javafx.css.PseudoClass.getPseudoClass("night");
 
@@ -297,8 +347,15 @@ public class PhaseRail extends VBox {
         phases.setPrefTileWidth(Math.max(1, Math.floor((available - 3 * (columns - 1) - 4) / columns)));
         phases.setPrefTileHeight(tallest);
         alignLastRowRight(columns);
-        return 14 + header.prefHeight(width) + (dayNight.isManaged() ? dayNight.prefHeight(width) + 2 : 0)
+        // El dia/noche y el plano activo (Planechase) son filas enteras: si no
+        // se cuentan, las fases se salen del hueco y pisan la barra del rival
+        // (Discord, 08-10-2026, en 4K con Planechase).
+        return 14 + header.prefHeight(width) + rowHeight(dayNight, width) + rowHeight(plane, width)
                 + Math.ceil(STOPS.length / (double) columns) * (tallest + 3);
+    }
+
+    private static double rowHeight(final Label row, final double width) {
+        return row.isManaged() ? row.prefHeight(width) + 2 : 0;
     }}
 
 

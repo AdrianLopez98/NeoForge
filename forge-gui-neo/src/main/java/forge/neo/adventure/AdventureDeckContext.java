@@ -143,10 +143,87 @@ final class AdventureDeckContext implements DeckContext {
         return mine == null ? List.of() : new ArrayList<>(mine);
     }
 
+    /** Sus mazos son ranuras fijas: una copia pisaria la tuya. Ver DeckContext.canCopy. */
+    @Override
+    public boolean canCopy() {
+        return false;
+    }
+
     /** Lo apunta {@link AcquiredLedger}: el Adventure no lo guarda. */
     @Override
     public boolean tracksAcquisition() {
         return true;
+    }
+
+    /**
+     * <b>Las basicas de tus Landscape Sketchbook</b> (Discord, 08-10-2026:
+     * <i>"there is a thing called landscape sketchbooks, it used to add basic
+     * land to our deck ... the current neoforge adventure mode deck building
+     * tools doesn't support it"</i>).
+     *
+     * <p>En su editor, "Anyadir basicas" ofrece las cinco de cada edicion cuyo
+     * <i>Landscape Sketchbook - &lt;edicion&gt;</i> tengas, mas la de fabrica del
+     * mundo; el nuestro solo ensenyaba las basicas que ya tenias en la
+     * coleccion, asi que sin ninguna Island no habia forma de meter una, y el
+     * cuaderno comprado no servia de nada. Es su
+     * {@code AdventureDeckEditor.getBasicLandSets} tal cual, incluidos los
+     * nombres de objeto con dos puntos o apostrofes de menos. Se lee al abrir
+     * el editor: los objetos no cambian mientras esta abierto.
+     */
+    @Override
+    public List<forge.card.CardEdition> basicLandEditions() {
+        if (landSets == null) {
+            landSets = readLandSets();
+        }
+        return landSets;
+    }
+
+    private List<forge.card.CardEdition> landSets;
+
+    private List<forge.card.CardEdition> readLandSets() {
+        final List<forge.card.CardEdition> out = new ArrayList<>();
+        // Solo pruebas: -Dneo.mock.landSets=DOM,JMP hace como si tuvieras esos
+        // cuadernos, para capturar el desplegable sin una partida que los tenga.
+        final String mock = System.getProperty("neo.mock.landSets");
+        if (mock != null) {
+            for (final String code : mock.split(",")) {
+                final forge.card.CardEdition e = forge.model.FModel.getMagicDb().getEditions().get(code.trim());
+                if (e != null && !out.contains(e)) {
+                    out.add(e);
+                }
+            }
+            return out;
+        }
+        try {
+            final Map<String, forge.card.CardEdition> byName = new HashMap<>();
+            for (final forge.card.CardEdition e : forge.model.FModel.getMagicDb().getEditions()) {
+                final String n = e.getName().toLowerCase(Locale.ROOT);
+                byName.put(n, e);
+                byName.put(n.replace(":", ""), e);
+                byName.put(n.replace("'", ""), e);
+            }
+            final String prefix = "landscape sketchbook - ";
+            for (final forge.adventure.data.ItemData item : player.getItems()) {
+                if (item == null || item.name == null
+                        || !item.name.toLowerCase(Locale.ROOT).startsWith(prefix)) {
+                    continue;
+                }
+                final forge.card.CardEdition e = byName.get(
+                        item.name.substring(prefix.length()).trim().toLowerCase(Locale.ROOT));
+                if (e != null && e.hasBasicLands() && !out.contains(e)) {
+                    out.add(e);
+                }
+            }
+            final String code = forge.adventure.util.Config.instance().getConfigData().defaultBasicLandSet;
+            final forge.card.CardEdition def = code == null ? null
+                    : forge.model.FModel.getMagicDb().getEditions().get(code);
+            if (def != null && !out.contains(def)) {
+                out.add(def);
+            }
+        } catch (final RuntimeException ex) {
+            // Sin objetos legibles: las basicas que tengas en la coleccion, como antes.
+        }
+        return out;
     }
 
     /**

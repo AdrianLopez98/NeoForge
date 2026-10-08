@@ -188,6 +188,13 @@ public final class NeoGame {
      * arranca partidas es exactamente lo que produjo el fallo del principio 8
      * (las notas de diseño), con el duelo de la aventura jugandose con otros ajustes.
      */
+    /**
+     * Solo para comprobadores: se llama con la interfaz de cada partida que
+     * arranca {@code play} (la de los tutoriales tiene su propio gancho). Ver
+     * {@code PlanechaseCheck}. Sin poner, no hace nada.
+     */
+    static volatile java.util.function.Consumer<NeoMatchUI> onUiForTest;
+
     public interface Seating {
         /** Las variantes de la partida. Van a las reglas Y a {@code forVariants}. */
         EnumSet<GameType> variants();
@@ -301,6 +308,11 @@ public final class NeoGame {
         final NeoMatchUI gui = new NeoMatchUI(mode, verbose);
         gui.setAutoPayMana(autoPayMana);
         gui.setEnding(ending);
+        // Solo comprobadores: la interfaz de la partida, para hacer de jugador.
+        final java.util.function.Consumer<NeoMatchUI> forTest = onUiForTest;
+        if (forTest != null) {
+            forTest.accept(gui);
+        }
         if (binder != null) {
             gui.setBinder(binder);
             gui.setTable(binder.getTable());

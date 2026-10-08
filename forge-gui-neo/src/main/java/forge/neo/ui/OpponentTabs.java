@@ -38,6 +38,20 @@ public class OpponentTabs extends HBox {
             javafx.css.PseudoClass.getPseudoClass("revealed");
     private static final javafx.css.PseudoClass PLAYABLE =
             javafx.css.PseudoClass.getPseudoClass("playable");
+    private static final javafx.css.PseudoClass PICKABLE =
+            javafx.css.PseudoClass.getPseudoClass("pickable");
+    /** El aviso de la mano a la vista, para juntarlo con el de elegir. */
+    private static final String HAND_TIP = "neo.handTip";
+
+    /**
+     * Que rival tiene AHORA algo que el motor deja elegir (Discord, 08-10-2026,
+     * Atraxa: <i>"I can't select the opponents permanents"</i>). A cuatro solo
+     * se ve la mesa de uno, y proliferar ofrece los permanentes con contadores
+     * de TODOS: el de la pestanya abierta salia marcado y los de los otros dos
+     * no existian para el jugador. Lo pone {@code TableScreen}; la marca es el
+     * mismo azul de "elige esto" de las cartas.
+     */
+    private java.util.function.Predicate<PlayerView> pickable;
 
     /**
      * Cuantas cartas de la mano de cada rival se ven y cuantas se lanzan
@@ -58,6 +72,51 @@ public class OpponentTabs extends HBox {
         setPadding(new Insets(4, 12, 0, 12));
         setVisible(false);
         setManaged(false);
+    }
+
+    public void setPickable(final java.util.function.Predicate<PlayerView> test) {
+        this.pickable = test;
+        refreshPickable();
+    }
+
+    /**
+     * Vuelve a marcar sin rehacer las pestanyas: la eleccion empieza y acaba
+     * sin que cambie nada de lo que dicen (vida, cartas), asi que no pasa por
+     * {@link #setOpponents}. Lo llama {@code TableScreen.setSelectable}.
+     */
+    public void refreshPickable() {
+        final List<javafx.scene.Node> tabs = getChildren();
+        for (int i = 0; i < tabs.size() && i < players.size(); i++) {
+            if (tabs.get(i) instanceof Label tab) {
+                markPickable(tab, players.get(i));
+            }
+        }
+    }
+
+    private void markPickable(final Label tab, final PlayerView p) {
+        boolean on;
+        try {
+            on = pickable != null && pickable.test(p);
+        } catch (final RuntimeException e) {
+            on = false;
+        }
+        tab.pseudoClassStateChanged(PICKABLE, on);
+        if (on && tab.getGraphic() == null) {
+            final javafx.scene.shape.Circle dot = new javafx.scene.shape.Circle(4);
+            dot.getStyleClass().add("opponent-tab-pick");
+            tab.setGraphic(dot);
+        } else if (!on) {
+            tab.setGraphic(null);
+        }
+        final Object hand = tab.getProperties().get(HAND_TIP);
+        final String tip = on
+                ? NeoText.get("tabs.pickable") + (hand == null ? "" : "\n" + hand)
+                : hand == null ? null : hand.toString();
+        if (tip == null) {
+            tab.setTooltip(null);
+        } else if (tab.getTooltip() == null || !tip.equals(tab.getTooltip().getText())) {
+            tab.setTooltip(new javafx.scene.control.Tooltip(tip));
+        }
     }
 
     public void setOnSelect(final Consumer<PlayerView> handler) {
@@ -99,10 +158,11 @@ public class OpponentTabs extends HBox {
                 tab.pseudoClassStateChanged(REVEALED, seen[1] == 0);
                 tab.pseudoClassStateChanged(PLAYABLE, seen[1] > 0);
                 tab.setText(tab.getText() + "  ◉");
-                tab.setTooltip(new javafx.scene.control.Tooltip(seen[1] > 0
+                tab.getProperties().put(HAND_TIP, seen[1] > 0
                         ? NeoText.get("bar.hand.castable", seen[1])
-                        : NeoText.get("bar.hand.revealed", seen[0])));
+                        : NeoText.get("bar.hand.revealed", seen[0]));
             }
+            markPickable(tab, p);
             tab.setOnMouseClicked(e -> {
                 if (onSelect != null) {
                     onSelect.accept(p);
@@ -110,6 +170,17 @@ public class OpponentTabs extends HBox {
             });
             getChildren().add(tab);
         }
+    }
+
+    /** El texto de cada pestanya, en orden. Solo para pruebas. */
+    public List<String> tabTexts() {
+        final List<String> out = new ArrayList<>();
+        for (final javafx.scene.Node n : getChildren()) {
+            if (n instanceof Label l) {
+                out.add(l.getText());
+            }
+        }
+        return out;
     }
 
     /** Alto que ocupa, 0 si esta oculta. */

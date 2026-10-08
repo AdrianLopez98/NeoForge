@@ -254,6 +254,9 @@ public final class AscentSeedDeck {
         if (!p.isAll()) {
             deck = p.restrict(deck, mode, MyRandom.getRandom());
         }
+        // Tus artes favoritos, si los recuerdas (AscentArt): con "todas" el
+        // mazo no ha pasado por printing(). Solo el dibujo: misma carta.
+        deck = AscentArt.withFavourites(deck, p);
         if (ascension >= 3) {
             curse(deck);
         }

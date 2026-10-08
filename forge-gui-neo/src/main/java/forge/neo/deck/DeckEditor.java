@@ -1998,6 +1998,58 @@ public final class DeckEditor {
     }
 
     /**
+     * <b>Las basicas que se ofrecen aunque no las tengas</b>, y de que edicion
+     * (la Aventura y sus <i>Landscape Sketchbook</i>, 08-10-2026). Vacio fuera
+     * de ella: ver {@link DeckContext#basicLandEditions()}.
+     */
+    public List<forge.card.CardEdition> basicLandEditions() {
+        if (basicLandSets == null) {
+            final List<forge.card.CardEdition> l = format.basicLandEditions();
+            basicLandSets = l == null ? List.of() : List.copyOf(l);
+        }
+        return basicLandSets;
+    }
+
+    /** La edicion de la que salen ahora las basicas ofrecidas; la primera de entrada. */
+    public forge.card.CardEdition basicLandSet() {
+        if (basicLandSet == null && !basicLandEditions().isEmpty()) {
+            basicLandSet = basicLandEditions().get(0);
+        }
+        return basicLandSet;
+    }
+
+    /** Cambia la edicion de las basicas ofrecidas (solo una de {@link #basicLandEditions()}). */
+    public void setBasicLandSet(final forge.card.CardEdition edition) {
+        if (edition != null && basicLandEditions().contains(edition) && edition != basicLandSet) {
+            basicLandSet = edition;
+            basicIndex = null;
+        }
+    }
+
+    private List<forge.card.CardEdition> basicLandSets;
+    private forge.card.CardEdition basicLandSet;
+    private CardIndex basicIndex;
+
+    private static final String[] BASICS = {"Plains", "Island", "Swamp", "Mountain", "Forest"};
+
+    /** Las cinco basicas de la edicion elegida, indexadas como el catalogo. */
+    private CardIndex basicIndex() {
+        if (basicIndex == null) {
+            final List<PaperCard> five = new ArrayList<>();
+            final forge.card.CardEdition ed = basicLandSet();
+            for (final String name : BASICS) {
+                final PaperCard c = ed == null ? null
+                        : FModel.getMagicDb().getCommonCards().getCard(name, ed.getCode());
+                if (c != null) {
+                    five.add(c);
+                }
+            }
+            basicIndex = CardIndex.of(five);
+        }
+        return basicIndex;
+    }
+
+    /**
      * @param searchRules buscar tambien en el texto de reglas, no solo en el
      *                    nombre y el tipo
      */
@@ -2007,21 +2059,30 @@ public final class DeckEditor {
         final String q = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
         final Predicate<PaperCard> legal = onlyLegal ? legalFilter() : null;
 
+        // Con basicas ofrecidas (la Aventura), las cinco salen de la edicion
+        // elegida y no de la coleccion: ni repetidas ni solo las que tengas.
+        final boolean offeredBasics = !basicLandEditions().isEmpty();
         final List<PaperCard> hits = new ArrayList<>();
-        for (int i = 0; i < index.size(); i++) {
-            // El filtro mas barato primero: descarta casi todo sin tocar reglas
-            // ni reservar memoria.
-            if (searchRules ? !index.matchesText(i, q) : !index.matches(i, q)) {
-                continue;
+        for (final CardIndex in : offeredBasics ? List.of(index, basicIndex()) : List.of(index)) {
+            final boolean theBasics = in != index;
+            for (int i = 0; i < in.size(); i++) {
+                // El filtro mas barato primero: descarta casi todo sin tocar reglas
+                // ni reservar memoria.
+                if (searchRules ? !in.matchesText(i, q) : !in.matches(i, q)) {
+                    continue;
+                }
+                final PaperCard card = in.cardAt(i);
+                if (offeredBasics && !theBasics && card.isVeryBasicLand()) {
+                    continue;
+                }
+                if (legal != null && !legal.test(card)) {
+                    continue;
+                }
+                if (extra != null && !extra.test(card)) {
+                    continue;
+                }
+                hits.add(card);
             }
-            final PaperCard card = index.cardAt(i);
-            if (legal != null && !legal.test(card)) {
-                continue;
-            }
-            if (extra != null && !extra.test(card)) {
-                continue;
-            }
-            hits.add(card);
         }
 
         // Se ordena ANTES de cortar en las mil primeras: despues del corte
@@ -2391,6 +2452,40 @@ public final class DeckEditor {
         }
         savedAs = now;
         dirty = false;
+    }
+
+    /**
+     * <b>Guardar una copia</b> (Discord, 08-10-2026: <i>"when i copy it i get
+     * all the cards ... but the art style and foil i chose for the cards in the
+     * orginal deck i made are gone"</i> — copiaba exportando la lista e
+     * importandola, y la lista es solo cantidad y nombre).
+     *
+     * <p>El mazo tal cual — cada impresion, cada foil, el banquillo, el
+     * comandante, la funda — con otro nombre, y <b>desde ahi se edita la
+     * copia</b>: es "Guardar como". El original se queda como estaba guardado
+     * porque lo que se edita ya es una copia suya ({@link #copyOf}) y aqui se
+     * olvida su nombre antes de guardar: {@link #save()} no lo borra.
+     *
+     * @return false si el nombre esta vacio o ya es de otro mazo
+     */
+    public boolean saveAsCopy(final String name) {
+        if (name == null || name.isBlank() || format.storage().contains(name.trim())) {
+            return false;
+        }
+        deck.setName(name.trim());
+        savedAs = null;
+        save();
+        return true;
+    }
+
+    /** Un nombre libre para la copia: "Nombre (2)", "(3)"... */
+    public String copyName() {
+        final String base = deck.getName() == null ? "" : deck.getName().replaceAll(" \\(\\d+\\)$", "");
+        int n = 2;
+        while (format.storage().contains(base + " (" + n + ")")) {
+            n++;
+        }
+        return base + " (" + n + ")";
     }
 
     /** Con que nombre esta guardado, o null si todavia no lo esta. */

@@ -58,6 +58,15 @@ public final class AscentRun {
     private String currentNode;
     private final Set<String> clearedNodes = new LinkedHashSet<>();
     private final List<String> relics = new ArrayList<>();
+
+    /**
+     * <b>Las cartas que has quitado</b> en esta run (Discord, 08-10-2026: <i>"Cut
+     * cards don't appear again"</i>). Los premios, la tienda y los eventos que
+     * ofrecen cartas no te las vuelven a ofrecer ({@link AscentRewards}): si la
+     * has quitado, ya has dicho que no la quieres. Se apunta al quitarla
+     * ({@link #noteCut}) y se va con la run.
+     */
+    private final java.util.Set<String> cut = new java.util.LinkedHashSet<>();
     /** El nombre del mazo de la run, que es un .dck en la carpeta de Ascenso. */
     private String deckName;
     /** De que expansiones salen las cartas (ver {@link AscentPool}). De fabrica, todas. */
@@ -178,6 +187,8 @@ public final class AscentRun {
         run.ascension = ascension;
         run.deckName = deckName;
         run.currentNode = null;
+        // Lo quitado es de la run: una nueva empieza sin nada (ver save()).
+        NeoSettings.set(PREFIX + "cut", null);
         run.save();
         return run;
     }
@@ -209,6 +220,9 @@ public final class AscentRun {
         final List<String> rel = new ArrayList<>();
         split(NeoSettings.get(PREFIX + "relics", ""), rel);
         run.relics.addAll(rel);
+        final List<String> gone = new ArrayList<>();
+        split(NeoSettings.get(PREFIX + "cut", ""), gone);
+        run.cut.addAll(gone);
         run.pool = AscentPool.parse(NeoSettings.get(PREFIX + "pool", ""));
         run.endless = NeoSettings.getBool(PREFIX + "endless", false);
         run.victoryRecorded = NeoSettings.getBool(PREFIX + "won", false);
@@ -223,6 +237,14 @@ public final class AscentRun {
             demoRun = this;
             return;
         }
+        // Lo quitado solo crece dentro de una run: si otra pantalla tiene una
+        // copia de ESTA misma run (mismo mazo, misma semilla) y guarda lo suyo,
+        // no puede borrar lo que se apunto desde aqui. Ver noteCut.
+        if (NeoSettings.getBool(ACTIVE, false)
+                && String.valueOf(seed).equals(NeoSettings.get(PREFIX + "seed", null))
+                && java.util.Objects.equals(deckName, NeoSettings.get(PREFIX + "deck", null))) {
+            split(NeoSettings.get(PREFIX + "cut", ""), cut);
+        }
         NeoSettings.setBool(ACTIVE, true);
         NeoSettings.set(PREFIX + "mode", mode.name());
         NeoSettings.set(PREFIX + "seed", String.valueOf(seed));
@@ -235,6 +257,7 @@ public final class AscentRun {
         NeoSettings.set(PREFIX + "node", currentNode);
         NeoSettings.set(PREFIX + "cleared", String.join(";", clearedNodes));
         NeoSettings.set(PREFIX + "relics", String.join(";", relics));
+        NeoSettings.set(PREFIX + "cut", cut.isEmpty() ? null : String.join(";", cut));
         NeoSettings.set(PREFIX + "pool", pool.isAll() ? null : pool.serialize());
         NeoSettings.set(PREFIX + "endless", endless ? "true" : null);
         NeoSettings.set(PREFIX + "won", victoryRecorded ? "true" : null);
@@ -377,6 +400,21 @@ public final class AscentRun {
         NeoSettings.save();
     }
 
+    /** Las cartas que has quitado en esta run: no se te vuelven a ofrecer. */
+    public java.util.Set<String> getCut() {
+        return java.util.Collections.unmodifiableSet(cut);
+    }
+
+    /**
+     * Apunta que has quitado esa carta, y guarda. Lo llaman los sitios donde se
+     * quita una carta por eleccion tuya: el descanso, la tienda y el evento.
+     */
+    public void noteCut(final String name) {
+        if (name != null && !name.isEmpty() && cut.add(name)) {
+            save();
+        }
+    }
+
     /**
      * Se acabo la run: se borra el marcador entero, y el mazo con el.
      *
@@ -393,7 +431,7 @@ public final class AscentRun {
             return;
         }
         for (final String k : new String[]{"mode", "seed", "act", "life", "maxLife",
-                "credits", "ascension", "deck", "node", "cleared", "relics", "pool",
+                "credits", "ascension", "deck", "node", "cleared", "relics", "cut", "pool",
                 "endless", "won", "code", "fromCode"}) {
             NeoSettings.set(PREFIX + k, null);
         }

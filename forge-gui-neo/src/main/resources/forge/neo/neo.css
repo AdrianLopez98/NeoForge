@@ -1010,6 +1010,16 @@
     -fx-background-color: -neo-panel-hi;
 }
 
+/* El "×6" de los disparos iguales juntos (StackGroups, Discord 08-10-2026). */
+.stack-count {
+    -fx-font-size: 0.72em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -neo-text;
+    -fx-background-color: derive(-neo-accent, -40%);
+    -fx-background-radius: 8;
+    -fx-padding: 0 6 0 6;
+}
+
 .stack-order {
     -fx-font-size: 0.7em;
     -fx-font-weight: bold;
@@ -3833,6 +3843,19 @@
     -fx-padding: 6 10 6 12;
 }
 
+/* Los jugadores entre los que el motor espera que elijas ("un rival elige una
+   pila" con varios rivales): un boton por jugador, en verde, que es el color de
+   "esto se puede elegir" (seccion 6). Ver forge.neo.match.PlayerPick. */
+.action-bar .player-choice {
+    -fx-border-color: -neo-valid;
+    -fx-text-fill: -neo-text;
+}
+.action-bar .player-choice:hover { -fx-background-color: rgba(79, 180, 119, 0.18); }
+.action-bar .player-choice:selected {
+    -fx-background-color: -neo-valid;
+    -fx-text-fill: #0B0E13;
+}
+
 /* La mano de un rival que puedes ver (azul) o de la que puedes lanzar (verde):
    Sen Triplets, Telepathy... Ver forge.neo.match.RevealedHand. */
 .zone-button:revealed {
@@ -3851,3 +3874,47 @@
 .zone-button:playable .zone-count { -fx-text-fill: -neo-valid; }
 .opponent-tab:revealed { -fx-border-color: -neo-accent; -fx-text-fill: -neo-accent; }
 .opponent-tab:playable { -fx-border-color: -neo-valid; -fx-text-fill: -neo-valid; }
+/* En esa mesa hay algo que elegir (proliferar a cuatro, Discord 08-10-2026):
+   el mismo azul de "elige esto" de las cartas, con su punto delante. */
+.opponent-tab:pickable {
+    -fx-background-color: derive(-neo-accent, -45%);
+    -fx-effect: dropshadow(gaussian, -neo-accent, 8, 0.4, 0, 0);
+}
+/* Y la que estas mirando se sigue distinguiendo de las otras. */
+.opponent-tab:pickable:selected {
+    -fx-background-color: -neo-panel-hi;
+    -fx-border-color: transparent transparent -neo-accent transparent;
+}
+.opponent-tab-pick { -fx-fill: -neo-accent; }
+
+/* Un aviso que se va solo, abajo y en medio de la ventana (forge.neo.ui.Toast):
+   "se ha abierto en tu navegador". Panel con el borde del acento, que es lo
+   que informa sin pedir nada. */
+.neo-toast {
+    -fx-background-color: rgba(27, 33, 42, 0.96);
+    -fx-background-radius: 8;
+    -fx-border-color: #4A9BE0;
+    -fx-border-radius: 8;
+    -fx-border-width: 1;
+    -fx-padding: 10 18 10 18;
+    -fx-text-fill: #E6EBF2;
+    -fx-font-size: 1.0em;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.55), 14, 0.2, 0, 3);
+}
+
+/* "Recordar estos artes para las proximas runs" (forge.neo.ascent.AscentArt),
+   en el pergamino de Tu mazo: tinta marron, como los textos de alli. */
+.ascent-remember {
+    -fx-text-fill: #4A3B22;
+    -fx-font-size: 1.1em;
+    -fx-cursor: hand;
+}
+.ascent-remember .box {
+    -fx-background-color: #F3E7C8;
+    -fx-border-color: #8C7448;
+    -fx-border-radius: 3;
+    -fx-background-radius: 3;
+}
+.ascent-remember:selected .mark {
+    -fx-background-color: #4A3B22;
+}

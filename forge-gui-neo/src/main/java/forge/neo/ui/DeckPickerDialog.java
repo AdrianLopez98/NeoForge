@@ -70,16 +70,22 @@ public class DeckPickerDialog extends VBox {
      */
     private Consumer<Deck> onDelete;
 
+    /** Una lista de la que se puede sortear: su clave, como se llama y cuantos mazos tiene. */
+    public record RandomPool(String key, String label, int count) {
+    }
+
     /**
-     * "Al azar de una coleccion": el menu con tus colecciones y cuantos mazos
-     * tiene cada una. Pedido en itch.io el 29-09-2026: se podia elegir al azar
-     * entre todos, pero no entre los de una coleccion hecha a mano. Solo lo
-     * monta quien elige el mazo de un RIVAL ({@code HomeScreen}); el sorteo lo
-     * hace el al empezar, como el "al azar" de siempre.
+     * "Al azar de...": el menu con las listas de las que se puede sortear y
+     * cuantos mazos tiene cada una. Pedido en itch.io el 29-09-2026 para las
+     * colecciones; desde el 08-10-2026 (Discord: <i>"limit the pool of random
+     * AI decks to just a specific group?"</i>) son <b>las mismas listas que
+     * tu propio "al azar"</b> — tus mazos, los de Forge, los de internet y
+     * cada coleccion —, con sus mismas claves. Solo lo monta quien elige el
+     * mazo de un RIVAL ({@code HomeScreen}); el sorteo lo hace el al empezar,
+     * como el "al azar" de siempre. Las listas vacias no salen.
      */
-    public void setRandomFromCollections(final java.util.Map<String, List<Deck>> collections,
-                                         final Consumer<String> onRandomFrom) {
-        if (collections == null || collections.isEmpty() || onRandomFrom == null || footer == null) {
+    public void setRandomFrom(final List<RandomPool> pools, final Consumer<String> onRandomFrom) {
+        if (pools == null || pools.isEmpty() || onRandomFrom == null || footer == null) {
             return;
         }
         final javafx.scene.control.MenuButton menu = new javafx.scene.control.MenuButton(
@@ -87,15 +93,28 @@ public class DeckPickerDialog extends VBox {
         menu.setId("picker-random-collection");
         menu.getStyleClass().add("btn-secondary");
         menu.setMinWidth(Region.USE_PREF_SIZE);
-        for (final java.util.Map.Entry<String, List<Deck>> e : collections.entrySet()) {
-            if (e.getValue() == null || e.getValue().isEmpty()) {
+        for (final RandomPool pool : pools) {
+            if (pool.count() <= 0) {
                 continue;
             }
             final javafx.scene.control.MenuItem item = new javafx.scene.control.MenuItem(
-                    NeoText.get("picker.randomFrom.item", e.getKey(), e.getValue().size()));
-            final String name = e.getKey();
-            item.setOnAction(ev -> onRandomFrom.accept(name));
+                    NeoText.get("picker.randomFrom.item", pool.label(), pool.count()));
+            item.setOnAction(ev -> onRandomFrom.accept(pool.key()));
             menu.getItems().add(item);
+        }
+        // Solo pruebas: -Dneo.picker.randomMenu=true dice lo que ofrece (el
+        // menu desplegado es otra ventana y no sale en la captura).
+        if (Boolean.getBoolean("neo.picker.randomMenu")) {
+            for (final javafx.scene.control.MenuItem item : menu.getItems()) {
+                System.out.println("[al azar de] " + item.getText());
+            }
+            // -Dneo.picker.randomPick=stock: y elige esa lista, como un clic.
+            final String pick = System.getProperty("neo.picker.randomPick");
+            for (final RandomPool pool : pools) {
+                if (pool.key().equals(pick)) {
+                    javafx.application.Platform.runLater(() -> onRandomFrom.accept(pool.key()));
+                }
+            }
         }
         if (menu.getItems().isEmpty()) {
             return;

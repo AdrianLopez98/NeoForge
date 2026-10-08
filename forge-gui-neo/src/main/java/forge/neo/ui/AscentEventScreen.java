@@ -257,6 +257,8 @@ public class AscentEventScreen extends StackPane {
             if (deck != null) {
                 deck.getMain().remove(card);
                 AscentDecks.save(deck);
+                // Y no se te vuelve a ofrecer (ver AscentRun.noteCut).
+                run.noteCut(card.getName());
             }
             showResult(outcome, null);
         }, cancelable ? "common.back" : null, cancelable);

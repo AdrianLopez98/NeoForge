@@ -225,6 +225,46 @@ public final class AscentPool {
         return out;
     }
 
+    /**
+     * <b>Una expansion al azar que de para una run</b> (Discord, 08-10-2026:
+     * <i>"what about a random set selection button? It could be chaotic, but
+     * it would definitely be fun"</i>). Ana: una sola expansion.
+     *
+     * <p>Solo de las de verdad —basicas y expansiones— ya publicadas. Mirar si
+     * una da para una run ({@link #problem}) recorre todas las cartas, asi que
+     * antes se descartan las que no llegan ni de lejos con su lista (lo
+     * barato), y de las que quedan se prueban por orden al azar hasta dar con
+     * una. La que se elige se guarda con la run como cualquier otro pozo: el
+     * codigo de la run la lleva.
+     *
+     * <p>Compartida con Android: nada de API que no tenga en la 26.
+     *
+     * @param avoid la que ya estaba puesta, para que otro toque cambie; o null
+     * @return su codigo, o null si no hay ninguna que valga (no deberia pasar)
+     */
+    public static String randomSet(final AscentRun.Mode mode, final java.util.Random rnd, final String avoid) {
+        final List<CardEdition> candidates = new ArrayList<>();
+        final Date now = new Date();
+        for (final CardEdition ed : editions()) {
+            if ((ed.getType() == CardEdition.Type.CORE || ed.getType() == CardEdition.Type.EXPANSION)
+                    && !ed.getDate().after(now) && !ed.getCode().equals(avoid)
+                    && ed.getAllCardsInSet().size() >= MIN_CARDS) {
+                candidates.add(ed);
+            }
+        }
+        Collections.shuffle(candidates, rnd);
+        for (int i = 0; i < candidates.size() && i < RANDOM_TRIES; i++) {
+            final String code = candidates.get(i).getCode();
+            if (set(code).problem(mode) == null) {
+                return code;
+            }
+        }
+        return null;
+    }
+
+    /** Cuantas se prueban como mucho: cada una recorre las cartas. */
+    private static final int RANDOM_TRIES = 30;
+
     private static CardEdition edition(final String code) {
         try {
             return FModel.getMagicDb().getEditions().get(code);
@@ -354,9 +394,15 @@ public final class AscentPool {
 
     /**
      * La impresion de esa carta que se ensenya en esta run: la de las
-     * expansiones elegidas. Con "todas", la misma que llega.
+     * expansiones elegidas. Con "todas", la misma que llega. Y antes que
+     * nada, <b>tu arte favorito</b> si lo tienes, el interruptor de
+     * {@link AscentArt} esta puesto y es de estas expansiones.
      */
     public PaperCard printing(final PaperCard card) {
+        final PaperCard favourite = AscentArt.favourite(card, this);
+        if (favourite != card) {
+            return favourite;
+        }
         if (isAll() || card == null) {
             return card;
         }

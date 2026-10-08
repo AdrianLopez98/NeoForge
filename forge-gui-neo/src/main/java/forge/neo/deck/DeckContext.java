@@ -186,6 +186,16 @@ public interface DeckContext {
     }
 
     /**
+     * Si se puede "Guardar una copia" ({@code DeckEditor.saveAsCopy}): hace
+     * falta un cajon donde quepa OTRO mazo. Donde no se renombra tampoco, y la
+     * Aventura tampoco: sus mazos son ranuras fijas y guardar ahi con otro
+     * nombre pisaria la tuya.
+     */
+    default boolean canCopy() {
+        return canRename();
+    }
+
+    /**
      * Cuantas copias TIENES de esa carta.
      *
      * <p>Es el otro techo del editor, y no tiene nada que ver con las reglas:
@@ -278,6 +288,19 @@ public interface DeckContext {
 
     default boolean tracksAcquisition() {
         return false;
+    }
+
+    /**
+     * De que ediciones se ofrecen las cinco basicas aunque no las tengas, o
+     * {@code null} para no ofrecerlas (lo normal: fuera de una coleccion, el
+     * catalogo ya las trae; en un limitado salen del pool).
+     *
+     * <p>Solo la Aventura contesta algo: las ediciones de sus <i>Landscape
+     * Sketchbook</i> y la de fabrica, como su editor ({@code AdventureDeckEditor
+     * .getBasicLandSets}). La primera es la que se ofrece de entrada.
+     */
+    default List<forge.card.CardEdition> basicLandEditions() {
+        return null;
     }
 
     /** Cuando entro esa carta (milisegundos), o 0 si no se sabe. */

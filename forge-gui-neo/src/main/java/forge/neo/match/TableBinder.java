@@ -304,6 +304,7 @@ public class TableBinder {
         }
 
         table.setPhase(gv.getPhase());
+        table.getPhaseRail().setPlanes(activePlanes(gv));
         table.setStack(gv.getStack(), self);
         table.setCombatLinks(links(gv));
 
@@ -322,6 +323,31 @@ public class TableBinder {
         }
         // Y el del motor (lo ya elegido al convocar o improvisar), por lo mismo.
         table.reapplyHighlighted();
+    }
+
+    /**
+     * Los planos y fenomenos activos (Planechase): los que haya en la zona de
+     * mando de cualquiera, que es donde los pone el motor. Vacio sin Planechase.
+     */
+    static List<CardView> activePlanes(final GameView gv) {
+        final List<CardView> out = new ArrayList<>();
+        if (gv == null || gv.getPlayers() == null) {
+            return out;
+        }
+        for (final PlayerView p : gv.getPlayers()) {
+            final Iterable<CardView> cmd = p.getCards(ZoneType.Command);
+            if (cmd == null) {
+                continue;
+            }
+            for (final CardView c : cmd) {
+                final forge.card.CardTypeView t = c == null || c.getCurrentState() == null
+                        ? null : c.getCurrentState().getType();
+                if (t != null && (t.isPlane() || t.isPhenomenon())) {
+                    out.add(c);
+                }
+            }
+        }
+        return out;
     }
 
     /**

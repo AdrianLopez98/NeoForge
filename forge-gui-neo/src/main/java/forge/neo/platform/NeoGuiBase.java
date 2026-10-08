@@ -285,9 +285,41 @@ public class NeoGuiBase implements IGuiBase {
         }
     }
 
-    /** Abrir una direccion en el navegador del sistema. */
+    /**
+     * Abrir una direccion en el navegador del sistema.
+     *
+     * <p><b>Diciendolo, y una sola vez</b> (Discord, 08-10-2026: <i>"I thought
+     * it wasn't functioning until I went to my browser and saw like 50 extra
+     * tabs open"</i>). El navegador se abre detras o en otro monitor y aqui no
+     * cambiaba nada, asi que el boton parecia muerto y se pulsaba otra vez, y
+     * otra. Ahora sale un aviso ({@link forge.neo.ui.Toast}) y la misma
+     * direccion pulsada otra vez antes de {@link #REOPEN_MS} no abre otra
+     * pestanya: solo repite el aviso. Vale para todos los enlaces (la guia de
+     * red, Discord, itch.io...): pasan todos por aqui.
+     */
     @Override
     public void browseToUrl(final String url) {
+        final long now = System.currentTimeMillis();
+        final boolean again = url != null && url.equals(lastUrl) && now - lastOpened < REOPEN_MS;
+        if (!again) {
+            lastUrl = url;
+            lastOpened = now;
+            openInBrowser(url);
+        }
+        forge.neo.ui.Toast.show(forge.neo.NeoText.get(again ? "browser.again" : "browser.opened"));
+    }
+
+    /** La misma direccion antes de esto no se vuelve a abrir. */
+    private static final long REOPEN_MS = 8000L;
+    private String lastUrl;
+    private long lastOpened;
+
+    private static void openInBrowser(final String url) {
+        // Solo pruebas: -Dneo.browser.dry=true no abre nada (lo dice en el registro).
+        if (Boolean.getBoolean("neo.browser.dry")) {
+            System.out.println("[navegador] abriria " + url);
+            return;
+        }
         if (NeoOs.openOnMac(url)) {
             return;
         }

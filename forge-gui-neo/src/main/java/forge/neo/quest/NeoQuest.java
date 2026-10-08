@@ -296,8 +296,10 @@ public final class NeoQuest {
      * Ajuste: los sobres de la tienda y el sobre de premio, solo del MUNDO en
      * que estas (Discord, 06-10-2026: <i>"limit prize packs and boosters in the
      * shop to the currently selected world ... travel to Ravnica for guild
-     * stuff"</i>). Apagado de fabrica: cambia lo que sale en la tienda de quien
-     * ya este jugando en un mundo.
+     * stuff"</i>). <b>Encendido de fabrica</b> desde el 08-10-2026 (itch.io:
+     * <i>"I won a free pack and they were all outside of the world I chose
+     * (Shandalar)"</i>): quien empieza en un mundo espera sus sobres, y apagado
+     * nadie sabia que existia el ajuste.
      */
     public static final String WORLD_SHOP = "quest.worldShop";
 
@@ -307,7 +309,7 @@ public final class NeoQuest {
      * mundo principal y los "Random ..." no las tienen.
      */
     public static java.util.Set<String> worldSets() {
-        if (!isActive() || !forge.neo.NeoSettings.getBool(WORLD_SHOP, false)) {
+        if (!isActive() || !forge.neo.NeoSettings.getBool(WORLD_SHOP, true)) {
             return null;
         }
         try {

@@ -51,6 +51,7 @@ public final class DeckRulesCheck {
         importKeepsWhatDoesNotFit();
         decksCanBeDeleted();
         renamingDoesNotLeaveACopy();
+        copyKeepsArtAndFoil();
         collectionsKeepDecksApart();
         otherFormatsFilterThePool();
         generatesADeckForTheCommander();
@@ -60,6 +61,7 @@ public final class DeckRulesCheck {
         unfinishedDecksAreNotRivals();
         adventureIgnoresTheBanList();
         newestFirstOrdersByAcquisition();
+        adventureOffersTheFiveBasics();
         catalogueSorts();
         collectionCountAndUsedUp();
         oathbreakerHasTwoSlots();
@@ -1056,6 +1058,54 @@ public final class DeckRulesCheck {
      * nombre de OTRO mazo tuyo avise antes de pisarlo, y que guardar encima de
      * ti mismo NO avise, que es lo normal.
      */
+    /**
+     * <b>Guardar una copia</b> (Discord, 08-10-2026: copiaba el mazo
+     * exportando e importando la lista y perdia los artes y el foil). La copia
+     * lleva cada impresion y cada foil, el comandante tambien; el original se
+     * queda; y lo que se cambia despues va a la copia.
+     */
+    private static void copyKeepsArtAndFoil() {
+        final NeoFormat format = NeoFormat.COMMANDER;
+        final String base = "__neocheck-copia__";
+        final String second = base + " (2)";
+        for (final String n : new String[] {base, second}) {
+            if (format.storage().contains(n)) {
+                format.storage().delete(n);
+            }
+        }
+        final PaperCard foilBolt = FModel.getMagicDb().getCommonCards().getCard("Lightning Bolt", "M11").getFoiled();
+        final PaperCard domMountain = FModel.getMagicDb().getCommonCards().getCard("Mountain", "DOM");
+        final DeckEditor first = DeckEditor.createNew(format, base);
+        first.setCommander(card("Krenko, Mob Boss"));
+        first.add(foilBolt, 1);
+        first.add(domMountain, 10);
+        first.save();
+
+        final DeckEditor open = DeckEditor.copyOf(format, format.storage().get(base));
+        check("Copia: propone \"Nombre (2)\"", second.equals(open.copyName()));
+        check("Copia: se guarda", open.saveAsCopy(open.copyName()));
+        final Deck copy = format.storage().get(second);
+        check("Copia: existe con el nombre nuevo", copy != null);
+        check("Copia: el original sigue ahi", format.storage().contains(base));
+        check("Copia: el foil se queda", copy != null && copy.getMain().count(foilBolt) == 1);
+        check("Copia: la impresion (el arte) se queda", copy != null && copy.getMain().count(domMountain) == 10);
+        check("Copia: y el comandante", copy != null && copy.getCommanders().contains(card("Krenko, Mob Boss")));
+
+        open.add(card("Goblin Guide"), 1);
+        open.save();
+        check("Copia: lo que se cambia despues va a la copia",
+                format.storage().get(second).getMain().countByName("Goblin Guide") == 1);
+        check("Copia: y no al original",
+                format.storage().get(base).getMain().countByName("Goblin Guide") == 0);
+        check("Copia: con el nombre de otro mazo no se guarda", !open.saveAsCopy(base));
+
+        for (final String n : new String[] {base, second}) {
+            if (format.storage().contains(n)) {
+                format.storage().delete(n);
+            }
+        }
+    }
+
     private static void renamingDoesNotLeaveACopy() {
         final NeoFormat format = NeoFormat.COMMANDER;
         final String first = "__neocheck-nombre-a__";
@@ -1506,6 +1556,19 @@ public final class DeckRulesCheck {
                 order.get(0) == full && order.get(1) == half);
         check("Rival al azar: si solo hay mazos a medias, siguen saliendo",
                 RivalDecks.readyFirst(java.util.List.of(half), t).size() == 1);
+
+        // Lo mismo mirando solo los que van saliendo (firstFree, 08-10-2026):
+        // el legal antes que el de delante a medias, no repite, y si solo
+        // queda uno a medias sale ese. Y el que vale corta la busqueda: el
+        // de detras no se llega a comprobar.
+        final java.util.Set<String> used = new java.util.HashSet<>();
+        final java.util.Map<Deck, Boolean> seen = new java.util.IdentityHashMap<>();
+        final Deck behind = new Deck("detras");
+        final Deck first = RivalDecks.firstFree(java.util.List.of(half, full, behind), t, used, seen);
+        final Deck second = RivalDecks.firstFree(java.util.List.of(half, full), t, used, seen);
+        final Deck third = RivalDecks.firstFree(java.util.List.of(half, full), t, used, seen);
+        check("Rival al azar (uno a uno): el legal primero, luego el que queda, y sin repetir",
+                first == full && second == half && third == null && !seen.containsKey(behind));
     }
 
     /**
@@ -2110,6 +2173,57 @@ public final class DeckRulesCheck {
         public boolean enforcesCardPool() {
             return false;
         }
+
+        /** Las ediciones de los Landscape Sketchbook; null = sin basicas ofrecidas. */
+        private List<forge.card.CardEdition> landSets;
+
+        @Override
+        public List<forge.card.CardEdition> basicLandEditions() {
+            return landSets;
+        }
+    }
+
+    /**
+     * <b>Las basicas de la Aventura y sus Landscape Sketchbook</b> (Discord,
+     * 08-10-2026). Salen las cinco aunque no las tengas, de la edicion elegida
+     * — la primera de entrada — y la que tienes de otra edicion no sale
+     * repetida. Cambiar de edicion las cambia todas. Y fuera de la Aventura no
+     * cambia nada.
+     */
+    private static void adventureOffersTheFiveBasics() {
+        final forge.card.CardEdition dom = FModel.getMagicDb().getEditions().get("DOM");
+        final forge.card.CardEdition jmp = FModel.getMagicDb().getEditions().get("JMP");
+        final PaperCard myIsland = FModel.getMagicDb().getCommonCards().getCard("Island", "M21");
+        final PaperCard elves = card("Llanowar Elves");
+        final AdventureLike ctx = new AdventureLike(List.of(myIsland, elves));
+        ctx.landSets = List.of(dom, jmp);
+        final DeckEditor adv = new DeckEditor(ctx, new Deck("__neocheck-basics__"));
+
+        List<PaperCard> hits = adv.find("", false, null, 100).cards;
+        final java.util.Set<String> names = new java.util.TreeSet<>();
+        int islands = 0;
+        boolean allDom = true;
+        for (final PaperCard c : hits) {
+            if (c.isVeryBasicLand()) {
+                names.add(c.getName());
+                allDom &= "DOM".equals(c.getEdition());
+                islands += "Island".equals(c.getName()) ? 1 : 0;
+            }
+        }
+        check("Aventura: salen las cinco basicas aunque no las tengas (" + names + ")", names.size() == 5);
+        check("Aventura: de la edicion del primer cuaderno (DOM)", allDom);
+        check("Aventura: la Island de la coleccion no sale repetida", islands == 1);
+        check("Aventura: lo demas de la coleccion sigue en el catalogo", hits.contains(elves));
+
+        adv.setBasicLandSet(jmp);
+        hits = adv.find("island", false, null, 100).cards;
+        check("Aventura: cambiar de edicion las cambia (Island de JMP)",
+                hits.size() == 1 && "JMP".equals(hits.get(0).getEdition()));
+        check("Aventura: y entran las que quieras",
+                adv.add(FModel.getMagicDb().getCommonCards().getCard("Swamp", "JMP"), 30) == 30);
+
+        check("Fuera de la Aventura no se ofrece ninguna edicion",
+                DeckEditor.createNew(NeoFormat.COMMANDER, "x").basicLandEditions().isEmpty());
     }
 
     private static PaperCard card(final String name) {

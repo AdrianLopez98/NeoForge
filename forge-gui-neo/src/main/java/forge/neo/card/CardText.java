@@ -102,6 +102,32 @@ public final class CardText {
         return translated == null || translated.isBlank() ? safe(base) : translated;
     }
 
+    /**
+     * Un nombre de carta en una lista de NOMBRES: "nombra una carta"
+     * (<i>Cabal Therapy</i>, <i>Pithing Needle</i>...), que el motor manda como
+     * ~34.000 {@code CardFaceView} cuyo {@code toString()} es el nombre en
+     * ingles. Asi el buscador del dialogo solo encontraba "Lightning Bolt", y
+     * jugando en castellano lo que uno escribe es "Relampago". Sale el traducido y,
+     * si cambia, el ingles detras: se encuentra por los dos (Discord,
+     * 08-10-2026). Compartida con Android: sin {@code isBlank}.
+     */
+    public static String nameOf(final forge.game.card.CardFaceView face) {
+        if (face == null) {
+            return "";
+        }
+        final String english = safe(face.getName());
+        String translated;
+        try {
+            translated = face.getTranslatedName();
+        } catch (final RuntimeException e) {
+            translated = null;
+        }
+        if (translated == null || translated.trim().isEmpty() || translated.equals(english)) {
+            return english;
+        }
+        return translated + " (" + english + ")";
+    }
+
     /** La linea de tipos de una carta del catalogo. */
     public static String typeOf(final PaperCard card) {
         if (card == null || card.getRules() == null || card.getRules().getType() == null) {

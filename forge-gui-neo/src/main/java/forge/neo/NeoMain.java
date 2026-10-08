@@ -335,6 +335,18 @@ public final class NeoMain {
                 banner("Combate extra: Relentless Assault");
                 forge.neo.match.ExtraCombatCheck.run();
                 break;
+            case "planechasecheck":
+                // Planechase jugado: el plano, la etiqueta de las fases y el
+                // dado clicado como en la mesa. Ver Planechase.
+                banner("Planechase: el plano y el dado planar");
+                forge.neo.match.PlanechaseCheck.run();
+                break;
+            case "twopilescheck":
+                // Las pilas con varios rivales (Curator of Destinies): quien
+                // decide, por botones, y el efecto resuelto. Ver PlayerPick.
+                banner("Pilas: quien decide, con varios rivales");
+                forge.neo.match.TwoPilesCheck.run();
+                break;
             case "mulligancheck":
                 // El mulligan amistoso: siempre a siete, tambien para la IA.
                 // Ver FriendlyMulligan.

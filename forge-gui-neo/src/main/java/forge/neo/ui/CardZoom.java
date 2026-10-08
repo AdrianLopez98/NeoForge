@@ -215,9 +215,15 @@ public final class CardZoom {
                 onCardClick.run();
             });
         }
+        // Un plano, un fenomeno o una batalla: en la mesa va de lado, como la
+        // carta fisica; aqui se gira la carta entera para leerla derecha. En un
+        // Group, que mide lo girado y no el marco de 5:7.
+        final javafx.scene.Group shown = new javafx.scene.Group(big);
+        big.setRotate(big.readRotationProperty().get());
+        big.readRotationProperty().addListener((o, was, now) -> big.setRotate(now.doubleValue()));
         final Node refresh = refreshButton(card);
         if (!side) {
-            return refresh == null ? new StackPane(big) : withRefresh(big, refresh);
+            return refresh == null ? new StackPane(shown) : withRefresh(shown, refresh);
         }
         // La ficha, con su PROPIO desplazamiento y nunca mas alta que la carta
         // (Discord, 03-10-2026: "too many equipment and/or auras makes the
@@ -234,7 +240,7 @@ public final class CardZoom {
         sideScroll.setHbarPolicy(javafx.scene.control.ScrollPane.ScrollBarPolicy.NEVER);
         sideScroll.setPrefViewportWidth(sideWidth);
         sideScroll.setMaxHeight(w * 7 / 5);
-        final HBox row = new HBox(w * 0.06, big, sideScroll);
+        final HBox row = new HBox(w * 0.06, shown, sideScroll);
         row.setAlignment(Pos.CENTER);
         return refresh == null ? new StackPane(row) : withRefresh(row, refresh);
     }

@@ -157,6 +157,9 @@ public class AscentSetupScreen extends StackPane {
         }
     }
 
+    /** Solo pruebas: ya se ha pulsado "Al azar" por -Dneo.ascent.rollPool. */
+    private boolean rolledForTest;
+
     /** El pozo que hay puesto ahora. */
     private forge.neo.ascent.AscentPool pool() {
         switch (poolKind) {
@@ -1226,6 +1229,31 @@ public class AscentSetupScreen extends StackPane {
                 poolChanged();
             });
             row.getChildren().add(b);
+        }
+        // UNA EXPANSION AL AZAR (Discord, 08-10-2026: "a random set selection
+        // button? It could be chaotic, but it would definitely be fun"). No es un
+        // tipo mas: deja puesto "Elegir expansiones" con esa sola, que se ve, se
+        // puede quitar o ampliar, y otro clic sortea otra. Asi no hay un "al
+        // azar" encendido a la vez que unas pastillas (ver el plan de Ascenso 6.3b).
+        final Button dice = choice(NeoText.get("ascent.pool.random"), false);
+        dice.setId("ascent-pool-random");
+        dice.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("ascent.pool.random.tip")));
+        dice.setOnAction(e -> {
+            final String avoid = poolKind == forge.neo.ascent.AscentPool.Kind.SET && poolSets.size() == 1
+                    ? poolSets.get(0) : null;
+            final String code = forge.neo.ascent.AscentPool.randomSet(mode, new java.util.Random(), avoid);
+            if (code != null) {
+                poolKind = forge.neo.ascent.AscentPool.Kind.SET;
+                poolSets.clear();
+                poolSets.add(code);
+                poolChanged();
+            }
+        });
+        row.getChildren().add(dice);
+        // Solo pruebas: -Dneo.ascent.rollPool=true lo pulsa una vez al abrir.
+        if (Boolean.getBoolean("neo.ascent.rollPool") && !rolledForTest) {
+            rolledForTest = true;
+            javafx.application.Platform.runLater(dice::fire);
         }
         final VBox box = new VBox(8, row);
         box.setAlignment(Pos.CENTER);

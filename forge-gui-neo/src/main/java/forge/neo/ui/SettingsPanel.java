@@ -769,6 +769,15 @@ public class SettingsPanel extends VBox {
                     NeoSettings.save();
                     host.refreshTable();
                 }));
+        // Los disparos iguales seguidos, en una fila con su "×6" (Discord,
+        // 08-10-2026). Encendido de fabrica: ver NeoSettings.GROUP_STACK.
+        getChildren().add(toggleRow(NeoText.get("settings.groupStack"),
+                NeoSettings.groupStack(),
+                on -> {
+                    NeoSettings.setBool(NeoSettings.GROUP_STACK, on);
+                    NeoSettings.save();
+                    host.refreshTable();
+                }));
 
         // --- sitio para la mesa: columna plegada y barras compactas ---
         //
@@ -935,9 +944,9 @@ public class SettingsPanel extends VBox {
 
         // --- sobres solo del mundo en que estas (Quest) ---
         //
-        // Apagado de fabrica: cambia la tienda de quien ya juegue en un mundo.
+        // Encendido de fabrica (ver NeoQuest.WORLD_SHOP).
         getChildren().add(toggleRow(NeoText.get("settings.questWorldShop"),
-                NeoSettings.getBool(forge.neo.quest.NeoQuest.WORLD_SHOP, false),
+                NeoSettings.getBool(forge.neo.quest.NeoQuest.WORLD_SHOP, true),
                 on -> {
                     NeoSettings.setBool(forge.neo.quest.NeoQuest.WORLD_SHOP, on);
                     NeoSettings.save();

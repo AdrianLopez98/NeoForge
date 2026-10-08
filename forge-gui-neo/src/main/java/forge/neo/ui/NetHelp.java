@@ -46,8 +46,37 @@ public final class NetHelp {
         b.setMinWidth(Region.USE_PREF_SIZE);
         b.setTooltip(new Tooltip(NeoText.get("lobby.wiki.note")));
         b.setOnAction(e -> open());
+        if (Boolean.getBoolean("neo.netHelp.test")) {
+            selfTest(b);
+        }
         return b;
     }
+
+    /**
+     * Solo pruebas ({@code -Dneo.netHelp.test=true}, con {@code -Dneo.browser.dry=true}
+     * para no abrir nada): lo pulsa tres veces seguidas, dice el aviso de cada
+     * vez en el registro (el aviso es otra ventana y {@code --snapshot} no lo
+     * pinta; una captura de la pantalla cogeria lo que el usuario tenga delante).
+     */
+    private static void selfTest(final Button b) {
+        b.sceneProperty().addListener((obs, was, now) -> {
+            if (now == null || tested) {
+                return;
+            }
+            tested = true;
+            final javafx.animation.Timeline t = new javafx.animation.Timeline();
+            for (int i = 0; i < 3; i++) {
+                final int n = i + 1;
+                t.getKeyFrames().add(new javafx.animation.KeyFrame(javafx.util.Duration.millis(1500 + 400 * i), e -> {
+                    b.fire();
+                    System.out.println("[guia de red] clic " + n + " -> aviso: " + Toast.currentText());
+                }));
+            }
+            t.play();
+        });
+    }
+
+    private static boolean tested;
 
     /**
      * Abre la guia en el navegador.

@@ -183,9 +183,11 @@ et}) y no se tocan.
     private final List<Deck> opponentDecks = new ArrayList<>();
 
     /**
-     * Los rivales que van "al azar de una coleccion": asiento -> coleccion. Un
-     * asiento aqui tiene {@code null} en {@link #opponentDecks} y se sortea al
-     * empezar DENTRO de esa coleccion (ver {@link #resolvedOpponentDecks}).
+     * Los rivales que van "al azar de una lista": asiento -> la lista, con las
+     * MISMAS claves que tu propio azar ({@link #randomFrom}: {@code "mine"},
+     * {@code "stock"}, {@code "net"} o {@code "c:<coleccion>"}). Un asiento aqui
+     * tiene {@code null} en {@link #opponentDecks} y se sortea al empezar DENTRO
+     * de esa lista (ver {@link #resolvedOpponentDecks}).
      */
     private final java.util.Map<Integer, String> opponentPools = new java.util.HashMap<>();
 
@@ -365,14 +367,22 @@ et}) y no se tocan.
 
     /** Los mazos de esa lista; vacia si ya no existe (una coleccion borrada). */
     private List<Deck> randomPool() {
-        if (randomFrom == null) {
+        return poolOf(randomFrom);
+    }
+
+    /**
+     * Los mazos de una lista de sorteo, la tuya o la de un rival (las mismas
+     * claves: ver {@link #opponentPools}); vacia si ya no existe.
+     */
+    private List<Deck> poolOf(final String key) {
+        if (key == null) {
             return java.util.Collections.emptyList();
         }
-        if (randomFrom.startsWith("c:")) {
-            final List<Deck> in = collections.get(randomFrom.substring(2));
+        if (key.startsWith("c:")) {
+            final List<Deck> in = collections.get(key.substring(2));
             return in == null ? java.util.Collections.emptyList() : in;
         }
-        switch (randomFrom) {
+        switch (key) {
             case "stock": return stock;
             case "net": return net;
             default: return mine;
@@ -381,13 +391,17 @@ et}) y no se tocan.
 
     /** Como se llama esa lista en la linea de estado. */
     private String randomPoolName() {
-        if (randomFrom == null) {
+        return poolName(randomFrom);
+    }
+
+    private static String poolName(final String key) {
+        if (key == null) {
             return "";
         }
-        if (randomFrom.startsWith("c:")) {
-            return randomFrom.substring(2);
+        if (key.startsWith("c:")) {
+            return key.substring(2);
         }
-        switch (randomFrom) {
+        switch (key) {
             case "stock": return NeoText.get("home.randomPool.stock");
             case "net": return NeoText.get("home.randomPool.net");
             default: return NeoText.get("home.randomPool.mine");
@@ -1146,6 +1160,7 @@ et}) y no se tocan.
                             NeoSettings.set(NeoSettings.AI_PROFILE, v);
                             updateSummary();
                         }),
+                planechaseChoice(),
                 scaleChoice());
         options.setAlignment(Pos.CENTER_LEFT);
 
@@ -1489,7 +1504,7 @@ et}) y no se tocan.
             final String pool = d == null ? opponentPools.get(i) : null;
             opponentButtons.get(i).setText(NeoText.get("home.aiDeck", i + 1,
                     d != null ? shorten(d.getName())
-                            : pool != null ? NeoText.get("home.randomFrom", shorten(pool))
+                            : pool != null ? NeoText.get("home.randomFrom", shorten(poolName(pool)))
                             : NeoText.get("home.random")));
         }
         if (opponentCaption != null) {
@@ -1566,13 +1581,23 @@ et}) y no se tocan.
                 overlay::hide,
                 format.isCommanderStyle() ? this::generateOpponentDeck : null);
         picker.setCollections(collections);
-        picker.setRandomFromCollections(collections, name -> {
+        // Al azar DE UNA LISTA: las mismas que tu propio "al azar" (Discord,
+        // 08-10-2026: "only in X folder and such").
+        final List<DeckPickerDialog.RandomPool> pools = new ArrayList<>();
+        pools.add(new DeckPickerDialog.RandomPool("mine", poolName("mine"), mine.size()));
+        pools.add(new DeckPickerDialog.RandomPool("stock", poolName("stock"), stock.size()));
+        pools.add(new DeckPickerDialog.RandomPool("net", poolName("net"), net.size()));
+        for (final java.util.Map.Entry<String, List<Deck>> e : collections.entrySet()) {
+            pools.add(new DeckPickerDialog.RandomPool("c:" + e.getKey(), e.getKey(),
+                    e.getValue() == null ? 0 : e.getValue().size()));
+        }
+        picker.setRandomFrom(pools, key -> {
             overlay.hide();
             while (opponentDecks.size() <= index) {
                 opponentDecks.add(null);
             }
             opponentDecks.set(index, null);
-            opponentPools.put(index, name);
+            opponentPools.put(index, key);
             opponentCommanders.remove(index);
             rivalCommanderButtons.remove(index);
             rebuildOpponentRow();
@@ -1669,11 +1694,10 @@ et}) y no se tocan.
         }
         // Los que no son legales (un mazo tuyo a medio hacer, sin tierras),
         // detras: solo salen si no queda otro (Discord, 07-10-2026). Ver
-        // forge.neo.deck.RivalDecks.
+        // forge.neo.deck.RivalDecks: mirando SOLO los que van saliendo
+        // (firstFree), no la bolsa entera.
         final forge.game.GameType type = format.getGameType();
-        final List<Deck> ordered = forge.neo.deck.RivalDecks.readyFirst(pool, type);
-        pool.clear();
-        pool.addAll(ordered);
+        final java.util.Map<Deck, Boolean> checked = new java.util.IdentityHashMap<>();
         final java.util.Set<String> used = new java.util.HashSet<>();
 
         for (int i = 0; i < opponents; i++) {
@@ -1682,35 +1706,37 @@ et}) y no se tocan.
                 out.add(forge.neo.deck.CommanderChoice.apply(chosen, opponentCommanders.get(i)));
                 continue;
             }
-            // Al azar DE UNA COLECCION: el sorteo, dentro de ella. Si se ha
-            // quedado vacia (borrada o sin mazos), cae al azar de siempre.
-            final String poolName = opponentPools.get(i);
-            final List<Deck> fromPool = poolName == null ? null : collections.get(poolName);
+            // Al azar DE UNA LISTA (tus mazos, los de Forge, los de internet o
+            // una coleccion): el sorteo, dentro de ella. Si se ha quedado vacia
+            // (borrada o sin mazos), cae al azar de siempre.
+            final String poolKey = opponentPools.get(i);
+            final List<Deck> fromPool = poolKey == null ? null : poolOf(poolKey);
             if (fromPool != null && !fromPool.isEmpty()) {
-                final List<Deck> shuffled = new ArrayList<>(fromPool);
-                java.util.Collections.shuffle(shuffled);
-                final List<Deck> readyOnes = forge.neo.deck.RivalDecks.readyFirst(shuffled, type);
-                shuffled.clear();
-                shuffled.addAll(readyOnes);
-                Deck inPool = null;
-                for (final Deck d : shuffled) {
-                    if (used.add(d.getName())) {
-                        inPool = d;
-                        break;
-                    }
+                // Los de Forge, como el azar de siempre: los modernos antes si
+                // el ajuste lo pide (ver DeckAge). Los tuyos, tal cual.
+                final boolean modernFirst = "stock".equals(poolKey)
+                        && NeoSettings.getBool(NeoSettings.MODERN_RIVALS, true);
+                final List<Deck> shuffled = modernFirst
+                        ? forge.neo.deck.DeckAge.shuffleFavouringModern(fromPool, new java.util.Random())
+                        : new ArrayList<>(fromPool);
+                if (!modernFirst) {
+                    java.util.Collections.shuffle(shuffled);
                 }
+                final Deck inPool = forge.neo.deck.RivalDecks.firstFree(shuffled, type, used, checked);
                 out.add(inPool != null ? inPool : shuffled.get(0));
                 continue;
             }
-            Deck pick = null;
-            for (final Deck d : pool) {
-                if (used.add(d.getName())) {
-                    pick = d;
-                    break;
-                }
-            }
+            Deck pick = forge.neo.deck.RivalDecks.firstFree(pool, type, used, checked);
             if (pick == null && !pool.isEmpty()) {
-                pick = pool.get(i % pool.size());
+                // Mas rivales que mazos: se repite, de los que valen.
+                final List<Deck> ready = new ArrayList<>();
+                for (final Deck d : pool) {
+                    if (forge.neo.deck.RivalDecks.ready(d, type)) {
+                        ready.add(d);
+                    }
+                }
+                final List<Deck> from = ready.isEmpty() ? pool : ready;
+                pick = from.get(i % from.size());
             }
             out.add(pick);
         }
@@ -1723,6 +1749,34 @@ et}) y no se tocan.
      * <p>Se prefiere a un desplegable porque las opciones son pocas y se ven
      * todas de golpe: no hay que abrir nada para saber que se puede elegir.
      */
+    /**
+     * <b>Planechase</b> (Discord, 08-10-2026): un boton que se enciende y se
+     * apaga, y se recuerda. Solo en los formatos en que tiene sentido. Lo que
+     * hace esta en {@code forge.neo.match.Planechase}.
+     */
+    private Region planechaseChoice() {
+        final Label label = new Label(NeoText.get("home.variant"));
+        label.getStyleClass().add("caption");
+        final Button b = new Button(NeoText.get("home.planechase"));
+        b.setId("home-planechase");
+        b.getStyleClass().add("segment");
+        b.setMinWidth(Region.USE_PREF_SIZE);
+        b.pseudoClassStateChanged(SELECTED, NeoSettings.planechase());
+        b.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("home.planechase.tip")));
+        b.setOnAction(e -> {
+            final boolean on = !NeoSettings.planechase();
+            NeoSettings.setBool(NeoSettings.PLANECHASE, on);
+            NeoSettings.save();
+            b.pseudoClassStateChanged(SELECTED, on);
+        });
+        final VBox box = new VBox(4, label, b);
+        box.setAlignment(Pos.CENTER_LEFT);
+        final boolean applies = forge.neo.match.Planechase.appliesTo(format.getGameType());
+        box.setVisible(applies);
+        box.setManaged(applies);
+        return box;
+    }
+
     private Region choice(final String caption, final String[] values, final String current,
                           final Consumer<String> onPick) {
         final Label label = new Label(caption);

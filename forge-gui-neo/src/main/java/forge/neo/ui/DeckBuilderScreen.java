@@ -77,6 +77,9 @@ public class DeckBuilderScreen extends StackPane {
      */
     private final FlowPane basics = new FlowPane(8, 6);
     private final Label basicsCaption = new Label(NeoText.get("deck.basics"));
+    /** De que edicion salen las basicas ofrecidas (la Aventura y sus Landscape Sketchbook). */
+    private final javafx.scene.control.ComboBox<forge.card.CardEdition> basicSetBox =
+            new javafx.scene.control.ComboBox<>();
     private List<PaperCard> basicHits = new ArrayList<>();
     private final VBox deckList = new VBox(2);
     private final HBox commanderRow = new HBox(10);
@@ -283,6 +286,15 @@ public class DeckBuilderScreen extends StackPane {
         final boolean renameable = editor.getFormat().canRename();
         rename.setVisible(renameable);
         rename.setManaged(renameable);
+        // GUARDAR UNA COPIA (Discord, 08-10-2026): el mazo tal cual, artes y
+        // foil incluidos, con otro nombre. Ver DeckEditor.saveAsCopy.
+        final Button copy = new Button(NeoText.get("deck.copy"));
+        copy.getStyleClass().add("btn-secondary");
+        copy.setMinWidth(Region.USE_PREF_SIZE);
+        copy.setOnAction(e -> askCopyName());
+        final boolean copyable = editor.getFormat().canCopy();
+        copy.setVisible(copyable);
+        copy.setManaged(copyable);
 
         status.getStyleClass().add("home-summary");
         // Una linea y punto: es un resumen. Lo que venga del motor puede tener
@@ -327,7 +339,7 @@ public class DeckBuilderScreen extends StackPane {
         foilAllButton.setMinWidth(Region.USE_PREF_SIZE);
         foilAllButton.setOnAction(e -> foilAll());
         refreshFoilAllButton();
-        final HBox row = new HBox(14, identity, rename, foilAllButton, sleeveButton, views);
+        final HBox row = new HBox(14, identity, rename, copy, foilAllButton, sleeveButton, views);
         row.setAlignment(Pos.CENTER_LEFT);
 
         final VBox box = new VBox(4, row, status);
@@ -614,7 +626,36 @@ public class DeckBuilderScreen extends StackPane {
         pageBar.setAlignment(Pos.CENTER_LEFT);
         pageBar.getStyleClass().add("builder-pagebar");
         resultCount.setMinWidth(0);
-        final HBox basicsRow = new HBox(12, basicsCaption, basics);
+        // DE QUE EDICION SON (la Aventura, 08-10-2026): sus Landscape Sketchbook
+        // desbloquean ediciones de basicas, y aqui se elige cual. Con una sola
+        // no hay nada que elegir y el desplegable no sale.
+        final List<forge.card.CardEdition> landSets = editor.basicLandEditions();
+        basicSetBox.getStyleClass().add("builder-sort");
+        basicSetBox.setId("builder-basic-set");
+        basicSetBox.setMaxWidth(UiScale.px(230));
+        basicSetBox.setConverter(new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(final forge.card.CardEdition ed) {
+                return ed == null ? "" : ed.getName();
+            }
+
+            @Override
+            public forge.card.CardEdition fromString(final String s) {
+                return null;
+            }
+        });
+        basicSetBox.getItems().setAll(landSets);
+        basicSetBox.getSelectionModel().select(editor.basicLandSet());
+        basicSetBox.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("deck.basics.set")));
+        basicSetBox.setOnAction(e -> {
+            editor.setBasicLandSet(basicSetBox.getValue());
+            refreshCatalogue();
+        });
+        final boolean chooseLandSet = landSets.size() > 1;
+        basicSetBox.visibleProperty().bind(basics.visibleProperty().and(
+                javafx.beans.binding.Bindings.createBooleanBinding(() -> chooseLandSet)));
+        basicSetBox.managedProperty().bind(basicSetBox.visibleProperty());
+        final HBox basicsRow = new HBox(12, basicsCaption, basicSetBox, basics);
         basicsRow.setAlignment(Pos.CENTER_LEFT);
         HBox.setHgrow(basics, Priority.ALWAYS);
         basicsCaption.managedProperty().bind(basics.managedProperty());
@@ -2892,6 +2933,29 @@ public class DeckBuilderScreen extends StackPane {
                 name -> {
                     overlay.hide();
                     rename(name);
+                },
+                overlay::hide));
+    }
+
+    /**
+     * Guardar una copia: pide el nombre ("Nombre (2)" de entrada), la guarda y
+     * sigue editando la copia. El original no se toca.
+     */
+    private void askCopyName() {
+        overlay.show(TextDialog.line(NeoText.get("deck.copy.title"),
+                NeoText.get("deck.copy.hint"),
+                editor.copyName(),
+                name -> {
+                    overlay.hide();
+                    if (name == null || name.isBlank()) {
+                        return;
+                    }
+                    if (!editor.saveAsCopy(name)) {
+                        message(NeoText.get("deck.name.taken"), NeoText.get("deck.copy.taken", name.trim()));
+                        return;
+                    }
+                    refreshDeck();
+                    message(NeoText.get("deck.copy.ok"), NeoText.get("deck.copy.ok.detail", editor.getName()));
                 },
                 overlay::hide));
     }

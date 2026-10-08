@@ -307,6 +307,8 @@ public final class AscentShop {
         }
         deck.getMain().remove(card);
         AscentDecks.save(deck);
+        // Y no se te vuelve a ofrecer (ver AscentRun.noteCut).
+        run.noteCut(card.getName());
         item.removalsLeft--;
         // Y si el mazo se ha quedado en el suelo, se da por servido aunque
         // queden quitadas pagadas: antes eso que un mazo que no arranca.

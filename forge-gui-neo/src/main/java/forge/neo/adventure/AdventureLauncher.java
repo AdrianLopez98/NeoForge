@@ -205,7 +205,7 @@ public final class AdventureLauncher {
                 "neo.adventure.snapshotMs", "neo.adventure.pressEsc",
                 "neo.adventure.spaceTest", "neo.adventure.spaceTestMs", "neo.adventure.duels",
                 "neo.adventure.ante", "neo.adventure.games", "neo.adventure.trace", "neo.adventure.enemy",
-                "neo.adventure.realClick",
+                "neo.adventure.realClick", "neo.mock.landSets",
                 "prism.maxvram", "neo.prism.guard", "neo.prism.breakTest"}) {
             if (System.getProperty(k) != null) {
                 l.props.add(k + "=" + System.getProperty(k));

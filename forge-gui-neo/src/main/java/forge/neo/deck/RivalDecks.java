@@ -49,6 +49,47 @@ public final class RivalDecks {
      * sorteo que ya habia (y su orden, que favorece los modernos) sigue igual,
      * y solo si no hay validos suficientes sale uno a medias.
      */
+    /**
+     * El primero de {@code decks} que no este en {@code used} y que valga; si
+     * no vale ninguno de los libres, el primero libre. Lo apunta en
+     * {@code used}. Da lo mismo que {@link #readyFirst} y luego el primero
+     * libre, pero <b>mirando la legalidad solo de los que van saliendo</b>:
+     * comprobarla de la bolsa entera (los ~180 de Commander, uno por uno con
+     * el motor) para quedarse con uno es lo que en Android, que lo hace en el
+     * hilo principal, dejaba la aplicacion "sin responder" (08-10-2026).
+     *
+     * @param cache lo ya comprobado en este mismo sorteo (por objeto)
+     * @return null si estan todos usados
+     */
+    public static Deck firstFree(final List<Deck> decks, final GameType type,
+                                 final java.util.Set<String> used, final java.util.Map<Deck, Boolean> cache) {
+        if (decks == null) {
+            return null;
+        }
+        Deck fallback = null;
+        for (final Deck d : decks) {
+            if (d == null || used.contains(d.getName())) {
+                continue;
+            }
+            Boolean ok = cache.get(d);
+            if (ok == null) {
+                ok = ready(d, type);
+                cache.put(d, ok);
+            }
+            if (ok) {
+                used.add(d.getName());
+                return d;
+            }
+            if (fallback == null) {
+                fallback = d;
+            }
+        }
+        if (fallback != null) {
+            used.add(fallback.getName());
+        }
+        return fallback;
+    }
+
     public static List<Deck> readyFirst(final List<Deck> decks, final GameType type) {
         final List<Deck> good = new ArrayList<>();
         final List<Deck> bad = new ArrayList<>();

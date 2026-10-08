@@ -1941,6 +1941,460 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             poll.play();
         }
 
+        // Las PILAS con varios rivales (Discord, 08-10-2026, Curator of
+        // Destinies): con --live --opponents=3, la carta de -Dneo.twopiles.card
+        // entra en tu campo en cuanto tienes la prioridad con la pila vacia, y
+        // se contesta lo que pida por los botones de verdad: el dialogo de
+        // mirar las cartas, el "quien decide" (los botones de jugador de la
+        // barra) y el de separar en pilas (con 0 marcadas: todas boca arriba).
+        // -Dneo.twopiles.stop=reveal|chooser|split se para ahi, para capturarlo.
+        if (args.contains("--twopiles-test")) {
+            final String cardName = System.getProperty("neo.twopiles.card", "Curator of Destinies");
+            final String stopAt = System.getProperty("neo.twopiles.stop", "");
+            final int[] step = {0};
+            final boolean[] seen = {false};
+            final long started = System.currentTimeMillis();
+            final javafx.animation.Timeline poll = new javafx.animation.Timeline();
+            poll.getKeyFrames().add(new javafx.animation.KeyFrame(Duration.millis(400), e -> {
+                final TableBinder b = binder;
+                final forge.neo.match.NeoMatchUI ui = b == null ? null : b.getMatchUi();
+                if (table == null || ui == null || ui.getGameView() == null) {
+                    return;
+                }
+                if (System.currentTimeMillis() - started > 150_000) {
+                    poll.stop();
+                    System.out.println("[pilas] en 150 s no se ha llegado al final (paso " + step[0]
+                            + ") | prompt: " + table.getLastPrompt().replace('\n', ' '));
+                    return;
+                }
+                final forge.game.Game g = ui.getGameView().getGame();
+                final javafx.scene.layout.Region dialog = table.getOverlay().isShowing()
+                        ? table.getOverlay().getContent() : null;
+                if (step[0] == 0) {
+                    // Lo de antes (quedarse la mano, el turno del rival): OK.
+                    if (dialog != null) {
+                        final javafx.scene.Node ok = dialog.lookup(".btn-primary");
+                        if (ok instanceof javafx.scene.control.Button button && !button.isDisabled()) {
+                            button.fire();
+                        }
+                        return;
+                    }
+                    forge.game.player.Player me = null;
+                    for (final forge.game.player.Player p : g.getPlayers()) {
+                        if (!p.isAI()) {
+                            me = p;
+                        }
+                    }
+                    if (me == null || !g.getStack().isEmpty()
+                            || !(ui.getGameController() instanceof forge.player.PlayerControllerHuman c)
+                            || !(c.getInputQueue().getInput()
+                            instanceof forge.gamemodes.match.input.InputPassPriority)) {
+                        // Quedarse la mano, el orden de los disparos...: el
+                        // boton grande de la barra. Y quien empieza (si ganas
+                        // el sorteo): el primero de los botones de jugador.
+                        if ((System.currentTimeMillis() - started) % 1200 < 400) {
+                            final List<String> first = table.getActionBar().playerChoiceNames();
+                            if (!first.isEmpty()) {
+                                table.getActionBar().clickPlayerChoice(first.get(0));
+                            } else {
+                                table.getActionBar().pressPrimary();
+                            }
+                        }
+                        return;
+                    }
+                    step[0] = 1;
+                    final forge.game.player.Player owner = me;
+                    final forge.game.card.Card card = forge.game.card.Card.fromPaperCard(
+                            forge.model.FModel.getMagicDb().getCommonCards().getCard(cardName), owner);
+                    System.out.println("[pilas] " + cardName + " entra en tu campo ("
+                            + (g.getPlayers().size() - 1) + " rivales)");
+                    // Primero a la mano y LUEGO al campo: una carta recien
+                    // fabricada que va directa al campo no dispara su "cuando
+                    // entra". Y con la carta que DEVUELVE moveToHand, que es
+                    // otro objeto: la de antes se queda fuera del juego.
+                    g.getAction().invoke(() -> {
+                        final forge.game.card.Card inHand = g.getAction().moveToHand(card, null);
+                        g.getAction().moveToPlay(inHand, owner, null, null);
+                        g.getTriggerHandler().runWaitingTriggers();
+                        // Y a la pila ya: si no, espera a que pase la prioridad.
+                        g.getStack().addAllTriggeredAbilitiesToStack();
+                    });
+                    return;
+                }
+                if (step[0] == 1 && dialog != null) {
+                    final javafx.scene.Node title = dialog.lookup(".dialog-title");
+                    System.out.println("[pilas] dialogo: " + (title instanceof javafx.scene.control.Label l
+                            ? l.getText() : dialog.getClass().getSimpleName()));
+                    final javafx.scene.Node note = dialog.lookup(".dialog-note");
+                    if (note instanceof javafx.scene.control.Label l) {
+                        System.out.println("[pilas]   ayuda: " + l.getText());
+                    }
+                    final boolean split = note != null;
+                    seen[0] = true;
+                    if (stopAt.equals(split ? "split" : "reveal")) {
+                        poll.stop();
+                        return;
+                    }
+                    final javafx.scene.Node ok = dialog.lookup(".btn-primary");
+                    if (ok instanceof javafx.scene.control.Button button && !button.isDisabled()) {
+                        button.fire();
+                    }
+                    return;
+                }
+                final List<String> who = table.getActionBar().playerChoiceNames();
+                if (step[0] == 1 && !who.isEmpty()) {
+                    System.out.println("[pilas] la barra pide: " + table.getLastPrompt().replace("\n", " | ")
+                            + " | botones: " + who);
+                    seen[0] = true;
+                    if (stopAt.equals("chooser")) {
+                        poll.stop();
+                        return;
+                    }
+                    table.getActionBar().clickPlayerChoice(who.get(0));
+                    return;
+                }
+                // El disparo en la pila: pasar la prioridad para que resuelva.
+                if (step[0] == 1 && !g.getStack().isEmpty()
+                        && (System.currentTimeMillis() - started) % 1200 < 400) {
+                    table.getActionBar().pressPrimary();
+                    return;
+                }
+                if (step[0] == 1 && seen[0] && g.getStack().isEmpty() && g.getCardsIn(forge.game.zone.ZoneType.Battlefield)
+                        .stream().anyMatch(c -> cardName.equals(c.getName()))
+                        && ui.getGameController() instanceof forge.player.PlayerControllerHuman c
+                        && c.getInputQueue().getInput() instanceof forge.gamemodes.match.input.InputPassPriority) {
+                    poll.stop();
+                    forge.game.player.Player me = null;
+                    for (final forge.game.player.Player p : g.getPlayers()) {
+                        if (!p.isAI()) {
+                            me = p;
+                        }
+                    }
+                    System.out.println("[pilas] RESUELTO | mano " + me.getCardsIn(forge.game.zone.ZoneType.Hand).size()
+                            + " | cementerio " + me.getCardsIn(forge.game.zone.ZoneType.Graveyard).size());
+                }
+            }));
+            poll.setCycleCount(javafx.animation.Animation.INDEFINITE);
+            poll.play();
+        }
+
+        // PROLIFERAR con varios rivales (Discord, 08-10-2026, Atraxa: "I can't
+        // select the opponents permanents"). Con --live --opponents=3, cada
+        // rival recibe un Grizzly Bears con un contador +1/+1 y entra en tu
+        // campo -Dneo.prolif.card (Bloom Hulk: al entrar, prolifera). Se cuenta
+        // lo que ofrece el motor, lo que se VE marcado en la mesa y lo que
+        // dicen las pestanyas; luego se eligen todas y se mira que crezcan.
+        // -Dneo.prolif.stop=select se para en la eleccion, para capturarla.
+        if (args.contains("--proliferate-test")) {
+            final String cardName = System.getProperty("neo.prolif.card", "Bloom Hulk");
+            final String stopAt = System.getProperty("neo.prolif.stop", "");
+            final int[] step = {0};
+            final long started = System.currentTimeMillis();
+            final javafx.animation.Timeline poll = new javafx.animation.Timeline();
+            poll.getKeyFrames().add(new javafx.animation.KeyFrame(Duration.millis(400), e -> {
+                final TableBinder b = binder;
+                final forge.neo.match.NeoMatchUI ui = b == null ? null : b.getMatchUi();
+                if (table == null || ui == null || ui.getGameView() == null) {
+                    return;
+                }
+                if (System.currentTimeMillis() - started > 150_000) {
+                    poll.stop();
+                    System.out.println("[proliferar] en 150 s no se ha llegado al final (paso " + step[0]
+                            + ") | prompt: " + table.getLastPrompt().replace('\n', ' '));
+                    return;
+                }
+                final forge.game.Game g = ui.getGameView().getGame();
+                final forge.player.PlayerControllerHuman human =
+                        ui.getGameController() instanceof forge.player.PlayerControllerHuman c ? c : null;
+                final forge.gamemodes.match.input.Input input = human == null ? null : human.getInputQueue().getInput();
+                if (step[0] == 0) {
+                    final javafx.scene.layout.Region dialog = table.getOverlay().isShowing()
+                            ? table.getOverlay().getContent() : null;
+                    if (dialog != null) {
+                        final javafx.scene.Node ok = dialog.lookup(".btn-primary");
+                        if (ok instanceof javafx.scene.control.Button button && !button.isDisabled()) {
+                            button.fire();
+                        }
+                        return;
+                    }
+                    if (!g.getStack().isEmpty()
+                            || !(input instanceof forge.gamemodes.match.input.InputPassPriority)) {
+                        if ((System.currentTimeMillis() - started) % 1200 < 400) {
+                            final List<String> first = table.getActionBar().playerChoiceNames();
+                            if (!first.isEmpty()) {
+                                table.getActionBar().clickPlayerChoice(first.get(0));
+                            } else {
+                                table.getActionBar().pressPrimary();
+                            }
+                        }
+                        return;
+                    }
+                    step[0] = 1;
+                    g.getAction().invoke(() -> {
+                        forge.game.player.Player me = null;
+                        for (final forge.game.player.Player p : g.getPlayers()) {
+                            if (!p.isAI()) {
+                                me = p;
+                                continue;
+                            }
+                            final forge.game.card.Card bear = forge.game.card.Card.fromPaperCard(
+                                    forge.model.FModel.getMagicDb().getCommonCards().getCard("Grizzly Bears"), p);
+                            final forge.game.card.Card put = g.getAction().moveTo(
+                                    forge.game.zone.ZoneType.Battlefield, bear, null,
+                                    forge.game.ability.AbilityKey.newMap());
+                            put.addCounterInternal(forge.game.card.CounterEnumType.P1P1, 1, p, false, null, null);
+                        }
+                        System.out.println("[proliferar] " + cardName + " entra en tu campo ("
+                                + (g.getPlayers().size() - 1) + " rivales con un oso +1/+1)");
+                        final forge.game.card.Card card = forge.game.card.Card.fromPaperCard(
+                                forge.model.FModel.getMagicDb().getCommonCards().getCard(cardName), me);
+                        final forge.game.card.Card inHand = g.getAction().moveToHand(card, null);
+                        g.getAction().moveToPlay(inHand, me, null, null);
+                        g.getTriggerHandler().runWaitingTriggers();
+                        g.getStack().addAllTriggeredAbilitiesToStack();
+                    });
+                    return;
+                }
+                if (step[0] == 1 && input instanceof forge.gamemodes.match.input.InputSelectEntitiesFromList<?> sel) {
+                    final java.util.Set<Integer> shown = new java.util.HashSet<>();
+                    for (final forge.game.card.CardView cv : table.shownSelectableCards()) {
+                        shown.add(cv.getId());
+                    }
+                    int offered = 0;
+                    int seen = 0;
+                    for (final Object o : sel.getValidChoices()) {
+                        if (o instanceof forge.game.card.Card c) {
+                            offered++;
+                            final boolean visible = shown.contains(c.getId());
+                            seen += visible ? 1 : 0;
+                            System.out.println("[proliferar]   ofrece " + c.getName() + " de "
+                                    + c.getController().getName() + (visible ? "  (se ve marcada)" : "  (NO se ve)"));
+                        } else {
+                            System.out.println("[proliferar]   ofrece al jugador " + o);
+                        }
+                    }
+                    System.out.println("[proliferar] prompt: " + table.getLastPrompt().replace("\n", " | "));
+                    System.out.println("[proliferar] pestanyas: " + table.getOpponentTabs().tabTexts());
+                    System.out.println("[proliferar] ofrecidas " + offered + ", se ven marcadas " + seen);
+                    if (stopAt.equals("select")) {
+                        poll.stop();
+                        return;
+                    }
+                    step[0] = 2;
+                    for (final Object o : sel.getValidChoices()) {
+                        if (o instanceof forge.game.card.Card c) {
+                            ui.getGameController().selectCard(c.getView(), null, null);
+                        }
+                    }
+                    table.getActionBar().pressPrimary();
+                    return;
+                }
+                if (step[0] == 1 && !g.getStack().isEmpty()
+                        && (System.currentTimeMillis() - started) % 1200 < 400) {
+                    table.getActionBar().pressPrimary();
+                    return;
+                }
+                if (step[0] == 2 && g.getStack().isEmpty()
+                        && input instanceof forge.gamemodes.match.input.InputPassPriority) {
+                    poll.stop();
+                    final StringBuilder out = new StringBuilder();
+                    for (final forge.game.card.Card c : g.getCardsIn(forge.game.zone.ZoneType.Battlefield)) {
+                        if ("Grizzly Bears".equals(c.getName())) {
+                            out.append(' ').append(c.getController().getName()).append('=')
+                                    .append(c.getCounters(forge.game.card.CounterEnumType.P1P1));
+                        }
+                    }
+                    System.out.println("[proliferar] RESUELTO | contadores +1/+1 de los osos:" + out);
+                }
+            }));
+            poll.setCycleCount(javafx.animation.Animation.INDEFINITE);
+            poll.play();
+        }
+
+        // RESOLVERLO TODO y los disparos iguales juntos (Discord, 08-10-2026,
+        // Munkster: seis disparos del mismo encantamiento, seis OK). Con
+        // --live: Soul Warden entra en tu campo y luego seis Grizzly Bears a la
+        // vez, o sea seis "ganas 1 vida" iguales. Se mira que el stack los
+        // pinte en UNA fila, que salga "Resolverlo todo (6)", y que con UN clic
+        // se resuelvan todos (+6 vidas) sin volver a tocar OK.
+        // -Dneo.resolveall.stop=group se para con los seis en el stack.
+        if (args.contains("--resolveall-test")) {
+            final String stopAt = System.getProperty("neo.resolveall.stop", "");
+            final int copies = Integer.getInteger("neo.resolveall.copies", 6);
+            final boolean cancelIt = Boolean.getBoolean("neo.resolveall.cancel");
+            final int[] step = {0};
+            final int[] lifeBefore = {0};
+            final int[] expected = {0};
+            final boolean[] okOnce = {false};
+            final long started = System.currentTimeMillis();
+            final javafx.animation.Timeline poll = new javafx.animation.Timeline();
+            poll.getKeyFrames().add(new javafx.animation.KeyFrame(Duration.millis(400), e -> {
+                final TableBinder b = binder;
+                final forge.neo.match.NeoMatchUI ui = b == null ? null : b.getMatchUi();
+                if (table == null || ui == null || ui.getGameView() == null) {
+                    return;
+                }
+                if (System.currentTimeMillis() - started > 150_000) {
+                    poll.stop();
+                    System.out.println("[resolver] en 150 s no se ha llegado al final (paso " + step[0]
+                            + ") | prompt: " + table.getLastPrompt().replace('\n', ' '));
+                    return;
+                }
+                final forge.game.Game g = ui.getGameView().getGame();
+                final forge.player.PlayerControllerHuman human =
+                        ui.getGameController() instanceof forge.player.PlayerControllerHuman c ? c : null;
+                final forge.gamemodes.match.input.Input input = human == null ? null : human.getInputQueue().getInput();
+                forge.game.player.Player me = null;
+                for (final forge.game.player.Player p : g.getPlayers()) {
+                    if (!p.isAI()) {
+                        me = p;
+                    }
+                }
+                if (me == null) {
+                    return;
+                }
+                final javafx.scene.layout.Region dialog = table.getOverlay().isShowing()
+                        ? table.getOverlay().getContent() : null;
+                if (step[0] == 0) {
+                    if (dialog != null) {
+                        final javafx.scene.Node ok = dialog.lookup(".btn-primary");
+                        if (ok instanceof javafx.scene.control.Button button && !button.isDisabled()) {
+                            button.fire();
+                        }
+                        return;
+                    }
+                    if (!g.getStack().isEmpty() || !g.getPhaseHandler().isPlayerTurn(me)
+                            || !(input instanceof forge.gamemodes.match.input.InputPassPriority)) {
+                        if ((System.currentTimeMillis() - started) % 1200 < 400) {
+                            final List<String> first = table.getActionBar().playerChoiceNames();
+                            if (!first.isEmpty()) {
+                                table.getActionBar().clickPlayerChoice(first.get(0));
+                            } else {
+                                table.getActionBar().pressPrimary();
+                            }
+                        }
+                        return;
+                    }
+                    step[0] = 1;
+                    final forge.game.player.Player owner = me;
+                    g.getAction().invoke(() -> {
+                        // Algo que poder hacer (un Bosque y un Giant Growth): sin
+                        // eso el pase automatico pasa cada prioridad solo y el
+                        // boton no llega a salir. Es el caso del que lo pidio.
+                        g.getAction().moveTo(forge.game.zone.ZoneType.Battlefield,
+                                forge.game.card.Card.fromPaperCard(forge.model.FModel.getMagicDb()
+                                        .getCommonCards().getCard("Forest"), owner), null,
+                                forge.game.ability.AbilityKey.newMap());
+                        g.getAction().moveToHand(forge.game.card.Card.fromPaperCard(forge.model.FModel
+                                .getMagicDb().getCommonCards().getCard("Giant Growth"), owner), null);
+                        final forge.game.card.Card warden = forge.game.card.Card.fromPaperCard(
+                                forge.model.FModel.getMagicDb().getCommonCards().getCard("Soul Warden"), owner);
+                        g.getAction().moveToPlay(g.getAction().moveToHand(warden, null), owner, null, null);
+                        g.getTriggerHandler().runWaitingTriggers();
+                        for (int i = 0; i < copies; i++) {
+                            final forge.game.card.Card bear = forge.game.card.Card.fromPaperCard(
+                                    forge.model.FModel.getMagicDb().getCommonCards().getCard("Grizzly Bears"), owner);
+                            g.getAction().moveToPlay(g.getAction().moveToHand(bear, null), owner, null, null);
+                        }
+                        g.getTriggerHandler().runWaitingTriggers();
+                        g.getStack().addAllTriggeredAbilitiesToStack();
+                    });
+                    System.out.println("[resolver] Soul Warden y " + copies + " osos entran en tu campo");
+                    return;
+                }
+                if (step[0] == 1) {
+                    if (dialog != null) {
+                        // El orden de los disparos, si lo pregunta: "Auto".
+                        for (final javafx.scene.Node n : dialog.lookupAll(".button")) {
+                            if (n instanceof javafx.scene.control.Button button && !button.isDisabled()
+                                    && "Auto".equals(button.getText())) {
+                                System.out.println("[resolver] el orden de los disparos: Auto");
+                                button.fire();
+                                return;
+                            }
+                        }
+                        final javafx.scene.Node ok = dialog.lookup(".btn-primary");
+                        if (ok instanceof javafx.scene.control.Button button && !button.isDisabled()) {
+                            System.out.println("[resolver] dialogo antes del stack: OK");
+                            button.fire();
+                        }
+                        return;
+                    }
+                    final String label = table.getActionBar().resolveAllText();
+                    if (label == null && g.getStack().size() >= copies && !okOnce[0]
+                            && input instanceof forge.gamemodes.match.input.InputPassPriority) {
+                        // Los disparos se han metido con la prioridad YA delante,
+                        // y el motor no la vuelve a dar hasta que algo cambie (en
+                        // partida, poner algo en el stack siempre la da). Un OK:
+                        // se resuelve el primero y vuelve la prioridad con el resto.
+                        okOnce[0] = true;
+                        System.out.println("[resolver] un OK para que el motor vuelva a dar la prioridad");
+                        table.getActionBar().pressPrimary();
+                        return;
+                    }
+                    if (g.getStack().size() < 2 || label == null) {
+                        return;
+                    }
+                    final int[] ri = table.stackRowsAndItems();
+                    System.out.println("[resolver] stack: " + ri[1] + " entradas en " + ri[0] + " fila(s)");
+                    System.out.println("[resolver] boton: " + label);
+                    if (stopAt.equals("group")) {
+                        poll.stop();
+                        return;
+                    }
+                    lifeBefore[0] = me.getLife();
+                    expected[0] = g.getStack().size();
+                    step[0] = 2;
+                    table.getActionBar().clickResolveAll();
+                    return;
+                }
+                // Con OK apagado: es el aviso de "cediendo hasta que se vacie".
+                // Con OK encendido el Cancelar todavia es el "Fin del turno".
+                if (step[0] == 2 && cancelIt && !g.getStack().isEmpty()
+                        && !table.getActionBar().isOkEnabled()
+                        && table.getActionBar().pressSecondary()) {
+                    // -Dneo.resolveall.cancel=true: Cancelar a medias. Tiene que
+                    // pararse con cosas aun en el stack, y apagado en los DOS
+                    // controladores (ver match.ResolveAll.arm).
+                    step[0] = 3;
+                    System.out.println("[resolver] Cancelar con " + g.getStack().size() + " en el stack");
+                    return;
+                }
+                if (step[0] == 3) {
+                    if (input instanceof forge.gamemodes.match.input.InputPassPriority) {
+                        poll.stop();
+                        final boolean flag = forge.neo.match.NeoMatchUI.resolvingStack(human);
+                        System.out.println("[resolver] " + (!g.getStack().isEmpty() && !flag ? "PARADO" : "FALLO")
+                                + " | quedan " + g.getStack().size() + " en el stack"
+                                + " | marca puesta: " + flag
+                                + " | boton ahora: " + table.getActionBar().resolveAllText());
+                    }
+                    return;
+                }
+                if (step[0] == 2) {
+                    // Ni un OK de la prueba: lo que pase, lo pasa el boton.
+                    if (dialog != null) {
+                        System.out.println("[resolver] FALLO: un dialogo a medias: "
+                                + table.getLastPrompt().replace('\n', ' '));
+                        poll.stop();
+                        return;
+                    }
+                    if (g.getStack().isEmpty() && input instanceof forge.gamemodes.match.input.InputPassPriority) {
+                        poll.stop();
+                        final int gained = me.getLife() - lifeBefore[0];
+                        final int copiesLeft = expected[0];
+                        final boolean flag = forge.neo.match.NeoMatchUI.resolvingStack(human);
+                        System.out.println("[resolver] " + (gained == copiesLeft ? "RESUELTO" : "FALLO")
+                                + " | vidas ganadas " + gained + " de " + copiesLeft
+                                + " | marca puesta al acabar: " + flag
+                                + " | boton ahora: " + table.getActionBar().resolveAllText());
+                    }
+                }
+            }));
+            poll.setCycleCount(javafx.animation.Animation.INDEFINITE);
+            poll.play();
+        }
+
         // El OK MANTENIDO durante un bucle (Discord, 23-09-2026). Con
         // --rig=Sanctum of Stone Fangs;Exquisite Blood;Marauding Blight-Priest
         // cada resolucion crea el disparo siguiente hasta que el rival muere.
@@ -3243,7 +3697,10 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 // y los asientos los monta el formato, como siempre.
                 final NeoGame.Result r = NeoGame.play(deck, opponents, mode, timeout, verbose,
                         liveBinder, aiProfile, autoMana, format, lastOpponentDecks, 1,
-                        forge.neo.match.NeoTeams.seating(format, lastTeams));
+                        // Planechase (08-10-2026), ENCIMA de los equipos: envuelve.
+                        forge.neo.match.Planechase.wrap(format,
+                                forge.neo.match.NeoTeams.seating(format, lastTeams),
+                                NeoSettings.planechase()));
                 if (r.exit != null) {
                     exit = r.exit;
                 }

@@ -1591,6 +1591,7 @@ public class TableScreen extends Pane {
 
     public void setOnOpponentSelected(final Consumer<PlayerView> h) {
         opponentTabs.setOnSelect(h);
+        opponentTabs.setPickable(this::hasSelectableCard);
     }
 
     /** Cartas en la zona de mando (el comandante). */
@@ -1837,7 +1838,16 @@ public class TableScreen extends Pane {
         // A PARTES IGUALES entre los ALWAYS: la caja se quedaba a media columna
         // con un stack de 41 dentro (itch.io, 28-09-2026: "Stack should fill
         // the box probably?"). Mientras el stack desborda, el hueco no crece.
-        final boolean overflow = list.size() > visibleRows();
+        //
+        // Lo que se cuenta son las FILAS: con los disparos iguales juntos
+        // (StackGroups, Discord 08-10-2026) seis de lo mismo son una.
+        final List<forge.neo.match.StackGroups.Run> runs = forge.neo.NeoSettings.groupStack()
+                ? forge.neo.match.StackGroups.runs(list) : singleRuns(list);
+        final List<StackItemView> shown = new ArrayList<>();
+        for (final forge.neo.match.StackGroups.Run run : runs) {
+            shown.add(run.first());
+        }
+        final boolean overflow = shown.size() > visibleRows();
         VBox.setVgrow(stackBox, overflow ? Priority.ALWAYS : Priority.NEVER);
         VBox.setVgrow(sideSpace, overflow ? Priority.NEVER : Priority.ALWAYS);
 
@@ -1857,9 +1867,10 @@ public class TableScreen extends Pane {
         stackBox.getChildren().add(stackHeader(title, list, me));
 
         final VBox rows = new VBox(2);
-        rows.getChildren().add(topRow(list.get(0), me));
-        for (int i = 1; i < list.size(); i++) {
-            rows.getChildren().add(waitingRow(list.get(i), i + 1, me));
+        rows.getChildren().add(topRow(runs.get(0).first(), runs.get(0).count(), me));
+        for (int r = 1; r < runs.size(); r++) {
+            final forge.neo.match.StackGroups.Run run = runs.get(r);
+            rows.getChildren().add(waitingRow(run.first(), run.start() + 1, run.count(), me));
         }
 
         // Se ensenyan TODOS, y con quince encima puedes querer mirar el
@@ -1869,7 +1880,7 @@ public class TableScreen extends Pane {
         scroll.getStyleClass().add("stack-scroll");
         scroll.setFitToWidth(true);
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        scroll.setPrefViewportHeight(viewportHeight(list));
+        scroll.setPrefViewportHeight(viewportHeight(shown));
         // Y la lista crece con la caja: sin esto la caja se estiraba y la
         // lista se quedaba en su alto de siempre, con la caja vacia debajo.
         scroll.setMaxHeight(Double.MAX_VALUE);
@@ -1924,6 +1935,23 @@ public class TableScreen extends Pane {
         // Copia: setStack se queda la lista que le pasan como la nueva lastStack.
         setStack(new ArrayList<>(lastStack), lastStackMe);
         return true;
+    }
+
+    /** Una fila por entrada: el stack con los disparos iguales sin juntar. */
+    private static List<forge.neo.match.StackGroups.Run> singleRuns(final List<StackItemView> list) {
+        final List<forge.neo.match.StackGroups.Run> out = new ArrayList<>();
+        for (final StackItemView item : list) {
+            out.addAll(forge.neo.match.StackGroups.runs(java.util.Collections.singletonList(item)));
+        }
+        return out;
+    }
+
+    /** Solo para pruebas: cuantas filas tiene el stack pintado, y cuantas entradas. */
+    public int[] stackRowsAndItems() {
+        final int items = lastStack.size();
+        final int rows = forge.neo.NeoSettings.groupStack()
+                ? forge.neo.match.StackGroups.runs(lastStack).size() : items;
+        return new int[] {rows, items};
     }
 
     /** Si no queda ninguna entrada por abrir. */
@@ -2097,7 +2125,7 @@ public class TableScreen extends Pane {
      * disparos encadenados, ver la lista de un vistazo vale mas que el detalle
      * de uno.
      */
-    private Region topRow(final StackItemView item, final PlayerView me) {
+    private Region topRow(final StackItemView item, final int count, final PlayerView me) {
         final Label header = new Label(headerFor(item, me));
         header.getStyleClass().add("stack-now");
         header.pseudoClassStateChanged(MINE, isMine(item, me));
@@ -2109,7 +2137,7 @@ public class TableScreen extends Pane {
         name.setMinHeight(Region.USE_PREF_SIZE);
         HBox.setHgrow(name, Priority.ALWAYS);
 
-        final Region detailBox = stackDetail(item);
+        final Region detailBox = stackDetail(item, count);
         final boolean expandable = detailBox != null;
         final boolean open = expandable && isStackOpen(item, true);
 
@@ -2117,6 +2145,9 @@ public class TableScreen extends Pane {
         line.setAlignment(Pos.TOP_LEFT);
         if (expandable) {
             line.getChildren().add(0, chevron(open));
+        }
+        if (count > 1) {
+            line.getChildren().add(countBadge(count));
         }
 
         final VBox texts = new VBox(2, header, line);
@@ -2145,7 +2176,8 @@ public class TableScreen extends Pane {
     }
 
     /** Uno de los que esperan: numero, quien y nombre. Lo demas, al abrirlo. */
-    private Region waitingRow(final StackItemView item, final int order, final PlayerView me) {
+    private Region waitingRow(final StackItemView item, final int order, final int count,
+                              final PlayerView me) {
         final Label num = new Label(String.valueOf(order));
         num.getStyleClass().add("stack-order");
         num.setMinWidth(UiScale.px(15));
@@ -2160,7 +2192,7 @@ public class TableScreen extends Pane {
         name.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(name, Priority.ALWAYS);
 
-        final Region detailBox = stackDetail(item);
+        final Region detailBox = stackDetail(item, count);
         final boolean expandable = detailBox != null;
         final boolean open = expandable && isStackOpen(item, false);
 
@@ -2175,6 +2207,9 @@ public class TableScreen extends Pane {
         line.setAlignment(Pos.CENTER_LEFT);
         if (expandable) {
             line.getChildren().add(1, chevron(open));
+        }
+        if (count > 1) {
+            line.getChildren().add(countBadge(count));
         }
 
         final VBox texts = new VBox(2, line);
@@ -2202,17 +2237,34 @@ public class TableScreen extends Pane {
     }
 
     /**
+     * El "×6" de una fila que junta disparos iguales (ver
+     * {@link forge.neo.match.StackGroups}). Una pastilla y no texto suelto:
+     * es lo que se busca de un vistazo, y el nombre de al lado puede venir
+     * cortado con "...".
+     */
+    private static Label countBadge(final int count) {
+        final Label badge = new Label("×" + count);
+        badge.getStyleClass().add("stack-count");
+        badge.setMinWidth(Region.USE_PREF_SIZE);
+        return badge;
+    }
+
+    /**
      * Lo que la entrada cuenta al abrirse: que hace y a quien apunta.
      *
      * @return null si no tiene nada mas que contar — y entonces no lleva
      *         galon: un desplegable que se abre vacio promete algo que no hay,
      *         y eso es peor que no tenerlo (principio 1)
      */
-    private static Region stackDetail(final StackItemView item) {
+    private static Region stackDetail(final StackItemView item, final int count) {
         final VBox box = new VBox(2);
         box.getStyleClass().add("stack-detail");
 
-        final String what = effectText(item);
+        // Juntando varias, sin el "[Zone Changer: Grizzly Bears]" del final:
+        // habla de UNA de las seis, y al lado de un "×6" se lee como si las
+        // seis fueran de ese oso. Ver StackGroups.withoutCause.
+        final String what = count > 1
+                ? forge.neo.match.StackGroups.withoutCause(effectText(item)) : effectText(item);
         if (!what.isEmpty()) {
             final Label text = new Label(what);
             text.getStyleClass().add(item.isTrigger() ? "stack-trigger" : "stack-spell");
@@ -2261,6 +2313,14 @@ public class TableScreen extends Pane {
      * traducido.
      */
     public static String bannerText(final StackItemView item, final PlayerView me) {
+        return bannerText(item, me, 1);
+    }
+
+    /**
+     * @param count cuantas iguales hay seguidas, esta incluida: con mas de una
+     *              el nombre lleva su "×6", como la fila del stack
+     */
+    public static String bannerText(final StackItemView item, final PlayerView me, final int count) {
         if (item == null) {
             return "";
         }
@@ -2271,9 +2331,10 @@ public class TableScreen extends Pane {
         }
         final String head = headlineOf(item, me);
         if (!head.isBlank()) {
-            lines.add(head);
+            lines.add(count > 1 ? head + "  ×" + count : head);
         }
-        String what = effectText(item);
+        String what = count > 1
+                ? forge.neo.match.StackGroups.withoutCause(effectText(item)) : effectText(item);
         final int targeting = what.lastIndexOf("(Targeting:");
         if (targeting >= 0) {
             what = what.substring(0, targeting).trim();
@@ -3198,6 +3259,33 @@ public class TableScreen extends Pane {
             final CardView cv = n.getCard();
             n.setSelectable(cv != null && test != null && test.test(cv));
         }
+        // Y la pestanya del rival que no se esta viendo, si lo que hay que
+        // elegir esta en SU mesa. Ver OpponentTabs.setPickable.
+        opponentTabs.refreshPickable();
+    }
+
+    /** Las zonas en las que se mira si un rival tiene algo que elegir. */
+    private static final forge.game.zone.ZoneType[] PICK_ZONES = {
+            forge.game.zone.ZoneType.Battlefield, forge.game.zone.ZoneType.Command,
+            forge.game.zone.ZoneType.Graveyard, forge.game.zone.ZoneType.Exile};
+
+    /** Si este jugador tiene alguna carta que el motor deja elegir ahora. */
+    private boolean hasSelectableCard(final PlayerView p) {
+        if (p == null) {
+            return false;
+        }
+        for (final forge.game.zone.ZoneType z : PICK_ZONES) {
+            final var cards = p.getCards(z);
+            if (cards == null) {
+                continue;
+            }
+            for (final CardView cv : cards) {
+                if (cv != null && selectable.test(cv)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -3315,6 +3403,21 @@ public class TableScreen extends Pane {
      */
     public boolean hasPreparedCard() {
         return preparedCardNode() != null;
+    }
+
+    /**
+     * Las cartas que se VEN en la mesa marcadas como elegibles. Solo para
+     * pruebas: lo que el motor ofrece y lo que el jugador puede clicar no
+     * tienen por que ser lo mismo (ver {@code --proliferate-test}).
+     */
+    public List<CardView> shownSelectableCards() {
+        final List<CardView> out = new ArrayList<>();
+        for (final CardNode n : everyNode()) {
+            if (n.getCard() != null && n.isSelectable() && n.isVisible()) {
+                out.add(n.getCard());
+            }
+        }
+        return out;
     }
 
     /** La primera criatura preparada de la mesa, para clicarla en una prueba. */
