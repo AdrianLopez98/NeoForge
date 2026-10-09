@@ -8,6 +8,7 @@
 #   2. la pantalla de inicio, capturada: que JavaFX abre ventana en Linux
 #      (con una pantalla virtual, xvfb).
 #   3. una partida de verdad contra la IA, capturada a mitad.
+#   4. la Aventura abierta desde el menu: el segundo proceso arranca (1.0.19).
 #
 # Las capturas y los registros quedan en $OUT para mirarlos. Las pruebas
 # escriben en NeoForge/datos: por eso el .tar.gz se hace ANTES (empaquetar.sh).
@@ -60,6 +61,28 @@ timeout 900 "${PANTALLA[@]}" "$BIN" ui --live --auto --snapshot="$OUT/partida.pn
 tail -15 "$OUT/partida.log"
 if [ ! -s "$OUT/partida.png" ]; then
     echo "::warning::no ha salido la captura de la partida"
+fi
+
+echo "== 4. La Aventura, abierta desde el menu (como la abre el jugador)"
+# Discord, 09-10-2026 (1.0.18): la Aventura se cerraba al abrirla con "Could not
+# find or load main class adventure". El Java empaquetado no trae bin/java, asi
+# que NeoForge se relanza a si mismo con "adventure", y el hijo heredaba la
+# variable _JPACKAGE_LAUNCHER del lanzador: con ella puesta, el lanzador toma
+# los argumentos como una linea de java en crudo. Las pruebas de arriba no lo
+# veian porque ninguna abre un segundo proceso. JAVA_TOOL_OPTIONS llega al
+# padre y al hijo: autoLaunch la abre sola desde el menu, selftest monta un
+# duelo y auto lo juega solo hasta el final ("PARTIDA TERMINADA").
+rm -f "$APP/datos/neo/adventure.log"
+timeout 480 env JAVA_TOOL_OPTIONS="-Dneo.adventure.autoLaunch=true -Dneo.adventure.selftest=duel -Dneo.adventure.auto=true" \
+    "${PANTALLA[@]}" "$BIN" ui > "$OUT/aventura.log" 2>&1
+find "$APP/datos" -name 'adventure.log' -exec cp {} "$OUT/" \; 2>/dev/null || true
+tail -15 "$OUT/adventure.log" 2>/dev/null || tail -15 "$OUT/aventura.log"
+if grep -qs "Could not find or load main class" "$OUT/adventure.log" "$OUT/aventura.log"; then
+    echo "::error::la Aventura no arranca: el proceso hijo no encuentra su clase (ver adventure.log)"
+    fallos=$((fallos + 1))
+elif ! grep -qs "PARTIDA TERMINADA" "$OUT/adventure.log"; then
+    # Sin tarjeta grafica de verdad libGDX puede no abrir: eso no es este fallo.
+    echo "::warning::la Aventura no ha llegado a terminar el duelo de prueba (ver adventure.log)"
 fi
 
 # El registro propio del juego, por si hay que mirar mas (en el modo
