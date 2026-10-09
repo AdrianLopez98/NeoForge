@@ -90,6 +90,20 @@ public class QuestShopScreen extends StackPane {
     private final Label packPrice = new Label();
     private final Button buy = new Button();
 
+    /**
+     * Cuantos sobres se compran de una vez (Discord, 09-10-2026: <i>"add an
+     * option to buy multiple packs at once"</i>). Se queda puesto al cambiar de
+     * expansion: es como compras, no que compras.
+     */
+    private int quantity = Math.max(1, Math.min(MAX_QUANTITY,
+            Integer.getInteger("neo.shop.quantity", 1)));
+    private final Label quantityLabel = new Label();
+    private final Button fewer = new Button("\u2212");
+    private final Button more = new Button("+");
+
+    /** Tope de sobres por compra: una caja son 36, y eso ya esta en Cajas. */
+    private static final int MAX_QUANTITY = 24;
+
     // --- pestanyas ---
     private enum Tab { PACKS, COLLECTOR, SINGLES, PRECONS, BOXES, LAIR, SELL }
 
@@ -259,9 +273,25 @@ public class QuestShopScreen extends StackPane {
         buy.setMinWidth(Region.USE_PREF_SIZE);
         buy.setOnAction(e -> open());
 
+        // Cuantos: pegado al boton de comprar, que es donde ya esta la mano.
+        quantityLabel.getStyleClass().add("quest-deck-name");
+        quantityLabel.setMinWidth(UiScale.px(44));
+        quantityLabel.setAlignment(Pos.CENTER);
+        fewer.getStyleClass().add("segment");
+        more.getStyleClass().add("segment");
+        fewer.setOnAction(e -> setQuantity(quantity - 1));
+        more.setOnAction(e -> setQuantity(quantity + 1));
+        final HBox stepper = new HBox(4, fewer, quantityLabel, more);
+        stepper.setAlignment(Pos.CENTER);
+        stepper.setMinWidth(Region.USE_PREF_SIZE);
+        final javafx.scene.control.Tooltip howMany = new javafx.scene.control.Tooltip(NeoText.get("shop.quantity"));
+        javafx.scene.control.Tooltip.install(stepper, howMany);
+        fewer.setTooltip(howMany);
+        more.setTooltip(howMany);
+
         final Region gap2 = new Region();
         HBox.setHgrow(gap2, Priority.ALWAYS);
-        final HBox packRow = new HBox(16, new VBox(2, packName, packPrice), gap2, buy);
+        final HBox packRow = new HBox(16, new VBox(2, packName, packPrice), gap2, stepper, buy);
         packRow.setAlignment(Pos.CENTER_LEFT);
         packRow.getStyleClass().add("stat-tile");
         packRow.setPadding(new Insets(14, 18, 14, 18));
@@ -1354,21 +1384,38 @@ public class QuestShopScreen extends StackPane {
     }
 
     private void refreshPack() {
+        quantityLabel.setText("\u00d7" + quantity);
+        fewer.setDisable(quantity <= 1);
         if (pack == null) {
             packName.setText(NeoText.get("shop.noPack"));
             packPrice.setText("");
             buy.setDisable(true);
             buy.setText(NeoText.get("shop.buy"));
+            more.setDisable(true);
             return;
         }
         final int price = NeoQuestShop.priceOf(pack);
+        final int total = price * quantity;
+        final boolean short_ = NeoQuest.credits() < total;
         packName.setText(pack.getName());
-        packPrice.setText(NeoText.get("shop.packPrice", price, pack.getTotalCards()));
-        buy.setText(NeoText.get("shop.buy"));
-        buy.setDisable(opening || NeoQuest.credits() < price);
-        if (!opening && NeoQuest.credits() < price) {
-            packPrice.setText(NeoText.get("shop.cannotAfford", price));
+        if (quantity == 1) {
+            packPrice.setText(NeoText.get(!opening && short_ ? "shop.cannotAfford" : "shop.packPrice",
+                    price, pack.getTotalCards()));
+            buy.setText(NeoText.get("shop.buy"));
+        } else {
+            packPrice.setText(NeoText.get(!opening && short_ ? "shop.cannotAffordMany" : "shop.packPriceMany",
+                    quantity, total, pack.getTotalCards() * quantity));
+            buy.setText(NeoText.get("shop.buyMany", quantity));
         }
+        buy.setDisable(opening || short_);
+        // Mas solo si llega: subir a un numero que no puedes pagar es apagar
+        // el boton de comprar sin que se vea por que.
+        more.setDisable(quantity >= MAX_QUANTITY || NeoQuest.credits() < price * (quantity + 1));
+    }
+
+    private void setQuantity(final int n) {
+        quantity = Math.max(1, Math.min(MAX_QUANTITY, n));
+        refreshPack();
     }
 
     private void refreshMoney() {
@@ -1384,18 +1431,30 @@ public class QuestShopScreen extends StackPane {
      * al cobrar — asi que esta pantalla solo tiene que ensenyarlas. No hay
      * "guardar": un sobre abierto no se devuelve.
      */
-    private void open() {
+    private boolean open() {
         if (pack == null || opening) {
-            return;
+            return false;
         }
-        final NeoQuestShop.Opened opened = NeoQuestShop.buyAndOpen(pack);
+        final int count = quantity;
+        final NeoQuestShop.Opened opened = count == 1
+                ? NeoQuestShop.buyAndOpen(pack)
+                : NeoQuestShop.buyAndOpen(chosen, count);
         if (opened == null) {
-            return;
+            return false;
         }
         opening = true;
         refreshMoney();
         overlay.setOnBackgroundClick(this::closeOpened);
-        overlay.show(openedPanel(opened));
+        final PackOpening panel = openedPanel(opened, count);
+        // Y otro igual sin salir de aqui, al lado de volver: ver setAgain.
+        final int next = NeoQuestShop.priceOf(pack) * count;
+        panel.setAgain((count == 1 ? NeoText.get("shop.again") : NeoText.get("shop.againMany", count))
+                        + "  \u00b7  " + NeoText.get("shop.credits.short", next),
+                NeoQuest.credits() >= next, () -> {
+                    opening = false;
+                    return open();
+                });
+        overlay.show(panel);
 
         // El sobre siguiente es otro sobre: se genera uno nuevo para la misma
         // expansion. Sin esto volverias a "abrir" exactamente las mismas cartas,
@@ -1411,6 +1470,7 @@ public class QuestShopScreen extends StackPane {
         if (onOpened != null) {
             onOpened.run();
         }
+        return true;
     }
 
     /**
@@ -1420,9 +1480,9 @@ public class QuestShopScreen extends StackPane {
      * cartas es dar cartas, y verlo distinto segun de donde vengan no aporta
      * nada.
      */
-    private Region openedPanel(final NeoQuestShop.Opened opened) {
+    private PackOpening openedPanel(final NeoQuestShop.Opened opened, final int count) {
         return new PackOpening(
-                NeoText.get("shop.opened", pack.getName()),
+                NeoText.get("shop.opened", count == 1 ? pack.getName() : count + " \u00d7 " + pack.getName()),
                 NeoText.get("shop.openedDetail", opened.getCards().size(),
                         opened.getNewCount(), opened.getPaid()),
                 opened.getCards(), opened::isNew,
@@ -1482,6 +1542,20 @@ public class QuestShopScreen extends StackPane {
      * la prueba comprueba tambien que el boton esta activo y enganchado, que es
      * la mitad de lo que puede estar roto.
      */
+    /**
+     * Pulsa "otro sobre" en la apertura que este puesta, como una persona.
+     *
+     * @return false si no esta, o esta apagado
+     */
+    public boolean autoAgain() {
+        final javafx.scene.Node n = getScene() == null ? null : getScene().lookup("#opening-again");
+        if (n instanceof Button b && b.isVisible() && !b.isDisabled()) {
+            b.fire();
+            return true;
+        }
+        return false;
+    }
+
     public void autoOpen() {
         switch (tab) {
             case SINGLES:

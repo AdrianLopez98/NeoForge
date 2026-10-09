@@ -890,6 +890,21 @@ public class CardNode extends StackPane {
             } else if (blankWhileLoading) {
                 art.setImage(null);
             }
+        } else {
+            // LA MISMA CLAVE, PERO OTRA IMAGEN. Lo que se pinto era un
+            // RESPALDO -- el arte por nombre de "bajar todo el arte", o la
+            // inglesa mientras llega la traducida -- y CardImages acaba de
+            // poner encima la impresion buena con la misma clave. Mirando
+            // solo la clave la carta se quedaba con el respaldo para siempre,
+            // y solo una carta NUEVA (la ampliada) ensenyaba la buena: Discord,
+            // 09-10-2026, "once you right click it, it changes the image".
+            // peek y no get: si la cache la ha soltado no se pide otra vez
+            // desde aqui, que la pintada sigue valiendo.
+            final Image now = CardImages.peek(key);
+            if (now != null && now != fullArt) {
+                art.setImage(now);
+                fullArt = now;
+            }
         }
         sharpenArt();
         updateSideways();

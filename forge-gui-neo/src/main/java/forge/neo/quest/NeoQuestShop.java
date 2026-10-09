@@ -149,6 +149,50 @@ public final class NeoQuestShop {
     }
 
     /**
+     * <b>Varios sobres de una vez</b>, de la misma expansion (Discord,
+     * 09-10-2026: <i>"add an option to buy multiple packs at once ... it is
+     * really annoying to moving the mouse around the complete monitor all the
+     * time"</i>).
+     *
+     * <p>Cada sobre se monta NUEVO ({@link #boosterOf}): un {@code SealedProduct}
+     * memoriza su contenido, y comprar el mismo diez veces serian diez veces las
+     * mismas cartas. Se cobran uno a uno por {@code buyPack} — el mismo camino que
+     * uno solo — pero se guarda <b>una</b> vez al final, y "nuevas" cuenta contra
+     * lo que tenias ANTES del primero.
+     *
+     * @return lo que ha salido de todos juntos, o null si no te llega para
+     *         todos (entonces no se compra ninguno)
+     */
+    public static Opened buyAndOpen(final CardEdition edition, final int count) {
+        if (edition == null || count < 1 || !NeoQuest.isActive()) {
+            return null;
+        }
+        if (count == 1) {
+            return buyAndOpen(boosterOf(edition));
+        }
+        final List<BoosterPack> packs = new ArrayList<>(count);
+        int total = 0;
+        for (int i = 0; i < count; i++) {
+            final BoosterPack pack = boosterOf(edition);
+            if (pack == null) {
+                return null;
+            }
+            packs.add(pack);
+            total += priceOf(pack);
+        }
+        if (NeoQuest.credits() < total) {
+            return null;
+        }
+        final Set<String> before = ownedNames();
+        final List<PaperCard> cards = new ArrayList<>();
+        for (final BoosterPack pack : packs) {
+            NeoQuest.engine().getCards().buyPack(pack, priceOf(pack));
+            cards.addAll(pack.getCards());
+        }
+        return finish(count + " x " + packs.get(0).getName(), cards, before, total);
+    }
+
+    /**
      * Un sobre <b>de regalo</b>: entra igual en la coleccion pero no se cobra.
      *
      * <p>Es el premio por ganar un duelo. Ver {@link NeoQuestPrize}.

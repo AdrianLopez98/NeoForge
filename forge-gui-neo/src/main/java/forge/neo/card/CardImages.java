@@ -193,6 +193,15 @@ public final class CardImages {
     }
 
     /**
+     * La imagen que hay AHORA en la cache para esa clave, o {@code null}, sin
+     * pedirla si no esta. La usa {@code CardNode} para enterarse de que un
+     * respaldo se ha cambiado por la imagen buena (ver alli).
+     */
+    public static Image peek(final String imageKey) {
+        return imageKey == null || imageKey.isEmpty() ? null : CACHE.getIfPresent(imageKey);
+    }
+
+    /**
      * Imagen ya disponible para esta clave, o {@code null}.
      * Si no esta, dispara la carga/descarga en segundo plano.
      */

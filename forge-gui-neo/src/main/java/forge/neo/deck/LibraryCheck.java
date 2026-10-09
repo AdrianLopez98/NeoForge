@@ -221,11 +221,101 @@ public final class LibraryCheck {
         tq.rulesText = false;
         check("y sin texto de reglas no", !hasName(lib.find(tq), "Sol Ring"));
 
+        artPolicy();
+
         System.out.println();
         System.out.printf("  %d comprobaciones OK, %d fallos%n", passed, failed);
         if (failed > 0) {
             System.out.println("  *** HAY FALLOS ***");
         }
+    }
+
+    /**
+     * La politica de arte de Ajustes se cumple en la impresion por defecto
+     * ({@code forge.neo.card.UniquePrints}, Discord 09-10-2026: "no matter what
+     * you select for art preferences, the program seems to pick a random card").
+     * Va la ULTIMA: recalcula el indice entero, y con las reliquias ya
+     * registradas las mete en el (lo aguantan los filtros, ver AscentRelics).
+     */
+    private static void artPolicy() {
+        final forge.card.CardDb db = forge.model.FModel.getMagicDb().getCommonCards();
+
+        // 1. "La mas reciente de todas": dentro de su expansion, la impresion 1.
+        forge.model.FModel.getMagicDb().setCardArtPreference(true, false);
+        forge.neo.card.UniquePrints.rebuild();
+        int notFirst = 0;
+        String example = null;
+        for (final PaperCard u : db.getUniqueCards()) {
+            if (u.getArtIndex() <= 1 || db.hasPreferredArt(u.getName())
+                    && !forge.neo.card.UniquePrints.isOurs(u.getName())) {
+                continue;
+            }
+            final PaperCard first = db.getCard(u.getName(), u.getEdition(), 1);
+            if (first != null && first.getArtIndex() == 1 && u.getEdition().equals(first.getEdition())
+                    && first.getRarity() != forge.card.CardRarity.Special) {
+                notFirst++;
+                if (example == null) {
+                    example = u.getName() + " " + u.getEdition() + " #" + u.getCollectorNumber();
+                }
+            }
+        }
+        check("arte: dentro de su expansion sale la impresion normal, no la de numero \"menor como texto\""
+                + (example == null ? "" : " (" + notFirst + ", p. ej. " + example + ")"), notFirst == 0);
+        final PaperCard crop = db.getUniqueByName("Crop Rotation");
+        check("arte: Crop Rotation no sale en japones (" + (crop == null ? "?" : crop.getEdition()
+                + " #" + crop.getCollectorNumber()) + ")", crop != null && crop.getArtIndex() == 1);
+
+        // 2. "Solo expansiones normales": si la carta tiene alguna, sale de una.
+        forge.model.FModel.getMagicDb().setCardArtPreference(true, true);
+        forge.neo.card.UniquePrints.rebuild();
+        final forge.card.CardDb.CardArtPreference core = db.getCardArtPreference();
+        int outside = 0;
+        String outsideExample = null;
+        for (final PaperCard u : db.getUniqueCards()) {
+            if (db.hasPreferredArt(u.getName()) && !forge.neo.card.UniquePrints.isOurs(u.getName())) {
+                continue;
+            }
+            final forge.card.CardEdition ed = forge.model.FModel.getMagicDb().getEditions().get(u.getEdition());
+            if (ed == null || core.accept(ed)) {
+                continue;
+            }
+            boolean hasNormal = false;
+            for (final PaperCard p : db.getAllCards(u.getName())) {
+                final forge.card.CardEdition pe = forge.model.FModel.getMagicDb().getEditions().get(p.getEdition());
+                if (pe != null && core.accept(pe) && p.getRarity() != forge.card.CardRarity.Special) {
+                    hasNormal = true;
+                    break;
+                }
+            }
+            if (hasNormal) {
+                outside++;
+                if (outsideExample == null) {
+                    outsideExample = u.getName() + " " + u.getEdition();
+                }
+            }
+        }
+        check("arte: con \"solo expansiones normales\" ninguna sale de un producto especial teniendo normal"
+                + (outsideExample == null ? "" : " (" + outside + ", p. ej. " + outsideExample + ")"), outside == 0);
+
+        // 3. La que el jugador elige a mano sobrevive al recalculo.
+        PaperCard pick = null;
+        final PaperCard ringNow = db.getUniqueByName("Sol Ring");
+        for (final PaperCard p : db.getAllCards("Sol Ring")) {
+            if (ringNow != null && !p.getEdition().equals(ringNow.getEdition())) {
+                pick = p;
+                break;
+            }
+        }
+        if (pick != null) {
+            db.setPreferredArt("Sol Ring", pick.getEdition(), pick.getArtIndex());
+            forge.neo.card.UniquePrints.rebuild();
+            final PaperCard after = db.getUniqueByName("Sol Ring");
+            check("arte: el Sol Ring elegido a mano (" + pick.getEdition() + ") sigue despues de recalcular",
+                    after != null && after.getEdition().equals(pick.getEdition()));
+        }
+
+        // Y lo de Ajustes, como estaba.
+        forge.neo.NeoSettings.applyCardArtToEngine();
     }
 
     private static boolean hasName(final List<PaperCard> cards, final String name) {

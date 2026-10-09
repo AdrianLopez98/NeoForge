@@ -122,7 +122,8 @@ public class AscentSetupScreen extends StackPane {
      */
     private int ascension = Math.max(0,
             Math.min(AscentUnlocks.maxAscension(), Integer.getInteger("neo.ascent.setupLevel", 0)));
-    private String search = "";
+    /** Lo escrito en el buscador de comandantes ({@code -Dneo.ascent.setupSearch}: para capturas). */
+    private String search = System.getProperty("neo.ascent.setupSearch", "");
     /**
      * En que pagina del selector se entra.
      *
@@ -816,7 +817,11 @@ public class AscentSetupScreen extends StackPane {
     private Region commanderBox() {
         final TextField field = new TextField(search);
         field.setPromptText(NeoText.get("ascent.setup.search"));
-        field.setMaxWidth(UiScale.px(320));
+        // Busca tambien por tipo, habilidad y expansion (Discord, 08-10-2026):
+        // la ayuda dice como, con ejemplos. Ver CommanderSearch.
+        field.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("ascent.setup.search.tip")));
+        field.setPrefWidth(UiScale.px(360));
+        field.setMaxWidth(UiScale.px(360));
         field.textProperty().addListener((o, a, b) -> {
             search = b == null ? "" : b;
             page = 0;
@@ -944,10 +949,11 @@ public class AscentSetupScreen extends StackPane {
         if (search == null || search.isBlank()) {
             return all;
         }
-        final String q = search.toLowerCase(java.util.Locale.ROOT);
+        // Por nombre, tipo, habilidad o expansion, cada palabra en algun sitio
+        // (Discord, 08-10-2026). Ver CommanderSearch, que es de las dos interfaces.
         final List<PaperCard> out = new ArrayList<>();
         for (final PaperCard c : all) {
-            if (c.getName().toLowerCase(java.util.Locale.ROOT).contains(q)) {
+            if (forge.neo.ascent.CommanderSearch.matches(c, search)) {
                 out.add(c);
             }
         }

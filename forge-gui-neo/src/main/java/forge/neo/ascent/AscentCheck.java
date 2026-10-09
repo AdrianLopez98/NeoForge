@@ -175,6 +175,7 @@ public final class AscentCheck {
 
         curvaDeLaRun();
         jefeYElite();
+        commanderSearch();
     }
 
     /**
@@ -4587,6 +4588,39 @@ public final class AscentCheck {
         } finally {
             forge.neo.NeoSettings.set(AscentFavorites.KEY, saved);
             forge.neo.NeoSettings.save();
+        }
+    }
+
+    /**
+     * Buscar comandante por algo mas que el nombre (Discord, 08-10-2026): por
+     * habilidad, por tipo, por expansion, varias palabras a la vez y sin tildes.
+     * Ver {@link CommanderSearch}.
+     */
+    static void commanderSearch() {
+        final PaperCard atraxa = forge.model.FModel.getMagicDb().getCommonCards().getCard("Atraxa, Praetors' Voice");
+        final PaperCard krenko = forge.model.FModel.getMagicDb().getCommonCards().getCard("Krenko, Mob Boss");
+        if (atraxa == null || krenko == null) {
+            fail("buscar comandante: faltan Atraxa o Krenko en la base de cartas");
+            return;
+        }
+        final boolean porNombre = CommanderSearch.matches(atraxa, "atraxa");
+        final boolean porHabilidades = CommanderSearch.matches(atraxa, "Lifelink DEATHTOUCH");
+        final boolean noTrample = !CommanderSearch.matches(atraxa, "trample");
+        final boolean porTipo = CommanderSearch.matches(krenko, "goblin warrior")
+                && !CommanderSearch.matches(atraxa, "goblin");
+        final boolean porExpansion = CommanderSearch.matches(atraxa, "c16")
+                && CommanderSearch.matches(atraxa, "commander 2016");
+        final boolean juntas = CommanderSearch.matches(krenko, "goblin m13")
+                && !CommanderSearch.matches(krenko, "goblin c16");
+        final boolean sinTildes = CommanderSearch.fold("Relámpago").equals("relampago");
+        final boolean vacio = CommanderSearch.matches(krenko, "  ");
+        if (porNombre && porHabilidades && noTrample && porTipo && porExpansion && juntas && sinTildes && vacio) {
+            ok("buscar comandante: por nombre, por habilidad (lifelink deathtouch), por tipo (goblin warrior),"
+                    + " por expansion (c16 / Commander 2016), varias a la vez y sin tildes");
+        } else {
+            fail("buscar comandante: nombre=" + porNombre + " habilidades=" + porHabilidades + " sinTrample=" + noTrample
+                    + " tipo=" + porTipo + " expansion=" + porExpansion + " juntas=" + juntas
+                    + " tildes=" + sinTildes + " vacio=" + vacio);
         }
     }
 

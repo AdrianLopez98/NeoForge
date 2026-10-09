@@ -25,6 +25,8 @@ public final class PackOpening extends StackPane {
     private final Pane sparks = new Pane();
     private final Label progress = new Label();
     private final Button reveal = new Button(NeoText.get("opening.revealAll"));
+    /** "Otro sobre": solo sale si quien abre lo pide. Ver {@link #setAgain}. */
+    private final Button again = new Button();
     private final Pager pager;
     private final List<Animation> animations = new ArrayList<>();
     private boolean opened, closed;
@@ -66,7 +68,9 @@ public final class PackOpening extends StackPane {
         Button done = new Button(NeoText.get("haul.done")); done.setId("opening-done");
         done.getStyleClass().add("btn-secondary"); done.setOnAction(e -> close());
         progress.getStyleClass().add("opening-detail"); UiScale.fixedFont(progress, 12);
-        HBox buttons = new HBox(12, pager, reveal, done); buttons.setAlignment(Pos.CENTER);
+        again.setId("opening-again"); again.getStyleClass().add("btn-primary");
+        again.setVisible(false); again.setManaged(false);
+        HBox buttons = new HBox(12, pager, reveal, again, done); buttons.setAlignment(Pos.CENTER);
         VBox footer = new VBox(8, progress, buttons); footer.setAlignment(Pos.CENTER);
         footer.setPadding(new Insets(8, 16, 16, 16));
         BorderPane content = new BorderPane(stage, head, null, footer, null);
@@ -225,6 +229,32 @@ public final class PackOpening extends StackPane {
     }
     private void stopAnimations() { for (Animation a : animations) a.stop(); animations.clear(); sparks.getChildren().clear(); }
     private void close() { if (closed) return; closed = true; stopAnimations(); onDone.run(); }
+
+    /**
+     * Un boton para <b>comprar y abrir otro igual</b>, justo a la izquierda de
+     * volver (Discord, 09-10-2026: <i>"after opening a pack, adding a button
+     * (next to the back button) to buy and open a new pack directly ... it is
+     * really annoying to moving the mouse around the complete monitor"</i>).
+     * Como "Revelar todo" tambien rompe el precinto, comprar, abrir y volver a
+     * comprar se hace todo en esta fila de abajo.
+     *
+     * <p>Se ensenya aunque no llegue el dinero, apagado: un boton que aparece y
+     * desaparece no se aprende. {@code action} devuelve si ha podido comprar; si
+     * no, esta apertura se cierra como con volver, para no dejarla muerta.
+     */
+    public void setAgain(final String label, final boolean enabled,
+                         final java.util.function.BooleanSupplier action) {
+        again.setText(label);
+        again.setDisable(!enabled || action == null);
+        again.setOnAction(e -> {
+            if (closed || action == null) return;
+            closed = true;
+            stopAnimations();
+            if (!action.getAsBoolean()) onDone.run();
+        });
+        again.setVisible(true);
+        again.setManaged(true);
+    }
     private static int weight(PaperCard c) {
         if (c.getRarity() == null) return 0;
         switch (c.getRarity()) { case MythicRare: return 5; case Special: return 4; case Rare: return 3; case Uncommon: return 2; default: return 1; }

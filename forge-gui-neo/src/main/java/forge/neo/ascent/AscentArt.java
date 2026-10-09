@@ -93,7 +93,9 @@ public final class AscentArt {
     private static PaperCard preferred(final String name) {
         final forge.card.CardDb db = FModel.getMagicDb().getCommonCards();
         // Sin edicion, getCard devuelve justo el preferido; pero solo si lo hay.
-        return db.hasPreferredArt(name) ? db.getCard(name) : null;
+        // Las que apunta UniquePrints (la impresion normal de su expansion) no
+        // son favoritos de nadie: solo corrigen la de por defecto.
+        return db.hasPreferredArt(name) && !forge.neo.card.UniquePrints.isOurs(name) ? db.getCard(name) : null;
     }
 
     /** El mazo con tus favoritos, donde los haya (principal, mando y banquillo). */

@@ -143,7 +143,7 @@ public final class CardZoom {
         return out;
     }
 
-    private static void collectCardNodes(final Node n, final List<CardNode> out) {
+    static void collectCardNodes(final Node n, final List<CardNode> out) {
         if (n == null || !n.isVisible()) {
             return;
         }

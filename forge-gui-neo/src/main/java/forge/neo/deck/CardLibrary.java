@@ -156,6 +156,19 @@ public final class CardLibrary {
         return lib;
     }
 
+    /**
+     * Tira la enciclopedia y el indice del catalogo, para que la proxima vez se
+     * monten con la impresion por defecto de ahora. Lo pide cambiar el arte en
+     * Ajustes ({@code UniquePrints}): sin esto el cambio no se veia hasta
+     * volver a abrir el juego. Un editor ya abierto sigue con el suyo.
+     */
+    public static void invalidate() {
+        synchronized (CardLibrary.class) {
+            instance = null;
+        }
+        CardIndex.invalidate();
+    }
+
     /** Si ya esta construida: la pantalla la pinta sin esperar. */
     public static boolean isReady() {
         return instance != null;

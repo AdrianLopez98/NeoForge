@@ -99,8 +99,77 @@ public final class DeckImporter {
         }
         if (deck != null) {
             companionsBackToSideboard(deck, text);
+            tidyCommandZone(deck);
         }
         return new Result(deck, accepted, unknown, problems);
+    }
+
+    /**
+     * <b>Ordena la zona de mando despues de leer</b> (itch.io, 09-10-2026:
+     * <i>"why does it fail even when you import the precons?"</i> — salia
+     * "should have no more than 99 cards" o "has an illegal commander" con un
+     * preconstruido pegado tal cual).
+     *
+     * <p>El lector de Forge ({@code DeckImportController}) se equivoca en dos
+     * casos muy comunes, y aqui se envuelve en vez de tocarlo (regla de oro):
+     * <ol>
+     *   <li><b>Sube a la zona de mando una carta que no es comandante.</b> Con
+     *       la lista sin encabezado "Main" delante (Moxfield con su
+     *       {@code SIDEBOARD:}, o el comandante en la primera linea) se lleva
+     *       tambien otra carta del principal: medido con Abzan Armor, "Expel
+     *       the Interlopers" de comandante y el mazo en 98. Vuelve al
+     *       principal todo lo que no puede ir en la zona de mando.</li>
+     *   <li><b>Cuenta el comandante dos veces.</b> Muchas webs lo exportan
+     *       DENTRO de las cien y ademas en su seccion: 100 en el principal mas
+     *       el comandante. En Commander todo es de una copia, asi que la del
+     *       principal sobra, y en la zona de mando, una de cada.</li>
+     * </ol>
+     */
+    static void tidyCommandZone(final Deck deck) {
+        if (deck == null || !deck.has(DeckSection.Commander)) {
+            return;
+        }
+        final forge.deck.CardPool zone = deck.get(DeckSection.Commander);
+        final forge.deck.CardPool main = deck.getOrCreate(DeckSection.Main);
+        for (final java.util.Map.Entry<forge.item.PaperCard, Integer> e : entries(zone)) {
+            final forge.item.PaperCard c = e.getKey();
+            if (!canSitInCommandZone(c)) {
+                zone.remove(c, e.getValue());
+                main.add(c, e.getValue());
+            } else if (e.getValue() > 1) {
+                zone.remove(c, e.getValue() - 1);
+            }
+        }
+        for (final forge.item.PaperCard c : zone.toFlatList()) {
+            for (final java.util.Map.Entry<forge.item.PaperCard, Integer> m : entries(main)) {
+                if (m.getKey().getName().equals(c.getName())) {
+                    main.remove(m.getKey(), 1);
+                    break;
+                }
+            }
+        }
+    }
+
+    private static java.util.List<java.util.Map.Entry<forge.item.PaperCard, Integer>> entries(
+            final forge.deck.CardPool pool) {
+        final java.util.List<java.util.Map.Entry<forge.item.PaperCard, Integer>> out = new java.util.ArrayList<>();
+        for (final java.util.Map.Entry<forge.item.PaperCard, Integer> e : pool) {
+            out.add(new java.util.AbstractMap.SimpleEntry<>(e.getKey(), e.getValue()));
+        }
+        return out;
+    }
+
+    /**
+     * Si la carta puede estar en la zona de mando de un mazo de Commander: un
+     * comandante (lo dice el motor) o un trasfondo, que va con el comandante
+     * que dice "Choose a Background".
+     */
+    private static boolean canSitInCommandZone(final forge.item.PaperCard c) {
+        if (c == null || c.getRules() == null) {
+            return false;
+        }
+        return forge.deck.DeckFormat.Commander.isLegalCommander(c.getRules())
+                || c.getRules().getType().hasSubtype("Background");
     }
 
     /**

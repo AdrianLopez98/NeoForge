@@ -1763,13 +1763,31 @@ et}) y no se tocan.
         b.setMinWidth(Region.USE_PREF_SIZE);
         b.pseudoClassStateChanged(SELECTED, NeoSettings.planechase());
         b.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("home.planechase.tip")));
+        // Un mazo para todos (Discord, 09-10-2026): solo pinta algo con
+        // Planechase puesto, asi que se apaga sin el.
+        final Button shared = new Button(NeoText.get("home.planechase.shared"));
+        shared.setId("home-planechase-shared");
+        shared.getStyleClass().add("segment");
+        shared.setMinWidth(Region.USE_PREF_SIZE);
+        shared.pseudoClassStateChanged(SELECTED, NeoSettings.planechaseShared());
+        shared.setDisable(!NeoSettings.planechase());
+        shared.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("home.planechase.shared.tip")));
+        shared.setOnAction(e -> {
+            final boolean on = !NeoSettings.planechaseShared();
+            NeoSettings.setBool(NeoSettings.PLANECHASE_SHARED, on);
+            NeoSettings.save();
+            shared.pseudoClassStateChanged(SELECTED, on);
+        });
         b.setOnAction(e -> {
             final boolean on = !NeoSettings.planechase();
             NeoSettings.setBool(NeoSettings.PLANECHASE, on);
             NeoSettings.save();
             b.pseudoClassStateChanged(SELECTED, on);
+            shared.setDisable(!on);
         });
-        final VBox box = new VBox(4, label, b);
+        final HBox buttons = new HBox(4, b, shared);
+        buttons.setAlignment(Pos.CENTER_LEFT);
+        final VBox box = new VBox(4, label, buttons);
         box.setAlignment(Pos.CENTER_LEFT);
         final boolean applies = forge.neo.match.Planechase.appliesTo(format.getGameType());
         box.setVisible(applies);
@@ -1915,11 +1933,11 @@ et}) y no se tocan.
                 split.append(n);
             }
             summary.setText(NeoText.get("home.summary.teams",
-                    format.getLabel(), selected.getName(), selected.getMain().countAll(),
+                    format.getLabel(), selected.getName(), DeckTile.totalCards(selected),
                     split.toString(), LookScreen.aiSummary(aiProfile, opponents)));
         } else if (problem == null) {
             summary.setText(NeoText.get("home.summary",
-                    format.getLabel(), selected.getName(), selected.getMain().countAll(),
+                    format.getLabel(), selected.getName(), DeckTile.totalCards(selected),
                     opponents + 1, LookScreen.aiSummary(aiProfile, opponents)));
         } else {
             summary.setText(NeoText.get("home.summary.invalid",

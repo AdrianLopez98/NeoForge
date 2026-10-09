@@ -360,7 +360,19 @@ final class NeoAppQuest {
             }
         };
 
+        // -Dneo.shop.again=N: al abrir, pulsa N veces "otro sobre" (al lado de
+        // volver) antes de capturar, por el boton de verdad.
+        final int again = Integer.getInteger("neo.shop.again", 0);
+        final int[] pressed = {0};
         screen.setOnOpened(() -> {
+            if (pressed[0] < again) {
+                pressed[0]++;
+                final PauseTransition p = new PauseTransition(Duration.millis(600));
+                p.setOnFinished(x -> System.out.println("[shop] otro sobre: "
+                        + (screen.autoAgain() ? "pulsado" : "NO se puede")));
+                p.play();
+                return;
+            }
             final PauseTransition t = new PauseTransition(Duration.millis(snapAt));
             t.setOnFinished(x -> capture.run());
             t.play();
@@ -375,7 +387,7 @@ final class NeoAppQuest {
         // porque no te llega el dinero, por ejemplo) se captura igualmente. Una
         // prueba que se queda colgada no dice que ha fallado: solo tarda.
         final PauseTransition safety = new PauseTransition(
-                Duration.millis(openAt + snapAt + 4000L));
+                Duration.millis(openAt + snapAt + 4000L + again * 1500L));
         safety.setOnFinished(x -> {
             if (!shot[0]) {
                 System.out.println("[shop] no se ha llegado a abrir el sobre; capturo igual");

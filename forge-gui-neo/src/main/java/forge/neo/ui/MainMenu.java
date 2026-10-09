@@ -144,7 +144,10 @@ public class MainMenu extends BorderPane {
         final FlowPane modes = new FlowPane(16, 16);
         modes.setAlignment(Pos.CENTER);
         modes.setPadding(new Insets(10, 40, 10, 40));
-        modes.setPrefWrapLength(UiScale.px(900));
+        // Las tarjetas se reparten el ancho: cuatro columnas en una pantalla
+        // entera, menos si la ventana es estrecha (ver fitCards). Con un ancho
+        // fijo, o sobraba media fila o faltaba media tarjeta.
+        modes.setPrefWrapLength(UiScale.px(3 * MAX_CARD + 32));
 
         // El tutorial, EL PRIMERO de todos y con la misma pinta que un modo.
         //
@@ -153,7 +156,7 @@ public class MainMenu extends BorderPane {
         // leer una carta, Ctrl+rueda para acercar la mesa, clicar el rail de
         // fases para pararte en el turno del rival) y quien no los conozca
         // juega peor sin saber por que. La letra pequenya lo dice sin rodeos.
-        modes.getChildren().add(tile(NeoText.get("menu.tutorial"),
+        modes.getChildren().add(modeCard(ModeArt.Mode.TUTORIAL, NeoText.get("menu.tutorial"),
                 NeoText.get("menu.tutorial.desc"),
                 tutorialNote(), true, actions::tutorial));
 
@@ -169,7 +172,7 @@ public class MainMenu extends BorderPane {
         // construyeron.
         //
         // La aventura: coleccion, creditos, sobres y progreso guardado.
-        modes.getChildren().add(tile(NeoText.get("menu.quest"),
+        modes.getChildren().add(modeCard(ModeArt.Mode.QUEST, NeoText.get("menu.quest"),
                 NeoText.get("menu.quest.desc"),
                 questNote(), true, actions::quest));
 
@@ -177,7 +180,7 @@ public class MainMenu extends BorderPane {
         // demas — "quiero un cuadro de eliminacion directa con MI mazo,
         // contra rivales que el motor se inventa" — y no una opcion de otra
         // casilla.
-        modes.getChildren().add(tile(NeoText.get("menu.tournament"),
+        modes.getChildren().add(modeCard(ModeArt.Mode.TOURNAMENT, NeoText.get("menu.tournament"),
                 NeoText.get("menu.tournament.desc"),
                 tournamentNote(), true, actions::tournament));
 
@@ -188,7 +191,7 @@ public class MainMenu extends BorderPane {
         // Leaders baja a "Otros formatos", que es donde encaja: es un formato
         // de construido mas, y responde la MISMA pregunta que las casillas de
         // su alrededor (elige un mazo y juega).
-        modes.getChildren().add(tile(NeoText.get("menu.ascent"),
+        modes.getChildren().add(modeCard(ModeArt.Mode.ASCENT, NeoText.get("menu.ascent"),
                 NeoText.get("menu.ascent.desc"),
                 ascentNote(), true, actions::ascent));
 
@@ -201,7 +204,7 @@ public class MainMenu extends BorderPane {
         // principal, y eso en macOS no se ha probado. Mejor sin casilla que con
         // una que no abre.
         if (!forge.neo.platform.NeoOs.MAC) {
-            modes.getChildren().add(tile(NeoText.get("menu.adventure"),
+            modes.getChildren().add(modeCard(ModeArt.Mode.ADVENTURE, NeoText.get("menu.adventure"),
                     NeoText.get("menu.adventure.desc"),
                     NeoText.get(forge.neo.adventure.AdventureLauncher.isRunning()
                             ? "menu.adventure.open" : "menu.adventure.note"),
@@ -217,20 +220,20 @@ public class MainMenu extends BorderPane {
         // que no se meten una por una — quince casillas mas y el menu deja de
         // ser un menu (la auditoría del motor). Una casilla agrupa, y de ahi a la
         // pantalla de mazos de siempre.
-        modes.getChildren().add(tile(NeoText.get("menu.otherFormats"),
+        modes.getChildren().add(modeCard(ModeArt.Mode.OTHER_FORMATS, NeoText.get("menu.otherFormats"),
                 NeoText.get("menu.otherFormats.desc"),
                 NeoText.get("menu.otherFormats.note"), true, actions::otherFormats));
 
         // El draft tampoco se entra eligiendo mazo: el mazo lo montas tu
         // abriendo sobres, y despues lo llevas hasta que se rompe.
-        modes.getChildren().add(tile(NeoText.get("menu.draft"),
+        modes.getChildren().add(modeCard(ModeArt.Mode.DRAFT, NeoText.get("menu.draft"),
                 NeoText.get("menu.draft.desc"),
                 draftNote(), true, actions::draft));
 
         // El sellado: el mismo evento que el draft, pero sin pasar sobres.
         // Va justo al lado porque es la misma decision — "quiero jugar con lo
         // que me toque" — y quien conoce uno reconoce el otro.
-        modes.getChildren().add(tile(NeoText.get("menu.sealed"),
+        modes.getChildren().add(modeCard(ModeArt.Mode.SEALED, NeoText.get("menu.sealed"),
                 NeoText.get("menu.sealed.desc"),
                 sealedNote(), true, actions::sealed));
 
@@ -242,20 +245,20 @@ public class MainMenu extends BorderPane {
         // La partida privada. Va con los modos y no escondida en Ajustes: es
         // una forma de jugar, no una opcion. Y dice de cuantos a cuantos, que
         // es lo primero que se pregunta quien va a llamar a sus amigos.
-        modes.getChildren().add(tile(NeoText.get("menu.online"),
+        modes.getChildren().add(modeCard(ModeArt.Mode.ONLINE, NeoText.get("menu.online"),
                 NeoText.get("menu.online.desc"),
                 NeoText.get("menu.online.note"), true, actions::online));
 
         // Los puzzles son un modo propio: no hay mazo que elegir, son
         // situaciones preparadas con un objetivo. Forge trae cientos.
-        modes.getChildren().add(tile(NeoText.get("menu.puzzles"), NeoText.get("menu.puzzles.desc"),
+        modes.getChildren().add(modeCard(ModeArt.Mode.PUZZLES, NeoText.get("menu.puzzles"), NeoText.get("menu.puzzles.desc"),
                 NeoText.get("menu.puzzles.note"), true, actions::puzzles));
 
         // La enciclopedia (pedida en itch.io, 27-09-2026). Tampoco es un modo
         // de juego, pero es una pregunta que no hacia ninguna pantalla — "que
         // cartas existen" — y el constructor solo la contesta a traves de un
         // mazo. Va con Personalizar y Logros: las casillas de mirar, no de jugar.
-        modes.getChildren().add(tile(NeoText.get("menu.library"),
+        modes.getChildren().add(modeCard(ModeArt.Mode.LIBRARY, NeoText.get("menu.library"),
                 NeoText.get("menu.library.desc"),
                 NeoText.get("menu.library.note",
                         forge.model.FModel.getMagicDb().getCommonCards().getUniqueCards().size()),
@@ -264,13 +267,13 @@ public class MainMenu extends BorderPane {
         // Personalizar no es un modo de juego, pero va aqui y no escondido en
         // Ajustes: lo que se toca ahi se VE, y lo que se ve se busca en la
         // primera pantalla.
-        modes.getChildren().add(tile(NeoText.get("menu.look"),
+        modes.getChildren().add(modeCard(ModeArt.Mode.LOOK, NeoText.get("menu.look"),
                 NeoText.get("menu.look.desc"),
                 lookNote(), true, actions::look));
 
         // Los logros tampoco son un modo: son el registro de lo que ya has
         // hecho. Van aqui porque es donde se vuelve al terminar de jugar.
-        modes.getChildren().add(tile(NeoText.get("menu.achievements"),
+        modes.getChildren().add(modeCard(ModeArt.Mode.ACHIEVEMENTS, NeoText.get("menu.achievements"),
                 NeoText.get("menu.achievements.desc"),
                 achievementNote(), true, actions::achievements));
         // Todo lo de arriba va DENTRO de un visor con desplazamiento.
@@ -289,6 +292,13 @@ public class MainMenu extends BorderPane {
         scroll.setFitToWidth(true);
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         setCenter(scroll);
+        // El ancho se mide en el VISOR, no en la rejilla: un FlowPane no baja
+        // de su tarjeta mas ancha (su minimo es el ancho PREFERIDO de sus
+        // hijos), asi que midiendose a si mismo nunca veia que la ventana
+        // habia encogido, y con una sola columna el lado derecho se cortaba.
+        scroll.viewportBoundsProperty().addListener((o, a, b) -> fitCards(modes, b.getWidth()));
+        modes.getChildren().addListener((javafx.collections.ListChangeListener<javafx.scene.Node>) ch ->
+                fitCards(modes, scroll.getViewportBounds().getWidth()));
 
         final Button settings = new Button(NeoText.get("common.settings"));
         settings.getStyleClass().add("btn-secondary");
@@ -665,46 +675,143 @@ public class MainMenu extends BorderPane {
      */
     private static Region formatTile(final NeoFormat format, final Actions actions) {
         final int count = format.decks().size();
-        return tile(format.getLabel(), format.getDescription(),
+        final ModeArt.Mode art = format == NeoFormat.COMMANDER ? ModeArt.Mode.COMMANDER
+                : format == NeoFormat.BRAWL ? ModeArt.Mode.BRAWL
+                : format == NeoFormat.OATHBREAKER ? ModeArt.Mode.OATHBREAKER
+                : ModeArt.Mode.STANDARD;
+        return modeCard(art, format.getLabel(), format.getDescription(),
                 count == 0 ? NeoText.get("menu.noDecks") : NeoText.get("menu.deckCount", count),
                 true, () -> actions.play(format));
     }
 
     /**
-     * Una tarjeta de modo.
+     * Reparte el ancho entre las tarjetas: tantas columnas como quepan con al
+     * menos {@code MIN_CARD} cada una (texto y dibujo), hasta {@code MAX_COLS},
+     * y la fila llena de lado a lado. En una pantalla entera son cuatro; en una
+     * ventana a media pantalla, dos; en una muy estrecha, una.
      *
-     * <p>Se entra a un formato aunque no tengas ningun mazo suyo: la pantalla de
-     * mazos es tambien donde se monta el primero, asi que cerrarla dejaria sin
-     * salida a quien empieza de cero.
-     *
-     * @param enabled false para un modo que de verdad no se pueda usar
+     * @param viewport el ancho del visor con desplazamiento (ver quien lo llama)
      */
-    private static Region tile(final String name, final String description,
-                               final String footnote, final boolean enabled,
-                               final Runnable action) {
+    private static void fitCards(final FlowPane modes, final double viewport) {
+        final double w = viewport - modes.getPadding().getLeft() - modes.getPadding().getRight();
+        if (w <= 0) {
+            return;
+        }
+        final double gap = modes.getHgap();
+        final int cols = (int) Math.max(1, Math.min(MAX_COLS, Math.floor((w + gap) / (UiScale.px(MIN_CARD) + gap))));
+        final double card = Math.min(UiScale.px(MAX_CARD), Math.floor((w - gap * (cols - 1)) / cols) - 1);
+        for (final javafx.scene.Node n : modes.getChildren()) {
+            if (n instanceof Region r && r.getStyleClass().contains("mode-card")) {
+                r.setPrefWidth(card);
+                r.setMaxWidth(card);
+            }
+        }
+    }
+
+    private static final double MIN_CARD = 330;
+    private static final double MAX_CARD = 480;
+    private static final int MAX_COLS = 4;
+
+    /** Lo alto que llega a ser el dibujo: con mas texto la tarjeta crece, el dibujo no. */
+    private static final double MAX_ART = 150;
+
+    /** El radio de las esquinas: el del recorte y el del borde, el MISMO. */
+    private static final double RADIUS = 12;
+
+    /**
+     * El fondo de la tarjeta si el CSS aun no lo ha puesto: el {@code -neo-panel}
+     * de siempre. Lo normal es leerlo de la propia tarjeta ({@link #panelOf}), y
+     * asi el velo sigue al token si alguien lo cambia.
+     */
+    private static final javafx.scene.paint.Color PANEL = javafx.scene.paint.Color.web("#1B212A");
+
+    /**
+     * <b>La tarjeta de un modo, como la de Android</b> (Discord, 09-10-2026:
+     * <i>"The android layout seems vivid while the PC one feels like an old
+     * version of the same program"</i>). Es la {@code TarjetaDeModo} de Android:
+     * un dibujo por modo ({@link ModeArt}) que sale por la derecha con el halo de
+     * sus colores detras, el texto a la izquierda sobre un velo que lo mantiene
+     * legible, un hilo de luz del color del modo en el canto de arriba y el borde
+     * del mismo color, que se enciende al pasar el raton.
+     *
+     * <p>Lo que se queda del PC, y es a proposito: la linea de debajo dice lo que
+     * hay DENTRO (cuantos mazos tienes, la run a medias, si las lecciones estan
+     * hechas), que vale mas que la etiqueta fija de Android; va del color del
+     * modo y con sus puntos de color delante.
+     *
+     * <p>El dibujo es un {@code Canvas} que se repinta al cambiar de tamanyo o de
+     * estado, no en cada fotograma: el menu no anima nada. En arabe la escena va
+     * de derecha a izquierda y el texto se va a la derecha; el lienzo NO se
+     * espeja solo, asi que {@link #paintCard} lo espeja.
+     */
+    private static Region modeCard(final ModeArt.Mode mode, final String name, final String description,
+                                   final String footnote, final boolean enabled, final Runnable action) {
         final Label title = new Label(name);
-        title.getStyleClass().add("mode-tile-name");
+        title.getStyleClass().add("mode-card-name");
+        // Que parta antes que cortarse con "...": un titulo largo en una
+        // tarjeta estrecha no tendria otra salida (principio 5).
+        title.setWrapText(true);
 
         final Label desc = new Label(description);
-        desc.getStyleClass().add("mode-tile-desc");
+        desc.getStyleClass().add("mode-card-desc");
         desc.setWrapText(true);
 
         final Label note = new Label(footnote);
-        note.getStyleClass().add("mode-tile-note");
-        // Con la letra mas grande, la nota larga del tutorial en aleman se
-        // cortaba con "..." en vez de bajar de linea.
+        note.getStyleClass().add("mode-card-note");
         note.setWrapText(true);
+        note.setStyle("-fx-text-fill: " + rgba(mode.tint(), 0.92) + ";");
 
-        final VBox box = new VBox(6, title, desc, note);
-        box.getStyleClass().add("mode-tile");
-        box.setAlignment(Pos.TOP_LEFT);
-        box.setPadding(new Insets(18, 20, 16, 20));
-        box.setPrefWidth(UiScale.px(270));
-        // 104 y no 140: el texto mas largo (Aventura, tres lineas y la nota)
-        // cabe de sobra, y con 140 las cuatro filas de casillas no entraban en
-        // una pantalla de 1080p (24-09-2026). Lo que importa es que todas midan
-        // lo mismo; si un idioma alarga una, esa crece sola.
-        box.setMinHeight(UiScale.px(104));
+        // Los puntos de sus colores: el modo se acaba reconociendo por su
+        // color, igual que un mazo.
+        final HBox dots = new HBox(UiScale.px(4));
+        for (final javafx.scene.paint.Color c : mode.colors()) {
+            dots.getChildren().add(new javafx.scene.shape.Circle(UiScale.px(4.5), enabled ? c
+                    : ModeArt.alpha(c, 0.4)));
+        }
+        dots.setAlignment(Pos.CENTER_LEFT);
+        dots.setMinWidth(Region.USE_PREF_SIZE);
+        final HBox foot = new HBox(UiScale.px(8), dots, note);
+        foot.setAlignment(Pos.CENTER_LEFT);
+
+        final Region gap = new Region();
+        VBox.setVgrow(gap, javafx.scene.layout.Priority.ALWAYS);
+        final VBox text = new VBox(UiScale.px(5), title, desc, gap, foot);
+        text.setAlignment(Pos.TOP_LEFT);
+
+        final javafx.scene.canvas.Canvas art = new javafx.scene.canvas.Canvas();
+        art.setManaged(false);
+        art.setMouseTransparent(true);
+
+        final javafx.scene.layout.StackPane box = new javafx.scene.layout.StackPane(art, text);
+        box.getStyleClass().add("mode-card");
+        javafx.scene.layout.StackPane.setAlignment(text, Pos.TOP_LEFT);
+        box.setPrefWidth(UiScale.px(MAX_CARD));
+        box.setMinHeight(UiScale.px(140));
+        final javafx.scene.shape.Rectangle clip = new javafx.scene.shape.Rectangle();
+        clip.setArcWidth(UiScale.px(RADIUS * 2));
+        clip.setArcHeight(UiScale.px(RADIUS * 2));
+        box.setClip(clip);
+
+        final Runnable paint = () -> {
+            final double w = box.getWidth();
+            final double h = box.getHeight();
+            art.setWidth(w);
+            art.setHeight(h);
+            clip.setWidth(w);
+            clip.setHeight(h);
+            // El hueco del dibujo sale de SU tamanyo, que no crece con el texto.
+            // Si saliera del alto de la tarjeta, una descripcion larga la haria
+            // mas alta, eso estrecharia el texto, saldrian mas lineas... y como
+            // el FlowPane iguala las filas, la de al lado tambien. Y nunca mas
+            // del 40% del ancho: lo que no quepa lo tapa el velo, no el titulo.
+            final double room = Math.min(artSize(h) * 0.66, w * 0.40);
+            text.setPadding(new Insets(UiScale.px(16), room, UiScale.px(14), UiScale.px(20)));
+            paintCard(art, mode, enabled, box.isHover() && enabled,
+                    box.getEffectiveNodeOrientation() == javafx.geometry.NodeOrientation.RIGHT_TO_LEFT,
+                    panelOf(box));
+        };
+        box.layoutBoundsProperty().addListener((o, a, b) -> paint.run());
+        box.hoverProperty().addListener((o, a, b) -> paint.run());
 
         if (enabled) {
             box.setOnMouseClicked(e -> action.run());
@@ -713,4 +820,95 @@ public class MainMenu extends BorderPane {
         }
         return box;
     }
+
+    private static double artSize(final double h) {
+        return Math.min(h, UiScale.px(MAX_ART));
+    }
+
+    /** El fondo que el CSS le ha puesto a la tarjeta ({@code -neo-panel}), o el de fabrica. */
+    private static javafx.scene.paint.Color panelOf(final Region r) {
+        final javafx.scene.layout.Background bg = r.getBackground();
+        if (bg != null && !bg.getFills().isEmpty()
+                && bg.getFills().get(0).getFill() instanceof javafx.scene.paint.Color c) {
+            return c;
+        }
+        return PANEL;
+    }
+
+    /**
+     * El fondo de una tarjeta: halos, dibujo, velo, el hilo de luz de arriba y
+     * el borde. El borde va AQUI y no en el CSS: un {@code Region} pinta su
+     * borde antes que sus hijos, y el lienzo (casi opaco bajo el texto) lo tapaba
+     * en tres cuartas partes de la tarjeta.
+     */
+    private static void paintCard(final javafx.scene.canvas.Canvas c, final ModeArt.Mode mode,
+                                  final boolean enabled, final boolean glow, final boolean rtl,
+                                  final javafx.scene.paint.Color panel) {
+        final javafx.scene.canvas.GraphicsContext g = c.getGraphicsContext2D();
+        final double w = c.getWidth();
+        final double h = c.getHeight();
+        g.clearRect(0, 0, w, h);
+        if (w <= 0 || h <= 0) {
+            return;
+        }
+        // En arabe el texto va a la derecha y el dibujo tiene que irse a la
+        // izquierda: el lienzo NO se espeja solo (se probo), asi que se espeja
+        // aqui, entero, como hace Android con su graphicsLayer.
+        g.save();
+        if (rtl) {
+            g.translate(w, 0);
+            g.scale(-1, 1);
+        }
+        final double f = enabled ? 1 : 0.35;
+        final double lit = glow ? 1 : 0;
+        final double a = artSize(h);
+        final double cx = w - a * 0.40;
+        final double cy = h * 0.52;
+        // Un halo por color, un poco desplazados: un modo de dos colores se ve
+        // de dos colores, y no de su mezcla (que suele ser barro).
+        final java.util.List<javafx.scene.paint.Color> colors = mode.colors();
+        final double radius = a * 0.95;
+        for (int i = 0; i < colors.size(); i++) {
+            final double dx = (i - (colors.size() - 1) / 2.0) * a * 0.35;
+            final javafx.scene.paint.Color col = colors.get(i);
+            g.setFill(new javafx.scene.paint.RadialGradient(0, 0, cx + dx, cy, radius, false,
+                    javafx.scene.paint.CycleMethod.NO_CYCLE,
+                    new javafx.scene.paint.Stop(0, ModeArt.alpha(col, (0.30 + 0.20 * lit) * f)),
+                    new javafx.scene.paint.Stop(1, ModeArt.alpha(col, 0))));
+            g.fillOval(cx + dx - radius, cy - radius, radius * 2, radius * 2);
+        }
+        ModeArt.draw(g, mode, cx, cy, a * 0.64, mode.ink().interpolate(javafx.scene.paint.Color.WHITE, 0.15),
+                panel, f);
+        // El velo del texto: de opaco a la izquierda a nada pasado el centro.
+        g.setFill(new javafx.scene.paint.LinearGradient(0, 0, w, 0, false,
+                javafx.scene.paint.CycleMethod.NO_CYCLE,
+                new javafx.scene.paint.Stop(0, ModeArt.alpha(panel, 0.92)),
+                new javafx.scene.paint.Stop(0.45, ModeArt.alpha(panel, 0.70)),
+                new javafx.scene.paint.Stop(0.75, ModeArt.alpha(panel, 0))));
+        g.fillRect(0, 0, w, h);
+        // La luz de arriba: un hilo del color del modo en el canto superior,
+        // que es lo que da a la tarjeta canto de objeto.
+        final javafx.scene.paint.Color tint = mode.tint();
+        g.setStroke(new javafx.scene.paint.LinearGradient(0, 0, w, 0, false,
+                javafx.scene.paint.CycleMethod.NO_CYCLE,
+                new javafx.scene.paint.Stop(0, ModeArt.alpha(tint, 0)),
+                new javafx.scene.paint.Stop(0.5, ModeArt.alpha(tint, 0.6 * f)),
+                new javafx.scene.paint.Stop(1, ModeArt.alpha(tint, 0))));
+        g.setLineWidth(1.5);
+        g.strokeLine(0, 0.75, w, 0.75);
+        g.restore();
+        // El borde, del color del modo; se enciende al pasar el raton. Con el
+        // mismo radio que el recorte, o en 2K la esquina salia mordida.
+        final double lw = UiScale.px(1.5);
+        final double arc = UiScale.px(RADIUS * 2) - lw;
+        g.setStroke(ModeArt.alpha(tint, !enabled ? 0.25 : glow ? 0.95 : 0.55));
+        g.setLineWidth(lw);
+        g.strokeRoundRect(lw / 2, lw / 2, w - lw, h - lw, arc, arc);
+    }
+
+    private static String rgba(final javafx.scene.paint.Color c, final double a) {
+        return String.format(java.util.Locale.ROOT, "rgba(%d,%d,%d,%.2f)", (int) Math.round(c.getRed() * 255),
+                (int) Math.round(c.getGreen() * 255), (int) Math.round(c.getBlue() * 255), a);
+    }
+
 }

@@ -832,6 +832,55 @@ public final class DeckRulesCheck {
         final DeckImporter.Result big = DeckImporter.importCommander(realSide, "prueba");
         check("Importar: un banquillo grande NO se toma por comandante",
                 big.deck != null && big.deck.getCommanders().isEmpty());
+
+        importAPrecon();
+    }
+
+    /**
+     * Un preconstruido de verdad (99 + comandante), pegado como lo exportan las
+     * webs (itch.io, 09-10-2026: <i>"why does it fail even when you import the
+     * precons?"</i>). El lector de Forge subia a la zona de mando otra carta del
+     * principal sin encabezado "Main", y contaba dos veces el comandante cuando
+     * va dentro de las cien y ademas en su seccion. Ver
+     * {@code DeckImporter.tidyCommandZone}.
+     */
+    private static void importAPrecon() {
+        Deck precon = null;
+        for (final Deck d : forge.model.FModel.getDecks().getCommanderPrecons()) {
+            if (d.getCommanders().size() == 1 && d.getMain().countAll() == 99) {
+                precon = d;
+                break;
+            }
+        }
+        if (precon == null) {
+            check("Importar un precon: hay alguno de un solo comandante", false);
+            return;
+        }
+        final String cmd = "1 " + precon.getCommanders().get(0).getName();
+        final StringBuilder sb = new StringBuilder();
+        for (final java.util.Map.Entry<forge.item.PaperCard, Integer> e : precon.getMain()) {
+            sb.append(e.getValue()).append(' ').append(e.getKey().getName()).append('\n');
+        }
+        final String main = sb.toString();
+        final String[][] ways = {
+            {"comandante en el bloque final", main + "\n" + cmd + "\n"},
+            {"comandante en la primera linea", cmd + "\n" + main},
+            {"Moxfield, comandante en SIDEBOARD", main + "\nSIDEBOARD:\n" + cmd + "\n"},
+            {"Arena, Commander y Deck", "Commander\n" + cmd + "\n\nDeck\n" + main},
+            {"el comandante dentro de las cien Y en su bloque", cmd + "\n" + main + "\n" + cmd + "\n"},
+            {"Moxfield con el comandante dentro de las cien", cmd + "\n" + main + "\nSIDEBOARD:\n" + cmd + "\n"},
+            {"Arena con el comandante tambien en Deck", "Commander\n" + cmd + "\n\nDeck\n" + cmd + "\n" + main},
+        };
+        final forge.deck.DeckFormat fmt = forge.deck.DeckFormat.Commander;
+        for (final String[] w : ways) {
+            final DeckImporter.Result r = DeckImporter.importCommander(w[1], "prueba");
+            final String problem = r.deck == null ? "sin mazo" : fmt.getDeckConformanceProblem(r.deck);
+            check("Importar un precon (" + w[0] + "): 99 + comandante y legal"
+                    + (problem == null ? "" : " -- " + problem
+                    + " (principal " + (r.deck == null ? -1 : r.deck.getMain().countAll())
+                    + ", mando " + (r.deck == null ? "-" : r.deck.getCommanders()) + ")"),
+                    problem == null && r.deck.getMain().countAll() == 99 && r.deck.getCommanders().size() == 1);
+        }
     }
 
     /**

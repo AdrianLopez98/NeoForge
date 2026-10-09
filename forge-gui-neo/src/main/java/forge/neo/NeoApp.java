@@ -3700,7 +3700,7 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                         // Planechase (08-10-2026), ENCIMA de los equipos: envuelve.
                         forge.neo.match.Planechase.wrap(format,
                                 forge.neo.match.NeoTeams.seating(format, lastTeams),
-                                NeoSettings.planechase()));
+                                NeoSettings.planechase(), NeoSettings.planechaseShared()));
                 if (r.exit != null) {
                     exit = r.exit;
                 }

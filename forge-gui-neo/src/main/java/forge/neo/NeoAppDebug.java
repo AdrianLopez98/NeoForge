@@ -1012,6 +1012,16 @@ final class NeoAppDebug {
             app.table.getOverlay().show(new forge.neo.ui.ChoiceDialog<CardView>(
                     "Looking at cards in Paige's library", views(pickCards(deck, asChoice)), -1, -1,
                     CardView::getName, 132, picked -> { }));
+            // -Dneo.zoom.ringTest=N: clic derecho a la carta N del dialogo y
+            // -Dneo.zoom.step pasos de rueda; dice que serie y que carta se ven.
+            final int ringAt = Integer.getInteger("neo.zoom.ringTest", -1);
+            if (ringAt >= 0) {
+                final javafx.animation.PauseTransition wait =
+                        new javafx.animation.PauseTransition(javafx.util.Duration.millis(1500));
+                wait.setOnFinished(e -> javafx.application.Platform.runLater(() ->
+                        app.table.zoomRingTest(ringAt, Integer.getInteger("neo.zoom.step", 0))));
+                wait.play();
+            }
             return;
         }
         app.table.showRevealed(rival, views(pickCards(deck, 4)));

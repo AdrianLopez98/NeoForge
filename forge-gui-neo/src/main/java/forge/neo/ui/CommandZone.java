@@ -35,6 +35,11 @@ import javafx.scene.layout.Pane;
  * "xN" ({@link CardStackNode}, la misma pieza que usa la mesa), lo que quede
  * <b>encoge</b> igual que la mesa cuando se llena, y solo si ya se ha tocado
  * el suelo de tamano se solapa.
+ *
+ * <p><b>Y si encoge, sube en filas.</b> Con las reliquias de Ascenso aqui caben
+ * doce o mas cartas distintas, y en una sola fila quedaban del tamanyo de un
+ * sello con todo el alto de la franja vacio encima (Discord, 09-10-2026: <i>"the
+ * space above the relics is not being used"</i>). Ver {@link #rowsFor}.
  */
 public class CommandZone extends Pane {
 
@@ -292,31 +297,70 @@ public class CommandZone extends Pane {
         // por debajo de la columna de la derecha (itch.io, 29-09-2026).
         final double span = getWidth() > 0 ? Math.min(preferredWidth(), getWidth() - 4)
                 : preferredWidth();
+        final int rows = rowsFor(n, span, h - CAPTION_ROOM - 4);
+        final int cols = Math.max(1, (n + rows - 1) / rows);
         double w = cardWidth;
         double step = w + GAP;
 
-        if (n > 1 && step * (n - 1) + w > span) {
-            w = Math.max(MIN_CARD_WIDTH, (span - GAP * (n - 1)) / n);
+        if (cols > 1 && step * (cols - 1) + w > span) {
+            w = Math.max(MIN_CARD_WIDTH, (span - GAP * (cols - 1)) / cols);
             step = w + GAP;
 
             // Y si ya se ha tocado el suelo de tamano, solaparse. Apelotonadas
             // pero dentro: irse de la zona es empujar la mano.
-            if (step * (n - 1) + w > span) {
-                step = Math.max(1, (span - w) / (n - 1));
+            if (step * (cols - 1) + w > span) {
+                step = Math.max(1, (span - w) / (cols - 1));
             }
         }
-
-        final double cardH = w * CardNode.ASPECT;
-        final double y = Math.max(0, h - cardH - 4);
-
-        double x = 0;
-        for (final CardStackNode pile : piles) {
-            pile.setCardWidth(w);
-            pile.relocate(x, y);
-            x += step;
+        if (rows > 1) {
+            // Con varias filas manda tambien el alto: que quepan todas.
+            w = Math.min(w, Math.max(MIN_CARD_WIDTH,
+                    ((h - CAPTION_ROOM - 4) - GAP * (rows - 1)) / rows / CardNode.ASPECT));
+            step = Math.min(w + GAP, step);
         }
 
-        caption.resizeRelocate(0, Math.max(0, y - 14), Math.max(40, span), 12);
-        tax.resizeRelocate(Math.max(0, w - 30), y - 2, 30, 16);
+        // Pegadas abajo, como la mano: la primera fila arriba (con el
+        // comandante el primero) y la ultima en el suelo de la franja.
+        final double cardH = w * CardNode.ASPECT;
+        final double top = Math.max(0, h - 4 - rows * cardH - (rows - 1) * GAP);
+
+        for (int i = 0; i < n; i++) {
+            final CardStackNode pile = piles.get(i);
+            pile.setCardWidth(w);
+            pile.relocate((i % cols) * step, top + (i / cols) * (cardH + GAP));
+        }
+
+        caption.resizeRelocate(0, Math.max(0, top - 14), Math.max(40, span), 12);
+        tax.resizeRelocate(Math.max(0, w - 30), top - 2, 30, 16);
+    }
+
+    /** Lo que ocupa el rotulo "CMD" encima de las cartas. */
+    private static final double CAPTION_ROOM = 14;
+
+    /**
+     * En cuantas filas van {@code n} cartas: las que dejen la carta MAS GRANDE
+     * dentro de {@code span} de ancho y {@code height} de alto.
+     *
+     * <p>Una fila se queda como siempre (sin mirar el alto: el comandante solo
+     * tiene que salir igual que antes); las demas solo ganan si de verdad dan
+     * una carta mas grande. Con una, dos o tres cartas nunca: caben enteras.
+     */
+    private int rowsFor(final int n, final double span, final double height) {
+        if (n <= MAX_COLUMNS || span <= 0 || height <= 0) {
+            return 1;
+        }
+        int best = 1;
+        double bestW = Math.min(cardWidth, (span - GAP * (n - 1)) / n);
+        for (int rows = 2; rows <= n; rows++) {
+            final int cols = (n + rows - 1) / rows;
+            final double byWidth = (span - GAP * (cols - 1)) / cols;
+            final double byHeight = (height - GAP * (rows - 1)) / rows / CardNode.ASPECT;
+            final double w = Math.min(cardWidth, Math.min(byWidth, byHeight));
+            if (w > bestW + 0.5) {
+                best = rows;
+                bestW = w;
+            }
+        }
+        return best;
     }
 }

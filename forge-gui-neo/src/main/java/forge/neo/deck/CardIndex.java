@@ -97,6 +97,11 @@ final class CardIndex {
      * <p>Se construye tarde a proposito: arrancar una partida no tiene por que
      * pagar el coste de preparar el deck builder.
      */
+    /** Se tira: la impresion por defecto de las cartas ha cambiado (ver CardLibrary.invalidate). */
+    static synchronized void invalidate() {
+        instance = null;
+    }
+
     static synchronized CardIndex get() {
         if (instance == null) {
             instance = new CardIndex(

@@ -1010,8 +1010,12 @@
     -fx-background-color: -neo-panel-hi;
 }
 
-/* El "×6" de los disparos iguales juntos (StackGroups, Discord 08-10-2026). */
-.stack-count {
+/* El "×6" de los disparos iguales juntos (StackGroups, Discord 08-10-2026).
+   NO se llama .stack-count: esa es la del "x3" de las pilas de la mesa, y al
+   compartir nombre esta regla (que va despues) le ganaba el relleno y el fondo.
+   Aquella mide su ancho para el numero justo: con 12 px de relleno salia "..."
+   hasta en un x2 (Discord, 09-10-2026). */
+.stack-group-count {
     -fx-font-size: 0.72em;
     -fx-font-weight: bold;
     -fx-text-fill: -neo-text;
@@ -1860,6 +1864,38 @@
 .mode-tile:hover {
     -fx-background-color: -neo-panel-hi;
     -fx-border-color: -neo-accent;
+}
+
+/* La tarjeta de un modo en el menu, como la de Android (Discord, 09-10-2026:
+   "the PC one feels like an old version of the same program"). Los halos, el
+   dibujo, la luz y el BORDE (del color del modo) los pinta MainMenu.paintCard
+   encima de este fondo: un borde de CSS quedaba debajo del lienzo. El velo del
+   texto lee este mismo color, asi que sigue al token. */
+.mode-card {
+    -fx-background-color: -neo-panel;
+    -fx-background-radius: 12;
+    -fx-cursor: hand;
+}
+
+.mode-card:disabled {
+    -fx-opacity: 0.6;
+    -fx-cursor: default;
+}
+
+.mode-card-name {
+    -fx-font-size: 1.55em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -neo-text;
+}
+
+.mode-card-desc {
+    -fx-font-size: 1.0em;
+    -fx-text-fill: -neo-text-dim;
+}
+
+.mode-card-note {
+    -fx-font-size: 0.9em;
+    -fx-font-weight: bold;
 }
 
 /* Un formato del que no tienes mazos se ve, pero no se entra. */

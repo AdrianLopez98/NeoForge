@@ -1,12 +1,12 @@
-**NeoForge para macOS 1.0.17 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.18 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Planechase:** un interruptor «Variante · Planechase» junto a los rivales. Cada jugador lleva un mazo planar al azar, el plano activo sale junto a las fases y el dado planar está en tu zona de mando.
-- **Disparos iguales:** seis disparos iguales seguidos salen en una sola fila con «×6», y con dos o más cosas en el stack aparece **Resolverlo todo**, que pasa la prioridad hasta vaciarlo (se para si un rival lanza algo).
-- **Proliferar a cuatro:** la pestaña del rival con algo que puedes elegir se ilumina, y la pregunta explica qué vale y qué hace el botón «Mío / Todo».
-- **Pilas con varios rivales** (Curator of Destinies, Fact or Fiction…): ahora pregunta «¿Qué jugador decide?» con un botón por jugador.
-- **Ascenso:** una expansión al azar, recordar tus artes favoritos para las próximas runs, lo que quitas ya no vuelve a salir y cada premio trae al menos una carta libre.
-- **Guardar una copia de un mazo**, las básicas de tus Landscape Sketchbooks en la Aventura, rivales al azar de la lista que elijas, «Nombra una carta» en tu idioma, y los enlaces avisan de que se han abierto.
+- **Un menú más vivo:** las casillas de los modos son como las de Android, con su dibujo, el brillo de sus colores y un borde que se enciende al pasar el ratón.
+- **Quest:** comprar varios sobres de una vez (hasta 24) y, al abrir, «Otro sobre» justo al lado de volver.
+- **Planechase con un mazo para todos:** un solo mazo planar sin repetir del que salen los planos de todos, como lo juega mucha gente.
+- **Ascenso:** buscar comandante por tipo, habilidad o expansión («lifelink vampire», «dmu legendary»), y las cartas de un evento centradas y sin cortarse al ampliarlas.
+- **En partida:** al ampliar una carta de un diálogo (buscar en tu biblioteca…), la rueda y las flechas pasan a la siguiente; y la zona de mando con muchas reliquias sube en filas.
+- **Arreglos:** el «arte preferido» de Ajustes se cumple de verdad, importar un preconstruido de Commander ya no dice «no more than 99 cards», las pilas de la mesa vuelven a decir «x3» en vez de «...», y una carta ya no enseña un arte y otro distinto al ampliarla.
 
 Descarga el `.dmg` de tu Mac:
 

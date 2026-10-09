@@ -190,6 +190,23 @@ public final class NeoSettings {
         return getBool(PLANECHASE, false);
     }
 
+    /**
+     * Planechase con <b>un solo mazo planar para todos</b> (Discord, 09-10-2026:
+     * <i>"The adventuring feeling of the Singleton shared deck is part of the
+     * fun"</i>). Apagado de fabrica: lo de las reglas es un mazo por jugador.
+     * {@code -Dneo.planechase.shared=true} lo fuerza. Ver
+     * {@code forge.neo.match.Planechase.Shared}.
+     */
+    public static final String PLANECHASE_SHARED = "planechaseShared";
+
+    public static boolean planechaseShared() {
+        final String forced = System.getProperty("neo.planechase.shared");
+        if (forced != null && !forced.isEmpty()) {
+            return Boolean.parseBoolean(forced);
+        }
+        return getBool(PLANECHASE_SHARED, false);
+    }
+
     public static boolean handFan() {
         final String forced = System.getProperty("neo.handFan");
         if (forced != null && !forced.isEmpty()) {
@@ -1087,6 +1104,15 @@ public final class NeoSettings {
         final boolean latest = getBool(CARD_ART_LATEST, CARD_ART_LATEST_DEFAULT);
         final boolean coreOnly = getBool(CARD_ART_CORE_ONLY, CARD_ART_CORE_ONLY_DEFAULT);
         FModel.getMagicDb().setCardArtPreference(latest, coreOnly);
+        // Y que se note: el motor guarda la politica pero no recalcula la
+        // impresion por defecto de cada carta, que es la del catalogo, la
+        // enciclopedia y Ascenso (Discord, 09-10-2026). Ver UniquePrints.
+        final long t0 = System.currentTimeMillis();
+        final int changed = forge.neo.card.UniquePrints.rebuild();
+        forge.neo.deck.CardLibrary.invalidate();
+        System.out.printf("[arte] politica %s%s: %d cartas a su impresion normal (%d ms)%n",
+                latest ? "mas reciente" : "original", coreOnly ? ", solo expansiones normales" : "",
+                changed, System.currentTimeMillis() - t0);
         // UI_RANDOM_ART_IN_POOLS si es una preferencia de Forge de verdad
         // (Quest y el generador de pools sellados la leen sola de
         // FModel.getPreferences() cada vez), asi que basta con escribirla.

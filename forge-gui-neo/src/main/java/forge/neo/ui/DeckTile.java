@@ -65,7 +65,7 @@ public final class DeckTile extends VBox {
         name.setTextAlignment(TextAlignment.CENTER);
 
         final Label sub = new Label(face == null
-                ? NeoText.get("count.cards", deck.getMain().countAll())
+                ? NeoText.get("count.cards", totalCards(deck))
                 : CardText.nameOf(face));
         sub.getStyleClass().add("deck-tile-sub");
         sub.setWrapText(true);
@@ -74,6 +74,21 @@ public final class DeckTile extends VBox {
         sub.setTextAlignment(TextAlignment.CENTER);
 
         getChildren().addAll(new StackPane(cover), name, sub);
+    }
+
+    /**
+     * Las cartas del mazo ENTERO: el principal mas la zona de mando. En
+     * Commander son 100, que es como las cuenta el jugador; "99 cartas" parecia
+     * un mazo al que le faltaba una (itch.io, 09-10-2026). El editor si dice
+     * "99 + comandante", que es donde se monta.
+     */
+    static int totalCards(final forge.deck.Deck deck) {
+        if (deck == null) {
+            return 0;
+        }
+        final int main = deck.getMain().countAll();
+        return deck.has(forge.deck.DeckSection.Commander)
+                ? main + deck.get(forge.deck.DeckSection.Commander).countAll() : main;
     }
 
     /** La papelera de este mazo, si lo suyo es que se pueda borrar. */

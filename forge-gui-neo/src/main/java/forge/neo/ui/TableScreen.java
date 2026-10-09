@@ -170,6 +170,9 @@ public class TableScreen extends Pane {
      */
     private final Overlay zoomOverlay = new Overlay();
 
+    /** Cuando se paso de carta con la rueda: un giro del trackpad son decenas de avisos. */
+    private long lastZoomStep;
+
     /**
      * <b>La cortina del hot seat</b>: varias personas en el mismo aparato, y al
      * pasar el turno de decidir a otra se tapa la mesa entera hasta que esa
@@ -505,6 +508,37 @@ public class TableScreen extends Pane {
             }
             e.consume();
             hideZoom();
+        });
+        // Con serie (una carta de un dialogo o un visor de zona), la rueda y
+        // las flechas pasan a la de al lado. Ver showZoom(List, int).
+        zoomOverlay.addEventFilter(javafx.scene.input.ScrollEvent.SCROLL, e -> {
+            if (zoomRing.size() <= 1 || e.getDeltaY() == 0) {
+                return;
+            }
+            e.consume();
+            final long now = System.currentTimeMillis();
+            if (now - lastZoomStep < 90) {
+                return;
+            }
+            lastZoomStep = now;
+            stepZoom(e.getDeltaY() < 0 ? 1 : -1);
+        });
+        addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, e -> {
+            if (!zoomOverlay.isShowing() || zoomRing.size() <= 1) {
+                return;
+            }
+            switch (e.getCode()) {
+                case RIGHT, DOWN -> {
+                    e.consume();
+                    stepZoom(1);
+                }
+                case LEFT, UP -> {
+                    e.consume();
+                    stepZoom(-1);
+                }
+                default -> {
+                }
+            }
         });
 
         combatOverlay.setLocator(this::boundsOf);
@@ -2244,7 +2278,11 @@ public class TableScreen extends Pane {
      */
     private static Label countBadge(final int count) {
         final Label badge = new Label("×" + count);
-        badge.getStyleClass().add("stack-count");
+        // Clase PROPIA, no "stack-count": esa es la del "x3" de las pilas de la
+        // mesa, y compartirla le metio a aquella este relleno y este fondo; su
+        // ancho esta medido para el numero justo, asi que salia "..." hasta en
+        // un x2 (Discord, 09-10-2026).
+        badge.getStyleClass().add("stack-group-count");
         badge.setMinWidth(Region.USE_PREF_SIZE);
         return badge;
     }
@@ -3092,6 +3130,99 @@ public class TableScreen extends Pane {
     }
 
     public void showZoom(final CardView card) {
+        zoomRing = List.of();
+        renderZoom(card);
+    }
+
+    /**
+     * Ampliar una carta <b>dentro de su lista</b>: la rueda y las flechas pasan
+     * a la de al lado, como en el resto de pantallas ({@code CardZoom.show}
+     * con serie). La pide el clic derecho de la mesa.
+     *
+     * @param ring  las cartas de ese dialogo o visor, en el orden en que se ven
+     * @param index la que se ensenya primero
+     */
+    public void showZoom(final List<CardView> ring, final int index) {
+        if (ring == null || ring.isEmpty()) {
+            return;
+        }
+        if (ring.size() == 1 || index < 0 || index >= ring.size()) {
+            showZoom(ring.get(Math.max(0, Math.min(index, ring.size() - 1))));
+            return;
+        }
+        zoomRing = new ArrayList<>(ring);
+        zoomIndex = index;
+        renderZoom(zoomRing.get(index));
+        // Las flechas llegan a la mesa solo si el foco esta dentro de ella.
+        zoomOverlay.requestFocus();
+    }
+
+    /** Pasa a la siguiente (+1) o la anterior (-1) de la serie. Sin dar la vuelta. */
+    private void stepZoom(final int delta) {
+        final int next = zoomIndex + delta;
+        if (zoomRing.size() <= 1 || next < 0 || next >= zoomRing.size()) {
+            return;
+        }
+        zoomIndex = next;
+        renderZoom(zoomRing.get(next));
+    }
+
+    /**
+     * Solo pruebas ({@code -Dneo.zoom.ringTest}): un clic derecho de verdad a la
+     * carta {@code index} del dialogo de encima, {@code steps} pasos, y dice
+     * que serie y que carta se ven.
+     */
+    public void zoomRingTest(final int index, final int steps) {
+        final List<CardNode> nodes = new ArrayList<>();
+        CardZoom.collectCardNodes(overlay, nodes);
+        if (index >= nodes.size()) {
+            System.out.println("[zoom] el dialogo no tiene carta " + index + " (tiene " + nodes.size() + ")");
+            return;
+        }
+        final CardNode n = nodes.get(index);
+        final javafx.geometry.Point2D p = n.localToScene(n.getWidth() / 2, n.getHeight() / 2);
+        n.fireEvent(new MouseEvent(MouseEvent.MOUSE_PRESSED, p.getX(), p.getY(), p.getX(), p.getY(),
+                javafx.scene.input.MouseButton.SECONDARY, 1, false, false, false, false,
+                false, false, true, true, false, true, null));
+        // Con flechas de verdad, para que pase por el filtro de teclado.
+        for (int i = 0; i < Math.abs(steps); i++) {
+            zoomOverlay.fireEvent(new javafx.scene.input.KeyEvent(javafx.scene.input.KeyEvent.KEY_PRESSED,
+                    "", "", steps > 0 ? javafx.scene.input.KeyCode.RIGHT : javafx.scene.input.KeyCode.LEFT,
+                    false, false, false, false));
+        }
+        System.out.println("[zoom] ampliada: " + zoomOverlay.isShowing() + " | serie " + zoomRing.size()
+                + " | se ve la " + (zoomRing.isEmpty() ? 0 : zoomIndex + 1)
+                + (zoomRing.isEmpty() ? "" : " (" + zoomRing.get(zoomIndex).getName() + ")"));
+    }
+
+    /** Solo pruebas: cuantas cartas tiene la serie de la ampliada, y cual se ve (0 si va sola). */
+    public int[] zoomRingState() {
+        return new int[] {zoomRing.size(), zoomIndex};
+    }
+
+    /**
+     * Las cartas de la misma lista que {@code node}, dentro de su capa: el
+     * {@code ScrollPane} que la contiene, o la capa entera. NO la pantalla: eso
+     * meteria en la serie las cartas de la mesa que hay debajo.
+     */
+    private static List<CardNode> ringOf(final CardNode node, final Node layer) {
+        Node container = layer;
+        for (Node n = node.getParent(); n != null && n != layer; n = n.getParent()) {
+            if (n instanceof javafx.scene.control.ScrollPane sp && sp.getContent() != null) {
+                container = sp.getContent();
+                break;
+            }
+        }
+        final List<CardNode> out = new ArrayList<>();
+        CardZoom.collectCardNodes(container, out);
+        return out;
+    }
+
+    /** La serie de la carta ampliada (vacia si va sola) y cual se ve. */
+    private List<CardView> zoomRing = List.of();
+    private int zoomIndex;
+
+    private void renderZoom(final CardView card) {
         if (card == null) {
             return;
         }
@@ -3110,7 +3241,8 @@ public class TableScreen extends Pane {
         final String equip = equipLabel == null ? null : equipLabel.apply(card);
         // Con rotulo o boton debajo, la carta se encoge un pelin: a pantalla
         // completa ocupa el 86% del alto y lo de abajo se salia.
-        final boolean below = paused || equip != null;
+        final boolean browsing = zoomRing.size() > 1;
+        final boolean below = paused || equip != null || browsing;
         final Region big = CardZoom.compose(card, zoomCardWidth() * (below ? (equip != null ? 0.9 : 0.95) : 1),
                 Math.max(getWidth(), 640), this::hideZoom);
         if (below) {
@@ -3128,6 +3260,14 @@ public class TableScreen extends Pane {
                 });
                 box.getChildren().add(b);
             }
+            if (browsing) {
+                // "3 / 7 · rueda o flechas para la siguiente": el mismo aviso
+                // que el resto de pantallas (CardZoom.Layer.showCurrent).
+                final Label where = new Label(NeoText.get("zoom.browse", zoomIndex + 1, zoomRing.size()));
+                where.getStyleClass().add("zoom-browse-hint");
+                where.setMouseTransparent(true);
+                box.getChildren().add(where);
+            }
             if (paused) {
                 final Label note = new Label(NeoText.get("zoom.paused"));
                 note.getStyleClass().add("zoom-browse-hint");
@@ -3144,6 +3284,7 @@ public class TableScreen extends Pane {
     }
 
     public void hideZoom() {
+        zoomRing = List.of();
         zoomOverlay.hide();
     }
 
@@ -3721,7 +3862,25 @@ public class TableScreen extends Pane {
                     card = detail.getCurrent();
                 }
                 if (card != null) {
-                    showZoom(card);
+                    // En un dialogo o un visor de zona, la carta se amplia
+                    // DENTRO de su lista, y la rueda o las flechas pasan a la
+                    // siguiente (Discord, 08-10-2026: "add the arrows that let
+                    // us look at the next card ... when searching a deck for
+                    // multiple cards"). Las de la mesa, solas, como siempre.
+                    final Node layer = zoomed == null ? null
+                            : isInside(zoomed, overlay) ? overlay
+                            : isInside(zoomed, menuOverlay) ? menuOverlay : null;
+                    final List<CardNode> ring = layer == null ? List.of() : ringOf(zoomed, layer);
+                    final int at = ring.indexOf(zoomed);
+                    if (ring.size() > 1 && at >= 0) {
+                        final List<CardView> cards = new ArrayList<>(ring.size());
+                        for (final CardNode n : ring) {
+                            cards.add(n.getCard());
+                        }
+                        showZoom(cards, at);
+                    } else {
+                        showZoom(card);
+                    }
                 } else if (zoomOverlay.isShowing()) {
                     hideZoom();
                 }

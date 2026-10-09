@@ -33,6 +33,12 @@ import forge.player.PlayerControllerHuman;
  *   <li>y que <b>clicarlo como se clica en la mesa</b> ({@code selectCard} desde
  *       el hilo de interfaz) tira el dado de verdad.</li>
  * </ul>
+ *
+ * <p>Y antes, sin partida, el reparto del mazo unico ({@link Planechase.Shared}):
+ * del tamanyo de las reglas, sin repetir y repartido a partes iguales. Con
+ * {@code -Dneo.planechase.shared=true} la partida se juega ademas con el, y en
+ * vez de "es tu mazo planar" se mira que tu parte y la del rival no compartan
+ * ningun plano.
  */
 public final class PlanechaseCheck {
 
@@ -42,9 +48,13 @@ public final class PlanechaseCheck {
     private static int passed;
     private static int failed;
 
+    /** La partida, con un solo mazo planar para todos. */
+    private static final boolean SHARED = Boolean.getBoolean("neo.planechase.shared");
+
     public static void run() {
         passed = 0;
         failed = 0;
+        sharedDeal();
         final List<String> notes = new ArrayList<>();
         final AtomicBoolean done = new AtomicBoolean();
         final AtomicBoolean reached = new AtomicBoolean();
@@ -59,7 +69,7 @@ public final class PlanechaseCheck {
         try {
             NeoGame.play(withPlanes(deck("Prueba planechase")), 1, NeoMatchUI.Mode.AUTO_PLAY, 40, false, null, null, true,
                     NeoFormat.STANDARD, List.of(deck("Prueba rival")), 1,
-                    Planechase.wrap(NeoFormat.STANDARD, null, true));
+                    Planechase.wrap(NeoFormat.STANDARD, null, true, SHARED));
         } finally {
             NeoGame.onUiForTest = null;
             done.set(true);
@@ -132,11 +142,29 @@ public final class PlanechaseCheck {
             // El tuyo, el de la seccion de planos del mazo (como el lobby de
             // Forge), y no uno al azar: las del mazo planar y la que este
             // activa si es tuya, todas de las diez que lleva.
+            if (SHARED) {
+                // Un mazo para todos: tu parte y la del rival no comparten
+                // ningun plano (contando los que esten ya en juego).
+                final java.util.Set<String> mineNames = new java.util.HashSet<>();
+                for (final Card c : me.getZone(ZoneType.PlanarDeck)) {
+                    mineNames.add(c.getName());
+                }
+                boolean apart = true;
+                for (final Player p : g.getPlayers()) {
+                    if (p != me) {
+                        for (final Card c : p.getZone(ZoneType.PlanarDeck)) {
+                            apart &= !mineNames.contains(c.getName());
+                        }
+                    }
+                }
+                check(apart, "un mazo para todos: tu parte y la del rival no repiten ningun plano");
+            } else {
             boolean mine = deck <= MY_PLANES.size();
             for (final Card c : me.getZone(ZoneType.PlanarDeck)) {
                 mine &= MY_PLANES.contains(c.getName());
             }
             check(mine, "es el mazo planar que trae tu mazo, no uno al azar");
+            }
 
             Card dice = null;
             for (final Card c : me.getCardsIn(ZoneType.Command)) {
@@ -171,6 +199,39 @@ public final class PlanechaseCheck {
             done.set(true);
             ui.nudgeAutoPlay();
         }
+    }
+
+    /** El reparto del mazo unico, sin partida: tamanyo, sin repetir y a partes iguales. */
+    private static void sharedDeal() {
+        for (final int seats : new int[] {2, 4, 6}) {
+            final Planechase.Shared s = new Planechase.Shared(seats, null);
+            final java.util.Set<String> names = new java.util.HashSet<>();
+            int min = Integer.MAX_VALUE;
+            int max = 0;
+            int phenomena = 0;
+            for (final List<forge.item.PaperCard> pile : s.piles()) {
+                min = Math.min(min, pile.size());
+                max = Math.max(max, pile.size());
+                for (final forge.item.PaperCard c : pile) {
+                    names.add(c.getName());
+                    if (c.getRules().getType().isPhenomenon()) {
+                        phenomena++;
+                    }
+                }
+            }
+            final int want = Planechase.communalSize(seats);
+            check(s.size() >= Math.min(want, 40) && names.size() == s.size() && max - min <= 1,
+                    "un mazo para todos con " + seats + " asientos: " + s.size() + " cartas, ninguna repetida, "
+                            + "partes de " + min + "-" + max + ", " + phenomena + " fenomenos");
+        }
+        // Tu seccion de planos, si da para todos (10 por jugador o 40), es el mazo comun.
+        final Deck mine = withPlanes(deck("Prueba unico"));
+        final Planechase.Shared one = new Planechase.Shared(1, mine);
+        boolean fromMine = one.size() == MY_PLANES.size();
+        for (final forge.item.PaperCard c : one.piles().get(0)) {
+            fromMine &= MY_PLANES.contains(c.getName());
+        }
+        check(fromMine, "con tu seccion de planos (y tamanyo de sobra) el mazo comun es el tuyo");
     }
 
     /** Diez planos (ningun fenomeno): el mazo planar que trae el mazo de prueba. */
