@@ -53,7 +53,13 @@ public class AscentRelicsScreen extends StackPane {
         final double width = cardWidth * 1.3;
         final FlowPane grid = new FlowPane(22, 18);
         grid.setAlignment(Pos.TOP_CENTER);
-        grid.setPadding(new Insets(6, 0, 12, 0));
+        // El sitio de la carta con el raton encima, que crece y sube: sin el,
+        // el visor le cortaba la cabeza (el nombre) a la primera fila y el
+        // borde a la de la izquierda (Discord, 10-10-2026, con 16 reliquias).
+        // Lo mismo que el visor de zonas y CardFit.
+        final Insets room = CardNode.hoverRoomFor(width);
+        grid.setPadding(new Insets(Math.max(6, room.getTop()), room.getRight(),
+                Math.max(12, room.getBottom()), room.getLeft()));
         for (final AscentRelic relic : relics) {
             grid.getChildren().add(cell(relic, width));
         }
@@ -99,6 +105,10 @@ public class AscentRelicsScreen extends StackPane {
             node.setRotationEnabled(false);
             node.setCard(CardView.getCardForUi(card));
             cell.getChildren().add(node);
+            // La carta ampliada se pinta por encima de las de al lado: dentro
+            // de su celda ya va delante, pero la celda de la derecha y las de
+            // la fila de abajo se pintan despues y le tapaban el borde.
+            node.hoverProperty().addListener((o, was, is) -> cell.setViewOrder(is ? -1 : 0));
         }
         final Label name = new Label(relic.getCardName());
         name.getStyleClass().add("ascent-info-title");

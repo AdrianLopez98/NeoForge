@@ -197,7 +197,28 @@ public final class CardHaul {
                 Anim.dealIn(node, i, columns, true);
                 i++;
             }
-            box.getChildren().add(grid);
+            // Si no cabe, en un visor. El suelo de minCard (que las cartas se
+            // lean) gana al ajuste, y con 24 cartas en 7x4 la rejilla pasaba
+            // del alto de la ventana: el titulo y el boton de "Hecho" se
+            // quedaban fuera de la pantalla, sin forma de llegar (principio 5).
+            // Pasaba con los preconstruidos de 60 y con los mazos de Commander
+            // de 100 (10-10-2026).
+            // Se mide igual que en cardWidthFor: si el ajuste ha mandado, cabe
+            // por construccion y no hay visor; solo lo hay si gano el suelo.
+            final int rows = (int) Math.ceil(shown.size() / (double) columns);
+            final double gridH = rows * (w * CardNode.ASPECT + 26);
+            final double room = Math.max(240, availH - chromeH(notes != null && !notes.isEmpty()));
+            if (gridH > room + 1) {
+                final ScrollPane sp = new ScrollPane(grid);
+                sp.getStyleClass().add("dialog-scroll");
+                sp.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+                sp.setFitToWidth(true);
+                sp.setPrefViewportWidth(columns * w + (columns - 1) * grid.getHgap() + 12);
+                sp.setPrefViewportHeight(room);
+                box.getChildren().add(sp);
+            } else {
+                box.getChildren().add(grid);
+            }
         }
 
         // ---- el pie ----
@@ -266,14 +287,18 @@ public final class CardHaul {
         return (int) Math.ceil(Math.sqrt(count * 1.6));
     }
 
+    /** Lo que ocupa todo lo que no son las cartas: titulo, lineas del motor, pie. */
+    private static double chromeH(final boolean hasNotes) {
+        return hasNotes ? 300 : 230;
+    }
+
     /** El ancho de carta, medido contra el hueco de verdad. */
     private static double cardWidthFor(final int count, final int columns, final double minCard,
                                        final double availW, final double availH,
                                        final boolean hasNotes) {
         final int rows = (int) Math.ceil(count / (double) columns);
-        final double chromeH = hasNotes ? 300 : 230;
         final double w = Math.max(400, availW - 200) / columns - 12;
-        final double h = Math.max(240, availH - chromeH) / rows - 26;
+        final double h = Math.max(240, availH - chromeH(hasNotes)) / rows - 26;
         // Un maximo por arriba: con tres cartas no tiene sentido que ocupen
         // media pantalla cada una.
         return Math.max(minCard * 0.8,

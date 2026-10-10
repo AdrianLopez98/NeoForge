@@ -494,6 +494,8 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                         NeoGame.setDevOppRelics(2);
                     }
                 }
+                // Y las TUYAS, por nombre: para ver sus disparos dejarse pasar.
+                NeoGame.setDevMyRelics(optionOf(args, "--rig-my-relics"));
                 final String rigSpeed = optionOf(args, "--speed");
                 if (rigSpeed != null) {
                     NeoGame.setDevSpeed(Integer.parseInt(rigSpeed));
@@ -974,7 +976,20 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                             List.of("Standoff — It gains double strike until end of turn.",
                                     "Ghost — It can't be blocked this turn."),
                             1, 1, s -> s, 132, picked -> table.getOverlay().hide());
-                    dialog.setContext(new forge.neo.ui.TriggerSubjectRow(entries, 132 * 0.7));
+                    // -Dneo.subject.detail="Damaged: Lisian, Amount: 4": la linea
+                    // del disparo encima de las cartas, como la monta
+                    // NeoMatchUI.askChoice (Parapet Thrasher, 09-10-2026).
+                    final String detail = System.getProperty("neo.subject.detail");
+                    final forge.neo.ui.TriggerSubjectRow row = new forge.neo.ui.TriggerSubjectRow(entries, 132 * 0.7);
+                    if (detail != null) {
+                        final javafx.scene.control.Label line = new javafx.scene.control.Label(detail);
+                        line.getStyleClass().add("dialog-note");
+                        line.setWrapText(true);
+                        line.setMaxWidth(forge.neo.ui.UiScale.px(760));
+                        dialog.setContext(new javafx.scene.layout.VBox(forge.neo.ui.UiScale.px(8), line, row));
+                    } else {
+                        dialog.setContext(row);
+                    }
                     table.getOverlay().show(dialog);
                     table.requestLayout();
                 }
@@ -993,10 +1008,14 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                     final forge.neo.match.NeoMatchUI.Ending ending =
                             forge.neo.match.NeoMatchUI.Ending.valueOf(
                                     System.getProperty("neo.over.ending", "NORMAL"));
-                    table.getOverlay().show(new forge.neo.ui.GameOverScreen(
+                    final forge.neo.ui.GameOverScreen over = new forge.neo.ui.GameOverScreen(
                             !lost, "Wak'dern", 14, ending,
                             !bo3, bo3 ? 1 : 0, bo3 ? 3 : 0,
-                            d -> table.getOverlay().hide()));
+                            d -> table.getOverlay().hide());
+                    // Los mismos que en una partida (NeoMatchUI.lookButtons); en
+                    // la maqueta no hay registro que abrir.
+                    over.addLookButtons(() -> { }, () -> table.getOverlay().setPeeking(true));
+                    table.getOverlay().show(over);
                 }
                 if (args.contains("--mock-foil") || optionOf(args, "--mock-foil") != null) {
                     debug.mockFoil(args);
@@ -1168,6 +1187,9 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 }
                 tournament.showTournamentRun(t);
             }
+        } else if (args.contains("--quest-prefs")) {
+            questApp.questDemo(args.contains("--estandar"), false);
+            questApp.showQuestPrefs();
         } else if (args.contains("--quest-bazaar")) {
             questApp.questDemo(args.contains("--estandar"), false);
             questApp.showQuestBazaar();
@@ -1815,6 +1837,27 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             debug.hoverTest();
         }
 
+        // La moneda (CoinFlip) sobre la mesa que haya, sin esperar a que el
+        // motor lance una: -Dneo.coin.testAt=N cuando (ms), -Dneo.coin.heads=false
+        // para la cruz. Para capturarla ya caida, el --wait un segundo despues.
+        if (args.contains("--coin-test")) {
+            final PauseTransition t = new PauseTransition(Duration.millis(
+                    Long.getLong("neo.coin.testAt", 1500L)));
+            t.setOnFinished(e -> {
+                if (table == null) {
+                    System.out.println("[moneda] no hay mesa");
+                    return;
+                }
+                final boolean heads = !"false".equals(System.getProperty("neo.coin.heads"));
+                final forge.util.Localizer words = forge.util.Localizer.getInstance();
+                table.flipCoin(heads, heads ? words.getMessage("lblYouHaveWonTheCoinToss", "Ana")
+                                : words.getMessage("lblPlayerFlippedCoin", "IA-1", words.getMessage("lblTails")),
+                        words.getMessage("lblHeads"), words.getMessage("lblTails"),
+                        () -> System.out.println("[moneda] ha caido: " + (heads ? "cara" : "cruz")));
+            });
+            t.play();
+        }
+
         if (args.contains("--zoom-test")) {
             final PauseTransition t = new PauseTransition(Duration.millis(
                     Long.getLong("neo.zoom.testAt", 1500L)));
@@ -2085,9 +2128,15 @@ public class NeoApp extends Application implements SettingsPanel.Host {
         // lo que ofrece el motor, lo que se VE marcado en la mesa y lo que
         // dicen las pestanyas; luego se eligen todas y se mira que crezcan.
         // -Dneo.prolif.stop=select se para en la eleccion, para capturarla.
+        // -Dneo.prolif.pick=player (Discord, 10-10-2026, Contagion Clasp): los
+        // rivales llevan ademas un veneno, y se elige SOLO al primero, como al
+        // clicar su retrato. Ni "Elegidas 0" ni el aviso de no haber elegido
+        // nada: tiene que resolverse con ese rival a 2 venenos.
         if (args.contains("--proliferate-test")) {
             final String cardName = System.getProperty("neo.prolif.card", "Bloom Hulk");
             final String stopAt = System.getProperty("neo.prolif.stop", "");
+            final boolean pickPlayer = "player".equals(System.getProperty("neo.prolif.pick"));
+            final boolean[] warned = {false};
             final int[] step = {0};
             final long started = System.currentTimeMillis();
             final javafx.animation.Timeline poll = new javafx.animation.Timeline();
@@ -2143,6 +2192,9 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                                     forge.game.zone.ZoneType.Battlefield, bear, null,
                                     forge.game.ability.AbilityKey.newMap());
                             put.addCounterInternal(forge.game.card.CounterEnumType.P1P1, 1, p, false, null, null);
+                            if (pickPlayer) {
+                                p.addCounterInternal(forge.game.card.CounterEnumType.POISON, 1, p, false, null, null);
+                            }
                         }
                         System.out.println("[proliferar] " + cardName + " entra en tu campo ("
                                 + (g.getPlayers().size() - 1) + " rivales con un oso +1/+1)");
@@ -2181,12 +2233,43 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                         return;
                     }
                     step[0] = 2;
+                    if (pickPlayer) {
+                        for (final Object o : sel.getValidChoices()) {
+                            if (o instanceof forge.game.player.Player pl) {
+                                ui.getGameController().selectPlayer(pl.getView(), null);
+                                break;
+                            }
+                        }
+                        // El prompt se rehace al elegir: hay que darle un respiro
+                        // antes de leerlo y de pulsar OK.
+                        step[0] = 3;
+                        return;
+                    }
                     for (final Object o : sel.getValidChoices()) {
                         if (o instanceof forge.game.card.Card c) {
                             ui.getGameController().selectCard(c.getView(), null, null);
                         }
                     }
                     table.getActionBar().pressPrimary();
+                    return;
+                }
+                if (step[0] == 3) {
+                    System.out.println("[proliferar] elegido solo un jugador | prompt: "
+                            + table.getLastPrompt().replace("\n", " | "));
+                    step[0] = 2;
+                    table.getActionBar().pressPrimary();
+                    return;
+                }
+                if (step[0] == 2 && table.getOverlay().isShowing()) {
+                    // El aviso de "no has elegido nada": con un jugador elegido
+                    // no tiene que salir. Si sale se dice y se sigue sin elegir.
+                    warned[0] = true;
+                    System.out.println("[proliferar] AVISO de no haber elegido nada (MAL)");
+                    final javafx.scene.layout.Region dialog = table.getOverlay().getContent();
+                    final java.util.List<javafx.scene.Node> buttons = new java.util.ArrayList<>(dialog.lookupAll(".button"));
+                    if (buttons.size() > 1 && buttons.get(buttons.size() - 1) instanceof javafx.scene.control.Button last) {
+                        last.fire();
+                    }
                     return;
                 }
                 if (step[0] == 1 && !g.getStack().isEmpty()
@@ -2203,6 +2286,14 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                             out.append(' ').append(c.getController().getName()).append('=')
                                     .append(c.getCounters(forge.game.card.CounterEnumType.P1P1));
                         }
+                    }
+                    if (pickPlayer) {
+                        for (final forge.game.player.Player p : g.getPlayers()) {
+                            if (p.isAI()) {
+                                out.append(" | ").append(p.getName()).append(" venenos=").append(p.getPoisonCounters());
+                            }
+                        }
+                        out.append(warned[0] ? " | CON aviso (MAL)" : " | sin aviso");
                     }
                     System.out.println("[proliferar] RESUELTO | contadores +1/+1 de los osos:" + out);
                 }
@@ -2952,7 +3043,7 @@ public class NeoApp extends Application implements SettingsPanel.Host {
         }
         NeoLock.release();
         try {
-            new ProcessBuilder(launcher).start();
+            forge.neo.platform.NeoOs.relaunch(java.util.Collections.singletonList(launcher)).start();
         } catch (final java.io.IOException e) {
             System.err.println("[neo] no se ha podido reabrir para importar: " + e);
             return false;
@@ -3381,7 +3472,8 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                     // NeoLock.
                     forge.neo.NeoLock.release();
                     try {
-                        new ProcessBuilder(launcher).start();
+                        // Ver NeoOs.relaunch: en Linux, sin esto, el hijo no arranca.
+                        forge.neo.platform.NeoOs.relaunch(java.util.Collections.singletonList(launcher)).start();
                     } catch (final java.io.IOException e) {
                         System.err.println("[neo] no se ha podido reabrir: " + e);
                     }

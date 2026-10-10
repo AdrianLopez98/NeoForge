@@ -31,6 +31,23 @@ public final class QuestCheck {
     }
 
     public static void run() {
+        // LA QUEST DEL JUGADOR, DE VUELTA AL ACABAR.  Cada comprobacion empieza
+        // una Quest de prueba (que se apunta como "la de ahora" en las
+        // preferencias de Forge, las del jugador) y la borra (que deja eso en
+        // blanco).  Sin esto, cada pasada de la bateria dejaba al jugador sin
+        // su Quest en curso: al entrar salia la lista en vez de su cuartel.
+        // Visto el 10-10-2026 (la de pruebas del autor, en blanco tras la bateria).
+        final forge.gamemodes.quest.data.QuestPreferences prefs = forge.model.FModel.getQuestPreferences();
+        final String current = prefs.getPref(forge.gamemodes.quest.data.QuestPreferences.QPref.CURRENT_QUEST);
+        try {
+            runAll();
+        } finally {
+            prefs.setPref(forge.gamemodes.quest.data.QuestPreferences.QPref.CURRENT_QUEST, current);
+            prefs.save();
+        }
+    }
+
+    private static void runAll() {
         boolean ok = true;
         ok &= checkOne(NeoQuest.Modalidad.COMMANDER);
         System.out.println();
@@ -1625,6 +1642,40 @@ public final class QuestCheck {
             ok = false;
         }
 
+        // Pound of Flesh: precio 0 y TE PAGA, a cambio de una vida.  La
+        // pantalla ensenya "+250 cr." con gainOf y pregunta antes (decision
+        // 295); si gainOf dejara de decir lo que paga el motor, volveria a
+        // salir "0 cr." como si fuera gratis.  Y el resto no paga nada: si
+        // pagara, preguntaria al comprar un elixir.
+        final forge.gamemodes.quest.bazaar.IQuestBazaarItem flesh =
+                findItem(forge.neo.quest.NeoQuestBazaar.stalls(), "Pound of Flesh");
+        if (flesh == null) {
+            System.out.println("  FALLA: no esta Pound of Flesh en ningun puesto");
+            ok = false;
+        } else {
+            final int gain = forge.neo.quest.NeoQuestBazaar.gainOf(flesh);
+            final long creditsBefore = NeoQuest.credits();
+            final int lifeBeforeFlesh = NeoQuest.life();
+            final boolean sold = forge.neo.quest.NeoQuestBazaar.buy(flesh);
+            System.out.printf(Locale.ROOT,
+                    "  Pound of Flesh: precio %d, paga %d | creditos %d -> %d | vidas %d -> %d%n",
+                    forge.neo.quest.NeoQuestBazaar.priceOf(flesh), gain,
+                    creditsBefore, NeoQuest.credits(), lifeBeforeFlesh, NeoQuest.life());
+            ok &= forge.neo.quest.NeoQuestBazaar.priceOf(flesh) == 0 && gain > 0;
+            ok &= sold && NeoQuest.credits() == creditsBefore + gain
+                    && NeoQuest.life() == lifeBeforeFlesh - 1;
+        }
+        int payers = 0;
+        for (final forge.neo.quest.NeoQuestBazaar.Stall s : forge.neo.quest.NeoQuestBazaar.stalls()) {
+            for (final forge.gamemodes.quest.bazaar.IQuestBazaarItem it : s.getItems()) {
+                if (forge.neo.quest.NeoQuestBazaar.gainOf(it) > 0) {
+                    payers++;
+                }
+            }
+        }
+        System.out.printf(Locale.ROOT, "  Objetos que te pagan: %d (solo Pound of Flesh)%n", payers);
+        ok &= payers == 1;
+
         // El mapa acorta la espera de los desafios, y esa cuenta la hace el
         // motor en getTurnsToUnlockChallenge(). Si esto se rompiera, la
         // pantalla de desafios diria mal cuantas victorias faltan.
@@ -1714,6 +1765,35 @@ public final class QuestCheck {
             // Y viajar al mismo sitio no hace nada, que es lo que evita
             // regenerar rivales por clicar dos veces.
             ok &= !forge.neo.quest.NeoQuestWorlds.travelTo(target);
+
+            // El filtro "Solo de <mundo>" del editor: lo que se imprimio en sus
+            // expansiones pasa, lo de fuera no.
+            final forge.gamemodes.quest.QuestWorld fw = NeoQuestWorlds.deckFilterWorld();
+            final java.util.function.Predicate<forge.item.PaperCard> inWorld = NeoQuestWorlds.deckFilter(fw);
+            final java.util.Set<String> codes = new java.util.HashSet<>(target.getFormat().getAllowedSetCodes());
+            forge.item.PaperCard from = null;
+            forge.item.PaperCard outside = null;
+            for (final forge.item.PaperCard c : FModel.getMagicDb().getCommonCards().getAllCards()) {
+                if (from == null && codes.contains(c.getEdition())
+                        && !c.getRules().getType().isBasicLand()) {
+                    from = c;
+                }
+                if (outside == null && "TDM".equals(c.getEdition()) && !codes.contains("TDM")
+                        && FModel.getMagicDb().getCommonCards().getAllCards(c.getName()).stream()
+                                .noneMatch(p -> codes.contains(p.getEdition()))) {
+                    outside = c;
+                }
+                if (from != null && outside != null) {
+                    break;
+                }
+            }
+            final boolean filterOk = fw != null && inWorld != null && from != null && outside != null
+                    && inWorld.test(from) && !inWorld.test(outside);
+            System.out.printf(Locale.ROOT, "  Filtro del editor \"Solo de %s\": %s entra, %s no -> %s%n",
+                    fw == null ? "(ninguno)" : fw.getName(),
+                    from == null ? "?" : from.getName(), outside == null ? "?" : outside.getName(),
+                    filterOk ? "bien" : "FALLA");
+            ok &= filterOk;
 
             // Los sobres del mundo (ajuste NeoQuest.WORLD_SHOP, encendido de
             // fabrica): apagado, todas; encendido - o sin tocar -, solo las de
@@ -1896,7 +1976,9 @@ public final class QuestCheck {
             NeoQuest.start(plain, NeoQuest.Modalidad.ESTANDAR, NeoQuest.Dificultad.NORMAL, precon, null);
             int all = 0;
             for (final CardEdition ed : FModel.getMagicDb().getEditions()) {
-                if (ed != null && ed.hasBoosterTemplate()) {
+                // Los sets de Commander tambien tienen sobre en la tienda
+                // desde el 09-10-2026 (NeoQuestShop.isCommanderSet).
+                if (ed != null && (ed.hasBoosterTemplate() || forge.neo.quest.NeoQuestShop.isCommanderSet(ed))) {
                     all++;
                 }
             }

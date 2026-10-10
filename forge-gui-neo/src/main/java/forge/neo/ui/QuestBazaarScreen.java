@@ -54,7 +54,10 @@ public class QuestBazaarScreen extends StackPane {
 
     private final Actions actions;
     private final Label credits = new Label();
+    /** Las vidas de cada duelo: el Elixir las sube y Pound of Flesh las baja. */
+    private final Label life = new Label();
     private final VBox content = new VBox(16);
+    private final Overlay overlay = new Overlay();
 
     public QuestBazaarScreen(final Actions actions) {
         this.actions = actions;
@@ -66,9 +69,26 @@ public class QuestBazaarScreen extends StackPane {
         // Volver, abajo a la derecha: el mismo sitio en todas las pantallas
         // (las notas de diseño, principio 12). Antes iba en la cabecera.
         frame.setBottom(BackBar.of(actions::back));
-        getChildren().add(frame);
+        getChildren().addAll(frame, overlay);
 
         reload();
+
+        // -Dneo.bazaar.ask=Flesh: abre la pregunta del objeto cuyo nombre lo
+        // contenga, para capturarla con --snapshot sin pulsar nada (la guía de pruebas).
+        final String ask = System.getProperty("neo.bazaar.ask");
+        if (ask != null) {
+            javafx.application.Platform.runLater(() -> {
+                for (final NeoQuestBazaar.Stall stall : NeoQuestBazaar.stalls()) {
+                    for (final IQuestBazaarItem item : stall.getItems()) {
+                        if (item.getPurchaseName().toLowerCase(java.util.Locale.ROOT)
+                                .contains(ask.toLowerCase(java.util.Locale.ROOT))) {
+                            askBeforeBuying(item, NeoQuestBazaar.gainOf(item));
+                            return;
+                        }
+                    }
+                }
+            });
+        }
     }
 
     private Region header() {
@@ -85,9 +105,19 @@ public class QuestBazaarScreen extends StackPane {
         money.getStyleClass().add("stat-tile");
         money.setPadding(new Insets(8, 18, 8, 18));
 
+        // Las vidas, al lado: dos de los objetos de aqui las cambian, y sin
+        // verlas comprar no parecia hacer nada (decision 295).
+        life.getStyleClass().add("stat-value");
+        final Label lifeCap = new Label(NeoText.get("quest.duelLife"));
+        lifeCap.getStyleClass().add("caption");
+        final VBox lives = new VBox(-2, life, lifeCap);
+        lives.setAlignment(Pos.CENTER);
+        lives.getStyleClass().add("stat-tile");
+        lives.setPadding(new Insets(8, 18, 8, 18));
+
         final Region gap = new Region();
         HBox.setHgrow(gap, Priority.ALWAYS);
-        final HBox row = new HBox(14, new VBox(2, title, sub), gap, money);
+        final HBox row = new HBox(14, new VBox(2, title, sub), gap, lives, money);
         row.setAlignment(Pos.CENTER_LEFT);
         row.setPadding(new Insets(18, 28, 8, 30));
         return row;
@@ -112,6 +142,7 @@ public class QuestBazaarScreen extends StackPane {
      */
     private void reload() {
         credits.setText(String.valueOf(NeoQuest.credits()));
+        life.setText(String.valueOf(NeoQuest.life()));
         content.getChildren().clear();
 
         content.getChildren().add(pets());
@@ -174,7 +205,12 @@ public class QuestBazaarScreen extends StackPane {
         what.setMaxWidth(UiScale.px(620));
         what.setMinHeight(Region.USE_PREF_SIZE);
 
-        final Label cost = new Label(NeoText.get("shop.credits.short", price));
+        // Lo que te PAGAN, si te pagan (Pound of Flesh): "+250 cr." y no "0 cr.",
+        // que se leia como gratis (decision 295).
+        final int gain = NeoQuestBazaar.gainOf(item);
+        final Label cost = new Label(gain > 0 && price == 0
+                ? NeoText.get("bazaar.gain", gain)
+                : NeoText.get("shop.credits.short", price));
         cost.getStyleClass().add(afford ? "set-price-ok" : "set-price-no");
 
         final Button buy = new Button(NeoText.get("bazaar.buy"));
@@ -182,9 +218,12 @@ public class QuestBazaarScreen extends StackPane {
         buy.setMinWidth(Region.USE_PREF_SIZE);
         buy.setDisable(!afford);
         buy.setOnAction(e -> {
-            if (NeoQuestBazaar.buy(item)) {
-                reload();
-                actions.changed();
+            if (gain > 0) {
+                // Lo que te paga es porque te quita algo, y eso no se deshace:
+                // pregunta, con el texto entero y tus vidas delante (principio 6).
+                askBeforeBuying(item, gain);
+            } else {
+                buyNow(item);
             }
         });
 
@@ -194,6 +233,29 @@ public class QuestBazaarScreen extends StackPane {
         row.setAlignment(Pos.CENTER_LEFT);
         row.setPadding(new Insets(8, 4, 8, 4));
         return row;
+    }
+
+    private void buyNow(final IQuestBazaarItem item) {
+        if (NeoQuestBazaar.buy(item)) {
+            reload();
+            actions.changed();
+        }
+    }
+
+    /** La respuesta marcada es CANCELAR: es lo que sale de un Intro por inercia. */
+    private void askBeforeBuying(final IQuestBazaarItem item, final int gain) {
+        final String body = NeoQuestBazaar.descriptionOf(item).trim() + "\n\n"
+                + NeoText.get("bazaar.confirm.gain", gain) + " "
+                + NeoText.get("bazaar.confirm.status", NeoQuest.life(), NeoQuest.credits());
+        overlay.setOnBackgroundClick(overlay::hide);
+        overlay.show(new ConfirmDialog(NeoText.get("bazaar.confirm.title", item.getPurchaseName()), body,
+                List.of(NeoText.get("bazaar.buy"), NeoText.get("common.cancel")), 1,
+                choice -> {
+                    overlay.hide();
+                    if (choice == 0) {
+                        buyNow(item);
+                    }
+                }));
     }
 
     /**

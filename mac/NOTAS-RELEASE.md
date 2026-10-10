@@ -1,12 +1,12 @@
-**NeoForge para macOS 1.0.18 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.19 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Un menú más vivo:** las casillas de los modos son como las de Android, con su dibujo, el brillo de sus colores y un borde que se enciende al pasar el ratón.
-- **Quest:** comprar varios sobres de una vez (hasta 24) y, al abrir, «Otro sobre» justo al lado de volver.
-- **Planechase con un mazo para todos:** un solo mazo planar sin repetir del que salen los planos de todos, como lo juega mucha gente.
-- **Ascenso:** buscar comandante por tipo, habilidad o expansión («lifelink vampire», «dmu legendary»), y las cartas de un evento centradas y sin cortarse al ampliarlas.
-- **En partida:** al ampliar una carta de un diálogo (buscar en tu biblioteca…), la rueda y las flechas pasan a la siguiente; y la zona de mando con muchas reliquias sube en filas.
-- **Arreglos:** el «arte preferido» de Ajustes se cumple de verdad, importar un preconstruido de Commander ya no dice «no more than 99 cards», las pilas de la mesa vuelven a decir «x3» en vez de «...», y una carta ya no enseña un arte y otro distinto al ampliarla.
+- **Quest:** los mazos de Commander enteros en la tienda y los sobres de las colecciones de Commander; qué puede salir en un sobre y en qué sobre sale una carta; las **preferencias de Forge** (premios, tienda, dificultad) con un botón para volver a como venían; y buscar un preconstruido también por su comandante.
+- **Ascenso:** los disparos de tus reliquias se resuelven solos, un rival distinto en cada duelo, tu mazo por tipo con cuántas hay de cada uno, y tu comandante ya no sale como premio.
+- **En partida:** la moneda se ve caer; el modo de un disparo dice de qué rival habla; al acabar, «Registro» y «Ver la mesa»; proliferar cuenta los jugadores elegidos.
+- **Ajustes:** ocultar las cartas sin arte (las de Alchemy A-), y un botón de Ko-fi en el menú.
+- **Forge al día:** 104 cartas nuevas y el pago automático ya funciona con las tierras de filtro.
+- **Arreglos:** el bazar dice lo que hace Pound of Flesh y pregunta antes; la carta «Keyword Effects» dice qué es; el sobre de colector de algunas expansiones cobraba sin dar nada; y los títulos de Ascenso ya no pisan el borde del pergamino.
 
 Descarga el `.dmg` de tu Mac:
 

@@ -66,6 +66,9 @@ public class QuestScreen extends BorderPane {
 
         void bazaar();
 
+        /** Las preferencias de la Quest (las de Forge): premios, tienda, dificultad. */
+        void preferences();
+
         void newAdventure();
 
         void back();
@@ -113,9 +116,16 @@ public class QuestScreen extends BorderPane {
         nueva.setMinWidth(Region.USE_PREF_SIZE);
         nueva.setOnAction(e -> actions.newAdventure());
 
+        // Las preferencias, al lado de "Nueva": valen para todas las Quests y
+        // las de empezar (cartas, creditos) solo cuentan al crear una.
+        final Button prefs = new Button(NeoText.get("questPrefs.button"));
+        prefs.getStyleClass().add("btn-secondary");
+        prefs.setMinWidth(Region.USE_PREF_SIZE);
+        prefs.setOnAction(e -> actions.preferences());
+
         final Region gap = new Region();
         HBox.setHgrow(gap, Priority.ALWAYS);
-        final HBox row = new HBox(10, new VBox(2, title, rank), gap, nueva);
+        final HBox row = new HBox(10, new VBox(2, title, rank), gap, prefs, nueva);
         row.setAlignment(Pos.CENTER_LEFT);
         row.setPadding(new Insets(20, 28, 6, 30));
         return row;

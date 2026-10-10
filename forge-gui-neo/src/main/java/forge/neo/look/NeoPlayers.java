@@ -72,6 +72,24 @@ public final class NeoPlayers {
     }
 
     /**
+     * UN RIVAL DE PASO: nombre del generador de Forge y cara de su hoja, los
+     * dos al azar y SIN apuntarlos. Para los modos donde el rival cambia en
+     * cada duelo (Ascenso): con {@link #ai} salia siempre el rival 1 de
+     * Personalizar, con su nombre guardado — Discord, 10-10-2026: <i>"I'm always
+     * playing against Dolly. It would be nice to randomize the name of the
+     * opponent and his photo"</i>. Tus rivales guardados no se tocan.
+     */
+    public static LobbyPlayer passingAi(final String aiProfile) {
+        final String name = randomName(0);
+        final String profile = RivalSetup.resolve(aiProfile, 0, RANDOM);
+        final int faces = NeoLook.builtInAvatarCount();
+        final int sprite = faces > 0 ? RANDOM.nextInt(faces) : 0;
+        System.out.printf(java.util.Locale.ROOT, "  Rival de paso: %s | IA %s | cara %d%n", name,
+                profile.isEmpty() ? "(la de Forge)" : profile, sprite);
+        return GamePlayerUtil.createAiPlayer(name, sprite, profile);
+    }
+
+    /**
      * El rival numero {@code index} jugado por una PERSONA en este aparato (hot
      * seat): su nombre y su cara de siempre, pero humano. Un
      * {@code LobbyPlayerHuman} aparte, nunca el tuyo: el motor tiene que poder

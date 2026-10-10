@@ -125,6 +125,22 @@ public final class NeoQuestBazaar {
         return item.getBuyingPrice(NeoQuest.engine().getAssets());
     }
 
+    /**
+     * Lo que te PAGA el bazar por comprarlo, ademas de cobrarte el precio.
+     *
+     * <p>{@code QuestUtil.buyQuestItem} resta {@code getBuyingPrice} y suma
+     * {@code getSellingPrice}. Hoy solo paga <b>Pound of Flesh</b> (vendes una
+     * vida de partida por creditos), y su precio es 0: ensenyar solo el precio
+     * decia "0 cr.", como si fuera gratis y no hiciera nada. Discord, 10-10-2026:
+     * un jugador lo pulso seis veces buscando que hacia y se quedo en 14 vidas.
+     */
+    public static int gainOf(final IQuestBazaarItem item) {
+        if (item == null || !NeoQuest.isActive()) {
+            return 0;
+        }
+        return Math.max(0, item.getSellingPrice(NeoQuest.engine().getAssets()));
+    }
+
     public static String descriptionOf(final IQuestBazaarItem item) {
         if (item == null || !NeoQuest.isActive()) {
             return "";

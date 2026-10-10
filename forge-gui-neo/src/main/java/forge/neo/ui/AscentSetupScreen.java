@@ -609,7 +609,7 @@ public class AscentSetupScreen extends StackPane {
 
         body.setAlignment(Pos.CENTER);
         // El borde del papel esta ROTO: ver Parchment.SAFE_EDGE.
-        body.setPadding(new Insets(20, 34, Parchment.SAFE_EDGE, 34));
+        body.setPadding(new Insets(Parchment.SAFE_EDGE, 34, Parchment.SAFE_EDGE, 34));
         content.setAlignment(Pos.CENTER);
         scroll.getStyleClass().add("dialog-scroll");
         scroll.setFitToWidth(true);

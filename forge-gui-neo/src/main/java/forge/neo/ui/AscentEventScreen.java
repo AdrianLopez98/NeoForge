@@ -75,7 +75,7 @@ public class AscentEventScreen extends StackPane {
 
         body.setAlignment(Pos.CENTER);
         // El borde del papel esta ROTO: ver Parchment.SAFE_EDGE.
-        body.setPadding(new Insets(24, 40, Parchment.SAFE_EDGE, 40));
+        body.setPadding(new Insets(Parchment.SAFE_EDGE, 40, Parchment.SAFE_EDGE, 40));
         showChoices();
 
         getChildren().addAll(paper, body);

@@ -281,7 +281,9 @@ public final class NeoQuest {
         for (final String code : pool.codes()) {
             try {
                 final forge.card.CardEdition ed = FModel.getMagicDb().getEditions().get(code);
-                if (ed != null && ed.hasBoosterTemplate()) {
+                // Un set de Commander tambien vale: la tienda le monta su
+                // sobre (NeoQuestShop.isCommanderSet, 09-10-2026).
+                if (ed != null && (ed.hasBoosterTemplate() || NeoQuestShop.isCommanderSet(ed))) {
                     return true;
                 }
             } catch (final RuntimeException ex) {

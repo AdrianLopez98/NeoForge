@@ -65,6 +65,11 @@ final class AdventureSettings {
                     forge.neo.NeoSettings.SOUND_VOLUME, forge.neo.NeoSettings.SOUND_VOLUME_DEFAULT);
             prefs.put("UI_VOL_SOUNDS", String.valueOf(sfx));
             prefs.put("UI_ENABLE_SOUNDS", String.valueOf(sfx > 0));
+            // Las cartas sin arte, fuera tambien en la Aventura si se pidio
+            // (forge.neo.card.ArtlessCards). Su proceso monta su propia base de
+            // cartas leyendo ESTE fichero. Se escribe siempre, en los dos
+            // sentidos: si no, apagar el ajuste no las devolveria aqui.
+            prefs.put("UI_LOAD_UNKNOWN_CARDS", String.valueOf(!forge.neo.card.ArtlessCards.hidden()));
             setForgePrefs(new File(prefsDir, "forge.preferences"), prefs);
             System.out.println("[aventura] idioma: " + lang);
         } catch (final IOException e) {

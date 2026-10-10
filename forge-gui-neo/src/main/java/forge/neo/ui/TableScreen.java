@@ -113,6 +113,8 @@ public class TableScreen extends Pane {
     private final Overlay overlay = new Overlay();
     private final PromptBanner promptBanner;
     private final TurnBanner turnBanner;
+    /** La moneda del sorteo y de las cartas que lanzan monedas. Ver CoinFlip. */
+    private final CoinFlip coinFlip = new CoinFlip();
 
     /**
      * El boton del registro.
@@ -445,7 +447,7 @@ public class TableScreen extends Pane {
 
         getChildren().addAll(opponentTabs, opponentBar, viewport,
                 selfBar, hand, commandZone, phaseRail, side, combatOverlay, logButton, menuButton, chatButton, macroRecordButton, macroPlayButton, cooldownBadge,
-                stackChip, promptBanner, notices, turnBanner, playerDetails, zoomBadge, macroBadge, spotlight,
+                stackChip, promptBanner, notices, turnBanner, coinFlip, playerDetails, zoomBadge, macroBadge, spotlight,
                 handPeek, overlay, menuOverlay, zoomOverlay, curtain);
         curtain.getStyleClass().add("hotseat-curtain");
 
@@ -702,6 +704,13 @@ public class TableScreen extends Pane {
                     Math.max(turnBanner.bannerWidth(), contentW * 0.42));
             final double bh = turnBanner.bannerHeight(bw);
             turnBanner.resizeRelocate((contentW - bw) / 2, h * 0.13, bw, bh);
+        }
+        // La moneda, en el centro de la mesa: dura un segundo y medio y no se
+        // puede clicar, asi que no estorba aunque caiga encima de las cartas.
+        if (coinFlip.isVisible()) {
+            final double cw = coinFlip.prefWidth(-1);
+            final double ch = coinFlip.prefHeight(cw);
+            coinFlip.resizeRelocate((contentW - cw) / 2, (h - ch) / 2, cw, ch);
         }
         overlay.resizeRelocate(0, 0, w, h);
         menuOverlay.resizeRelocate(0, 0, w, h);
@@ -3354,6 +3363,17 @@ public class TableScreen extends Pane {
      */
     public void announceTurn(final boolean yours, final String who, final int turn) {
         turnBanner.announce(yours, who, turn);
+        requestLayout();
+    }
+
+    /**
+     * Lanza una moneda en el centro de la mesa y avisa al acabar.
+     *
+     * <p>Lo llama {@code NeoMatchUI.showCoinFlip}, con lo que manda el motor.
+     */
+    public void flipCoin(final boolean heads, final String caption, final String headsWord,
+                         final String tailsWord, final Runnable done) {
+        coinFlip.flip(heads, caption, headsWord, tailsWord, done);
         requestLayout();
     }
 

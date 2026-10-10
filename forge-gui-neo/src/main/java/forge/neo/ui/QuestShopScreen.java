@@ -100,12 +100,26 @@ public class QuestShopScreen extends StackPane {
     private final Label quantityLabel = new Label();
     private final Button fewer = new Button("\u2212");
     private final Button more = new Button("+");
+    /** "Que puede salir" en el sobre elegido (Discord, 09-10-2026). Ver PackPreview. */
+    private final Button preview = new Button();
+
+    // --- "En que sobre sale una carta" (Discord, 09-10-2026) ---
+    private final TextField findField = new TextField();
+    private final javafx.scene.control.ContextMenu findPopup = new javafx.scene.control.ContextMenu();
+    private final VBox findBanner = new VBox(4);
+    /** Las cartas que salen en algun sobre de la tienda; se cargan aparte la primera vez. */
+    private volatile List<String> findNames;
+    private boolean findLoading;
+    /** La carta buscada (por su nombre en ingles), o null. */
+    private String findName;
+    /** Donde sale, por codigo de expansion (solo los sobres normales: los que vende esta pestanya). */
+    private final java.util.Map<String, forge.neo.quest.PackContents.Source> findOdds = new java.util.LinkedHashMap<>();
 
     /** Tope de sobres por compra: una caja son 36, y eso ya esta en Cajas. */
     private static final int MAX_QUANTITY = 24;
 
     // --- pestanyas ---
-    private enum Tab { PACKS, COLLECTOR, SINGLES, PRECONS, BOXES, LAIR, SELL }
+    private enum Tab { PACKS, COLLECTOR, SINGLES, PRECONS, COMMANDER, BOXES, LAIR, SELL }
 
     private Tab tab = Tab.PACKS;
     private final HBox tabBar = new HBox(6);
@@ -130,6 +144,8 @@ public class QuestShopScreen extends StackPane {
     // "elegir no compra", que es lo que de verdad hay que no equivocarse.
     private ProductPage<CardEdition> collectorPane;
     private ProductPage<forge.item.PreconDeck> preconsPane;
+    /** Los mazos de Commander de Forge, enteros (09-10-2026). Ver NeoQuestShop.commanderDecks. */
+    private ProductPage<forge.item.PreconDeck> commanderPane;
     private ProductPage<forge.item.SealedProduct> boxesPane;
 
     // --- secret lair ---
@@ -208,6 +224,16 @@ public class QuestShopScreen extends StackPane {
                 tabBar.getChildren().get(i).pseudoClassStateChanged(SELECTED, i == forced);
             }
             showPage();
+            // -Dneo.shop.pickFirst=true: con el primer producto elegido, para
+            // capturar el pie con su detalle.
+            if (Boolean.getBoolean("neo.shop.pickFirst")) {
+                for (final ProductPage<?> p : java.util.Arrays.<ProductPage<?>>asList(
+                        collectorPane, preconsPane, commanderPane, boxesPane)) {
+                    if (p != null) {
+                        p.pickFirst();
+                    }
+                }
+            }
             // Y en la de vender, con N cartas ya elegidas y los filtros
             // desplegados: es el estado que hay que ver y el que no sale solo.
             final int picks = Integer.getInteger("neo.shop.sellPick", 0);
@@ -218,6 +244,35 @@ public class QuestShopScreen extends StackPane {
                 markPicked();
                 refreshSell();
             }
+        }
+
+        // Para capturar el buscador y "Que puede salir" sin raton (09-10-2026):
+        // -Dneo.shop.find="Beza, the Bounding Spring" busca esa carta, y
+        // -Dneo.shop.preview=BLB (o collector:BLB) abre lo que puede salir en
+        // ese sobre. Con un respiro: el panel se mide con el tamanyo de la
+        // pantalla, que al construirla todavia es cero.
+        final String findAtStart = System.getProperty("neo.shop.find");
+        final String previewAtStart = System.getProperty("neo.shop.preview");
+        if (findAtStart != null || previewAtStart != null) {
+            final javafx.animation.PauseTransition wait =
+                    new javafx.animation.PauseTransition(javafx.util.Duration.millis(600));
+            wait.setOnFinished(e -> {
+                if (findAtStart != null) {
+                    findNames = forge.neo.quest.PackContents.namesIn(
+                            NeoQuestShop.editions(), NeoQuestShop.collectorEditions());
+                    findCard(findAtStart);
+                }
+                if (previewAtStart != null) {
+                    final boolean collector = previewAtStart.startsWith("collector:");
+                    final CardEdition e2 = forge.model.FModel.getMagicDb().getEditions()
+                            .get(collector ? previewAtStart.substring(10) : previewAtStart);
+                    if (e2 != null && !collector) {
+                        choose(e2);
+                    }
+                    showPreview(e2 != null ? e2 : chosen, collector);
+                }
+            });
+            wait.play();
         }
 
         // Click derecho: la carta a tamanyo de lectura. Lo que sale de un sobre
@@ -289,9 +344,16 @@ public class QuestShopScreen extends StackPane {
         fewer.setTooltip(howMany);
         more.setTooltip(howMany);
 
+        // QUE PUEDE SALIR: antes de comprar, que es cuando se decide.
+        preview.setText(NeoText.get("shop.preview"));
+        preview.setId("shop-preview");
+        preview.getStyleClass().add("btn-secondary");
+        preview.setMinWidth(Region.USE_PREF_SIZE);
+        preview.setOnAction(e -> showPreview(chosen, false));
+
         final Region gap2 = new Region();
         HBox.setHgrow(gap2, Priority.ALWAYS);
-        final HBox packRow = new HBox(16, new VBox(2, packName, packPrice), gap2, stepper, buy);
+        final HBox packRow = new HBox(16, new VBox(2, packName, packPrice), gap2, preview, stepper, buy);
         packRow.setAlignment(Pos.CENTER_LEFT);
         packRow.getStyleClass().add("stat-tile");
         packRow.setPadding(new Insets(14, 18, 14, 18));
@@ -304,10 +366,11 @@ public class QuestShopScreen extends StackPane {
         });
         final Region gapTools = new Region();
         HBox.setHgrow(gapTools, Priority.ALWAYS);
-        final HBox tools = new HBox(12, search, affordableOnly, gapTools);
+        buildFinder();
+        final HBox tools = new HBox(12, search, affordableOnly, gapTools, findField);
         tools.setAlignment(Pos.CENTER_LEFT);
 
-        final VBox content = new VBox(12, cap, tools, sets, pager, packRow);
+        final VBox content = new VBox(12, cap, findBanner, tools, sets, pager, packRow);
 
         final ScrollPane sp = new ScrollPane(content);
         sp.getStyleClass().add("dialog-scroll");
@@ -354,6 +417,7 @@ public class QuestShopScreen extends StackPane {
                 tabButton(NeoText.get("shop.tab.collector"), Tab.COLLECTOR),
                 tabButton(NeoText.get("shop.tab.singles"), Tab.SINGLES),
                 tabButton(NeoText.get("shop.tab.precons"), Tab.PRECONS),
+                tabButton(NeoText.get("shop.tab.commander"), Tab.COMMANDER),
                 tabButton(NeoText.get("shop.tab.boxes"), Tab.BOXES),
                 tabButton(NeoText.get("shop.tab.lair"), Tab.LAIR),
                 tabButton(NeoText.get("shop.tab.sell"), Tab.SELL));
@@ -419,7 +483,10 @@ public class QuestShopScreen extends StackPane {
                             // Las hojas de arte que trae, y no es un detalle
                             // tecnico: "borderless, extended art" es la razon
                             // por la que este sobre cuesta el triple.
-                            .showNote(QuestShopScreen::collectorLabel);
+                            .showNote(QuestShopScreen::collectorLabel)
+                            // Que puede salir en el de colector, igual que en
+                            // el normal (Discord, 09-10-2026).
+                            .withPreview(e -> showPreview(e, true));
                 }
                 page.getChildren().setAll(collectorPane);
                 collectorPane.reload();
@@ -445,6 +512,31 @@ public class QuestShopScreen extends StackPane {
                 }
                 page.getChildren().setAll(preconsPane);
                 preconsPane.reload();
+                break;
+            case COMMANDER:
+                // Los mazos de Commander de Forge (Discord, 09-10-2026: "where
+                // are the commander sets in quest?"): el de 100 cartas entero,
+                // con su comandante de cara y buscable por el.
+                if (commanderPane == null) {
+                    commanderPane = new ProductPage<forge.item.PreconDeck>(
+                            NeoText.get("shop.cmdDecks.caption"),
+                            NeoText.get("shop.cmdDecks.empty"),
+                            NeoText.get("shop.pickPrecon"),
+                            NeoQuestShop::commanderDecks,
+                            QuestShopScreen::deckTitle,
+                            NeoQuestShop::buyCommanderDeck,
+                            NeoQuestShop::commanderDeckPrice,
+                            NeoText.get("shop.boughtPrecon"))
+                            .showFace(NeoQuestShop::faceOf)
+                            .showCode(forge.item.PreconDeck::getEdition)
+                            .showNote(QuestShopScreen::commanderLine)
+                            .showDetail(QuestShopScreen::commanderDetail);
+                }
+                page.getChildren().setAll(commanderPane);
+                final long t0 = System.nanoTime();
+                commanderPane.reload();
+                System.out.printf(Locale.ROOT, "[tienda] mazos de Commander: %d en %d ms%n",
+                        NeoQuestShop.commanderDecks().size(), (System.nanoTime() - t0) / 1_000_000);
                 break;
             case BOXES:
                 if (boxesPane == null) {
@@ -1308,7 +1400,20 @@ public class QuestShopScreen extends StackPane {
         final String q = search.getText() == null ? ""
                 : search.getText().trim().toLowerCase(Locale.ROOT);
         filtered = new ArrayList<>();
-        for (final CardEdition e : NeoQuestShop.editions()) {
+        final List<CardEdition> source = new ArrayList<>();
+        if (findName != null) {
+            // Con una carta buscada, solo los sobres donde sale, y PRIMERO EL
+            // MAS BARATO PARA CONSEGUIRLA: lo que cuesta de media una copia
+            // (precio del sobre por cuantos sobres hacen falta). El mas
+            // probable de todos era Alpha, a 75.000 creditos el sobre.
+            for (final forge.neo.quest.PackContents.Source s : findOdds.values()) {
+                source.add(s.getEdition());
+            }
+            source.sort(java.util.Comparator.comparingDouble(this::costPerCopy));
+        } else {
+            source.addAll(NeoQuestShop.editions());
+        }
+        for (final CardEdition e : source) {
             final boolean matches = q.isEmpty()
                     || e.getName().toLowerCase(Locale.ROOT).contains(q)
                     || e.getCode().toLowerCase(Locale.ROOT).contains(q);
@@ -1318,8 +1423,16 @@ public class QuestShopScreen extends StackPane {
         }
         pager.setTotal(filtered.size());
         paintEditions();
-        if (chosen == null && !filtered.isEmpty()) {
+        if ((chosen == null || (findName != null && !filtered.contains(chosen))) && !filtered.isEmpty()) {
             choose(filtered.get(0));
+        } else if (findName != null && filtered.isEmpty()) {
+            // Buscando una carta y sin un sobre a la vista (solo sale en uno
+            // caro con "lo que puedo pagar" puesto, o solo en un colector): la
+            // fila de abajo no puede quedarse con el sobre de antes y sus
+            // botones encendidos.
+            chosen = null;
+            pack = null;
+            refreshPack();
         }
         refreshMoney();
     }
@@ -1357,12 +1470,381 @@ public class QuestShopScreen extends StackPane {
         cost.getStyleClass().add(NeoQuest.credits() >= price ? "set-price-ok" : "set-price-no");
 
         final VBox tile = new VBox(3, code, name, cost);
+        final forge.neo.quest.PackContents.Source where = findName == null ? null : findOdds.get(e.getCode());
+        if (where != null) {
+            // Cada cuanto sale la carta buscada en ESTE sobre: es la razon por
+            // la que la casilla esta en la lista.
+            final Label odds = new Label(oddsText(where.getPull()));
+            odds.getStyleClass().add("set-odds");
+            final Label perCopy = new Label(NeoText.get("shop.find.costPer", Math.round(costPerCopy(e))));
+            perCopy.getStyleClass().add("set-odds-cost");
+            tile.getChildren().addAll(odds, perCopy);
+        }
         tile.getStyleClass().add("set-tile");
         tile.setPadding(new Insets(8, 12, 8, 12));
         tile.setPrefWidth(UiScale.px(190));
         tile.pseudoClassStateChanged(PICKED, chosen != null && chosen.getCode().equals(e.getCode()));
         tile.setOnMouseClicked(ev -> choose(e));
         return tile;
+    }
+
+    // ---------------------------------------------------------------
+    //  Los mazos de Commander (09-10-2026)
+    // ---------------------------------------------------------------
+
+    /** "Ahoy Mateys [LCC] [2023]" -> "Ahoy Mateys": el codigo ya va en la casilla. */
+    private static String deckTitle(final forge.item.PreconDeck p) {
+        return NeoQuestShop.cleanDeckName(p.getName());
+    }
+
+    /** El comandante, en tu idioma: lo que se busca y por lo que se elige un mazo. */
+    private static String commanderLine(final forge.item.PreconDeck p) {
+        if (p.getDeck() == null || p.getDeck().getCommanders().isEmpty()) {
+            return "";
+        }
+        final List<String> names = new ArrayList<>();
+        for (final PaperCard c : p.getDeck().getCommanders()) {
+            names.add(forge.neo.card.CardText.nameOf(c));
+        }
+        return String.join(" + ", names);
+    }
+
+    /** El pie al elegirlo: cuantas cartas trae y cuantas de ellas no tienes. */
+    private static String commanderDetail(final forge.item.PreconDeck p) {
+        if (p.getDeck() == null) {
+            return "";
+        }
+        final java.util.Set<String> owned = forge.neo.quest.NeoQuestCollection.ownedNames();
+        int total = 0;
+        int fresh = 0;
+        final java.util.Set<String> seen = new java.util.HashSet<>();
+        for (final java.util.Map.Entry<PaperCard, Integer> e : p.getDeck().getAllCardsInASinglePool()) {
+            total += e.getValue();
+            if (seen.add(e.getKey().getName()) && !owned.contains(e.getKey().getName())) {
+                fresh++;
+            }
+        }
+        final String detail = NeoText.get("shop.cmdDecks.detail", total, fresh);
+        // En una Quest de Estandar no hay zona de mando y el comandante entra
+        // en el mazo (NeoQuestShop.buyCommanderDeck): mejor saberlo antes.
+        return NeoQuest.modalidad() == NeoQuest.Modalidad.COMMANDER ? detail
+                : detail + "  ·  " + NeoText.get("shop.cmdDecks.standard");
+    }
+
+    // ---------------------------------------------------------------
+    //  Que puede salir, y en que sobre sale una carta (09-10-2026)
+    // ---------------------------------------------------------------
+
+    /**
+     * Lo que cuesta de media una copia de la carta buscada en ese sobre: su
+     * precio entre cuantas trae de media. Infinito si no sale.
+     */
+    private double costPerCopy(final CardEdition e) {
+        final forge.neo.quest.PackContents.Source s = findOdds.get(e.getCode());
+        if (s == null || s.getPull().getPerPack() <= 0) {
+            return Double.MAX_VALUE;
+        }
+        return priceOf(e) / s.getPull().getPerPack();
+    }
+
+    /** El sobre donde sale mas barata, o null. */
+    private forge.neo.quest.PackContents.Source cheapest() {
+        forge.neo.quest.PackContents.Source best = null;
+        for (final forge.neo.quest.PackContents.Source s : findOdds.values()) {
+            if (best == null || costPerCopy(s.getEdition()) < costPerCopy(best.getEdition())) {
+                best = s;
+            }
+        }
+        return best;
+    }
+
+    /** "1 de cada 137" / "En todos los sobres". */
+    private static String oddsText(final forge.neo.quest.PackContents.Pull p) {
+        return p.getOneIn() <= 1 ? NeoText.get("shop.odds.every") : NeoText.get("shop.odds.oneIn", p.getOneIn());
+    }
+
+    /**
+     * Lo que puede salir en el sobre de esa expansion (o en el de colector),
+     * encima de todo como un sobre abierto. Con una carta buscada, ya buscada
+     * dentro.
+     */
+    private void showPreview(final CardEdition edition, final boolean collector) {
+        if (edition == null) {
+            return;
+        }
+        final List<forge.neo.quest.PackContents.Pull> pulls = collector
+                ? forge.neo.quest.PackContents.ofCollector(edition)
+                : forge.neo.quest.PackContents.of(edition);
+        final forge.item.BoosterPack sample = collector ? NeoQuestShop.collectorBooster(edition) : pack;
+        final int perPack = sample == null ? 0 : sample.getTotalCards();
+        final String title = collector
+                ? NeoText.get("shop.preview.collector", edition.getName()) : edition.getName();
+        overlay.setOnBackgroundClick(overlay::hide);
+        overlay.show(new PackPreview(title, pulls, ownedCounts(), perPack, getWidth(), getHeight(),
+                findName == null ? null : forge.neo.card.CardText.nameOf(cardNamed(findName)), overlay::hide));
+    }
+
+    /** Cuantas tienes de cada carta, por nombre (como cuenta la tienda lo que es nuevo). */
+    private static java.util.Map<String, Integer> ownedCounts() {
+        final java.util.Map<String, Integer> out = new java.util.HashMap<>();
+        if (NeoQuest.isActive()) {
+            for (final java.util.Map.Entry<PaperCard, Integer> e : NeoQuest.collection()) {
+                out.merge(e.getKey().getName(), e.getValue(), Integer::sum);
+            }
+        }
+        return out;
+    }
+
+    private static PaperCard cardNamed(final String name) {
+        return name == null ? null : forge.model.FModel.getMagicDb().getCommonCards().getCard(name);
+    }
+
+    /**
+     * El buscador de cartas: escribes, sugiere las que salen en algun sobre de
+     * la tienda (en ingles y en tu idioma) y al elegir una la rejilla se queda
+     * con los sobres donde sale.
+     */
+    private void buildFinder() {
+        findField.setPromptText(NeoText.get("shop.find.prompt"));
+        findPopup.getStyleClass().add("find-popup");
+        findField.getStyleClass().add("text-input");
+        findField.setPrefColumnCount(24);
+        findField.setId("shop-find-card");
+        findField.textProperty().addListener((o, was, is) -> {
+            if (findName != null && !is.equals(forge.neo.card.CardText.nameOf(cardNamed(findName)))) {
+                // Escribir otra cosa deja de buscar la de antes.
+                clearFind(false);
+            }
+            suggest();
+        });
+        findField.setOnAction(e -> {
+            // Enter: la primera sugerencia.
+            final List<String> hits = matches(findField.getText());
+            if (!hits.isEmpty()) {
+                findCard(hits.get(0));
+            }
+        });
+        findField.focusedProperty().addListener((o, was, is) -> {
+            if (is) {
+                loadNames();
+            }
+        });
+        findBanner.getStyleClass().addAll("stat-tile", "find-banner");
+        findBanner.setPadding(new Insets(10, 16, 10, 16));
+        findBanner.setManaged(false);
+        findBanner.setVisible(false);
+    }
+
+    /** Las cartas de todos los sobres de la tienda, en otro hilo (la primera vez monta todos los sobres). */
+    private void loadNames() {
+        if (findNames != null || findLoading) {
+            return;
+        }
+        findLoading = true;
+        final Thread t = new Thread(() -> {
+            List<String> names = null;
+            try {
+                names = forge.neo.quest.PackContents.namesIn(
+                        NeoQuestShop.editions(), NeoQuestShop.collectorEditions());
+            } catch (final RuntimeException e) {
+                System.err.println("[tienda] no se han podido leer las cartas de los sobres: " + e);
+            } finally {
+                // Siempre de vuelta: si falla, findLoading se suelta y el
+                // proximo foco lo vuelve a intentar.
+                final List<String> got = names;
+                javafx.application.Platform.runLater(() -> {
+                    findNames = got;
+                    findLoading = false;
+                    if (got != null && findField.isFocused()) {
+                        suggest();
+                    }
+                });
+            }
+        }, "neo-shop-names");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    /** Hasta doce, primero las que empiezan por lo escrito. Busca en ingles y en tu idioma. */
+    private List<String> matches(final String text) {
+        final List<String> names = findNames;
+        final String q = text == null ? "" : text.trim().toLowerCase(Locale.ROOT);
+        final List<String> starts = new ArrayList<>();
+        final List<String> contains = new ArrayList<>();
+        if (names == null || q.length() < 2) {
+            return starts;
+        }
+        for (final String n : names) {
+            final String en = n.toLowerCase(Locale.ROOT);
+            final String tr = forge.util.CardTranslation.getTranslatedName(n).toLowerCase(Locale.ROOT);
+            if (en.startsWith(q) || tr.startsWith(q)) {
+                starts.add(n);
+            } else if (en.contains(q) || tr.contains(q)) {
+                contains.add(n);
+            }
+            if (starts.size() >= 12) {
+                break;
+            }
+        }
+        starts.addAll(contains);
+        return starts.size() > 12 ? new ArrayList<>(starts.subList(0, 12)) : starts;
+    }
+
+    private void suggest() {
+        if (findName != null || !findField.isFocused()) {
+            findPopup.hide();
+            return;
+        }
+        final List<String> hits = matches(findField.getText());
+        if (hits.isEmpty()) {
+            findPopup.hide();
+            return;
+        }
+        final List<javafx.scene.control.MenuItem> items = new ArrayList<>();
+        for (final String n : hits) {
+            final String tr = forge.util.CardTranslation.getTranslatedName(n);
+            final Label l = new Label(tr.equals(n) ? n : tr + "   ·   " + n);
+            l.getStyleClass().add("find-suggestion");
+            final javafx.scene.control.CustomMenuItem item = new javafx.scene.control.CustomMenuItem(l, true);
+            item.setOnAction(e -> findCard(n));
+            items.add(item);
+        }
+        findPopup.getItems().setAll(items);
+        if (!findPopup.isShowing()) {
+            findPopup.show(findField, javafx.geometry.Side.BOTTOM, 0, 2);
+        }
+    }
+
+    /** Busca esa carta: la rejilla se queda con sus sobres y arriba sale donde y cada cuanto. */
+    private void findCard(final String name) {
+        findPopup.hide();
+        findName = name;
+        final PaperCard card = cardNamed(name);
+        final String shownName = card == null ? name : forge.neo.card.CardText.nameOf(card);
+        if (!shownName.equals(findField.getText())) {
+            findField.setText(shownName);
+        }
+        findName = name;
+        findOdds.clear();
+        final List<CardEdition> collectors = new ArrayList<>();
+        for (final forge.neo.quest.PackContents.Source s : forge.neo.quest.PackContents.whereIs(
+                name, NeoQuestShop.editions(), NeoQuestShop.collectorEditions())) {
+            if (s.isCollector()) {
+                collectors.add(s.getEdition());
+            } else {
+                findOdds.put(s.getEdition().getCode(), s);
+            }
+        }
+        paintBanner(card, shownName, collectors);
+        pager.reset();
+        chosen = null;
+        pack = null;
+        reload();
+    }
+
+    private void clearFind(final boolean clearText) {
+        findName = null;
+        findOdds.clear();
+        findBanner.getChildren().clear();
+        findBanner.setManaged(false);
+        findBanner.setVisible(false);
+        if (clearText) {
+            findField.clear();
+        }
+        pager.reset();
+        reload();
+    }
+
+    /**
+     * Arriba de la rejilla: la carta, en cuantos sobres sale, el mas probable,
+     * y si ademas sale en un colector o esta en el mostrador de sueltas.
+     */
+    private void paintBanner(final PaperCard card, final String shownName, final List<CardEdition> collectors) {
+        final List<javafx.scene.Node> lines = new ArrayList<>();
+        final Label title = new Label(findOdds.isEmpty()
+                ? NeoText.get("shop.find.none", shownName)
+                : findOdds.size() == 1 ? NeoText.get("shop.find.inOne", shownName)
+                : NeoText.get("shop.find.inMany", shownName, findOdds.size()));
+        title.getStyleClass().add("quest-deck-name");
+        title.setWrapText(true);
+        lines.add(title);
+        final forge.neo.quest.PackContents.Source best = cheapest();
+        if (best != null) {
+            final Label line = new Label(NeoText.get("shop.find.best", best.getEdition().getName(),
+                    oddsText(best.getPull()), Math.round(costPerCopy(best.getEdition()))));
+            line.getStyleClass().add("find-line");
+            lines.add(line);
+        }
+        if (!collectors.isEmpty()) {
+            final List<String> names = new ArrayList<>();
+            for (final CardEdition e : collectors) {
+                names.add(e.getName());
+            }
+            final Label line = new Label(NeoText.get("shop.find.collector", String.join(", ", names)));
+            line.getStyleClass().add("find-line");
+            line.setWrapText(true);
+            lines.add(line);
+        }
+        // En el mostrador de sueltas: comprarla directamente es mas barato que
+        // buscarla a sobres, y el que empieza no lo sabe.
+        PaperCard single = null;
+        for (final PaperCard c : NeoQuestShop.singles()) {
+            if (c.getName().equals(findName)) {
+                single = c;
+                break;
+            }
+        }
+        final List<javafx.scene.Node> actions = new ArrayList<>();
+        if (single != null) {
+            final Label line = new Label(NeoText.get("shop.find.single", NeoQuestShop.priceOfCard(single)));
+            line.getStyleClass().addAll("find-line", "find-single");
+            lines.add(line);
+            final Button go = new Button(NeoText.get("shop.find.goSingles"));
+            go.getStyleClass().add("btn-secondary");
+            final PaperCard target = single;
+            go.setOnAction(e -> {
+                // A la carta, no solo a la pestanya: el mostrador va de 24 en 24.
+                ((Button) tabBar.getChildren().get(Tab.SINGLES.ordinal())).fire();
+                singleSearch.setText(forge.neo.card.CardText.nameOf(target));
+            });
+            actions.add(go);
+        }
+        if (findOdds.isEmpty() && (NeoQuest.chosenSets() != null || NeoQuest.worldSets() != null)) {
+            final Label line = new Label(NeoText.get("shop.find.limited"));
+            line.getStyleClass().add("find-line");
+            line.setWrapText(true);
+            lines.add(line);
+        }
+
+        final VBox text = new VBox(3);
+        text.getChildren().setAll(lines);
+        HBox.setHgrow(text, Priority.ALWAYS);
+        final javafx.scene.Node thumb;
+        if (card != null) {
+            final forge.neo.card.CardNode node = new forge.neo.card.CardNode(UiScale.px(62));
+            node.setRotationEnabled(false);
+            node.setBadgesVisible(false);
+            final PaperCard face = best == null ? card : best.getPull().getCard();
+            node.setCard(forge.game.card.CardView.getCardForUi(face));
+            node.setCursor(javafx.scene.Cursor.HAND);
+            node.setOnMouseClicked(e -> CardZoom.show(node, forge.game.card.CardView.getCardForUi(face)));
+            thumb = node;
+        } else {
+            thumb = new Region();
+        }
+        final Button clear = new Button(NeoText.get("shop.find.clear"));
+        clear.setId("shop-find-clear");
+        clear.getStyleClass().add("btn-secondary");
+        clear.setOnAction(e -> clearFind(true));
+        actions.add(clear);
+        final HBox buttons = new HBox(8);
+        buttons.getChildren().setAll(actions);
+        buttons.setAlignment(Pos.CENTER_RIGHT);
+        final HBox row = new HBox(14, thumb, text, buttons);
+        row.setAlignment(Pos.CENTER_LEFT);
+        findBanner.getChildren().setAll(row);
+        findBanner.setManaged(true);
+        findBanner.setVisible(true);
     }
 
     /**
@@ -1386,8 +1868,9 @@ public class QuestShopScreen extends StackPane {
     private void refreshPack() {
         quantityLabel.setText("\u00d7" + quantity);
         fewer.setDisable(quantity <= 1);
+        preview.setDisable(chosen == null);
         if (pack == null) {
-            packName.setText(NeoText.get("shop.noPack"));
+            packName.setText(NeoText.get(chosen == null ? "shop.pickCollector" : "shop.noPack"));
             packPrice.setText("");
             buy.setDisable(true);
             buy.setText(NeoText.get("shop.buy"));
@@ -1504,6 +1987,8 @@ public class QuestShopScreen extends StackPane {
             collectorPane.reload();
         } else if (tab == Tab.PRECONS && preconsPane != null) {
             preconsPane.reload();
+        } else if (tab == Tab.COMMANDER && commanderPane != null) {
+            commanderPane.reload();
         } else if (tab == Tab.BOXES && boxesPane != null) {
             boxesPane.reload();
         }
@@ -1575,6 +2060,11 @@ public class QuestShopScreen extends StackPane {
             case PRECONS:
                 if (preconsPane != null) {
                     preconsPane.autoBuy();
+                }
+                break;
+            case COMMANDER:
+                if (commanderPane != null) {
+                    commanderPane.autoBuy();
                 }
                 break;
             case BOXES:
@@ -1649,6 +2139,9 @@ public class QuestShopScreen extends StackPane {
         private final Label chosenPrice = new Label();
         private final Label chosenNote = new Label();
         private final Button take = new Button();
+        /** "Que puede salir", solo si la pagina lo pide ({@link #withPreview}). */
+        private final Button previewIt = new Button();
+        private java.util.function.Consumer<T> previewing;
         private final Label emptyLabel;
 
         private List<T> items = new ArrayList<>();
@@ -1721,8 +2214,18 @@ public class QuestShopScreen extends StackPane {
 
             final Region gap = new Region();
             HBox.setHgrow(gap, Priority.ALWAYS);
+            previewIt.setText(NeoText.get("shop.preview"));
+            previewIt.getStyleClass().add("btn-secondary");
+            previewIt.setMinWidth(Region.USE_PREF_SIZE);
+            previewIt.setManaged(false);
+            previewIt.setVisible(false);
+            previewIt.setOnAction(e -> {
+                if (previewing != null && picked != null) {
+                    previewing.accept(picked);
+                }
+            });
             final HBox row = new HBox(16,
-                    new VBox(2, chosenName, chosenPrice, chosenNote), gap, take);
+                    new VBox(2, chosenName, chosenPrice, chosenNote), gap, previewIt, take);
             row.setAlignment(Pos.CENTER_LEFT);
             row.getStyleClass().add("stat-tile");
             row.setPadding(new Insets(14, 18, 14, 18));
@@ -1734,6 +2237,14 @@ public class QuestShopScreen extends StackPane {
         /** La etiqueta pequenya de arriba de la casilla (el codigo del set). */
         ProductPage<T> showCode(final java.util.function.Function<T, String> f) {
             this.coding = f;
+            return this;
+        }
+
+        /** Un boton "Que puede salir" junto a comprar. */
+        ProductPage<T> withPreview(final java.util.function.Consumer<T> f) {
+            this.previewing = f;
+            previewIt.setManaged(f != null);
+            previewIt.setVisible(f != null);
             return this;
         }
 
@@ -1895,6 +2406,7 @@ public class QuestShopScreen extends StackPane {
         }
 
         private void refresh() {
+            previewIt.setDisable(picked == null);
             if (picked == null) {
                 chosenName.setText(pickPrompt);
                 chosenPrice.setText("");
@@ -1942,7 +2454,10 @@ public class QuestShopScreen extends StackPane {
                     NeoText.get("shop.openedDetail", bought.getCards().size(),
                             bought.getNewCount(), bought.getPaid()),
                     bought.getCards(), bought::isNew, null,
-                    cardWidth, getWidth(), getHeight(),
+                    // El de la PANTALLA, como en la rama de arriba: aqui dentro
+                    // getHeight() es el de esta pagina (~medio alto), y el
+                    // panel se media para un hueco que no es el suyo.
+                    cardWidth, QuestShopScreen.this.getWidth(), QuestShopScreen.this.getHeight(),
                     QuestShopScreen.this::closeOpened));
             if (onOpened != null) {
                 onOpened.run();
@@ -1951,11 +2466,17 @@ public class QuestShopScreen extends StackPane {
 
         /** Herramienta de prueba: elige el primero y pulsa el boton de verdad. */
         void autoBuy() {
+            pickFirst();
+            take.fire();
+        }
+
+        /** Herramienta de prueba: elige el primero, para ver el pie (-Dneo.shop.pickFirst). */
+        void pickFirst() {
             if (picked == null && !shown.isEmpty()) {
                 picked = shown.get(0);
+                paint();
                 refresh();
             }
-            take.fire();
         }
     }
 

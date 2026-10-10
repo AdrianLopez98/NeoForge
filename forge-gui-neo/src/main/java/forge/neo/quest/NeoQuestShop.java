@@ -47,7 +47,7 @@ public final class NeoQuestShop {
     public static List<CardEdition> editions() {
         final List<CardEdition> out = new ArrayList<>();
         for (final CardEdition e : FModel.getMagicDb().getEditions()) {
-            if (e != null && e.hasBoosterTemplate() && NeoQuest.allowsSet(e.getCode())) {
+            if (e != null && (e.hasBoosterTemplate() || isCommanderSet(e)) && NeoQuest.allowsSet(e.getCode())) {
                 out.add(e);
             }
         }
@@ -74,10 +74,252 @@ public final class NeoQuestShop {
     /** Un sobre de esa expansion, o null si no se puede montar. */
     public static BoosterPack boosterOf(final CardEdition edition) {
         try {
+            if (isCommanderSet(edition)) {
+                final forge.item.SealedTemplate t = commanderTemplate(edition);
+                // Sin " Booster": getName() ya le anyade " Booster Pack" (salia
+                // "Star Trek Commander Booster Booster Pack").
+                return t == null ? null : new BoosterPack(edition.getName(), t);
+            }
             return BoosterPack.fromSet(edition);
         } catch (final RuntimeException e) {
             return null;
         }
+    }
+
+    // ===============================================================
+    // Los mazos de Commander (09-10-2026)
+    // ===============================================================
+
+    /** Lo que cuesta un mazo de Commander, como mucho y como poco. */
+    static final int COMMANDER_DECK_MIN = 2500;
+    /** @see #COMMANDER_DECK_MIN */
+    static final int COMMANDER_DECK_MAX = 9000;
+
+    private static List<forge.item.PreconDeck> commanderDecks;
+    private static final java.util.Map<String, Integer> COMMANDER_DECK_PRICES = new java.util.HashMap<>();
+
+    /**
+     * Los mazos de Commander preconstruidos de Forge (173), a la venta enteros.
+     * Es como se consiguen de verdad las cartas de los sets de Commander
+     * (Discord, 09-10-2026: <i>"where are the commander sets in quest?"</i>):
+     * el mazo de 100 cartas, que entra en tus mazos y en tu coleccion. Van
+     * aparte de los preconstruidos de la tienda, que son los de 60 que el motor
+     * repone, porque estos estan siempre.
+     *
+     * <p>Con la Quest limitada a unas expansiones, o en un mundo que limita la
+     * tienda, solo los de esas expansiones (la del corchete del nombre:
+     * "Ahoy Mateys [LCC] [2023]").
+     */
+    public static List<forge.item.PreconDeck> commanderDecks() {
+        synchronized (NeoQuestShop.class) {
+            if (commanderDecks == null) {
+                final List<forge.item.PreconDeck> all = new ArrayList<>();
+                for (final forge.deck.Deck d : FModel.getDecks().getCommanderPrecons()) {
+                    if (d == null || d.getCommanders().isEmpty()) {
+                        continue;
+                    }
+                    all.add(new forge.item.PreconDeck(d, setOfDeck(d), null));
+                }
+                // De lo mas nuevo a lo mas viejo, como los sobres.
+                all.sort(Comparator.comparing((forge.item.PreconDeck p) -> {
+                    final CardEdition e = FModel.getMagicDb().getEditions().get(p.getEdition());
+                    return e == null ? new java.util.Date(0) : e.getDate();
+                }).reversed().thenComparing(forge.item.PreconDeck::getName));
+                commanderDecks = all;
+            }
+        }
+        final java.util.Set<String> world = NeoQuest.worldSets();
+        final List<forge.item.PreconDeck> out = new ArrayList<>();
+        for (final forge.item.PreconDeck p : commanderDecks) {
+            if (NeoQuest.allowsSet(p.getEdition()) && (world == null || world.contains(p.getEdition()))) {
+                out.add(p);
+            }
+        }
+        return out;
+    }
+
+    /** La expansion de un mazo de Commander: la del corchete del nombre, o la de su comandante. */
+    private static String setOfDeck(final forge.deck.Deck d) {
+        final java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\[([A-Z0-9]{2,6})\\]").matcher(d.getName());
+        while (m.find()) {
+            if (FModel.getMagicDb().getEditions().get(m.group(1)) != null) {
+                return m.group(1);
+            }
+        }
+        return d.getCommanders().get(0).getEdition();
+    }
+
+    /**
+     * Lo que cuesta un mazo de Commander: lo que valen sus cartas sueltas en
+     * la tienda, con el descuento de comprarlas juntas, entre {@value
+     * #COMMANDER_DECK_MIN} y {@value #COMMANDER_DECK_MAX}. Un mazo con las
+     * miticas buenas cuesta mas, como en la tienda de verdad.
+     */
+    public static int commanderDeckPrice(final forge.item.PreconDeck precon) {
+        if (precon == null || precon.getDeck() == null) {
+            return COMMANDER_DECK_MAX;
+        }
+        synchronized (COMMANDER_DECK_PRICES) {
+            final Integer known = COMMANDER_DECK_PRICES.get(precon.getName());
+            if (known != null) {
+                return known;
+            }
+        }
+        long sum = 0;
+        for (final java.util.Map.Entry<PaperCard, Integer> e : precon.getDeck().getAllCardsInASinglePool()) {
+            if (e.getKey().getRules() != null && e.getKey().getRules().getType().isBasicLand()) {
+                continue;
+            }
+            sum += (long) priceOfCard(e.getKey()) * e.getValue();
+        }
+        final long raw = Math.round(sum * COMMANDER_DECK_DISCOUNT / 50.0) * 50L;
+        final int price = (int) Math.max(COMMANDER_DECK_MIN, Math.min(COMMANDER_DECK_MAX, raw));
+        synchronized (COMMANDER_DECK_PRICES) {
+            COMMANDER_DECK_PRICES.put(precon.getName(), price);
+        }
+        return price;
+    }
+
+    /** Lo que se paga de cada carta al comprar el mazo entero. */
+    static final double COMMANDER_DECK_DISCOUNT = 0.35;
+
+    /**
+     * Compra un mazo de Commander: entra en tus mazos (con su comandante) y
+     * sus cartas en tu coleccion. Lo hace el motor, como un preconstruido.
+     */
+    public static Opened buyCommanderDeck(final forge.item.PreconDeck precon) {
+        if (precon == null || precon.getDeck() == null || !NeoQuest.isActive()) {
+            return null;
+        }
+        final int price = commanderDeckPrice(precon);
+        if (NeoQuest.credits() < price) {
+            return null;
+        }
+        final Set<String> before = ownedNames();
+        // Una copia: el motor guarda el mazo tal cual, y el de la lista tiene
+        // que seguir intacto para el siguiente que lo compre. Con el nombre
+        // limpio ("Ahoy Mateys", no "Ahoy Mateys [LCC] [2023]") y sin pisar
+        // uno que ya tengas: tus mazos se guardan por nombre, y comprar el
+        // mismo dos veces machacaria el primero con lo que le hubieras tocado.
+        final forge.deck.Deck copy = new forge.deck.Deck(precon.getDeck(), freeDeckName(cleanDeckName(precon.getName())));
+        if (NeoQuest.modalidad() != NeoQuest.Modalidad.COMMANDER) {
+            // En una Quest de Estandar no hay zona de mando: el comandante
+            // se quedaria en una seccion que la partida no lee y el editor no
+            // ensenya. Pasa al mazo, y se juegan las 100.
+            for (final java.util.Map.Entry<PaperCard, Integer> e : copy.get(forge.deck.DeckSection.Commander)) {
+                copy.getMain().add(e.getKey(), e.getValue());
+            }
+            copy.getOrCreate(forge.deck.DeckSection.Commander).clear();
+        }
+        final List<PaperCard> cards = copy.getAllCardsInASinglePool().toFlatList();
+        NeoQuest.engine().getCards().buyPreconDeck(new forge.item.PreconDeck(copy, precon.getEdition(), null), price);
+        NeoQuest.dropSideboards();
+        return finish(cleanDeckName(precon.getName()), new ArrayList<>(cards), before, price);
+    }
+
+    /** "Ahoy Mateys [LCC] [2023]" -> "Ahoy Mateys": el codigo y el anyo ya se ven en la tienda. */
+    public static String cleanDeckName(final String name) {
+        if (name == null) {
+            return "";
+        }
+        final String clean = name.replaceAll("\\s*\\[[^\\]]*\\]", "").trim();
+        return clean.isEmpty() ? name : clean;
+    }
+
+    /** Un nombre que no tengas ya entre tus mazos: "X", "X (2)", "X (3)"... */
+    private static String freeDeckName(final String base) {
+        final forge.util.storage.IStorage<forge.deck.Deck> mine = NeoQuest.engine().getMyDecks();
+        if (mine == null || !mine.contains(base)) {
+            return base;
+        }
+        int n = 2;
+        while (mine.contains(base + " (" + n + ")")) {
+            n++;
+        }
+        return base + " (" + n + ")";
+    }
+
+    // ===============================================================
+    // Los sets de Commander (09-10-2026)
+    // ===============================================================
+
+    /**
+     * Lo que cuesta un sobre de un set de Commander: trae dos raras o miticas
+     * (el de una expansion normal, una), y las cartas de esos sets son de las
+     * que mas se buscan para un mazo de Commander.
+     */
+    public static final int COMMANDER_PACK_PRICE = 650;
+
+    /** Cuantas cartas trae un sobre de un set de Commander. */
+    static final int COMMANDER_PACK_SIZE = 12;
+
+    private static final java.util.Map<String, forge.item.SealedTemplate> COMMANDER_TEMPLATES =
+            new java.util.HashMap<>();
+
+    /**
+     * Un set de Commander que en Forge no tiene sobre: los mazos de cada anyo
+     * (C13...C21), los de cada expansion (BLC, DSC, TDC...), Commander Masters...
+     * 48 en total. Discord, 09-10-2026: <i>"where are the commander sets in
+     * quest? A majority of cards I want in quest are usually in commander
+     * sets"</i>. En la vida real son mazos, no sobres, asi que la tienda no
+     * tenia de donde sacarlos: ahora les monta un sobre propio (ver
+     * {@link #commanderTemplate}) y vende los mazos aparte.
+     */
+    public static boolean isCommanderSet(final CardEdition e) {
+        return e != null && e.getType() == CardEdition.Type.COMMANDER && !e.hasBoosterTemplate();
+    }
+
+    /**
+     * El sobre de un set de Commander: {@value #COMMANDER_PACK_SIZE} cartas,
+     * dos de ellas raras o miticas, y el resto comunes e infrecuentes si el set
+     * tiene bastantes (los hay casi sin comunes: entonces cualquiera del set).
+     * En el mismo dialecto que el colector, y la lee el generador de Forge.
+     */
+    public static synchronized forge.item.SealedTemplate commanderTemplate(final CardEdition edition) {
+        if (!isCommanderSet(edition)) {
+            return null;
+        }
+        final String code = edition.getCode();
+        if (COMMANDER_TEMPLATES.containsKey(code)) {
+            return COMMANDER_TEMPLATES.get(code);
+        }
+        int commons = 0;
+        int uncommons = 0;
+        int rares = 0;
+        for (final forge.card.CardEdition.EditionEntry c : edition.getAllCardsInSet()) {
+            if (c.rarity() == forge.card.CardRarity.Common) {
+                commons++;
+            } else if (c.rarity() == forge.card.CardRarity.Uncommon) {
+                uncommons++;
+            } else if (c.rarity() == forge.card.CardRarity.Rare || c.rarity() == forge.card.CardRarity.MythicRare) {
+                rares++;
+            }
+        }
+        final int rm = rares >= 3 ? 2 : 0;
+        final int c = commons >= 10 ? 5 : 0;
+        final int u = uncommons >= 6 ? Math.min(COMMANDER_PACK_SIZE - rm - c, c > 0 ? 4 : 7) : 0;
+        final int any = COMMANDER_PACK_SIZE - rm - c - u;
+        final List<String> parts = new ArrayList<>();
+        if (c > 0) {
+            parts.add(c + " Common");
+        }
+        if (u > 0) {
+            parts.add(u + " Uncommon");
+        }
+        if (rm > 0) {
+            parts.add(rm + " RareMythic");
+        }
+        if (any > 0) {
+            parts.add(any + " Any");
+        }
+        forge.item.SealedTemplate t = null;
+        try {
+            t = new forge.item.SealedTemplate(code, String.join(", ", parts));
+        } catch (final RuntimeException e) {
+            System.err.println("[tienda] no se ha podido montar el sobre de " + code + ": " + e);
+        }
+        COMMANDER_TEMPLATES.put(code, t);
+        return t;
     }
 
     /**
@@ -90,6 +332,9 @@ public final class NeoQuestShop {
     public static int priceOf(final BoosterPack pack) {
         if (pack == null) {
             return DEFAULT_PRICE;
+        }
+        if (isCommanderSet(FModel.getMagicDb().getEditions().get(pack.getEdition()))) {
+            return COMMANDER_PACK_PRICE;
         }
         final Integer value = QuestSpellShop.getCardValue(pack);
         return value == null || value <= 0 ? DEFAULT_PRICE : value;
@@ -183,6 +428,17 @@ public final class NeoQuestShop {
         if (NeoQuest.credits() < total) {
             return null;
         }
+        // Abiertos ANTES de cobrar, como en open(): si uno revienta, no se
+        // cobra ninguno.
+        try {
+            for (final BoosterPack pack : packs) {
+                pack.getCards();
+            }
+        } catch (final RuntimeException e) {
+            System.err.println("[tienda] no se han podido abrir los sobres de " + edition.getCode()
+                    + ", no se cobra: " + e);
+            return null;
+        }
         final Set<String> before = ownedNames();
         final List<PaperCard> cards = new ArrayList<>();
         for (final BoosterPack pack : packs) {
@@ -206,6 +462,18 @@ public final class NeoQuestShop {
 
     private static Opened open(final BoosterPack pack, final int price) {
         final Set<String> before = ownedNames();
+
+        // El sobre se abre ANTES de cobrar. Forge cobra y despues abre
+        // (QuestUtilCards.buyPack), asi que un sobre que revienta al montarse
+        // se llevaba los creditos sin dar nada: le pasaba al de colector de
+        // DMR, DMU, DOM y WAR (ver collectorTemplate, 09-10-2026). getCards()
+        // memoriza, asi que buyPack mete exactamente estas.
+        try {
+            pack.getCards();
+        } catch (final RuntimeException e) {
+            System.err.println("[tienda] no se ha podido abrir " + pack.getName() + ", no se cobra: " + e);
+            return null;
+        }
 
         if (price > 0) {
             NeoQuest.engine().getCards().buyPack(pack, price);
@@ -471,7 +739,9 @@ public final class NeoQuestShop {
     public static List<CardEdition> collectorEditions() {
         final List<CardEdition> out = new ArrayList<>();
         for (final CardEdition e : editions()) {
-            if (artSheetsOf(e).isEmpty()) {
+            // Los de Commander no: su sobre ya es nuestro, y un colector montado
+            // encima con comunes que el set casi no tiene saldria cojo.
+            if (isCommanderSet(e) || artSheetsOf(e).isEmpty()) {
                 continue;
             }
             out.add(e);
@@ -506,21 +776,38 @@ public final class NeoQuestShop {
      * expansion porque {@code BoosterGenerator} lo usa para las tiradas de foil.
      */
     public static BoosterPack collectorBooster(final CardEdition edition) {
+        final forge.item.SealedTemplate template = collectorTemplate(edition);
+        return template == null ? null : new BoosterPack(edition.getName() + " Collector", template);
+    }
+
+    /**
+     * La plantilla del sobre de colector (ver {@link #collectorBooster}), o
+     * {@code null}. Aparte porque {@link PackContents} la recorre para decir
+     * que puede salir en el.
+     */
+    static forge.item.SealedTemplate collectorTemplate(final CardEdition edition) {
         final List<String> sheets = artSheetsOf(edition);
         if (edition == null || sheets.isEmpty()) {
             return null;
         }
         final String code = edition.getCode();
-        final StringBuilder desc = new StringBuilder("5 Common, 4 Uncommon, 1 RareMythic+");
+        // ⚠️ Sin "+" (foil) en las expansiones que garantizan una carta por
+        // sobre (BoosterMustContain: DMR, DMU y DOM una criatura legendaria, WAR
+        // un planeswalker). Forge, para garantizarla, monta la hoja de cada
+        // hueco con el "+" pegado al nombre y revienta ("operator could not be
+        // parsed - RareMythic+") cada vez que el sobre no la trae por si solo:
+        // en WAR casi siempre. Lo encontro PackContentsCheck (09-10-2026).
+        final String must = edition.getBoosterMustContain();
+        final String foil = must == null || must.trim().isEmpty() ? "+" : "";
+        final StringBuilder desc = new StringBuilder("5 Common, 4 Uncommon, 1 RareMythic" + foil);
         for (final String sheet : sheets) {
             desc.append(", 1 fromSheet(\"").append(code).append(' ').append(sheet).append("\")");
         }
         if (hasSheet(edition, "fullart")) {
-            desc.append(", 1 Land:fromSheet(\"").append(code).append(" fullart\")+");
+            desc.append(", 1 Land:fromSheet(\"").append(code).append(" fullart\")").append(foil);
         }
         try {
-            return new BoosterPack(edition.getName() + " Collector",
-                    new forge.item.SealedTemplate(code, desc.toString()));
+            return new forge.item.SealedTemplate(code, desc.toString());
         } catch (final RuntimeException e) {
             System.err.println("[tienda] no se ha podido montar el colector de "
                     + code + ": " + e);

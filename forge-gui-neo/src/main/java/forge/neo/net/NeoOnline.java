@@ -271,7 +271,7 @@ public final class NeoOnline implements IOnlineLobby, IOnlineChatInterface {
     }
 
     public boolean isHost() {
-        return client == null && FServerManager.getInstance().isHosting();
+        return client == null && forge.gamemodes.net.server.HostingServer.isHosting();
     }
 
     public boolean isGuest() {

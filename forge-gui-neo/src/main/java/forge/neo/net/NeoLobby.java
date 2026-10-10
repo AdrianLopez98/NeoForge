@@ -120,11 +120,12 @@ public final class NeoLobby {
     /**
      * Estamos hospedando una sala: la partida que monte el lobby es nuestra.
      *
-     * <p>Una bandera propia y no {@code FServerManager.getInstance().isHosting()}
-     * porque quien la lee es {@code NeoGuiBase.hostMatch}, por el que pasan
-     * TODAS las partidas, y {@code getInstance()} crea el singleton con sus dos
-     * grupos de hilos de netty: pagarlo en cada partida suelta seria arrancar
-     * un servidor a medias para nada.
+     * <p>Una bandera propia y no "hay un servidor escuchando": quien la lee es
+     * {@code NeoGuiBase.hostMatch}, por el que pasan TODAS las partidas, y lo
+     * que pregunta es si la partida que va a montar es la de NUESTRA sala.
+     * (Antes se evitaba {@code FServerManager.getInstance().isHosting()} porque
+     * crea el singleton con sus hilos de netty; Forge lo quito el 10-10-2026 y
+     * lo de ahora, {@code HostingServer.isHosting()}, es estatico.)
      */
     private static volatile boolean hostingLobby;
 
@@ -141,15 +142,17 @@ public final class NeoLobby {
     /** Cierra el servidor. Idempotente: se puede llamar sin estar hospedando. */
     public static void stopHosting() {
         hostingLobby = false;
-        final FServerManager server = FServerManager.getInstance();
-        if (server.isHosting()) {
-            server.stopServer();
+        // HostingServer y no FServerManager.isHosting(), que Forge quito el
+        // 10-10-2026 (#12181, "Fix netplay host bugs"). Ademas es estatico y
+        // no crea el singleton con sus hilos de netty solo para preguntar.
+        if (forge.gamemodes.net.server.HostingServer.isHosting()) {
+            FServerManager.getInstance().stopServer();
             System.out.println("[lobby] servidor cerrado");
         }
     }
 
     public static boolean isHosting() {
-        return FServerManager.getInstance().isHosting();
+        return forge.gamemodes.net.server.HostingServer.isHosting();
     }
 
     // ------------------------------------------------------------------

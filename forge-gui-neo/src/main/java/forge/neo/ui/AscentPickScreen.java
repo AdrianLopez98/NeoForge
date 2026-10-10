@@ -68,7 +68,7 @@ public class AscentPickScreen extends StackPane {
         final VBox body = new VBox(14);
         body.setAlignment(Pos.CENTER);
         // El borde del papel esta ROTO: ver Parchment.SAFE_EDGE.
-        body.setPadding(new Insets(24, 34, Parchment.SAFE_EDGE, 34));
+        body.setPadding(new Insets(Parchment.SAFE_EDGE, 34, Parchment.SAFE_EDGE, 34));
 
         final Label title = new Label(NeoText.get("ascent.pick.title"));
         title.getStyleClass().add("ascent-act");

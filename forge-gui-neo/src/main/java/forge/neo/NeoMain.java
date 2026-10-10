@@ -185,6 +185,11 @@ public final class NeoMain {
         //
         // Sin ventana (play, watch, los comprobadores) se carga aqui de
         // siempre: no hay a quien enseñarle una barra.
+        // artlesscheck arranca el motor con las cartas sin arte fuera: el
+        // ajuste solo se lee al montar la base de cartas. Ver ArtlessCards.
+        if ("artlesscheck".equals(cmd)) {
+            System.setProperty(forge.neo.card.ArtlessCards.FORCE_PROPERTY, "true");
+        }
         if (!windowed) {
             NeoBoot.loadEngine(null);
         }
@@ -252,6 +257,18 @@ public final class NeoMain {
                 // mas (una rara en Pauper, una reliquia de Ascenso...).
                 banner("Enciclopedia: expansiones, formatos y coleccion");
                 forge.neo.deck.LibraryCheck.run();
+                break;
+            case "artlesscheck":
+                // "Ocultar las cartas sin arte": ninguna en el juego, y lo
+                // demas intacto. Discord, 10-10-2026. Ver ArtlessCards.
+                banner("Las cartas sin arte, fuera del juego");
+                forge.neo.card.ArtlessCheck.run();
+                break;
+            case "packcheck":
+                // Lo que dice "Que puede salir" de un sobre de la tienda es lo
+                // que sale de verdad. Discord, 09-10-2026. Ver PackContentsCheck.
+                banner("Tienda: lo que puede salir en cada sobre");
+                forge.neo.quest.PackContentsCheck.run();
                 break;
             case "draftcheck":
                 // El ciclo de un draft entero (3 sobres x 15 picks, los siete
@@ -421,6 +438,12 @@ public final class NeoMain {
                 banner("Un pago opcional no se paga solo");
                 forge.neo.match.OptionalPayCheck.run();
                 break;
+            case "triggerdetailcheck":
+                // El modo de un disparo dice de QUIEN habla ("Damaged:
+                // Lisian"). Discord, 09-10-2026. Ver TriggerDetailCheck.
+                banner("El modo de un disparo dice de quien habla");
+                forge.neo.match.TriggerDetailCheck.run();
+                break;
             case "moxchaincheck":
                 // Girar fuentes de mana en cadena y rapido (Mox Opal sin su
                 // mana, Discord 01-10-2026). Ver MoxChainCheck.
@@ -467,6 +490,18 @@ public final class NeoMain {
                 // de la interfaz. Ver YieldCheck.
                 banner("Pase automatico: pasar turno y control total");
                 forge.neo.match.YieldCheck.run();
+                break;
+            case "questprefscheck":
+                // Las preferencias de la Quest (las de Forge): rotulos en los
+                // once idiomas, validacion y volver a como venian. Ver QuestPrefsCheck.
+                banner("Quest: las preferencias de Forge");
+                forge.neo.quest.QuestPrefsCheck.run();
+                break;
+            case "relicpasscheck":
+                // Los disparos de TUS reliquias de Ascenso se dejan pasar solos;
+                // los del rival, no. Ver RelicPassCheck.
+                banner("Reliquias: sus disparos pasan solos");
+                forge.neo.match.RelicPassCheck.run();
                 break;
             case "manacheck":
                 // Que una tierra de dos colores pregunte cual da. La mesa que

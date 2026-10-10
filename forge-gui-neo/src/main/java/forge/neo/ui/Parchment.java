@@ -72,6 +72,11 @@ public final class Parchment extends Region {
      * mapa y los botones del resumen final (<i>"estos tambien hay que
      * subirlos"</i>, 03-09-2026). Por eso el numero es de esta clase y no de
      * cada pantalla: la que se olvide de mirarlo es la siguiente que falla.
+     * Y fallo la cuarta: las seis paginas con cuerpo (premio, tienda,
+     * descanso, evento, elegir y montar) lo usaban abajo y dejaban 20-24
+     * arriba. Con el contenido centrado no se notaba; con la rejilla de
+     * "Que 2 cartas quitas" llena, el titulo quedaba sobre el borde (Discord,
+     * 10-10-2026: <i>"you could lower a bit the text in this page"</i>).
      *
      * <p>38 sale de la cuenta a 1080 de alto ({@code 2*bite ≈ 38}). Es fijo y
      * no proporcional a proposito: en una ventana mas pequenya sobra margen, y

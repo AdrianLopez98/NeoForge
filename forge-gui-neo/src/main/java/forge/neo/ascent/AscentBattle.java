@@ -626,6 +626,14 @@ public final class AscentBattle {
             public RegisteredPlayer opponent(final int i, final Deck deck, final int seats) {
                 return opponentSeat(plan, seats);
             }
+
+            // Un rival distinto en cada duelo: nombre y cara al azar, sin
+            // tocar tus rivales de Personalizar (Discord, 10-10-2026: siempre
+            // contra "Dolly", que era el rival 1 guardado).
+            @Override
+            public forge.LobbyPlayer player(final int i, final String aiProfile) {
+                return forge.neo.look.NeoPlayers.passingAi(aiProfile);
+            }
         };
     }
 

@@ -2,11 +2,15 @@ package forge.neo.ui;
 
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import forge.game.card.CardView;
 import forge.item.PaperCard;
+import forge.neo.ascent.AscentDecks;
 import forge.neo.card.CardNode;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
+import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.FlowPane;
@@ -28,6 +32,18 @@ import javafx.scene.layout.FlowPane;
  * buscarla. Para lo demas (contar tierras, ver la curva) sirve igual leido al
  * reves.
  *
+ * <h2>O por tipo, y siempre en grupos</h2>
+ *
+ * <p>Desde el 09-10-2026 (Discord: <i>"add the ability to sort by type ... see
+ * how many lands I have as well as other card types"</i>) el jugador puede
+ * pedirlo por tipo en el visor del mapa ({@link AscentDeckScreen}), y entonces
+ * sale asi en los cuatro sitios: los grupos del editor de mazos, cada uno con
+ * su rotulo y su cuenta, y dentro de cada uno de cara a barata. Y por coste
+ * tambien en grupos, uno por coste y las tierras aparte
+ * ({@link AscentDecks#headerOf}): sin rotulos, los dos botones parecian hacer
+ * lo mismo. Ordena aqui dentro ({@link AscentDecks#sort}) para que ninguna
+ * pantalla se quede con el orden de antes.
+ *
  * <h2>Elegir es opcional</h2>
  *
  * <p>Sin {@code onPick} las cartas no se pueden clicar: es un visor, y en el
@@ -46,7 +62,7 @@ public class AscentDeckView extends ScrollPane {
                           final Consumer<PaperCard> onPick) {
         final FlowPane grid = new FlowPane(10, 10);
         grid.setAlignment(Pos.CENTER);
-        for (final PaperCard card : cards) {
+        fill(grid, cards, card -> {
             final CardNode node = new CardNode(cardWidth);
             node.setRotationEnabled(false);
             node.setCard(CardView.getCardForUi(card));
@@ -62,8 +78,8 @@ public class AscentDeckView extends ScrollPane {
                     onPick.accept(card);
                 });
             }
-            grid.getChildren().add(node);
-        }
+            return node;
+        });
         setContent(grid);
         setFitToWidth(true);
         // Que el mazo llene el visor: ver CardFit. El ancho que llega es el
@@ -71,6 +87,46 @@ public class AscentDeckView extends ScrollPane {
         CardFit.install(this, grid, cardWidth, Math.max(cardWidth, UiScale.px(230)));
         getStyleClass().add("ascent-scroll");
         setHbarPolicy(ScrollBarPolicy.NEVER);
+    }
+
+    /**
+     * Mete en la rejilla las cartas, en el orden que haya elegido el jugador
+     * ({@link AscentDecks#sort}), con un rotulo a lo ancho al empezar cada
+     * grupo ("CRIATURAS · 23", "COSTE 5 · 4"). Lo usa tambien el descanso, que
+     * monta su propia rejilla.
+     *
+     * <p>Los rotulos no son {@link CardNode}, asi que {@link CardFit} no los
+     * cuenta como cartas; solo anyaden una fila.
+     */
+    static void fill(final FlowPane grid, final List<PaperCard> cards,
+                     final Function<PaperCard, Node> nodeFor) {
+        final List<PaperCard> ordered = AscentDecks.sort(cards);
+        final java.util.List<String> heads = new java.util.ArrayList<>();
+        for (final PaperCard card : ordered) {
+            heads.add(AscentDecks.headerOf(card));
+        }
+        for (int i = 0; i < ordered.size(); i++) {
+            final String head = heads.get(i);
+            if (i == 0 || !head.equals(heads.get(i - 1))) {
+                int count = 0;
+                for (int j = i; j < heads.size() && heads.get(j).equals(head); j++) {
+                    count++;
+                }
+                grid.getChildren().add(header(grid, head, count));
+            }
+            grid.getChildren().add(nodeFor.apply(ordered.get(i)));
+        }
+    }
+
+    /** El rotulo de un grupo, del ancho de la rejilla para que vaya en su fila. */
+    private static Label header(final FlowPane grid, final String head, final int count) {
+        final Label label = new Label(head.toUpperCase() + "  ·  " + count);
+        label.getStyleClass().add("ascent-group-head");
+        label.prefWidthProperty().bind(javafx.beans.binding.Bindings.createDoubleBinding(
+                () -> Math.max(0, grid.getWidth() - grid.getPadding().getLeft()
+                        - grid.getPadding().getRight() - 2),
+                grid.widthProperty(), grid.paddingProperty()));
+        return label;
     }
 
 }

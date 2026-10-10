@@ -2579,6 +2579,61 @@ public final class AscentCheck {
                         + (guardada ? "" : " no se guarda con la run"));
             }
 
+            // 6b. Tu comandante tampoco sale (Discord, 09-10-2026: "Giada, my
+            // commander, appeared in the rewards pool"). Vive en la zona de
+            // mando, no en el principal, y era lo unico que se miraba.
+            final List<String> mando = new ArrayList<>();
+            for (final PaperCard cmd : AscentDecks.load(run).getCommanders()) {
+                if (AscentRewards.offerable(run, cmd.getName())) {
+                    mando.add(cmd.getName());
+                }
+            }
+            if (mando.isEmpty()) {
+                ok("premios: " + conocido.getName() + ", tu comandante, no esta en el pozo de premios");
+            } else {
+                fail("premios: tu comandante sale como premio: " + mando);
+            }
+
+            // 6c. El mazo por tipo (Discord, 09-10-2026: "add the ability to
+            // sort by type ... see how many lands I have"). Los grupos salen
+            // seguidos y en el orden del editor, dentro de cada uno de cara a
+            // barata, y la cuenta por tipo suma el mazo entero. La preferencia
+            // la repone AscentCheckGuard (es una clave ascent.*).
+            final boolean antesPorTipo = AscentDecks.byType();
+            try {
+                AscentDecks.setByType(true);
+                final List<PaperCard> porTipo = AscentDecks.sorted(AscentDecks.load(run));
+                final List<String> orden = java.util.Arrays.asList(forge.neo.deck.DeckEditor.GROUPS);
+                boolean seguidos = true;
+                for (int i = 1; i < porTipo.size(); i++) {
+                    final PaperCard a = porTipo.get(i - 1);
+                    final PaperCard b = porTipo.get(i);
+                    final int ga = orden.indexOf(AscentDecks.groupOf(a));
+                    final int gb = orden.indexOf(AscentDecks.groupOf(b));
+                    seguidos &= ga < gb || (ga == gb && a.getRules().getManaCost().getCMC()
+                            >= b.getRules().getManaCost().getCMC());
+                }
+                int suma = 0;
+                final java.util.regex.Matcher m = java.util.regex.Pattern.compile("(\\d+)(?=\\s*(·|$))")
+                        .matcher(AscentDecks.typeLine(porTipo));
+                while (m.find()) {
+                    suma += Integer.parseInt(m.group(1));
+                }
+                AscentDecks.setByType(false);
+                final List<PaperCard> porCoste = AscentDecks.sorted(AscentDecks.load(run));
+                final boolean deCoste = porCoste.equals(AscentDecks.sortedByCost(AscentDecks.load(run)));
+                if (seguidos && suma == porTipo.size() && deCoste) {
+                    ok("mazo por tipo: " + AscentDecks.typeLine(porTipo) + " — grupos seguidos, de cara a"
+                            + " barata dentro de cada uno, y por coste sigue como antes");
+                } else {
+                    fail("mazo por tipo: " + (seguidos ? "" : "grupos desordenados; ")
+                            + (suma == porTipo.size() ? "" : "la cuenta suma " + suma + " de " + porTipo.size() + "; ")
+                            + (deCoste ? "" : "por coste ya no es el orden de siempre"));
+                }
+            } finally {
+                AscentDecks.setByType(antesPorTipo);
+            }
+
             // 7. Devolver lo cogido (Discord, 08-10-2026: "Add the ability to
             // deselect a choice"): coger y devolver una carta y la tierra extra
             // deja el mazo exactamente como estaba.

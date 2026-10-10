@@ -77,7 +77,9 @@ public final class AdventureLauncher {
         final Scene scene = stage.getScene();
         try {
             final Launch launch = command(stage);
-            final ProcessBuilder pb = new ProcessBuilder(launch.cmd);
+            // Sin la variable del lanzador de jpackage: en Linux el hijo se
+            // tomaria "adventure" como clase principal. Ver NeoOs.relaunch.
+            final ProcessBuilder pb = forge.neo.platform.NeoOs.relaunch(launch.cmd);
             if (!launch.props.isEmpty()) {
                 pb.environment().put(AdventureNeoMain.PROPS_ENV, String.join("\n", launch.props));
             }

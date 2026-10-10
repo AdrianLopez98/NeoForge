@@ -130,6 +130,11 @@ public class QuestSetupScreen extends BorderPane {
         head.setAlignment(Pos.CENTER);
         head.setPadding(new Insets(24, 20, 10, 20));
         setTop(head);
+        // Clic derecho sobre cualquier carta: a tamanyo de lectura, como en el
+        // cuartel. Aqui no estaba (Discord, 10-10-2026: "in the first page of
+        // quest for pc the right click wont zoom in the card"), y es donde se
+        // elige el comandante con el que vas a jugar toda la Quest.
+        CardZoom.install(this);
 
         pager = new Pager(24, this::paintDecks);
         cmdPager = new Pager(24, this::paintCommanders);
@@ -485,6 +490,12 @@ public class QuestSetupScreen extends BorderPane {
         search.getStyleClass().add("text-input");
         search.setPrefColumnCount(22);
         search.textProperty().addListener((o, was, is) -> reloadDecks());
+        // -Dneo.questNew.search=felothar: la busqueda ya escrita, para
+        // capturarla (la guía de pruebas).
+        final String typed = System.getProperty("neo.questNew.search");
+        if (typed != null) {
+            javafx.application.Platform.runLater(() -> search.setText(typed));
+        }
 
         final Button random = new Button(NeoText.get("questNew.random"));
         random.getStyleClass().add("btn-secondary");
@@ -521,7 +532,7 @@ public class QuestSetupScreen extends BorderPane {
                 : search.getText().trim().toLowerCase(Locale.ROOT);
         filtered = new ArrayList<>();
         for (final Deck d : NeoQuest.starterDecks(modalidad)) {
-            if (q.isEmpty() || d.getName().toLowerCase(Locale.ROOT).contains(q)) {
+            if (q.isEmpty() || matches(d, q)) {
                 filtered.add(d);
             }
         }
@@ -530,6 +541,31 @@ public class QuestSetupScreen extends BorderPane {
         if (starter == null && !filtered.isEmpty()) {
             pick(filtered.get(0));
         }
+    }
+
+    /**
+     * Si el mazo sale buscando eso: por su nombre o por el de su comandante (o
+     * la carta de portada en Estandar), en ingles y traducido, que es lo que
+     * pone la casilla debajo (Discord, 10-10-2026: <i>"i typed the name of the
+     * commander and it didnt find (felothar). the search only works when
+     * looking for the abzan"</i>).
+     */
+    private static boolean matches(final Deck d, final String q) {
+        if (d.getName().toLowerCase(Locale.ROOT).contains(q)) {
+            return true;
+        }
+        final List<forge.item.PaperCard> faces = new ArrayList<>(d.getCommanders());
+        final forge.item.PaperCard cover = DeckTile.commanderOf(d);
+        if (cover != null) {
+            faces.add(cover);
+        }
+        for (final forge.item.PaperCard c : faces) {
+            if (c.getName().toLowerCase(Locale.ROOT).contains(q)
+                    || forge.neo.card.CardText.nameOf(c).toLowerCase(Locale.ROOT).contains(q)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -547,7 +583,13 @@ public class QuestSetupScreen extends BorderPane {
             final DeckTile tile = new DeckTile(d, cardWidth * PRECON_CARD);
             tile.pseudoClassStateChanged(PICKED, starter != null
                     && starter.getName().equals(d.getName()));
-            tile.setOnMouseClicked(e -> pick(d));
+            // Solo el izquierdo elige: el derecho es para leer la carta
+            // (CardZoom), y elegia el mazo de paso.
+            tile.setOnMouseClicked(e -> {
+                if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY) {
+                    pick(d);
+                }
+            });
             deckGrid.getChildren().add(tile);
             // Ya en la escena, para que el tamanyo de letra (en em) este resuelto.
             tile.applyCss();

@@ -77,7 +77,7 @@ public class AscentShopScreen extends StackPane {
         // ScrollPane se queda con lo que sobra.
         body.setAlignment(Pos.CENTER);
         // El borde del papel esta ROTO: ver Parchment.SAFE_EDGE.
-        body.setPadding(new Insets(22, 28, Parchment.SAFE_EDGE, 28));
+        body.setPadding(new Insets(Parchment.SAFE_EDGE, 28, Parchment.SAFE_EDGE, 28));
         rebuild();
 
         getChildren().addAll(paper, body);

@@ -51,6 +51,33 @@ public final class NeoOs {
     }
 
     /** Ctrl, o en Mac tambien Cmd. */
+    /**
+     * La variable con la que el lanzador de jpackage de Linux se pasa a si
+     * mismo las opciones de Java. Ver {@link #relaunch}.
+     */
+    static final String JPACKAGE_LAUNCHER_ENV = "_JPACKAGE_LAUNCHER";
+
+    /**
+     * Un proceso que vuelve a lanzar NeoForge: la Aventura, y el relanzamiento
+     * al cambiar de idioma o al importar datos.
+     *
+     * <p><b>Linux (09-10-2026, Discord, con el diagnostico entero):</b> la
+     * Aventura se cerraba nada mas abrir con <i>"Could not find or load main
+     * class adventure"</i>. El lanzador de jpackage de Linux
+     * ({@code libapplauncher}, {@code LinuxLauncherLib.cpp}) deja en el entorno
+     * del Java que arranca la variable {@code _JPACKAGE_LAUNCHER}; cuando otro
+     * lanzador la encuentra puesta, cree que lo ha relanzado Java desde dentro
+     * y toma sus argumentos como una linea de {@code java} en crudo, sin leer
+     * su {@code .cfg} — y el {@code adventure} que le pasamos cae en el hueco
+     * de la clase principal. Nuestros hijos la heredaban. Se quita aqui.
+     * En Windows ese lanzador no existe y no cambia nada.
+     */
+    public static ProcessBuilder relaunch(final java.util.List<String> cmd) {
+        final ProcessBuilder pb = new ProcessBuilder(cmd);
+        pb.environment().remove(JPACKAGE_LAUNCHER_ENV);
+        return pb;
+    }
+
     public static boolean ctrl(final MouseEvent e) {
         return e.isControlDown() || (MAC && e.isMetaDown());
     }

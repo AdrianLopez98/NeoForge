@@ -169,6 +169,14 @@ public class DeckBuilderScreen extends StackPane {
     private boolean onlyLegal = true;
 
     /**
+     * El mundo de la Quest para el filtro "Solo de Urza", o null si no se
+     * ofrece (ver NeoQuestWorlds.deckFilterWorld). Se mira al abrir: dentro del
+     * editor no se viaja.
+     */
+    private final forge.gamemodes.quest.QuestWorld filterWorld;
+    private boolean worldOnly;
+
+    /**
      * El catalogo esta ensenyando comandantes en vez de cartas.
      *
      * <p>Es un modo del MISMO catalogo, no un dialogo aparte, para que valgan el
@@ -246,6 +254,8 @@ public class DeckBuilderScreen extends StackPane {
         // "Solo lo que cabe" encendido o no de salida lo decide el contexto
         // (apagado en la Aventura, pedido jugando el 19-09-2026).
         this.onlyLegal = editor.onlyFitsByDefault();
+        this.filterWorld = editor.getFormat() instanceof forge.neo.quest.QuestDeckContext
+                ? forge.neo.quest.NeoQuestWorlds.deckFilterWorld() : null;
 
         getStyleClass().addAll("table-root", "deck-builder");
         // La base de letra del editor: 13 px, crecidos en 2K como el resto del
@@ -396,6 +406,27 @@ public class DeckBuilderScreen extends StackPane {
             legal.pseudoClassStateChanged(SELECTED, onlyLegal);
             refreshCatalogue();
         });
+
+        // "Solo de Urza": las cartas de tu coleccion que valen en el mundo de
+        // la Quest en que estas (itch.io, 10-10-2026). A la vista, al lado de
+        // "Solo lo que cabe", porque es la misma clase de pregunta.
+        final Button world = filterWorld == null ? null
+                : new Button(NeoText.get("deck.worldOnly",
+                        forge.neo.quest.NeoQuest.worldLabel(filterWorld)));
+        if (world != null) {
+            world.setId("builder-world-only");
+            world.getStyleClass().add("segment");
+            world.setMinWidth(Region.USE_PREF_SIZE);
+            world.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("deck.worldOnly.tip",
+                    forge.neo.quest.NeoQuest.worldLabel(filterWorld),
+                    forge.neo.quest.NeoQuestWorlds.describe(filterWorld))));
+            filterButtons.add(world);
+            world.setOnAction(e -> {
+                worldOnly = !worldOnly;
+                world.pseudoClassStateChanged(SELECTED, worldOnly);
+                refreshCatalogue();
+            });
+        }
 
         final Region gap = new Region();
         HBox.setHgrow(gap, Priority.ALWAYS);
@@ -585,6 +616,9 @@ public class DeckBuilderScreen extends StackPane {
         final HBox caption = new HBox(10,
                 label(editor.getFormat().catalogueLabel()), pickingBadge,
                 gap, legal);
+        if (world != null) {
+            caption.getChildren().add(caption.getChildren().indexOf(legal), world);
+        }
         // Ordenar, como las columnas del editor de Forge. En la Aventura,
         // ademas, "lo ultimo primero".
         caption.getChildren().add(caption.getChildren().indexOf(legal), sortBox());
@@ -1050,6 +1084,7 @@ public class DeckBuilderScreen extends StackPane {
         types.clear();
         searchRules = false;
         onlyLegal = false;
+        worldOnly = false;
         for (final Button n : filterButtons) {
             n.pseudoClassStateChanged(SELECTED, false);
         }
@@ -1569,8 +1604,13 @@ public class DeckBuilderScreen extends StackPane {
 
         // Los filtros finos se componen con el de color en un solo predicado:
         // el buscador ya recorre el catalogo una vez y pasa cada carta por el.
+        final Predicate<PaperCard> inWorld = worldOnly
+                ? forge.neo.quest.NeoQuestWorlds.deckFilter(filterWorld) : null;
         final Predicate<PaperCard> fine = card -> {
             if (usedUp.contains(card.getName())) {
+                return false;
+            }
+            if (inWorld != null && !inWorld.test(card)) {
                 return false;
             }
             if (!rarities.isEmpty() && !rarities.contains(card.getRarity())) {

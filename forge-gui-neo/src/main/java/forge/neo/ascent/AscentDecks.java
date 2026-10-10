@@ -243,12 +243,122 @@ public final class AscentDecks {
                 out.add(e.getKey());
             }
         }
-        out.sort(Comparator
-                .comparingInt((PaperCard c) -> c.getRules() == null ? 0
-                        : c.getRules().getManaCost().getCMC())
-                .reversed()
-                .thenComparing(PaperCard::getName));
+        out.sort(BY_COST);
         return out;
+    }
+
+    /**
+     * Como se ensenya el mazo de una run: de mas caro a mas barato (de fabrica)
+     * o <b>por tipo</b> (Discord, 09-10-2026: <i>"add the ability to sort by
+     * type. I'd also love the ability to see how many lands I have as well as
+     * other card types"</i>).
+     *
+     * <p>Es <b>una</b> preferencia para los cuatro sitios donde sale el mazo
+     * (descanso, tienda, visor y resumen), por lo de siempre: si cada uno
+     * ordenara a su manera, la carta que ya sabes donde esta cambiaria de sitio
+     * segun por que puerta entres. No va con la run: {@code discard} borra sus
+     * claves una a una y esta no esta entre ellas.
+     */
+    public static final String SORT_SETTING = "ascent.deckByType";
+
+    public static boolean byType() {
+        return forge.neo.NeoSettings.getBool(SORT_SETTING, false);
+    }
+
+    public static void setByType(final boolean on) {
+        forge.neo.NeoSettings.setBool(SORT_SETTING, on);
+        forge.neo.NeoSettings.save();
+    }
+
+    /** El mazo en el orden que haya elegido el jugador. Ver {@link #sort}. */
+    public static List<PaperCard> sorted(final Deck deck) {
+        return sort(sortedByCost(deck));
+    }
+
+    /**
+     * Esas cartas en el orden elegido. Por tipo van en los grupos del editor de
+     * mazos ({@code DeckEditor.GROUPS}: criaturas, hechizos, artefactos...
+     * tierras), y <b>dentro de cada uno de mas cara a mas barata</b>: lo que se
+     * viene a buscar sigue arriba, solo que ahora dentro de su tipo.
+     */
+    public static List<PaperCard> sort(final List<PaperCard> cards) {
+        final List<PaperCard> out = new ArrayList<>(cards);
+        out.sort(byType() ? Comparator.comparingInt(AscentDecks::groupIndex).thenComparing(BY_COST) : BY_COST);
+        return out;
+    }
+
+    /**
+     * De mas cara a mas barata, y <b>las tierras al final</b>, despues de los
+     * hechizos de coste 0: cuestan 0 como ellos, pero por coste el mazo va en
+     * grupos ({@link #headerOf}) y las tierras son el suyo.
+     */
+    private static final Comparator<PaperCard> BY_COST = Comparator
+            .comparing((PaperCard c) -> c.getRules() != null && c.getRules().getType().isLand())
+            .thenComparing(Comparator.comparingInt((PaperCard c) -> c.getRules() == null ? 0
+                    : c.getRules().getManaCost().getCMC()).reversed())
+            .thenComparing(PaperCard::getName);
+
+    /**
+     * El rotulo del grupo en el que va esa carta, en el orden elegido: por tipo,
+     * su tipo ("Criaturas"); por coste, su coste ("Coste 5"), y las tierras
+     * aparte. Ana, 09-10-2026: <i>"by cost no funciona, no noto que agrupe
+     * nada"</i> — por coste salia la lista de siempre, sin nada que dijera
+     * donde acaba un coste y empieza otro. Ahora las dos maneras se leen igual.
+     */
+    public static String headerOf(final PaperCard card) {
+        if (byType()) {
+            return forge.neo.deck.DeckEditor.groupLabel(groupOf(card));
+        }
+        if (card == null || card.getRules() == null) {
+            return forge.neo.deck.DeckEditor.groupLabel(forge.neo.deck.DeckEditor.OTHER);
+        }
+        if (card.getRules().getType().isLand()) {
+            return forge.neo.deck.DeckEditor.groupLabel(forge.neo.deck.DeckEditor.LANDS);
+        }
+        return forge.neo.NeoText.get("ascent.deck.costGroup", card.getRules().getManaCost().getCMC());
+    }
+
+    /** El grupo del editor de mazos en el que cae: {@code DeckEditor.groupOf}. */
+    public static String groupOf(final PaperCard card) {
+        return card == null || card.getRules() == null
+                ? forge.neo.deck.DeckEditor.OTHER : forge.neo.deck.DeckEditor.groupOf(card);
+    }
+
+    private static int groupIndex(final PaperCard card) {
+        final String group = groupOf(card);
+        final String[] groups = forge.neo.deck.DeckEditor.GROUPS;
+        for (int i = 0; i < groups.length; i++) {
+            if (groups[i].equals(group)) {
+                return i;
+            }
+        }
+        return groups.length;
+    }
+
+    /**
+     * Cuantas hay de cada tipo, en el orden de lectura del editor y sin los
+     * tipos de los que no hay ninguna: "Creatures 23 · Spells 10 · Lands 28".
+     * Es el numero con el que se decide que sobra (Discord, 09-10-2026).
+     */
+    public static String typeLine(final List<PaperCard> cards) {
+        final Map<String, Integer> counts = new java.util.LinkedHashMap<>();
+        for (final String g : forge.neo.deck.DeckEditor.GROUPS) {
+            counts.put(g, 0);
+        }
+        for (final PaperCard c : cards) {
+            counts.merge(groupOf(c), 1, Integer::sum);
+        }
+        final StringBuilder sb = new StringBuilder();
+        for (final Map.Entry<String, Integer> e : counts.entrySet()) {
+            if (e.getValue() == 0) {
+                continue;
+            }
+            if (sb.length() > 0) {
+                sb.append("  ·  ");
+            }
+            sb.append(forge.neo.deck.DeckEditor.groupLabel(e.getKey())).append(' ').append(e.getValue());
+        }
+        return sb.toString();
     }
 
     /** Borra el mazo de una run terminada. */

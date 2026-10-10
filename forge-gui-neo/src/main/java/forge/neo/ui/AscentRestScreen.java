@@ -1,13 +1,7 @@
 package forge.neo.ui;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-
 import forge.deck.Deck;
 import forge.game.card.CardView;
-import forge.item.PaperCard;
 import forge.neo.NeoText;
 import forge.neo.ascent.AscentDecks;
 import forge.neo.ascent.AscentRun;
@@ -69,7 +63,7 @@ public class AscentRestScreen extends StackPane {
 
         body.setAlignment(Pos.CENTER);
         // El borde del papel esta ROTO: ver Parchment.SAFE_EDGE.
-        body.setPadding(new Insets(24, 24, Parchment.SAFE_EDGE, 24));
+        body.setPadding(new Insets(Parchment.SAFE_EDGE, 24, Parchment.SAFE_EDGE, 24));
         // La vista de quitar carta es una rejilla de treinta cartas dentro de
         // un ScrollPane: es donde puede romperse el reparto, asi que tiene que
         // poder capturarse sin llegar a ella clicando.
@@ -158,7 +152,9 @@ public class AscentRestScreen extends StackPane {
         final FlowPane grid = new FlowPane(10, 10);
         grid.setAlignment(Pos.CENTER);
         if (deck != null) {
-            for (final PaperCard card : sortedByCost(deck)) {
+            // En el orden elegido, con sus rotulos si es por tipo: el mismo de
+            // las otras tres vistas del mazo (AscentDeckView.fill).
+            AscentDeckView.fill(grid, AscentDecks.sorted(deck), card -> {
                 final CardNode node = new CardNode(cardWidth * 0.85);
                 node.setRotationEnabled(false);
                 node.setCard(CardView.getCardForUi(card));
@@ -182,8 +178,8 @@ public class AscentRestScreen extends StackPane {
                     }
                     actions.done();
                 });
-                grid.getChildren().add(node);
-            }
+                return node;
+            });
         }
         final ScrollPane scroll = new ScrollPane(grid);
         scroll.setFitToWidth(true);
@@ -198,26 +194,6 @@ public class AscentRestScreen extends StackPane {
 
         body.getChildren().addAll(title, scroll, back);
         VBox.setVgrow(scroll, javafx.scene.layout.Priority.ALWAYS);
-    }
-
-    /**
-     * El mazo, con lo mas caro primero.
-     *
-     * <p>Lo que se viene a quitar casi siempre es la carta de coste siete que
-     * nunca se puede pagar, asi que ponerla la primera es ahorrarle al jugador
-     * buscar entre treinta cartas la que ya sabe que sobra.
-     */
-    private List<PaperCard> sortedByCost(final Deck deck) {
-        final List<PaperCard> out = new ArrayList<>();
-        for (final Map.Entry<PaperCard, Integer> e : deck.getMain()) {
-            for (int i = 0; i < e.getValue(); i++) {
-                out.add(e.getKey());
-            }
-        }
-        out.sort(Comparator.comparingInt(
-                (PaperCard c) -> c.getRules().getManaCost().getCMC()).reversed()
-                .thenComparing(PaperCard::getName));
-        return out;
     }
 
     /** Por si alguna pantalla quiere el ancho util. */

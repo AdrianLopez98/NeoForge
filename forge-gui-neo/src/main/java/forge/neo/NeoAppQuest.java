@@ -179,6 +179,11 @@ final class NeoAppQuest {
             }
 
             @Override
+            public void preferences() {
+                showQuestPrefs();
+            }
+
+            @Override
             public void newAdventure() {
                 showQuestSetup();
             }
@@ -307,6 +312,21 @@ final class NeoAppQuest {
         shop = new forge.neo.ui.QuestShopScreen(app.cardWidth, this::showQuestHome);
         app.scene.setRoot(shop);
         app.applyScale();
+    }
+
+    /** Las preferencias de la Quest, las de Forge (NeoQuestPrefs). */
+    void showQuestPrefs() {
+        quest = null;
+        setup = null;
+        shop = null;
+        final forge.neo.ui.QuestPrefsScreen screen = new forge.neo.ui.QuestPrefsScreen(this::showQuestHome);
+        app.scene.setRoot(screen);
+        app.applyScale();
+        // -Dneo.questPrefs.resetAsk=true: el aviso de volver a como venian,
+        // para capturarlo (la guía de pruebas).
+        if (Boolean.getBoolean("neo.questPrefs.resetAsk")) {
+            javafx.application.Platform.runLater(screen::showResetAskForTest);
+        }
     }
 
     /** El bazar: mejoras permanentes y mascotas. */

@@ -204,6 +204,16 @@ public final class NeoGame {
 
         /** El asiento del rival numero {@code i}, con el mazo que le toque. */
         RegisteredPlayer opponent(int i, Deck deck, int seats);
+
+        /**
+         * Quien se sienta ahi (nombre y cara), o null para el de siempre: el
+         * rival {@code i} de Personalizar, con su nombre guardado. Ascenso pone
+         * uno de paso en cada duelo (Discord, 10-10-2026: <i>"I'm always playing
+         * against Dolly"</i>).
+         */
+        default forge.LobbyPlayer player(final int i, final String aiProfile) {
+            return null;
+        }
     }
 
     /**
@@ -359,7 +369,8 @@ public final class NeoGame {
             }
             // El perfil vacio significa "el que tenga puesto Forge": es lo que
             // hace la sobrecarga corta, asi que no hay que tratar el null aparte.
-            ai.setPlayer(forge.neo.look.NeoPlayers.ai(i, aiProfile));
+            final forge.LobbyPlayer passing = seating == null ? null : seating.player(i, aiProfile);
+            ai.setPlayer(passing != null ? passing : forge.neo.look.NeoPlayers.ai(i, aiProfile));
             testRelics(ai);
             players.add(ai);
         }
@@ -386,6 +397,7 @@ public final class NeoGame {
                 : devSpeed > 0 ? () -> riggedSpeed(match.getGame())
                 : devFilterLand ? () -> riggedFilterLand(match.getGame())
                 : devOppRelics > 0 ? () -> riggedOppRelics(match.getGame())
+                : devMyRelics != null ? () -> riggedMyRelics(match.getGame())
                 : devRig != null ? () -> riggedCards(match.getGame()) : null;
         match.setStartGameHook(SafeAi.hook(match, rig));
 
@@ -764,6 +776,40 @@ public final class NeoGame {
                 }
                 put(game, p, relic.getCardName(), forge.game.zone.ZoneType.Command);
                 System.out.println("  [dev] reliquia del rival: " + relic.getCardName());
+            }
+            return;
+        }
+    }
+
+    /**
+     * Reliquias de Ascenso en TU zona de mando, por nombre ({@code
+     * --rig-my-relics=Wellspring Stone;Ember Totem}). Solo para pruebas: que
+     * sus disparos se dejen pasar solos ({@code NeoMatchUI.passRelicTriggerSoon})
+     * no se ve sin una run con reliquias de verdad. Mismo camino que las del
+     * rival: la carta entra en la zona del motor.
+     */
+    private static volatile String devMyRelics;
+
+    public static void setDevMyRelics(final String names) {
+        devMyRelics = names;
+    }
+
+    private static void riggedMyRelics(final forge.game.Game game) {
+        if (game == null || devMyRelics == null) {
+            return;
+        }
+        forge.neo.ascent.AscentRelics.install();
+        for (final forge.game.player.Player p : game.getPlayers()) {
+            if (p.isAI()) {
+                continue;
+            }
+            // Por nombre o por id (wellspring_stone): el id no lleva espacios,
+            // que en la linea de ordenes de cmd son un lio.
+            for (final String token : devMyRelics.split("[;,]")) {
+                final forge.neo.ascent.AscentRelic byId = forge.neo.ascent.AscentRelics.byId(token.trim());
+                final String name = byId != null ? byId.getCardName() : token.trim();
+                put(game, p, name, forge.game.zone.ZoneType.Command);
+                System.out.println("  [dev] tu reliquia: " + name);
             }
             return;
         }

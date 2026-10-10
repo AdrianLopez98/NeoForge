@@ -29,6 +29,9 @@ import javafx.scene.layout.VBox;
  */
 public class GameOverScreen extends VBox {
 
+    /** Los botones de abajo: ver {@link #addLookButtons}. */
+    private final HBox buttons = new HBox(12);
+
     /**
      * @param won     si ha ganado el jugador local
      * @param winner  nombre del ganador, para cuando gana un tercero
@@ -105,7 +108,6 @@ public class GameOverScreen extends VBox {
         final Label sub = new Label(detail.toString());
         sub.getStyleClass().add("home-subtitle");
 
-        final HBox buttons = new HBox(12);
         buttons.setAlignment(Pos.CENTER);
 
         if (!matchOver) {
@@ -142,6 +144,37 @@ public class GameOverScreen extends VBox {
         }
 
         getChildren().addAll(title, sub, buttons);
+    }
+
+    /**
+     * "Registro" y "Ver la mesa", a la izquierda del de seguir (principio 12:
+     * lo secundario a la izquierda).
+     *
+     * <p>Discord (Tommy, 10-10-2026): <i>"i don't remember or even don't know
+     * what triggered the poison effect once he passed the turn - could exist a
+     * button to check the log of the match or see the battlefield instead of
+     * just continue"</i>. Las dos cosas se podian (la pastilla de arriba deja
+     * mirar la mesa, y en ella esta el registro), pero no se veian. Ninguno
+     * contesta al motor: el registro va en la capa de consultar, encima, y al
+     * cerrarlo vuelve esto (principio 10).
+     *
+     * @param onLog  abre el registro, o null
+     * @param onPeek aparta este cuadro para ver la mesa, o null
+     */
+    public void addLookButtons(final Runnable onLog, final Runnable onPeek) {
+        int at = 0;
+        if (onLog != null) {
+            final Button log = new Button(NeoText.get("table.log"));
+            log.getStyleClass().add("btn-secondary");
+            log.setOnAction(e -> onLog.run());
+            buttons.getChildren().add(at++, log);
+        }
+        if (onPeek != null) {
+            final Button peek = new Button(NeoText.get("overlay.peek"));
+            peek.getStyleClass().add("btn-secondary");
+            peek.setOnAction(e -> onPeek.run());
+            buttons.getChildren().add(at, peek);
+        }
     }
 
     /**

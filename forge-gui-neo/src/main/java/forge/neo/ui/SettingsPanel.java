@@ -598,6 +598,18 @@ public class SettingsPanel extends VBox {
         getChildren().add(smartRow);
         getChildren().add(smartLevelRow);
 
+        // --- los disparos de tus reliquias (Ascenso) ---
+        //
+        // Discord: con veinte reliquias, veinte OK por turno sin nada que
+        // decidir. Se lee en vivo (NeoMatchUI.passRelicTriggerSoon): vale
+        // tambien para la partida que este abierta.
+        getChildren().add(toggleRow(NeoText.get("settings.relicPass"),
+                NeoSettings.getBool(NeoSettings.RELIC_PASS, true),
+                on -> {
+                    NeoSettings.setBool(NeoSettings.RELIC_PASS, on);
+                    NeoSettings.save();
+                }));
+
         // --- ritmo del turno del rival ---
         //
         // Sale de jugar: la IA no tiene manos y resuelve su turno en
@@ -977,14 +989,6 @@ public class SettingsPanel extends VBox {
                     }));
         }
 
-        // --- Discord ---
-        //
-        // Pedido en itch.io el 22-09-2026. El interruptor es obligatorio y no
-        // un detalle: esto lo ven TODOS los amigos de quien juega, y quien no
-        // lo quiera tiene que poder apagarlo sin buscar. Se aplica en el acto
-        // (no "en la proxima partida"): apagarlo sin que desaparezca de Discord
-        // hasta reiniciar seria justo lo contrario de lo que pide quien lo
-        // apaga. Ver forge.neo.discord.DiscordRich.
         // --- partida en red: el tiempo de AFK ---
         //
         // Pedido en itch.io el 29-09-2026: "Customizable AFK timeout for
@@ -993,7 +997,8 @@ public class SettingsPanel extends VBox {
         // esperar la prioridad de cada jugador (FServerManager.armAfkTimeout).
         // Solo faltaba donde cambiarla. Cuenta la del ANFITRION; se guarda en
         // las preferencias de red de Forge, que es donde la lee el motor.
-        tab(Tab.GENERAL);
+        // Va en Partida, como en Android (itch.io, 10-10-2026).
+        tab(Tab.GAME);
         getChildren().add(section(NeoText.get("settings.net")));
         final forge.localinstance.properties.ForgeNetPreferences netPrefs =
                 forge.model.FModel.getNetPreferences();
@@ -1020,6 +1025,15 @@ public class SettingsPanel extends VBox {
         afkNote.setMinHeight(Region.USE_PREF_SIZE);
         getChildren().add(afkNote);
 
+        // --- Discord ---
+        //
+        // Pedido en itch.io el 22-09-2026. El interruptor es obligatorio y no
+        // un detalle: esto lo ven TODOS los amigos de quien juega, y quien no
+        // lo quiera tiene que poder apagarlo sin buscar. Se aplica en el acto
+        // (no "en la proxima partida"): apagarlo sin que desaparezca de Discord
+        // hasta reiniciar seria justo lo contrario de lo que pide quien lo
+        // apaga. Ver forge.neo.discord.DiscordRich.
+        tab(Tab.GENERAL);
         getChildren().add(section(NeoText.get("settings.discord")));
         getChildren().add(toggleRow(NeoText.get("settings.discord.on"),
                 NeoSettings.discord(),
@@ -1081,6 +1095,27 @@ public class SettingsPanel extends VBox {
         // Aqui, y no en el menu: una casilla del menu es una PREGUNTA distinta
         // (la auditoría del motor 2), y esto es mantenimiento.
         tab(Tab.ART);
+
+        // --- las cartas sin arte, fuera del juego ---
+        //
+        // Pedido en Discord el 10-10-2026: las Alchemy A- que Forge no asigna a
+        // ninguna expansion salen dibujadas en todos lados, sin foto posible.
+        // Lo hace el interruptor del propio motor al abrir el juego, asi que
+        // vale para todos los modos y pide reiniciar, como el idioma. Ver
+        // forge.neo.card.ArtlessCards.
+        final Label artlessNote = new Label(artlessNote(false));
+        artlessNote.getStyleClass().add("home-subtitle");
+        artlessNote.setWrapText(true);
+        artlessNote.setMaxWidth(UiScale.px(560));
+        artlessNote.setMinHeight(Region.USE_PREF_SIZE);
+        getChildren().add(toggleRow(NeoText.get("settings.art.hideArtless"),
+                forge.neo.card.ArtlessCards.hidden(),
+                on -> {
+                    forge.neo.card.ArtlessCards.setHidden(on);
+                    artlessNote.setText(artlessNote(true));
+                }));
+        getChildren().add(artlessNote);
+
         final Button artAll = new Button(NeoText.get("settings.art.all"));
         artAll.getStyleClass().add("segment");
         artAll.setMinWidth(Region.USE_PREF_SIZE);
@@ -1455,6 +1490,21 @@ public class SettingsPanel extends VBox {
      * <p>Dos cosas, y las dos importan antes de elegir: si ese idioma trae los
      * nombres de las cartas traducidos (no todos), y que hay que reiniciar.
      */
+    /**
+     * Que hace el ajuste de las cartas sin arte, y cuantas son: las que hay
+     * ahora si estan dentro. Y, recien cambiado, que se aplica al volver a
+     * abrir el juego (la base de cartas se monta una vez).
+     */
+    private static String artlessNote(final boolean justChanged) {
+        final boolean out = forge.neo.card.ArtlessCards.hiddenThisSession();
+        String text = out ? NeoText.get("settings.art.hideArtless.hidden")
+                : NeoText.get("settings.art.hideArtless.note", forge.neo.card.ArtlessCards.present().size());
+        if (justChanged && forge.neo.card.ArtlessCards.hidden() != out) {
+            text += "  " + NeoText.get("settings.language.restart");
+        }
+        return text;
+    }
+
     private static String noteFor(final java.util.List<forge.neo.NeoLanguage.Option> langs,
                                   final String id, final boolean justChanged) {
         String cards = "";

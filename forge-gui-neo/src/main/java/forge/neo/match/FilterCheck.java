@@ -23,14 +23,16 @@ import forge.neo.tutorial.TutorialState;
  * <p>Comprueba tres cosas distintas, y las tres hacen falta:
  *
  * <ol>
- *   <li><b>Que el hueco del motor sigue ahi.</b> Con Bosque + Pradera
- *       Hierbasol y un coste de dos colores, {@code getManaSourcesToPayCost}
- *       devuelve {@code null} (o sea que el boton "Auto" no se enciende) y
- *       {@code canPayManaCost} dice {@code false}. Con Bosque + Llanura, la
- *       misma mesa por lo demas, las dos cosas van bien. <b>El control no es
- *       decorativo</b>: sin el, un {@code null} podria venir de la mesa o del
- *       coste y no del hueco. Si algun dia Card-Forge lo arregla, esta
- *       comprobacion se pone en rojo y sabremos que nuestro apanyo ya sobra.
+ *   <li><b>Que el hueco del motor sigue cerrado.</b> Hasta el 10-10-2026,
+ *       con Bosque + Pradera Hierbasol y un coste de dos colores,
+ *       {@code getManaSourcesToPayCost} devolvia {@code null} (el boton "Auto"
+ *       no se encendia) y {@code canPayManaCost} decia {@code false}. Esa
+ *       comprobacion se puso en rojo el dia que Card-Forge lo arreglo (#12179),
+ *       que es para lo que estaba, y desde entonces mira lo contrario: que el
+ *       motor pague con ella. Con Bosque + Llanura, la misma mesa por lo demas,
+ *       el control. Nuestro apanyo (FilterSources y el interruptor de Ajustes)
+ *       ya no salta, porque solo actua cuando el Auto no se enciende; se queda
+ *       de red por si el motor vuelve atras.
  *   <li><b>Que lo reconocemos.</b> {@code FilterSources} encuentra la Pradera
  *       y <b>no</b> el Bosque ni la Llanura: el criterio tiene que ser
  *       estrecho, o nos pondriamos a adivinar donde el motor si acierta.
@@ -76,10 +78,14 @@ public final class FilterCheck {
 
         check(filter.seen, "la posicion del filtro arranco");
         check(control.seen, "la posicion de control arranco");
-        check(!filter.autoAvailable,
-                "el motor NO enciende el Auto con la tierra de filtro"
-                + " (si esto falla, Card-Forge lo ha arreglado y sobra el apanyo)");
-        check(!filter.canPay, "el motor cree que no puede pagar con la tierra de filtro");
+        // Card-Forge lo arreglo el 10-10-2026 (#12179, "AI: pay for a mana
+        // ability with a mana cost that is activated on its own"): hasta
+        // entonces esto comprobaba lo contrario, que el hueco seguia ahi, y se
+        // puso en rojo justo ese dia. Ahora vigila que no vuelva.
+        check(filter.autoAvailable,
+                "el motor YA enciende el Auto con la tierra de filtro"
+                + " (Card-Forge lo arreglo el 10-10-2026; si vuelve a fallar, el apanyo de Ajustes sigue ahi)");
+        check(filter.canPay, "y cree que si puede pagar con ella");
         check(control.autoAvailable, "y en cambio SI lo enciende con dos tierras normales");
         check(control.canPay, "y cree que si puede pagar");
 

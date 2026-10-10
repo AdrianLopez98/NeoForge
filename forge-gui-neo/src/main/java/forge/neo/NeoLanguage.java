@@ -401,6 +401,11 @@ public final class NeoLanguage {
             if (!wanted.equals(engineValueBefore)) {
                 prefs.setPref(FPref.UI_LANGUAGE, wanted);
             }
+            // El mismo momento sirve para lo otro que el motor solo lee al
+            // montar la base de cartas: dejar fuera las cartas sin arte, si el
+            // jugador lo pidio. Va aqui porque este es el gancho que usan el PC
+            // y Android. Ver forge.neo.card.ArtlessCards.
+            forge.neo.card.ArtlessCards.applyTo(prefs);
             return null;
         };
     }
@@ -416,6 +421,8 @@ public final class NeoLanguage {
      * fichero que comparte con la GUI vieja.
      */
     public static void restoreEngineValue() {
+        // Y la de las cartas sin arte, por lo mismo (ver ArtlessCards).
+        forge.neo.card.ArtlessCards.restoreEngineValue();
         final String before = engineValueBefore;
         if (before == null) {
             return;

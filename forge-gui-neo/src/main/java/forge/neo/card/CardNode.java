@@ -962,9 +962,13 @@ public class CardNode extends StackPane {
         // --- respaldo procedural ---
         if (!hasArt && st != null) {
             fbName.setText(CardText.nameOf(st));
-            fbCost.setText(st.getManaCost() == null ? "" : st.getManaCost().toString());
+            // Sin coste, nada: el motor lo escribe "no cost" (ManaCost.NO_COST),
+            // y salia tal cual debajo del nombre (Discord, 10-10-2026).
+            fbCost.setText(st.getManaCost() == null || st.getManaCost().isNoCost()
+                    ? "" : st.getManaCost().toString());
             fbType.setText(CardText.typeOf(st));
             fbPt.setText(st.isCreature() ? st.getPower() + " / " + st.getToughness() : "");
+            showKeywordCard(st);
         }
 
         // --- fuerza / resistencia, que es EL numero de la mesa ---
@@ -1145,6 +1149,38 @@ public class CardNode extends StackPane {
             javafx.css.PseudoClass.getPseudoClass("weakened");
     private static final javafx.css.PseudoClass LETHAL =
             javafx.css.PseudoClass.getPseudoClass("lethal");
+
+    /** El nombre que le pone el motor ({@code Player.getKeywordCard}). */
+    private static final String KEYWORD_CARD = "Keyword Effects";
+
+    /**
+     * LA CARTA DE "KEYWORD EFFECTS", QUE DIGA LO QUE APUNTA.
+     *
+     * <p>El motor deja en tu zona de mando una carta de efecto con las palabras
+     * clave que tienes <b>tu</b>, el jugador (Pilgrim's Ward de Ascenso: "You
+     * have hexproof"; Teferi's Protection, Leyline of Sanctity...). No tiene
+     * arte, asi que salia el respaldo: el nombre en ingles y un "no cost", y
+     * nada mas (Discord, 10-10-2026: <i>"not sure if this is a placeholder or a
+     * bug"</i>). Lo que apunta se pinta en la linea del tipo, que en un efecto va
+     * vacia, y se lee de {@code PlayerView.getKeywords()}, lo mismo que usa el
+     * propio motor para el detalle del jugador. Las vacias ni salen
+     * ({@code CommandZone.isSilentEffect}).
+     */
+    private void showKeywordCard(final CardStateView st) {
+        if (card == null || !card.isImmutable() || !KEYWORD_CARD.equals(st.getName())) {
+            return;
+        }
+        fbName.setText(forge.neo.NeoText.get("card.keywordEffects"));
+        final forge.game.player.PlayerView owner = card.getOwner();
+        if (owner == null || owner.getKeywords() == null) {
+            return;
+        }
+        final String keywords = forge.util.Lang.joinHomogenous(
+                owner.getKeywords().getValues(), forge.game.keyword.KeywordView::title);
+        if (keywords != null && !keywords.isBlank()) {
+            fbType.setText(keywords);
+        }
+    }
 
     /**
      * La fuerza y resistencia IMPRESAS en la carta, o null si no se sabe.

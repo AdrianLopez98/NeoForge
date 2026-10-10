@@ -778,6 +778,20 @@ public final class NeoSettings {
     public static final String AUTO_PASS = "autoPass";
 
     /**
+     * Que los disparos de TUS reliquias de Ascenso se resuelvan solos.
+     *
+     * <p>Discord (Tommy, 10-10-2026), con una veintena de reliquias: <i>"I'm
+     * getting prompted a lot of times just to hit OK once there is no decision
+     * to be made here"</i>. Cada disparo va al stack y para pasar la prioridad
+     * habia que dar OK, uno por reliquia y turno. Lo hace
+     * {@code NeoMatchUI.passRelicTriggerSoon}: solo con un disparo de una
+     * reliquia tuya ENCIMA del stack y el motor pidiendote prioridad, y tras
+     * una pausa corta para que se vea. Lo que el disparo pregunte (objetivos,
+     * un "puedes") se sigue preguntando. Viene <b>encendido</b>.
+     */
+    public static final String RELIC_PASS = "relicTriggersPass";
+
+    /**
      * Las paradas del rail de fases, en tus turnos y en los del rival:
      * nombres de {@code PhaseType} separados por comas, {@code "-"} para
      * ninguna y sin valor para las de fabrica. Las lee y escribe

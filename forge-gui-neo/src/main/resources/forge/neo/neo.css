@@ -407,6 +407,42 @@
     -fx-background-color: -neo-panel-hi;
 }
 
+/* Cada cuanto sale la carta buscada en ese sobre (09-10-2026): la razon por la
+   que la casilla esta en la lista, en el acento. */
+.set-odds {
+    -fx-font-size: 0.95em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -neo-accent;
+}
+.set-odds-cost { -fx-font-size: 0.85em; -fx-text-fill: -neo-text-dim; }
+
+/* "En que sobre sale": la carta buscada y donde sale, encima de la rejilla. */
+.find-banner { -fx-border-color: -neo-accent; }
+.find-line { -fx-text-fill: -neo-text-dim; -fx-font-size: 1.05em; }
+.find-single { -fx-text-fill: -neo-valid; -fx-font-weight: bold; }
+.find-suggestion { -fx-font-size: 1.05em; -fx-padding: 3 8 3 8; }
+/* Las sugerencias son una ventana aparte: colores escritos, sin variables. */
+.find-popup { -fx-background-color: #232B36; -fx-border-color: #4A9BE0; -fx-border-radius: 6; -fx-background-radius: 6; -fx-padding: 4; }
+.find-popup .menu-item { -fx-background-color: transparent; -fx-padding: 2 4 2 4; }
+.find-popup .menu-item:focused, .find-popup .menu-item:hover { -fx-background-color: #4A9BE0; -fx-background-radius: 4; }
+.find-popup .find-suggestion { -fx-text-fill: #E6EBF2; }
+.find-popup .menu-item:focused .find-suggestion, .find-popup .menu-item:hover .find-suggestion { -fx-text-fill: #0B0E13; }
+
+/* Que puede salir en un sobre: lo de dentro, con el aspecto de abrirlo
+   (.pack-opening). Las rarezas con un rotulo dorado y su linea, y cada carta
+   con cada cuanto sale y si ya la tienes. */
+.pack-preview .preview-group {
+    -fx-padding: 14 2 4 2;
+    -fx-border-color: transparent transparent #a0804880 transparent;
+    -fx-border-width: 0 0 1 0;
+}
+.pack-preview .preview-group-name { -fx-font-size: 1.2em; -fx-font-weight: bold; -fx-text-fill: #f4d596; }
+.pack-preview .preview-group-odds { -fx-font-size: 1.05em; -fx-text-fill: #c6c5bc; }
+.pack-preview .preview-odds { -fx-font-size: 0.95em; -fx-text-fill: #c6c5bc; }
+.pack-preview .preview-owned { -fx-font-size: 0.95em; -fx-font-weight: bold; -fx-text-fill: -neo-valid; }
+.pack-preview .segment:selected { -fx-background-color: #d4aa5e; -fx-border-color: #d4aa5e; }
+.pack-preview .dialog-scroll, .pack-preview .dialog-scroll > .viewport { -fx-background-color: transparent; }
+
 .set-tile:picked {
     -fx-border-color: -neo-accent;
     -fx-border-width: 2;
@@ -689,6 +725,40 @@
     -fx-stroke: -neo-accent;
     -fx-stroke-width: 2;
     -fx-effect: dropshadow(gaussian, rgba(74,155,224,0.55), 14, 0.4, 0, 0);
+}
+
+/* ---------- la moneda (CoinFlip) ----------
+   Cara en oro y cruz en plata: el resultado se ve sin leer la palabra. */
+
+.coin {
+    -fx-background-color: radial-gradient(center 38% 32%, radius 75%, #C9D2DD 0%, #8D9AAB 70%, #5E6B7C 100%);
+    -fx-background-radius: 999;
+    -fx-border-color: #DDE4EC;
+    -fx-border-radius: 999;
+    -fx-border-width: 3;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.7), 24, 0.3, 0, 8);
+}
+
+.coin:heads {
+    -fx-background-color: radial-gradient(center 38% 32%, radius 75%, #FFE3A3 0%, #E0A63C 65%, #9A6B1C 100%);
+    -fx-border-color: #FFE9B8;
+}
+
+.coin-face {
+    -fx-font-size: 0.85em;
+    -fx-font-weight: bold;
+    -fx-text-fill: rgba(30,24,12,0.8);
+}
+
+.coin-caption {
+    -fx-background-color: rgba(15,20,28,0.92);
+    -fx-background-radius: 8;
+    -fx-padding: 8 18 8 18;
+    -fx-font-size: 1.2em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -neo-text;
+    -fx-text-alignment: center;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.65), 20, 0.3, 0, 4);
 }
 
 /* ---------- el cartel de "te toca" ---------- */
@@ -1578,6 +1648,19 @@
 .itch-button:hover { -fx-background-color: #fb7676; }
 .itch-button:pressed { -fx-background-color: #d94a4a; }
 .itch-button .itch-logo { -fx-fill: white; }
+/* Ko-fi, el ultimo de la fila (10-10-2026): el azul de sus botones y no su
+   rojo, que al lado del de itch.io no se distinguiria. */
+.kofi-button {
+    -fx-background-color: #29ABE0;
+    -fx-background-radius: 8;
+    -fx-padding: 7 10;
+    -fx-cursor: hand;
+}
+.kofi-button:hover { -fx-background-color: #4dbbe6; }
+.kofi-button:pressed { -fx-background-color: #1f8fbd; }
+.kofi-button .kofi-logo { -fx-fill: white; }
+/* El corazon en el rojo de Ko-fi: es lo que hace que se reconozca. */
+.kofi-button .kofi-heart { -fx-fill: #FF5E5B; }
 .itch-dot {
     -fx-fill: -neo-warn;
     -fx-stroke: -neo-table;
@@ -3282,6 +3365,25 @@
     -fx-text-fill: #6B5A3E;
     -fx-font-size: 1.15em;
     -fx-font-style: italic;
+}
+
+/* Cuantas de cada tipo en el mazo de una run (09-10-2026): un dato para
+   decidir que sobra, en la tinta del pergamino y sin cursiva. */
+.ascent-types {
+    -fx-text-fill: #3B2E1C;
+    -fx-font-size: 1.15em;
+    -fx-font-weight: 700;
+}
+
+/* El rotulo de un grupo cuando el mazo va por tipo: una fila entera con una
+   linea debajo, para que el grupo se lea de un vistazo. */
+.ascent-group-head {
+    -fx-text-fill: #3B2E1C;
+    -fx-font-size: 1.15em;
+    -fx-font-weight: 800;
+    -fx-padding: 10 0 3 4;
+    -fx-border-color: transparent transparent rgba(59,46,28,0.35) transparent;
+    -fx-border-width: 0 0 1 0;
 }
 
 .ascent-pill-base {

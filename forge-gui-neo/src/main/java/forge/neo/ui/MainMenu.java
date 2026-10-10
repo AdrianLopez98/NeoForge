@@ -133,7 +133,9 @@ public class MainMenu extends BorderPane {
         // Del tamanyo del boton: la fila mide lo que el logo del centro, y
         // estirada el puntito se iba a flotar muy por encima de la esquina.
         itch.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
-        final HBox discord = new HBox(8, itch, discordButton());
+        // Y Ko-fi, el ultimo (10-10-2026, Ana: "la mejor manera que hay para
+        // que nos donen es meterlo en el juego").
+        final HBox discord = new HBox(8, itch, discordButton(), kofiButton());
         discord.setAlignment(Pos.CENTER_RIGHT);
         top.add(language, 0, 0);
         top.add(header, 1, 0);
@@ -461,6 +463,64 @@ public class MainMenu extends BorderPane {
                 forge.gui.GuiBase.getInterface().browseToUrl(DISCORD_URL);
             } catch (final Exception ex) {
                 System.err.println("[neo] no se ha podido abrir Discord: " + ex);
+            }
+        });
+        return b;
+    }
+
+    /** La pagina de Ko-fi de Neo Forge, donde se dona. */
+    static final String KOFI_URL = "https://ko-fi.com/dokkodolabs";
+
+    /**
+     * El logo de Ko-fi, el ultimo de la fila: abre la pagina para donar.
+     *
+     * <p>Pedido por Ana el 10-10-2026: un boton dentro del juego es la forma
+     * mas directa de que alguien done, y la pagina ya sale al final de cada
+     * devlog. Mismo tamanyo y forma que los otros dos; el azul de los botones
+     * de Ko-fi y no su rojo, que al lado del de itch.io no se distinguiria.
+     * El dibujo es el de Simple Icons (CC0), en su caja de 24x24, como el de
+     * itch.io.
+     */
+    private static Button kofiButton() {
+        final javafx.scene.shape.SVGPath logo = new javafx.scene.shape.SVGPath();
+        logo.setContent("M23.881 8.948c-.773-4.085-4.859-4.593-4.859-4.593H.723c-.604 0-.679.798-.679.798"
+                + "s-.082 7.324-.022 11.822c.164 2.424 2.586 2.672 2.586 2.672s8.267-.023 11.966-.049"
+                + "c2.438-.426 2.683-2.566 2.658-3.734 4.352.24 7.422-2.831 6.649-6.916zm-11.062 3.511"
+                + "c-1.246 1.453-4.011 3.976-4.011 3.976s-.121.119-.31.023c-.076-.057-.108-.09-.108-.09"
+                + "-.443-.441-3.368-3.049-4.034-3.954-.709-.965-1.041-2.7-.091-3.71.951-1.01 3.005-1.086 "
+                + "4.363.407 0 0 1.565-1.782 3.468-.963 1.904.82 1.832 3.011.723 4.311zm6.173.478"
+                + "c-.928.116-1.682.028-1.682.028V7.284h1.77s1.971.551 1.971 2.638c0 1.913-.985 2.667"
+                + "-2.059 3.015z");
+        logo.getStyleClass().add("kofi-logo");
+        // El corazon en el rojo de Ko-fi, encima del hueco que deja la taza: es
+        // lo que hace que se reconozca (Ana: "usa los colores y logo de kofi
+        // para que se identifique bien"). Es el mismo trazo del corazon del
+        // dibujo, en absoluto.
+        final javafx.scene.shape.SVGPath heart = new javafx.scene.shape.SVGPath();
+        heart.setContent("M12.819 12.459c-1.246 1.453-4.011 3.976-4.011 3.976s-.121.119-.31.023"
+                + "c-.076-.057-.108-.09-.108-.09-.443-.441-3.368-3.049-4.034-3.954-.709-.965-1.041-2.7"
+                + "-.091-3.71.951-1.01 3.005-1.086 4.363.407 0 0 1.565-1.782 3.468-.963 1.904.82 1.832 "
+                + "3.011.723 4.311z");
+        heart.getStyleClass().add("kofi-heart");
+        // Los dos en el mismo grupo y se escala el grupo: escalados cada uno
+        // por su lado, cada uno lo haria desde su propio centro y el corazon
+        // se saldria de la taza. Con el mismo alto que Discord e itch.io.
+        final javafx.scene.Group cup = new javafx.scene.Group(logo, heart);
+        final double scale = (22 * 96.36 / 127.14) / 14.5;
+        cup.setScaleX(scale);
+        cup.setScaleY(scale);
+
+        final Button b = new Button();
+        b.setGraphic(new javafx.scene.Group(cup));
+        b.getStyleClass().add("kofi-button");
+        b.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("menu.kofi")));
+        b.setAccessibleText(NeoText.get("menu.kofi"));
+        b.setMinWidth(Region.USE_PREF_SIZE);
+        b.setOnAction(e -> {
+            try {
+                forge.gui.GuiBase.getInterface().browseToUrl(KOFI_URL);
+            } catch (final Exception ex) {
+                System.err.println("[neo] no se ha podido abrir Ko-fi: " + ex);
             }
         });
         return b;

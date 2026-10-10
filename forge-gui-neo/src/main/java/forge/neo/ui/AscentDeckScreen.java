@@ -37,6 +37,14 @@ import javafx.scene.paint.Color;
  * porque sin ella las dos decisiones del modo se toman a ciegas — eliges 1 de 3
  * cartas sin poder mirar que llevas, y decides que sobra sin ver el conjunto.
  *
+ * <h2>Por tipo</h2>
+ *
+ * <p>Discord, 09-10-2026: <i>"add the ability to sort by type. I'd also love
+ * the ability to see how many lands I have as well as other card types"</i>.
+ * Debajo de los numeros va una linea con cuantas hay de cada tipo (siempre, en
+ * los dos ordenes) y dos botones, Por coste / Por tipo, que cambian el orden en
+ * los cuatro sitios donde sale el mazo (ver {@link AscentDecks#SORT_SETTING}).
+ *
  * <h2>Los numeros de arriba</h2>
  *
  * <p>Cuantas cartas, cuantas tierras y el coste medio. No es adorno: son los
@@ -106,6 +114,14 @@ public class AscentDeckScreen extends StackPane {
         final Label stats = new Label(summary(cards));
         stats.getStyleClass().add("ascent-hint");
 
+        // Cuantas de cada tipo, y en que orden se ensenyan (09-10-2026).
+        final Label types = new Label(AscentDecks.typeLine(cards));
+        types.setId("ascent-deck-types");
+        types.getStyleClass().add("ascent-types");
+        types.setWrapText(true);
+        final HBox order = new HBox(8, sortButton(false), sortButton(true));
+        order.setAlignment(Pos.CENTER);
+
         // El arte SI se toca (Discord, 06-10-2026: Final Fantasy, cartas en
         // japones, Marvel...). Es solo el dibujo: ver AscentDecks.printingsOf.
         final Label printHint = new Label(editable ? NeoText.get("ascent.deck.printHint") : "");
@@ -139,7 +155,7 @@ public class AscentDeckScreen extends StackPane {
         remember.setManaged(editable);
         remember.setVisible(editable);
 
-        final VBox head = new VBox(8, title, stats, printHint, remember);
+        final VBox head = new VBox(8, title, stats, types, order, printHint, remember);
         head.setAlignment(Pos.TOP_CENTER);
         head.setPadding(new Insets(22, 28, 6, 28));
 
@@ -157,6 +173,27 @@ public class AscentDeckScreen extends StackPane {
         }
 
         getChildren().setAll(paper, chrome, overlay);
+    }
+
+    /**
+     * Uno de los dos botones del orden. El elegido, marcado: el estado se ve
+     * (principio 3). Cambiarlo guarda la preferencia y vuelve a montar la
+     * pantalla.
+     */
+    private Button sortButton(final boolean byType) {
+        final Button b = new Button(NeoText.get(byType ? "ascent.deck.sortType" : "ascent.deck.sortCost"));
+        b.setId(byType ? "ascent-sort-type" : "ascent-sort-cost");
+        b.getStyleClass().add("ascent-button");
+        if (AscentDecks.byType() == byType) {
+            b.getStyleClass().add("ascent-button-on");
+        }
+        b.setOnAction(e -> {
+            if (AscentDecks.byType() != byType) {
+                AscentDecks.setByType(byType);
+                build();
+            }
+        });
+        return b;
     }
 
     /**

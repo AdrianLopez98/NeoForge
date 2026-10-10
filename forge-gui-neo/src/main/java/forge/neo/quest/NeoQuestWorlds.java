@@ -72,6 +72,45 @@ public final class NeoQuestWorlds {
     }
 
     /**
+     * El mundo del filtro "Solo de Urza" del editor de mazos, o {@code null} si
+     * no tiene sentido ofrecerlo: sin Quest, en el mundo principal, en los
+     * "Random ..." (no restringen expansiones) o en una Quest limitada a unas
+     * expansiones (su coleccion ya es solo de ahi).
+     *
+     * <p>Pedido en itch.io el 10-10-2026: <i>"limit cards in the deckbuilder to
+     * only the sets available in the current plane (so saga/legacy/destiny in
+     * Urza)"</i>. Es un FILTRO, no una prohibicion: tus cartas de otros mundos
+     * siguen siendo tuyas, solo se esconden mientras esta encendido.
+     */
+    public static QuestWorld deckFilterWorld() {
+        if (!NeoQuest.isActive() || NeoQuest.chosenSets() != null) {
+            return null;
+        }
+        final QuestWorld w = current();
+        if (w == null || QuestWorld.MAINWORLDNAME.equals(w.getName())) {
+            return null;
+        }
+        try {
+            final var format = w.getFormat();
+            return format == null || format.getAllowedSetCodes() == null
+                    || format.getAllowedSetCodes().isEmpty() ? null : w;
+        } catch (final RuntimeException e) {
+            // Los de rotacion ("Evolving Wilds") pueden reventar: sin filtro.
+            return null;
+        }
+    }
+
+    /**
+     * Que deja pasar ese filtro: lo que se imprimio en alguna expansion del
+     * mundo (en CUALQUIER impresion: tu Fear de Revised cuenta si Fear salio en
+     * el bloque), menos sus prohibidas. Es {@code GameFormat.getFilterRules},
+     * la misma regla con la que el motor dice si un mazo vale en ese mundo.
+     */
+    public static java.util.function.Predicate<forge.item.PaperCard> deckFilter(final QuestWorld world) {
+        return world == null || world.getFormat() == null ? null : world.getFormat().getFilterRules();
+    }
+
+    /**
      * Con que se juega en ese mundo, en una linea.
      *
      * <p>El nombre no lo dice: "Jamuraa" o "Sarpadia" no le dicen nada a quien
@@ -111,6 +150,24 @@ public final class NeoQuestWorlds {
             return 0;
         }
         try {
+            final var format = world.getFormat();
+            if (format != null && format.getAllowedSetCodes().isEmpty()) {
+                // "Random Commander" (Discord, 09-10-2026: "the random commander
+                // world says it has zero cards"). Forge monta ese mundo con las
+                // expansiones del formato Commander, y Commander no restringe
+                // expansiones: la lista sale VACIA. Su filtro la lee como
+                // "todas" — se juega con todo, y la tienda tambien (worldSets) —
+                // pero getAllCards recorre la lista y da 0. Se cuentan las
+                // cartas que el formato deja.
+                int n = 0;
+                final java.util.function.Predicate<forge.item.PaperCard> legal = format.getFilterRules();
+                for (final forge.item.PaperCard c : forge.model.FModel.getMagicDb().getCommonCards().getUniqueCards()) {
+                    if (legal.test(c)) {
+                        n++;
+                    }
+                }
+                return n;
+            }
             final var cards = world.getAllCards();
             return cards == null ? 0 : cards.size();
         } catch (final RuntimeException e) {

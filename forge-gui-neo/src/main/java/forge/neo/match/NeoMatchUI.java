@@ -653,6 +653,26 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         return mode == Mode.HUMAN && table != null;
     }
 
+    /** La ultima linea de disparo de una pregunta de modo. Ver {@link #getChoices}. */
+    private volatile String lastTriggerDetail;
+
+    /** Para {@code TriggerDetailCheck}: lo que habria salido bajo el titulo. */
+    String lastTriggerDetail() {
+        return lastTriggerDetail;
+    }
+
+    /** La linea que llego pegada al titulo (lo que veria un invitado), y el titulo sin ella. */
+    private volatile String lastWiredDetail;
+    private volatile String lastWiredTitle;
+
+    String lastWiredDetail() {
+        return lastWiredDetail;
+    }
+
+    String lastWiredTitle() {
+        return lastWiredTitle;
+    }
+
     /**
      * Click en cualquier carta de la mesa.
      *
@@ -1711,6 +1731,49 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             t.announceTurn(yours, who, turn);
             t.getPhaseRail().setTurnOwner(yours, who);
         });
+    }
+
+    /**
+     * Una moneda, que se ve caer: el sorteo de quien empieza y las cartas que
+     * lanzan monedas. Forge lo trajo el 10-10-2026 para su movil y lo llama su
+     * {@code FControlGameEventHandler} con el texto ya compuesto; hasta entonces
+     * esto era un metodo vacio. Ver {@link forge.neo.ui.CoinFlip}.
+     *
+     * <p>Se espera a que caiga, como hace el movil de Forge: si el motor
+     * siguiera, la moneda contaria algo que ya ha pasado varias jugadas atras.
+     * Con tope de 3 s, para que un fallo de la animacion no pare la partida.
+     * Desde el hilo de interfaz no se espera nunca (se colgaria). Con las
+     * animaciones apagadas no sale: es lo que se pidio al apagarlas.
+     */
+    @Override
+    public void showCoinFlip(final boolean heads, final String caption, final boolean waitForTap) {
+        final forge.neo.ui.TableScreen t = table;
+        log("Moneda: %s (%s)", caption, heads ? "cara" : "cruz");
+        if (!interactive() || t == null || !forge.neo.card.CardNode.areAnimationsEnabled()) {
+            return;
+        }
+        final forge.util.Localizer words = forge.util.Localizer.getInstance();
+        final String headsWord = words.getMessage("lblHeads");
+        final String tailsWord = words.getMessage("lblTails");
+        final java.util.concurrent.CountDownLatch landed = new java.util.concurrent.CountDownLatch(1);
+        final UiDispatcher ui = uiDispatcher();
+        final boolean onUi = javafx.application.Platform.isFxApplicationThread()
+                || (ui != null && ui.isUiThread());
+        runOnUi(() -> {
+            try {
+                t.flipCoin(heads, caption, headsWord, tailsWord, landed::countDown);
+            } catch (final RuntimeException e) {
+                landed.countDown();
+            }
+        });
+        if (onUi) {
+            return;
+        }
+        try {
+            landed.await(3, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
 
@@ -3593,7 +3656,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         final int gameNumber = gv == null ? 0 : gv.getNumPlayedGamesInMatch() + 1;
         gameOverShowing = true;
         final boolean hotSeatOver = hotSeat();
-        ui.runLater(() -> table.getOverlay().show(new GameOverScreen(
+        ui.runLater(() -> table.getOverlay().show(lookButtons(gv, new GameOverScreen(
                 won, winner, turns, ending, matchOver, gameNumber, totalGames, hotSeatOver,
                 decision -> {
                     table.getOverlay().hide();
@@ -3625,8 +3688,21 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                             ? Exit.RESTART : Exit.MENU;
                     respondLater(() ->
                             getGameController().nextGameDecision(NextGameDecision.QUIT));
-                })));
+                }))));
         return true;
+    }
+
+    /**
+     * "Registro" y "Ver la mesa" en el cuadro del final (Discord, 10-10-2026:
+     * ganar sin saber que te habia dado la victoria). Ver
+     * {@link GameOverScreen#addLookButtons}.
+     */
+    private GameOverScreen lookButtons(final GameView gv, final GameOverScreen screen) {
+        screen.addLookButtons(
+                gv == null || gv.getGameLog() == null ? null
+                        : () -> table.showGameLog(gv.getGameLog(), localPlayer()),
+                () -> table.getOverlay().setPeeking(true));
+        return screen;
     }
 
     /**
@@ -3979,8 +4055,9 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
      *       elige son <b>jugadores</b>.</li>
      *   <li><b>Que es opcional:</b> {@code getSelectionMin() == 0}. Si fuera
      *       obligatoria, el motor tendria OK apagado y no se llegaria aqui.</li>
-     *   <li><b>Que no has elegido nada:</b> ninguna carta marcada
-     *       ({@code countPickedSelectables()}) y el prompt del motor sin su
+     *   <li><b>Que no has elegido nada:</b> ni carta ni jugador marcado
+     *       ({@link #pickedSoFar()}: proliferar elige jugadores sin pasar por
+     *       "Targeted:") y el prompt del motor sin su
      *       renglon {@code "Targeted:"}, que {@code InputSelectTargets} anyade
      *       <b>solo</b> cuando ya hay algo apuntado — jugadores incluidos. Es
      *       texto fijo sin traducir, asi que la comprobacion vale en cualquier
@@ -3993,7 +4070,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         if (getSelectionMax() <= 0 || getSelectionMin() != 0) {
             return false;
         }
-        if (countPickedSelectables() > 0 || lastPrompt.contains(TARGETED_MARK)) {
+        if (pickedSoFar() > 0 || lastPrompt.contains(TARGETED_MARK)) {
             return false;
         }
         if (table == null || !noPickWarned.compareAndSet(false, true)) {
@@ -4474,6 +4551,12 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             // Y si el "Auto" viene APAGADO, decir por que.
             noteAutoPayState(okEnabled);
 
+            // Un disparo de una reliquia TUYA encima del stack: se deja pasar
+            // solo, tras un momento para que se vea. Ver passRelicTriggerSoon.
+            if (okEnabled && !payingMana) {
+                passRelicTriggerSoon();
+            }
+
             // Si lo que espera el motor es un JUGADOR, un boton por cada uno.
             // Se lee AQUI, con el input vivo (las notas de diseño, fase 1, punto 3).
             final List<forge.neo.ui.ActionBar.PlayerChoice> playerChoices = playerChoices();
@@ -4553,6 +4636,13 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         }
 
         if (mode != Mode.AUTO_PLAY || finished.get()) {
+            return;
+        }
+        // Los disparos de tus reliquias, tambien con el piloto y ANTES de
+        // retenerlo: es lo que deja comprobar sin ventana que pasan solos
+        // (RelicPassCheck retiene todo lo demas). Ver passRelicTriggerSoon.
+        if (okEnabled && !payingMana && relicTriggerOnTop() != null) {
+            passRelicTriggerSoon();
             return;
         }
         // Solo pruebas (MacroCheck): retener el piloto mientras la prueba hace
@@ -5053,6 +5143,79 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
      * porque ya no hay pago — la pulsacion que estaba en el aire se descarta
      * sola en vez de caer sobre un estado que ya no existe.
      */
+    /**
+     * LOS DISPAROS DE TUS RELIQUIAS SE RESUELVEN SOLOS (Ascenso).
+     *
+     * <p>Discord (Tommy, 10-10-2026), con una veintena de reliquias: cada
+     * disparo ("al empezar tu fase principal, anade {C}") va al stack, y para
+     * que se resuelva hay que pasar la prioridad: un OK por reliquia y turno,
+     * sin nada que decidir. Forge tiene su "dejar pasar siempre" (el menu del
+     * stack, la Y), pero es por habilidad y se GUARDA entre partidas; aqui no se
+     * escribe nada en sus almacenes: es la interfaz la que pulsa el OK, como
+     * hace con el "Auto" del mana.
+     *
+     * <p>Solo cuando todo esto lo dice el motor, sin deducir nada:
+     * <ul>
+     *   <li>te esta pidiendo <b>prioridad</b> ({@code InputPassPriority} vivo, no
+     *       una pregunta ni un pago — lo que el disparo pregunte, objetivos o un
+     *       "puedes", se sigue preguntando);</li>
+     *   <li>lo de <b>encima</b> del stack es un disparo, <b>tuyo</b>, y su carta es
+     *       una reliquia ({@code AscentRelics.byCardName}). Los del jefe paran
+     *       como siempre;</li>
+     *   <li>el ajuste {@link forge.neo.NeoSettings#RELIC_PASS} esta encendido (de fabrica).</li>
+     * </ul>
+     *
+     * <p>Tras {@link #AUTO_PAY_DELAY_MS} para que se vea en el cartel del stack.
+     * Si en ese rato el motor vuelve a preguntar (has dado OK tu, o se ha
+     * resuelto), no se pulsa nada: {@link #askGen} ha cambiado.
+     */
+    private void passRelicTriggerSoon() {
+        final CardView source = relicTriggerOnTop();
+        if (source == null) {
+            return;
+        }
+        final IGameController gc = getGameController();
+        final int asked = askGen.get();
+        System.out.println("[reliquia] se deja pasar su disparo: " + source.getName());
+        final Runnable press = () -> {
+            if (askGen.get() == asked && !finished.get()) {
+                respondLater(() -> gc.selectButtonOk());
+            }
+        };
+        if (AUTO_PAY_DELAY_MS <= 0) {
+            press.run();
+        } else {
+            // El reloj de Forge, como en pressAutoInAMoment: sin JavaFX.
+            forge.util.ThreadUtil.delay((int) AUTO_PAY_DELAY_MS, press);
+        }
+    }
+
+    /**
+     * La carta de la reliquia TUYA cuyo disparo esta encima del stack con el
+     * motor pidiendote prioridad, o null. Las condiciones de
+     * {@link #passRelicTriggerSoon}, aparte para que {@code RelicPassCheck}
+     * pueda preguntarlas.
+     */
+    CardView relicTriggerOnTop() {
+        if (!forge.neo.NeoSettings.getBool(forge.neo.NeoSettings.RELIC_PASS, true)
+                || isSelecting() || getSelectionMax() > 0) {
+            return null;
+        }
+        final IGameController gc = getGameController();
+        if (!(gc instanceof forge.player.PlayerControllerHuman human)
+                || !(human.getInputQueue().getInput()
+                        instanceof forge.gamemodes.match.input.InputPassPriority)) {
+            return null;
+        }
+        final StackItemView top = topOfStack();
+        final CardView source = top == null ? null : top.getSourceCard();
+        if (top == null || !top.isTrigger() || !isMe(top.getActivatingPlayer()) || source == null
+                || forge.neo.ascent.AscentRelics.byCardName(source.getName()) == null) {
+            return null;
+        }
+        return source;
+    }
+
     private void pressAutoInAMoment() {
         final int mine = autoPayGen.get();
         if (AUTO_PAY_DELAY_MS <= 0) {
@@ -5262,7 +5425,31 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             return "";
         }
         return System.lineSeparator()
-                + NeoText.get("prompt.picked", countPickedSelectables(), need);
+                + NeoText.get("prompt.picked", pickedSoFar(), need);
+    }
+
+    /**
+     * Lo elegido hasta ahora en la eleccion en curso: las cartas
+     * ({@code countPickedSelectables}) <b>y los jugadores</b>.
+     *
+     * <p>{@code countPickedSelectables} solo cuenta cartas, y hay elecciones
+     * que mezclan las dos cosas: proliferar elige "permanentes y/o jugadores"
+     * ({@code InputSelectEntitiesFromList}), y un jugador elegido solo queda
+     * marcado ({@code setHighlighted}). Reportado en Discord el 10-10-2026,
+     * con Contagion Clasp: eliges al rival y sale "Elegidas 0 de 2" y, al dar
+     * a OK, el aviso de que no has elegido nada.
+     */
+    private int pickedSoFar() {
+        int n = countPickedSelectables();
+        final GameView game = getGameView();
+        if (game != null && game.getPlayers() != null && getSelectionMax() > 0) {
+            for (final PlayerView p : game.getPlayers()) {
+                if (isHighlighted(p)) {
+                    n++;
+                }
+            }
+        }
+        return n;
     }
 
     private boolean isHighlightedEntity(final Object entity) {
@@ -5599,13 +5786,23 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                     title, options, lo, hi,
                     display == null ? NeoMatchUI::defaultLabel : display::apply,
                     handCardWidth(), null, ordered, reply::accept);
-            if (about != null && !about.isEmpty()) {
-                dialog.setContext(subjectRow(about));
-            } else if (note != null) {
-                final javafx.scene.control.Label line = new javafx.scene.control.Label(note);
+            javafx.scene.control.Label line = null;
+            if (note != null) {
+                line = new javafx.scene.control.Label(note);
                 line.getStyleClass().add("dialog-note");
                 line.setWrapText(true);
                 line.setMaxWidth(forge.neo.ui.UiScale.px(760));
+            }
+            final boolean cards = about != null && !about.isEmpty();
+            if (cards && line != null) {
+                // Las dos: la linea del disparo ("Damaged: Lisian") encima de
+                // las cartas de las que habla. Ver TriggerSubject.
+                final javafx.scene.layout.VBox both = new javafx.scene.layout.VBox(
+                        forge.neo.ui.UiScale.px(8), line, subjectRow(about));
+                dialog.setContext(both);
+            } else if (cards) {
+                dialog.setContext(subjectRow(about));
+            } else if (line != null) {
                 dialog.setContext(line);
             }
             table.getOverlay().show(dialog);
@@ -5964,9 +6161,24 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             // Si es el modo de un disparo, de QUE carta habla: con tres
             // disparos de Jin Sakai, uno por atacante, las tres preguntas eran
             // identicas. Se lee aqui, en el hilo que pregunta, porque es donde
-            // lo apunto el controlador. Ver TriggerSubject.
-            return askChoice(message, choices, min, max, display,
-                    TriggerSubject.forChoices(choices));
+            // lo apunto el controlador. Ver TriggerSubject. Y de QUIEN
+            // ("Damaged: Lisian"): el Parapet Thrasher a cinco jugadores.
+            // En red, al invitado esa linea le llega pegada al titulo: se
+            // despega y se pinta igual que en casa.
+            return askChoice(TriggerSubject.titleOf(message), choices, min, max, display,
+                    TriggerSubject.forChoices(choices), false, TriggerSubject.detailFor(choices, message));
+        }
+        // Sin jugador delante solo se apunta, para TriggerDetailCheck: la
+        // linea que el dialogo habria ensenyado, y la que habria viajado a un
+        // invitado pegada al titulo.
+        final String detail = TriggerSubject.detailFor(choices);
+        if (detail != null) {
+            lastTriggerDetail = detail;
+        }
+        final String wired = TriggerSubject.wiredDetail(message);
+        if (wired != null) {
+            lastWiredDetail = wired;
+            lastWiredTitle = TriggerSubject.titleOf(message);
         }
         // Coger los primeros 'min'.
         final List<T> out = new ArrayList<>();

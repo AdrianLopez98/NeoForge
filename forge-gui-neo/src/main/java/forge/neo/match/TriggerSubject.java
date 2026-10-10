@@ -15,6 +15,7 @@ import forge.game.player.Player;
 import forge.game.spellability.AbilitySub;
 import forge.game.spellability.SpellAbility;
 import forge.game.spellability.SpellAbilityView;
+import forge.game.trigger.Trigger;
 import forge.player.PlayerControllerHuman;
 
 /**
@@ -58,6 +59,19 @@ import forge.player.PlayerControllerHuman;
  * QUIEN: con dos fichas iguales atacando a dos rivales, la imagen sola no las
  * distingue y el rival si.
  *
+ * <p><b>Y de QUIEN habla</b> (Discord, 09-10-2026, <i>Parapet Thrasher</i> en
+ * una partida a cinco: <i>"the burn damage does not target 1 of my
+ * friends"</i>). "Cuando tus Dragones hacen dano de combate a un rival, elige
+ * uno que no hayas elegido este turno: ... o 4 de dano a cada OTRO rival".
+ * Tres rivales danados son tres disparos por cada Dragon, y cada uno pregunta
+ * el modo con el mismo titulo y sin decir de que rival es. El jugador escogia
+ * a ciegas, el de 4 de dano acababa siempre en el disparo de Lisian... y a
+ * Lisian, que es "ese" rival, no le llegaba nunca. El motor lo hizo bien; lo
+ * que faltaba era el dato. Ahora va una linea bajo el titulo con lo mismo que
+ * el disparo ensenya en el stack ({@code Trigger.getImportantStackObjects}:
+ * "Damaged: Lisian, Amount: 4"), ya traducida por el motor y valida para
+ * cualquier tipo de disparo. La lee {@link #detailFor}, en el PC y en Android.
+ *
  * <p><b>Lo que no hace.</b> No toca la regla ni el orden de los disparos, ni
  * cambia el "ella" del texto por el nombre (seria reescribir el texto del motor
  * en diez idiomas). En red solo sale en el asiento del anfitrion: al invitado la
@@ -79,8 +93,12 @@ public final class TriggerSubject {
     public record Subject(CardView card, GameEntityView attacking) {
     }
 
+    /** Lo que se apunta de un disparo: sus cartas y su linea del stack. */
+    private record Asking(List<Subject> subjects, String detail) {
+    }
+
     /** Lo apuntado para la pregunta de modo que se esta haciendo en este hilo. */
-    private static final ThreadLocal<List<Subject>> ASKING = new ThreadLocal<>();
+    private static final ThreadLocal<Asking> ASKING = new ThreadLocal<>();
 
     /**
      * Las cartas de la pregunta que llega, si es una eleccion de modo.
@@ -90,16 +108,137 @@ public final class TriggerSubject {
      * estas cartas y no debe ensenyarlas.
      */
     public static List<Subject> forChoices(final List<?> choices) {
-        final List<Subject> subjects = ASKING.get();
-        if (subjects == null || subjects.isEmpty() || choices == null || choices.isEmpty()) {
+        final Asking asking = ASKING.get();
+        if (asking == null || !allModes(choices)) {
             return List.of();
+        }
+        return asking.subjects();
+    }
+
+    /**
+     * La linea del disparo cuyo modo se pregunta ("Damaged: Lisian, Amount:
+     * 4"), o {@code null}. Con el mismo cuidado que {@link #forChoices}: solo
+     * si todas las opciones son modos.
+     */
+    public static String detailFor(final List<?> choices) {
+        final Asking asking = ASKING.get();
+        return asking == null || !allModes(choices) ? null : asking.detail();
+    }
+
+    /**
+     * Lo mismo, pero mirando tambien el titulo: a un INVITADO de una partida
+     * en red la linea le llega ahi (ver {@link #wire}), porque este hilo, y
+     * con el lo apuntado, se queda en el ordenador del anfitrion.
+     */
+    public static String detailFor(final List<?> choices, final String message) {
+        final String local = detailFor(choices);
+        if (local != null || !allModes(choices)) {
+            return local;
+        }
+        return wiredDetail(message);
+    }
+
+    /**
+     * Marca invisible (U+2063, "separador invisible") entre el titulo de la
+     * pregunta y la linea del disparo, cuando la pregunta viaja a un invitado.
+     * Un invitado con una version anterior la ve como una segunda linea del
+     * titulo, que tambien sirve; uno al dia la quita y la pinta como en casa.
+     */
+    private static final String WIRE_MARK = "\n⁣";
+
+    /** La linea que trae el titulo, o null. */
+    static String wiredDetail(final String message) {
+        if (message == null) {
+            return null;
+        }
+        final int i = message.indexOf(WIRE_MARK);
+        if (i < 0) {
+            return null;
+        }
+        final String d = message.substring(i + WIRE_MARK.length()).trim();
+        return d.isEmpty() ? null : d;
+    }
+
+    /** El titulo sin la linea que trae pegada, si la trae. */
+    public static String titleOf(final String message) {
+        if (message == null) {
+            return null;
+        }
+        final int i = message.indexOf(WIRE_MARK);
+        return i < 0 ? message : message.substring(0, i);
+    }
+
+    /** Para el comprobador: hacer como si el asiento fuera el de un invitado. */
+    static volatile boolean wireForTests;
+
+    /**
+     * Si esta interfaz es la de un invitado de una partida en red
+     * ({@code RemoteClientGuiGame}, la que manda las preguntas por el cable).
+     * Por NOMBRE y no con {@code instanceof}: esta clase la carga tambien
+     * Android, y asi no depende de que esa clase este.
+     */
+    private static boolean isRemote(final forge.gui.interfaces.IGuiGame gui) {
+        for (Class<?> c = gui == null ? null : gui.getClass(); c != null; c = c.getSuperclass()) {
+            if ("forge.gamemodes.net.server.RemoteClientGuiGame".equals(c.getName())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * La interfaz del invitado, con la linea pegada al titulo de las preguntas
+     * de modo ({@code one} / {@code oneOrNone}, las dos que hace
+     * {@code chooseModeForAbility}). Todo lo demas pasa tal cual. Solo vive lo
+     * que dura la pregunta.
+     */
+    private static forge.gui.interfaces.IGuiGame wire(final forge.gui.interfaces.IGuiGame gui, final String detail) {
+        return (forge.gui.interfaces.IGuiGame) java.lang.reflect.Proxy.newProxyInstance(
+                forge.gui.interfaces.IGuiGame.class.getClassLoader(),
+                new Class<?>[] {forge.gui.interfaces.IGuiGame.class},
+                (proxy, method, args) -> {
+                    final String name = method.getName();
+                    if (("one".equals(name) || "oneOrNone".equals(name))
+                            && args != null && args.length >= 2 && args[0] instanceof String title) {
+                        args[0] = title + WIRE_MARK + detail;
+                    }
+                    try {
+                        return method.invoke(gui, args);
+                    } catch (final java.lang.reflect.InvocationTargetException e) {
+                        throw e.getCause();
+                    }
+                });
+    }
+
+    private static boolean allModes(final List<?> choices) {
+        if (choices == null || choices.isEmpty()) {
+            return false;
         }
         for (final Object o : choices) {
             if (!(o instanceof SpellAbilityView)) {
-                return List.of();
+                return false;
             }
         }
-        return subjects;
+        return true;
+    }
+
+    /**
+     * Lo que el disparo ensenya entre corchetes en el stack: a quien ha danado,
+     * quien ataca, cuanto... Lo escribe el propio motor para cada tipo de
+     * disparo, ya en el idioma de la partida. {@code null} si no es un disparo
+     * o no tiene nada que decir.
+     */
+    static String detail(final SpellAbility sa) {
+        if (sa == null) {
+            return null;
+        }
+        final Trigger trigger = sa.getTrigger();
+        if (trigger == null) {
+            return null;
+        }
+        final String text = trigger.getImportantStackObjects(sa);
+        // trim().isEmpty() y no isBlank(): esto lo carga tambien Android.
+        return text == null || text.trim().isEmpty() ? null : text.trim();
     }
 
     /**
@@ -176,6 +315,16 @@ public final class TriggerSubject {
         }
     }
 
+    /** {@link #detail}, con la misma red que {@link #subjectsOrNothing}. */
+    private static String detailOrNothing(final SpellAbility sa) {
+        try {
+            return detail(sa);
+        } catch (final RuntimeException e) {
+            System.out.println("[neo] no se ha podido leer la linea del disparo: " + e);
+            return null;
+        }
+    }
+
     /**
      * El controlador humano de siempre, diciendo de que carta habla el disparo.
      *
@@ -199,11 +348,23 @@ public final class TriggerSubject {
             // Se apunta SIEMPRE, aunque sea vacio, y se repone lo de antes: si
             // esta pregunta fuera por dentro de otra, no puede quedarse con las
             // cartas de la de fuera.
-            final List<Subject> outer = ASKING.get();
-            ASKING.set(subjectsOrNothing(sa));
+            final Asking outer = ASKING.get();
+            final Asking now = new Asking(subjectsOrNothing(sa), detailOrNothing(sa));
+            ASKING.set(now);
+            // Al INVITADO de una partida en red este hilo no le llega: la linea
+            // del disparo viaja pegada al titulo de la pregunta (Discord,
+            // 10-10-2026: el del Parapet Thrasher a cinco jugaba en red).
+            final forge.gui.interfaces.IGuiGame gui = getGui();
+            final boolean wired = now.detail() != null && (wireForTests || isRemote(gui));
+            if (wired) {
+                setGui(wire(gui, now.detail()));
+            }
             try {
                 return super.chooseModeForAbility(sa, possible, min, num, allowRepeat);
             } finally {
+                if (wired) {
+                    setGui(gui);
+                }
                 if (outer == null) {
                     ASKING.remove();
                 } else {

@@ -520,9 +520,7 @@ public final class AscentRewards {
         if (singleton) {
             final Deck deck = AscentDecks.load(run);
             if (deck != null) {
-                for (final Map.Entry<PaperCard, Integer> e : deck.getMain()) {
-                    owned.add(e.getKey().getName());
-                }
+                addOwned(deck, owned);
             }
         }
         final List<PaperCard> out = new ArrayList<>();
@@ -916,9 +914,7 @@ public final class AscentRewards {
         final Set<String> owned = new HashSet<>(run.getCut());
         final Deck mine = run.getMode() == AscentRun.Mode.COMMANDER ? AscentDecks.load(run) : null;
         if (mine != null) {
-            for (final Map.Entry<PaperCard, Integer> e : mine.getMain()) {
-                owned.add(e.getKey().getName());
-            }
+            addOwned(mine, owned);
         }
         final Set<String> changers = gameChangerNames();
         // Lo que pega con TU comandante, segun los mazos reales que trae Forge.
@@ -977,6 +973,44 @@ public final class AscentRewards {
             }
         }
         return out;
+    }
+
+    /**
+     * Lo que ya llevas en un mazo de Commander, por nombre: el principal
+     * <b>y la zona de mando</b>.
+     *
+     * <p>Discord (09-10-2026, Minty): <i>"Giada, my commander, appeared in the
+     * rewards pool"</i>. Se miraba solo el principal, y el comandante vive en
+     * su propia seccion — o sea que salia como premio una carta que ya
+     * llevas, y cogerla dejaba el mazo con dos copias: ilegal. Pasa con
+     * cualquier comandante que sea infrecuente o mejor y entre en el pozo de
+     * la run, y con mas facilidad si pega con su propia sinergia.
+     */
+    private static void addOwned(final Deck deck, final Set<String> into) {
+        for (final Map.Entry<PaperCard, Integer> e : deck.getMain()) {
+            into.add(e.getKey().getName());
+        }
+        for (final PaperCard cmd : deck.getCommanders()) {
+            into.add(cmd.getName());
+        }
+    }
+
+    /**
+     * Si esa carta podria salir en un premio de esta run, a cualquier altura.
+     * Solo para {@link AscentCheck}: los premios se sortean, y comprobar a base
+     * de sorteos que algo NO sale no prueba nada.
+     */
+    static boolean offerable(final AscentRun run, final String name) {
+        final Pools pools = poolsFor(run);
+        for (final List<PaperCard> bucket : List.of(pools.all.uncommon, pools.all.rare,
+                pools.all.mythic, pools.gameChangers)) {
+            for (final PaperCard c : bucket) {
+                if (c.getName().equals(name)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
