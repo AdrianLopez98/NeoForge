@@ -1038,6 +1038,41 @@ public final class QuestCheck {
                     && NeoQuest.credits() == bulkMoney + bulk.getCredits();
             NeoQuest.deleteDeck("neo-sellcheck");
 
+            // ---- el mazo lleva OTRA impresion que la tuya (Discord, 12-10-2026) ----
+            //
+            // "accidentally sold half of my commander deck": el editor de la
+            // Quest da por tuya una carta si tienes alguna de su nombre, asi que
+            // un mazo puede llevar artA y la coleccion solo artB. Mirando solo
+            // la impresion, artB salia libre y "vender lo que no va en un mazo"
+            // se la llevaba; el mazo se quedaba con una carta que ya no tienes.
+            NeoQuest.engine().getCards().getCardpool()
+                    .removeIf(c -> c.getName().equals(dupe.getName()));
+            NeoQuest.engine().getCards().addSingleCard(artB, 2);
+            final forge.deck.Deck other = new forge.deck.Deck("neo-sellcheck-name");
+            other.getMain().add(artA, 1);
+            NeoQuest.engine().getMyDecks().add(other);
+            final java.util.Map<PaperCard, Integer> usedName =
+                    forge.neo.quest.NeoQuestSell.usedByDecks();
+            final java.util.Map<PaperCard, Integer> planName =
+                    forge.neo.quest.NeoQuestSell.notInDecksPlan();
+            System.out.printf(Locale.ROOT,
+                    "  Mazo con %s y coleccion con 2 de %s: se guardan %d, libres %d, el boton gordo vende %d%n",
+                    artA.getEdition(), artB.getEdition(), usedName.getOrDefault(artB, 0),
+                    forge.neo.quest.NeoQuestSell.notInDecks(artB, usedName),
+                    planName.getOrDefault(artB, 0));
+            ok &= usedName.getOrDefault(artB, 0) == 1
+                    && forge.neo.quest.NeoQuestSell.notInDecks(artB, usedName) == 1
+                    && planName.getOrDefault(artB, 0) == 1;
+            forge.neo.quest.NeoQuestSell.sell(planName);
+            final forge.deck.Deck rereadName = NeoQuest.engine().getMyDecks().get("neo-sellcheck-name");
+            final boolean stillYours = forge.neo.quest.NeoQuestSell.owned(artB) == 1
+                    && rereadName != null && rereadName.getMain().count(artA) == 1;
+            System.out.printf(Locale.ROOT, "  Despues de venderlo: te queda %d de %s y el mazo %s%n",
+                    forge.neo.quest.NeoQuestSell.owned(artB), artB.getEdition(),
+                    stillYours ? "sigue siendo tuyo" : "SE HA QUEDADO SIN ELLA");
+            ok &= stillYours;
+            NeoQuest.deleteDeck("neo-sellcheck-name");
+
             // ---- cambiar el arte, pagando (Discord, 11-10-2026) ----
             //
             // Tres copias y un mazo que usa dos: cambiar todas menos una deja

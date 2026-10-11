@@ -8,6 +8,7 @@ Novedades:
 - **Pantalla:** mover el juego a otro monitor de otra resolución ya no lo descuadra; Escape cierra el menú de una carta.
 - **Forge al día:** Marvel: Darkhold Destiny y su Commander.
 - **Arreglos:** Clara Oswald y The Prismatic Piper conservan su color elegido al lanzarlas desde la zona de mando (antes All Is Dust se las saltaba); una reliquia de Ascenso ya no se cuela en el mazo de salida.
+- **Resubida:** un ajuste para preguntar antes de activar la habilidad de un permanente (para no activarla sin querer), y en la Quest «vender lo que no va en un mazo» ya no se lleva cartas de un mazo que lleva otra impresión que la tuya.
 
 Descarga el `.dmg` de tu Mac:
 

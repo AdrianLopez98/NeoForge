@@ -792,6 +792,17 @@ public final class NeoSettings {
     }
 
     /**
+     * Preguntar antes de que un toque en un permanente active su habilidad
+     * (Discord, 11-10-2026: "back out of a tap effect"). Apagado de fabrica.
+     * Ver {@code forge.neo.match.ActivateGuard}. La misma clave en Android.
+     */
+    public static final String CONFIRM_ACTIVATE = "confirmActivate";
+
+    public static boolean confirmActivate() {
+        return getBool(CONFIRM_ACTIVATE, false);
+    }
+
+    /**
      * A que ritmo juega la IA, en centesimas de multiplicador.
      *
      * <p>{@code 100} es x1, o sea la pausa base entre carta y carta

@@ -880,6 +880,13 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             return;
         }
 
+        // El toque que activaria la habilidad de un permanente, con el ajuste
+        // puesto: se pregunta antes de mandarlo (ActivateGuard).
+        if (askBeforeActivate(card)) {
+            clickTrace(card, "preguntar antes de activar");
+            return;
+        }
+
         clickTrace(card, "activar");
         lastClicked = card;
         respondLater(() -> getGameController().selectCard(card, null, null));
@@ -914,6 +921,49 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                 prompt == null || prompt.isBlank() ? NeoText.get("pick.ask.title") : prompt,
                 NeoText.get("pick.ask.detail", names.toString()),
                 List.of(NeoText.get("pick.ask.change"), NeoText.get("pick.ask.confirm")),
+                0,
+                index -> {
+                    if (!answered.compareAndSet(false, true)) {
+                        return;
+                    }
+                    table.getOverlay().hide();
+                    if (index != null && index == 1) {
+                        lastClicked = card;
+                        respondLater(() -> getGameController().selectCard(card, null, null));
+                    }
+                });
+        dialog.getStyleClass().add("phase-ask");
+        // Para el piloto de pruebas, como en confirmLeavingMain: el que sigue.
+        if (dialog.option(1) != null) {
+            dialog.option(1).getStyleClass().add("phase-ask-go");
+        }
+        table.getOverlay().show(dialog);
+        table.requestLayout();
+        return true;
+    }
+
+    /**
+     * "¿Activar Merfolk Looter?" (Discord, 11-10-2026: <i>"the ability to back
+     * out of a tap effect without triggering it"</i>). El toque que activaria la
+     * unica habilidad de un permanente se GUARDA y se pregunta: "Cancelar" (la
+     * marcada, la segura) lo suelta sin mandarlo, y "Activar" lo manda. Cuando
+     * preguntar lo decide {@link forge.neo.match.ActivateGuard}, que comparte
+     * Android.
+     *
+     * @return true si nos hemos quedado el toque para preguntar
+     */
+    private boolean askBeforeActivate(final CardView card) {
+        if (table == null || !interactive() || finished.get()
+                || table.getOverlay().isShowing()
+                || !forge.neo.match.ActivateGuard.shouldAsk(getGameController(), card)) {
+            return false;
+        }
+        final String what = forge.neo.match.ActivateGuard.describe(getGameController(), card);
+        final AtomicBoolean answered = new AtomicBoolean();
+        final ConfirmDialog dialog = new ConfirmDialog(
+                NeoText.get("activate.ask.title", forge.neo.card.CardText.nameOf(card)),
+                what,
+                List.of(NeoText.get("activate.ask.cancel"), NeoText.get("activate.ask.go")),
                 0,
                 index -> {
                     if (!answered.compareAndSet(false, true)) {

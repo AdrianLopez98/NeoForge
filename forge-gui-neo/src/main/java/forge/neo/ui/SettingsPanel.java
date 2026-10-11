@@ -548,6 +548,16 @@ public class SettingsPanel extends VBox {
                     NeoSettings.save();
                 }));
 
+        // --- preguntar antes de activar una habilidad (ActivateGuard) ---
+        //
+        // Un toque en una criatura con una habilidad de girar la activa y el
+        // pase automatico la resuelve sin dar tiempo a nada. Apagado de fabrica.
+        getChildren().add(toggleRow(NeoText.get("settings.confirmActivate"),
+                NeoSettings.confirmActivate(), on -> {
+                    NeoSettings.setBool(NeoSettings.CONFIRM_ACTIVATE, on);
+                    NeoSettings.save();
+                }));
+
         // --- pararse cuando pasa algo importante ---
         //
         // Es el YieldController de Forge, que ya estaba escrito entero y solo

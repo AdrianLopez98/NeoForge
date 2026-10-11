@@ -266,14 +266,27 @@ public final class NeoQuestSell {
     // ===============================================================
 
     /**
-     * Cuantas copias de cada IMPRESION usan tus mazos.
+     * Cuantas copias de cada impresion de tu coleccion hay que GUARDAR para
+     * tus mazos.
      *
      * <p>El <b>mayor</b> de todos los mazos, no la suma: en la aventura los
      * mazos comparten la coleccion, y un Sol Ring en tres mazos es un Sol Ring.
-     * Es la misma cuenta que hace el motor al vender
-     * ({@code QuestUtilCards.removeCard}): quita la carta de cada mazo que lleve
-     * mas copias de las que te quedan. O sea que vender hasta este numero no
-     * toca ningun mazo, y por debajo si.
+     *
+     * <p>Se guardan dos cosas, y hacen falta las dos:
+     * <ol>
+     *   <li><b>La impresion que lleva el mazo, tal cual.</b> Es la cuenta que
+     *       hace el motor al vender ({@code QuestUtilCards.removeCard}): quita
+     *       la carta de cada mazo que lleve mas copias de esa impresion de las
+     *       que te quedan.</li>
+     *   <li><b>Las copias que pide por NOMBRE.</b> El editor de mazos de la Quest
+     *       da una carta por tuya si tienes alguna de su nombre, de la edicion
+     *       que sea ({@code QuestDeckContext}). Asi que un mazo puede llevar un
+     *       Sol Ring de C21 y la coleccion tener el de CMR — importado de una
+     *       lista, de una partida vieja —, y mirando solo la impresion ese Sol
+     *       Ring salia "fuera de tus mazos" y se vendia. Discord, 12-10-2026:
+     *       <i>"accidentally sold half of my commander deck"</i>; la mitad de su
+     *       mazo salio luego en "Limpiar".</li>
+     * </ol>
      *
      * <p>Se cuentan todas las secciones, tambien la de mando: el motor no quita
      * al comandante de su sitio, pero venderle su unica copia seria dejar un
@@ -284,16 +297,59 @@ public final class NeoQuestSell {
         if (!NeoQuest.isActive()) {
             return used;
         }
+        final Map<PaperCard, Integer> exact = new java.util.HashMap<>();
+        final Map<String, Integer> byName = new java.util.HashMap<>();
         for (final forge.deck.Deck deck : NeoQuest.decks()) {
             final Map<PaperCard, Integer> here = new java.util.HashMap<>();
+            final Map<String, Integer> names = new java.util.HashMap<>();
             for (final Map.Entry<forge.deck.DeckSection, forge.deck.CardPool> section : deck) {
                 for (final Map.Entry<PaperCard, Integer> e : section.getValue()) {
                     here.merge(e.getKey(), e.getValue(), Integer::sum);
+                    names.merge(nameKey(e.getKey()), e.getValue(), Integer::sum);
                 }
             }
-            here.forEach((card, n) -> used.merge(card, n, Math::max));
+            here.forEach((card, n) -> exact.merge(card, n, Math::max));
+            names.forEach((name, n) -> byName.merge(name, n, Math::max));
+        }
+
+        // 1. Las impresiones que los mazos llevan tal cual.
+        final Map<String, Integer> covered = new java.util.HashMap<>();
+        final List<Map.Entry<PaperCard, Integer>> others = new ArrayList<>();
+        for (final Map.Entry<PaperCard, Integer> e : NeoQuest.collection()) {
+            final PaperCard card = e.getKey();
+            if (card == null || e.getValue() == null) {
+                continue;
+            }
+            final int keep = Math.min(e.getValue(), exact.getOrDefault(card, 0));
+            if (keep > 0) {
+                used.put(card, keep);
+                covered.merge(nameKey(card), keep, Integer::sum);
+            }
+            if (e.getValue() > keep) {
+                others.add(e);
+            }
+        }
+        // 2. Y si con eso no llegan las copias que un mazo pide por nombre, se
+        //    guardan tambien de las otras impresiones.
+        for (final Map.Entry<PaperCard, Integer> e : others) {
+            final PaperCard card = e.getKey();
+            final String name = nameKey(card);
+            final int missing = byName.getOrDefault(name, 0) - covered.getOrDefault(name, 0);
+            if (missing <= 0) {
+                continue;
+            }
+            final int extra = Math.min(missing, e.getValue() - used.getOrDefault(card, 0));
+            if (extra > 0) {
+                used.merge(card, extra, Integer::sum);
+                covered.merge(name, extra, Integer::sum);
+            }
         }
         return used;
+    }
+
+    /** Como cuenta el editor de mazos de la Quest: por nombre. */
+    private static String nameKey(final PaperCard card) {
+        return card.getName().toLowerCase(java.util.Locale.ROOT);
     }
 
     /**
