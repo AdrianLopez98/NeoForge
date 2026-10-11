@@ -873,9 +873,66 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             return;
         }
 
+        // El toque que cerraria una eleccion de "elige N", con el ajuste
+        // puesto: se pregunta antes de mandarlo (PickGuard).
+        if (askBeforeLastPick(card)) {
+            clickTrace(card, "preguntar antes de cerrar la eleccion");
+            return;
+        }
+
         clickTrace(card, "activar");
         lastClicked = card;
         respondLater(() -> getGameController().selectCard(card, null, null));
+    }
+
+    /**
+     * "Vas a descartar estas dos: ¿seguro?" (Discord, 11-10-2026). El motor
+     * confirma solo una eleccion de "elige N cartas" en cuanto llega a N, asi
+     * que el toque que la completaria se GUARDA y se pregunta: "Cambiar" (la
+     * marcada, la segura) lo suelta sin mandarlo, y "Confirmar" lo manda.
+     * Cuando preguntar lo decide {@link forge.neo.match.PickGuard}, que comparte
+     * Android.
+     *
+     * @return true si nos hemos quedado el toque para preguntar
+     */
+    private boolean askBeforeLastPick(final CardView card) {
+        if (table == null || !interactive() || finished.get()
+                || table.getOverlay().isShowing()
+                || !forge.neo.match.PickGuard.shouldAsk(getGameController(), this, card)) {
+            return false;
+        }
+        final StringBuilder names = new StringBuilder();
+        for (final CardView c : forge.neo.match.PickGuard.picked(this, card)) {
+            if (names.length() > 0) {
+                names.append(", ");
+            }
+            names.append(forge.neo.card.CardText.nameOf(c));
+        }
+        final String prompt = lastPrompt;
+        final AtomicBoolean answered = new AtomicBoolean();
+        final ConfirmDialog dialog = new ConfirmDialog(
+                prompt == null || prompt.isBlank() ? NeoText.get("pick.ask.title") : prompt,
+                NeoText.get("pick.ask.detail", names.toString()),
+                List.of(NeoText.get("pick.ask.change"), NeoText.get("pick.ask.confirm")),
+                0,
+                index -> {
+                    if (!answered.compareAndSet(false, true)) {
+                        return;
+                    }
+                    table.getOverlay().hide();
+                    if (index != null && index == 1) {
+                        lastClicked = card;
+                        respondLater(() -> getGameController().selectCard(card, null, null));
+                    }
+                });
+        dialog.getStyleClass().add("phase-ask");
+        // Para el piloto de pruebas, como en confirmLeavingMain: el que sigue.
+        if (dialog.option(1) != null) {
+            dialog.option(1).getStyleClass().add("phase-ask-go");
+        }
+        table.getOverlay().show(dialog);
+        table.requestLayout();
+        return true;
     }
 
     /**
@@ -1778,6 +1835,98 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
 
 
     /**
+     * <b>Los dados de una carta que los tira</b>, en el centro de la mesa
+     * ({@link forge.neo.ui.DiceRoll}). Discord, 11-10-2026: <i>"A visual dice
+     * roll (toggle?) or toast that shows us the dice roll for dice cards"</i>.
+     *
+     * <p>Lo mismo que {@link #showCoinFlip}, y por lo mismo: en una partida
+     * local el evento llega por el bus de la partida en el hilo del motor
+     * (ver {@code listenToTheEngine}), justo al tirar, y se espera a que caigan
+     * (tope de 3 s) para que lo que la carta pregunte despues — el color del
+     * mana de Mad Science Fair Project — salga detras y no delante. Al invitado
+     * de una partida en red le llega contado por el cable: se pinta y no se
+     * espera a nada.
+     *
+     * <p>De que va la tirada lo dice la carta de encima del stack, que es la que
+     * se esta resolviendo; si no hay ninguna (una tirada fuera del stack), solo
+     * el dado.
+     */
+    private void showDiceRoll(final int sides, final List<Integer> results) {
+        final forge.neo.ui.TableScreen t = table;
+        if (results == null || results.isEmpty()) {
+            return;
+        }
+        final StackItemView top = topOfStack();
+        final CardView source = top == null ? null : top.getSourceCard();
+        final String caption = forge.neo.match.DiceCaption.of(whoRolled(),
+                source == null ? null : forge.neo.card.CardText.nameOf(source), sides, results);
+        log("Dados: %s -> %s", caption, results);
+        if (!interactive() || t == null || !forge.neo.card.CardNode.areAnimationsEnabled()) {
+            return;
+        }
+        final List<Integer> rolled = new ArrayList<>(results);
+        final java.util.concurrent.CountDownLatch landed = new java.util.concurrent.CountDownLatch(1);
+        final UiDispatcher ui = uiDispatcher();
+        final boolean onUi = javafx.application.Platform.isFxApplicationThread()
+                || (ui != null && ui.isUiThread());
+        runOnUi(() -> {
+            try {
+                t.rollDice(sides, rolled, caption, landed::countDown);
+            } catch (final RuntimeException e) {
+                landed.countDown();
+            }
+        });
+        final GameView gv = getGameView();
+        if (onUi || gv == null || gv.getGame() == null) {
+            return;
+        }
+        try {
+            landed.await(3, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /**
+     * Cuantas tiradas llevaba cada jugador antes de esta, por id. El evento de
+     * los dados no dice QUIEN tira, pero el motor cuenta las tiradas de cada
+     * uno ({@code Player.roll()}) entre el primer {@code GameEventRollDie} y el
+     * {@code GameEventRollDice}: el que ha subido es el que tira. Solo en una
+     * partida local, que es donde se tiene la partida delante.
+     */
+    private volatile java.util.Map<Integer, Integer> rollsBefore;
+
+    private void noteRollsBefore() {
+        final GameView gv = getGameView();
+        final Game game = gv == null ? null : gv.getGame();
+        if (game == null || rollsBefore != null) {
+            return;
+        }
+        final java.util.Map<Integer, Integer> now = new java.util.HashMap<>();
+        for (final forge.game.player.Player p : game.getPlayers()) {
+            now.put(p.getId(), p.getNumRollsThisTurn());
+        }
+        rollsBefore = now;
+    }
+
+    /** Quien acaba de tirar, o {@code null} si no se sabe. Ver {@link #rollsBefore}. */
+    private String whoRolled() {
+        final java.util.Map<Integer, Integer> before = rollsBefore;
+        rollsBefore = null;
+        final GameView gv = getGameView();
+        final Game game = gv == null ? null : gv.getGame();
+        if (before == null || game == null) {
+            return null;
+        }
+        for (final forge.game.player.Player p : game.getPlayers()) {
+            if (p.getNumRollsThisTurn() > before.getOrDefault(p.getId(), 0)) {
+                return p.getName();
+            }
+        }
+        return null;
+    }
+
+    /**
      * Cambio de fase. En la fase 3 esto movera el indicador del rail de fases.
      */
     @Override
@@ -1879,6 +2028,11 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             slowTheAiDown(event);
         }
         animateEvent(event);
+        if (event instanceof forge.game.event.GameEventRollDie die && die.planar() == null) {
+            noteRollsBefore();
+        } else if (event instanceof forge.game.event.GameEventRollDice roll) {
+            showDiceRoll(roll.sides(), roll.results());
+        }
         trace("evento: %s", event.getClass().getSimpleName());
         finishIfGuest(event);
     }
@@ -4945,6 +5099,43 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             // Lo que hubiera resaltado deja de tener sentido: durante el pago
             // automatico no se toca nada a mano.
             clearWeaklySelectable();
+        } else {
+            republishActionables();
+        }
+    }
+
+    /**
+     * <b>Al volver a encender el rastreo, lo jugable otra vez.</b>
+     *
+     * <p>Discord, 11-10-2026: <i>"During main phase 1, before moving to
+     * combat, there is a moment where castable cards that normally have the
+     * blue indicator lose said indicator ... you have the mana to cast cards
+     * but the hand no longer shows it"</i>. El orden del motor: al darte la
+     * prioridad, {@code InputPassPriority.showNormalPrompt} publica lo jugable
+     * ({@code pushActionableCards}) <b>antes</b> de {@code updateButtons}. Y es
+     * en {@code updateButtons} donde vemos que el pago automatico ha acabado y
+     * encendemos el rastreo — tarde: el motor ya habia preguntado con el
+     * rastreo apagado y habia borrado los resaltados. Hasta la siguiente
+     * prioridad (pasar, que se resuelva lo lanzado) la mano no decia nada.
+     *
+     * <p>Se le pide otra vez, pero solo si lo que espera es la prioridad normal:
+     * entonces estamos dentro de su propio {@code showNormalPrompt}, en su
+     * hilo, y es exactamente la llamada que acaba de hacer. En un pago (las
+     * fuentes, a mano) no: ahi el rastreo apagado es lo que evita el choque de
+     * hilos del {@code Tracker}.
+     */
+    private void republishActionables() {
+        final IGameController gc = getGameController();
+        if (!(gc instanceof forge.player.PlayerControllerHuman human)) {
+            return;
+        }
+        try {
+            if (human.getInputQueue().getInput() instanceof forge.gamemodes.match.input.InputPassPriority) {
+                human.pushActionableCards(false);
+                trace("resaltados: vuelven tras el pago");
+            }
+        } catch (final RuntimeException e) {
+            log("No se han podido volver a pedir los resaltados: %s", e);
         }
     }
 

@@ -131,9 +131,25 @@ public final class AscentDecks {
         return storage().get(name);
     }
 
-    /** El mazo de esa run. */
+    /**
+     * El mazo de esa run.
+     *
+     * <p>Y si lleva dentro una reliquia, se cambia por una basica y se guarda.
+     * Discord, 10-10-2026: <i>"Forgefather's Anvil is broken. Can't play
+     * it"</i> — el generador del mazo de salida las colaba (ver
+     * {@code GeneratedDecks}, donde ya no pasa). Esto es para las runs que se
+     * montaron antes: sin ello seguirian con su carta muerta hasta el final.
+     * Despues de la primera vez no hay nada que cambiar y no se guarda nada.
+     */
     public static Deck load(final AscentRun run) {
-        return run == null ? null : load(run.getDeckName());
+        if (run == null) {
+            return null;
+        }
+        final Deck deck = load(run.getDeckName());
+        if (forge.neo.deck.GeneratedDecks.dropCustomCards(deck) > 0) {
+            save(deck);
+        }
+        return deck;
     }
 
     // ------------------------------------------------------------------

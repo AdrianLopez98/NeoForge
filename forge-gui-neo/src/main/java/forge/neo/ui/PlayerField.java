@@ -212,7 +212,9 @@ public class PlayerField extends Pane {
 
         creatureRow.setCards(creatures, attachedTo);
         permanentRow.setCards(permanents, attachedTo);
-        landRow.setCards(lands, attachedTo);
+        // Las tierras, juntas por el color que dan y luego por nombre, no en
+        // el orden en que se jugaron (Discord, 11-10-2026). Ver LandOrder.
+        landRow.setCards(forge.neo.card.LandOrder.sorted(lands), attachedTo);
         requestLayout();
     }
 

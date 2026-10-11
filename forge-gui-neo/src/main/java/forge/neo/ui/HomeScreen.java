@@ -1144,7 +1144,10 @@ et}) y no se tocan.
     private Region footer(final StartHandler onStart) {
         summary.getStyleClass().add("home-summary");
 
-        final HBox options = new HBox(30,
+        // Las opciones BAJAN a otra linea si no caben. En una fila fija, con
+        // tres rivales el pie era mas ancho que la ventana a 1080p y se comia
+        // los dos lados de la pantalla, el boton de Jugar incluido.
+        final javafx.scene.layout.FlowPane options = new javafx.scene.layout.FlowPane(30, 8,
                 choice(NeoText.get("home.opponents"), new String[] {"1", "2", "3"},
                         String.valueOf(opponents),
                         v -> {
@@ -1160,9 +1163,12 @@ et}) y no se tocan.
                             NeoSettings.set(NeoSettings.AI_PROFILE, v);
                             updateSummary();
                         }),
-                planechaseChoice(),
+                variantChoice(),
                 scaleChoice());
         options.setAlignment(Pos.CENTER_LEFT);
+        options.setMinWidth(0);
+        options.setPrefWrapLength(UiScale.px(2400));
+        HBox.setHgrow(options, Priority.ALWAYS);
 
         unshrinkable(play).getStyleClass().addAll("btn-primary", "btn-play");
         play.setOnAction(e -> launch(onStart, false));
@@ -1755,8 +1761,6 @@ et}) y no se tocan.
      * hace esta en {@code forge.neo.match.Planechase}.
      */
     private Region planechaseChoice() {
-        final Label label = new Label(NeoText.get("home.variant"));
-        label.getStyleClass().add("caption");
         final Button b = new Button(NeoText.get("home.planechase"));
         b.setId("home-planechase");
         b.getStyleClass().add("segment");
@@ -1787,12 +1791,68 @@ et}) y no se tocan.
         });
         final HBox buttons = new HBox(4, b, shared);
         buttons.setAlignment(Pos.CENTER_LEFT);
-        final VBox box = new VBox(4, label, buttons);
+        return buttons;
+    }
+
+    /**
+     * Las variantes, en UN bloque: Planechase en una fila y Archenemy debajo.
+     * Cada una en su columna no cabia: el pie se hacia mas ancho que la
+     * ventana a 1080p y el boton de Jugar se salia por la derecha.
+     */
+    private Region variantChoice() {
+        final Label label = new Label(NeoText.get("home.variant"));
+        label.getStyleClass().add("caption");
+        final VBox box = new VBox(4, label, planechaseChoice(), archenemyChoice());
         box.setAlignment(Pos.CENTER_LEFT);
         final boolean applies = forge.neo.match.Planechase.appliesTo(format.getGameType());
         box.setVisible(applies);
         box.setManaged(applies);
         return box;
+    }
+
+    /**
+     * <b>Archenemy</b> (Discord, 11-10-2026), como Planechase: el boton que lo
+     * enciende y, al lado, quien es el archienemigo (tu, un rival al azar o
+     * todos). Lo que hace esta en {@code forge.neo.match.Archenemy}.
+     */
+    private Region archenemyChoice() {
+        final Button b = new Button(NeoText.get("home.archenemy"));
+        b.setId("home-archenemy");
+        b.getStyleClass().add("segment");
+        b.setMinWidth(Region.USE_PREF_SIZE);
+        b.pseudoClassStateChanged(SELECTED, NeoSettings.archenemy());
+        b.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("home.archenemy.tip")));
+        final List<Button> whoButtons = new ArrayList<>();
+        final HBox buttons = new HBox(4, b);
+        for (final forge.neo.match.Archenemy.Who w : forge.neo.match.Archenemy.Who.values()) {
+            final Button wb = new Button(NeoText.get("home.archenemy." + w.id));
+            wb.setId("home-archenemy-" + w.id);
+            wb.getStyleClass().add("segment");
+            wb.setMinWidth(Region.USE_PREF_SIZE);
+            wb.pseudoClassStateChanged(SELECTED, NeoSettings.archenemyWho() == w);
+            wb.setDisable(!NeoSettings.archenemy());
+            wb.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("home.archenemy." + w.id + ".tip")));
+            wb.setOnAction(e -> {
+                NeoSettings.set(NeoSettings.ARCHENEMY_WHO, w.id);
+                NeoSettings.save();
+                for (final Button other : whoButtons) {
+                    other.pseudoClassStateChanged(SELECTED, other == wb);
+                }
+            });
+            whoButtons.add(wb);
+            buttons.getChildren().add(wb);
+        }
+        b.setOnAction(e -> {
+            final boolean on = !NeoSettings.archenemy();
+            NeoSettings.setBool(NeoSettings.ARCHENEMY, on);
+            NeoSettings.save();
+            b.pseudoClassStateChanged(SELECTED, on);
+            for (final Button wb : whoButtons) {
+                wb.setDisable(!on);
+            }
+        });
+        buttons.setAlignment(Pos.CENTER_LEFT);
+        return buttons;
     }
 
     private Region choice(final String caption, final String[] values, final String current,

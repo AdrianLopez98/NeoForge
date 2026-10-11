@@ -284,6 +284,11 @@ public class CardNode extends StackPane {
     private CardView card;
     private double cardWidth;
     private boolean tapped;
+    /**
+     * Si este nodo ya ha pintado una carta. Hasta entonces no hay nada que
+     * "girar": la carta NACE como esta. Ver refresh.
+     */
+    private boolean stateShown;
     private boolean hoverEnabled = true;
     private String shownImageKey;
 
@@ -888,7 +893,12 @@ public class CardNode extends StackPane {
                 shownImageKey = key;
                 fullArt = img;
             } else if (blankWhileLoading) {
+                // Y se olvida de quien era: si no, al volver a la carta de antes
+                // su clave "ya estaba" y se quedaba sin arte (la carta grande al
+                // pasar del comandante a una reliquia y volver, 11-10-2026).
                 art.setImage(null);
+                shownImageKey = null;
+                fullArt = null;
             }
         } else {
             // LA MISMA CLAVE, PERO OTRA IMAGEN. Lo que se pinto era un
@@ -1026,7 +1036,17 @@ public class CardNode extends StackPane {
         // valor no cambia, asi que esto no relanza la transicion en cada aviso
         // del motor (que llegan decenas por turno): solo cuando de verdad se
         // tapa o se endereza.
-        setTapped(card.isTapped(), true);
+        //
+        // Pero un nodo NUEVO no se gira: nace como esta. La mesa crea nodos sin
+        // que la carta cambie — al elegir objetivo deshace las pilas de iguales
+        // ("x2") para poder clicar cada una, y al acabar las vuelve a juntar —
+        // y cada nodo nuevo de una tierra girada se enderezaba y se volvia a
+        // girar delante del jugador (itch.io, 10-10-2026, con video: "tapped
+        // permanents will visually untap and re-tap ... repeats if you cancel").
+        // Si la carta SI se ha girado justo cuando su nodo se rehace (una
+        // tierra de una pila de iguales), lo anima la fila: animateTapFrom.
+        setTapped(card.isTapped(), stateShown);
+        stateShown = true;
         setAdvanced(card.isAttacking() || card.isBlocking());
         pseudoClassStateChanged(SICK, card.isSick());
         pseudoClassStateChanged(ATTACKING, card.isAttacking());
@@ -1688,6 +1708,23 @@ public class CardNode extends StackPane {
         }
         final RotateTransition rt = new RotateTransition(TAP_TIME, this);
         rt.setToAngle(target);
+        rt.setInterpolator(Interpolator.EASE_OUT);
+        rt.play();
+    }
+
+    /**
+     * Anima el giro desde como se veia la carta en el nodo ANTERIOR. Para la
+     * fila, cuando rehace el nodo de una carta que se acaba de girar o
+     * enderezar (ver BattlefieldPane.shownTapped): el nodo nuevo nace ya como
+     * esta y sin esto el cambio no se veria.
+     */
+    public void animateTapFrom(final boolean wasTapped) {
+        if (wasTapped == tapped || !rotationEnabled || !animations) {
+            return;
+        }
+        setRotate(wasTapped ? 90 : 0);
+        final RotateTransition rt = new RotateTransition(TAP_TIME, this);
+        rt.setToAngle(tapped ? 90 : 0);
         rt.setInterpolator(Interpolator.EASE_OUT);
         rt.play();
     }

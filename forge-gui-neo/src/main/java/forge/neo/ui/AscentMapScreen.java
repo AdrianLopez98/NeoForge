@@ -96,6 +96,15 @@ public class AscentMapScreen extends StackPane {
     private final AscentMap map;
     private final Actions actions;
 
+    /**
+     * El mapa para MIRAR, encima de un nodo (premio, tienda, descanso, evento):
+     * se ve entero, con sus fichas, pero no se entra en nada ni se abandona.
+     * Discord, 11-10-2026, en un evento: <i>"A way to see the map before making
+     * a choice from this screen, like how we can look at the board when making
+     * a choice in game"</i>. Lo abre {@link AscentQuickLook}.
+     */
+    private final boolean lookOnly;
+
     private final Pane board = new Pane();
     private final Canvas paths = new Canvas();
     private final List<NodeDot> dots = new ArrayList<>();
@@ -115,9 +124,15 @@ public class AscentMapScreen extends StackPane {
     private static final double MARGIN = 0.055;
 
     public AscentMapScreen(final AscentRun run, final Actions actions) {
+        this(run, actions, false);
+    }
+
+    /** @param lookOnly solo mirar: ver {@link #lookOnly} */
+    public AscentMapScreen(final AscentRun run, final Actions actions, final boolean lookOnly) {
         this.run = run;
         this.map = run.map();
         this.actions = actions;
+        this.lookOnly = lookOnly;
         this.edge = AscentBattle.playerEdge(run);
         getStyleClass().add("ascent-map-root");
 
@@ -184,7 +199,7 @@ public class AscentMapScreen extends StackPane {
         // punta a punta lo unico que no se puede capturar: que elegir un nodo
         // JUEGA la partida y vuelve con su premio.
         final int enterAt = Integer.getInteger("neo.ascent.enterAt", 0);
-        if (enterAt > 0) {
+        if (enterAt > 0 && !lookOnly) {
             final javafx.animation.PauseTransition go =
                     new javafx.animation.PauseTransition(javafx.util.Duration.millis(enterAt));
             go.setOnFinished(e -> {
@@ -279,7 +294,7 @@ public class AscentMapScreen extends StackPane {
     }
 
     private Region bottomBar() {
-        final Label hint = new Label(NeoText.get("ascent.map.hint"));
+        final Label hint = new Label(NeoText.get(lookOnly ? "ascent.map.lookOnly" : "ascent.map.hint"));
         hint.getStyleClass().add("ascent-hint");
 
         // "Ver tu mazo" llego cuando existio el visor de SOLO LECTURA
@@ -312,6 +327,10 @@ public class AscentMapScreen extends StackPane {
         // lo que no se deshace no puede estar donde va la inercia de volver
         // (principio 6b). Pregunta antes igual, pero mejor no llegar ahi.
         final HBox bar = new HBox(10, abandon, hint, gap, relicsButton, deck, back);
+        if (lookOnly) {
+            // Solo mirar: abandonar la run desde encima de un nodo no toca.
+            bar.getChildren().remove(abandon);
+        }
         // El codigo de la run, para compartirla (AscentSeed): a la vista, no
         // detras de un menu, y a un clic de copiarse.
         final Button code = AscentCodeButton.of(run.getCode());
@@ -421,7 +440,7 @@ public class AscentMapScreen extends StackPane {
                 if (e.getButton() != javafx.scene.input.MouseButton.PRIMARY) {
                     return;
                 }
-                if (reachable.contains(node.key())) {
+                if (reachable.contains(node.key()) && !lookOnly) {
                     actions.enter(node);
                 }
             });

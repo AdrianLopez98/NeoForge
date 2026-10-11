@@ -59,6 +59,32 @@ public final class UiScale {
         screenHeight = height;
     }
 
+    /**
+     * El ancho de la pantalla en la que esta la ventana AHORA, o NaN si nadie
+     * lo ha dicho (la ventana de la Aventura, que no se mueve de pantalla).
+     */
+    private static double screenWidth = Double.NaN;
+
+    /**
+     * La pantalla en la que esta la ventana. Lo llama NeoApp al abrirla y cada
+     * vez que se pasa a OTRO monitor (Discord, 11-10-2026: al mover el juego a
+     * una pantalla de otra resolucion, la mesa se quedaba medida para la
+     * primera). Ver {@link #sideWidthNow}.
+     */
+    public static void setScreenSize(final double width, final double height) {
+        screenWidth = width;
+        screenHeight = height;
+    }
+
+    /**
+     * La columna lateral para la pantalla de AHORA. Quien la recibio al
+     * construirse (la mesa) la pide aqui al colocar, para seguir a la ventana si
+     * cambia de monitor; sin pantalla conocida, la que tenia.
+     */
+    public static double sideWidthNow(final double fallback) {
+        return Double.isNaN(screenWidth) ? fallback : sideWidth(screenWidth);
+    }
+
     public static double screenHeight() {
         return screenHeight;
     }

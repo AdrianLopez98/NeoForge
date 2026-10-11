@@ -115,6 +115,8 @@ public class TableScreen extends Pane {
     private final TurnBanner turnBanner;
     /** La moneda del sorteo y de las cartas que lanzan monedas. Ver CoinFlip. */
     private final CoinFlip coinFlip = new CoinFlip();
+    /** Los dados de las cartas que los tiran. Ver DiceRoll. */
+    private final DiceRoll diceRoll = new DiceRoll();
 
     /**
      * El boton del registro.
@@ -323,6 +325,9 @@ public class TableScreen extends Pane {
         this.handPeek = new CardNode(cardWidth * 2.4);
         handPeek.setHoverEnabled(false);
         handPeek.setRotationEnabled(false);
+        // Va cambiando de carta: mientras llega la imagen de la nueva, mejor
+        // su cara dibujada que el arte de la anterior (ver bigCard).
+        handPeek.setBlankWhileLoading(true);
         handPeek.setMouseTransparent(true);
         handPeek.setManaged(false);
         handPeek.setVisible(false);
@@ -447,7 +452,7 @@ public class TableScreen extends Pane {
 
         getChildren().addAll(opponentTabs, opponentBar, viewport,
                 selfBar, hand, commandZone, phaseRail, side, combatOverlay, logButton, menuButton, chatButton, macroRecordButton, macroPlayButton, cooldownBadge,
-                stackChip, promptBanner, notices, turnBanner, coinFlip, playerDetails, zoomBadge, macroBadge, spotlight,
+                stackChip, promptBanner, notices, turnBanner, coinFlip, diceRoll, playerDetails, zoomBadge, macroBadge, spotlight,
                 handPeek, overlay, menuOverlay, zoomOverlay, curtain);
         curtain.getStyleClass().add("hotseat-curtain");
 
@@ -627,7 +632,7 @@ public class TableScreen extends Pane {
         syncSpaceSettings();
         final double w = getWidth();
         final double h = getHeight();
-        final double panelW = Math.max(230, Math.min(sideWidth, w * 0.145));
+        final double panelW = Math.max(230, Math.min(UiScale.sideWidthNow(sideWidth), w * 0.145));
         final double railW = folded ? 0 : panelW;
         final double contentW = Math.max(200, w - railW);
         arenaBackdrop.resizeRelocate(0, 0, contentW, h);
@@ -711,6 +716,12 @@ public class TableScreen extends Pane {
             final double cw = coinFlip.prefWidth(-1);
             final double ch = coinFlip.prefHeight(cw);
             coinFlip.resizeRelocate((contentW - cw) / 2, (h - ch) / 2, cw, ch);
+        }
+        // Los dados, en el mismo sitio y con las mismas reglas.
+        if (diceRoll.isVisible()) {
+            final double dw = diceRoll.prefWidth(-1);
+            final double dh = diceRoll.prefHeight(dw);
+            diceRoll.resizeRelocate((contentW - dw) / 2, (h - dh) / 2, dw, dh);
         }
         overlay.resizeRelocate(0, 0, w, h);
         menuOverlay.resizeRelocate(0, 0, w, h);
@@ -1407,27 +1418,89 @@ public class TableScreen extends Pane {
         }
     }
 
+    /**
+     * La mano, <b>reutilizando el nodo de cada carta</b> (por id).
+     *
+     * <p>Se llama en CADA refresco de la mesa, y la mesa se refresca con cada
+     * aviso del motor. Hasta el 11-10-2026 aqui se tiraban y se volvian a crear
+     * todas las cartas de la mano cada vez, y JavaFX solo da el clic si la
+     * carta que soltaste es la MISMA que pulsaste: un refresco entre pulsar y
+     * soltar se comia el clic sin decir nada. Con una mesa grande a media
+     * partida los refrescos no paran y casi ningun clic llegaba (Discord,
+     * 10-10-2026: <i>"left click on cards in my hand wouldn't generate the
+     * prompt to pay mana"</i>, con el clic derecho, las tierras y pasar turno
+     * funcionando — esos nodos ya se reutilizaban). Es la regla de rendimiento
+     * de las notas de diseño: no reconstruir nodos en cada actualizacion.
+     */
     public void setHand(final List<CardView> cards) {
         lastHand = cards == null ? List.of() : List.copyOf(cards);
+        final List<CardView> order = forge.neo.NeoSettings.orderHand() ? orderedHand(lastHand) : lastHand;
+        // Las mismas cartas en el mismo orden: solo se repintan, sin tocar el
+        // abanico.
+        if (sameHand(order)) {
+            for (int i = 0; i < order.size(); i++) {
+                showInHand(extraNodes.get(i), order.get(i));
+            }
+            reindex();
+            return;
+        }
+        final java.util.Map<Integer, CardNode> old = new java.util.HashMap<>();
+        for (final CardNode n : extraNodes) {
+            if (n.getCard() != null && n.getCard().getId() >= 0) {
+                old.put(n.getCard().getId(), n);
+            }
+        }
         hand.clearCards();
         extraNodes.clear();
-        for (final CardView cv : forge.neo.NeoSettings.orderHand() ? orderedHand(lastHand) : lastHand) {
-            final CardNode n = new CardNode(cardWidth * 1.12);
-            n.setCard(cv);
-            n.hoverProperty().addListener((o, was, is) -> {
-                if (is) {
-                    hovered(n);
-                }
-            });
-            n.setOnMouseClicked(e -> {
-                if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY) {
-                    cardClicked(n);
-                }
-            });
+        for (final CardView cv : order) {
+            CardNode n = cv != null && cv.getId() >= 0 ? old.remove(cv.getId()) : null;
+            if (n == null) {
+                n = newHandNode();
+            }
+            showInHand(n, cv);
             extraNodes.add(n);
             hand.add(n);
         }
         reindex();
+    }
+
+    /** Si la mano a pintar son exactamente las cartas (por id) que ya hay, en ese orden. */
+    private boolean sameHand(final List<CardView> order) {
+        if (order.size() != extraNodes.size()) {
+            return false;
+        }
+        for (int i = 0; i < order.size(); i++) {
+            final CardView now = order.get(i);
+            final CardView was = extraNodes.get(i).getCard();
+            if (now == null || was == null || now.getId() < 0 || now.getId() != was.getId()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** La misma vista se repinta; otra (o la misma carta con vista nueva) se pone. */
+    private static void showInHand(final CardNode n, final CardView cv) {
+        if (n.getCard() == cv) {
+            n.refresh();
+        } else {
+            n.setCard(cv);
+        }
+    }
+
+    private CardNode newHandNode() {
+        final CardNode n = new CardNode(cardWidth * 1.12);
+        n.hoverProperty().addListener((o, was, is) -> {
+            if (is) {
+                hovered(n);
+            }
+        });
+        n.setOnMouseClicked(e -> {
+            if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY) {
+                cardClicked(n);
+            }
+        });
+        return n;
     }
 
     // ---------------------------------------------------------------
@@ -1576,7 +1649,7 @@ public class TableScreen extends Pane {
         if (w <= 0) {
             return 1;
         }
-        final double railW = folded ? 0 : Math.max(230, Math.min(sideWidth, w * 0.145));
+        final double railW = folded ? 0 : Math.max(230, Math.min(UiScale.sideWidthNow(sideWidth), w * 0.145));
         final double contentW = Math.max(200, w - railW);
 
 
@@ -1650,6 +1723,11 @@ public class TableScreen extends Pane {
         detail.show(card);
     }
 
+    /** Solo pruebas ({@code --bigcard-test}): el mismo camino que pasar el raton. */
+    public void hoverForTest(final CardNode n) {
+        hovered(n);
+    }
+
     private void hovered(final CardNode n) {
         applyDetailSetting();
         detail.show(n.getCard());
@@ -1677,6 +1755,11 @@ public class TableScreen extends Pane {
         bigCard.setVisible(false);
         bigCard.setRotationEnabled(false);
         bigCard.setHoverEnabled(false);
+        // Va cambiando de carta: sin esto, una que no tiene imagen (una
+        // reliquia de Ascenso, que se dibuja) se quedaba con el arte de la
+        // anterior. Discord, 11-10-2026: "hovering over a relic in ascent
+        // should show what the relic does instead of the commander".
+        bigCard.setBlankWhileLoading(true);
         bigCard.getStyleClass().add("big-hover-card");
         bigCardHide.setOnFinished(e -> bigCard.setVisible(false));
     }
@@ -2114,7 +2197,7 @@ public class TableScreen extends Pane {
      * nueve disparos encadenados siguen cabiendo en el visor que ya rodaba.
      */
     private double stackArtWidth() {
-        return Math.max(38, Math.min(UiScale.px(54), sideWidth * 0.18));
+        return Math.max(38, Math.min(UiScale.px(54), UiScale.sideWidthNow(sideWidth) * 0.18));
     }
 
     /**
@@ -3374,6 +3457,18 @@ public class TableScreen extends Pane {
     public void flipCoin(final boolean heads, final String caption, final String headsWord,
                          final String tailsWord, final Runnable done) {
         coinFlip.flip(heads, caption, headsWord, tailsWord, done);
+        requestLayout();
+    }
+
+    /**
+     * Tira unos dados en el centro de la mesa y avisa al acabar.
+     *
+     * <p>Lo llama {@code NeoMatchUI.showDiceRoll}, con cada
+     * {@code GameEventRollDice} del motor.
+     */
+    public void rollDice(final int sides, final java.util.List<Integer> results,
+                         final String caption, final Runnable done) {
+        diceRoll.roll(sides, results, caption, done);
         requestLayout();
     }
 

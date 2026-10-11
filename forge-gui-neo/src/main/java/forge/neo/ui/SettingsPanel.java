@@ -538,6 +538,16 @@ public class SettingsPanel extends VBox {
                     NeoSettings.save();
                 }));
 
+        // --- preguntar antes de cerrar una eleccion de cartas (PickGuard) ---
+        //
+        // El motor confirma solo al llegar a las que pide: descartar dos, y el
+        // segundo toque ya las descarta. Apagado de fabrica, como el de arriba.
+        getChildren().add(toggleRow(NeoText.get("settings.confirmPick"),
+                NeoSettings.confirmLastPick(), on -> {
+                    NeoSettings.setBool(NeoSettings.CONFIRM_LAST_PICK, on);
+                    NeoSettings.save();
+                }));
+
         // --- pararse cuando pasa algo importante ---
         //
         // Es el YieldController de Forge, que ya estaba escrito entero y solo

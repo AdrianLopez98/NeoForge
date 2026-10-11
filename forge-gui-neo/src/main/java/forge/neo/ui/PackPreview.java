@@ -73,6 +73,13 @@ public final class PackPreview extends StackPane {
     private final double cardWidth;
     private List<PackContents.Pull> shown = new ArrayList<>();
     private Show show = Show.ALL;
+    /**
+     * Los filtros del constructor y de la enciclopedia: color (identidad),
+     * tipo, rareza y coste. Discord, 11-10-2026: <i>"say if we are building a
+     * black/red deck we could filter by those to better see whats possible from
+     * what set"</i>.
+     */
+    private final CardFilterBar filters = new CardFilterBar(this::refilter);
 
     /**
      * @param setName   la expansion (o "X · colector")
@@ -143,9 +150,12 @@ public final class PackPreview extends StackPane {
         have.setManaged(collection);
         have.setVisible(collection);
         final HBox segments = new HBox(4, all, missing, have);
-        final HBox tools = new HBox(14, search, segments);
+        final HBox tools = new HBox(14, search, filters.bar(), segments);
         tools.setAlignment(Pos.CENTER);
         tools.setPadding(new Insets(0, 20, 8, 20));
+        // Tipo, rareza y coste, plegados debajo hasta que se piden.
+        final Region fine = filters.advanced();
+        VBox.setMargin(fine, new Insets(0, 20, 8, 20));
 
         // --- las cartas ---
         grid.setHgap(14);
@@ -170,13 +180,31 @@ public final class PackPreview extends StackPane {
         footer.setAlignment(Pos.CENTER);
         footer.setPadding(new Insets(10, 16, 16, 16));
 
-        final BorderPane content = new BorderPane(body, new VBox(head, tools), null, footer, null);
+        final BorderPane content = new BorderPane(body, new VBox(head, tools, fine), null, footer, null);
         getChildren().add(content);
 
         if (highlight != null && !highlight.trim().isEmpty()) {
             search.setText(highlight);
         }
         refilter();
+
+        // -Dneo.preview.filter=BR: con esos colores puestos y los filtros
+        // abiertos, para capturarlo sin raton (11-10-2026). Por los botones de
+        // verdad, como los pulsaria el jugador.
+        final String preset = System.getProperty("neo.preview.filter");
+        if (preset != null) {
+            final List<javafx.scene.Node> parts =
+                    ((javafx.scene.Parent) filters.bar()).getChildrenUnmodifiable();
+            for (final javafx.scene.Node n : parts) {
+                if (n instanceof Button b && b.getText() != null && b.getText().length() == 1
+                        && preset.toUpperCase(Locale.ROOT).contains(b.getText())) {
+                    b.fire();
+                }
+            }
+            if (!parts.isEmpty() && parts.get(parts.size() - 1) instanceof Button toggle) {
+                toggle.fire();
+            }
+        }
     }
 
     private void pick(final Show which) {
@@ -193,6 +221,9 @@ public final class PackPreview extends StackPane {
         int nOwned = 0;
         for (final PackContents.Pull p : pulls) {
             if (!q.isEmpty() && !matches(p.getCard(), q)) {
+                continue;
+            }
+            if (!filters.test(p.getCard())) {
                 continue;
             }
             nAll++;

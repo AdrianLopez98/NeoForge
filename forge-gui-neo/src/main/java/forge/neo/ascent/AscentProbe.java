@@ -242,6 +242,10 @@ public final class AscentProbe {
             final java.util.List<String> culpablesTamanyo = new ArrayList<>();
             int sinTierras = 0;
             int raras = 0;
+            // Lo mismo con las raras: el 11-10-2026 salio UNA en una corrida y
+            // 1.100 mazos despues no habia vuelto a salir ninguna. Sin el
+            // nombre no hay por donde empezar.
+            final java.util.Set<String> culpablesRaras = new java.util.LinkedHashSet<>();
             int maxColores = 0;
             final java.util.Set<String> culpables = new java.util.LinkedHashSet<>();
             int diag = -1;
@@ -279,6 +283,8 @@ public final class AscentProbe {
                             && (rar == forge.card.CardRarity.Rare
                                 || rar == forge.card.CardRarity.MythicRare)) {
                         raras++;
+                        culpablesRaras.add(e.getKey().getName() + " (" + e.getKey().getEdition()
+                                + ", " + rar + ")");
                     }
                     // Colores del mazo, para el techo de dos.
                     //
@@ -355,7 +361,8 @@ public final class AscentProbe {
                     ok(etiqueta + ": ni una rara ni mitica — es mazo de principiante");
                 } else {
                     fail(etiqueta + ": se han colado " + raras
-                            + " cartas raras/miticas; el mazo de salida tiene que ser flojo");
+                            + " cartas raras/miticas; el mazo de salida tiene que ser flojo: "
+                            + String.join(" · ", culpablesRaras));
                 }
             }
         }

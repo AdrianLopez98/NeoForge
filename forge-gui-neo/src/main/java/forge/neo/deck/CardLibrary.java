@@ -289,6 +289,8 @@ public final class CardLibrary {
     /** Busca, filtra y ordena. */
     public List<PaperCard> find(final Query q) {
         final String text = q.text == null ? "" : q.text.trim().toLowerCase(Locale.ROOT);
+        // "boros", "esper", "wubrg": tambien la identidad exacta (ColorNames).
+        final int colors = forge.neo.card.ColorNames.maskOf(text);
         final Predicate<PaperCard> legal = q.format == null ? null : q.format.getFilterRules();
         final boolean byOwnership = q.ownership != Ownership.ALL && q.owned != null;
         final Map<String, PaperCard> inSet = q.setCode == null ? null
@@ -297,7 +299,9 @@ public final class CardLibrary {
         final List<PaperCard> out = new ArrayList<>();
         for (int i = 0; i < index.size(); i++) {
             if (q.rulesText ? !index.matchesText(i, text) : !index.matches(i, text)) {
-                continue;
+                if (colors < 0 || !forge.neo.card.ColorNames.identityIs(index.cardAt(i), colors)) {
+                    continue;
+                }
             }
             PaperCard card = index.cardAt(i);
             final String name = key(card);

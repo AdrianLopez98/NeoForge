@@ -324,6 +324,13 @@ public class BattlefieldPane extends Pane {
                 node = new CardStackNode(baseCardWidth, members.get(0), members.size());
                 wire(node);
                 nodeCache.put(key, node);
+                // El nodo nuevo nace como esta la carta (CardNode.refresh). Si
+                // la vimos de otra manera, es que se acaba de girar o enderezar:
+                // eso si se anima.
+                final Boolean wasTapped = shownTapped.get(members.get(0).getId());
+                if (wasTapped != null) {
+                    node.getFront().animateTapFrom(wasTapped);
+                }
                 if (brandNew && !quiet && isArriving(members.get(0))) {
                     trace("entra", members.get(0));
                     // Solo lo que acaba de LLEGAR a la zona. Una pila que crece
@@ -350,6 +357,14 @@ public class BattlefieldPane extends Pane {
 
         // Soltar los nodos de cartas que ya no estan en esta zona.
         nodeCache.keySet().retainAll(groups.keySet());
+        shownTapped.clear();
+        for (final List<CardView> members : groups.values()) {
+            for (final CardView cv : members) {
+                if (cv != null && cv.getId() >= 0) {
+                    shownTapped.put(cv.getId(), cv.isTapped());
+                }
+            }
+        }
         lastIds.clear();
         lastIds.addAll(nowIds);
         getChildren().addAll(previous, next);
@@ -365,6 +380,13 @@ public class BattlefieldPane extends Pane {
      * falta para que se entienda cual ha muerto.
      */
     private final List<CardStackNode> ghosts = new ArrayList<>();
+
+    /**
+     * Como se pinto cada carta (por id) la vez anterior: girada o no. El
+     * CardView no sirve para esto, porque el motor lo cambia por debajo y ya
+     * dice como esta AHORA. Ver el alta de nodos en setCards.
+     */
+    private final Map<Integer, Boolean> shownTapped = new java.util.HashMap<>();
 
     /** Los ids de carta que habia en esta zona la vez anterior. */
     private final java.util.Set<Integer> lastIds = new java.util.HashSet<>();

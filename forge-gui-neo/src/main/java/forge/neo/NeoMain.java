@@ -358,6 +358,12 @@ public final class NeoMain {
                 banner("Planechase: el plano y el dado planar");
                 forge.neo.match.PlanechaseCheck.run();
                 break;
+            case "archenemycheck":
+                // Archenemy jugado: los esquemas al azar, y una partida por
+                // cada forma de elegir al archienemigo. Ver Archenemy.
+                banner("Archenemy: quien es, sus esquemas y los equipos");
+                forge.neo.match.ArchenemyCheck.run();
+                break;
             case "twopilescheck":
                 // Las pilas con varios rivales (Curator of Destinies): quien
                 // decide, por botones, y el efecto resuelto. Ver PlayerPick.
@@ -431,6 +437,13 @@ public final class NeoMain {
                 // 28-09-2026. Ver MayhemCheck y OutsideCasts.
                 banner("El caos: lanzarlo desde el cementerio");
                 forge.neo.match.MayhemCheck.run();
+                break;
+            case "commandercolorcheck":
+                // El color elegido antes de empezar (Clara Oswald, The
+                // Prismatic Piper) se perdia al cambiar de zona y All Is Dust
+                // se la saltaba. Discord, 11-10-2026. Ver CommanderColorKeeper.
+                banner("El color elegido del comandante");
+                forge.neo.match.CommanderColorCheck.run();
                 break;
             case "optionalpaycheck":
                 // Un pago opcional ("puede pagar {4}", Paralyze) no se paga

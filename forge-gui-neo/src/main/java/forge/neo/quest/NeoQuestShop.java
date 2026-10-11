@@ -415,15 +415,26 @@ public final class NeoQuestShop {
         if (count == 1) {
             return buyAndOpen(boosterOf(edition));
         }
+        return buyMany(edition, count, NeoQuestShop::boosterOf, NeoQuestShop::priceOf);
+    }
+
+    /**
+     * Lo comun a comprar varios sobres de una vez, normales o de colector: cada
+     * uno montado NUEVO, todos abiertos antes de cobrar el primero, y una sola
+     * escritura al final.
+     */
+    private static Opened buyMany(final CardEdition edition, final int count,
+                                  final java.util.function.Function<CardEdition, BoosterPack> make,
+                                  final java.util.function.ToIntFunction<BoosterPack> pricing) {
         final List<BoosterPack> packs = new ArrayList<>(count);
         int total = 0;
         for (int i = 0; i < count; i++) {
-            final BoosterPack pack = boosterOf(edition);
+            final BoosterPack pack = make.apply(edition);
             if (pack == null) {
                 return null;
             }
             packs.add(pack);
-            total += priceOf(pack);
+            total += pricing.applyAsInt(pack);
         }
         if (NeoQuest.credits() < total) {
             return null;
@@ -442,7 +453,7 @@ public final class NeoQuestShop {
         final Set<String> before = ownedNames();
         final List<PaperCard> cards = new ArrayList<>();
         for (final BoosterPack pack : packs) {
-            NeoQuest.engine().getCards().buyPack(pack, priceOf(pack));
+            NeoQuest.engine().getCards().buyPack(pack, pricing.applyAsInt(pack));
             cards.addAll(pack.getCards());
         }
         return finish(count + " x " + packs.get(0).getName(), cards, before, total);
@@ -625,9 +636,14 @@ public final class NeoQuestShop {
         return out;
     }
 
-    /** Las cajas y lotes: caja de sobres, fat pack y tournament pack. */
+    /**
+     * Las cajas y lotes: caja de sobres, fat pack y tournament pack. Y delante,
+     * los cinco sobres de tierras basicas ({@link LandPack}), que no los repone
+     * el motor: estan siempre, en cualquier mundo.
+     */
     public static List<forge.item.SealedProduct> boxes() {
         final List<forge.item.SealedProduct> out = new ArrayList<>();
+        out.addAll(LandPack.onSale());
         out.addAll(onSale(forge.item.BoosterBox.class));
         out.addAll(onSale(forge.item.FatPack.class));
         out.addAll(onSale(forge.item.TournamentPack.class));
@@ -644,6 +660,9 @@ public final class NeoQuestShop {
     public static int priceOfItem(final forge.item.InventoryItem item) {
         if (item == null) {
             return DEFAULT_PRICE;
+        }
+        if (item instanceof LandPack) {
+            return LandPack.PRICE;
         }
         final Integer value = QuestSpellShop.getCardValue(item);
         return value == null || value <= 0 ? 1 : value;
@@ -694,8 +713,28 @@ public final class NeoQuestShop {
         }
         final Set<String> before = ownedNames();
         NeoQuest.engine().getCards().buyPack(product, price);
-        NeoQuest.engine().getAssets().getShopList().remove(product);
-        return finish(product.getName(), new ArrayList<>(product.getCards()), before, price);
+        // Los de tierras no estan en el mostrador del motor: no hay que retirarlos.
+        if (!(product instanceof LandPack)) {
+            NeoQuest.engine().getAssets().getShopList().remove(product);
+        }
+        return finish(productName(product), new ArrayList<>(product.getCards()), before, price);
+    }
+
+    /**
+     * Como se llama un producto en la tienda. El de un {@link SealedProduct} es
+     * {@code final} y le pega el tipo detras ("X Booster Box"); el de tierras
+     * tiene el suyo.
+     */
+    public static String productName(final forge.item.SealedProduct product) {
+        if (product instanceof LandPack) {
+            return ((LandPack) product).displayName();
+        }
+        return product == null ? "" : product.getName();
+    }
+
+    /** La carta con la que se ensenya un producto, o null (solo los de tierras la tienen). */
+    public static PaperCard faceOfProduct(final forge.item.SealedProduct product) {
+        return product instanceof LandPack ? ((LandPack) product).getLand() : null;
     }
 
     // ===============================================================
@@ -840,6 +879,24 @@ public final class NeoQuestShop {
             return null;
         }
         return open(pack, price);
+    }
+
+    /**
+     * <b>Varios de colector de una vez</b>, como los normales (Discord,
+     * 11-10-2026: <i>"I was happy that buying boosters back to back was added
+     * but was there a reason that same system couldn't be added to the
+     * collector variants?"</i>). Lo mismo que {@link #buyAndOpen(CardEdition, int)}:
+     * cada sobre se monta nuevo y, si no llega para todos, no se compra ninguno.
+     */
+    public static Opened buyCollector(final CardEdition edition, final int count) {
+        if (edition == null || count < 1 || !NeoQuest.isActive()) {
+            return null;
+        }
+        if (count == 1) {
+            return buyCollector(edition, collectorBooster(edition));
+        }
+        final int price = collectorPrice(edition);
+        return buyMany(edition, count, NeoQuestShop::collectorBooster, pack -> price);
     }
 
     // ===============================================================

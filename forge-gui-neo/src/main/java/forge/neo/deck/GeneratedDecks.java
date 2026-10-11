@@ -67,6 +67,17 @@ import forge.util.MyRandom;
  * no la trajo ninguna vez (0 de 150 con Krenko), pero pasar por aqui no cuesta
  * nada: si no hay nada de mas, el mazo no se toca.
  *
+ * <p><b>Y las cartas nuestras, a cero copias</b> ({@link #notForDecks}).
+ * Discord, 10-10-2026, con captura: <i>"Forgefather's Anvil is broken. Can't
+ * play it"</i> — una reliquia de Ascenso en el mazo de salida de una run de
+ * Commander. {@code AscentRelics} las mete en la base de cartas de verdad, y
+ * su {@code AI:RemoveDeck:All} solo las aparta de los mazos de la IA: el
+ * mismo camino de arriba, el que baraja el pozo entero para un mazo
+ * <b>humano</b>, no mira ninguna marca, y como son incoloras caben con
+ * cualquier comandante. Sin coste no se pueden lanzar: una carta muerta. Pasa
+ * en cuanto Ascenso las ha registrado, o sea en la propia run y en cualquier
+ * "Generar mazo" de despues en la misma sesion.
+ *
  * <p>Y un caso que no se arregla limpiando: con un comandante que admite
  * companero de mando el generador monta para <b>otra</b> zona de mando. Eso
  * no se lava despues, se monta de otra forma: {@link #forCommandZone}.
@@ -293,8 +304,8 @@ public final class GeneratedDecks {
             final int inMain = main.countByName(name);
             final int alsoOutside = DeckFormat.canHaveSpecificNumberInDeck(e.getKey()) == null
                     ? outside.getOrDefault(normalized(name), 0) : 0;
-            final int excess = Math.min(inMain,
-                    inMain + alsoOutside - format.getMaxCardCopies(e.getKey()));
+            final int max = notForDecks(e.getKey()) ? 0 : format.getMaxCardCopies(e.getKey());
+            final int excess = Math.min(inMain, inMain + alsoOutside - max);
             if (excess <= 0) {
                 continue;
             }
@@ -302,9 +313,56 @@ public final class GeneratedDecks {
             total += excess;
             removed.add(excess > 1 ? name + " x" + excess : name);
         }
-        if (total == 0) {
+        refill(deck, format, total, removed);
+        return total;
+    }
+
+    /**
+     * Una carta que no va en ningun mazo: las nuestras — las reliquias de
+     * Ascenso y el segundo aliento del jefe, que {@code AscentRelics} registra
+     * con {@code setCustom()} — y cualquier otra personalizada. Ver la cabecera.
+     */
+    public static boolean notForDecks(final PaperCard card) {
+        return card != null && card.getRules() != null && card.getRules().isCustom();
+    }
+
+    /**
+     * Quita del principal las cartas que no van en ningun mazo
+     * ({@link #notForDecks}) y las cambia por su basica, como
+     * {@link #fixCopyLimits}.
+     *
+     * <p>Es para un mazo que <b>ya existe</b>: el de una run de Ascenso que se
+     * monto antes del arreglo y se lleva la reliquia dentro. Uno recien
+     * generado no lo necesita, porque pasa por {@link #fixCopyLimits}.
+     *
+     * @return cuantas ha cambiado (0 si no habia ninguna)
+     */
+    public static int dropCustomCards(final Deck deck) {
+        if (deck == null) {
             return 0;
         }
+        final CardPool main = deck.getMain();
+        final List<String> removed = new ArrayList<>();
+        int total = 0;
+        for (final Map.Entry<PaperCard, Integer> e : entries(main)) {
+            if (notForDecks(e.getKey())) {
+                main.remove(e.getKey(), e.getValue());
+                total += e.getValue();
+                removed.add(e.getKey().getName());
+            }
+        }
+        refill(deck, deck.has(DeckSection.Commander) ? DeckFormat.Commander : DeckFormat.Constructed,
+                total, removed);
+        return total;
+    }
+
+    /** Pone {@code total} basicas en el hueco de lo quitado, y lo apunta. */
+    private static void refill(final Deck deck, final DeckFormat format, final int total,
+                               final List<String> removed) {
+        if (total == 0) {
+            return;
+        }
+        final CardPool main = deck.getMain();
         final PaperCard basic = mostCommonBasic(main, format);
         if (basic != null) {
             main.add(basic, total);
@@ -312,7 +370,6 @@ public final class GeneratedDecks {
         System.out.println("[neo] mazo generado (" + deck.getName() + "): fuera " + removed
                 + (basic != null ? ", en su lugar " + total + " " + basic.getName()
                         : ", y sin basica con que rellenar"));
-        return total;
     }
 
     /** Cuantas copias hay de cada nombre, agrupadas como las agrupa el motor. */

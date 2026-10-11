@@ -1656,12 +1656,15 @@ public class DeckBuilderScreen extends StackPane {
         lastQuery = query;
         lastFine = fine;
         if (commanderMode) {
-            // En modo comandante manda una sola regla, la del motor: que cartas
-            // pueden serlo. Los filtros de color y "solo lo que cabe" no pintan
-            // nada aqui, porque es el comandante quien FIJA la identidad.
+            // En modo comandante, que cartas pueden serlo lo dice el motor, y
+            // encima valen los filtros de la barra, que siguen a la vista:
+            // texto de reglas, color, tipo, coste, fuerza (Discord, 11-10-2026:
+            // buscar comandantes con "defender" solo encontraba el nombre).
+            // Lo que no pinta nada es "solo lo que cabe": pregunta por la
+            // identidad del comandante, que es lo que se esta eligiendo.
             catalogueHits = pickingSpell
-                    ? editor.signatureCandidates(query, FETCH_LIMIT)
-                    : editor.commanderCandidates(query, FETCH_LIMIT);
+                    ? editor.signatureCandidates(query, FETCH_LIMIT, fine, searchRules)
+                    : editor.commanderCandidates(query, FETCH_LIMIT, fine, searchRules);
             catalogueTotal = catalogueHits.size();
         } else {
             // Una sola pasada por el catalogo para las cartas Y el total.

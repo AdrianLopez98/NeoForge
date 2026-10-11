@@ -761,6 +761,39 @@
     -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.65), 20, 0.3, 0, 4);
 }
 
+/* ---------- los dados (DiceRoll) ----------
+   Hueso claro con el numero oscuro; el maximo en oro y el 1 en rojo. */
+
+.die {
+    -fx-background-color: linear-gradient(to bottom right, #F4EFE4 0%, #D8D0BF 100%);
+    -fx-background-radius: 14;
+    -fx-border-color: #FFFFFF;
+    -fx-border-radius: 14;
+    -fx-border-width: 2;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.7), 24, 0.3, 0, 8);
+}
+
+.die:max {
+    -fx-background-color: linear-gradient(to bottom right, #FFE3A3 0%, #E0A63C 100%);
+    -fx-border-color: #FFE9B8;
+}
+
+.die:min {
+    -fx-background-color: linear-gradient(to bottom right, #F2B4B1 0%, #D9534F 100%);
+    -fx-border-color: #F8D2D0;
+}
+
+.die-face {
+    -fx-font-weight: bold;
+    -fx-text-fill: #1B212A;
+}
+
+.die-kind {
+    -fx-font-size: 0.7em;
+    -fx-font-weight: bold;
+    -fx-text-fill: rgba(27,33,42,0.55);
+}
+
 /* ---------- el cartel de "te toca" ---------- */
 
 .turn-banner {

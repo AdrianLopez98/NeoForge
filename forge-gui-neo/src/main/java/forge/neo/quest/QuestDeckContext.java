@@ -123,9 +123,121 @@ public final class QuestDeckContext implements DeckContext {
         return NeoQuest.problemWith(deck);
     }
 
+    /**
+     * Los mazos de la aventura, y <b>guardar uno escribe la aventura</b>.
+     *
+     * <p>{@code getMyDecks()} vive dentro de los datos de la Quest, en memoria:
+     * meter ahi un mazo no lo escribe en el disco, eso lo hace
+     * {@code QuestController.save()}. El escritorio lo llamaba al salir del
+     * editor ({@code NeoAppQuest.showQuestDeckBuilder}); Android no, y la
+     * aventura solo se escribia al acabar un duelo. Discord, 11-10-2026, con dos
+     * videos: <i>"if you changed anything in your deck in quest mode, saved
+     * then quit to other mode or just quit out from quest itself the deck won't
+     * saved but if you saved then enter the next match right away then the deck
+     * will saved as normal"</i> — al volver a la Quest se releia del disco.
+     *
+     * <p>Aqui y no en cada pantalla, por el principio 8: guardar, borrar y
+     * renombrar pasan TODOS por este almacen, el editor del PC, el de Android y
+     * el importador.
+     */
     @Override
     public IStorage<Deck> storage() {
-        return forge.model.FModel.getQuest().getMyDecks();
+        return new SavingStorage(forge.model.FModel.getQuest().getMyDecks());
+    }
+
+    /** El almacen de la aventura que, al cambiar, la escribe. Ver {@link #storage()}. */
+    private static final class SavingStorage implements IStorage<Deck> {
+        private final IStorage<Deck> inner;
+
+        SavingStorage(final IStorage<Deck> inner) {
+            this.inner = inner;
+        }
+
+        private static void persist() {
+            try {
+                NeoQuest.save();
+            } catch (final RuntimeException e) {
+                System.out.println("[quest] no se ha podido guardar la aventura tras cambiar un mazo: " + e);
+            }
+        }
+
+        @Override
+        public void add(final Deck item) {
+            inner.add(item);
+            persist();
+        }
+
+        @Override
+        public void add(final String name, final Deck item) {
+            inner.add(name, item);
+            persist();
+        }
+
+        @Override
+        public void delete(final String deckName) {
+            inner.delete(deckName);
+            persist();
+        }
+
+        @Override
+        public String getName() {
+            return inner.getName();
+        }
+
+        @Override
+        public String getFullPath() {
+            return inner.getFullPath();
+        }
+
+        @Override
+        public Deck get(final String name) {
+            return inner.get(name);
+        }
+
+        @Override
+        public Deck find(final java.util.function.Predicate<Deck> condition) {
+            return inner.find(condition);
+        }
+
+        @Override
+        public java.util.Collection<String> getItemNames() {
+            return inner.getItemNames();
+        }
+
+        @Override
+        public boolean contains(final String name) {
+            return inner.contains(name);
+        }
+
+        @Override
+        public int size() {
+            return inner.size();
+        }
+
+        @Override
+        public IStorage<IStorage<Deck>> getFolders() {
+            return inner.getFolders();
+        }
+
+        @Override
+        public IStorage<Deck> tryGetFolder(final String path) {
+            return inner.tryGetFolder(path);
+        }
+
+        @Override
+        public IStorage<Deck> getFolderOrCreate(final String path) {
+            return inner.getFolderOrCreate(path);
+        }
+
+        @Override
+        public java.util.stream.Stream<Deck> stream() {
+            return inner.stream();
+        }
+
+        @Override
+        public java.util.Iterator<Deck> iterator() {
+            return inner.iterator();
+        }
     }
 
     @Override

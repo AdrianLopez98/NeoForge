@@ -127,9 +127,11 @@ public class NeoApp extends Application implements SettingsPanel.Host {
         // El tamano de carta sale del ancho disponible, descontando la
         // columna lateral. Asi nunca se desborda, sea cual sea la pantalla.
         // Y el tope crece con el alto, como el texto: ver UiScale.cardWidth.
-        UiScale.setScreenHeight(winH);
+        UiScale.setScreenSize(winW, winH);
         sideWidth = UiScale.sideWidth(winW);
         cardWidth = UiScale.cardWidth(winW, winH);
+        measuredW = winW;
+        measuredH = winH;
 
         // La escala que el usuario dejo guardada manda sobre la automatica.
         // Esto y las animaciones salen de NUESTRO fichero de ajustes, que no
@@ -199,11 +201,16 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                     } else {
                         togglePauseMenu();
                     }
-                } else {
+                } else if (settingsOverlay != null) {
+                    // Los ajustes van encima de todo: se cierran ellos.
+                    hideMenuSettings();
+                } else if (!forge.neo.ui.Overlay.dismissTopmost(scene.getRoot())) {
                     // Fuera de partida, Escape es lo que es en cualquier
                     // juego: los ajustes. Escala de interfaz, idioma,
                     // pantalla completa y volumen, sin tener que buscar el
-                    // boton de la esquina. Y vuelve a cerrarlos.
+                    // boton de la esquina. Y vuelve a cerrarlos. Pero antes
+                    // cierra el menu o la consulta que haya abierta encima
+                    // de la pantalla (Overlay.dismissTopmost).
                     showMenuSettings();
                 }
                 ev.consume();
@@ -348,6 +355,7 @@ public class NeoApp extends Application implements SettingsPanel.Host {
         scene.setRoot(loading);
         applyScale();
         stage.show();
+        watchScreen(stage);
         // -Dneo.fullscreen=true: pantalla completa SIN escribir el ajuste. Para
         // grabar (el trailer) sin barra de titulo ni de tareas en la imagen.
         if (NeoSettings.getBool(NeoSettings.FULLSCREEN, false)
@@ -1111,6 +1119,15 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             if (autoEvent != null && !autoEvent.isBlank() && net.lobbyScreen != null) {
                 net.lobbyScreen.autoEventForTest(autoEvent.trim());
             }
+            // -Dneo.lobby.pickDeck=true: abre el selector de mazo de tu asiento,
+            // con un respiro para que la sala este montada (11-10-2026).
+            if (Boolean.getBoolean("neo.lobby.pickDeck") && net.lobbyScreen != null) {
+                final forge.neo.ui.LobbyScreen screen = net.lobbyScreen;
+                final javafx.animation.PauseTransition wait =
+                        new javafx.animation.PauseTransition(javafx.util.Duration.millis(2500));
+                wait.setOnFinished(e -> screen.pickDeckForTest());
+                wait.play();
+            }
         } else if (args.contains("--ascent-reward")) {
             // El premio de un jefe: las tres cartas Y las tres reliquias a
             // elegir. Provocarlo jugando exige ganarle a un jefe.
@@ -1731,14 +1748,54 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             t.setOnFinished(e -> {
                 final List<CardNode> hand = table == null
                         ? List.of() : table.handNodes();
-                final int which = Integer.getInteger("neo.hand.index", 0);
+                // "spell": el hechizo mas barato (las manos salen al azar, y
+                // para lanzar algo y que sobre mana hace falta uno barato).
+                int which = 0;
+                if ("spell".equals(System.getProperty("neo.hand.index"))) {
+                    which = hand.size();
+                    int cheapest = Integer.MAX_VALUE;
+                    for (int i = 0; i < hand.size(); i++) {
+                        final forge.game.card.CardView cv = hand.get(i).getCard();
+                        if (cv != null && cv.getCurrentState() != null && !cv.getCurrentState().isLand()
+                                && cv.getCurrentState().getManaCost().getCMC() < cheapest) {
+                            cheapest = cv.getCurrentState().getManaCost().getCMC();
+                            which = i;
+                        }
+                    }
+                } else {
+                    which = Integer.getInteger("neo.hand.index", 0);
+                }
                 if (hand.isEmpty() || which >= hand.size()) {
                     System.out.println("[mano] no hay carta " + which + " en la mano");
                     return;
                 }
                 final CardNode card = hand.get(which);
+                // Un refresco de la mesa entre pulsar y soltar no puede cambiar
+                // el nodo: JavaFX solo da el clic si sueltas sobre el MISMO que
+                // pulsaste (Discord, 10-10-2026: la mano dejaba de responder).
+                TableScreen.reorderHandsIn(table);
+                final List<CardNode> after = table.handNodes();
+                System.out.println("[mano] tras refrescar, los mismos nodos: "
+                        + (after.size() == hand.size() && after.containsAll(hand) ? "si" : "NO"));
                 System.out.println("[mano] clico " + debug.nameOf(card.getCard()));
                 debug.fire(card, javafx.scene.input.MouseEvent.MOUSE_CLICKED, debug.centreOf(card));
+                // Y a los tres segundos, cuantas siguen marcadas como jugables:
+                // tras un pago automatico se quedaban todas apagadas (Discord,
+                // 11-10-2026). Ver NeoMatchUI.setActionableScans.
+                final PauseTransition later = new PauseTransition(Duration.seconds(3));
+                later.setOnFinished(x -> {
+                    final javafx.css.PseudoClass actionable =
+                            javafx.css.PseudoClass.getPseudoClass("actionable");
+                    int lit = 0;
+                    final List<CardNode> now = table.handNodes();
+                    for (final CardNode n : now) {
+                        if (n.getPseudoClassStates().contains(actionable)) {
+                            lit++;
+                        }
+                    }
+                    System.out.println("[mano] jugables a la vista: " + lit + " de " + now.size());
+                });
+                later.play();
             });
             t.play();
         }
@@ -1764,6 +1821,39 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 if (step.equals("@ok")) {
                     System.out.println("[mesa] pulso el boton grande");
                     table.getActionBar().pressPrimary();
+                    return;
+                }
+                // "@close" cierra el visor de zona; "@pile" clica la pila de
+                // cementerio de la mesa, como haria una persona para abrirlo.
+                if (step.equals("@close")) {
+                    System.out.println("[mesa] cierro el visor");
+                    table.getMenuOverlay().hide();
+                    return;
+                }
+                if (step.equals("@pile")) {
+                    final javafx.scene.Node pile = debug.firstClickablePile(scene.getRoot());
+                    System.out.println("[mesa] clico la pila" + (pile == null ? ": NO HAY" : ""));
+                    if (pile != null) {
+                        debug.fire(pile, javafx.scene.input.MouseEvent.MOUSE_CLICKED, debug.centreOf(pile));
+                    }
+                    return;
+                }
+                // "z:Nombre": una carta del VISOR DE ZONA abierto (el cementerio
+                // que abre el motor al pedir un objetivo ahi), por el click de
+                // verdad. Salio de Unlicensed Hearse (Discord, 11-10-2026).
+                if (step.startsWith("z:")) {
+                    final String want = step.substring(2);
+                    final List<CardNode> inZone = new ArrayList<>();
+                    debug.collectCardNodes(table.getMenuOverlay(), inZone);
+                    for (final CardNode n : inZone) {
+                        if (n.getCard() != null && debug.nameOf(n.getCard()).contains(want)) {
+                            System.out.println("[mesa] clico en la zona " + debug.nameOf(n.getCard()));
+                            debug.fire(n, javafx.scene.input.MouseEvent.MOUSE_CLICKED, debug.centreOf(n));
+                            return;
+                        }
+                    }
+                    System.out.println("[mesa] no hay " + want + " en ninguna zona abierta ("
+                            + inZone.size() + " cartas a la vista)");
                     return;
                 }
                 final StringBuilder seen = new StringBuilder();
@@ -1854,6 +1944,85 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                                 : words.getMessage("lblPlayerFlippedCoin", "IA-1", words.getMessage("lblTails")),
                         words.getMessage("lblHeads"), words.getMessage("lblTails"),
                         () -> System.out.println("[moneda] ha caido: " + (heads ? "cara" : "cruz")));
+            });
+            t.play();
+        }
+
+        // Los dados (DiceRoll) sobre la mesa que haya: -Dneo.dice.testAt=N
+        // cuando (ms), -Dneo.dice=6:3,6 las caras y lo que sale. Ya caidos:
+        // --wait 2 s despues del testAt.
+        if (args.contains("--dice-test")) {
+            final PauseTransition t = new PauseTransition(Duration.millis(
+                    Long.getLong("neo.dice.testAt", 1500L)));
+            t.setOnFinished(e -> {
+                if (table == null) {
+                    System.out.println("[dados] no hay mesa");
+                    return;
+                }
+                final String[] spec = System.getProperty("neo.dice", "6:4").split(":");
+                final int sides = Integer.parseInt(spec[0].trim());
+                final List<Integer> rolled = new ArrayList<>();
+                for (final String r : spec[1].split(",")) {
+                    rolled.add(Integer.parseInt(r.trim()));
+                }
+                table.rollDice(sides, rolled,
+                        forge.neo.match.DiceCaption.of("Ana", "Mad Science Fair Project", sides, rolled),
+                        () -> System.out.println("[dados] han caido: " + rolled));
+            });
+            t.play();
+        }
+
+        // La carta grande al pasar el raton (-Dneo.bigHoverCard=true), primero
+        // por el comandante y luego por una reliquia de Ascenso de la zona de
+        // mando (--rig-my-relics). Lo que se comprueba: que la reliquia sale
+        // dibujada y no con el arte del comandante (Discord, 11-10-2026).
+        // -Dneo.bigcard.testAt=N cuando (ms); la captura, despues.
+        if (args.contains("--bigcard-test")) {
+            final PauseTransition t = new PauseTransition(Duration.millis(
+                    Long.getLong("neo.bigcard.testAt", 9000L)));
+            t.setOnFinished(e -> {
+                if (table == null) {
+                    System.out.println("[grande] no hay mesa");
+                    return;
+                }
+                final List<CardNode> all = new ArrayList<>();
+                NeoAppDebug.collectCardNodes(scene.getRoot(), all);
+                CardNode commander = null;
+                CardNode relic = null;
+                for (final CardNode n : all) {
+                    if (n.getCard() == null) {
+                        continue;
+                    }
+                    if (commander == null && n.getCard().isCommander()) {
+                        commander = n;
+                    } else if (relic == null && forge.neo.ascent.AscentRelics.byCardName(
+                            n.getCard().getCurrentState().getName()) != null) {
+                        relic = n;
+                    }
+                }
+                if (commander == null || relic == null) {
+                    System.out.println("[grande] falta el comandante o la reliquia");
+                    return;
+                }
+                table.hoverForTest(commander);
+                final CardNode then = relic;
+                final CardNode first = commander;
+                final PauseTransition next = new PauseTransition(Duration.millis(500));
+                next.setOnFinished(x -> {
+                    table.hoverForTest(then);
+                    System.out.println("[grande] del comandante a " + then.getCard().getCurrentState().getName());
+                    // -Dneo.bigcard.back=true: y de vuelta al comandante, que
+                    // tiene que volver con su arte.
+                    if (Boolean.getBoolean("neo.bigcard.back")) {
+                        final PauseTransition back = new PauseTransition(Duration.millis(500));
+                        back.setOnFinished(y -> {
+                            table.hoverForTest(first);
+                            System.out.println("[grande] y de vuelta al comandante");
+                        });
+                        back.play();
+                    }
+                });
+                next.play();
             });
             t.play();
         }
@@ -3135,6 +3304,91 @@ public class NeoApp extends Application implements SettingsPanel.Host {
         }
     }
 
+    /** Para que pantalla estan medidas la carta y la columna (ver {@link #watchScreen}). */
+    private double measuredW;
+    private double measuredH;
+
+    /**
+     * MOVER LA VENTANA A OTRO MONITOR.
+     *
+     * <p>Discord, 11-10-2026: <i>"When I move the game from one screen to
+     * another, the interface doesn't scale properly, causing visual and layout
+     * issues"</i>. La letra ya seguia a la ventana (applyScale con el alto de la
+     * escena), pero el ancho de carta y el de la columna se median UNA vez, con
+     * la pantalla principal, al arrancar: en el otro monitor la letra crecia o
+     * menguaba y lo demas se quedaba como en el primero.
+     *
+     * <p>Ahora, cuando la ventana acaba en una pantalla de otro tamanyo (con un
+     * respiro: arrastrarla dispara cien avisos), se vuelve a medir: lo que se
+     * abra despues sale bien, la mesa coloca su columna con la pantalla de
+     * ahora ({@link UiScale#sideWidthNow}) y el menu principal y la de elegir
+     * mazo, que no guardan nada, se rehacen al momento. Las demas se quedan como estan
+     * hasta que se cambia de pantalla: rehacer un editor a medias perderia lo
+     * que no se haya guardado.
+     *
+     * <p>Con {@code -Dneo.win} no: esa pantalla es de mentira a proposito.
+     * {@code -Dneo.screenTest=ANCHOxALTO} hace como si se pasara a una pantalla
+     * asi a los 4 s, para probarlo sin dos monitores.
+     */
+    private void watchScreen(final Stage stage) {
+        final String test = System.getProperty("neo.screenTest");
+        if (test != null) {
+            final javafx.animation.PauseTransition later =
+                    new javafx.animation.PauseTransition(javafx.util.Duration.seconds(4));
+            later.setOnFinished(e -> {
+                try {
+                    final String[] wh = test.split("x");
+                    remeasure(Double.parseDouble(wh[0]), Double.parseDouble(wh[1]));
+                } catch (final RuntimeException ex) {
+                    System.err.println("neo.screenTest no valido (ANCHOxALTO): " + test);
+                }
+            });
+            later.play();
+        }
+        if (System.getProperty("neo.win") != null) {
+            return;
+        }
+        final javafx.animation.PauseTransition settle =
+                new javafx.animation.PauseTransition(javafx.util.Duration.millis(400));
+        settle.setOnFinished(e -> {
+            final double cx = stage.getX() + stage.getWidth() / 2;
+            final double cy = stage.getY() + stage.getHeight() / 2;
+            final List<Screen> under = Screen.getScreensForRectangle(cx, cy, 1, 1);
+            if (!under.isEmpty()) {
+                final javafx.geometry.Rectangle2D vb = under.get(0).getVisualBounds();
+                remeasure(vb.getWidth(), vb.getHeight());
+            }
+        });
+        final javafx.beans.value.ChangeListener<Number> moved = (o, was, is) -> settle.playFromStart();
+        stage.xProperty().addListener(moved);
+        stage.yProperty().addListener(moved);
+        stage.outputScaleXProperty().addListener(moved);
+    }
+
+    /** Vuelve a medir para una pantalla de ese tamanyo (logico), si ha cambiado. */
+    private void remeasure(final double w, final double h) {
+        if (Math.abs(w - measuredW) < 1 && Math.abs(h - measuredH) < 1) {
+            return;
+        }
+        measuredW = w;
+        measuredH = h;
+        UiScale.setScreenSize(w, h);
+        sideWidth = UiScale.sideWidth(w);
+        cardWidth = UiScale.cardWidth(w, h);
+        System.out.printf(java.util.Locale.ROOT,
+                "[pantalla] otra pantalla: %.0fx%.0f -> carta %.0f, columna %.0f%n", w, h, cardWidth, sideWidth);
+        applyScale();
+        if (scene != null && scene.getRoot() instanceof forge.neo.ui.MainMenu) {
+            showMainMenu();
+        } else if (scene != null && home != null && scene.getRoot() == home && lastFormat != null) {
+            // La de elegir mazo se rehace cada vez que se vuelve a ella y lo que
+            // se elige ahi vive en los ajustes: rehacerla no pierde nada.
+            showHome(lastFormat);
+        } else if (scene != null && scene.getRoot() != null) {
+            scene.getRoot().requestLayout();
+        }
+    }
+
     /** Pone la escala guardada (o la automatica) en la raiz de la escena. */
     @Override
     public void applyScale() {
@@ -3790,8 +4044,12 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 final NeoGame.Result r = NeoGame.play(deck, opponents, mode, timeout, verbose,
                         liveBinder, aiProfile, autoMana, format, lastOpponentDecks, 1,
                         // Planechase (08-10-2026), ENCIMA de los equipos: envuelve.
+                        // Y Archenemy (11-10-2026) entre los dos: decide los
+                        // equipos, y Planechase pone los planos encima.
                         forge.neo.match.Planechase.wrap(format,
-                                forge.neo.match.NeoTeams.seating(format, lastTeams),
+                                forge.neo.match.Archenemy.wrap(format,
+                                        forge.neo.match.NeoTeams.seating(format, lastTeams),
+                                        NeoSettings.archenemy(), NeoSettings.archenemyWho()),
                                 NeoSettings.planechase(), NeoSettings.planechaseShared()));
                 if (r.exit != null) {
                     exit = r.exit;

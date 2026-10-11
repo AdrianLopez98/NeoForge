@@ -46,6 +46,7 @@ public final class DeckRulesCheck {
         deckStatsAddUp();
         cardTextFollowsTheLanguage();
         searchFindsTranslatedNames();
+        colourNamesSearch();
         interfaceTextIsTranslated();
         importFindsTheCommander();
         importKeepsWhatDoesNotFit();
@@ -68,6 +69,7 @@ public final class DeckRulesCheck {
         oathbreakerDoesNotChangeCommander();
         companionGoesToTheSideboard();
         foilAllAtOnce();
+        ascentCardsStayOutOfGeneratedDecks();
         // La ultima: mete las reliquias de Ascenso en el catalogo del motor y
         // ya no las saca. Ver su javadoc.
         ascentCardsStayOutOfTheCatalogue();
@@ -136,6 +138,61 @@ public final class DeckRulesCheck {
                 "        (buscando \"%s\")%n", translated);
         check("Buscador: el nombre traducido tambien encuentra",
                 found(editor, translated));
+    }
+
+    /**
+     * Los nombres de combinaciones de colores en los buscadores (Discord,
+     * 11-10-2026: "if I search Boros, W/R creatures will show up ... And WUBRG
+     * for 5 color"). Ver {@code forge.neo.card.ColorNames}.
+     *
+     * <p>Las dos mitades: que "boros" traiga lo de identidad EXACTA blanca y
+     * roja (y nada con otro color, que es lo que fallaba buscando "white red"),
+     * y que un nombre que tambien es palabra normal ("witch") siga encontrando
+     * lo que encontraba: anyade, no quita.
+     */
+    private static void colourNamesSearch() {
+        final DeckEditor editor = DeckEditor.createNew(NeoFormat.ESTANDAR, "colores");
+        final int boros = forge.neo.card.ColorNames.maskOf("Boros");
+        int wrong = 0;
+        boolean charm = false;
+        final List<PaperCard> hits = editor.search("boros", false, null, 2000);
+        for (final PaperCard c : hits) {
+            charm |= "Boros Charm".equals(c.getName());
+            if (!forge.neo.card.ColorNames.identityIs(c, boros)
+                    && !c.getName().toLowerCase(java.util.Locale.ROOT).contains("boros")) {
+                wrong++;
+            }
+        }
+        check("Colores: \"boros\" trae " + hits.size() + " cartas blancas y rojas (Boros Charm entre ellas)"
+                + (wrong > 0 ? ", y " + wrong + " de otro color" : ""), charm && wrong == 0 && hits.size() > 50);
+
+        final List<PaperCard> five = editor.search("WUBRG", false, null, 2000);
+        boolean allFive = !five.isEmpty();
+        for (final PaperCard c : five) {
+            allFive &= c.getRules().getColorIdentity().countColors() == 5;
+        }
+        check("Colores: \"WUBRG\" trae solo cartas de cinco colores (" + five.size() + ")", allFive);
+
+        final List<PaperCard> witch = editor.search("witch", false, null, 2000);
+        boolean witchStill = false;
+        for (final PaperCard c : witch) {
+            witchStill |= "Witch's Oven".equals(c.getName());
+        }
+        check("Colores: \"witch\" sigue encontrando Witch's Oven (un nombre anyade, no quita)", witchStill);
+
+        final PaperCard aurelia = FModel.getMagicDb().getCommonCards().getCard("Aurelia, the Warleader");
+        final PaperCard atraxa = FModel.getMagicDb().getCommonCards().getCard("Atraxa, Praetors' Voice");
+        final PaperCard krenko = FModel.getMagicDb().getCommonCards().getCard("Krenko, Mob Boss");
+        if (aurelia == null || atraxa == null || krenko == null) {
+            check("Colores: estan Aurelia, Atraxa y Krenko", false);
+            return;
+        }
+        check("Colores: el buscador de comandante de Ascenso -- \"boros angel\" da Aurelia, \"boros\" no da a"
+                        + " Krenko (rojo solo) y \"witch\" da a Atraxa (los cuatro sin rojo)",
+                forge.neo.ascent.CommanderSearch.matches(aurelia, "boros angel")
+                        && !forge.neo.ascent.CommanderSearch.matches(krenko, "boros")
+                        && forge.neo.ascent.CommanderSearch.matches(atraxa, "Witch-Maw")
+                        && !forge.neo.ascent.CommanderSearch.matches(atraxa, "esper"));
     }
 
     /** Si una busqueda devuelve el Sol Ring. */
@@ -271,6 +328,27 @@ public final class DeckRulesCheck {
         // Nunca menos: la busqueda por texto incluye la del nombre.
         check("Texto de reglas: no pierde ninguna de las de antes", byText >= byName);
         check("Texto de reglas: sigue siendo instantanea", ms < 3000);
+
+        // ELIGIENDO COMANDANTE TAMBIEN (Discord, 11-10-2026: "defender" solo
+        // encontraba comandantes con defender en el NOMBRE). Arcades, the
+        // Strategist lo dice en su texto y no en su nombre.
+        final DeckEditor cmd = DeckEditor.createNew(NeoFormat.COMMANDER, "texto-comandante");
+        final java.util.function.Predicate<PaperCard> arcades =
+                c -> "Arcades, the Strategist".equals(c.getName());
+        check("Comandante: sin texto de reglas, 'defender' no encuentra a Arcades",
+                cmd.commanderCandidates("defender", 5000, null, false).stream().noneMatch(arcades));
+        check("Comandante: con texto de reglas, si",
+                cmd.commanderCandidates("defender", 5000, null, true).stream().anyMatch(arcades));
+        // Y los filtros de la barra (aqui, solo blancas): antes no hacian nada.
+        final List<PaperCard> white = cmd.commanderCandidates("", 5000,
+                c -> c.getRules().getColorIdentity().isMonoColor()
+                        && c.getRules().getColorIdentity().hasWhite(), false);
+        check("Comandante: el filtro de la barra se aplica",
+                !white.isEmpty() && white.stream().allMatch(
+                        c -> c.getRules().getColorIdentity().hasWhite()));
+        check("Comandante: 'golgari' encuentra la identidad, como el catalogo",
+                cmd.commanderCandidates("golgari", 5000).stream().anyMatch(
+                        c -> "Meren of Clan Nel Toth".equals(c.getName())));
     }
 
     /**
@@ -1666,6 +1744,101 @@ public final class DeckRulesCheck {
 
     private static String commanderProblem(final Deck deck) {
         return forge.game.GameType.Commander.getDeckFormat().getDeckConformanceProblem(deck);
+    }
+
+    /** Cuantos mazos crudos se generan para buscar reliquias coladas. */
+    private static final int RELIC_DECKS = 30;
+
+    /**
+     * Que un mazo generado no traiga cartas de Ascenso.
+     *
+     * <p>Discord, 10-10-2026, con captura: <i>"Forgefather's Anvil is broken.
+     * Can't play it"</i> — una reliquia en el mazo de salida de una run de
+     * Commander. El generador sin {@code isCardGen} baraja
+     * {@code getAllCards()} entero para un mazo <b>humano</b>, sin mirar
+     * ninguna marca, y {@code CardDb.addCard} las deja ahi nada mas
+     * registrarlas (al reves que {@code getUniqueCards()}, no hace falta
+     * reindexar). Es el camino del mazo de salida de Ascenso cuando la matriz
+     * no conoce al comandante, el de "Generar mazo" y el de la Quest.
+     *
+     * <p>Primero se mira que el caso <b>existe</b>, con la semilla fija: si el
+     * generador crudo no colara ninguna, el verde de la limpieza no
+     * demostraria nada. Si un dia Forge las aparta solo, este primer punto se
+     * pone en rojo y la limpieza sobra — pero eso hay que saberlo.
+     */
+    private static void ascentCardsStayOutOfGeneratedDecks() {
+        AscentRelics.install();
+        final Set<String> ours = AscentRelics.allCardNames();
+        final PaperCard head = FModel.getMagicDb().getCommonCards().getCard("Giada, Font of Hope");
+        if (head == null || ours.isEmpty()) {
+            check("reliquias en mazos generados: estan Giada y las reliquias", false);
+            return;
+        }
+        final java.util.Random previous = forge.util.MyRandom.getRandom();
+        int raw = 0;
+        int rawCards = 0;
+        int dirty = 0;
+        boolean sameSize = true;
+        forge.util.MyRandom.setRandom(new java.util.Random(20261010L));
+        try {
+            for (int i = 0; i < RELIC_DECKS; i++) {
+                final Deck d = forge.deck.DeckgenUtil.generateRandomCommanderDeck(
+                        head, forge.deck.DeckFormat.Commander, false, false, 2);
+                final int n = countByNames(d, ours);
+                if (n > 0) {
+                    raw++;
+                    rawCards += n;
+                }
+                final int size = d.getMain().countAll();
+                GeneratedDecks.fixCopyLimits(d, forge.deck.DeckFormat.Commander);
+                if (countByNames(d, ours) > 0) {
+                    dirty++;
+                }
+                sameSize &= d.getMain().countAll() == size;
+            }
+        } finally {
+            forge.util.MyRandom.setRandom(previous);
+        }
+        check("reliquias: el generador crudo de un mazo humano las cuela (" + raw + " de "
+                + RELIC_DECKS + " mazos de Giada, " + rawCards + " cartas), que es lo que hay"
+                + " que limpiar", raw > 0);
+        check("reliquias: limpiado, ningun mazo generado trae una"
+                        + (dirty > 0 ? " (" + dirty + " con alguna)" : "")
+                        + ", y todos siguen con su tamanyo",
+                dirty == 0 && sameSize);
+
+        // Y una run montada ANTES del arreglo, con la reliquia ya dentro.
+        final PaperCard anvil = FModel.getMagicDb().getCommonCards().getCard("Forgefather's Anvil");
+        final PaperCard plains = FModel.getMagicDb().getCommonCards().getCard("Plains");
+        final PaperCard swords = FModel.getMagicDb().getCommonCards().getCard("Swords to Plowshares");
+        if (anvil == null || plains == null || swords == null) {
+            check("reliquias: estan Forgefather's Anvil, Plains y Swords to Plowshares", false);
+            return;
+        }
+        final Deck old = new Deck("ascenso-de-antes");
+        old.getOrCreate(forge.deck.DeckSection.Commander).add(head);
+        old.getMain().add(plains, 30);
+        old.getMain().add(swords, 1);
+        old.getMain().add(anvil, 1);
+        final int swapped = GeneratedDecks.dropCustomCards(old);
+        check("reliquias: en un mazo que ya la traia, se cambia por su basica y el mazo sigue"
+                        + " con 32",
+                swapped == 1 && old.getMain().countByName(anvil.getName()) == 0
+                        && old.getMain().countByName("Plains") == 31
+                        && old.getMain().countByName(swords.getName()) == 1
+                        && old.getMain().countAll() == 32);
+        check("reliquias: la segunda vez no hay nada que cambiar",
+                GeneratedDecks.dropCustomCards(old) == 0 && old.getMain().countAll() == 32);
+    }
+
+    private static int countByNames(final Deck deck, final Set<String> names) {
+        int n = 0;
+        for (final java.util.Map.Entry<PaperCard, Integer> e : deck.getMain()) {
+            if (names.contains(e.getKey().getName())) {
+                n += e.getValue();
+            }
+        }
+        return n;
     }
 
     /**

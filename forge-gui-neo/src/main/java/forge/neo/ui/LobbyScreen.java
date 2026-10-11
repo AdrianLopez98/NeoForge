@@ -1385,11 +1385,22 @@ public class LobbyScreen extends BorderPane
      * eso quien no se haya montado uno se encuentra la lista vacia y la sala no
      * sirve de nada.
      */
+    /** Herramienta de prueba: el selector de mazo del asiento 0 (-Dneo.lobby.pickDeck). */
+    public void pickDeckForTest() {
+        pickDeck(0);
+    }
+
     private void pickDeck(final int index) {
         final NeoFormat f = format;
         final GameLobby l = lobby;
         final List<Deck> mine = new ArrayList<>();
         final List<Deck> stock = new ArrayList<>();
+        // Las colecciones, cada una en su pestanya, como en la pantalla de
+        // inicio. Discord, 11-10-2026: "in multiplayer I could only select the
+        // decks in my decks, not my decks that I have in another category" —
+        // format.isMine solo mira la carpeta de arriba, y estos no estan ahi.
+        final java.util.Map<String, List<Deck>> collections =
+                new java.util.TreeMap<>(String.CASE_INSENSITIVE_ORDER);
         if (forge.neo.net.NeoNetEvent.isLimited(l)) {
             // En un evento el mazo sale del POOL y de ningun otro sitio: es lo
             // que impide sentarse en un draft con un mazo de Commander de tu
@@ -1405,6 +1416,16 @@ public class LobbyScreen extends BorderPane
             if (forge.neo.deck.NetDecks.isSupported(f.getGameType())) {
                 stock.addAll(forge.neo.deck.NetDecks.cached(f.getGameType()));
             }
+            if (forge.neo.deck.DeckCollections.isSupported(f)) {
+                for (final String name : forge.neo.deck.DeckCollections.list(f)) {
+                    collections.put(name, new ArrayList<>(forge.neo.deck.DeckCollections.decks(f, name)));
+                }
+            }
+        }
+        // "Al azar" tambien entre los de las colecciones: el boton los cuenta.
+        final List<Deck> allMine = new ArrayList<>(mine);
+        for (final List<Deck> in : collections.values()) {
+            allMine.addAll(in);
         }
 
         final DeckPickerDialog picker = new DeckPickerDialog(
@@ -1416,7 +1437,7 @@ public class LobbyScreen extends BorderPane
                     // (se ensenya a todos y sin el no se puede estar listo), asi
                     // que se tira ahora entre los que ofrecia el selector.
                     // Antes se ignoraba y el boton no hacia nada (Discord).
-                    final Deck chosen = picked != null ? picked : DeckPickerDialog.anyOf(mine, stock);
+                    final Deck chosen = picked != null ? picked : DeckPickerDialog.anyOf(allMine, stock);
                     if (chosen != null) {
                         sendDeck(index, chosen);
                         // Una IA no tiene nada mas que decidir: con mazo, lista.
@@ -1430,6 +1451,7 @@ public class LobbyScreen extends BorderPane
                 // En limitado no se genera nada: el pool es el que es.
                 !forge.neo.net.NeoNetEvent.isLimited(l) && f.isCommanderStyle()
                         ? () -> NeoLobby.generateDeck(f) : null);
+        picker.setCollections(collections);
         overlay.setOnBackgroundClick(overlay::hide);
         overlay.show(picker);
     }
@@ -1890,6 +1912,27 @@ public class LobbyScreen extends BorderPane
                 }));
         t.setCycleCount(javafx.animation.Animation.INDEFINITE);
         t.play();
+
+        // -Dneo.lobby.chatEvery=SEGUNDOS: el piloto dice "ping N" cada tantos
+        // segundos, tambien con la partida en marcha. Es lo unico que deja
+        // probar sin dos personas el chat DENTRO de la mesa del otro lado: que
+        // llega con el chat cerrado, el numero de sin leer y el aviso
+        // (decision 316 de Android, 11-10-2026).
+        final int every = Integer.getInteger("neo.lobby.chatEvery", 0);
+        if (every > 0) {
+            final int[] said = {0};
+            final javafx.animation.Timeline talk = new javafx.animation.Timeline(
+                    new javafx.animation.KeyFrame(javafx.util.Duration.seconds(every), e -> {
+                        final NeoOnline o = online;
+                        if (o != null) {
+                            said[0]++;
+                            System.out.println("[lobby-auto] digo ping " + said[0]);
+                            o.say("ping " + said[0]);
+                        }
+                    }));
+            talk.setCycleCount(javafx.animation.Animation.INDEFINITE);
+            talk.play();
+        }
     }
 
     /** Los mazos del pool ya montados (40 o mas en el principal). Piloto de prueba. */

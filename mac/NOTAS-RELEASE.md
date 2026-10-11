@@ -1,12 +1,13 @@
-**NeoForge para macOS 1.0.19 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.20 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Quest:** los mazos de Commander enteros en la tienda y los sobres de las colecciones de Commander; qué puede salir en un sobre y en qué sobre sale una carta; las **preferencias de Forge** (premios, tienda, dificultad) con un botón para volver a como venían; y buscar un preconstruido también por su comandante.
-- **Ascenso:** los disparos de tus reliquias se resuelven solos, un rival distinto en cada duelo, tu mazo por tipo con cuántas hay de cada uno, y tu comandante ya no sale como premio.
-- **En partida:** la moneda se ve caer; el modo de un disparo dice de qué rival habla; al acabar, «Registro» y «Ver la mesa»; proliferar cuenta los jugadores elegidos.
-- **Ajustes:** ocultar las cartas sin arte (las de Alchemy A-), y un botón de Ko-fi en el menú.
-- **Forge al día:** 104 cartas nuevas y el pago automático ya funciona con las tierras de filtro.
-- **Arreglos:** el bazar dice lo que hace Pound of Flesh y pregunta antes; la carta «Keyword Effects» dice qué es; el sobre de colector de algunas expansiones cobraba sin dar nada; y los títulos de Ascenso ya no pisan el borde del pergamino.
+- **Quest:** sobres de tierras básicas en todas las tiendas (siete de un mismo tipo), varios sobres de colector de una vez, cambiar el arte de una carta pagando, y «Qué puede salir» con los filtros de la enciclopedia.
+- **Mazos:** al elegir comandante ya valen los filtros (texto de reglas, color, tipo, coste), y se busca por nombre de combinación de colores: Boros, Esper, WUBRG...
+- **En partida:** las tierras de la mesa juntas por color, los dados se ven tirar, las cartas jugables ya no pierden el borde azul, y un ajuste para preguntar antes de cerrar una elección de cartas.
+- **Ascenso:** «El mapa» desde cualquier pantalla de un nodo, y pasar el ratón por una reliquia enseña la reliquia.
+- **Pantalla:** mover el juego a otro monitor de otra resolución ya no lo descuadra; Escape cierra el menú de una carta.
+- **Forge al día:** Marvel: Darkhold Destiny y su Commander.
+- **Arreglos:** Clara Oswald y The Prismatic Piper conservan su color elegido al lanzarlas desde la zona de mando (antes All Is Dust se las saltaba); una reliquia de Ascenso ya no se cuela en el mazo de salida.
 
 Descarga el `.dmg` de tu Mac:
 

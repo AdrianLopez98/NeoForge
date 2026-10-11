@@ -69,6 +69,9 @@ public class PrintingDialog extends VBox {
         hint.getStyleClass().add("dialog-text");
         hint.setWrapText(true);
         hint.setMaxWidth(UiScale.px(720));
+        // Sin esto una ayuda larga (la de la tienda de la Quest) se corta con
+        // "..." en vez de partirse: la VBox la deja a una linea.
+        hint.setMinHeight(Region.USE_PREF_SIZE);
 
         final FlowPane grid = new FlowPane(10, 10);
         grid.setAlignment(Pos.CENTER);
@@ -127,7 +130,10 @@ public class PrintingDialog extends VBox {
             final java.util.List<javafx.scene.Node> tiles = new java.util.ArrayList<>();
             final int from = page[0] * PAGE;
             for (final PaperCard printing : shown.subList(from, Math.min(shown.size(), from + PAGE))) {
-                tiles.add(tile(printing, printing.equals(current), cardWidth, onPick));
+                final boolean isCurrent = printing.equals(current);
+                tiles.add(tile(printing, isCurrent, cardWidth, onPick,
+                        note == null || isCurrent ? null : note.apply(printing),
+                        noteOk == null || noteOk.test(printing)));
             }
             grid.getChildren().setAll(tiles);
             scroll.setVvalue(0);
@@ -152,6 +158,7 @@ public class PrintingDialog extends VBox {
             show.run();
         });
         show.run();
+        this.repaint = show;
         // -Dneo.printing.set=N deja elegida la coleccion N, para capturarla.
         final int presetSet = Integer.getInteger("neo.printing.set", 0);
         if (presetSet > 0 && presetSet < setBox.getItems().size()) {
@@ -179,6 +186,30 @@ public class PrintingDialog extends VBox {
 
     /** Cuantas copias se cambian: de fabrica todas, que es lo que hacia siempre. */
     private int copies = Integer.MAX_VALUE;
+    /** Una linea debajo de cada impresion (el precio), o null. Ver {@link #withNote}. */
+    private java.util.function.Function<PaperCard, String> note;
+    private java.util.function.Predicate<PaperCard> noteOk;
+    private Runnable repaint;
+
+    /**
+     * Una linea debajo de cada impresion menos la actual, en verde o en rojo:
+     * lo que cuesta ese arte en la Quest (NeoQuestArt) y si te llega.
+     */
+    public PrintingDialog withNote(final java.util.function.Function<PaperCard, String> text,
+                                   final java.util.function.Predicate<PaperCard> ok) {
+        this.note = text;
+        this.noteOk = ok;
+        if (repaint != null) {
+            repaint.run();
+        }
+        return this;
+    }
+
+    /** Otra ayuda debajo del titulo (despues de {@link #offerCopies}, que pone la suya). */
+    public PrintingDialog withHelp(final String text) {
+        hint.setText(text);
+        return this;
+    }
     /** La ayuda: con el contador ya no es verdad que "se cambiaran todas". */
     private Label hint;
 
@@ -228,7 +259,8 @@ public class PrintingDialog extends VBox {
 
     /** Una edicion: la carta, y debajo el codigo del set y su numero. */
     private static Region tile(final PaperCard printing, final boolean isCurrent,
-                               final double cardWidth, final Consumer<PaperCard> onPick) {
+                               final double cardWidth, final Consumer<PaperCard> onPick,
+                               final String note, final boolean noteOk) {
         final CardNode node = new CardNode(cardWidth);
         node.setRotationEnabled(false);
         node.setBadgesVisible(false);
@@ -243,6 +275,11 @@ public class PrintingDialog extends VBox {
         label.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
 
         final VBox box = new VBox(4, node, label);
+        if (note != null) {
+            final Label price = new Label(note);
+            price.getStyleClass().add(noteOk ? "set-price-ok" : "set-price-no");
+            box.getChildren().add(price);
+        }
         box.setAlignment(Pos.TOP_CENTER);
         box.getStyleClass().add("catalogue-tile");
         box.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);

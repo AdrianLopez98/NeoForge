@@ -600,8 +600,56 @@ public final class QuestCheck {
 
                 // Y no se puede reusar, igual que los demas sobres.
                 ok &= !sameCards(got, NeoQuestShop.collectorBooster(set).getCards());
+
+                // Y varios de una vez, como los normales (Discord, 11-10-2026):
+                // se cobran los tres y salen las cartas de los tres.
+                final int each = NeoQuestShop.collectorPrice(set);
+                NeoQuest.engine().getAssets().addCredits(each * 3);
+                final long beforeThree = NeoQuest.credits();
+                final NeoQuestShop.Opened three = NeoQuestShop.buyCollector(set, 3);
+                final boolean threeOk = three != null
+                        && beforeThree - NeoQuest.credits() == each * 3L
+                        && three.getPaid() == each * 3
+                        && three.getCards().size() >= got.size() * 3 - 3;
+                System.out.printf(Locale.ROOT, "  Tres de colector de una vez: %s%n",
+                        three == null ? "NO SE HAN COMPRADO"
+                                : three.getCards().size() + " cartas por " + three.getPaid() + " cr."
+                                        + (threeOk ? " (bien)" : " (MAL)"));
+                ok &= threeOk;
             }
         }
+
+        // ---- los sobres de tierras basicas (Discord, 11-10-2026) ----
+        //
+        // Cinco, uno por tipo, en cualquier mundo: en uno de expansiones viejas
+        // (Shandalar) no habia otra forma de conseguir basicas.
+        int landPacks = 0;
+        LandPack mountains = null;
+        for (final forge.item.SealedProduct b : NeoQuestShop.boxes()) {
+            if (b instanceof LandPack) {
+                landPacks++;
+                if ("Mountain".equals(((LandPack) b).getLand().getName())) {
+                    mountains = (LandPack) b;
+                }
+            }
+        }
+        boolean landsOk = landPacks == 5 && mountains != null
+                && NeoQuestShop.priceOfItem(mountains) == LandPack.PRICE;
+        if (mountains != null) {
+            NeoQuest.engine().getAssets().addCredits(LandPack.PRICE);
+            final long beforeLands = NeoQuest.credits();
+            final int hadMountains = forge.neo.quest.NeoQuestSell.owned(mountains.getLand());
+            final NeoQuestShop.Opened lands = NeoQuestShop.buyBox(mountains);
+            landsOk &= lands != null && lands.getCards().size() == LandPack.CARDS
+                    && beforeLands - NeoQuest.credits() == LandPack.PRICE
+                    && forge.neo.quest.NeoQuestSell.owned(mountains.getLand()) == hadMountains + LandPack.CARDS;
+            System.out.printf(Locale.ROOT, "  Tierras: %d sobres | \"%s\" (%s) por %d cr. -> %d cartas%s%n",
+                    landPacks, NeoQuestShop.productName(mountains), mountains.getLand().getEdition(),
+                    LandPack.PRICE, lands == null ? 0 : lands.getCards().size(), landsOk ? " (bien)" : " (MAL)");
+        } else {
+            System.out.printf(Locale.ROOT, "  Tierras: %d sobres y ninguno de Montanyas (MAL)%n", landPacks);
+        }
+        ok &= landsOk;
 
         // ---- el sobre de Secret Lair ----
         //
@@ -989,6 +1037,65 @@ public final class QuestCheck {
             ok &= decksIntact && nothingLeft
                     && NeoQuest.credits() == bulkMoney + bulk.getCredits();
             NeoQuest.deleteDeck("neo-sellcheck");
+
+            // ---- cambiar el arte, pagando (Discord, 11-10-2026) ----
+            //
+            // Tres copias y un mazo que usa dos: cambiar todas menos una deja
+            // en el mazo una vieja y una nueva; cambiar la que queda, las dos
+            // nuevas. Lo que se rompe si la cuenta esta mal es el mazo, y en
+            // silencio: llevaria una impresion que ya no tienes.
+            final PaperCard elf = forge.model.FModel.getMagicDb().getCommonCards().getCard("Llanowar Elves");
+            NeoQuest.engine().getCards().addSingleCard(elf, 3);
+            PaperCard plainArt = null;
+            PaperCard fancyArt = null;
+            for (final PaperCard p : NeoQuestArt.printingsOf(elf)) {
+                if (NeoQuestArt.isSpecial(p)) {
+                    fancyArt = fancyArt == null ? p : fancyArt;
+                } else if (plainArt == null) {
+                    plainArt = p;
+                }
+            }
+            System.out.printf(Locale.ROOT,
+                    "  Arte: \"%s\" (%s) tiene %d impresiones mas | normal %s a %d cr. | especial %s a %d cr.%n",
+                    elf.getName(), elf.getEdition(), NeoQuestArt.printingsOf(elf).size(),
+                    plainArt == null ? "-" : plainArt.getEdition(), NeoQuestArt.priceOf(plainArt),
+                    fancyArt == null ? "-" : fancyArt.getEdition(), NeoQuestArt.priceOf(fancyArt));
+            ok &= plainArt != null && NeoQuestArt.canChange(elf)
+                    && NeoQuestArt.priceOf(plainArt) > 0
+                    && (fancyArt == null || NeoQuestArt.priceOf(fancyArt) >= NeoQuestArt.COMMON * 3);
+            if (plainArt != null) {
+                final forge.deck.Deck artDeck = new forge.deck.Deck("neo-artcheck");
+                artDeck.getMain().add(elf, 2);
+                NeoQuest.engine().getMyDecks().add(artDeck);
+                NeoQuest.engine().getAssets().addCredits(10000);
+                final int hadElf = forge.neo.quest.NeoQuestSell.owned(elf);
+                final int hadNew = forge.neo.quest.NeoQuestSell.owned(plainArt);
+                final long artMoney = NeoQuest.credits();
+                final int paidArt = NeoQuestArt.change(elf, plainArt, hadElf - 1);
+                final forge.deck.Deck d1 = NeoQuest.engine().getMyDecks().get("neo-artcheck");
+                final boolean partOk = paidArt == NeoQuestArt.priceOf(plainArt) * (hadElf - 1)
+                        && NeoQuest.credits() == artMoney - paidArt
+                        && forge.neo.quest.NeoQuestSell.owned(elf) == 1
+                        && forge.neo.quest.NeoQuestSell.owned(plainArt) == hadNew + hadElf - 1
+                        && d1 != null && d1.getMain().count(elf) == 1 && d1.getMain().count(plainArt) == 1;
+                System.out.printf(Locale.ROOT,
+                        "  Cambiadas %d de %d por %d cr.: el mazo lleva %d vieja y %d nueva%s%n",
+                        hadElf - 1, hadElf, paidArt, d1 == null ? -1 : d1.getMain().count(elf),
+                        d1 == null ? -1 : d1.getMain().count(plainArt), partOk ? " (bien)" : " (MAL)");
+                final int paidLast = NeoQuestArt.change(elf, plainArt, 1);
+                final boolean allOk = paidLast == NeoQuestArt.priceOf(plainArt)
+                        && forge.neo.quest.NeoQuestSell.owned(elf) == 0
+                        && d1 != null && d1.getMain().count(elf) == 0 && d1.getMain().count(plainArt) == 2;
+                System.out.printf(Locale.ROOT, "  Y la ultima: el mazo lleva las dos nuevas%s%n",
+                        allOk ? " (bien)" : " (MAL)");
+                // Sin la carta, no se cambia nada ni se cobra.
+                final long noMoney = NeoQuest.credits();
+                final boolean refused = NeoQuestArt.change(elf, plainArt, 1) == -1
+                        && NeoQuest.credits() == noMoney;
+                System.out.printf(Locale.ROOT, "  Sin copias, no cobra: %s%n", refused ? "bien" : "MAL");
+                ok &= partOk && allOk && refused;
+                NeoQuest.deleteDeck("neo-artcheck");
+            }
         }
 
         // ---- y lo comprado sobrevive a guardar ----
@@ -1345,9 +1452,12 @@ public final class QuestCheck {
         }
 
         // ---- se guarda, y aparece en los mazos de la aventura ----
+        // ⚠️ SIN NeoQuest.save() a mano detras: hasta el 11-10-2026 estaba, y
+        // tapaba justo el fallo de Android (su editor no lo llamaba, y salir de
+        // la Quest sin jugar perdia el mazo). Guardar en el editor tiene que
+        // bastar: lo hace QuestDeckContext.storage().
         final int decksBefore = NeoQuest.decks().size();
         editor.save();
-        NeoQuest.save();
         final int decksAfter = NeoQuest.decks().size();
         System.out.printf(Locale.ROOT, "  Mazos de la aventura: %d -> %d (guardado '%s')%n",
                 decksBefore, decksAfter, editor.getName());
@@ -1365,6 +1475,25 @@ public final class QuestCheck {
         System.out.printf(Locale.ROOT, "  Tras recargar la aventura, el mazo %s%n",
                 found ? "sigue ahi" : "SE HA PERDIDO");
         ok &= found;
+
+        // ---- y borrarlo tambien se escribe ----
+        final String extra = name + "-borrar";
+        final forge.neo.deck.DeckEditor second =
+                forge.neo.deck.DeckEditor.createNew(new QuestDeckContext(), extra);
+        second.add(owned, 1);
+        second.save();
+        new QuestDeckContext().storage().delete(extra);
+        NeoQuest.load(name);
+        boolean gone = true;
+        for (final Deck d : NeoQuest.decks()) {
+            if (d.getName().equals(extra)) {
+                gone = false;
+                break;
+            }
+        }
+        System.out.printf(Locale.ROOT, "  Un mazo borrado, tras recargar: %s%n",
+                gone ? "no esta (bien)" : "HA VUELTO");
+        ok &= gone;
 
         // ---- las reglas que se aplican son las de la AVENTURA ----
         //

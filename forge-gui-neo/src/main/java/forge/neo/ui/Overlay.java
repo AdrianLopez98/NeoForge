@@ -53,6 +53,47 @@ public class Overlay extends StackPane {
         this.onBackgroundClick = handler;
     }
 
+    /**
+     * Escape fuera de partida: cierra la capa de mas arriba que se cierra
+     * clicando fuera, igual que ese clic.
+     *
+     * <p>Discord, 11-10-2026, con el menu de una carta del constructor delante:
+     * <i>"make it so pressing esc in tabs like this work as hitting close
+     * instead of opening the config tab"</i>. Escape abria los ajustes por
+     * encima de lo que el jugador estaba mirando. Lo que se deja cerrar con un
+     * clic al lado (un menu, una consulta) se cierra con Escape; lo que espera
+     * una respuesta no tiene ese clic y no se toca.
+     *
+     * <p>"De mas arriba" es la ultima en el orden del arbol: la que JavaFX
+     * pinta encima.
+     *
+     * @return si ha cerrado alguna; si no, Escape sigue siendo lo de siempre
+     */
+    public static boolean dismissTopmost(final javafx.scene.Parent root) {
+        final Overlay top = topmostDismissable(root, null);
+        if (top == null) {
+            return false;
+        }
+        top.onBackgroundClick.run();
+        return true;
+    }
+
+    private static Overlay topmostDismissable(final javafx.scene.Node node, final Overlay found) {
+        if (node == null || !node.isVisible()) {
+            return found;
+        }
+        Overlay top = found;
+        if (node instanceof Overlay o && o.onBackgroundClick != null && o.getContent() != null) {
+            top = o;
+        }
+        if (node instanceof javafx.scene.Parent p) {
+            for (final javafx.scene.Node child : p.getChildrenUnmodifiable()) {
+                top = topmostDismissable(child, top);
+            }
+        }
+        return top;
+    }
+
     /** Muestra un dialogo centrado. */
     public void show(final Region content) {
         setPeeking(false);

@@ -105,16 +105,19 @@ public class CommandZone extends Pane {
     public void setCards(final List<CardView> command, final PlayerView owner) {
         lastCommand = command;
         lastOwner = owner;
+        // Las pilas de antes, para REUTILIZARLAS: esto se llama en cada
+        // refresco de la mesa, y un nodo nuevo entre pulsar y soltar se come
+        // el clic (el de lanzar tu comandante). Ver TableScreen.setHand.
+        final List<CardStackNode> before = new ArrayList<>(piles);
+        final Map<String, CardStackNode> reusable = new java.util.HashMap<>();
         for (final CardStackNode p : piles) {
-            getChildren().remove(p);
+            final String k = reuseKey(p.getFront().getCard(), p.getStackSize());
+            if (k != null) {
+                reusable.put(k, p);
+            }
         }
         piles.clear();
         cards.clear();
-        // Las cartas viejas se van con sus oyentes puestos: si una se
-        // reconstruye a mitad de un hover, ese aviso de "salida" ya no llega
-        // nunca. Sin este reinicio el contador se quedaria colgado.
-        hoveredCount = 0;
-        setViewOrder(0);
 
         int casts = 0;
         if (command != null) {
@@ -156,6 +159,20 @@ public class CommandZone extends Pane {
 
             for (int i = 0; i < shown.size(); i++) {
                 final CardView cv = shown.get(i);
+                final String k = reuseKey(cv, howMany.get(i));
+                final CardStackNode kept = k == null ? null : reusable.remove(k);
+                if (kept != null) {
+                    final CardNode n = kept.getFront();
+                    if (n.getCard() == cv) {
+                        n.refresh();
+                    } else {
+                        n.setCard(cv);
+                    }
+                    n.setCommanderStyle(cv.isCommander());
+                    piles.add(kept);
+                    cards.add(n);
+                    continue;
+                }
                 final CardStackNode pile = new CardStackNode(cardWidth, cv, howMany.get(i));
                 final CardNode n = pile.getFront();
                 n.setCommanderStyle(cv.isCommander());
@@ -163,7 +180,9 @@ public class CommandZone extends Pane {
                     if (is && onHover != null) {
                         onHover.accept(n);
                     }
-                    hoveredCount += is ? 1 : -1;
+                    // Se recuenta en vez de sumar y restar: una carta que se va
+                    // de la zona a mitad de hover avisa de su salida tarde.
+                    hoveredCount = (int) cards.stream().filter(CardNode::isHover).count();
                     // Delante del rail de fases y de la columna lateral, que
                     // se pintan DESPUES en TableScreen y por eso ganan siempre
                     // por defecto: una carta que crece con el hover
@@ -181,9 +200,24 @@ public class CommandZone extends Pane {
                 });
                 piles.add(pile);
                 cards.add(n);
-                getChildren().add(pile);
             }
         }
+        // Solo se toca el arbol si de verdad cambia: las mismas pilas en el
+        // mismo orden se quedan donde estan.
+        if (!piles.equals(before)) {
+            getChildren().removeAll(before);
+            getChildren().addAll(piles);
+        }
+        // Las cartas que se van se llevan sus oyentes puestos: si una se va a
+        // mitad de un hover, su aviso de "salida" no llega nunca. Se recuenta
+        // con las que quedan.
+        hoveredCount = 0;
+        for (final CardNode c : cards) {
+            if (c.isHover()) {
+                hoveredCount++;
+            }
+        }
+        setViewOrder(hoveredCount > 0 ? -1 : 0);
 
         // El impuesto son {2} por cada vez que ya se ha lanzado.
         if (casts > 0) {
@@ -193,6 +227,15 @@ public class CommandZone extends Pane {
             tax.setVisible(false);
         }
         requestLayout();
+    }
+
+    /**
+     * Con que se reconoce una pila de la vez anterior para reutilizarla: la
+     * carta (por id) y cuantas lleva. Las vistas solo de interfaz comparten un
+     * id negativo y no se reutilizan ({@code null}).
+     */
+    private static String reuseKey(final CardView cv, final int size) {
+        return cv == null || cv.getId() < 0 ? null : cv.getId() + "|" + size;
     }
 
     /**

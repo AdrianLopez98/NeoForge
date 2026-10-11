@@ -2058,6 +2058,8 @@ public final class DeckEditor {
                              final boolean searchRules) {
         final String q = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
         final Predicate<PaperCard> legal = onlyLegal ? legalFilter() : null;
+        // "boros", "esper", "wubrg": tambien la identidad exacta (ColorNames).
+        final int colors = forge.neo.card.ColorNames.maskOf(q);
 
         // Con basicas ofrecidas (la Aventura), las cinco salen de la edicion
         // elegida y no de la coleccion: ni repetidas ni solo las que tengas.
@@ -2069,7 +2071,9 @@ public final class DeckEditor {
                 // El filtro mas barato primero: descarta casi todo sin tocar reglas
                 // ni reservar memoria.
                 if (searchRules ? !in.matchesText(i, q) : !in.matches(i, q)) {
-                    continue;
+                    if (colors < 0 || !forge.neo.card.ColorNames.identityIs(in.cardAt(i), colors)) {
+                        continue;
+                    }
                 }
                 final PaperCard card = in.cardAt(i);
                 if (offeredBasics && !theBasics && card.isVeryBasicLand()) {
@@ -2383,7 +2387,29 @@ public final class DeckEditor {
 
     /** Las cartas que pueden ser comandante en este formato. */
     public List<PaperCard> commanderCandidates(final String query, final int limit) {
-        return commandZoneCandidates(query, limit, false);
+        return commandZoneCandidates(query, limit, false, null, false);
+    }
+
+    /**
+     * Igual, pero con los filtros del catalogo: el texto de reglas y el
+     * predicado fino (color, tipo, rareza, coste, fuerza, edicion, formato).
+     *
+     * <p>Discord, 11-10-2026: <i>"when making a commander deck and selecting
+     * your commander the rules text filter doesn't seem to work ... I only
+     * find possible commanders with defender in the name"</i>. La barra de
+     * filtros seguia a la vista al elegir comandante, pero esta busqueda solo
+     * miraba el nombre y el tipo: ni "Texto de reglas", ni los colores, ni el
+     * tipo, ni el coste hacian nada. Lo que NO entra aqui es "solo lo que
+     * cabe": eso pregunta por la identidad del comandante, que es justo lo que
+     * se esta eligiendo.
+     *
+     * @param extra       el filtro fino del catalogo, o null
+     * @param searchRules buscar tambien en el texto de reglas
+     */
+    public List<PaperCard> commanderCandidates(final String query, final int limit,
+                                               final Predicate<PaperCard> extra,
+                                               final boolean searchRules) {
+        return commandZoneCandidates(query, limit, false, extra, searchRules);
     }
 
     /**
@@ -2397,12 +2423,24 @@ public final class DeckEditor {
      * inventarnos una regla de construccion, que es justo lo que no hacemos.
      */
     public List<PaperCard> signatureCandidates(final String query, final int limit) {
-        return usesSignatureSpell() ? commandZoneCandidates(query, limit, true) : List.of();
+        return signatureCandidates(query, limit, null, false);
+    }
+
+    /** El hechizo insignia con los filtros del catalogo (ver el otro {@code commanderCandidates}). */
+    public List<PaperCard> signatureCandidates(final String query, final int limit,
+                                               final Predicate<PaperCard> extra,
+                                               final boolean searchRules) {
+        return usesSignatureSpell()
+                ? commandZoneCandidates(query, limit, true, extra, searchRules) : List.of();
     }
 
     private List<PaperCard> commandZoneCandidates(final String query, final int limit,
-                                                  final boolean spell) {
+                                                  final boolean spell,
+                                                  final Predicate<PaperCard> extra,
+                                                  final boolean searchRules) {
         final String q = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
+        // "golgari", "esper": la identidad exacta, como en el catalogo (find).
+        final int colors = forge.neo.card.ColorNames.maskOf(q);
         final DeckFormat df = deckFormat();
         final List<PaperCard> hits = new ArrayList<>();
         for (int i = 0; i < index.size(); i++) {
@@ -2418,7 +2456,15 @@ public final class DeckEditor {
                     ? c.getRules() != null && c.getRules().canBeSignatureSpell()
                             && df.isLegalCard(c)
                     : df.isLegalCommander(c.getRules());
-            if (index.matches(i, q) && fits) {
+            if (!fits) {
+                continue;
+            }
+            if (searchRules ? !index.matchesText(i, q) : !index.matches(i, q)) {
+                if (colors < 0 || !forge.neo.card.ColorNames.identityIs(c, colors)) {
+                    continue;
+                }
+            }
+            if (extra == null || extra.test(c)) {
                 hits.add(c);
             }
         }

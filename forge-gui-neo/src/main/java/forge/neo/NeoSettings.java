@@ -207,6 +207,35 @@ public final class NeoSettings {
         return getBool(PLANECHASE_SHARED, false);
     }
 
+    /**
+     * Archenemy en las partidas normales (Discord, 11-10-2026), como
+     * Planechase: en el pie del inicio, recordado y apagado de fabrica.
+     * {@code -Dneo.archenemy=true} lo fuerza. Ver
+     * {@code forge.neo.match.Archenemy}.
+     */
+    public static final String ARCHENEMY = "archenemy";
+
+    public static boolean archenemy() {
+        final String forced = System.getProperty("neo.archenemy");
+        if (forced != null && !forced.isEmpty()) {
+            return Boolean.parseBoolean(forced);
+        }
+        return getBool(ARCHENEMY, false);
+    }
+
+    /**
+     * Quien es el archienemigo: "me" (tu, como Forge de fabrica), "rival" (uno
+     * al azar) o "all" (Archenemy Rumble). {@code -Dneo.archenemy.who=...} lo
+     * fuerza.
+     */
+    public static final String ARCHENEMY_WHO = "archenemyWho";
+
+    public static forge.neo.match.Archenemy.Who archenemyWho() {
+        final String forced = System.getProperty("neo.archenemy.who");
+        return forge.neo.match.Archenemy.Who.byId(forced != null && !forced.isEmpty()
+                ? forced : get(ARCHENEMY_WHO, "me"));
+    }
+
     public static boolean handFan() {
         final String forced = System.getProperty("neo.handFan");
         if (forced != null && !forced.isEmpty()) {
@@ -748,6 +777,18 @@ public final class NeoSettings {
 
     public static boolean confirmNoBlock() {
         return getBool(CONFIRM_NO_BLOCK, false);
+    }
+
+    /**
+     * Preguntar antes del toque que cerraria una eleccion de "elige N cartas"
+     * (descartar, sacrificar...), que el motor confirma solo al llegar a N
+     * (Discord, 11-10-2026). Apagado de fabrica. Ver
+     * {@code forge.neo.match.PickGuard}. La misma clave en Android.
+     */
+    public static final String CONFIRM_LAST_PICK = "confirmLastPick";
+
+    public static boolean confirmLastPick() {
+        return getBool(CONFIRM_LAST_PICK, false);
     }
 
     /**

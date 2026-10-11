@@ -132,6 +132,15 @@ public final class SafeAi {
                 // Blindar es un extra: si fallara, la partida sigue como antes.
                 System.out.println("[ia] no se ha podido blindar la IA: " + e);
             }
+            // Y otro envoltorio del motor que tiene que ir en TODAS las
+            // partidas: el color elegido de Clara Oswald / The Prismatic Piper
+            // (ver CommanderColorKeeper). Va aqui porque este gancho ya pasa
+            // por todos los modos, en el PC, en Android y en la red.
+            try {
+                CommanderColorKeeper.install(match.getGame());
+            } catch (final RuntimeException e) {
+                System.out.println("[comandante] no se ha podido enganchar: " + e);
+            }
             if (extra != null) {
                 extra.run();
             }

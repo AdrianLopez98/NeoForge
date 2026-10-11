@@ -27,6 +27,11 @@ import forge.util.CardTranslation;
  * de Dominaria United. Sin tildes ni mayusculas: "relampago" encuentra
  * "Relampago" con tilde.
  *
+ * <p>Y los nombres de combinaciones de colores (Discord, 11-10-2026): "boros"
+ * casa tambien con los comandantes de identidad exactamente blanca y roja, y
+ * "esper dragon" con los dragones de blanco, azul y negro. Ver
+ * {@link forge.neo.card.ColorNames}.
+ *
  * <p>Lo de siempre, buscar por nombre, sale por el camino corto sin construir
  * nada. Lo demas se prepara la primera vez que hace falta para cada carta y se
  * guarda por nombre: son unos 11.000 comandantes y la impresion de cada uno
@@ -71,7 +76,8 @@ public final class CommanderSearch {
         }
         final String hay = haystack(card);
         for (final String w : words) {
-            if (!hay.contains(w)) {
+            if (!hay.contains(w) && !forge.neo.card.ColorNames.identityIs(card,
+                    forge.neo.card.ColorNames.maskOf(w))) {
                 return false;
             }
         }

@@ -184,6 +184,8 @@ public class QuestShopScreen extends StackPane {
     private final Button sellSpare = new Button();
     private final Button sellAll = new Button();
     private final Button sellFree = new Button();
+    /** Cambiar el arte de la carta elegida, pagando (NeoQuestArt). */
+    private final Button sellArt = new Button();
     private final Button sellUnused = new Button();
     private final CheckBox sellFreeOnly = new CheckBox();
     private final Label sellCount = new Label();
@@ -244,6 +246,36 @@ public class QuestShopScreen extends StackPane {
                 markPicked();
                 refreshSell();
             }
+        }
+
+        // -Dneo.shop.art="Llanowar Elves" (o "*", la primera que se pueda): en la pestanya de vender, abre el
+        // cambio de arte de esa carta; con -Dneo.shop.artPick=N elige ademas la
+        // impresion N y sale la pregunta. Para capturarlo sin raton (11-10-2026).
+        final String artAtStart = System.getProperty("neo.shop.art");
+        if (artAtStart != null && tab == Tab.SELL) {
+            final javafx.animation.PauseTransition wait =
+                    new javafx.animation.PauseTransition(javafx.util.Duration.millis(600));
+            wait.setOnFinished(e -> {
+                for (final PaperCard c : sellShown) {
+                    if (("*".equals(artAtStart) || c.getName().equalsIgnoreCase(artAtStart))
+                            && forge.neo.quest.NeoQuestArt.canChange(c)) {
+                        sellPicked.clear();
+                        sellPicked.add(c);
+                        markPicked();
+                        refreshSell();
+                        final int n = Integer.getInteger("neo.shop.artPick", 0);
+                        final List<PaperCard> arts = forge.neo.quest.NeoQuestArt.printingsOf(c);
+                        if (n > 0 && n <= arts.size()) {
+                            askArt(c, arts.get(n - 1), NeoQuestSell.owned(c));
+                        } else {
+                            chooseArt(c);
+                        }
+                        return;
+                    }
+                }
+                System.out.println("[tienda] -Dneo.shop.art: no tienes \"" + artAtStart + "\" o no tiene otro arte");
+            });
+            wait.play();
         }
 
         // Para capturar el buscador y "Que puede salir" sin raton (09-10-2026):
@@ -486,7 +518,10 @@ public class QuestShopScreen extends StackPane {
                             .showNote(QuestShopScreen::collectorLabel)
                             // Que puede salir en el de colector, igual que en
                             // el normal (Discord, 09-10-2026).
-                            .withPreview(e -> showPreview(e, true));
+                            .withPreview(e -> showPreview(e, true))
+                            // Y varios de una vez, con "otros N" al abrirlos,
+                            // como los normales (Discord, 11-10-2026).
+                            .withQuantity(NeoQuestShop::buyCollector);
                 }
                 page.getChildren().setAll(collectorPane);
                 collectorPane.reload();
@@ -545,7 +580,7 @@ public class QuestShopScreen extends StackPane {
                             NeoText.get("shop.boxes.empty"),
                             NeoText.get("shop.pickBox"),
                             NeoQuestShop::boxes,
-                            forge.item.SealedProduct::getName,
+                            NeoQuestShop::productName,
                             NeoQuestShop::buyBox,
                             NeoQuestShop::priceOfItem,
                             NeoText.get("shop.boughtBox"))
@@ -726,22 +761,18 @@ public class QuestShopScreen extends StackPane {
         if (chosenSingle == null || opening) {
             return;
         }
-        final NeoQuestShop.Opened bought = NeoQuestShop.buySingle(chosenSingle);
+        final PaperCard card = chosenSingle;
+        final NeoQuestShop.Opened bought = NeoQuestShop.buySingle(card);
         if (bought == null) {
             return;
         }
-        opening = true;
+        // Sin panel de "lo que te ha tocado" (Discord, 11-10-2026: "I find it
+        // useless and just breaks flow"): la carta ya la has visto al elegirla,
+        // y ya has pulsado comprar. Se dice en el pie y se sigue comprando.
         chosenSingle = null;
-        refreshSingle();
-        refreshMoney();
-        overlay.setOnBackgroundClick(this::closeOpened);
-        overlay.show(CardHaul.panel(
-                NeoText.get("shop.boughtCard"),
-                NeoText.get("shop.openedDetail", bought.getCards().size(),
-                        bought.getNewCount(), bought.getPaid()),
-                bought.getCards(), bought::isNew, null,
-                cardWidth, getWidth(), getHeight(),
-                this::closeOpened));
+        reloadSingles();
+        singleName.setText(NeoText.get("shop.boughtSingle",
+                forge.neo.card.CardText.nameOf(card), bought.getPaid()));
         if (onOpened != null) {
             onOpened.run();
         }
@@ -1085,11 +1116,24 @@ public class QuestShopScreen extends StackPane {
         sellFree.setMinWidth(Region.USE_PREF_SIZE);
         sellFree.setOnAction(e -> takeSell(Mode.FREE));
 
+        // Cambiar el arte (Discord, 11-10-2026): aqui, junto a vender, porque es
+        // donde se mira una impresion concreta de tu coleccion.
+        sellArt.getStyleClass().add("btn-secondary");
+        sellArt.setMinWidth(Region.USE_PREF_SIZE);
+        sellArt.setText(NeoText.get("shop.art.button"));
+        sellArt.managedProperty().bind(sellArt.visibleProperty());
+        sellArt.setVisible(false);
+        sellArt.setOnAction(e -> {
+            if (sellPicked.size() == 1) {
+                chooseArt(sellPicked.iterator().next());
+            }
+        });
+
         final Region gap = new Region();
         HBox.setHgrow(gap, Priority.ALWAYS);
         final VBox info = new VBox(2, sellName, sellPrice, sellNote);
         info.setMinWidth(0);
-        final HBox row = new HBox(12, info, gap, sellSpare, sellFree, sellOne);
+        final HBox row = new HBox(12, info, gap, sellArt, sellSpare, sellFree, sellOne);
         row.setAlignment(Pos.CENTER_LEFT);
         row.getStyleClass().add("stat-tile");
         row.setPadding(new Insets(14, 18, 14, 18));
@@ -1268,6 +1312,7 @@ public class QuestShopScreen extends StackPane {
         sellFree.setText(NeoText.get("shop.sell.free", freeCount));
         sellFree.setDisable(opening || freeCount <= 0);
 
+        sellArt.setVisible(false);
         if (sellPicked.isEmpty()) {
             sellName.setText(NeoText.get("shop.sell.pick"));
             sellPrice.setText("");
@@ -1305,6 +1350,76 @@ public class QuestShopScreen extends StackPane {
                 : extra > 0 ? NeoText.get("shop.sell.hasSpare", extra)
                 : NeoText.get("shop.sell.noSpareHere"));
         sellOne.setDisable(opening || have <= 0);
+        sellArt.setVisible(forge.neo.quest.NeoQuestArt.canChange(card));
+        sellArt.setDisable(opening);
+    }
+
+    /**
+     * Elegir otro arte para una carta de tu coleccion, pagando (Discord,
+     * 11-10-2026: <i>"a card art changer ... Change price could be based on
+     * it's rarity"</i>). El selector de arte de siempre, con lo que cuesta cada
+     * una debajo y cuantas copias; al elegir, se pregunta con la cuenta hecha.
+     * Ver {@link forge.neo.quest.NeoQuestArt}.
+     */
+    private void chooseArt(final PaperCard card) {
+        final List<PaperCard> arts = new ArrayList<>();
+        arts.add(card);
+        arts.addAll(forge.neo.quest.NeoQuestArt.printingsOf(card));
+        if (arts.size() <= 1 || opening) {
+            return;
+        }
+        final int have = NeoQuestSell.owned(card);
+        overlay.setOnBackgroundClick(overlay::hide);
+        final PrintingDialog[] dialog = new PrintingDialog[1];
+        dialog[0] = new PrintingDialog(card, arts, cardWidth, picked -> {
+            if (picked.equals(card)) {
+                return;
+            }
+            final int n = Math.max(1, Math.min(have, dialog[0].copies()));
+            askArt(card, picked, n);
+        }, overlay::hide, NeoText.get("shop.art.title", forge.neo.card.CardText.nameOf(card)),
+                NeoText.get("shop.art.hint"),
+                Math.min(UiScale.px(520), cardWidth * forge.neo.card.CardNode.ASPECT * 2 + 60))
+                .offerCopies(have);
+        dialog[0].withHelp(NeoText.get("shop.art.hint"))
+                .withNote(p -> NeoText.get("shop.art.price", forge.neo.quest.NeoQuestArt.priceOf(p)),
+                        p -> NeoQuest.credits() >= forge.neo.quest.NeoQuestArt.priceOf(p));
+        overlay.show(dialog[0]);
+    }
+
+    private void askArt(final PaperCard from, final PaperCard to, final int copies) {
+        final int total = forge.neo.quest.NeoQuestArt.priceOf(to) * copies;
+        final boolean afford = NeoQuest.credits() >= total;
+        overlay.setOnBackgroundClick(overlay::hide);
+        if (!afford) {
+            overlay.show(new ConfirmDialog(NeoText.get("shop.art.confirm.title"),
+                    NeoText.get("shop.art.cannotAfford", total, NeoQuest.credits()),
+                    List.of(NeoText.get("common.back")), 0, choice -> overlay.hide()));
+            return;
+        }
+        overlay.show(new ConfirmDialog(NeoText.get("shop.art.confirm.title"),
+                NeoText.get("shop.art.confirm", copies, forge.neo.card.CardText.nameOf(from),
+                        from.getEdition(), to.getEdition(), total),
+                List.of(NeoText.get("shop.art.confirm.go"), NeoText.get("common.cancel")), 1,
+                choice -> {
+                    overlay.hide();
+                    if (choice == 0 && forge.neo.quest.NeoQuestArt.change(from, to, copies) >= 0) {
+                        // La nueva queda elegida: es la que acabas de pagar.
+                        sellPicked.clear();
+                        reloadSell();
+                        for (final PaperCard c : sellShown) {
+                            if (c.equals(to)) {
+                                sellPicked.add(c);
+                                break;
+                            }
+                        }
+                        markPicked();
+                        refreshSell();
+                        if (onOpened != null) {
+                            onOpened.run();
+                        }
+                    }
+                }));
     }
 
     private static int count(final java.util.Map<PaperCard, Integer> plan) {
@@ -2144,6 +2259,18 @@ public class QuestShopScreen extends StackPane {
         private java.util.function.Consumer<T> previewing;
         private final Label emptyLabel;
 
+        /**
+         * Comprar varios de una vez, solo si la pagina lo pide
+         * ({@link #withQuantity}). Sin esto el mostrador es de uno en uno, como
+         * siempre.
+         */
+        private java.util.function.BiFunction<T, Integer, NeoQuestShop.Opened> purchaseMany;
+        private int many = Math.max(1, Math.min(MAX_QUANTITY, Integer.getInteger("neo.shop.quantity", 1)));
+        private final Button fewerIt = new Button("\u2212");
+        private final Button moreIt = new Button("+");
+        private final Label manyLabel = new Label();
+        private final HBox manyBox = new HBox(4, fewerIt, manyLabel, moreIt);
+
         private List<T> items = new ArrayList<>();
         private List<T> shown = new ArrayList<>();
         private T picked;
@@ -2224,8 +2351,26 @@ public class QuestShopScreen extends StackPane {
                     previewing.accept(picked);
                 }
             });
+            // Cuantos: pegado a comprar, igual que en la pestanya de sobres.
+            manyLabel.getStyleClass().add("quest-deck-name");
+            manyLabel.setMinWidth(UiScale.px(44));
+            manyLabel.setAlignment(Pos.CENTER);
+            fewerIt.getStyleClass().add("segment");
+            moreIt.getStyleClass().add("segment");
+            fewerIt.setOnAction(e -> setMany(many - 1));
+            moreIt.setOnAction(e -> setMany(many + 1));
+            manyBox.setAlignment(Pos.CENTER);
+            manyBox.setMinWidth(Region.USE_PREF_SIZE);
+            final javafx.scene.control.Tooltip howMany =
+                    new javafx.scene.control.Tooltip(NeoText.get("shop.quantity"));
+            javafx.scene.control.Tooltip.install(manyBox, howMany);
+            fewerIt.setTooltip(howMany);
+            moreIt.setTooltip(howMany);
+            manyBox.setManaged(false);
+            manyBox.setVisible(false);
+
             final HBox row = new HBox(16,
-                    new VBox(2, chosenName, chosenPrice, chosenNote), gap, previewIt, take);
+                    new VBox(2, chosenName, chosenPrice, chosenNote), gap, previewIt, manyBox, take);
             row.setAlignment(Pos.CENTER_LEFT);
             row.getStyleClass().add("stat-tile");
             row.setPadding(new Insets(14, 18, 14, 18));
@@ -2246,6 +2391,27 @@ public class QuestShopScreen extends StackPane {
             previewIt.setManaged(f != null);
             previewIt.setVisible(f != null);
             return this;
+        }
+
+        /**
+         * Un selector de cuantos junto a comprar, y "otros N" al abrirlos. Para
+         * lo que es un sobre: el mismo producto se puede comprar otra vez.
+         */
+        ProductPage<T> withQuantity(final java.util.function.BiFunction<T, Integer, NeoQuestShop.Opened> f) {
+            this.purchaseMany = f;
+            manyBox.setManaged(f != null);
+            manyBox.setVisible(f != null);
+            return this;
+        }
+
+        private void setMany(final int n) {
+            many = Math.max(1, Math.min(MAX_QUANTITY, n));
+            refresh();
+        }
+
+        /** Cuantos compra el boton: siempre 1 si la pagina no lo pide. */
+        private int count() {
+            return purchaseMany == null ? 1 : many;
         }
 
         /** La linea suelta debajo del nombre (las hojas de arte, el tipo). */
@@ -2407,20 +2573,33 @@ public class QuestShopScreen extends StackPane {
 
         private void refresh() {
             previewIt.setDisable(picked == null);
+            final int n = count();
+            manyLabel.setText("\u00d7" + n);
+            fewerIt.setDisable(n <= 1);
+            take.setText(n == 1 ? NeoText.get("shop.buyCard") : NeoText.get("shop.buyMany", n));
             if (picked == null) {
                 chosenName.setText(pickPrompt);
                 chosenPrice.setText("");
                 setDetail(null);
                 take.setDisable(true);
+                moreIt.setDisable(n >= MAX_QUANTITY);
                 return;
             }
             final int price = pricing.applyAsInt(picked);
-            final boolean afford = NeoQuest.credits() >= price;
+            final int total = price * n;
+            final boolean afford = NeoQuest.credits() >= total;
             chosenName.setText(naming.apply(picked));
-            chosenPrice.setText(afford ? NeoText.get("shop.cardPrice", price)
-                    : NeoText.get("shop.cannotAfford", price));
+            if (n == 1) {
+                chosenPrice.setText(afford ? NeoText.get("shop.cardPrice", price)
+                        : NeoText.get("shop.cannotAfford", price));
+            } else {
+                chosenPrice.setText(NeoText.get(afford ? "shop.priceMany" : "shop.cannotAffordMany", n, total));
+            }
             setDetail(detailing == null ? null : detailing.apply(picked));
             take.setDisable(opening || !afford);
+            // Mas solo si llega, como en los sobres normales: subir a un numero
+            // que no puedes pagar apaga comprar sin que se vea por que.
+            moreIt.setDisable(n >= MAX_QUANTITY || NeoQuest.credits() < price * (n + 1));
         }
 
         private void setDetail(final String text) {
@@ -2434,21 +2613,41 @@ public class QuestShopScreen extends StackPane {
             if (picked == null || opening) {
                 return;
             }
-            final String productName = naming.apply(picked);
-            final NeoQuestShop.Opened bought = purchase.apply(picked);
+            buy(picked, count());
+        }
+
+        private boolean buy(final T item, final int n) {
+            final String productName = n == 1 ? naming.apply(item) : n + " \u00d7 " + naming.apply(item);
+            final NeoQuestShop.Opened bought = n == 1 || purchaseMany == null
+                    ? purchase.apply(item) : purchaseMany.apply(item, n);
             if (bought == null) {
-                return;
+                return false;
             }
             opening = true;
-            picked = null;
+            // Con cantidad se queda elegido: el mismo sobre se vuelve a comprar.
+            // Sin ella (un preconstruido, una caja) puede que ya no este.
+            if (purchaseMany == null) {
+                picked = null;
+            }
             refresh();
             refreshMoney();
             overlay.setOnBackgroundClick(QuestShopScreen.this::closeOpened);
             if (tab == Tab.BOXES || tab == Tab.COLLECTOR) {
-                overlay.show(new PackOpening(haulTitle + " · " + productName,
+                final PackOpening panel = new PackOpening(haulTitle + " · " + productName,
                         NeoText.get("shop.openedDetail", bought.getCards().size(), bought.getNewCount(), bought.getPaid()),
                         bought.getCards(), bought::isNew, QuestShopScreen.this.getWidth(), QuestShopScreen.this.getHeight(),
-                        QuestShopScreen.this::closeOpened));
+                        QuestShopScreen.this::closeOpened);
+                if (purchaseMany != null) {
+                    // Otro igual sin salir de aqui, como en los sobres normales.
+                    final int next = pricing.applyAsInt(item) * n;
+                    panel.setAgain((n == 1 ? NeoText.get("shop.again") : NeoText.get("shop.againMany", n))
+                                    + "  \u00b7  " + NeoText.get("shop.credits.short", next),
+                            NeoQuest.credits() >= next, () -> {
+                                opening = false;
+                                return buy(item, n);
+                            });
+                }
+                overlay.show(panel);
             } else overlay.show(CardHaul.panel(
                     haulTitle,
                     NeoText.get("shop.openedDetail", bought.getCards().size(),
@@ -2462,6 +2661,7 @@ public class QuestShopScreen extends StackPane {
             if (onOpened != null) {
                 onOpened.run();
             }
+            return true;
         }
 
         /** Herramienta de prueba: elige el primero y pulsa el boton de verdad. */
