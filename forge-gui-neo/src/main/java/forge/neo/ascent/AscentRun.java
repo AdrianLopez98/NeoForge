@@ -720,12 +720,25 @@ public final class AscentRun {
     /** Por debajo de esto no puede bajar el techo de vida. */
     public static final int MIN_MAX_LIFE = 10;
 
+    /** Sube el techo de vida, y cura lo mismo que sube (como en Slay the Spire). */
     public void raiseMaxLife(final int amount) {
+        raiseMaxLife(amount, true);
+    }
+
+    /**
+     * Sube el techo de vida; con {@code heal} cura ademas lo mismo que sube.
+     * Sin curar lo usa el maestro, que COBRA vida ahora a cambio de techo
+     * (Discord, 12-10-2026: a 15/23, "−5 vidas y +3 de vida maxima" dejaba
+     * 13/26 por esa cura, y el boton promete 10/26).
+     */
+    public void raiseMaxLife(final int amount, final boolean heal) {
         if (amount <= 0) {
             return;
         }
         maxLife += amount;
-        life = Math.min(maxLife, life + amount);
+        if (heal) {
+            life = Math.min(maxLife, life + amount);
+        }
         save();
     }
 

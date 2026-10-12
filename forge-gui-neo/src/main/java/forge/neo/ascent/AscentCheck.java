@@ -3840,6 +3840,22 @@ public final class AscentCheck {
                 }
             }
 
+            // 6b. El maestro cobra vida de AHORA por techo: −5 y +3, sin la cura
+            //     de subir el techo (Discord, 12-10-2026: 15/23 dejaba 13/26).
+            final AscentEvent maestro = AscentEvent.byId("teacher");
+            if (maestro != null && run.getLife() > 5) {
+                final int vidaMaestro = run.getLife();
+                final int techoMaestro = run.getMaxLife();
+                maestro.getChoices().get(0).apply(run, new Random(7));
+                if (run.getLife() == vidaMaestro - 5 && run.getMaxLife() == techoMaestro + 3) {
+                    ok("eventos: el maestro cobra 5 vidas de ahora y sube 3 el techo ("
+                            + vidaMaestro + "/" + techoMaestro + " -> " + run.getLife() + "/" + run.getMaxLife() + ")");
+                } else {
+                    fail("eventos: el maestro ha dejado " + run.getLife() + "/" + run.getMaxLife()
+                            + " desde " + vidaMaestro + "/" + techoMaestro + " (tenia que ser −5 y +3)");
+                }
+            }
+
             // 7. La apuesta sale a las dos: si sale siempre igual, no es una
             //    apuesta. Se tira muchas veces con semillas distintas.
             final AscentEvent tahur = AscentEvent.byId("gambler");
@@ -4519,7 +4535,8 @@ public final class AscentCheck {
         for (final PaperCard p : bolts) {
             if (plain == null) {
                 plain = p;
-            } else if (!p.getEdition().equals(plain.getEdition())) {
+            } else if (!p.getEdition().equals(plain.getEdition()) && AscentArt.sameRarity(p, plain)) {
+                // De la misma rareza: uno de otra no entra (ver abajo).
                 fav = p;
                 break;
             }
@@ -4551,6 +4568,74 @@ public final class AscentCheck {
         } else {
             fail("artes favoritos: toma " + takes + ", pozo " + poolWins + ", intacta " + untouched
                     + ", mazo " + deckOk);
+        }
+
+        // ⚠️ Y un favorito de OTRA rareza no entra (12-10-2026). Secret Lair
+        // imprime como rara lo que en su expansion es infrecuente, y con la de
+        // SLD de favorito el mazo de salida de Estandar salia con una rara: "se
+        // han colado 1 cartas raras/miticas: Pitiless Plunderer (SLD, R)", de
+        // tarde en tarde y solo en el ordenador que tenia ese favorito puesto.
+        // Aqui, el mismo caso sin depender de las preferencias de nadie.
+        PaperCard rix = null;
+        PaperCard sld = null;
+        PaperCard spg = null;
+        for (final PaperCard p : AscentDecks.printingsOf(
+                FModel.getMagicDb().getCommonCards().getCard("Pitiless Plunderer"))) {
+            if (rix == null && "RIX".equals(p.getEdition())) {
+                rix = p;
+            } else if (sld == null && "SLD".equals(p.getEdition())) {
+                sld = p;
+            } else if (spg == null && "SPG".equals(p.getEdition())) {
+                spg = p;
+            }
+        }
+        if (rix == null || sld == null || spg == null
+                || AscentArt.sameRarity(rix, sld) || !AscentArt.sameRarity(rix, spg)) {
+            fail("favorito de otra rareza: Pitiless Plunderer ya no tiene RIX y SPG infrecuentes y SLD"
+                    + " rara para probarlo (RIX " + rix + ", SLD " + sld + ", SPG " + spg + ")");
+            return;
+        }
+        final PaperCard sldFav = sld;
+        final PaperCard spgFav = spg;
+        final boolean rareStays = AscentArt.favourite(rix, AscentPool.ALL, n -> sldFav) == rix;
+        final boolean sameTakes = AscentArt.favourite(rix, AscentPool.ALL, n -> spgFav) == spgFav;
+
+        // Y con el mazo de salida de verdad: favoritos de mentira que apuntan,
+        // para CADA carta, a una impresion rara o mitica si la tiene (las
+        // basicas de SLD tambien son raras). Es el ultimo paso de generate().
+        final java.util.function.Function<String, PaperCard> rarest = n -> {
+            for (final PaperCard p : FModel.getMagicDb().getCommonCards().getAllCards(n)) {
+                if (p.getRarity() == forge.card.CardRarity.Rare
+                        || p.getRarity() == forge.card.CardRarity.MythicRare) {
+                    return p;
+                }
+            }
+            return null;
+        };
+        int tempted = 0;
+        final List<String> leaked = new ArrayList<>();
+        for (int i = 0; i < 6; i++) {
+            final Deck d = AscentSeedDeck.generate(AscentRun.Mode.STANDARD, "favorito-raro-" + i);
+            for (final Map.Entry<PaperCard, Integer> e : d.getMain()) {
+                if (rarest.apply(e.getKey().getName()) != null) {
+                    tempted++;
+                }
+            }
+            AscentArt.withFavourites(d, AscentPool.ALL, rarest);
+            for (final Map.Entry<PaperCard, Integer> e : d.getMain()) {
+                final forge.card.CardRarity r = e.getKey().getRarity();
+                if (r == forge.card.CardRarity.Rare || r == forge.card.CardRarity.MythicRare) {
+                    leaked.add(e.getKey().getName() + " (" + e.getKey().getEdition() + ", " + r + ")");
+                }
+            }
+        }
+        if (rareStays && sameTakes && tempted > 0 && leaked.isEmpty()) {
+            ok("favorito de otra rareza: Pitiless Plunderer de RIX se queda con la suya si el favorito es"
+                    + " el de SLD (rara) y coge el de SPG (infrecuente); 6 mazos de salida de Estandar con "
+                    + tempted + " cartas con favorito raro de mentira, y ni una rara dentro");
+        } else {
+            fail("favorito de otra rareza: SLD rechazado " + rareStays + ", SPG cogido " + sameTakes
+                    + ", tentadas " + tempted + ", coladas " + leaked);
         }
     }
 

@@ -110,9 +110,22 @@ public class LimitedEventsScreen extends BorderPane {
         }
     }
 
+    /**
+     * Como se llama un evento a la vista: el nombre que le ha puesto el
+     * jugador, los temas de Jumpstart o su nombre ("Sellado 3" en el idioma
+     * de la interfaz). Ver {@link DraftRun#displayName}.
+     */
+    public static String title(final DraftRun run) {
+        final String shown = run.displayName();
+        if (shown.equals(run.getName()) && run.defaultNumber() > 0) {
+            return NeoText.get("events.sealed.numbered", run.defaultNumber());
+        }
+        return shown;
+    }
+
     /** Un evento guardado: nombre, mazo y como va la tanda. */
     private Region row(final DraftRun run) {
-        final Label name = new Label(run.getName());
+        final Label name = new Label(title(run));
         name.getStyleClass().add("quest-deck-name");
 
         final int deck = run.getDeck() == null ? 0 : run.getDeck().getMain().countAll();
@@ -122,7 +135,10 @@ public class LimitedEventsScreen extends BorderPane {
                 : played == 0 ? NeoText.get("events.state.new")
                 : NeoText.get("events.state.running", run.getWins(), run.getLosses(),
                         run.opponents().size());
-        final Label detail = new Label(NeoText.get("events.detail", deck, state)
+        // Con nombre propio, los temas de Jumpstart pasan a la segunda linea.
+        final String themes = run.getLabel() != null ? run.themes() : null;
+        final Label detail = new Label((themes != null ? themes + "  ·  " : "")
+                + NeoText.get("events.detail", deck, state)
                 + (run.isArena() ? "  ·  " + NeoText.get("events.arena") : ""));
         detail.getStyleClass().add("home-subtitle");
 
@@ -136,22 +152,46 @@ public class LimitedEventsScreen extends BorderPane {
         open.setMinWidth(Region.USE_PREF_SIZE);
         open.setOnAction(e -> actions.open(run));
 
+        final Button rename = new Button(NeoText.get("events.rename"));
+        rename.getStyleClass().add("btn-secondary");
+        rename.setMinWidth(Region.USE_PREF_SIZE);
+        rename.setOnAction(e -> askLabel(run));
+
         final Button bin = new Button(NeoText.get("questPick.delete"));
         bin.getStyleClass().add("btn-danger");
         bin.setMinWidth(Region.USE_PREF_SIZE);
         bin.setOnAction(e -> confirmDelete(run));
 
-        final HBox row = new HBox(14, text, open, bin);
+        final HBox row = new HBox(14, text, open, rename, bin);
         row.setAlignment(Pos.CENTER_LEFT);
         row.getStyleClass().add("quest-save-row");
         row.setMaxWidth(UiScale.px(720));
 
-        // Toda la fila vale para entrar; la papelera consume su click.
+        // Toda la fila vale para entrar; renombrar y la papelera consumen su click.
         row.setCursor(javafx.scene.Cursor.HAND);
         row.setOnMouseClicked(e -> actions.open(run));
+        rename.addEventHandler(javafx.scene.input.MouseEvent.MOUSE_CLICKED,
+                javafx.event.Event::consume);
         bin.addEventHandler(javafx.scene.input.MouseEvent.MOUSE_CLICKED,
                 javafx.event.Event::consume);
         return row;
+    }
+
+    /**
+     * Ponerle nombre (Discord, 12-10-2026: <i>"a way for us to rename our
+     * sealed decks ... to remember what we were playing with"</i>). Vacio
+     * vuelve al de siempre. Es una etiqueta: ver {@link DraftRun#getLabel}.
+     */
+    private void askLabel(final DraftRun run) {
+        overlay.setOnBackgroundClick(overlay::hide);
+        overlay.show(TextDialog.line(NeoText.get("events.rename.title"),
+                NeoText.get("events.rename.hint", DraftRun.MAX_LABEL), title(run),
+                label -> {
+                    overlay.hide();
+                    run.setLabel(label);
+                    refresh();
+                },
+                overlay::hide));
     }
 
     /** Pregunta antes de borrar: se van tu pool y los mazos de los rivales. */
@@ -159,7 +199,7 @@ public class LimitedEventsScreen extends BorderPane {
         overlay.setOnBackgroundClick(overlay::hide);
         overlay.show(new ConfirmDialog(
                 NeoText.get("events.delete.ask"),
-                NeoText.get("events.delete.detail", run.getName()),
+                NeoText.get("events.delete.detail", title(run)),
                 List.of(NeoText.get("questPick.delete.yes"), NeoText.get("common.cancel")), 1,
                 choice -> {
                     overlay.hide();

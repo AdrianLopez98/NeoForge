@@ -350,6 +350,38 @@ public final class SealedCheck {
         ok &= group != null && mine >= 36 && mine <= 46 && fromTheme >= 10
                 && rivalsOk == NeoSealed.OPPONENTS
                 && group.getHumanDeck().getOrCreate(forge.deck.DeckSection.Sideboard).isEmpty();
+
+        // Como se llama en la lista (Discord, 12-10-2026: "say 'goblins/dinosaurs'
+        // ... or a way to rename"): los dos temas sin el numero de variante, el
+        // nombre del jugador manda, vacio vuelve a los temas, y borrar el evento
+        // se lleva tambien la etiqueta.
+        if (group != null) {
+            final DraftRun run = DraftRun.of(name, DraftRun.Kind.SEALED);
+            final java.util.List<String> parts = new java.util.ArrayList<>();
+            for (final String p : group.getHumanDeck().getComment().split(" \\+ ")) {
+                final String plain = p.trim().replaceAll("\\s+\\d+$", "");
+                if (!parts.contains(plain)) {
+                    parts.add(plain);
+                }
+            }
+            final String expected = String.join(" + ", parts);
+            final String shown = run.themes();
+            final boolean themesOk = expected.equals(shown) && expected.equals(run.displayName());
+            run.setLabel("  Goblins y dinos  ");
+            final boolean labelOk = "Goblins y dinos".equals(
+                    DraftRun.of(name, DraftRun.Kind.SEALED).displayName());
+            run.setLabel("");
+            final boolean clearOk = DraftRun.of(name, DraftRun.Kind.SEALED).getLabel() == null
+                    && expected.equals(DraftRun.of(name, DraftRun.Kind.SEALED).displayName());
+            run.setLabel("otra");
+            DraftRun.of(name, DraftRun.Kind.SEALED).discard();
+            final boolean goneOk = DraftRun.of(name, DraftRun.Kind.SEALED).getLabel() == null;
+            System.out.printf(Locale.ROOT,
+                    "  En la lista: \"%s\" (comentario \"%s\") | nombre propio %s | vacio vuelve %s | al borrar %s%n",
+                    shown, group.getHumanDeck().getComment(), labelOk ? "manda" : "NO MANDA",
+                    clearOk ? "si" : "NO", goneOk ? "se va" : "SE QUEDA");
+            ok &= themesOk && labelOk && clearOk && goneOk;
+        }
         borrar(name);
         System.out.println(ok ? "  OK Jumpstart" : "  FALLO en Jumpstart");
         return ok;

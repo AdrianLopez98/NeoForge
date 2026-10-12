@@ -716,8 +716,11 @@ public final class AscentEvent {
                 new Choice("ascent.event.opt.train", new Object[]{TEACHER_LIFE, TEACHER_MAX},
                         run -> run.getLife() > TEACHER_LIFE, "ascent.event.needLife",
                         (run, rnd) -> {
+                            // Sin la cura de subir el techo: el precio son
+                            // las 5 vidas de AHORA, como dice el boton. Con
+                            // ella costaba 2 y no habia nada que decidir.
                             run.hurt(TEACHER_LIFE);
-                            run.raiseMaxLife(TEACHER_MAX);
+                            run.raiseMaxLife(TEACHER_MAX, false);
                             return new Outcome("ascent.event.res.maxLife", Extra.NONE,
                                     TEACHER_MAX, run.getMaxLife());
                         }),

@@ -94,6 +94,19 @@ final class NeoAppAscent {
             }
             System.out.println("[ascenso] prueba: saltado a la victoria — " + run);
         }
+        final String skipRows = System.getProperty("neo.ascent.skipTo", "");
+        if (skipRows.startsWith("rows:")) {
+            // SOLO PRUEBAS: N nodos del acto resueltos sin jugarlos, cogiendo
+            // siempre el ULTIMO accesible, para que el camino zigzaguee por el
+            // mapa y se pueda capturar como se pinta (Discord, 12-10-2026: el
+            // camino hecho salia en gris y otro en azul). Con -Dneo.settingsFile.
+            int left = Integer.parseInt(skipRows.substring(5).trim());
+            while (left-- > 0 && !run.actCleared() && !run.available().isEmpty()) {
+                final java.util.List<AscentNode> next = run.available();
+                run.clear(next.get(next.size() - 1));
+            }
+            System.out.println("[ascenso] prueba: nodos resueltos — " + run);
+        }
         if (Boolean.getBoolean("neo.ascent.loseNow")) {
             // SOLO PRUEBAS: cierra la run como si se hubiera perdido el duelo,
             // por el mismo gameOver del juego (el resumen y, en modo infinito,

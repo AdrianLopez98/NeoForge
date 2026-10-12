@@ -592,8 +592,15 @@ public class AscentMapScreen extends StackPane {
                 if (to == null) {
                     continue;
                 }
-                final boolean live = reachable.contains(next.key()) && !from.node.isCleared()
-                        || from.node.isCleared() && next.isCleared();
+                // Vivo = el camino hecho (de superado a superado) y lo que se
+                // puede coger DESDE DONDE ESTAS: el nodo superado que tiene
+                // salida a uno accesible, que solo es el actual (los accesibles
+                // estan en la fila siguiente). Antes se miraba "origen NO
+                // superado", y salia en azul un camino desde un nodo por el que
+                // no habias pasado y en gris el que si (Discord, 12-10-2026).
+                // Es la misma regla que Android (AscentBridge, "actual").
+                final boolean live = from.node.isCleared()
+                        && (reachable.contains(next.key()) || next.isCleared());
                 g.setFill(live ? Color.web("#4A9BE0") : Color.web("#7A6D55", 0.75));
 
                 final double x1 = from.getLayoutX();

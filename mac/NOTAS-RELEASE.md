@@ -1,14 +1,14 @@
-**NeoForge para macOS 1.0.20 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.21 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Quest:** sobres de tierras básicas en todas las tiendas (siete de un mismo tipo), varios sobres de colector de una vez, cambiar el arte de una carta pagando, y «Qué puede salir» con los filtros de la enciclopedia.
-- **Mazos:** al elegir comandante ya valen los filtros (texto de reglas, color, tipo, coste), y se busca por nombre de combinación de colores: Boros, Esper, WUBRG...
-- **En partida:** las tierras de la mesa juntas por color, los dados se ven tirar, las cartas jugables ya no pierden el borde azul, y un ajuste para preguntar antes de cerrar una elección de cartas.
-- **Ascenso:** «El mapa» desde cualquier pantalla de un nodo, y pasar el ratón por una reliquia enseña la reliquia.
-- **Pantalla:** mover el juego a otro monitor de otra resolución ya no lo descuadra; Escape cierra el menú de una carta.
-- **Forge al día:** Marvel: Darkhold Destiny y su Commander.
-- **Arreglos:** Clara Oswald y The Prismatic Piper conservan su color elegido al lanzarlas desde la zona de mando (antes All Is Dust se las saltaba); una reliquia de Ascenso ya no se cuela en el mazo de salida.
-- **Resubida:** un ajuste para preguntar antes de activar la habilidad de un permanente (para no activarla sin querer), y en la Quest «vender lo que no va en un mazo» ya no se lleva cartas de un mazo que lleva otra impresión que la tuya.
+- **Archenemy:** también en la partida en red (el anfitrión lo pone en la sala: uno contra todos o Rumble), y ahora solo se ofrece a cuatro jugadores, que es para lo que está hecho.
+- **Partidas largas:** gastan mucha menos memoria. El motor guardaba una copia de la mesa entera cada vez que se usaba algo y no la soltaba nunca; ahora se sueltan una vez por turno.
+- **Mazos:** en los otros formatos la lista (y tus rivales) solo trae mazos legales; filtrar los mazos por formato y por expansión; importar de un enlace conserva el nombre del mazo; y «Agrupar» en el constructor (por tipo, color, coste o rareza).
+- **Sellado y draft:** renombrar y borrar cualquier evento, y un Jumpstart se llama por sus temas.
+- **Planechase:** la IA ya tira el dado planar, y la tirada se ve.
+- **Ascenso:** el maestro cobra lo que dice el botón, el camino del mapa se pinta bien, y un arte favorito de otra rareza ya no cuela raras en el mazo de salida.
+- **Arreglos:** salir al menú en una mesa de tres o más ya no deja la pantalla colgada.
+- **Forge al día:** Alchemy: Reality Fracture y cartas corregidas.
 
 Descarga el `.dmg` de tu Mac:
 

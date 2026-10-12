@@ -71,6 +71,18 @@ public class HomeScreen extends javafx.scene.layout.StackPane {
 
     private final List<Deck> decks;
     private final List<DeckTile> tiles = new ArrayList<>();
+
+    /**
+     * Filtrar por formato y por epoca (Discord, 12-10-2026: <i>"more granular
+     * filtering for the deck selection page. Like how Forge has: Formats, but
+     * also by set"</i>). Solo en construido ({@link forge.neo.deck.DeckEra#appliesTo}).
+     * La posicion 0 es "cualquiera"; las demas, {@link #formatChoices} y
+     * {@link #eraChoices} en el mismo orden.
+     */
+    private final javafx.scene.control.ComboBox<String> formatFilter = new javafx.scene.control.ComboBox<>();
+    private final javafx.scene.control.ComboBox<String> eraFilter = new javafx.scene.control.ComboBox<>();
+    private final List<forge.neo.match.NeoFormat> formatChoices = new ArrayList<>();
+    private final List<forge.card.CardEdition> eraChoices = new ArrayList<>();
     private final double tileWidth;
 
     /**
@@ -558,7 +570,13 @@ et}) y no se tocan.
         randomMine.setMinWidth(Region.USE_PREF_SIZE);
         randomMine.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("home.random.mine.tip")));
         randomMine.setOnAction(e -> chooseRandom());
-        final HBox right = new HBox(8, pager, randomMine, search, gridCount);
+        final boolean byEra = forge.neo.deck.DeckEra.appliesTo(format);
+        if (byEra) {
+            setUpEraFilters();
+        }
+        final HBox right = byEra
+                ? new HBox(8, pager, randomMine, formatFilter, eraFilter, search, gridCount)
+                : new HBox(8, pager, randomMine, search, gridCount);
         right.setAlignment(Pos.CENTER_RIGHT);
         right.setMinWidth(Region.USE_PREF_SIZE);
         final BorderPane bar = new BorderPane();
@@ -579,6 +597,70 @@ et}) y no se tocan.
 
         final VBox box = new VBox(6, bar, scroll);
         return box;
+    }
+
+    /**
+     * Los dos selectores de formato y de epoca. Las epocas son las que salen en
+     * TODOS los mazos del formato (de la mas nueva a la mas vieja, con cuantos
+     * hay), no solo en la pestanya: cambiar de pestanya no cambia el filtro.
+     */
+    private void setUpEraFilters() {
+        formatFilter.getStyleClass().add("team-combo");
+        formatFilter.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("home.filter.format.tip")));
+        formatFilter.getItems().add(NeoText.get("home.filter.anyFormat"));
+        for (final forge.neo.match.NeoFormat f : forge.neo.deck.DeckEra.FORMATS) {
+            formatChoices.add(f);
+            formatFilter.getItems().add(f.getLabel());
+        }
+        formatFilter.getSelectionModel().select(0);
+        formatFilter.setOnAction(e -> {
+            pager.reset();
+            fillGrid();
+        });
+
+        eraFilter.getStyleClass().add("team-combo");
+        eraFilter.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("home.filter.era.tip")));
+        eraFilter.setVisibleRowCount(16);
+        eraFilter.getItems().add(NeoText.get("home.filter.anyEra"));
+        final List<Deck> everything = new ArrayList<>(decks);
+        everything.addAll(net);
+        for (final java.util.Map.Entry<forge.card.CardEdition, Integer> e
+                : forge.neo.deck.DeckEra.erasIn(everything)) {
+            eraChoices.add(e.getKey());
+            eraFilter.getItems().add(forge.neo.deck.DeckEra.label(e.getKey()) + "  ·  " + e.getValue());
+        }
+        eraFilter.getSelectionModel().select(0);
+        eraFilter.setOnAction(e -> {
+            pager.reset();
+            fillGrid();
+        });
+
+        // Para capturas y pruebas: -Dneo.home.filterFormat=PREMODERN,
+        // -Dneo.home.filterEra=M19.
+        final String wantFormat = System.getProperty("neo.home.filterFormat");
+        for (int i = 0; wantFormat != null && i < formatChoices.size(); i++) {
+            if (formatChoices.get(i).name().equalsIgnoreCase(wantFormat)) {
+                formatFilter.getSelectionModel().select(i + 1);
+            }
+        }
+        final String wantEra = System.getProperty("neo.home.filterEra");
+        for (int i = 0; wantEra != null && i < eraChoices.size(); i++) {
+            if (eraChoices.get(i).getCode().equalsIgnoreCase(wantEra)) {
+                eraFilter.getSelectionModel().select(i + 1);
+            }
+        }
+    }
+
+    /** El formato elegido en el filtro, o null si es "cualquiera". */
+    private forge.neo.match.NeoFormat filterFormat() {
+        final int i = formatFilter.getSelectionModel().getSelectedIndex();
+        return i <= 0 || i > formatChoices.size() ? null : formatChoices.get(i - 1);
+    }
+
+    /** La epoca elegida en el filtro, o null si es "cualquiera". */
+    private forge.card.CardEdition filterEra() {
+        final int i = eraFilter.getSelectionModel().getSelectedIndex();
+        return i <= 0 || i > eraChoices.size() ? null : eraChoices.get(i - 1);
     }
 
     /** Una pestanya: mis mazos / los de Forge / los de internet. */
@@ -962,9 +1044,13 @@ et}) y no se tocan.
         final String q = search.getText() == null ? ""
                 : search.getText().trim().toLowerCase(java.util.Locale.ROOT);
 
+        final forge.neo.match.NeoFormat legalIn = filterFormat();
+        final forge.card.CardEdition era = filterEra();
         final List<Deck> hits = new ArrayList<>();
         for (final Deck d : source) {
-            if (q.isEmpty() || matches(d, q)) {
+            if ((q.isEmpty() || matches(d, q))
+                    && (legalIn == null || forge.neo.deck.DeckEra.legalIn(d, legalIn))
+                    && (era == null || forge.neo.deck.DeckEra.eraOf(d) == era)) {
                 hits.add(d);
             }
         }
@@ -1002,7 +1088,10 @@ et}) y no se tocan.
         }
 
         if (hits.isEmpty()) {
-            final Label empty = new Label(showing == Tab.MINE
+            // Con un filtro puesto, la lista no esta vacia: es el filtro.
+            final Label empty = new Label((legalIn != null || era != null) && !source.isEmpty()
+                    ? NeoText.get("home.filter.none")
+                    : showing == Tab.MINE
                     ? NeoText.get("home.empty.mine", NeoText.get("home.newDeck"))
                     : showing == Tab.NET ? NeoText.get("home.empty.net")
                     : showing == Tab.COLLECTION ? NeoText.get("home.empty.collection",
@@ -1154,6 +1243,7 @@ et}) y no se tocan.
                             opponents = Integer.parseInt(v);
                             NeoSettings.setOpponents(format, opponents);
                             resizeTeams();
+                            showArchenemyChoice();
                             rebuildOpponentRow();
                             updateSummary();
                         }),
@@ -1852,7 +1942,25 @@ et}) y no se tocan.
             }
         });
         buttons.setAlignment(Pos.CENTER_LEFT);
+        archenemyRow = buttons;
+        showArchenemyChoice();
         return buttons;
+    }
+
+    /** La fila de Archenemy, para esconderla en duelo ({@link #showArchenemyChoice}). */
+    private Region archenemyRow;
+
+    /**
+     * Archenemy solo a CUATRO, tu y tres rivales (Ana, 12-10-2026: salia en
+     * Estandar, que en Android es siempre un duelo, "y en commander 1vs1
+     * tampoco"). Es uno contra un equipo, y se juega a cuatro. {@code NeoApp}
+     * tampoco lo aplica con menos aunque se quedara encendido.
+     */
+    private void showArchenemyChoice() {
+        if (archenemyRow != null) {
+            archenemyRow.setVisible(opponents >= forge.neo.match.Archenemy.MIN_OPPONENTS);
+            archenemyRow.setManaged(opponents >= forge.neo.match.Archenemy.MIN_OPPONENTS);
+        }
     }
 
     private Region choice(final String caption, final String[] values, final String current,

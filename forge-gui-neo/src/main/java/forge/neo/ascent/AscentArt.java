@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+import forge.card.CardRarity;
 import forge.deck.CardPool;
 import forge.deck.Deck;
 import forge.deck.DeckSection;
@@ -27,8 +28,10 @@ import forge.neo.NeoSettings;
  *       ya guarda el editor de mazos ({@code CardPreferences});</li>
  *   <li>y lo que entra en una run nueva —el mazo de salida, los premios, la
  *       tienda— sale <b>con tus favoritos</b> ({@link #favourite}), si el pozo
- *       de la run deja esa expansion. Pasa por {@link AscentPool#printing}, que
- *       es por donde entra todo, y por {@link AscentSeedDeck#generate}.</li>
+ *       de la run deja esa expansion y el favorito es <b>de la misma
+ *       rareza</b> (12-10-2026: la rareza en Ascenso es regla, no dibujo). Pasa
+ *       por {@link AscentPool#printing}, que es por donde entra todo, y por
+ *       {@link AscentSeedDeck#generate}.</li>
  * </ul>
  *
  * <p>Es solo el dibujo: misma carta, la semilla no lo mira y el codigo de la
@@ -57,8 +60,22 @@ public final class AscentArt {
     }
 
     /**
-     * Tu arte de esa carta, si lo tienes, el interruptor esta puesto y el pozo
-     * de la run deja esa expansion; si no, la misma carta. Una foil sigue foil.
+     * Tu arte de esa carta, si lo tienes, el interruptor esta puesto, el pozo
+     * de la run deja esa expansion y es <b>de la misma rareza</b>; si no, la
+     * misma carta. Una foil sigue foil.
+     *
+     * <p>⚠️ <b>La rareza no es dibujo</b> (12-10-2026). En Ascenso la rareza de
+     * la IMPRESION es una regla: el mazo de salida de Estandar no lleva raras
+     * ({@code AscentSeedDeck.BEGINNER}), los premios van por cubos de rareza,
+     * la tienda cobra por ella y {@code AscentBattle.power} la cuenta en tu
+     * mazo para estirar al rival. Y Secret Lair imprime como rara lo que en su
+     * expansion es infrecuente: con <i>Pitiless Plunderer</i> de SLD de
+     * favorito, el generador cogia la de RIX (infrecuente, pasa el filtro) y
+     * esto la cambiaba despues por la rara. {@code ascentcheck} se ponia en
+     * rojo de tarde en tarde ("se han colado 1 cartas raras/miticas"), solo en
+     * un ordenador con el interruptor puesto y ese favorito. Las japonesas de
+     * War of the Spark, que es lo que se pidio, tienen la rareza de la normal:
+     * siguen saliendo.
      */
     public static PaperCard favourite(final PaperCard card, final AscentPool pool) {
         if (card == null || !enabled()) {
@@ -85,8 +102,24 @@ public final class AscentArt {
         if (pool != null && !pool.isAll() && !pool.codes().contains(fav.getEdition())) {
             return card;
         }
+        if (!sameRarity(fav, card)) {
+            return card;
+        }
         final PaperCard out = card.isFoil() ? fav.getFoiled() : fav;
         return out.equals(card) ? card : out;
+    }
+
+    /**
+     * Si cambiar una impresion por la otra deja la rareza como estaba. Comun y
+     * basica cuentan igual: todo lo que mira la rareza en Ascenso las trata
+     * igual, y una basica de favorito no tiene por que quedarse fuera.
+     */
+    static boolean sameRarity(final PaperCard a, final PaperCard b) {
+        return plain(a.getRarity()) == plain(b.getRarity());
+    }
+
+    private static CardRarity plain(final CardRarity r) {
+        return r == CardRarity.BasicLand ? CardRarity.Common : r;
     }
 
     /** El arte preferido que tiene Forge apuntado para ese nombre, o null. */

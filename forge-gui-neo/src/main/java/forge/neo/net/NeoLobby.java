@@ -350,14 +350,268 @@ public final class NeoLobby {
      * {@code Constructed}.
      */
     public static void setFormat(final GameLobby lobby, final NeoFormat format) {
+        // Archenemy es una variante MAS (va encima del modo), y clearVariants se
+        // la lleva: se apunta antes y se vuelve a poner si el modo nuevo la admite.
+        final Archenemy keep = archenemyOf(lobby);
+        final boolean again = keep != Archenemy.OFF && archenemyAllowed(format);
         clearDecksAndReady(lobby);
         lobby.clearVariants();
+        if (again) {
+            // En el MISMO reparto que el modo, sin repartir antes: si fuera
+            // detras, el invitado veria un momento "ya no hay archienemigo" y
+            // justo despues "X es el archienemigo".
+            addVariantQuietly(lobby, keep == Archenemy.ALL ? GameType.ArchenemyRumble : GameType.Archenemy);
+        } else if (keep == Archenemy.ONE) {
+            // Se va (a Momir, por ejemplo): los equipos de uno contra todos no
+            // pueden quedarse puestos para la partida siguiente.
+            resetTeams(lobby);
+        }
         if (format.getGameType() == GameType.Constructed) {
             lobby.applyVariant(GameType.Constructed);
             lobby.removeVariant(GameType.Constructed);
         } else {
             lobby.applyVariant(format.getGameType());
         }
+        if (again && archenemyOf(lobby) != keep) {
+            // Si la variante no se pudo poner sin repartir, se pone ahora.
+            setArchenemy(lobby, keep);
+        }
+    }
+
+    /**
+     * Anyade una variante SIN repartir el estado: {@code getAppliedVariants}
+     * devuelve el conjunto de verdad del {@code GameLobbyData}, y el
+     * {@code applyVariant} que viene detras lo reparte todo junto. Si algun dia
+     * Forge devolviera una copia, no pasa nada: {@link #setFormat} la pone
+     * despues por el camino normal.
+     */
+    @SuppressWarnings("unchecked")
+    private static void addVariantQuietly(final GameLobby lobby, final GameType variant) {
+        final Iterable<GameType> applied = lobby.getAppliedVariants();
+        if (applied instanceof java.util.Set<?> set) {
+            ((java.util.Set<GameType>) set).add(variant);
+        }
+    }
+
+    /** Cada uno en su equipo, que es como nace un asiento (todos contra todos). */
+    private static void resetTeams(final GameLobby lobby) {
+        for (int i = 0; i < lobby.getNumberOfSlots(); i++) {
+            final LobbySlot s = lobby.getSlot(i);
+            if (s != null) {
+                s.setTeam(i);
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Archenemy en la sala (12-10-2026, Discord)
+    // ------------------------------------------------------------------
+
+    /**
+     * <b>Archenemy en red.</b> Pedido en Discord el 12-10-2026, despues de
+     * tenerlo en local ({@code forge.neo.match.Archenemy}).
+     *
+     * <p>El lobby de Forge ya lo sabe hacer entero, y no hay ni una regla
+     * nuestra: {@code GameType.Archenemy} y {@code ArchenemyRumble} son
+     * variantes de la sala; cada asiento lleva su marca de archienemigo
+     * ({@code LobbySlot.isArchenemy}, que viaja por el cable con el resto del
+     * {@code GameLobbyData}); y {@code startGame} pone los equipos (el
+     * archienemigo en uno, los demas en otro) y le da los esquemas de <b>la
+     * seccion de esquemas de su mazo</b>. Lo unico que faltaba es lo que ya
+     * resolvia el modo local: casi nadie tiene un mazo con esquemas. Sin ellos
+     * el motor o se niega (con {@code ENFORCE_DECK_LEGALITY}: "must contain at
+     * least 20 schemes") o empieza con el mazo de esquemas vacio. Por eso
+     * {@link #prepareSchemes} le da 20 al azar, como en local, justo antes de
+     * empezar.
+     *
+     * <p>La partida la monta el ANFITRION, asi que al invitado no le hace falta
+     * nada: le llega jugada. Su pantalla solo lo ensenya.
+     */
+    public enum Archenemy {
+        /** Sin archienemigo. */
+        OFF,
+        /** Uno contra todos: el asiento marcado ({@link #setArchenemySeat}). */
+        ONE,
+        /** Archenemy Rumble: todos lo son, cada uno con sus esquemas. */
+        ALL
+    }
+
+    /** Lo que hay puesto en la sala, visto desde cualquiera de los dos lados (sale de las variantes). */
+    public static Archenemy archenemyOf(final GameLobby lobby) {
+        final EnumSet<GameType> applied = variants(lobby);
+        if (applied.contains(GameType.ArchenemyRumble)) {
+            return Archenemy.ALL;
+        }
+        return applied.contains(GameType.Archenemy) ? Archenemy.ONE : Archenemy.OFF;
+    }
+
+    /**
+     * Si se puede jugar con archienemigo en ese modo: los construidos, como en
+     * local. En Momir y MoJhoSto no: el mazo lo genera el motor al empezar y se
+     * llevaria los esquemas por delante.
+     */
+    public static boolean archenemyAllowed(final NeoFormat format) {
+        return format != null && needsDeck(format)
+                && forge.neo.match.Archenemy.appliesTo(format.getGameType());
+    }
+
+    /**
+     * Pone o quita el archienemigo. <b>Solo el anfitrion.</b> Con
+     * {@link Archenemy#ONE} lo es el asiento que ya lo fuera, y si no hay
+     * ninguno, el primero (el del anfitrion, que es lo que hace Forge).
+     */
+    public static void setArchenemy(final GameLobby lobby, final Archenemy mode) {
+        if (archenemyOf(lobby) == Archenemy.ONE && mode != Archenemy.ONE) {
+            // Los equipos de uno contra todos (0 y 1) no valen para lo demas:
+            // cada uno vuelve al suyo, que es como nace un asiento.
+            resetTeams(lobby);
+        }
+        lobby.removeVariant(GameType.Archenemy);
+        lobby.removeVariant(GameType.ArchenemyRumble);
+        if (mode == Archenemy.ONE) {
+            final int seat = archenemySeat(lobby);
+            markArchenemy(lobby, seat < 0 ? firstActive(lobby) : seat);
+            lobby.applyVariant(GameType.Archenemy);
+        } else if (mode == Archenemy.ALL) {
+            lobby.applyVariant(GameType.ArchenemyRumble);
+        }
+    }
+
+    /**
+     * El asiento {@code index} pasa a ser el archienemigo. <b>Solo el
+     * anfitrion.</b>
+     *
+     * <p>Se escribe en los asientos directamente, como {@link #clearDecksAndReady}:
+     * el anfitrion no puede mandar un evento a un asiento remoto
+     * ({@code mayEdit}). Y {@code applyVariant} es el metodo publico que
+     * reparte el estado ({@code updateView} es protegido): volver a poner la
+     * variante que ya esta no cambia nada mas.
+     */
+    public static void setArchenemySeat(final GameLobby lobby, final int index) {
+        if (archenemyOf(lobby) != Archenemy.ONE) {
+            return;
+        }
+        markArchenemy(lobby, index);
+        lobby.applyVariant(GameType.Archenemy);
+    }
+
+    /** El asiento ocupado que es el archienemigo, o -1. */
+    public static int archenemySeat(final GameLobby lobby) {
+        for (int i = 0; i < lobby.getNumberOfSlots(); i++) {
+            final LobbySlot s = lobby.getSlot(i);
+            if (s != null && s.getType() != LobbySlotType.OPEN && s.isArchenemy()) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Justo antes de empezar, <b>en el anfitrion</b>: el mazo de esquemas de
+     * cada archienemigo que no traiga uno valido, 20 al azar como en local
+     * ({@code forge.neo.match.Archenemy.randomSchemes}). Se le cambia el mazo
+     * por una COPIA con los esquemas: el suyo — que puede ser el mismo objeto
+     * que el guardado — no se toca.
+     *
+     * <p>Y con uno contra todos vuelve a poner los equipos (el que llega
+     * despues trae el suyo), y si el archienemigo se ha ido de la sala, lo
+     * pasa a ser el primero: sin nadie marcado, {@code startGame} los pondria a
+     * todos en el mismo equipo.
+     *
+     * @return a cuantos se les han dado esquemas
+     */
+    public static int prepareSchemes(final GameLobby lobby) {
+        final Archenemy mode = archenemyOf(lobby);
+        // En limitado nunca: la partida del draft es la del pool, y la fila de
+        // Archenemy ni se ve (LobbyScreen.toLimited ademas lo apaga).
+        if (mode == Archenemy.OFF || NeoNetEvent.isLimited(lobby)) {
+            return 0;
+        }
+        if (mode == Archenemy.ONE) {
+            // Otra vez, y no sobra: quien se sienta despues de ponerlo llega
+            // con su equipo de siempre (el de su asiento), no con el de los
+            // demas contra el archienemigo.
+            final int seat = archenemySeat(lobby);
+            markArchenemy(lobby, seat < 0 ? firstActive(lobby) : seat);
+        }
+        int n = 0;
+        for (final LobbySlot s : activeSlots(lobby)) {
+            final Deck deck = s.getDeck();
+            if (deck == null || (mode == Archenemy.ONE && !s.isArchenemy())) {
+                continue;
+            }
+            final forge.deck.CardPool own = deck.get(forge.deck.DeckSection.Schemes);
+            // Los suyos se respetan; los que le dimos NOSOTROS la partida
+            // anterior (la copia se queda en el asiento), no: se vuelven a
+            // sortear, como en local, que son otros en cada partida.
+            if (own != null && !own.isEmpty() && !deck.getTags().contains(RANDOM_SCHEMES_TAG)
+                    && forge.deck.DeckFormat.getSchemeSectionConformanceProblem(own) == null) {
+                continue;
+            }
+            final Deck copy = new Deck(deck, deck.getName());
+            copy.getTags().add(RANDOM_SCHEMES_TAG);
+            final forge.deck.CardPool schemes = new forge.deck.CardPool();
+            for (final forge.item.PaperCard c : forge.neo.match.Archenemy.randomSchemes()) {
+                schemes.add(c);
+            }
+            copy.putSection(forge.deck.DeckSection.Schemes, schemes);
+            s.setDeck(copy);
+            n++;
+        }
+        return n;
+    }
+
+    /**
+     * Marca al archienemigo y pone los equipos <b>como Forge</b>
+     * ({@code GameLobby.applyToSlot}): el en el 0 y los demas en el 1. Es
+     * {@code startGame} quien los lee, del asiento: la marca sola no basta, y
+     * sin esto salia cada uno en el suyo — todos contra todos con un
+     * archienemigo de 60 vidas.
+     */
+    /** La marca de las copias con esquemas al azar (ver {@link #prepareSchemes}). */
+    private static final String RANDOM_SCHEMES_TAG = "neo-random-schemes";
+
+    /**
+     * Quita un asiento, <b>sin</b> el fallo de Forge con el archienemigo.
+     *
+     * <p>{@code GameLobby.removeSlot}, si el asiento lleva la marca, se la pasa
+     * a {@code getSlot(lastArchenemy)} — un indice privado que solo cuida
+     * {@code applyToSlot} y que baja con cada asiento que se quita, asi que se
+     * queda en -1 y revienta con un {@code NullPointerException}. Con la marca
+     * siempre en el asiento 0 (el del anfitrion, que no se quita) no pasaba;
+     * desde que se puede marcar a cualquiera, si. Se le quita la marca antes, y
+     * si con uno contra todos se queda sin archienemigo, pasa al primero.
+     */
+    public static void removeSeat(final GameLobby lobby, final int index) {
+        final LobbySlot s = lobby.getSlot(index);
+        final boolean was = s != null && s.isArchenemy();
+        if (was) {
+            s.setIsArchenemy(false);
+        }
+        lobby.removeSlot(index);
+        if (was && archenemyOf(lobby) == Archenemy.ONE) {
+            setArchenemySeat(lobby, firstActive(lobby));
+        }
+    }
+
+    private static void markArchenemy(final GameLobby lobby, final int index) {
+        for (int i = 0; i < lobby.getNumberOfSlots(); i++) {
+            final LobbySlot s = lobby.getSlot(i);
+            if (s != null) {
+                s.setIsArchenemy(i == index);
+                s.setTeam(i == index ? 0 : 1);
+            }
+        }
+    }
+
+    private static int firstActive(final GameLobby lobby) {
+        for (int i = 0; i < lobby.getNumberOfSlots(); i++) {
+            final LobbySlot s = lobby.getSlot(i);
+            if (s != null && s.getType() != LobbySlotType.OPEN) {
+                return i;
+            }
+        }
+        return 0;
     }
 
     /**

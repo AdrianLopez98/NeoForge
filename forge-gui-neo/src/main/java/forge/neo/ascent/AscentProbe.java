@@ -245,6 +245,9 @@ public final class AscentProbe {
             // Lo mismo con las raras: el 11-10-2026 salio UNA en una corrida y
             // 1.100 mazos despues no habia vuelto a salir ninguna. Sin el
             // nombre no hay por donde empezar.
+            // (Era un arte favorito de Secret Lair, que en Forge es rara: el
+            // 12-10-2026 salio "Pitiless Plunderer (SLD, R)". Ver
+            // AscentArt.favourite y la sonda "favorito de otra rareza".)
             final java.util.Set<String> culpablesRaras = new java.util.LinkedHashSet<>();
             int maxColores = 0;
             final java.util.Set<String> culpables = new java.util.LinkedHashSet<>();

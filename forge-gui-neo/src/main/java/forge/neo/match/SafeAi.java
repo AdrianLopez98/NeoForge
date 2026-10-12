@@ -234,7 +234,14 @@ public final class SafeAi {
         @Override
         public List<SpellAbility> chooseSpellAbilityToPlay() {
             try {
-                return super.chooseSpellAbilityToPlay();
+                final List<SpellAbility> chosen = super.chooseSpellAbilityToPlay();
+                if (chosen != null && !chosen.isEmpty()) {
+                    return chosen;
+                }
+                // Nada que hacer: el dado planar, que la IA no ve sola. Ver
+                // PlanarDiceAi.
+                final SpellAbility roll = PlanarDiceAi.pick(this);
+                return roll == null ? chosen : List.of(roll);
             } catch (final RuntimeException | StackOverflowError e) {
                 // null es "no juego nada", que es justo lo que devuelve la IA
                 // cuando no encuentra jugada. O sea: pasa.

@@ -205,6 +205,31 @@ public final class NeoDuelBridge {
         t.start();
     }
 
+    /**
+     * Lo que {@code DuelScene.GameEnd} va a apuntar, dicho en el registro: el
+     * marcador del partido y si cuenta como victoria. Sin esto, un "gane y
+     * me lo dio por perdido" (Discord, 12-10-2026: los eventos de la Aventura)
+     * no se podia distinguir en el registro de una derrota de verdad.
+     */
+    public static void logResult(final forge.game.Match match, final RegisteredPlayer human,
+                                 final boolean won) {
+        try {
+            int mine = 0;
+            int played = 0;
+            for (final forge.game.GameOutcome o : match.getOutcomes()) {
+                played++;
+                if (o.getWinningPlayer() == human) {
+                    mine++;
+                }
+            }
+            log("resultado: " + mine + " de " + played + " partidas ganadas (al mejor de "
+                    + match.getRules().getGamesPerMatch() + "), partido terminado="
+                    + match.isMatchOver() + ", cuenta como " + (won ? "VICTORIA" : "derrota"));
+        } catch (final RuntimeException e) {
+            log("resultado: no se pudo leer (" + e + "), cuenta como " + (won ? "VICTORIA" : "derrota"));
+        }
+    }
+
     static void log(final String s) {
         System.out.println("[aventura] " + s);
     }

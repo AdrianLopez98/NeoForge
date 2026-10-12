@@ -138,6 +138,18 @@ public class LobbyScreen extends BorderPane
     private final Label formatName = new Label();
     private final Label formatNote = new Label();
 
+    /**
+     * La fila de Archenemy (ver {@link #archenemyRow}): sus botones en el
+     * anfitrion, la linea que lo explica, y lo ultimo que se anuncio por el
+     * chat para no repetirlo.
+     */
+    private final java.util.Map<NeoLobby.Archenemy, Button> archenemyButtons =
+            new java.util.EnumMap<>(NeoLobby.Archenemy.class);
+    private final Label archenemyNote = new Label();
+    private final VBox archenemyBox = new VBox(6);
+    private NeoLobby.Archenemy lastArchenemy = NeoLobby.Archenemy.OFF;
+    private int lastArchenemySeat = -1;
+
     private final VBox seatBox = new VBox(8);
     private final VBox chatLines = new VBox(2);
     private final ScrollPane chatScroll = new ScrollPane(chatLines);
@@ -191,7 +203,7 @@ public class LobbyScreen extends BorderPane
 
         final VBox words = new VBox(2, title, status);
 
-        final VBox box = new VBox(10, words, formatRow(), eventRow());
+        final VBox box = new VBox(10, words, formatRow(), archenemyRow(), eventRow());
         if (host) {
             box.getChildren().add(addressRow());
         }
@@ -246,6 +258,131 @@ public class LobbyScreen extends BorderPane
         formatName.setVisible(false);
         formatName.setManaged(false);
         return new VBox(6, caption, formatName, picks, formatNote);
+    }
+
+    /**
+     * <b>Archenemy</b> (Discord, 12-10-2026), encima del modo como en local:
+     * nadie, uno contra todos o todos (Rumble). Manda el anfitrion y el
+     * invitado lo lee; quien es el archienemigo se marca en su fila
+     * ({@link #archenemyCell}). Lo que hace de verdad vive en
+     * {@link NeoLobby#setArchenemy} y {@link NeoLobby#prepareSchemes}.
+     *
+     * <p>Como la del modo, los botones se crean una vez y luego solo cambian
+     * de marca ({@link #showArchenemy}).
+     */
+    private Region archenemyRow() {
+        final Label caption = new Label(NeoText.get("home.archenemy"));
+        caption.getStyleClass().add("caption");
+        archenemyNote.getStyleClass().add("mode-tile-note");
+        archenemyNote.setWrapText(true);
+        archenemyNote.setMaxWidth(UiScale.px(560));
+        archenemyNote.setMinHeight(Region.USE_PREF_SIZE);
+        if (!host) {
+            archenemyBox.getChildren().setAll(caption, archenemyNote);
+            return archenemyBox;
+        }
+        final HBox picks = new HBox(6);
+        picks.setAlignment(Pos.CENTER_LEFT);
+        for (final NeoLobby.Archenemy a : NeoLobby.Archenemy.values()) {
+            final Button b = new Button(NeoText.get(archenemyLabel(a)));
+            b.getStyleClass().add("segment");
+            b.setMinWidth(Region.USE_PREF_SIZE);
+            if (a != NeoLobby.Archenemy.OFF) {
+                b.setTooltip(new javafx.scene.control.Tooltip(NeoText.get(
+                        a == NeoLobby.Archenemy.ALL ? "home.archenemy.all.tip" : "home.archenemy.tip")));
+            }
+            b.setOnAction(e -> {
+                final GameLobby l = lobby;
+                if (l != null && !l.isMatchActive() && NeoLobby.archenemyOf(l) != a) {
+                    NeoLobby.setArchenemy(l, a);
+                    refresh();
+                }
+            });
+            archenemyButtons.put(a, b);
+            picks.getChildren().add(b);
+        }
+        archenemyBox.getChildren().setAll(caption, picks, archenemyNote);
+        return archenemyBox;
+    }
+
+    private static String archenemyLabel(final NeoLobby.Archenemy a) {
+        switch (a) {
+            case ONE:
+                return "lobby.archenemy.one";
+            case ALL:
+                return "home.archenemy.all";
+            default:
+                return "lobby.archenemy.off";
+        }
+    }
+
+    /**
+     * Pone al dia la fila de Archenemy. Hilo de JavaFX.
+     *
+     * <p>No sale en limitado ni en Momir (ver {@link NeoLobby#archenemyAllowed}),
+     * y en el invitado solo si esta puesto: una fila que dice "no" a algo que
+     * no puede tocar no le cuenta nada.
+     */
+    private void showArchenemy(final GameLobby l) {
+        final NeoLobby.Archenemy mode = NeoLobby.archenemyOf(l);
+        final boolean allowed = !forge.neo.net.NeoNetEvent.isLimited(l) && NeoLobby.archenemyAllowed(format);
+        final boolean show = allowed && (host || mode != NeoLobby.Archenemy.OFF);
+        archenemyBox.setVisible(show);
+        archenemyBox.setManaged(show);
+        for (final java.util.Map.Entry<NeoLobby.Archenemy, Button> e : archenemyButtons.entrySet()) {
+            e.getValue().pseudoClassStateChanged(SELECTED, e.getKey() == mode);
+            e.getValue().setDisable(failed || l.isMatchActive());
+        }
+        switch (mode) {
+            case ONE:
+                archenemyNote.setText(NeoText.get("lobby.archenemy.note.one", archenemyName(l)));
+                break;
+            case ALL:
+                archenemyNote.setText(NeoText.get("home.archenemy.all.tip"));
+                break;
+            default:
+                // Apagado no hace falta explicar nada: la cabecera no tiene
+                // scroll y cuatro lineas de mas aprietan los asientos. Lo que
+                // es, en el tooltip de los botones.
+                archenemyNote.setText("");
+                break;
+        }
+        archenemyNote.setVisible(mode != NeoLobby.Archenemy.OFF);
+        archenemyNote.setManaged(mode != NeoLobby.Archenemy.OFF);
+    }
+
+    /** El nombre del archienemigo, o "?" si aun no hay nadie sentado. */
+    private static String archenemyName(final GameLobby l) {
+        final int seat = NeoLobby.archenemySeat(l);
+        final LobbySlot s = seat < 0 ? null : l.getSlot(seat);
+        return s == null || s.getName() == null ? "?" : s.getName();
+    }
+
+    /**
+     * Lo que se anuncia en el chat cuando cambia, en cada lado y en su idioma
+     * (como el cambio de modo: por el cable solo viajan las variantes).
+     */
+    private void announceArchenemy(final GameLobby l) {
+        final NeoLobby.Archenemy mode = NeoLobby.archenemyOf(l);
+        final int seat = NeoLobby.archenemySeat(l);
+        final boolean changed = mode != lastArchenemy
+                || (mode == NeoLobby.Archenemy.ONE && seat != lastArchenemySeat);
+        lastArchenemy = mode;
+        lastArchenemySeat = seat;
+        if (!changed || first || forge.neo.net.NeoNetEvent.isLimited(l)) {
+            return;
+        }
+        switch (mode) {
+            case ONE:
+                addChatLine(NeoText.get("lobby.archenemy.changed.one", archenemyName(l)));
+                break;
+            case ALL:
+                addChatLine(NeoText.get("lobby.archenemy.changed.all"));
+                break;
+            default:
+                addChatLine(NeoText.get("lobby.archenemy.changed.off"));
+                break;
+        }
     }
 
     /**
@@ -599,6 +736,9 @@ public class LobbyScreen extends BorderPane
     private void toLimited(final GameLobby l,
                            final forge.gamemodes.net.server.ServerGameLobby server) {
         NeoLobby.setFormat(l, NeoFormat.ESTANDAR);
+        // Archenemy no va con un draft: la partida es la del pool, y en
+        // limitado su fila ni se ve (no habria forma de quitarlo).
+        NeoLobby.setArchenemy(l, NeoLobby.Archenemy.OFF);
         server.setLimitedMode(true);
     }
 
@@ -1185,7 +1325,11 @@ public class LobbyScreen extends BorderPane
 
         if (!open) {
             row.getChildren().add(deckCell(l, index, slot));
-            row.getChildren().add(teamCell(l, index, slot));
+            // Con uno contra todos los equipos los pone el motor (el
+            // archienemigo en uno, los demas en otro): en su sitio, quien lo es.
+            row.getChildren().add(NeoLobby.archenemyOf(l) == NeoLobby.Archenemy.ONE
+                    && !forge.neo.net.NeoNetEvent.isLimited(l)
+                    ? archenemyCell(l, index, slot) : teamCell(l, index, slot));
 
             final Region gap = new Region();
             HBox.setHgrow(gap, Priority.ALWAYS);
@@ -1208,7 +1352,7 @@ public class LobbyScreen extends BorderPane
             remove.getStyleClass().add("btn-secondary");
             remove.setMinWidth(Region.USE_PREF_SIZE);
             remove.setOnAction(e -> {
-                l.removeSlot(index);
+                NeoLobby.removeSeat(l, index);
                 refresh();
             });
             row.getChildren().add(remove);
@@ -1338,6 +1482,36 @@ public class LobbyScreen extends BorderPane
         cell.setAlignment(Pos.CENTER_LEFT);
         cell.setMinWidth(Region.USE_PREF_SIZE);
         return cell;
+    }
+
+    /**
+     * Quien es el archienemigo, en el sitio del equipo (con uno contra todos el
+     * equipo lo pone {@code GameLobby.startGame}). El anfitrion lo cambia
+     * pulsando en la fila de otro; el invitado solo lo ve, y en las filas de
+     * los demas no sale nada: un boton apagado parece que se puede pulsar.
+     */
+    private Region archenemyCell(final GameLobby l, final int index, final LobbySlot slot) {
+        final boolean is = slot.isArchenemy();
+        final String text = "\u2605 " + NeoText.get("lobby.archenemy.seat");
+        if (!host) {
+            final Label mark = new Label(is ? text : "");
+            mark.getStyleClass().add("mode-tile-note");
+            mark.setMinWidth(Region.USE_PREF_SIZE);
+            return mark;
+        }
+        final Button b = new Button(text);
+        b.getStyleClass().add("segment");
+        b.setMinWidth(Region.USE_PREF_SIZE);
+        b.pseudoClassStateChanged(SELECTED, is);
+        b.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("lobby.archenemy.seat.tip")));
+        b.setDisable(failed || l.isMatchActive());
+        b.setOnAction(e -> {
+            if (!slot.isArchenemy() && !l.isMatchActive()) {
+                NeoLobby.setArchenemySeat(l, index);
+                refresh();
+            }
+        });
+        return b;
     }
 
     /** El boton "Listo" de mi asiento, el ultimo pintado. Lo pulsa el piloto de prueba. */
@@ -1597,6 +1771,12 @@ public class LobbyScreen extends BorderPane
             // anfitrion era que EMPEZAR no hacia nada. Un boton que no hace lo
             // que dice es peor que no tenerlo.
             try {
+                // Archenemy: el mazo de esquemas al que no traiga uno (20 al
+                // azar, como en local). Antes de startGame, que es quien lo lee.
+                final int schemes = NeoLobby.prepareSchemes(l);
+                if (schemes > 0) {
+                    System.out.println("[lobby] esquemas al azar para " + schemes + " archienemigo(s)");
+                }
                 final Runnable go = l.startGame();
                 if (go == null) {
                     // startGame() ya ha dicho por que con su propio aviso.
@@ -1627,6 +1807,12 @@ public class LobbyScreen extends BorderPane
         // la fila de arriba.
         if (host) {
             NeoLobby.setFormat(lobby, startFormat());
+            // -Dneo.lobby.archenemy=one|all: solo para las capturas y las pruebas.
+            final String archenemy = System.getProperty("neo.lobby.archenemy", "");
+            if (!archenemy.isBlank()) {
+                NeoLobby.setArchenemy(lobby, "all".equalsIgnoreCase(archenemy.trim())
+                        ? NeoLobby.Archenemy.ALL : NeoLobby.Archenemy.ONE);
+            }
         }
         refresh();
     }
@@ -1698,6 +1884,7 @@ public class LobbyScreen extends BorderPane
                     && !forge.neo.net.NeoNetEvent.isLimited(l)) {
                 addChatLine(NeoText.get("lobby.format.changed", format.getLabel()));
             }
+            announceArchenemy(l);
             // Hasta que no hay asientos, lo que se esta leyendo no es el modo
             // de la sala: es el lobby vacio del invitado, que nace sin
             // variantes (o sea "Estandar") y se rellena cuando llega el primer
@@ -1705,6 +1892,7 @@ public class LobbyScreen extends BorderPane
             // cambiado el modo" nada mas entrar, y no ha cambiado nada.
             first = l.getNumberOfSlots() == 0;
             showFormat(l);
+            showArchenemy(l);
             showEvent(l);
             rebuildSeats();
             status.setText(statusText(l));

@@ -1306,6 +1306,48 @@ public final class DeckRulesCheck {
      * cartas comunes de sobra conocidas (tienen que aparecer).
      */
     private static void otherFormatsFilterThePool() {
+        // La lista para JUGAR, no solo el catalogo (Discord, 12-10-2026: en
+        // Premodern salian los 441 mazos de Estandar, con uno de M19 delante).
+        final long t0 = System.nanoTime();
+        final List<Deck> premodern = NeoFormat.PREMODERN.decks();
+        final long ms = (System.nanoTime() - t0) / 1_000_000L;
+        final int estandar = NeoFormat.ESTANDAR.decks().size();
+        final forge.game.GameFormat premodernPool = NeoFormat.PREMODERN.poolFormat();
+        boolean allLegal = premodernPool != null;
+        for (final Deck d : premodern) {
+            allLegal &= premodernPool != null && premodernPool.isDeckLegal(d);
+        }
+        check("Premodern: la lista para jugar solo trae mazos legales (" + premodern.size()
+                        + " de los " + estandar + " de Estandar, en " + ms + " ms)",
+                !premodern.isEmpty() && premodern.size() < estandar && allLegal);
+
+        // Filtrar la lista por formato y por epoca (DeckEra, misma peticion):
+        // la epoca de un preconstruido conocido, que el filtro de formato diga
+        // lo mismo que la lista de Premodern, y lo que cuesta la lista entera.
+        final List<Deck> all = NeoFormat.ESTANDAR.decks();
+        final long t1 = System.nanoTime();
+        final List<java.util.Map.Entry<forge.card.CardEdition, Integer>> eras = DeckEra.erasIn(all);
+        final long erasMs = (System.nanoTime() - t1) / 1_000_000L;
+        Deck ajani = null;
+        int premodernByFilter = 0;
+        for (final Deck d : all) {
+            if ("Ajani, Wise Counselor".equals(d.getName())) {
+                ajani = d;
+            }
+            if (DeckEra.legalIn(d, NeoFormat.PREMODERN)) {
+                premodernByFilter++;
+            }
+        }
+        final forge.card.CardEdition ajaniEra = DeckEra.eraOf(ajani);
+        check("Epoca: \"Ajani, Wise Counselor\" es de " + DeckEra.label(ajaniEra)
+                        + "; " + eras.size() + " epocas en " + all.size() + " mazos, en " + erasMs + " ms",
+                ajani != null && ajaniEra != null && "M19".equals(ajaniEra.getCode())
+                        && eras.size() > 10 && DeckEra.appliesTo(NeoFormat.ESTANDAR)
+                        && !DeckEra.appliesTo(NeoFormat.COMMANDER));
+        check("Formato: filtrar Estandar por Premodern da los mismos " + premodern.size()
+                        + " que la lista de Premodern (" + premodernByFilter + ")",
+                premodernByFilter == premodern.size());
+
         final DeckEditor pauper = new DeckEditor(NeoFormat.PAUPER, new Deck("__neocheck-pauper__"));
         final List<PaperCard> catalogue = pauper.find("", false, null, 200_000, false).cards;
 

@@ -263,6 +263,115 @@ public final class DeckEditor {
     private Sort sort = Sort.NAME;
 
     /**
+     * <b>Los grupos del catalogo</b>, como el "Groups" del editor de Forge
+     * (Discord, 12-10-2026: <i>"present your cards in their types (creature,
+     * land etc), but then ALSO have the sort there to sort your cards by mana
+     * cost"</i>). El catalogo se parte en grupos y cada grupo se ordena con
+     * {@link #getSort}: por tipo y, dentro, por coste. Los de tipo son los
+     * mismos que los del mazo ({@link #groupOf}).
+     */
+    public enum Group { NONE, TYPE, COLOR, COST, RARITY }
+
+    private Group group = Group.NONE;
+
+    public void setGroup(final Group g) {
+        group = g == null ? Group.NONE : g;
+    }
+
+    public Group getGroup() {
+        return group;
+    }
+
+    /**
+     * En que grupo cae una carta del catalogo, como clave para comparar y para
+     * {@link #catalogueGroupLabel}; {@code null} sin grupos.
+     */
+    public String catalogueGroupOf(final PaperCard c) {
+        switch (group) {
+            case TYPE:
+                return groupOf(c);
+            case COLOR: {
+                final ColorSet col = c.getRules().getColor();
+                if (col.isColorless()) {
+                    return "colorless";
+                }
+                if (col.countColors() > 1) {
+                    return "multi";
+                }
+                return col.hasWhite() ? "white" : col.hasBlue() ? "blue" : col.hasBlack() ? "black"
+                        : col.hasRed() ? "red" : "green";
+            }
+            case COST:
+                return c.getRules().getType().isLand() ? LANDS
+                        : "cost" + Math.min(c.getRules().getManaCost().getCMC(), 7);
+            case RARITY:
+                return rarityGroup(c.getRarity());
+            default:
+                return null;
+        }
+    }
+
+    /** El orden de los grupos: el de su clave en esta lista. */
+    private static final List<String> GROUP_ORDER = List.of(
+            DeckEditor.CREATURES, DeckEditor.SPELLS, DeckEditor.ARTIFACTS, DeckEditor.ENCHANTMENTS,
+            DeckEditor.PLANESWALKERS, DeckEditor.BATTLES, DeckEditor.LANDS, DeckEditor.OTHER,
+            "white", "blue", "black", "red", "green", "multi", "colorless",
+            "cost0", "cost1", "cost2", "cost3", "cost4", "cost5", "cost6", "cost7",
+            "mythic", "rare", "special", "uncommon", "common", "basic", "unknown");
+
+    private int groupRank(final PaperCard c) {
+        final String key = catalogueGroupOf(c);
+        if (key == null) {
+            return 0;
+        }
+        // Por coste las tierras van al final, detras del 7+.
+        if (group == Group.COST && LANDS.equals(key)) {
+            return Integer.MAX_VALUE;
+        }
+        final int i = GROUP_ORDER.indexOf(key);
+        return i < 0 ? Integer.MAX_VALUE - 1 : i;
+    }
+
+    /** Como se llama en pantalla un grupo del catalogo ({@link #catalogueGroupOf}). */
+    public static String catalogueGroupLabel(final String key) {
+        if (key == null) {
+            return "";
+        }
+        if (key.startsWith("cost")) {
+            final String n = key.substring(4);
+            return forge.neo.NeoText.get("deck.group.costN", "7".equals(n) ? "7+" : n);
+        }
+        for (final String g : GROUPS) {
+            if (g.equals(key)) {
+                return groupLabel(key);
+            }
+        }
+        return forge.neo.NeoText.get("deck.group." + key);
+    }
+
+    private static String rarityGroup(final forge.card.CardRarity r) {
+        if (r == null) {
+            return "unknown";
+        }
+        switch (r) {
+            case MythicRare:
+                return "mythic";
+            case Rare:
+                return "rare";
+            case Special:
+                return "special";
+            case Uncommon:
+                return "uncommon";
+            case Common:
+                return "common";
+            case BasicLand:
+                return "basic";
+            default:
+                return "unknown";
+        }
+    }
+
+    /**
      * El orden del catalogo AL REVES (itch.io, 03-10-2026: <i>"You can't change
      * sort ascending or decending, usually when you tapping the sort category
      * again it will change"</i>). Da la vuelta al criterio, no a la lista: lo
@@ -2091,7 +2200,8 @@ public final class DeckEditor {
 
         // Se ordena ANTES de cortar en las mil primeras: despues del corte
         // faltaria lo de abajo (lo ultimo, lo mas caro, de lo que mas tienes).
-        hits.sort(orderOf(sort, sortReversed, q));
+        hits.sort(group == Group.NONE ? orderOf(sort, sortReversed, q)
+                : Comparator.comparingInt(this::groupRank).thenComparing(orderOf(sort, sortReversed, q)));
 
         final int total = hits.size();
         return new SearchResult(
@@ -2150,7 +2260,10 @@ public final class DeckEditor {
                 key = Comparator.comparingDouble(c -> c.getRules().getColor().getOrderWeight());
                 break;
             case TYPE:
-                key = Comparator.comparingInt(DeckEditor::typeRank);
+                // Y dentro de cada tipo, por coste: por nombre el coste salia
+                // a saltos, un 5 entre un 3 y un 2 (Discord, 12-10-2026).
+                key = Comparator.comparingInt(DeckEditor::typeRank)
+                        .thenComparingInt(c -> c.getRules().getManaCost().getCMC());
                 break;
             case RARITY:
                 // De la mas rara a la mas comun.
@@ -2548,6 +2661,22 @@ public final class DeckEditor {
      */
     public boolean wouldOverwriteAnother(final String name) {
         return name != null && !name.equals(savedAs) && nameExists(name);
+    }
+
+    /**
+     * Ese nombre, o "Nombre (2)", "(3)"... si ya lo tiene OTRO mazo guardado:
+     * para ponerle a un mazo nuevo un nombre que no pise ninguno.
+     */
+    public String freeName(final String base) {
+        final String b = base == null ? "" : base.trim();
+        if (b.isEmpty() || !wouldOverwriteAnother(b)) {
+            return b;
+        }
+        int n = 2;
+        while (wouldOverwriteAnother(b + " (" + n + ")")) {
+            n++;
+        }
+        return b + " (" + n + ")";
     }
 
     /** Si ya existe un mazo guardado con ese nombre en este formato. */

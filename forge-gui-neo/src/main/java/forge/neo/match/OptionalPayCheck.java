@@ -40,6 +40,8 @@ import forge.player.PlayerControllerHuman;
  *       opcional (y entonces el pago automatico no lo toca).</li>
  *   <li>El de lanzar Grizzly Bears desde la mano en tu fase principal (el
  *       control): NO es opcional, el pago automatico sigue pagandolo.</li>
+ *   <li>Al entrar el oso, el {1} de Brilliant Wings: el coste del propio
+ *       disparo, SI opcional (Discord, 12-10-2026).</li>
  * </ol>
  */
 public final class OptionalPayCheck {
@@ -53,6 +55,7 @@ public final class OptionalPayCheck {
     public static void run() {
         passed = 0;
         failed = 0;
+        BEARS_PAID.set(false);
         final TutorialLesson lesson = position();
         final TutorialState state = new TutorialState(lesson.getState());
         final NeoMatchUI[] gui = new NeoMatchUI[1];
@@ -60,16 +63,30 @@ public final class OptionalPayCheck {
         final AtomicReference<Boolean> paralyzeUi = new AtomicReference<>();
         final AtomicReference<Boolean> bearsEffect = new AtomicReference<>();
         final AtomicReference<Boolean> bearsUi = new AtomicReference<>();
+        final AtomicReference<Boolean> wingsEffect = new AtomicReference<>();
+        final AtomicReference<Boolean> wingsUi = new AtomicReference<>();
         final AtomicBoolean castDone = new AtomicBoolean();
         final AtomicBoolean alive = new AtomicBoolean(true);
 
+        final Input[] lastSeen = new Input[1];
         final Thread poller = new Thread(() -> {
-            while (alive.get() && (paralyzeEffect.get() == null || bearsEffect.get() == null)) {
+            while (alive.get() && (paralyzeEffect.get() == null || bearsEffect.get() == null
+                    || wingsEffect.get() == null)) {
                 try {
                     final NeoMatchUI ui = gui[0];
                     if (ui != null && ui.getGameController() instanceof PlayerControllerHuman gc
                             && ui.getGameView() != null && ui.getGameView().getGame() != null) {
                         final Input in = gc.getInputQueue().getInput();
+                        if (TRACE && in != null && in != lastSeen[0]) {
+                            lastSeen[0] = in;
+                            final SpellAbility tsa = in instanceof InputPayMana ? NeoPaymentPeek.paidFor(in) : null;
+                            System.out.println("  [traza] " + in.getClass().getSimpleName()
+                                    + (tsa == null || tsa.getHostCard() == null ? "" : " por " + tsa.getHostCard().getName()
+                                    + " (efecto=" + NeoPaymentPeek.isEffectPayment(in) + ")")
+                                    + " | " + ui.getGameView().getGame().getPhaseHandler().getPhase()
+                                    + (in instanceof InputPayMana ? " | falta " + NeoPaymentPeek.costOf(in)
+                                    + " | tierras sin girar " + untappedLands(ui.getGameView().getGame()) : ""));
+                        }
                         if (in instanceof InputPayMana) {
                             final SpellAbility sa = NeoPaymentPeek.paidFor(in);
                             final String host = sa == null || sa.getHostCard() == null ? "" : sa.getHostCard().getName();
@@ -79,6 +96,10 @@ public final class OptionalPayCheck {
                             } else if ("Grizzly Bears".equals(host) && bearsEffect.get() == null) {
                                 bearsEffect.set(NeoPaymentPeek.isEffectPayment(in));
                                 bearsUi.set(ui.isOptionalPayment());
+                                payWithAuto(in);
+                            } else if ("Brilliant Wings".equals(host) && wingsEffect.get() == null) {
+                                wingsEffect.set(NeoPaymentPeek.isEffectPayment(in));
+                                wingsUi.set(ui.isOptionalPayment());
                             }
                         }
                         // En tu fase principal, ya pasado lo de Paralyze, se lanza
@@ -108,7 +129,7 @@ public final class OptionalPayCheck {
         }, "optionalpaycheck-poll");
         poller.setDaemon(true);
 
-        System.out.println("  Mesa: Frozen Shade con Paralyze, cuatro Pantanos y dos Bosques; un Grizzly Bears en la mano.");
+        System.out.println("  Mesa: Frozen Shade con Paralyze y Brilliant Wings, cuatro Pantanos, seis Bosques y dos Llanuras; un Grizzly Bears en la mano.");
         NeoGame.playTutorial(lesson, state, NeoMatchUI.Mode.AUTO_PLAY, 60, null, false, ui -> {
             gui[0] = ui;
             // Retenido solo en TU fase principal hasta haber visto el pago del
@@ -131,6 +152,21 @@ public final class OptionalPayCheck {
                     } else if ("Grizzly Bears".equals(host) && bearsEffect.get() == null) {
                         bearsEffect.set(NeoPaymentPeek.isEffectPayment(in));
                         bearsUi.set(ui.isOptionalPayment());
+                        payWithAuto(in);
+                    } else if ("Brilliant Wings".equals(host) && wingsEffect.get() == null) {
+                        wingsEffect.set(NeoPaymentPeek.isEffectPayment(in));
+                        wingsUi.set(ui.isOptionalPayment());
+                    }
+                }
+                // Mientras se paga el oso, el piloto quieto: lo paga la prueba con
+                // UN "Auto". Si no, el piloto ve primero el "Auto" apagado (Forge
+                // lo enciende un instante despues) y lo cancela.
+                if (ui.getGameController() instanceof PlayerControllerHuman gc2
+                        && gc2.getInputQueue().getInput() instanceof InputPayMana pay2) {
+                    final SpellAbility psa = NeoPaymentPeek.paidFor(pay2);
+                    if (psa != null && psa.getHostCard() != null
+                            && "Grizzly Bears".equals(psa.getHostCard().getName())) {
+                        return true;
                     }
                 }
                 if (!alive.get() || bearsEffect.get() != null) {
@@ -144,6 +180,13 @@ public final class OptionalPayCheck {
             poller.start();
         });
         alive.set(false);
+        if (TRACE && gui[0] != null && gui[0].getGameView() != null && gui[0].getGameView().getGame() != null) {
+            for (final forge.game.GameLogEntry e : gui[0].getGameView().getGame().getGameLog().getAllEntries()) {
+                if (e.message() != null) {
+                    System.out.println("  [registro] " + e.message());
+                }
+            }
+        }
 
         check(paralyzeEffect.get() != null, "el motor pide el {4} de Paralyze en tu mantenimiento",
                 "no se llego a ver el pago de Paralyze: la prueba no prueba nada");
@@ -155,11 +198,40 @@ public final class OptionalPayCheck {
         check(Boolean.FALSE.equals(bearsEffect.get()) && Boolean.FALSE.equals(bearsUi.get()),
                 "y ese NO es opcional: el pago automatico lo sigue pagando",
                 "lanzar una criatura sale como pago opcional: el pago automatico dejaria de funcionar");
+        // Brilliant Wings (Discord, 12-10-2026): al entrar el oso, "puedes pagar
+        // {1}" es el coste del propio disparo, no un efecto, y se pagaba solo.
+        check(wingsEffect.get() != null, "al entrar el oso, Brilliant Wings pide su {1}",
+                "no se llego a ver el pago de Brilliant Wings: la prueba no prueba nada");
+        check(Boolean.TRUE.equals(wingsEffect.get()) && Boolean.TRUE.equals(wingsUi.get()),
+                "y es OPCIONAL (el coste de un disparo): el pago automatico no lo paga solo",
+                "el {1} de Brilliant Wings NO se ve como opcional: se seguiria pagando solo");
 
         System.out.printf(Locale.ROOT, "%n  %d bien, %d mal%n", passed, failed);
         if (failed > 0) {
             throw new IllegalStateException(failed + " comprobacion(es) del pago opcional han fallado");
         }
+    }
+
+    /**
+     * Paga el oso con "Auto", como el jugador: la prueba va sin pago automatico
+     * y sin esto el oso no llegaba a entrar, y Brilliant Wings no tenia nada
+     * que disparar.
+     */
+    private static void payWithAuto(final Input in) {
+        if (BEARS_PAID.compareAndSet(false, true)) {
+            GuiBase.getInterface().invokeInEdtLater(in::selectButtonOK);
+        }
+    }
+
+    private static final AtomicBoolean BEARS_PAID = new AtomicBoolean();
+
+    /** -Dneo.optpay.trace=true: cada peticion del motor, para ver por donde va. */
+    private static final boolean TRACE = Boolean.getBoolean("neo.optpay.trace");
+
+    private static long untappedLands(final Game game) {
+        final Player me = human(game);
+        return me == null ? -1 : me.getCardsIn(ZoneType.Battlefield).stream()
+                .filter(c -> c.isLand() && !c.isTapped()).count();
     }
 
     private static Player human(final Game game) {
@@ -171,6 +243,8 @@ public final class OptionalPayCheck {
         return null;
     }
 
+    // Brilliant Wings va en Frozen Shade y hay dos Llanuras de mas: lo que
+    // quede tras Paralyze ({4}) y el oso ({1}{G}) paga su {1}.
     private static TutorialLesson position() {
         final List<String> state = Arrays.asList(
                 "turn=3",
@@ -178,7 +252,8 @@ public final class OptionalPayCheck {
                 "activephase=END_OF_TURN",
                 "humanlife=20",
                 "ailife=20",
-                "humanbattlefield=Frozen Shade|Id:501;Paralyze|AttachedTo:501;Swamp;Swamp;Swamp;Swamp;Forest;Forest",
+                "humanbattlefield=Frozen Shade|Id:501;Paralyze|AttachedTo:501;Brilliant Wings|AttachedTo:501;"
+                        + "Swamp;Swamp;Swamp;Swamp;Forest;Forest;Forest;Forest;Forest;Forest;Plains;Plains",
                 "humanhand=Grizzly Bears",
                 "humanlibrary=Swamp;Swamp;Swamp",
                 "humangraveyard=", "humanexile=", "humancommand=",

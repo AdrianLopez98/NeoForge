@@ -79,6 +79,13 @@ public final class Archenemy {
         }
     }
 
+    /**
+     * Con cuantos rivales se ofrece en una partida normal: a cuatro, tu y tres
+     * (Ana, 12-10-2026). Es uno contra un equipo; a dos o a tres no se ofrece.
+     * Lo leen el inicio del escritorio y el panel de rivales de Android.
+     */
+    public static final int MIN_OPPONENTS = 3;
+
     /** Cuantos esquemas lleva un mazo al azar (los de Forge). */
     static final int SCHEMES = 20;
 

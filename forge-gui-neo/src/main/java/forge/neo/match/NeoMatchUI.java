@@ -254,7 +254,12 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             // ingles encima del nuestro, que ya ha preguntado.
             autoConfirm = true;
             try {
-                concede();
+                // En una mesa de tres o mas, rendirse SIN tocar las reglas
+                // desde este hilo (QuietConcede): el resto lo remata
+                // endTheGameForReal desde un hilo de partida.
+                if (!QuietConcede.tryConcede(this)) {
+                    concede();
+                }
             } catch (final RuntimeException e) {
                 // No se deja pasar en silencio, pero TAMPOCO se aborta la
                 // salida: ver endTheGameForReal(), que es lo que la remata.
@@ -546,7 +551,8 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         final int tries = attackRetries.incrementAndGet();
         if (tries <= MAX_ATTACK_RETRIES && combat.getAttackers().isEmpty()) {
             trace("ataque obligado: el vacio no vale, atacando con todo");
-            // alphaStrike vuelve a llamar a updateButtons, y de ahi sale el OK.
+            // alphaStrike vuelve a llamar a updateButtons, y de ahi sale el OK
+            // (detras de esta respuesta, no dentro: ver pilotRespond).
             human.alphaStrike();
             return;
         }
@@ -1412,7 +1418,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
 
     /** Solo pruebas: que el piloto conteste lo que este esperando al soltarlo. */
     public void nudgeAutoPlay() {
-        respondLater(this::autoPressOk);
+        pilotRespond(this::autoPressOk);
     }
 
     /**
@@ -1902,7 +1908,6 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
      * el dado.
      */
     private void showDiceRoll(final int sides, final List<Integer> results) {
-        final forge.neo.ui.TableScreen t = table;
         if (results == null || results.isEmpty()) {
             return;
         }
@@ -1911,6 +1916,42 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         final String caption = forge.neo.match.DiceCaption.of(whoRolled(),
                 source == null ? null : forge.neo.card.CardText.nameOf(source), sides, results);
         log("Dados: %s -> %s", caption, results);
+        animateDice(sides, results, caption);
+    }
+
+    /**
+     * <b>El dado planar</b>, pintado con los mismos dados que los numericos
+     * (Discord, 12-10-2026: <i>"Include a dice when rolling ... A normal 1d6
+     * works the same as the planechase dice"</i>). El motor no da numero, solo
+     * el resultado, asi que se pinta un d6 como en la mesa de verdad: 1 es
+     * caos, 6 es viajar, y lo demas en blanco; y debajo, escrito, que ha
+     * salido. Lo tira quien tiene el turno: es una accion de su fase principal.
+     */
+    private void showPlanarRoll(final forge.game.PlanarDice result) {
+        final GameView gv = getGameView();
+        final Game game = gv == null ? null : gv.getGame();
+        final forge.game.player.Player roller = game == null ? null : game.getPhaseHandler().getPlayerTurn();
+        final int face;
+        switch (result) {
+            case Chaos:
+                face = 1;
+                break;
+            case Planeswalk:
+                face = 6;
+                break;
+            default:
+                face = 2 + forge.util.MyRandom.getRandom().nextInt(4);
+                break;
+        }
+        final String caption = forge.neo.match.DiceCaption.planar(roller == null ? null : roller.getName(),
+                forge.neo.NeoText.get("dice.planar." + result.name().toLowerCase(java.util.Locale.ROOT)));
+        log("Dado planar: %s", caption);
+        animateDice(6, List.of(face), caption);
+    }
+
+    /** Los dados en el centro de la mesa, y el motor esperando a que caigan. */
+    private void animateDice(final int sides, final List<Integer> results, final String caption) {
+        final forge.neo.ui.TableScreen t = table;
         if (!interactive() || t == null || !forge.neo.card.CardNode.areAnimationsEnabled()) {
             return;
         }
@@ -2078,7 +2119,9 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             slowTheAiDown(event);
         }
         animateEvent(event);
-        if (event instanceof forge.game.event.GameEventRollDie die && die.planar() == null) {
+        if (event instanceof forge.game.event.GameEventRollDie die && die.planar() != null) {
+            showPlanarRoll(die.planar());
+        } else if (event instanceof forge.game.event.GameEventRollDie die && die.planar() == null) {
             noteRollsBefore();
         } else if (event instanceof forge.game.event.GameEventRollDice roll) {
             showDiceRoll(roll.sides(), roll.results());
@@ -3865,6 +3908,12 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                 decision -> {
                     table.getOverlay().hide();
                     gameOverShowing = false;
+                    // Que se pulso, en el registro: "gane y me lo dio por
+                    // perdido" (Discord, 12-10-2026, un evento de la Aventura
+                    // al mejor de tres) no se podia distinguir de un "rendir
+                    // el partido" pulsado sin querer.
+                    log("Fin de la partida %d de %d (%s): el jugador elige %s", gameNumber, totalGames,
+                            won ? "ganada" : "perdida", decision);
                     if (closeDeferred) {
                         // El anfitrion ya cerro la partida mientras leiamos
                         // esto: no se contesta nada (ver afterGameEnd) y se
@@ -4661,6 +4710,14 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
     @Override
     public void updateButtons(final PlayerView owner, final String okLabel, final String cancelLabel,
                               final boolean okEnabled, final boolean cancelEnabled, final boolean focusOk) {
+        // Que una partida larga no se coma la memoria: las copias de la mesa
+        // que el motor no suelta (LkiPruner). Aqui, en el hilo de JavaFX, que es
+        // por donde pasan todas las respuestas de este jugador: el motor no
+        // puede arrancar a mitad de la poda. Android lo hace en su hilo de gestos.
+        final GameView pruneView = getGameView();
+        if (pruneView != null) {
+            LkiPruner.maybePrune(pruneView.getGame(), this);
+        }
         // Mientras se REPRODUCE una macro, los botones como en el Forge de
         // escritorio (CMatchUI.updateButtons): OK apagado y sin texto, y
         // Cancelar encendido, que es lo que para la reproduccion
@@ -4861,10 +4918,13 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         // selectButtonOk() aqui mismo, reentramos en el motor por el mismo
         // hilo que esta bloqueado. En la fase 4 este disparo lo hara el click
         // del usuario en vez de este executor.
+        // Y el piloto contesta por pilotRespond, no por respondLater: el motor
+        // pide los botones tambien DESDE DENTRO de una respuesta, y contestar
+        // ahi en linea revienta la pila.
         if (okEnabled) {
             // No un selectButtonOk a ciegas: el ataque obligado lo rechaza el
             // motor y vuelve a preguntar para siempre. Ver autoPressOk().
-            respondLater(this::autoPressOk);
+            pilotRespond(this::autoPressOk);
             return;
         }
 
@@ -4880,10 +4940,31 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         // (a) hay una seleccion de cartas en curso y faltan cartas por elegir
         // (b) no hay nada que hacer salvo cancelar
         if (isSelecting()) {
+            // Un clic a la vez: el siguiente, cuando el motor haya marcado el
+            // anterior. Y sin caer a Cancelar mientras tanto. Ver pilotClicks.
+            if (pilotClickInFlight()) {
+                trace("eligiendo carta: espero a que el motor marque la anterior");
+                return;
+            }
             final CardView next = nextUnpickedSelectable();
             if (next != null) {
                 trace("eligiendo carta: %s", next);
-                respondLater(() -> getGameController().selectCard(next, null, null));
+                pilotClicks.put(next.getId(), System.currentTimeMillis());
+                pilotRespond(() -> {
+                    final IGameController gc = getGameController();
+                    try {
+                        gc.selectCard(next, null, null);
+                    } finally {
+                        // Con el motor en este proceso el clic es sincrono: al
+                        // volver, o ya ha marcado la carta o no lo hara nunca
+                        // (llego antes que su pregunta), y el piloto tiene que
+                        // poder repetirlo. El invitado en red no: su clic solo
+                        // sale por el cable, y la marca llega despues.
+                        if (gc instanceof forge.player.PlayerControllerHuman) {
+                            pilotClicks.remove(next.getId());
+                        }
+                    }
+                });
                 return;
             }
         }
@@ -4910,6 +4991,22 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             // cualquiera, y se sigue eligiendo al jugador local.
             final List<PlayerPick.Choice> valid = PlayerPick.pending(getGameController());
             PlayerView who = localPlayer();
+            if (valid.isEmpty() && who != null && who.getOpponents() != null) {
+                // Sin la lista de los que valen — un jugador OBJETIVO
+                // (InputSelectTargets, que PlayerPick no lee y Forge no marca),
+                // o el invitado en red, que no tiene el motor —, un rival: vale
+                // casi siempre ("rival objetivo", "un rival elige": los esquemas
+                // de Archenemy, 12-10-2026), y uno mismo en esos no, y el motor
+                // descarta el clic y se queda esperando. Solo el piloto.
+                // Uno que siga en la partida: getOpponents() se rellena al
+                // empezar y trae tambien a los que ya han perdido.
+                for (final PlayerView o : who.getOpponents()) {
+                    if (!o.getHasLost()) {
+                        who = o;
+                        break;
+                    }
+                }
+            }
             if (!valid.isEmpty()) {
                 PlayerView first = null;
                 boolean localValid = false;
@@ -4926,13 +5023,13 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             if (who != null) {
                 trace("eligiendo jugador: %s", nameOf(who));
                 final PlayerView chosen = who;
-                respondLater(() -> getGameController().selectPlayer(chosen, null));
+                pilotRespond(() -> getGameController().selectPlayer(chosen, null));
                 return;
             }
         }
 
         if (cancelEnabled) {
-            respondLater(() -> getGameController().selectButtonCancel());
+            pilotRespond(() -> getGameController().selectButtonCancel());
         }
     }
 
@@ -5501,6 +5598,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         }
         selectables = list;
         noPickWarned.set(false);
+        pilotClicks.clear();
         trace("setSelectables: %d elegibles (min %d, max %d)", list.size(), min, max);
         // Un maximo de 0 es "solo resaltar": quien llama ensenya lo suyo.
         if (max > 0 && showSelectionZone(list)) {
@@ -5513,6 +5611,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         super.clearSelectables();
         selectables = List.of();
         noPickWarned.set(false);
+        pilotClicks.clear();
         // Se cierra solo lo que abrio la eleccion: si el jugador tenia abierta
         // una zona por su cuenta, no se la quitamos de delante.
         if (selectionZoneShown.getAndSet(false) && interactive()) {
@@ -5531,6 +5630,14 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
     @Override
     public void setHighlighted(final Iterable<GameEntityView> entities, final boolean on) {
         super.setHighlighted(entities, on);
+        // La marca es la respuesta del motor al clic del piloto. Ver pilotClicks.
+        if (entities != null && !pilotClicks.isEmpty()) {
+            for (final GameEntityView e : entities) {
+                if (e instanceof CardView cv) {
+                    pilotClicks.remove(cv.getId());
+                }
+            }
+        }
         refreshHighlights();
     }
 
@@ -5752,6 +5859,40 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                 && selectables.isEmpty();
     }
 
+    /**
+     * Las cartas que el piloto {@code AUTO_PLAY} ha clicado en la eleccion en
+     * curso y que el motor aun no ha marcado ({@code setHighlighted}), con la
+     * hora del clic. Mientras haya una, el piloto no clica otra.
+     *
+     * <p>Fue {@code lobbycheck} en rojo a ratos (12-10-2026): el invitado en
+     * red tenia que descartar dos en la limpieza, clico tres veces y la
+     * partida se quedo esperando para siempre. El piloto clica en cada
+     * {@code updateButtons} con OK apagado, y a veces llegan dos antes que la
+     * marca del primer clic — el "esperando al rival" que el invitado se pinta
+     * solo 250 ms despues de cada {@code awaitNextInput}, y que el anfitrion no
+     * le cancela por el cable. El segundo clic caia en la MISMA carta y la
+     * desmarcaba. Y el anfitrion atiende cada mensaje del invitado en un hilo
+     * nuevo ({@code GameServerHandler} → {@code invokeInBackgroundThread}), asi
+     * que los dos clics se cruzaban alla, y las marcas llegaban al reves: el
+     * invitado creia llevar las dos y el anfitrion tenia una.
+     *
+     * <p>Una a la vez, como un humano que mira si su clic ha cogido. Se olvidan
+     * con la marca de esa carta, con una eleccion nueva, al volver un clic
+     * contra el motor de este proceso (es sincrono) y, por si un clic se pierde,
+     * a los {@link #PILOT_CLICK_WAIT_MS}.
+     */
+    private final Map<Integer, Long> pilotClicks = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** Cuanto se espera la marca de un clic del piloto antes de darlo por perdido. */
+    private static final long PILOT_CLICK_WAIT_MS = 5000;
+
+    /** Si hay un clic del piloto sin marcar. Ver {@link #pilotClicks}. */
+    private boolean pilotClickInFlight() {
+        final long now = System.currentTimeMillis();
+        pilotClicks.values().removeIf(t -> now - t >= PILOT_CLICK_WAIT_MS);
+        return !pilotClicks.isEmpty();
+    }
+
     /** Primera carta elegible que aun no se ha elegido. */
     private CardView nextUnpickedSelectable() {
         if (countPickedSelectables() >= getSelectionMin()) {
@@ -5793,6 +5934,71 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                 // executor cerrado
             }
         }
+    }
+
+    /** Mientras corre una respuesta del piloto {@code AUTO_PLAY}. Ver pilotRespond. */
+    private volatile boolean pilotAnswering;
+
+    /**
+     * Una respuesta del piloto {@code AUTO_PLAY}: {@link #respondLater}, salvo
+     * que el motor la pida <b>desde dentro</b> de otra respuesta del piloto, en
+     * el hilo de JavaFX. Esa va detras, y solo si la pregunta sigue en pie.
+     *
+     * <p>Fue un {@code StackOverflowError} real (12-10-2026), con "Reportar un
+     * fallo" en pantalla, solo con ventana ({@code ui --live --auto}, a cuatro y
+     * con Planechase). {@code FxUiDispatcher.runLater} ejecuta en linea si ya se
+     * esta en el hilo de JavaFX, e {@code InputAttack.onOk} pide los botones
+     * ({@code setCurrentDefender(null) → updatePrompt → updateButtons}, con OK
+     * encendido) <b>antes</b> de su {@code stop()}: el OK del piloto volvia a
+     * pulsar OK sobre el mismo ataque sin terminar, que volvia a pedir los
+     * botones... hasta reventar la pila dentro de
+     * {@code CombatUtil.validateAttackers}. Sin ventana no pasa:
+     * {@code ConsoleUiDispatcher} siempre encola, y aqui no cambia nada.
+     *
+     * <p>Detras y no descartada, porque a veces hace falta: el ataque obligado
+     * ({@code answerInvalidAttack}) ataca con todo desde dentro de una
+     * respuesta, y el OK que lo cierra sale de los botones que pide
+     * {@code alphaStrike}. Y solo con la pregunta de antes, porque la de
+     * {@code onOk} llega con la suya a punto de cerrarse: suelta, caeria en la
+     * siguiente, y un {@code selectCard} sobre la prioridad juega la carta.
+     * Lo que no viene de dentro de una respuesta sigue en linea, como siempre.
+     */
+    private void pilotRespond(final Runnable action) {
+        final IGameController gc = getGameController();
+        final Runnable marked = () -> {
+            final boolean outer = pilotAnswering;
+            pilotAnswering = true;
+            try {
+                action.run();
+            } finally {
+                pilotAnswering = outer;
+            }
+        };
+        final UiDispatcher ui = uiDispatcher();
+        if (!pilotAnswering || !(ui instanceof forge.neo.platform.FxUiDispatcher)
+                || !ui.isUiThread()) {
+            respondLater(marked);
+            return;
+        }
+        final Object asked = pendingInput(gc);
+        decisions.incrementAndGet();
+        javafx.application.Platform.runLater(() -> {
+            if (pendingInput(gc) != asked) {
+                trace("piloto: la pregunta ya no es la misma, respuesta descartada");
+                return;
+            }
+            try {
+                marked.run();
+            } catch (final Exception e) {
+                trace("respuesta descartada: %s", e.getClass().getSimpleName());
+            }
+        });
+    }
+
+    /** La pregunta que el motor tiene puesta ahora mismo, o null. */
+    private static Object pendingInput(final IGameController gc) {
+        return gc instanceof forge.player.PlayerControllerHuman human
+                ? human.getInputQueue().getInput() : null;
     }
 
     private static UiDispatcher uiDispatcher() {

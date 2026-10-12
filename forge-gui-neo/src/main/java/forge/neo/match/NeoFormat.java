@@ -307,6 +307,17 @@ public enum NeoFormat implements forge.neo.deck.DeckContext {
                 addPrecons(out);
                 break;
         }
+        // Los "otros formatos" (Premodern, Pauper, PreDH...) comparten carpeta
+        // con Estandar o Commander, y su pozo solo recortaba el constructor: la
+        // lista para jugar era la de Estandar entera, y los rivales salian de
+        // ahi tambien (Discord, 12-10-2026: "Premodern ... shows me 441 decks",
+        // con un Mentor of the Meek de M19). Solo se miran las CARTAS
+        // (isDeckLegal: expansiones, prohibidas, restringidas): el tamanyo lo
+        // dice deckFormat(), y un mazo a medio montar no desaparece.
+        final forge.game.GameFormat pool = poolFormat();
+        if (pool != null) {
+            out.removeIf(d -> d == null || !pool.isDeckLegal(d));
+        }
         return out;
     }
 

@@ -201,6 +201,12 @@ final class SelfTest {
                     NeoDuelBridge.log("autoprueba anteduel: mundo nuevo, ante " + (ante ? "encendido" : "apagado"));
                 });
                 Thread.sleep(15000);
+                // Que el Adventure haya terminado de arrancar: con un perfil
+                // nuevo tarda, y si el duelo empezaba antes, su arranque ponia
+                // la portada ENCIMA y dejaba el duelo en la pila de escenas.
+                for (int i = 0; i < 120 && forge.Forge.getCurrentScene() == null; i++) {
+                    Thread.sleep(1000);
+                }
                 Gdx.app.postRunnable(() -> {
                     try {
                         // -Dneo.adventure.enemy=Sliver Queen: un JEFE, que al ganarte
@@ -211,8 +217,30 @@ final class SelfTest {
                         // Al mejor de N, como los eventos (-Dneo.adventure.games=3).
                         data.gamesPerMatch = Integer.getInteger("neo.adventure.games", data.gamesPerMatch);
                         final forge.adventure.character.EnemySprite enemy = new forge.adventure.character.EnemySprite(data);
+                        // -Dneo.adventure.event=scene: el evento ENTERO, por su
+                        // pantalla (EventScene.startRound), que es quien apunta
+                        // el resultado de la ronda al volver.
+                        if ("scene".equals(System.getProperty("neo.adventure.event"))) {
+                            final forge.adventure.data.AdventureEventData ev = testEvent();
+                            ev.rounds = 1;
+                            ev.currentRound = 1;
+                            ev.eventStatus = forge.adventure.util.AdventureEventController.EventStatus.Started;
+                            testEvent = ev;
+                            final forge.adventure.scene.EventScene es = forge.adventure.scene.EventScene.instance(
+                                    forge.adventure.scene.GameScene.instance(), ev, null);
+                            forge.Forge.switchScene(es);
+                            es.startRound();
+                            NeoDuelBridge.log("autoprueba anteduel: entrando por EventScene.startRound");
+                            return;
+                        }
                         final forge.adventure.scene.DuelScene ds = forge.adventure.scene.DuelScene.instance();
-                        ds.initDuels(forge.adventure.stage.WorldStage.getInstance().getPlayerSprite(), enemy);
+                        // -Dneo.adventure.event=true: como un duelo de EVENTO
+                        // (draft, sellado), que es otro camino de DuelScene: su
+                        // GameType, su mazo registrado y su rival. El rival
+                        // lleva solo llanuras, para que la mesa sola GANE y se
+                        // vea que cuenta como victoria (Discord, 12-10-2026).
+                        ds.initDuels(forge.adventure.stage.WorldStage.getInstance().getPlayerSprite(), enemy,
+                                false, Boolean.getBoolean("neo.adventure.event") ? testEvent() : null);
                         forge.Forge.switchScene(ds);
                         NeoDuelBridge.log("autoprueba anteduel: entrando por DuelScene contra " + who);
                     } catch (final Throwable e) {
@@ -243,6 +271,11 @@ final class SelfTest {
                                 pane.setResult(0);
                             }
                         }
+                        final forge.adventure.data.AdventureEventData ev = testEvent;
+                        if (ev != null) {
+                            NeoDuelBridge.log("autoprueba anteduel: evento ganadas=" + ev.matchesWon
+                                    + " perdidas=" + ev.matchesLost + " estado=" + ev.eventStatus);
+                        }
                         NeoDuelBridge.log("autoprueba anteduel: escena="
                                 + (forge.Forge.getCurrentScene() == null ? "null"
                                 : forge.Forge.getCurrentScene().getClass().getSimpleName())
@@ -258,6 +291,28 @@ final class SelfTest {
                 e.printStackTrace();
             }
         }, "neo-adventure-selftest-ante").start();
+    }
+
+    /** El evento en curso de {@code -Dneo.adventure.event=scene}, para decir como va. */
+    private static volatile forge.adventure.data.AdventureEventData testEvent;
+
+    /** El evento de {@code -Dneo.adventure.event}: un rival de solo llanuras, al mejor de N. */
+    private static forge.adventure.data.AdventureEventData testEvent() {
+        final forge.adventure.data.AdventureEventData ev = new forge.adventure.data.AdventureEventData(1234L,
+                forge.adventure.util.AdventureEventController.EventFormat.Draft);
+        ev.eventRules = new forge.adventure.data.AdventureEventData.AdventureEventRules(
+                forge.adventure.util.AdventureEventController.EventFormat.Draft, 1f);
+        ev.eventRules.gamesPerMatch = Integer.getInteger("neo.adventure.games", ev.eventRules.gamesPerMatch);
+        ev.style = forge.adventure.util.AdventureEventController.EventStyle.Bracket;
+        ev.generateParticipants(1);
+        final Deck plains = new Deck("Solo llanuras");
+        plains.getMain().add(FModel.getMagicDb().getCommonCards().getCard("Plains"), 40);
+        ev.participants[0].setDeck(plains);
+        ev.nextOpponent = ev.participants[0];
+        ev.registeredDeck = (Deck) forge.adventure.util.Current.player().getSelectedDeck().copyTo("Prueba de evento");
+        NeoDuelBridge.log("autoprueba anteduel: duelo de EVENTO (" + ev.eventRules.gameType
+                + ", al mejor de " + ev.eventRules.gamesPerMatch + ", el rival solo con llanuras)");
+        return ev;
     }
 
     /** Pulsa el primer boton del aviso con un toque de verdad (touchDown + touchUp). */

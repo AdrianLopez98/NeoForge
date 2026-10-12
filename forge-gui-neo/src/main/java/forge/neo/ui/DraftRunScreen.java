@@ -112,8 +112,8 @@ public class DraftRunScreen extends BorderPane {
                     ? (run.isArena()
                         ? NeoText.get("draft.completed.detail", run.getWins())
                         : NeoText.get("draft.gauntletDone.detail",
-                                run.getName(), run.getWins(), run.getLosses()))
-                    : run.getName());
+                                LimitedEventsScreen.title(run), run.getWins(), run.getLosses()))
+                    : LimitedEventsScreen.title(run));
         sub.getStyleClass().add("home-subtitle");
 
         final VBox header = new VBox(4, title, sub, record(run));

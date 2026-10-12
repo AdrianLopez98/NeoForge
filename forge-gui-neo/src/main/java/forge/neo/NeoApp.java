@@ -552,8 +552,10 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 if (teams != null) {
                     lastTeams = forge.neo.match.NeoTeams.fromSetting(teams, opponents);
                 }
+                // -Dneo.live.home=true: al acabar vuelve al menu, como una
+                // partida de verdad. Para probar la vuelta con --quit-test.
                 startLiveGame(deck, opponents, mode, timeout, args.contains("-v"),
-                        optionOf(args, "--ai"), false);
+                        optionOf(args, "--ai"), Boolean.getBoolean("neo.live.home"));
 
                 // Ver el detalle del jugador, que el motor compone entero y
                 // que de otra forma no se puede capturar: es un tooltip.
@@ -3064,7 +3066,9 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             table.setPrompt(forge.neo.NeoText.get("app.closing"));
             // La salida de emergencia se engancha AQUI, que es el unico momento
             // en que hace falta: el jugador ya ha dicho que se quiere ir.
-            ui.setOnAbandon(() -> Platform.runLater(this::abandonMatch));
+            // Atada a ESTA mesa: si para entonces ya se ha salido (o hay otra
+            // partida), la valvula no mueve a nadie. Ver abandonMatch(b).
+            ui.setOnAbandon(() -> Platform.runLater(() -> abandonMatch(b)));
             ui.leaveMatch(action);
         } else {
             // Sin partida detras (maqueta): al menu y ya.
@@ -3087,7 +3091,7 @@ public class NeoApp extends Application implements SettingsPanel.Host {
         crashDialogUp = true;
         table.setPrompt(forge.neo.NeoText.get("app.engineDead.short"));
         table.getMenuOverlay().setOnBackgroundClick(null);
-        table.getMenuOverlay().show(new forge.neo.ui.ConfirmDialog(
+        table.getMenuOverlay().show(crashDialog = new forge.neo.ui.ConfirmDialog(
                 forge.neo.NeoText.get("app.engineDead.title"),
                 forge.neo.NeoText.get("app.engineDead.text"),
                 java.util.List.of(forge.neo.NeoText.get("app.engineDead.leave")),
@@ -3111,6 +3115,23 @@ public class NeoApp extends Application implements SettingsPanel.Host {
      */
     private volatile boolean crashDialogUp;
 
+    /** El aviso de "la partida se ha roto", para saber si sigue A LA VISTA. */
+    private forge.neo.ui.ConfirmDialog crashDialog;
+
+    /**
+     * Si el aviso de la partida rota esta de verdad delante.
+     *
+     * <p>{@code crashDialogUp} solo se baja al pulsar su boton, y la capa de
+     * menu ensenya UNA cosa: abrir el menu de pausa encima lo quita de la
+     * pantalla sin pulsarlo. Con la marca sola, la valvula de "Salir" se
+     * quedaba esperando un boton que ya no existia (12-10-2026).
+     */
+    private boolean crashDialogShowing() {
+        return crashDialogUp && table != null && crashDialog != null
+                && table.getMenuOverlay().isShowing()
+                && table.getMenuOverlay().getContent() == crashDialog;
+    }
+
     /**
      * El motor no ha cerrado la partida y nos vamos igual.
      *
@@ -3119,7 +3140,19 @@ public class NeoApp extends Application implements SettingsPanel.Host {
      * perdida; lo unico que se rescata es al jugador.
      */
     private void abandonMatch() {
-        if (crashDialogUp) {
+        abandonMatch(binder);
+    }
+
+    /**
+     * Salir a las bravas de la partida de {@code leaving}.
+     *
+     * <p>Atado a la mesa que se abandona y no a una marca suelta: hasta el
+     * 12-10-2026 era un {@code AtomicBoolean} que, si se quedaba en true de una
+     * salida anterior, hacia que esta no saliera — la mesa en "Cerrando la
+     * partida..." para siempre (Ana, Commander con Archenemy y Planechase).
+     */
+    private void abandonMatch(final TableBinder leaving) {
+        if (crashDialogShowing()) {
             // El aviso esta delante con su propio boton: que salga el jugador.
             return;
         }
@@ -3135,9 +3168,12 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             net.backToLobby();
             return;
         }
-        if (!abandoned.compareAndSet(false, true)) {
+        crashDialogUp = false;
+        if (leaving == null || binder != leaving) {
+            // Ya se salio de esa mesa (por aqui o porque el motor volvio).
             return;
         }
+        abandonedBinder = leaving;
         binder = null;
         showHome();
     }
@@ -3149,8 +3185,7 @@ public class NeoApp extends Application implements SettingsPanel.Host {
      * despertando y volviera por su cuenta, no puede llevarse por delante la
      * pantalla en la que ya esta el jugador.
      */
-    private final java.util.concurrent.atomic.AtomicBoolean abandoned =
-            new java.util.concurrent.atomic.AtomicBoolean();
+    private volatile TableBinder abandonedBinder;
 
     // ---------------------------------------------------------------
     // SettingsPanel.Host
@@ -4049,7 +4084,10 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                         forge.neo.match.Planechase.wrap(format,
                                 forge.neo.match.Archenemy.wrap(format,
                                         forge.neo.match.NeoTeams.seating(format, lastTeams),
-                                        NeoSettings.archenemy(), NeoSettings.archenemyWho()),
+                                        // Solo a cuatro: es uno contra un equipo.
+                                        NeoSettings.archenemy()
+                                                && opponents >= forge.neo.match.Archenemy.MIN_OPPONENTS,
+                                        NeoSettings.archenemyWho()),
                                 NeoSettings.planechase(), NeoSettings.planechaseShared()));
                 if (r.exit != null) {
                     exit = r.exit;
@@ -4065,7 +4103,8 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                     Platform.runLater(() -> {
                         // Si ya se salio por las bravas, el jugador esta en otra
                         // pantalla (puede que en otra partida): no se le mueve.
-                        if (abandoned.compareAndSet(true, false)) {
+                        if (abandonedBinder == liveBinder) {
+                            abandonedBinder = null;
                             return;
                         }
                         binder = null;

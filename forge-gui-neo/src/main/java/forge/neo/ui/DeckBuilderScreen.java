@@ -621,6 +621,8 @@ public class DeckBuilderScreen extends StackPane {
         }
         // Ordenar, como las columnas del editor de Forge. En la Aventura,
         // ademas, "lo ultimo primero".
+        // Los grupos, como los de Forge: tipo y, dentro, el orden de al lado.
+        caption.getChildren().add(caption.getChildren().indexOf(legal), groupBox());
         caption.getChildren().add(caption.getChildren().indexOf(legal), sortBox());
         caption.getChildren().add(caption.getChildren().indexOf(legal), sortDirection);
         // Y en la Aventura, copiar la coleccion entera (lo tiene su editor).
@@ -724,7 +726,60 @@ public class DeckBuilderScreen extends StackPane {
     private static boolean newestFirstChosen;
 
     /** El orden elegido la ultima vez, por la misma razon. */
-    private static DeckEditor.Sort sortChosen;
+    private static DeckEditor.Sort sortChosen = fromProperty(DeckEditor.Sort.class, "neo.builder.sort", null);
+
+    /** Los grupos del catalogo elegidos, para toda la sesion (como el orden). */
+    private static DeckEditor.Group groupChosen =
+            fromProperty(DeckEditor.Group.class, "neo.builder.group", DeckEditor.Group.NONE);
+
+    /** Solo pruebas: -Dneo.builder.group=TYPE, -Dneo.builder.sort=COST (para capturarlo). */
+    private static <E extends Enum<E>> E fromProperty(final Class<E> type, final String key, final E fallback) {
+        final String v = System.getProperty(key);
+        if (v == null || v.isEmpty()) {
+            return fallback;
+        }
+        try {
+            return Enum.valueOf(type, v.trim().toUpperCase(java.util.Locale.ROOT));
+        } catch (final IllegalArgumentException e) {
+            return fallback;
+        }
+    }
+
+    /**
+     * El selector de grupos del catalogo (Discord, 12-10-2026): parte el
+     * catalogo como el "Groups" del editor de Forge, y cada grupo sale con su
+     * cabecera y ordenado con el orden de al lado. Ver DeckEditor.Group.
+     */
+    private javafx.scene.control.ComboBox<DeckEditor.Group> groupBox() {
+        final javafx.scene.control.ComboBox<DeckEditor.Group> box = new javafx.scene.control.ComboBox<>();
+        box.setId("builder-group");
+        box.getStyleClass().add("builder-sort");
+        box.getItems().addAll(DeckEditor.Group.values());
+        box.setConverter(new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(final DeckEditor.Group g) {
+                return g == null ? "" : NeoText.get("deck.group",
+                        NeoText.get("deck.group." + g.name().toLowerCase(java.util.Locale.ROOT)));
+            }
+
+            @Override
+            public DeckEditor.Group fromString(final String t) {
+                return null;
+            }
+        });
+        box.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("deck.group.tip")));
+        box.setValue(groupChosen);
+        editor.setGroup(groupChosen);
+        box.valueProperty().addListener((o, was, is) -> {
+            if (is == null) {
+                return;
+            }
+            groupChosen = is;
+            editor.setGroup(is);
+            refreshCatalogue();
+        });
+        return box;
+    }
 
     /**
      * Y si iba al reves (itch.io, 03-10-2026: <i>"You can't change sort
@@ -1669,7 +1724,11 @@ public class DeckBuilderScreen extends StackPane {
         } else {
             // Una sola pasada por el catalogo para las cartas Y el total.
             final DeckEditor.SearchResult found =
-                    editor.find(query, onlyLegal, fine, FETCH_LIMIT, searchRules);
+                    // Con grupos, TODO: cortar en las mil primeras dejaria solo el primer
+                    // grupo ("Criaturas (1000)" y nada mas). El orden ya se hace sobre
+                    // todos antes de cortar, asi que traerlos no cuesta casi nada.
+                    editor.find(query, onlyLegal, fine, editor.getGroup() != DeckEditor.Group.NONE
+                            ? Integer.MAX_VALUE : FETCH_LIMIT, searchRules);
             catalogueHits = found.cards;
             catalogueTotal = found.total;
         }
@@ -1707,8 +1766,33 @@ public class DeckBuilderScreen extends StackPane {
         pager.setTotal(catalogueHits.size());
 
         results.getChildren().clear();
+        // Con grupos, una cabecera al empezar cada uno (y al principio de cada
+        // pagina, para saber en cual estas), con cuantas hay en el.
+        final boolean grouped = editor.getGroup() != DeckEditor.Group.NONE && !commanderMode;
+        final Map<String, Integer> perGroup = new java.util.HashMap<>();
+        if (grouped) {
+            for (final PaperCard c : catalogueHits) {
+                perGroup.merge(editor.catalogueGroupOf(c), 1, Integer::sum);
+            }
+        }
+        String lastGroup = null;
         for (int i = pager.from(); i < pager.to(); i++) {
-            results.getChildren().add(catalogueTile(catalogueHits.get(i)));
+            final PaperCard c = catalogueHits.get(i);
+            if (grouped) {
+                final String g = editor.catalogueGroupOf(c);
+                if (!java.util.Objects.equals(g, lastGroup)) {
+                    lastGroup = g;
+                    final Label heading = new Label(DeckEditor.catalogueGroupLabel(g)
+                            + "  (" + perGroup.getOrDefault(g, 0) + ")");
+                    heading.getStyleClass().add("deck-group");
+                    heading.setMaxWidth(Double.MAX_VALUE);
+                    // Ocupa la fila entera: lo que viene detras empieza debajo.
+                    heading.prefWidthProperty().bind(results.widthProperty()
+                            .subtract(results.getPadding().getLeft() + results.getPadding().getRight() + 2));
+                    results.getChildren().add(heading);
+                }
+            }
+            results.getChildren().add(catalogueTile(c));
         }
 
         // La fila de las basicas no se pagina: son cinco y estan siempre. Y si
@@ -2822,6 +2906,15 @@ public class DeckBuilderScreen extends StackPane {
                     return;
                 }
                 applyImportedDeck(loaded, 0, List.of());
+                // Y su nombre, como en Android (itch.io, 12-10-2026: "When
+                // importing a deck on pc, bring the name with it"). Solo a un
+                // mazo que aun no esta guardado: a uno tuyo no se le cambia el
+                // nombre sin preguntar. Y sin pisar otro: "(2)", "(3)"...
+                if (editor.getSavedAs() == null && editor.getFormat().canRename()
+                        && loaded.getName() != null && !loaded.getName().isBlank()) {
+                    editor.setName(editor.freeName(loaded.getName()));
+                    refreshDeck();
+                }
             });
         }, "Game-neo-deckurl");
         t.setDaemon(true);

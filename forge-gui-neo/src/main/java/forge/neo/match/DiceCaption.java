@@ -43,4 +43,18 @@ public final class DiceCaption {
         }
         return sb.toString();
     }
+
+    /**
+     * Lo de debajo del dado planar: <i>"Dora · Planar Dice · Chaos"</i>.
+     *
+     * @param roller quien tira, o {@code null}
+     * @param result lo que ha salido, ya traducido
+     */
+    public static String planar(final String roller, final String result) {
+        final StringBuilder sb = new StringBuilder();
+        if (roller != null && !roller.trim().isEmpty()) {
+            sb.append(roller).append("  ·  ");
+        }
+        return sb.append("Planar Dice  ·  ").append(result).toString();
+    }
 }

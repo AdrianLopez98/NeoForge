@@ -196,6 +196,105 @@ public final class DraftRun {
         return name;
     }
 
+    // ---------------------------------------------------------------
+    // Como se llama en la lista (Discord, 12-10-2026: "more useful labels
+    // ... say 'goblins/dinosaurs'. Or even just a way for us to rename our
+    // sealed decks")
+    // ---------------------------------------------------------------
+
+    /** Lo mas largo que se deja escribir: es una fila de una lista. */
+    public static final int MAX_LABEL = 40;
+
+    /**
+     * El nombre que le ha puesto el jugador, o null.
+     *
+     * <p>Es una ETIQUETA, no el nombre de verdad: el evento sigue guardado con
+     * el suyo en el almacen de Forge. Renombrar ahi seria mover una carpeta con
+     * el mazo y los siete rivales, y el marcador cuelga del nombre; para que el
+     * jugador sepa que hay en cada fila basta con esto.
+     */
+    public String getLabel() {
+        final String label = NeoSettings.get(key("label"), null);
+        return label == null || label.isBlank() ? null : label;
+    }
+
+    /** Pone (o quita, con vacio) el nombre del jugador. */
+    public void setLabel(final String label) {
+        String clean = label == null ? "" : label.trim();
+        if (clean.length() > MAX_LABEL) {
+            clean = clean.substring(0, MAX_LABEL).trim();
+        }
+        NeoSettings.set(key("label"), clean.isEmpty() || clean.equals(name) ? null : clean);
+        NeoSettings.save();
+    }
+
+    /**
+     * Los temas de un sellado de Jumpstart, "Goblins + Dinosaurs", o null.
+     *
+     * <p>{@code NeoSealed.createJumpstart} los apunta en el comentario del mazo
+     * ("Goblins 1 + Dinosaurs 2"). Solo se dan por temas si TODOS lo son de
+     * verdad (estan en {@link Jumpstart#products}): un comentario cualquiera no
+     * puede acabar de titulo. Sin el numero de variante, que no dice nada al
+     * volver al evento dias despues.
+     */
+    public String themes() {
+        if (kind != Kind.SEALED) {
+            return null;
+        }
+        final Deck deck = getDeck();
+        final String comment = deck == null ? null : deck.getComment();
+        if (comment == null || comment.isBlank()) {
+            return null;
+        }
+        final java.util.Set<String> known = new java.util.HashSet<>();
+        try {
+            for (final Jumpstart.Product p : Jumpstart.products()) {
+                for (final Jumpstart.Theme t : p.themes) {
+                    known.add(t.name.trim());
+                }
+            }
+        } catch (final RuntimeException e) {
+            return null;
+        }
+        final List<String> out = new ArrayList<>();
+        for (final String part : comment.split(" \\+ ")) {
+            final String theme = part.trim();
+            if (!known.contains(theme)) {
+                return null;
+            }
+            final String plain = theme.replaceAll("\\s+\\d+$", "");
+            if (!out.contains(plain)) {
+                out.add(plain);
+            }
+        }
+        return out.isEmpty() ? null : String.join(" + ", out);
+    }
+
+    /**
+     * El numero de un sellado con el nombre de fabrica ({@code NeoSealed.nextName}:
+     * "Sellado 3" -> 3), o -1. Ese nombre se guarda en castellano; cada
+     * interfaz lo enseña en su idioma ("Sealed 3").
+     */
+    public int defaultNumber() {
+        if (kind == Kind.SEALED && name.matches("Sellado \\d{1,4}")) {
+            return Integer.parseInt(name.substring("Sellado ".length()));
+        }
+        return -1;
+    }
+
+    /**
+     * El titulo de la fila: el nombre del jugador; si no hay, los temas de
+     * Jumpstart; si tampoco, el nombre del evento.
+     */
+    public String displayName() {
+        final String label = getLabel();
+        if (label != null) {
+            return label;
+        }
+        final String themes = themes();
+        return themes != null ? themes : name;
+    }
+
     public int getWins() {
         return wins;
     }
@@ -341,6 +440,7 @@ public final class DraftRun {
         NeoSettings.set(key("losses"), null);
         NeoSettings.set(key("split"), null);
         NeoSettings.set(key("arena"), null);
+        NeoSettings.set(key("label"), null);
         if (name.equals(NeoSettings.get(currentKey(kind), null))) {
             NeoSettings.set(currentKey(kind), null);
         }

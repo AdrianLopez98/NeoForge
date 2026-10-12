@@ -164,6 +164,7 @@ public class DuelScene extends ForgeScene {
             // (17-09-2026). getMatch() sigue ahi y responde lo mismo:
             // getGame().getMatch() ES ese match.
             winner = humanPlayer == hostedMatch.getMatch().getWinner();
+            forge.neo.adventure.NeoDuelBridge.logResult(hostedMatch.getMatch(), humanPlayer, winner);
 
             //Persists expended (or potentially gained) shards back to Adventure
             if (eventData == null || eventData.eventRules.allowsShards) {

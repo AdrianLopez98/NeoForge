@@ -351,6 +351,40 @@ public final class LobbyCheck {
                                 && lobby.getSlot(ai2Seat).getTeam() == 1);
             }
 
+            // ---- 4-quater. Archenemy, si se pide ----
+            //
+            // -Dneo.lobby.check.archenemy=one|all (12-10-2026, Discord). Con
+            // "one" el archienemigo es el INVITADO: es lo que prueba que la
+            // marca en un asiento remoto (que el anfitrion escribe a mano, sin
+            // evento) llega a la partida. Detras de una bandera, como los
+            // equipos: la prueba de siempre sigue siendo la de siempre.
+            final String archenemyWanted = System.getProperty("neo.lobby.check.archenemy", "").trim();
+            NeoLobby.Archenemy archenemy = NeoLobby.Archenemy.OFF;
+            if (!archenemyWanted.isEmpty()) {
+                archenemy = "all".equalsIgnoreCase(archenemyWanted)
+                        ? NeoLobby.Archenemy.ALL : NeoLobby.Archenemy.ONE;
+                NeoLobby.setArchenemy(lobby, archenemy);
+                if (archenemy == NeoLobby.Archenemy.ONE) {
+                    NeoLobby.setArchenemySeat(lobby, guestSeat);
+                    ok &= check("el archienemigo es el invitado (asiento " + guestSeat + ")",
+                            NeoLobby.archenemySeat(lobby) == guestSeat);
+                }
+                ok &= check("Archenemy puesto en la sala: " + archenemy,
+                        NeoLobby.archenemyOf(lobby) == archenemy);
+                // Lo que hace LobbyScreen.start justo antes de startGame.
+                final int given = NeoLobby.prepareSchemes(lobby);
+                final int expected = archenemy == NeoLobby.Archenemy.ALL
+                        ? NeoLobby.activeSlots(lobby).size() : 1;
+                ok &= check("esquemas al azar para quien no los trae (" + given + " de " + expected + ")",
+                        given == expected);
+                for (final LobbySlot s : NeoLobby.activeSlots(lobby)) {
+                    final forge.deck.CardPool pool = s.getDeck() == null ? null
+                            : s.getDeck().get(forge.deck.DeckSection.Schemes);
+                    System.out.printf(Locale.ROOT, "  %s: archienemigo=%s, equipo %d, %d esquemas en su mazo%n",
+                            s.getName(), s.isArchenemy(), s.getTeam(), pool == null ? 0 : pool.countAll());
+                }
+            }
+
             System.out.printf(Locale.ROOT, "  Lobby listo: %s%n", NeoLobby.describe(lobby));
             ok &= check("todos listos", lobby.findFirstUnreadySlot() == null);
 
@@ -376,6 +410,10 @@ public final class LobbyCheck {
                     seated == (teams ? 4 : 3));
             if (teams) {
                 ok &= checkTeamsReachedGame(hostUi);
+            }
+            if (archenemy != NeoLobby.Archenemy.OFF) {
+                ok &= checkArchenemyReachedGame(hostUi, archenemy,
+                        lobby.getSlot(guestSeat).getName(), format == NeoFormat.COMMANDER);
             }
 
             // AQUI y no al final: GameLobby.onMatchOver() vacia el mapa de
@@ -464,6 +502,7 @@ public final class LobbyCheck {
             // ---- 9. la sala, sin red ----
             ok &= checkSeatRemoval();
             ok &= checkFormats();
+            ok &= checkArchenemyRules();
             ok &= checkServerPhrases();
             ok &= checkBuildStamp();
             ok &= checkHostChatHasAName();
@@ -535,17 +574,27 @@ public final class LobbyCheck {
                 : hostUi.getGameView().getGame();
         ok &= check("y es a UNA partida, no al mejor de tres",
                 game != null && game.getRules().getGamesPerMatch() == 1);
-        boolean remoteSeat = false;
-        boolean installed = false;
+        // Se reintenta unos segundos: mientras el anfitrion calcula que puede
+        // jugar el invitado (AvailableActions, para sus resaltados), Forge le
+        // pone un controlador de IA PROVISIONAL (Player.runWithController), y
+        // mirar justo entonces daba que no habia ningun asiento remoto. Pasaba
+        // sobre todo si el invitado empieza (Archenemy).
+        final boolean[] found = new boolean[2];
         if (game != null) {
-            for (final forge.game.player.Player p : game.getPlayers()) {
-                if (p.getController() instanceof forge.player.PlayerControllerHuman pch
-                        && pch.getGui() instanceof forge.gamemodes.net.server.RemoteClientGuiGame) {
-                    remoteSeat = true;
-                    installed = forge.neo.match.ManaColor.isInstalled(p);
+            waitUntil(() -> {
+                for (final forge.game.player.Player p : game.getPlayers()) {
+                    if (p.getController() instanceof forge.player.PlayerControllerHuman pch
+                            && pch.getGui() instanceof forge.gamemodes.net.server.RemoteClientGuiGame) {
+                        found[0] = true;
+                        found[1] = forge.neo.match.ManaColor.isInstalled(p);
+                        return true;
+                    }
                 }
-            }
+                return false;
+            }, 5_000L);
         }
+        final boolean remoteSeat = found[0];
+        final boolean installed = found[1];
         ok &= check("se encuentra el asiento del invitado en el anfitrion", remoteSeat);
         ok &= check("al invitado su dual tambien le pregunta el color (ManaColor en su asiento)",
                 installed);
@@ -553,6 +602,77 @@ public final class LobbyCheck {
     }
 
     /** La cruz de la sala no puede descolocar a un invitado. Ver NeoLobby.mayRemoveSeat. */
+    /**
+     * <b>Archenemy en la sala, en frio</b> (12-10-2026): lo que la revision
+     * encontro antes de subirlo. Sin partida, asi que va siempre (la partida
+     * con archienemigo es {@code -Dneo.lobby.check.archenemy}).
+     */
+    private static boolean checkArchenemyRules() {
+        final ServerGameLobby l = new ServerGameLobby();
+        // [LOCAL, AI, AI, AI]
+        l.getSlot(1).setType(LobbySlotType.AI);
+        l.addSlot();
+        l.getSlot(2).setType(LobbySlotType.AI);
+        l.addSlot();
+        l.getSlot(3).setType(LobbySlotType.AI);
+        NeoLobby.setFormat(l, NeoFormat.COMMANDER);
+        NeoLobby.setArchenemy(l, NeoLobby.Archenemy.ONE);
+        boolean ok = check("Archenemy: uno contra todos puesto",
+                NeoLobby.archenemyOf(l) == NeoLobby.Archenemy.ONE);
+        ok &= check("el archienemigo de salida es el anfitrion, como en Forge", NeoLobby.archenemySeat(l) == 0);
+        NeoLobby.setArchenemySeat(l, 2);
+        ok &= check("se puede marcar a otro", NeoLobby.archenemySeat(l) == 2);
+        ok &= check("con los equipos como Forge: el en el 0, los demas en el 1 (" + teams(l) + ")",
+                "1,1,0,1".equals(teams(l)));
+        NeoLobby.setFormat(l, NeoFormat.ESTANDAR);
+        ok &= check("cambiar de modo lo conserva, y al mismo archienemigo",
+                NeoLobby.archenemyOf(l) == NeoLobby.Archenemy.ONE && NeoLobby.archenemySeat(l) == 2);
+        // GameLobby.removeSlot revienta con el asiento marcado (lastArchenemy).
+        try {
+            NeoLobby.removeSeat(l, 3);
+            NeoLobby.removeSeat(l, 2);
+            ok &= check("quitar el asiento del archienemigo no revienta", true);
+        } catch (final RuntimeException e) {
+            ok &= check("quitar el asiento del archienemigo no revienta: " + e, false);
+        }
+        ok &= check("y pasa a serlo el primero", NeoLobby.archenemySeat(l) == 0);
+        NeoLobby.setFormat(l, NeoFormat.MOMIR);
+        ok &= check("en Momir no hay archienemigo", NeoLobby.archenemyOf(l) == NeoLobby.Archenemy.OFF);
+        ok &= check("y cada uno vuelve a su equipo (" + teams(l) + ")", "0,1".equals(teams(l)));
+
+        // Los esquemas: en limitado nunca; fuera, 20 al azar, y otros la siguiente.
+        NeoLobby.setFormat(l, NeoFormat.COMMANDER);
+        NeoLobby.setArchenemy(l, NeoLobby.Archenemy.ONE);
+        final Deck original = new Deck("sin esquemas");
+        l.getSlot(0).setDeck(original);
+        l.setLimitedMode(true);
+        ok &= check("en limitado no se dan esquemas", NeoLobby.prepareSchemes(l) == 0);
+        l.setLimitedMode(false);
+        ok &= check("fuera de limitado, si", NeoLobby.prepareSchemes(l) == 1);
+        final Deck given = l.getSlot(0).getDeck();
+        final forge.deck.CardPool schemes = given.get(forge.deck.DeckSection.Schemes);
+        ok &= check("20 esquemas, en una COPIA del mazo",
+                schemes != null && schemes.countAll() == 20 && given != original
+                        && original.get(forge.deck.DeckSection.Schemes) == null);
+        NeoLobby.prepareSchemes(l);
+        ok &= check("la partida siguiente se vuelven a sortear (no se repiten los mismos)",
+                l.getSlot(0).getDeck() != given);
+        NeoLobby.setArchenemy(l, NeoLobby.Archenemy.OFF);
+        return ok;
+    }
+
+    /** Los equipos de los asientos, "0,1,1,1". */
+    private static String teams(final GameLobby l) {
+        final StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < l.getNumberOfSlots(); i++) {
+            if (i > 0) {
+                sb.append(',');
+            }
+            sb.append(l.getSlot(i).getTeam());
+        }
+        return sb.toString();
+    }
+
     private static boolean checkSeatRemoval() {
         final ServerGameLobby l = new ServerGameLobby();
         // [0 LOCAL, 1 OPEN] de fabrica; se completa a [LOCAL, REMOTE, AI, REMOTE].
@@ -805,6 +925,78 @@ public final class LobbyCheck {
             good &= allies == 1 && p.getOpponents().size() == 2;
         }
         return check("en la partida, cada uno con 1 aliado y 2 rivales", good);
+    }
+
+    /**
+     * Archenemy en la partida de verdad, mirado en el motor del anfitrion: la
+     * variante en las reglas, quien tiene mazo de esquemas (20), sus vidas (40,
+     * 60 en Commander) y, con uno contra todos, que los demas van juntos.
+     */
+    private static boolean checkArchenemyReachedGame(final NeoMatchUI hostUi, final NeoLobby.Archenemy mode,
+                                                     final String guestName, final boolean commander) {
+        final forge.game.GameView gv = hostUi.getGameView();
+        final forge.game.Game g = gv == null ? null : gv.getGame();
+        if (g == null) {
+            return check("hay partida para mirar el Archenemy", false);
+        }
+        // La vista se abre ANTES de que el motor reparta las zonas
+        // (Match.prepareAllZones -> initVariantsZones): se espera al turno 1.
+        waitUntil(() -> g.getPhaseHandler().getTurn() >= 1, 60_000L);
+        final forge.game.GameType variant = mode == NeoLobby.Archenemy.ALL
+                ? forge.game.GameType.ArchenemyRumble : forge.game.GameType.Archenemy;
+        boolean ok = check("la variante " + variant + " esta en las reglas de la partida",
+                g.getRules().hasAppliedVariant(variant));
+        final java.util.List<forge.game.player.Player> villains = new java.util.ArrayList<>();
+        boolean life = true;
+        boolean decks = true;
+        for (final forge.game.player.Player p : g.getPlayers()) {
+            int schemes = p.getZone(forge.game.zone.ZoneType.SchemeDeck).size();
+            for (final forge.game.card.Card c : p.getCardsIn(forge.game.zone.ZoneType.Command)) {
+                if (c.isScheme()) {
+                    schemes++;
+                }
+            }
+            int registered = 0;
+            if (p.getRegisteredPlayer() != null && p.getRegisteredPlayer().getSchemes() != null) {
+                for (final Object o : p.getRegisteredPlayer().getSchemes()) {
+                    registered++;
+                }
+            }
+            System.out.printf(Locale.ROOT, "  %s: vida %d (empezo con %d), equipo %d, %d esquemas (%d registrados)%n",
+                    p.getName(), p.getLife(), p.getStartingLife(), p.getTeam(), schemes, registered);
+            if (schemes > 0) {
+                villains.add(p);
+                life &= p.getStartingLife() == (commander ? 60 : 40);
+                decks &= schemes == 20;
+            }
+        }
+        if (mode == NeoLobby.Archenemy.ALL) {
+            ok &= check("Rumble: todos son archienemigos", villains.size() == g.getPlayers().size());
+        } else {
+            final forge.game.player.Player villain = villains.size() == 1 ? villains.get(0) : null;
+            // Por quien lo juega y no por el nombre: los dos se llaman igual a
+            // proposito y en la mesa el invitado sale como "2nd <nombre>".
+            // Reintentando, por el controlador provisional de IA (ver checkNetMatch).
+            final boolean remote = villain != null && waitUntil(() ->
+                    villain.getController() instanceof forge.player.PlayerControllerHuman pch
+                            && pch.getGui() != hostUi, 5_000L);
+            ok &= check("hay UN archienemigo y es el invitado (" + guestName + ")", remote);
+            boolean together = villain != null;
+            for (final forge.game.player.Player p : g.getPlayers()) {
+                if (villain != null && p != villain) {
+                    together &= p.getTeam() != villain.getTeam();
+                    for (final forge.game.player.Player q : g.getPlayers()) {
+                        if (q != villain && q != p) {
+                            together &= !p.isOpponentOf(q);
+                        }
+                    }
+                }
+            }
+            ok &= check("los demas van juntos contra el archienemigo", together);
+        }
+        ok &= check("el archienemigo empieza con " + (commander ? 60 : 40) + " vidas", !villains.isEmpty() && life);
+        ok &= check("su mazo de esquemas es de 20 (al azar: nadie trae esquemas)", !villains.isEmpty() && decks);
+        return ok;
     }
 
     private static boolean checkGuestSettingsReachedHost(final GameLobby lobby, final int guestSeat) {
