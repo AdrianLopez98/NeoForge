@@ -59,6 +59,20 @@ public final class NeoDraft implements PackSource {
      *             sobres de ediciones al azar
      * @return null si el motor no ha podido generar el producto
      */
+    /**
+     * Envuelve un draft que ha creado otro: el torneo de draft de la Quest
+     * ({@code forge.neo.quest.NeoQuestDrafts}), que lo abre con los sobres de
+     * su evento y cobra la entrada antes.
+     */
+    public static NeoDraft of(final IBoosterDraft draft, final String productName) {
+        if (draft == null) {
+            return null;
+        }
+        final NeoDraft neo = new NeoDraft(draft);
+        neo.productName = productName == null ? "" : productName;
+        return neo;
+    }
+
     public static NeoDraft start(final LimitedPoolType type) {
         final BoosterDraft d = BoosterDraft.createDraft(type);
         return d == null ? null : new NeoDraft(d);
@@ -137,7 +151,7 @@ public final class NeoDraft implements PackSource {
      * <p>El bloque <b>no puede tener la expansion de tierras a null</b>:
      * {@code CardBlock.equals} la desreferencia sin comprobarla.
      */
-    private static CardBlock blockFor(final CardEdition edition) {
+    public static CardBlock blockFor(final CardEdition edition) {
         for (final CardBlock b : FModel.getBlocks()) {
             if (b.getCntBoostersDraft() > 0 && b.getLandSet() != null
                     && b.getSets().contains(edition)) {
@@ -376,6 +390,20 @@ public final class NeoDraft implements PackSource {
      * mazo durante el draft ({@link #planMain}). Nada se monta solo.
      */
     public DeckGroup save(final String name) {
+        final DeckGroup group = toGroup(name);
+        // El mazo sale VACIO: montarlo es cosa del jugador (o del boton "Montar
+        // solo" del editor). Ver LimitedAutoBuild.
+        DraftRun.markSplit(name, DraftRun.Kind.DRAFT);
+        FModel.getDecks().getDraft().add(group);
+        return group;
+    }
+
+    /**
+     * Lo mismo que {@link #save}, sin guardarlo en ningun sitio: el grupo con
+     * tu pool y los siete mazos de los rivales. El torneo de la Quest lo
+     * guarda en la Quest, no en los drafts de siempre.
+     */
+    public DeckGroup toGroup(final String name) {
         draft.postDraftActions();
 
         final Deck[] ai = draft.getComputerDecks();
@@ -400,15 +428,9 @@ public final class NeoDraft implements PackSource {
                 mine.getMain().add(card, 1);
             }
         }
-        // El mazo sale VACIO: montarlo es cosa del jugador (o del boton "Montar
-        // solo" del editor). Ver LimitedAutoBuild.
-        DraftRun.markSplit(name, DraftRun.Kind.DRAFT);
-
         final DeckGroup group = new DeckGroup(name);
         group.setHumanDeck(mine);
         group.addAiDecks(ai);
-
-        FModel.getDecks().getDraft().add(group);
         return group;
     }
 

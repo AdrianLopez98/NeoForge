@@ -66,6 +66,12 @@ public class QuestScreen extends BorderPane {
 
         void bazaar();
 
+        /** Los torneos de draft: los abiertos o el que estes jugando. */
+        void tournaments();
+
+        /** El Coliseo (solo en una Quest de Commander). */
+        void colosseum();
+
         /** Las preferencias de la Quest (las de Forge): premios, tienda, dificultad. */
         void preferences();
 
@@ -139,8 +145,13 @@ public class QuestScreen extends BorderPane {
         content.getChildren().addAll(
                 stats(actions),
                 deckRow(actions),
-                duels(actions),
-                challenges(actions));
+                duels(actions));
+        if (forge.neo.quest.NeoColosseum.available()) {
+            content.getChildren().add(colosseum(actions));
+        }
+        content.getChildren().addAll(
+                challenges(actions),
+                tournaments(actions));
 
         final ScrollPane sp = new ScrollPane(content);
         sp.getStyleClass().add("dialog-scroll");
@@ -344,12 +355,21 @@ public class QuestScreen extends BorderPane {
         bazaar.setMinWidth(Region.USE_PREF_SIZE);
         bazaar.setOnAction(e -> actions.bazaar());
 
+        // Los torneos de draft, junto a la tienda y el bazar: tambien es en que
+        // te gastas los creditos. Abajo hay ademas su seccion, pero queda bajo
+        // los duelos y hay que bajar para verla.
+        final Button tournaments = new Button(NeoText.get(
+                forge.neo.quest.NeoQuestDrafts.current() != null ? "questDraft.buttonLive" : "questDraft.button"));
+        tournaments.getStyleClass().add("btn-secondary");
+        tournaments.setMinWidth(Region.USE_PREF_SIZE);
+        tournaments.setOnAction(e -> actions.tournaments());
+
         final Region gap = new Region();
         HBox.setHgrow(gap, Priority.ALWAYS);
 
         final VBox texts = new VBox(2, caption, name, state);
         final HBox row = new HBox(10, strip(deck, cardWidth * 0.58), texts, gap,
-                edit, create, change, collection, shop, bazaar);
+                edit, create, change, collection, shop, bazaar, tournaments);
         row.setAlignment(Pos.CENTER_LEFT);
         row.getStyleClass().add("stat-tile");
         row.setPadding(new Insets(12, 18, 12, 18));
@@ -503,6 +523,69 @@ public class QuestScreen extends BorderPane {
      * desafios" a secas parece que el modo no los tiene; "te faltan 3
      * victorias" es una razon para seguir jugando.
      */
+    /**
+     * Los torneos de draft (13-10-2026): una linea y un boton. El torneo
+     * entero vive en su pantalla ({@link QuestTournamentScreen}); aqui solo se
+     * dice si hay uno en curso o cuantos hay abiertos, que es lo que hace
+     * volver a mirar.
+     */
+    private Region tournaments(final Actions actions) {
+        final Label caption = new Label(NeoText.get("questDraft.caption"));
+        caption.getStyleClass().add("caption");
+        final forge.gamemodes.quest.QuestEventDraft mine = forge.neo.quest.NeoQuestDrafts.current();
+        final String line;
+        final String button;
+        if (mine != null) {
+            line = NeoText.get("questDraft.inProgress", mine.getTitle());
+            button = NeoText.get("questDraft.continue");
+        } else {
+            final List<forge.gamemodes.quest.QuestEventDraft> open = forge.neo.quest.NeoQuestDrafts.offered();
+            line = open.isEmpty()
+                    ? NeoText.get("questDraft.noneShort")
+                    : NeoText.get(open.size() == 1 ? "questDraft.openOne" : "questDraft.openMany", open.size());
+            button = NeoText.get("questDraft.see");
+        }
+        final Label text = new Label(line);
+        text.getStyleClass().add("home-subtitle");
+        text.setWrapText(true);
+        final Button go = new Button(button);
+        go.getStyleClass().add("btn-secondary");
+        go.setMinWidth(Region.USE_PREF_SIZE);
+        go.setOnAction(e -> actions.tournaments());
+        final Region gap = new Region();
+        HBox.setHgrow(gap, Priority.ALWAYS);
+        final HBox row = new HBox(14, text, gap, go);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.getStyleClass().add("stat-tile");
+        row.setPadding(new Insets(12, 18, 12, 18));
+        return new VBox(6, caption, row);
+    }
+
+    /**
+     * El Coliseo (13-10-2026), solo en una Quest de Commander: una linea con
+     * lo que cuesta y lo que da, y un boton. Lo que es y contra quien se
+     * explica en su pantalla ({@link ColosseumScreen}), antes de pagar.
+     */
+    private Region colosseum(final Actions actions) {
+        final Label caption = new Label(NeoText.get("colosseum.caption"));
+        caption.getStyleClass().add("caption");
+        final Label text = new Label(NeoText.get("colosseum.line", forge.neo.quest.NeoColosseum.fee(),
+                forge.neo.quest.NeoColosseum.prizeCredits()));
+        text.getStyleClass().add("home-subtitle");
+        text.setWrapText(true);
+        final Button go = new Button(NeoText.get("colosseum.see"));
+        go.getStyleClass().add("btn-secondary");
+        go.setMinWidth(Region.USE_PREF_SIZE);
+        go.setOnAction(e -> actions.colosseum());
+        final Region gap = new Region();
+        HBox.setHgrow(gap, Priority.ALWAYS);
+        final HBox row = new HBox(14, text, gap, go);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.getStyleClass().add("stat-tile");
+        row.setPadding(new Insets(12, 18, 12, 18));
+        return new VBox(6, caption, row);
+    }
+
     private Region challenges(final Actions actions) {
         final Label caption = new Label(NeoText.get("quest.challenges"));
         caption.getStyleClass().add("caption");

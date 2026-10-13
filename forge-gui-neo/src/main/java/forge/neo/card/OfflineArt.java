@@ -76,18 +76,27 @@ public final class OfflineArt {
      * @param crop     el recorte de arte en vez de la carta entera
      */
     public static File find(final String imageKey, final boolean crop) {
-        if (imageKey == null || !imageKey.startsWith(ImageKeys.CARD_PREFIX)) {
+        return find(imageKey, crop, dir());
+    }
+
+    /**
+     * Lo mismo en otra carpeta: la de una calidad de imagen del escritorio
+     * ({@code ImageQuality.artDir}, {@code pics/arte-large}...). Android usa
+     * siempre la de arriba.
+     */
+    public static File find(final String imageKey, final boolean crop, final File dir) {
+        if (imageKey == null || !imageKey.startsWith(ImageKeys.CARD_PREFIX) || dir == null) {
             return null;
         }
-        final String seen = SEEN.computeIfAbsent(crop ? imageKey + "#crop" : imageKey, k -> {
-            final File f = lookup(imageKey, crop);
+        final String key = (crop ? imageKey + "#crop" : imageKey) + "@" + dir.getName();
+        final String seen = SEEN.computeIfAbsent(key, k -> {
+            final File f = lookup(imageKey, crop, dir);
             return f == null ? "" : f.getPath();
         });
         return seen.isEmpty() ? null : new File(seen);
     }
 
-    private static File lookup(final String imageKey, final boolean crop) {
-        final File dir = dir();
+    private static File lookup(final String imageKey, final boolean crop, final File dir) {
         if (!dir.isDirectory()) {
             return null;
         }

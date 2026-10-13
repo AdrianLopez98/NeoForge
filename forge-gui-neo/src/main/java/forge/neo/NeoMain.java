@@ -551,6 +551,20 @@ public final class NeoMain {
                 banner("Aventura: progreso y nivel de los rivales");
                 forge.neo.quest.QuestCheck.run();
                 break;
+            case "questdraftcheck":
+                // El torneo de draft de la Quest entero: entrar, draftear,
+                // montar, una partida de verdad, el cuadro, los premios y
+                // devolver la entrada si se abandona.
+                banner("Quest: torneo de draft");
+                forge.neo.quest.QuestDraftCheck.run();
+                break;
+            case "colosseumcheck":
+                // El Coliseo de la Quest de Commander: precio y rivales que
+                // suben con la Quest, mazos legales, premio, y una partida a
+                // cuatro de verdad (con tope).
+                banner("Quest: el Coliseo");
+                forge.neo.quest.ColosseumCheck.run();
+                break;
             case "tournamentcheck":
                 // El torneo entero sin ventana: generar rivales, jugar ronda
                 // a ronda hasta perder o completarlo, y que se guarde, se

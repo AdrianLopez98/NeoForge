@@ -378,7 +378,8 @@ public class DeckPickerDialog extends VBox {
         }
         final PaperCard face = DeckTile.commanderOf(deck);
         return face != null && (face.getName().toLowerCase(Locale.ROOT).contains(q)
-                || CardText.nameOf(face).toLowerCase(Locale.ROOT).contains(q));
+                || CardText.nameOf(face).toLowerCase(Locale.ROOT).contains(q))
+                || HomeScreen.matchesEra(deck, q);
     }
 
     /** Vuelve a leer las imagenes que hayan llegado de Scryfall. */

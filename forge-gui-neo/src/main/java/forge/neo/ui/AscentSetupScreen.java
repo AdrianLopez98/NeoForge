@@ -121,7 +121,10 @@ public class AscentSetupScreen extends StackPane {
      * prueba. Se recorta a lo desbloqueado, como los botones.
      */
     private int ascension = Math.max(0,
-            Math.min(AscentUnlocks.maxAscension(), Integer.getInteger("neo.ascent.setupLevel", 0)));
+            Math.min(AscentUnlocks.maxAscension(), Integer.getInteger("neo.ascent.setupLevel",
+                    // El de la vez anterior (NeoSettings.ASCENT_LAST_ASCENSION),
+                    // recortado a lo desbloqueado.
+                    forge.neo.NeoSettings.getInt(forge.neo.NeoSettings.ASCENT_LAST_ASCENSION, 0))));
     /** Lo escrito en el buscador de comandantes ({@code -Dneo.ascent.setupSearch}: para capturas). */
     private String search = System.getProperty("neo.ascent.setupSearch", "");
     /**
@@ -1036,6 +1039,7 @@ public class AscentSetupScreen extends StackPane {
                     level == ascension);
             b.setOnAction(e -> {
                 ascension = level;
+                forge.neo.NeoSettings.setInt(forge.neo.NeoSettings.ASCENT_LAST_ASCENSION, level);
                 rebuild();
             });
             row.getChildren().add(b);
@@ -1076,12 +1080,12 @@ public class AscentSetupScreen extends StackPane {
     }
 
     /** Las cinco letras de color: marcas hasta dos, o ninguna. */
-    private static final byte[] COLOUR_ORDER = {
+    static final byte[] COLOUR_ORDER = {
         forge.card.MagicColor.WHITE, forge.card.MagicColor.BLUE,
         forge.card.MagicColor.BLACK, forge.card.MagicColor.RED,
         forge.card.MagicColor.GREEN};
 
-    private static final String[] COLOUR_LETTERS = {"W", "U", "B", "R", "G"};
+    static final String[] COLOUR_LETTERS = {"W", "U", "B", "R", "G"};
 
     /**
      * Con que colores se genera el mazo de Estandar.
@@ -1157,13 +1161,18 @@ public class AscentSetupScreen extends StackPane {
      * el orden WUBRG). No se ignora la pulsacion: un boton que no reacciona
      * parece roto, y la regla se aprende viendo que siempre quedan dos.
      */
-    private static byte toggle(final byte current, final byte colour) {
+    static byte toggle(final byte current, final byte colour) {
+        return toggle(current, colour, AscentSeedDeck.MAX_COLOURS);
+    }
+
+    /** Igual, con otro tope: la Quest deja hasta cinco (QuestSetupScreen). */
+    static byte toggle(final byte current, final byte colour, final int max) {
         if ((current & colour) != 0) {
             return (byte) (current & ~colour);
         }
         byte next = (byte) (current | colour);
         for (final byte c : COLOUR_ORDER) {
-            if (Integer.bitCount(next & 0xFF) <= AscentSeedDeck.MAX_COLOURS) {
+            if (Integer.bitCount(next & 0xFF) <= max) {
                 break;
             }
             if (c != colour && (next & c) != 0) {
@@ -1178,7 +1187,7 @@ public class AscentSetupScreen extends StackPane {
         return coloursCaption(colours);
     }
 
-    private static String coloursCaption(final byte colours) {
+    static String coloursCaption(final byte colours) {
         final List<String> names = new ArrayList<>();
         for (int i = 0; i < COLOUR_ORDER.length; i++) {
             if ((colours & COLOUR_ORDER[i]) != 0) {
@@ -1192,7 +1201,11 @@ public class AscentSetupScreen extends StackPane {
         if (names.size() == 1) {
             return NeoText.get("ascent.setup.colours.one", names.get(0));
         }
-        return NeoText.get("ascent.setup.colours.two", names.get(0), names.get(1));
+        if (names.size() == 2) {
+            return NeoText.get("ascent.setup.colours.two", names.get(0), names.get(1));
+        }
+        // Tres o mas: solo la Quest.
+        return NeoText.get("ascent.setup.colours.many", names.size(), String.join(", ", names));
     }
 
     /** {@code -Dneo.ascent.setupColours=WB} -> mascara, para poder capturarlo. */

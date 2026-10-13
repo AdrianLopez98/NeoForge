@@ -230,6 +230,13 @@ public final class NeoSettings {
      */
     public static final String ARCHENEMY_WHO = "archenemyWho";
 
+    /**
+     * El ultimo nivel de Ascension elegido al montar una run de Ascenso, para
+     * que salga marcado la siguiente vez (Discord, 13-10-2026: "I just forget
+     * to check it before restarting"). Lo leen el escritorio y Android.
+     */
+    public static final String ASCENT_LAST_ASCENSION = "ascentLastAscension";
+
     public static forge.neo.match.Archenemy.Who archenemyWho() {
         final String forced = System.getProperty("neo.archenemy.who");
         return forge.neo.match.Archenemy.Who.byId(forced != null && !forced.isEmpty()
@@ -502,6 +509,12 @@ public final class NeoSettings {
      * encoge hasta desaparecer cuando el stack lo necesita.
      */
     public static final String HOVER_DETAIL = "hoverDetail";
+
+    /**
+     * A que tamanyo se bajan las imagenes de Scryfall: normal, large o png (solo
+     * el escritorio). Ver {@link forge.neo.card.ImageQuality}.
+     */
+    public static final String IMAGE_QUALITY = "imageQuality";
 
     /**
      * <b>La carta GRANDE al pasar el raton, como en el Forge de siempre</b>

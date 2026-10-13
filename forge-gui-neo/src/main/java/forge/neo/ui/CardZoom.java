@@ -192,6 +192,7 @@ public final class CardZoom {
         // el campo de batalla, y "la tiene exiliada" se mira justamente
         // desde el EXILIO. Dentro no se habria visto nunca.
         final boolean side = hasState(card) || otherFace(card) != null
+                || !forge.neo.card.ChosenValues.of(card).isEmpty()
                 || related(card) != null || canReadLiveText(card)
                 || !keywordsOf(card).isEmpty() || hasPlainText(card);
         double w = bigWidth;
@@ -223,7 +224,15 @@ public final class CardZoom {
         big.readRotationProperty().addListener((o, was, now) -> big.setRotate(now.doubleValue()));
         final Node refresh = refreshButton(card);
         if (!side) {
-            return refresh == null ? new StackPane(shown) : withRefresh(shown, refresh);
+            // Sin ficha (una criatura sin texto, una basica), la edicion va
+            // debajo de la carta: es lo unico que habria al lado.
+            final Region edition = editionBlock(card, w, Pos.CENTER);
+            if (edition == null) {
+                return refresh == null ? new StackPane(shown) : withRefresh(shown, refresh);
+            }
+            final javafx.scene.layout.VBox under = new javafx.scene.layout.VBox(6, shown, edition);
+            under.setAlignment(Pos.CENTER);
+            return refresh == null ? new StackPane(under) : withRefresh(under, refresh);
         }
         // La ficha, con su PROPIO desplazamiento y nunca mas alta que la carta
         // (Discord, 03-10-2026: "too many equipment and/or auras makes the
@@ -308,6 +317,75 @@ public final class CardZoom {
                     || !heldBy(card).isEmpty());
     }
 
+    /**
+     * De que expansion es la impresion que se ve: el codigo arriba, que cabe
+     * siempre, y el nombre debajo, que puede ocupar dos lineas ("Dungeons &
+     * Dragons: Adventures in the Forgotten Realms"). Lo calcula
+     * {@link forge.neo.card.PrintingLabel}, que es Java puro y tambien lo usa
+     * Android.
+     *
+     * @return null si la carta no tiene (una ficha, una carta boca abajo)
+     */
+    private static Region editionBlock(final CardView card, final double width, final Pos align) {
+        final CardStateView st = card == null ? null : card.getCurrentState();
+        final forge.neo.card.PrintingLabel p = st == null ? null
+                : forge.neo.card.PrintingLabel.of(st.getImageKey(null));
+        if (p == null) {
+            return null;
+        }
+        final Label code = new Label(p.code);
+        code.getStyleClass().addAll("zoom-edition", "zoom-edition-code");
+        UiScale.fixedFont(code, 12);
+        final VBox box = new VBox(1, code);
+        if (p.name != null) {
+            final Label name = new Label(p.name);
+            name.getStyleClass().add("zoom-edition");
+            UiScale.fixedFont(name, 12);
+            name.setWrapText(true);
+            name.setMaxWidth(width);
+            // Las dos cosas: la del texto partido en lineas y la del Label en
+            // su ancho. Con solo la primera, una linea sola se iba a la izquierda.
+            final boolean centered = align == Pos.CENTER;
+            name.setTextAlignment(centered
+                    ? javafx.scene.text.TextAlignment.CENTER : javafx.scene.text.TextAlignment.RIGHT);
+            name.setAlignment(centered ? Pos.CENTER : Pos.CENTER_RIGHT);
+            box.getChildren().add(name);
+        }
+        box.setAlignment(align);
+        box.setMaxWidth(Double.MAX_VALUE);
+        box.setId("zoom-edition");
+        return box;
+    }
+
+    /**
+     * Lo ELEGIDO para la carta, con su rotulo: "Tipo de criatura: Elf".
+     * Discord, 13-10-2026 (Herald's Horn, Roaming Throne). En la mesa sale el
+     * valor solo, como etiqueta; aqui, con lo que es. Ver
+     * {@link forge.neo.card.ChosenValues}.
+     *
+     * @return null si no se ha elegido nada
+     */
+    private static Region chosenBlock(final CardView card, final double width) {
+        final java.util.List<forge.neo.card.ChosenValues.Entry> all = forge.neo.card.ChosenValues.of(card);
+        if (all.isEmpty()) {
+            return null;
+        }
+        final Label caption = new Label(NeoText.get("zoom.chosen"));
+        caption.getStyleClass().add("zoom-head");
+        UiScale.fixedFont(caption, 12);
+        final VBox box = new VBox(2, caption);
+        for (final forge.neo.card.ChosenValues.Entry e : all) {
+            final Label l = new Label(NeoText.get("chosen." + e.kind.name().toLowerCase(java.util.Locale.ROOT),
+                    e.value));
+            l.getStyleClass().add("zoom-line");
+            UiScale.fixedFont(l, 13);
+            l.setWrapText(true);
+            l.setMaxWidth(width);
+            box.getChildren().add(l);
+        }
+        return box;
+    }
+
     /** Lo que de verdad es esta carta ahora mismo, al lado de la ampliada. */
     private static Region statePanel(final CardView card, final double width) {
         final VBox box = new VBox(10);
@@ -322,6 +400,15 @@ public final class CardZoom {
         // panel del alto de la carta con dos lineas dentro es un agujero.
         box.setMaxHeight(Region.USE_PREF_SIZE);
 
+        // LA EDICION, arriba a la derecha: donde una carta de verdad lleva el
+        // simbolo de la expansion (Discord, 13-10-2026: "Is there a way to view
+        // edition on the card info?"). Va lo primero porque es de la carta, no
+        // de lo que le pasa en la mesa.
+        final Region edition = editionBlock(card, width - 34, Pos.TOP_RIGHT);
+        if (edition != null) {
+            box.getChildren().add(edition);
+        }
+
         final CardStateView st = card.getCurrentState();
         if (st != null && st.isCreature()) {
             box.getChildren().add(ptBlock(card, st));
@@ -330,6 +417,11 @@ public final class CardZoom {
         final Region counters = countersBlock(card);
         if (counters != null) {
             box.getChildren().add(counters);
+        }
+
+        final Region chosen = chosenBlock(card, width);
+        if (chosen != null) {
+            box.getChildren().add(chosen);
         }
 
         final int dmg = card.getDamage();

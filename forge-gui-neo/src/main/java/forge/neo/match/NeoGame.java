@@ -52,15 +52,28 @@ public final class NeoGame {
          * igual y por eso nadie lo miraba.
          */
         public final int yourLife;
+        /**
+         * Quien ha ganado el PARTIDO, o null si no ha terminado (te rendiste a
+         * mitad de un al mejor de tres, o se corto). {@link #winner} es solo el
+         * de la ultima partida: ganar la primera y rendirse luego lo dejaba con
+         * tu nombre (revision del torneo de draft de la Quest, 13-10-2026).
+         */
+        public final String matchWinner;
 
         Result(final boolean completed, final int turns, final int decisions, final String winner,
                final NeoMatchUI.Exit exit, final int yourLife) {
+            this(completed, turns, decisions, winner, exit, yourLife, null);
+        }
+
+        Result(final boolean completed, final int turns, final int decisions, final String winner,
+               final NeoMatchUI.Exit exit, final int yourLife, final String matchWinner) {
             this.completed = completed;
             this.turns = turns;
             this.decisions = decisions;
             this.winner = winner;
             this.exit = exit;
             this.yourLife = yourLife;
+            this.matchWinner = matchWinner;
         }
     }
 
@@ -485,11 +498,19 @@ public final class NeoGame {
         // seguir en pie, y es el dato del que vive una run de Ascenso.
         final forge.game.player.PlayerView me = gui.localPlayerView();
         final int yourLife = me == null ? -1 : me.getLife();
+        String matchWinner = null;
+        try {
+            final forge.game.Match m = match.getMatch();
+            final RegisteredPlayer champ = m == null ? null : m.getWinner();
+            matchWinner = champ == null || champ.getPlayer() == null ? null : champ.getPlayer().getName();
+        } catch (final RuntimeException e) {
+            // Sin partido que leer, sin ganador: cuenta como no terminado.
+        }
         gui.shutdown();
         // Se acabo el mazo en juego: si se dejara puesto, el siguiente puzzle o
         // el siguiente duelo de la aventura heredarian su funda.
         forge.neo.look.NeoLook.setDeckInPlay(null);
-        return new Result(completed, turns, gui.getDecisionCount(), winner, exit, yourLife);
+        return new Result(completed, turns, gui.getDecisionCount(), winner, exit, yourLife, matchWinner);
     }
 
     /**

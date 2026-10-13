@@ -65,6 +65,16 @@ public class TurnBanner extends VBox {
     }
 
     /**
+     * "Turno 23", o "Turno 23 (Ronda 12)" con la ronda (Discord, 13-10-2026).
+     * Lo usan el cartel y el aviso de la derecha, para que digan lo mismo.
+     *
+     * @param round la ronda, o 0 para no ensenyarla
+     */
+    public static String turnText(final int turn, final int round) {
+        return round > 0 ? NeoText.get("turn.numberRound", turn, round) : NeoText.get("turn.number", turn);
+    }
+
+    /**
      * Anuncia de quien es el turno.
      *
      * @param yours    si el turno es tuyo
@@ -72,9 +82,18 @@ public class TurnBanner extends VBox {
      * @param turn     numero de turno, o 0 si no se sabe
      */
     public void announce(final boolean yours, final String who, final int turn) {
+        announce(yours, who, turn, 0);
+    }
+
+    /**
+     * Igual, con la ronda al lado del turno ({@code RoundCounter}).
+     *
+     * @param round la ronda, o 0 para no ensenyarla (el ajuste apagado)
+     */
+    public void announce(final boolean yours, final String who, final int turn, final int round) {
         title.setText(yours ? NeoText.get("turn.yours")
                 : NeoText.get("turn.theirs", who == null ? "?" : who.toUpperCase()));
-        detail.setText(turn > 0 ? NeoText.get("turn.number", turn) : "");
+        detail.setText(turn > 0 ? turnText(turn, round) : "");
         detail.setVisible(turn > 0);
         detail.setManaged(turn > 0);
         pseudoClassStateChanged(YOURS, yours);

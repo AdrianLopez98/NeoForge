@@ -21,7 +21,6 @@ import com.google.gson.JsonParser;
 import forge.StaticData;
 import forge.card.CardEdition;
 import forge.item.PaperCard;
-import forge.localinstance.properties.ForgeConstants;
 import forge.util.BuildInfo;
 import forge.util.ScryfallRateLimiter;
 
@@ -170,8 +169,10 @@ public final class ArtHdScan {
                 continue;
             }
             final boolean crop = file.getName().contains(".artcrop");
-            final String url = uris.has(crop ? "art_crop" : "normal")
-                    ? uris.get(crop ? "art_crop" : "normal").getAsString() : null;
+            // La de la calidad elegida (ImageQuality): con "normal" fijo, buscar
+            // imagenes mejores dejaria la normal encima de una alta.
+            final String version = crop ? "art_crop" : ImageQuality.current().scryfall;
+            final String url = uris.has(version) ? uris.get(version).getAsString() : null;
             final long stamp = stampOf(url);
             if (url == null || stamp <= 0 || file.lastModified() / 1000L >= stamp) {
                 continue;
@@ -231,7 +232,8 @@ public final class ArtHdScan {
         final Calendar from = Calendar.getInstance();
         from.add(Calendar.MONTH, -MONTHS);
         final Date since = from.getTime();
-        final File root = new File(ForgeConstants.CACHE_CARD_PICS_DIR);
+        // Las de la calidad elegida: cada calidad tiene su carpeta (ImageQuality).
+        final File root = ImageQuality.current().cardsDir();
         final List<CardEdition> out = new ArrayList<>();
         for (final CardEdition ed : StaticData.instance().getEditions()) {
             final Date d = ed.getDate();

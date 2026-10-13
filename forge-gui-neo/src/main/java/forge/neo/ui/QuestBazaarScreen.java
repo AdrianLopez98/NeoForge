@@ -70,6 +70,8 @@ public class QuestBazaarScreen extends StackPane {
         // (las notas de diseño, principio 12). Antes iba en la cabecera.
         frame.setBottom(BackBar.of(actions::back));
         getChildren().addAll(frame, overlay);
+        // Clic derecho sobre una mascota: su carta en grande.
+        CardZoom.install(this);
 
         reload();
 
@@ -89,6 +91,11 @@ public class QuestBazaarScreen extends StackPane {
                 }
             });
         }
+    }
+
+    /** Las imagenes llegan en segundo plano: hay que repedirlas. */
+    public void refreshArt() {
+        forge.neo.card.CardNode.refreshAllIn(this);
     }
 
     private Region header() {
@@ -129,6 +136,12 @@ public class QuestBazaarScreen extends StackPane {
         sp.getStyleClass().add("dialog-scroll");
         sp.setFitToWidth(true);
         sp.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        // -Dneo.bazaar.scroll=0..1: abierto ya bajado, para capturar los puestos
+        // de abajo (las mascotas) sin rueda (la guía de pruebas).
+        final String scroll = System.getProperty("neo.bazaar.scroll");
+        if (scroll != null) {
+            javafx.application.Platform.runLater(() -> sp.setVvalue(Double.parseDouble(scroll)));
+        }
         return sp;
     }
 
@@ -230,9 +243,33 @@ public class QuestBazaarScreen extends StackPane {
         final Region gap = new Region();
         HBox.setHgrow(gap, Priority.ALWAYS);
         final HBox row = new HBox(14, new VBox(2, name, what), gap, cost, buy);
+        // Una mascota lleva la carta del nivel que vas a COMPRAR: el arte
+        // cambia al subir (Discord, 13-10-2026), y asi se ve antes de pagar.
+        if (item instanceof QuestPetController pet) {
+            final int level = forge.model.FModel.getQuest().getAssets().getPetLevel(pet.getSaveFileKey());
+            final Region card = petCard(pet, Math.min(level + 1, pet.getMaxLevel()));
+            if (card != null) {
+                row.getChildren().add(0, card);
+            }
+        }
         row.setAlignment(Pos.CENTER_LEFT);
         row.setPadding(new Insets(8, 4, 8, 4));
         return row;
+    }
+
+    /**
+     * La carta de una mascota en ese nivel (la de Forge: "Wolf Pet · Level 2
+     * of 4"), o null si no la hay. Ver {@link forge.neo.card.PetArt}.
+     */
+    private static Region petCard(final QuestPetController pet, final int level) {
+        final forge.item.PaperToken token = forge.neo.card.PetArt.levelCard(pet.getSaveFileKey(), level);
+        if (token == null) {
+            return null;
+        }
+        final forge.neo.card.CardNode node = new forge.neo.card.CardNode(UiScale.px(96));
+        node.setCard(forge.game.card.CardView.getCardForUi(token));
+        node.setRotationEnabled(false);
+        return node;
     }
 
     private void buyNow(final IQuestBazaarItem item) {
@@ -424,8 +461,17 @@ public class QuestBazaarScreen extends StackPane {
         // llevarla.
         choices.getChildren().add(petPick(slot, null, NeoText.get("bazaar.noPet"), chosen == null));
         for (final QuestPetController pet : owned) {
-            choices.getChildren().add(petPick(slot, pet.getName(), pet.getName(),
-                    pet.getName().equals(chosen)));
+            // Cada mascota con su carta del nivel que tiene, y el boton debajo.
+            final Button pick = petPick(slot, pet.getName(), pet.getName(), pet.getName().equals(chosen));
+            final int level = forge.model.FModel.getQuest().getAssets().getPetLevel(pet.getSaveFileKey());
+            final Region card = petCard(pet, Math.max(1, level));
+            if (card == null) {
+                choices.getChildren().add(pick);
+            } else {
+                final VBox one = new VBox(6, card, pick);
+                one.setAlignment(Pos.CENTER);
+                choices.getChildren().add(one);
+            }
         }
 
         final VBox row = new VBox(4, label, choices);

@@ -366,7 +366,8 @@ public final class ArtDownload extends GuiDownloadService {
             } else {
                 url = apiUrl(w.name, w.back);
             }
-            out.put(e.getKey(), url);
+            // A la calidad elegida en Ajustes (ImageQuality); la normal de fabrica.
+            out.put(e.getKey(), ImageQuality.apply(url));
         }
         if (resolve) {
             System.out.println("[arte] " + out.size() + " por bajar: " + cdn + " de la CDN y "
@@ -610,7 +611,9 @@ public final class ArtDownload extends GuiDownloadService {
         if (clean.isEmpty()) {
             return null;
         }
-        return new File(new File(OfflineArt.dir(), OfflineArt.folder(clean)), clean + ".jpg");
+        // En la carpeta de la calidad elegida (ImageQuality.artDir; la normal,
+        // pics/arte, en Android y de fabrica): "ya la tengo" se mira ahi.
+        return new File(new File(ImageQuality.current().artDir(), OfflineArt.folder(clean)), clean + ".jpg");
     }
 
     /**
@@ -667,7 +670,10 @@ public final class ArtDownload extends GuiDownloadService {
     public static int megabytes(final int howMany) {
         // Hacia arriba: "3 cartas, unos 0 MB" parecia un fallo (reportado el
         // 26-09-2026). Si hay algo que bajar, ocupa al menos 1.
-        return howMany <= 0 ? 0 : (int) Math.ceil(howMany * KB_PER_CARD / 1024.0);
+        // Por lo que pesa la calidad elegida: en alta el doble, en maxima unas
+        // dieciocho veces (ImageQuality.weight).
+        return howMany <= 0 ? 0
+                : (int) Math.ceil(howMany * KB_PER_CARD * (double) ImageQuality.current().weight / 1024.0);
     }
 
     /** Las cartas que la lista mirara, para el comprobador. */

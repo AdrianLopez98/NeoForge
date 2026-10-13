@@ -145,8 +145,28 @@ public final class CardImages {
         }
     }
 
+    /**
+     * La impresion exacta en disco, por calidades: la elegida en Ajustes y si
+     * falta, la mejor que haya (ImageQuality.lookupOrder). Las fichas y lo que
+     * no es una carta, solo en la normal.
+     */
     private static File findOnDisk(final String imageKey) {
-        return ImageKeys.getImageFile(toFilename(imageKey));
+        if (imageKey == null || !imageKey.startsWith(ImageKeys.CARD_PREFIX)) {
+            return ImageKeys.getImageFile(toFilename(imageKey));
+        }
+        for (final ImageQuality q : ImageQuality.lookupOrder()) {
+            final File f = exactOnDisk(q, imageKey);
+            if (f != null) {
+                return f;
+            }
+        }
+        return null;
+    }
+
+    private static File exactOnDisk(final ImageQuality q, final String imageKey) {
+        final File f = q == ImageQuality.NORMAL ? ImageKeys.getImageFile(toFilename(imageKey))
+                : q.exactFile(toFilename(imageKey));
+        return f != null && f.exists() ? f : null;
     }
 
     /**
@@ -456,13 +476,27 @@ public final class CardImages {
                 final boolean askLocalized = CardArt.isLocalized()
                         && LOCALIZED_ASKED.add(imageKey);
 
-                File file = findOnDisk(imageKey);
+                // Calidad a calidad (ImageQuality): primero la elegida — su
+                // impresion exacta y si no, su arte por nombre —, y si no hay
+                // nada, la mejor de las otras. Asi, quien se baja todo en
+                // maxima juega en maxima aunque tenga la normal de antes.
+                File file = null;
                 boolean fallback = false;
-                if (file == null || !file.exists()) {
+                for (final ImageQuality q : ImageQuality.lookupOrder()) {
+                    final File exact = imageKey.startsWith(ImageKeys.CARD_PREFIX)
+                            ? exactOnDisk(q, imageKey) : (q == ImageQuality.NORMAL ? findOnDisk(imageKey) : null);
+                    if (exact != null && exact.exists()) {
+                        file = exact;
+                        break;
+                    }
                     // Sin la impresion exacta: el arte bajado de antemano para
                     // jugar sin internet, si esta. Ver OfflineArt.
-                    file = OfflineArt.find(imageKey, false);
-                    fallback = file != null && file.exists();
+                    final File art = OfflineArt.find(imageKey, false, q.artDir());
+                    if (art != null && art.exists()) {
+                        file = art;
+                        fallback = true;
+                        break;
+                    }
                 }
                 if (file != null && file.exists()) {
                     decode(imageKey, file);
@@ -589,6 +623,11 @@ public final class CardImages {
         if (requestRebalanced(imageKey)) {
             return;
         }
+        // Las mascotas de la Quest: Forge tiene su arte pero no lo pide en
+        // partida (busca en otra lista). Ver PetArt.
+        if (requestPet(imageKey)) {
+            return;
+        }
         GuiBase.getInterface().invokeInEdtLater(() -> {
             try {
                 GuiBase.getInterface().getImageFetcher().fetchImage(imageKey, () -> resolveAfterDownload(imageKey));
@@ -623,6 +662,32 @@ public final class CardImages {
             return false;
         }
         final File dest = new File(forge.localinstance.properties.ForgeConstants.CACHE_CARD_PICS_DIR, name + ".jpg");
+        neo.fetchDirect(url, dest.getPath(), ok -> {
+            if (ok) {
+                resolveAfterDownload(imageKey);
+            } else {
+                PENDING.remove(imageKey);
+                giveUpForNow(imageKey);
+            }
+        });
+        return true;
+    }
+
+    /**
+     * El arte de una mascota de la Quest, directo a la carpeta de tokens de
+     * Forge, que es donde {@code ImageKeys} la busca luego.
+     *
+     * @return {@code false} si no es una mascota: que siga el camino normal
+     */
+    private static boolean requestPet(final String imageKey) {
+        final String url = PetArt.urlFor(imageKey);
+        if (url == null
+                || !(GuiBase.getInterface().getImageFetcher() instanceof forge.neo.platform.NeoImageFetcher neo)
+                || !forge.model.FModel.getPreferences().getPrefBoolean(
+                        forge.localinstance.properties.ForgePreferences.FPref.UI_ENABLE_ONLINE_IMAGE_FETCHER)) {
+            return false;
+        }
+        final File dest = new File(PetArt.folder(), PetArt.fileFor(imageKey));
         neo.fetchDirect(url, dest.getPath(), ok -> {
             if (ok) {
                 resolveAfterDownload(imageKey);

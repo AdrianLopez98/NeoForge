@@ -46,7 +46,13 @@ import forge.util.storage.IStorage;
  */
 public final class DraftDeckContext implements DeckContext {
 
-    private final DraftRun run;
+    /** Como se llama el evento: el grupo de mazos y el mazo humano. */
+    private final String eventName;
+    /** Donde vive el grupo (los drafts, los sellados, o los de la Quest). */
+    private final IStorage<DeckGroup> groups;
+    private final boolean sealedPool;
+    /** Lo que hay que hacer despues de guardar, o null. La Quest se guarda entera. */
+    private final Runnable afterSave;
 
     /** Cuantas copias tienes de cada impresion. Las basicas no estan aqui. */
     private final Map<PaperCard, Integer> owned = new HashMap<>();
@@ -70,8 +76,22 @@ public final class DraftDeckContext implements DeckContext {
     private final Map<String, List<PaperCard>> printings = new HashMap<>();
 
     public DraftDeckContext(final DraftRun run) {
-        this.run = run;
-        final Deck deck = run == null ? null : run.getDeck();
+        this(run == null ? null : run.getName(), run == null ? null : run.getKind().storage(),
+                run != null && run.getKind() == DraftRun.Kind.SEALED, null);
+    }
+
+    /**
+     * El mismo editor para un grupo que no es un {@link DraftRun}: el del
+     * torneo de draft de la Quest, que vive en {@code QuestController.getDraftDecks()}
+     * y se guarda con la Quest ({@code afterSave}).
+     */
+    public DraftDeckContext(final String eventName, final IStorage<DeckGroup> groups,
+                            final boolean sealed, final Runnable afterSave) {
+        this.eventName = eventName;
+        this.groups = groups;
+        this.sealedPool = sealed;
+        this.afterSave = afterSave;
+        final Deck deck = humanDeck();
         if (deck == null) {
             return;
         }
@@ -183,7 +203,25 @@ public final class DraftDeckContext implements DeckContext {
     // Lo que el editor pregunta
 
     private boolean sealed() {
-        return run != null && run.getKind() == DraftRun.Kind.SEALED;
+        return sealedPool;
+    }
+
+    /** El grupo del evento, o null. */
+    private DeckGroup findGroup() {
+        if (eventName == null || groups == null) {
+            return null;
+        }
+        for (final DeckGroup g : groups) {
+            if (g.getName().equals(eventName)) {
+                return g;
+            }
+        }
+        return null;
+    }
+
+    private Deck humanDeck() {
+        final DeckGroup g = findGroup();
+        return g == null ? null : g.getHumanDeck();
     }
 
     @Override
@@ -260,7 +298,7 @@ public final class DraftDeckContext implements DeckContext {
 
     @Override
     public CardPool autoBuild(final List<PaperCard> cards) {
-        final Deck deck = run == null ? null : run.getDeck();
+        final Deck deck = humanDeck();
         return LimitedAutoBuild.build(cards, deck == null ? null : landSet(deck));
     }
 
@@ -302,15 +340,7 @@ public final class DraftDeckContext implements DeckContext {
     private final class GroupStorage implements IStorage<Deck> {
 
         private DeckGroup group() {
-            if (run == null) {
-                return null;
-            }
-            for (final DeckGroup g : run.getKind().storage()) {
-                if (g.getName().equals(run.getName())) {
-                    return g;
-                }
-            }
-            return null;
+            return findGroup();
         }
 
         @Override
@@ -323,7 +353,10 @@ public final class DraftDeckContext implements DeckContext {
             // hecho DeckGroupSerializer al releerlo del disco.
             g.setHumanDeck(item.getName().equals(g.getName())
                     ? item : new Deck(item, g.getName()));
-            run.getKind().storage().add(g);
+            groups.add(g);
+            if (afterSave != null) {
+                afterSave.run();
+            }
         }
 
         @Override
@@ -339,12 +372,12 @@ public final class DraftDeckContext implements DeckContext {
 
         @Override
         public boolean contains(final String name) {
-            return run != null && run.getName().equals(name) && group() != null;
+            return eventName != null && eventName.equals(name) && group() != null;
         }
 
         @Override
         public Collection<String> getItemNames() {
-            return group() == null ? List.of() : List.of(run.getName());
+            return group() == null ? List.of() : List.of(eventName);
         }
 
         @Override
@@ -381,12 +414,12 @@ public final class DraftDeckContext implements DeckContext {
 
         @Override
         public String getName() {
-            return run == null ? "" : run.getName();
+            return eventName == null ? "" : eventName;
         }
 
         @Override
         public String getFullPath() {
-            return run == null ? "" : run.getKind().storage().getFullPath();
+            return groups == null ? "" : groups.getFullPath();
         }
 
         @Override

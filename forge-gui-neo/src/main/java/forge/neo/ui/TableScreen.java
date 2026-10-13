@@ -3445,7 +3445,12 @@ public class TableScreen extends Pane {
      * <p>Lo llama {@code NeoMatchUI} cuando el motor avisa de cambio de turno.
      */
     public void announceTurn(final boolean yours, final String who, final int turn) {
-        turnBanner.announce(yours, who, turn);
+        announceTurn(yours, who, turn, 0);
+    }
+
+    /** Igual, con la ronda al lado (0 = no ensenyarla). Ver {@code RoundCounter}. */
+    public void announceTurn(final boolean yours, final String who, final int turn, final int round) {
+        turnBanner.announce(yours, who, turn, round);
         requestLayout();
     }
 

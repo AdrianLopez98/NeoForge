@@ -37,7 +37,10 @@ import javafx.scene.layout.VBox;
  *       vas a ir mejorando con lo que salga de los sobres. En Commander hay una
  *       segunda pestanya: <b>eliges solo el comandante</b> y se monta alrededor
  *       un mazo mas flojo aun que un precon, casi todo comunes (ver
- *       {@link forge.neo.quest.NeoCommanderDuels#starter}).</li>
+ *       {@link forge.neo.quest.NeoCommanderDuels#starter}). Y en los dos
+ *       modos, <b>elegir solo los colores</b>, como en Ascenso: el juego
+ *       monta el mazo (o sortea un comandante de esos colores). Discord,
+ *       13-10-2026: <i>"too many option is not freeing, it's limitating"</i>.</li>
  *   <li><b>Como de dura</b> — cambia cuanto tardan los rivales en subir de
  *       nivel y con cuantos creditos empiezas.</li>
  * </ol>
@@ -53,10 +56,12 @@ public class QuestSetupScreen extends BorderPane {
          * @param starter   el preconstruido, o {@code null} si se empieza por comandante
          * @param commander el comandante del mazo a generar (ya sorteado si se
          *                  pidio "al azar"), o {@code null} si hay preconstruido
+         * @param colours   sin preconstruido ni comandante (Estandar por colores):
+         *                  los colores del mazo a generar, o {@code NO_COLOURS} al azar
          */
         void start(String name, NeoQuest.Modalidad modalidad,
                    NeoQuest.Dificultad dificultad, Deck starter, PaperCard commander,
-                   String world, forge.neo.ascent.AscentPool pool);
+                   byte colours, String world, forge.neo.ascent.AscentPool pool);
 
         void back();
     }
@@ -70,6 +75,15 @@ public class QuestSetupScreen extends BorderPane {
      * En Estandar vale siempre false: no hay comandante que elegir.
      */
     private boolean fromCommander;
+
+    /** Si se empieza eligiendo solo los colores, en los dos modos. */
+    private boolean fromColours;
+
+    /** Los colores elegidos (mascara de {@code MagicColor}); ninguno = al azar. */
+    private byte colours = AscentSeedDeck.NO_COLOURS;
+
+    /** El selector de colores: se repinta entero al pulsar, son cinco botones. */
+    private final VBox coloursPicker = new VBox(8);
 
     /** El comandante elegido en esa pestanya; {@code null} = que salga uno al azar. */
     private PaperCard commander;
@@ -172,12 +186,22 @@ public class QuestSetupScreen extends BorderPane {
             javafx.application.Platform.runLater(() -> javafx.application.Platform.runLater(() -> sp.setVvalue(1)));
         }
 
+        // -Dneo.quest.setupMode=standard: abre en Estandar, para capturarlo.
+        if ("standard".equalsIgnoreCase(System.getProperty("neo.quest.setupMode", ""))) {
+            modalidad = NeoQuest.Modalidad.ESTANDAR;
+        }
         buildModes();
         buildDifficulties();
         reloadDecks();
         // Para capturar la pestanya de comandante sin raton:
         // run.cmd ui --quest-new -Dneo.quest.setupTab=commander
         fromCommander = "commander".equalsIgnoreCase(System.getProperty("neo.quest.setupTab", ""));
+        // -Dneo.quest.setupTab=colours -Dneo.quest.setupColours=WB
+        fromColours = "colours".equalsIgnoreCase(System.getProperty("neo.quest.setupTab", ""));
+        for (final char c : System.getProperty("neo.quest.setupColours", "").toCharArray()) {
+            colours = AscentSetupScreen.toggle(colours, forge.card.MagicColor.fromName(c),
+                    AscentSeedDeck.QUEST_MAX_COLOURS);
+        }
         syncDeckStep();
         syncWorld();
         // Para capturarla con un pozo puesto:
@@ -203,7 +227,20 @@ public class QuestSetupScreen extends BorderPane {
         go.setOnAction(e -> {
             final String n = name.getText() == null || name.getText().isBlank()
                     ? suggestName() : name.getText().trim();
-            if (fromCommander) {
+            if (fromColours && modalidad == NeoQuest.Modalidad.COMMANDER) {
+                // Un comandante de esos colores, sorteado aqui como el "al
+                // azar" de la otra pestanya: el que llama recibe un comandante.
+                final PaperCard cmd = NeoQuest.commanderOfColours(colours, pool);
+                if (cmd == null) {
+                    chosen.setText(NeoText.get("questNew.noColourCommander"));
+                    return;
+                }
+                setBuilding(true);
+                actions.start(n, modalidad, dificultad, null, cmd, AscentSeedDeck.NO_COLOURS, world, pool);
+            } else if (fromColours) {
+                setBuilding(true);
+                actions.start(n, modalidad, dificultad, null, null, colours, world, pool);
+            } else if (fromCommander) {
                 // "Al azar" se sortea aqui, del mismo pozo que ensenya la
                 // rejilla: asi el que llama recibe siempre un comandante.
                 final PaperCard cmd = commander != null ? commander
@@ -213,9 +250,9 @@ public class QuestSetupScreen extends BorderPane {
                 // pueda tocar nada mas — start() ya se ha llevado los valores,
                 // y cambiar las reglas en ese rato no haria nada (principio 1).
                 setBuilding(true);
-                actions.start(n, modalidad, dificultad, null, cmd, world, pool);
+                actions.start(n, modalidad, dificultad, null, cmd, AscentSeedDeck.NO_COLOURS, world, pool);
             } else {
-                actions.start(n, modalidad, dificultad, starter, null, world, pool);
+                actions.start(n, modalidad, dificultad, starter, null, AscentSeedDeck.NO_COLOURS, world, pool);
             }
         });
 
@@ -643,7 +680,9 @@ public class QuestSetupScreen extends BorderPane {
 
     /** Lo que se ha elegido, por escrito en el pie: el cerco no se ve si pasas de pagina. */
     private void syncChosen() {
-        if (fromCommander) {
+        if (fromColours) {
+            chosen.setText(NeoText.get("questNew.chosenColours", AscentSetupScreen.coloursCaption(colours)));
+        } else if (fromCommander) {
             chosen.setText(commander == null ? NeoText.get("questNew.chosenCommanderRandom")
                     : NeoText.get("questNew.chosenCommander",
                             forge.neo.card.CardText.nameOf(commander)));
@@ -681,11 +720,12 @@ public class QuestSetupScreen extends BorderPane {
             fromCommander = false;
         }
         deckStep.getChildren().clear();
-        if (modalidad == NeoQuest.Modalidad.COMMANDER) {
-            buildTabs();
-            deckStep.getChildren().add(tabRow);
-        }
-        if (fromCommander) {
+        buildTabs();
+        deckStep.getChildren().add(tabRow);
+        if (fromColours) {
+            paintColours();
+            deckStep.getChildren().add(coloursPicker);
+        } else if (fromCommander) {
             if (allCommanders == null) {
                 reloadCommanders();
             }
@@ -698,22 +738,65 @@ public class QuestSetupScreen extends BorderPane {
 
     private void buildTabs() {
         tabRow.getChildren().setAll(
-                tab(NeoText.get("questNew.tab.precon"), !fromCommander, false),
-                tab(NeoText.get("questNew.tab.commander"), fromCommander, true));
+                tab(NeoText.get("questNew.tab.precon"), !fromCommander && !fromColours, false, false));
+        if (modalidad == NeoQuest.Modalidad.COMMANDER) {
+            tabRow.getChildren().add(
+                    tab(NeoText.get("questNew.tab.commander"), fromCommander && !fromColours, true, false));
+        }
+        tabRow.getChildren().add(tab(NeoText.get("questNew.tab.colours"), fromColours, false, true));
         tabRow.setAlignment(Pos.CENTER_LEFT);
     }
 
-    private Button tab(final String text, final boolean on, final boolean toCommander) {
+    private Button tab(final String text, final boolean on, final boolean toCommander,
+                       final boolean toColours) {
         final Button b = new Button(text);
         b.getStyleClass().add(on ? "btn-primary" : "btn-secondary");
         b.setMinWidth(Region.USE_PREF_SIZE);
         b.setOnAction(e -> {
-            if (fromCommander != toCommander) {
+            if (fromCommander != toCommander || fromColours != toColours) {
                 fromCommander = toCommander;
+                fromColours = toColours;
                 syncDeckStep();
             }
         });
         return b;
+    }
+
+    /**
+     * Elegir solo los colores: los cinco botones de Ascenso, pero aqui
+     * <b>hasta los cinco</b> (Ana, 13-10-2026: en Ascenso los mazos son de 30
+     * y tiene sentido el tope de dos; en la Quest, un comandante o un mazo de
+     * Estandar de cinco colores es una eleccion como otra). Debajo, dicho con
+     * todas las letras, con que se va a empezar. Ninguno marcado es al azar.
+     */
+    private void paintColours() {
+        final HBox row = new HBox(8);
+        row.setAlignment(Pos.CENTER_LEFT);
+        for (int i = 0; i < AscentSetupScreen.COLOUR_ORDER.length; i++) {
+            final byte c = AscentSetupScreen.COLOUR_ORDER[i];
+            final String letter = AscentSetupScreen.COLOUR_LETTERS[i];
+            final Button b = new Button(letter);
+            b.getStyleClass().addAll("segment", "colour-filter",
+                    "mana-" + letter.toLowerCase(java.util.Locale.ROOT));
+            if ((colours & c) != 0) {
+                b.getStyleClass().add("colour-filter-on");
+            }
+            b.setOnAction(e -> {
+                colours = AscentSetupScreen.toggle(colours, c, AscentSeedDeck.QUEST_MAX_COLOURS);
+                paintColours();
+                syncChosen();
+            });
+            row.getChildren().add(b);
+        }
+        final Label what = new Label(AscentSetupScreen.coloursCaption(colours));
+        what.getStyleClass().add("quest-ok");
+        final Label hint = new Label(NeoText.get(modalidad == NeoQuest.Modalidad.COMMANDER
+                ? "questNew.coloursHintCommander" : "questNew.coloursHint"));
+        hint.getStyleClass().add("home-subtitle");
+        hint.setWrapText(true);
+        hint.setMaxWidth(UiScale.px(760));
+        hint.setMinHeight(Region.USE_PREF_SIZE);
+        coloursPicker.getChildren().setAll(row, what, hint);
     }
 
     // ---------------------------------------------------------------

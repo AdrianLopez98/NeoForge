@@ -82,9 +82,9 @@ final class NeoAppQuest {
                               final forge.neo.quest.NeoQuest.Modalidad modalidad,
                               final forge.neo.quest.NeoQuest.Dificultad dificultad,
                               final forge.deck.Deck starter,
-                              final forge.item.PaperCard commander, final String world,
-                              final forge.neo.ascent.AscentPool pool) {
-                if (commander == null) {
+                              final forge.item.PaperCard commander, final byte colours,
+                              final String world, final forge.neo.ascent.AscentPool pool) {
+                if (commander == null && starter != null) {
                     forge.neo.quest.NeoQuest.start(name, modalidad, dificultad, starter, world, pool);
                     showQuestHome();
                     return;
@@ -95,8 +95,12 @@ final class NeoAppQuest {
                 // siempre. Si no sale el mazo, la pantalla lo dice y se queda.
                 final QuestSetupScreen from = setup;
                 final Thread t = new Thread(() -> {
-                    final forge.deck.Deck deck =
-                            forge.neo.quest.NeoCommanderDuels.starter(commander);
+                    // Sin comandante ni preconstruido: Estandar eligiendo solo
+                    // los colores, el mazo flojo de Ascenso a 60 cartas.
+                    final forge.deck.Deck deck = commander != null
+                            ? forge.neo.quest.NeoCommanderDuels.starter(commander)
+                            : forge.neo.quest.NeoQuest.colourStarter(
+                                    forge.neo.NeoText.get("questNew.colourDeckName"), colours, pool);
                     Platform.runLater(() -> {
                         if (app.scene.getRoot() != from) {
                             return; // se ha salido de la pantalla mientras tanto
@@ -134,6 +138,9 @@ final class NeoAppQuest {
         shop = null;
         collection = null;
         reward = null;
+        bazaar = null;
+        tournament = null;
+        colosseum = null;
         quest = new QuestScreen(app.cardWidth, new QuestScreen.Actions() {
             @Override
             public void duel(final forge.gamemodes.quest.QuestEventDuel duel) {
@@ -179,6 +186,16 @@ final class NeoAppQuest {
             }
 
             @Override
+            public void tournaments() {
+                showQuestTournaments();
+            }
+
+            @Override
+            public void colosseum() {
+                showColosseum();
+            }
+
+            @Override
             public void preferences() {
                 showQuestPrefs();
             }
@@ -199,6 +216,299 @@ final class NeoAppQuest {
 
     QuestScreen quest;
     QuestSetupScreen setup;
+    forge.neo.ui.QuestTournamentScreen tournament;
+
+    // ---------------------------------------------------------------
+    // Los torneos de draft (13-10-2026). La logica: NeoQuestDrafts.
+
+    /** Los torneos: los abiertos, o el tuyo con su cuadro. */
+    void showQuestTournaments() {
+        quest = null;
+        forge.neo.quest.NeoQuestDrafts.catchUp();
+        tournament = new forge.neo.ui.QuestTournamentScreen(app.cardWidth,
+                new forge.neo.ui.QuestTournamentScreen.Actions() {
+                    @Override
+                    public void enter(final forge.gamemodes.quest.QuestEventDraft event) {
+                        startQuestDraft(event);
+                    }
+
+                    @Override
+                    public void editDeck() {
+                        showQuestDraftDeck();
+                    }
+
+                    @Override
+                    public void play() {
+                        playQuestDraftMatch();
+                    }
+
+                    @Override
+                    public void refresh() {
+                        showQuestTournaments();
+                    }
+
+                    @Override
+                    public void back() {
+                        tournament = null;
+                        showQuestHome();
+                    }
+                });
+        app.scene.setRoot(tournament);
+        app.applyScale();
+    }
+
+    /**
+     * Paga y abre los sobres. La pantalla de picks es la del draft de siempre;
+     * salir de ella pregunta, porque se pierden los picks (la entrada se
+     * devuelve, como en Forge).
+     */
+    void startQuestDraft(final forge.gamemodes.quest.QuestEventDraft event) {
+        final forge.neo.draft.NeoDraft draft = forge.neo.quest.NeoQuestDrafts.enter(event);
+        if (draft == null) {
+            showQuestTournaments();
+            return;
+        }
+        tournament = null;
+        final javafx.scene.Parent[] screenRef = new javafx.scene.Parent[1];
+        final forge.neo.ui.DraftScreen screen = new forge.neo.ui.DraftScreen(draft, app.cardWidth,
+                source -> {
+                    forge.neo.quest.NeoQuestDrafts.finishDraft(draft);
+                    app.draftScreen = null;
+                    showQuestDraftDeck();
+                },
+                () -> confirmQuitQuestDraft(screenRef[0]));
+        screenRef[0] = screen;
+        app.draftScreen = screen;
+        app.scene.setRoot(screen);
+        app.applyScale();
+    }
+
+    private void confirmQuitQuestDraft(final javafx.scene.Parent draftScreen) {
+        final javafx.scene.layout.StackPane layer = new javafx.scene.layout.StackPane();
+        layer.getStyleClass().add("overlay");
+        final javafx.scene.layout.StackPane root = new javafx.scene.layout.StackPane(draftScreen, layer);
+        layer.getChildren().add(new forge.neo.ui.ConfirmDialog(
+                forge.neo.NeoText.get("questDraft.quitDraftTitle"),
+                forge.neo.NeoText.get("questDraft.quitDraftBody"),
+                java.util.List.of(forge.neo.NeoText.get("questDraft.quitDraftYes"),
+                        forge.neo.NeoText.get("common.cancel")), 1, i -> {
+                    if (i == 0) {
+                        forge.neo.quest.NeoQuestDrafts.cancelDraft();
+                        app.draftScreen = null;
+                        showQuestTournaments();
+                    } else {
+                        root.getChildren().remove(draftScreen);
+                        app.scene.setRoot(draftScreen);
+                        app.applyScale();
+                    }
+                }));
+        app.scene.setRoot(root);
+        app.applyScale();
+    }
+
+    /** El editor con tu pool del torneo; al salir, al torneo. */
+    void showQuestDraftDeck() {
+        final forge.deck.Deck mine = forge.neo.quest.NeoQuestDrafts.myDeck();
+        if (mine == null) {
+            showQuestTournaments();
+            return;
+        }
+        final forge.neo.draft.DraftDeckContext context = new forge.neo.draft.DraftDeckContext(
+                forge.gamemodes.quest.QuestEventDraft.DECK_NAME,
+                forge.model.FModel.getQuest().getDraftDecks(), false,
+                () -> forge.model.FModel.getQuest().save());
+        final forge.neo.deck.DeckEditor editor = forge.neo.deck.DeckEditor.copyOf(context, mine);
+        app.builder = new forge.neo.ui.DeckBuilderScreen(editor, app.cardWidth, () -> {
+            app.builder = null;
+            showQuestTournaments();
+        });
+        app.scene.setRoot(app.builder);
+        app.applyScale();
+    }
+
+    // ---------------------------------------------------------------
+    // El Coliseo (13-10-2026). La logica: NeoColosseum.
+
+    forge.neo.ui.ColosseumScreen colosseum;
+
+    /** Lo que es, lo que cuesta y contra quien, antes de pagar. */
+    forge.neo.ui.ColosseumScreen showColosseum() {
+        quest = null;
+        colosseum = new forge.neo.ui.ColosseumScreen(app.cardWidth,
+                new forge.neo.ui.ColosseumScreen.Actions() {
+                    @Override
+                    public void play() {
+                        playColosseum();
+                    }
+
+                    @Override
+                    public void back() {
+                        colosseum = null;
+                        showQuestHome();
+                    }
+                });
+        app.scene.setRoot(colosseum);
+        app.applyScale();
+        return colosseum;
+    }
+
+    /**
+     * La partida del Coliseo, ya pagada, en una mesa nueva. Al acabar se
+     * vuelve a su pantalla con el premio o el aviso de que se ha perdido.
+     *
+     * <p>La entrada se liquida una sola vez ({@code NeoColosseum}), por el
+     * primero de dos caminos: la partida que vuelve, o la mesa que se abandona
+     * a la fuerza — y eso se decide EN EL MOMENTO, porque con el motor roto el
+     * hilo no vuelve nunca. Motor roto, o salir antes de que empiece: se
+     * devuelve. Salir a media partida es rendirse: se pierde, como dice el
+     * aviso antes de pagar.
+     */
+    void playColosseum() {
+        colosseum = null;
+        app.table = new TableScreen(app.cardWidth, app.sideWidth);
+        app.table.getDetailPanel().setTextZoom(NeoSettings.getDouble(NeoSettings.TEXT_ZOOM, 1.15));
+        app.showTable();
+        final TableBinder liveBinder = new TableBinder(app.table);
+        app.binder = liveBinder;
+        app.noRestartFor = liveBinder;
+        liveBinder.setOnAbandoned(why -> {
+            if (why == TableBinder.Abandon.QUIT) {
+                forge.neo.quest.NeoColosseum.lose();
+            } else {
+                forge.neo.quest.NeoColosseum.refund();
+            }
+        });
+        app.table.setPrompt(forge.neo.NeoText.get("colosseum.preparing"));
+        final Thread engine = new Thread(() -> {
+            forge.neo.quest.NeoColosseumMatch.Outcome out = null;
+            try {
+                out = forge.neo.quest.NeoColosseumMatch.play(liveBinder, NeoMatchUI.Mode.HUMAN,
+                        NeoSettings.autoPayMana(), NeoSettings.get(NeoSettings.AI_PROFILE, null));
+            } catch (final Exception e) {
+                System.err.println("[neo] la partida del Coliseo ha fallado: " + e);
+                e.printStackTrace();
+            } finally {
+                final forge.neo.quest.NeoColosseumMatch.Outcome got = out;
+                Platform.runLater(() -> {
+                    if (app.noRestartFor == liveBinder) {
+                        app.noRestartFor = null;
+                    }
+                    if (liveBinder.isAbandoned()) {
+                        // Ya liquidada al abandonarla, y el jugador esta en otra
+                        // pantalla (puede que en otra partida): no se le mueve.
+                        if (app.abandonedBinder == liveBinder) {
+                            app.abandonedBinder = null;
+                        }
+                        if (app.binder == liveBinder) {
+                            app.binder = null;
+                        }
+                        return;
+                    }
+                    app.binder = null;
+                    if (got == null) {
+                        // No se ha llegado a jugar (los mazos no salen, o el
+                        // motor revienta al montarla): se devuelve.
+                        forge.neo.quest.NeoColosseum.refund();
+                        showColosseum();
+                    } else if (got.won) {
+                        final forge.neo.quest.NeoColosseum.Prize prize = forge.neo.quest.NeoColosseum.win();
+                        final forge.neo.ui.ColosseumScreen screen = showColosseum();
+                        if (prize != null) {
+                            screen.showWin(prize);
+                        }
+                    } else {
+                        forge.neo.quest.NeoColosseum.lose();
+                        showColosseum().showLoss();
+                    }
+                });
+            }
+        }, "Game-neo-colosseum");
+        engine.setDaemon(true);
+        engine.start();
+    }
+
+    /**
+     * Solo pruebas ({@code --quest-colosseum}): la pantalla del Coliseo en una
+     * Quest de Commander, con creditos de sobra. {@code -Dneo.colosseum.demo=won}
+     * cobra el premio como si se hubiera ganado (sin jugar), {@code lost}
+     * ensenya el aviso de derrota y {@code play} paga y juega de verdad (con
+     * {@code --quit-test} o {@code --kill-engine}, para ver que la entrada se
+     * liquida bien al salir a la fuerza: ver la guía de pruebas).
+     */
+    void colosseumDemo(final String result) {
+        forge.model.FModel.getQuest().getAssets().addCredits(20_000);
+        System.out.println("[coliseo-demo] creditos al entrar: " + forge.neo.quest.NeoQuest.credits());
+        if ("play".equals(result)) {
+            if (forge.neo.quest.NeoColosseum.pay()) {
+                playColosseum();
+            }
+            return;
+        }
+        final forge.neo.ui.ColosseumScreen screen = showColosseum();
+        if ("won".equals(result) || "lost".equals(result)) {
+            final PauseTransition later = new PauseTransition(Duration.millis(400));
+            later.setOnFinished(e -> {
+                forge.neo.quest.NeoColosseum.pay();
+                if ("won".equals(result)) {
+                    final forge.neo.quest.NeoColosseum.Prize prize = forge.neo.quest.NeoColosseum.win();
+                    showColosseum().showWin(prize);
+                } else {
+                    forge.neo.quest.NeoColosseum.lose();
+                    showColosseum().showLoss();
+                }
+            });
+            later.play();
+        }
+    }
+
+    /** Tu partida del torneo, en una mesa nueva. */
+    void playQuestDraftMatch() {
+        tournament = null;
+        app.table = new TableScreen(app.cardWidth, app.sideWidth);
+        app.table.getDetailPanel().setTextZoom(NeoSettings.getDouble(NeoSettings.TEXT_ZOOM, 1.15));
+        app.showTable();
+        final TableBinder liveBinder = new TableBinder(app.table);
+        app.binder = liveBinder;
+        app.noRestartFor = liveBinder;
+        app.table.setPrompt(forge.neo.NeoText.get("app.preparing"));
+        final Thread engine = new Thread(() -> {
+            forge.neo.quest.NeoQuestDraftMatch.Outcome out = null;
+            try {
+                out = forge.neo.quest.NeoQuestDraftMatch.play(liveBinder, NeoMatchUI.Mode.HUMAN,
+                        NeoSettings.autoPayMana(), NeoSettings.get(NeoSettings.AI_PROFILE, null));
+            } catch (final Exception e) {
+                // Si la partida revienta, no se apunta: se puede volver a jugar.
+                System.err.println("[neo] la partida del torneo ha fallado: " + e);
+                e.printStackTrace();
+            } finally {
+                final forge.neo.quest.NeoQuestDraftMatch.Outcome got = out;
+                Platform.runLater(() -> {
+                    if (app.noRestartFor == liveBinder) {
+                        app.noRestartFor = null;
+                    }
+                    // Si se salio por la salida de emergencia, el jugador ya esta en
+                    // otra pantalla (puede que en otra partida): ni se le mueve ni se
+                    // apunta nada — la ronda se puede volver a jugar.
+                    if (app.abandonedBinder == liveBinder || liveBinder.isAbandoned()) {
+                        if (app.abandonedBinder == liveBinder) {
+                            app.abandonedBinder = null;
+                        }
+                        if (app.binder == liveBinder) {
+                            app.binder = null;
+                        }
+                        return;
+                    }
+                    app.binder = null;
+                    if (got != null && got.counts) {
+                        forge.neo.quest.NeoQuestDrafts.recordMatch(got.won);
+                    }
+                    showQuestTournaments();
+                });
+            }
+        }, "Game-neo-questdraft");
+        engine.setDaemon(true);
+        engine.start();
+    }
     forge.neo.ui.QuestShopScreen shop;
 
     /** El botin del duelo, antes de volver al cuartel general. */
@@ -349,9 +659,13 @@ final class NeoAppQuest {
                         // que el cuartel se quede vivo por debajo.
                     }
                 });
+        bazaar = screen;
         app.scene.setRoot(screen);
         app.applyScale();
     }
+
+    /** El bazar abierto: el arte de las mascotas llega en segundo plano. */
+    forge.neo.ui.QuestBazaarScreen bazaar;
 
     /**
      * Herramienta de prueba: compra un sobre sola y captura mientras se abre.
@@ -588,6 +902,61 @@ final class NeoAppQuest {
     }
 
     /** Aventura de pruebas, para poder capturar el cuartel general. */
+    /**
+     * Herramienta de prueba: el torneo de draft en el punto que se pida, con la
+     * aventura de prueba ({@link #questDemo}). Los picks se hacen solos (la
+     * primera carta de cada sobre), el mazo con "Montar solo", y las partidas
+     * se apuntan ganadas ({@code -Dneo.questDraft.lose=true}: la primera
+     * perdida). {@code rare} abre la eleccion de la rara del premio y
+     * {@code haul} elige la primera y ensenya lo que te llevas.
+     */
+    void questTournamentDemo(final String stage) {
+        forge.model.FModel.getQuest().getAssets().addCredits(20_000);
+        if ("open".equals(stage)) {
+            showQuestTournaments();
+            return;
+        }
+        final java.util.List<forge.gamemodes.quest.QuestEventDraft> offered =
+                forge.neo.quest.NeoQuestDrafts.offered();
+        if (offered.isEmpty()) {
+            showQuestTournaments();
+            return;
+        }
+        if ("picks".equals(stage)) {
+            startQuestDraft(offered.get(0));
+            return;
+        }
+        final forge.neo.draft.NeoDraft draft = forge.neo.quest.NeoQuestDrafts.enter(offered.get(0));
+        int guard = 0;
+        while (draft != null && !draft.isDone() && guard++ < 200) {
+            draft.pick(draft.currentCards().get(0));
+        }
+        if (draft != null) {
+            forge.neo.quest.NeoQuestDrafts.finishDraft(draft);
+        }
+        if (!"deck".equals(stage)) {
+            final forge.deck.Deck mine = forge.neo.quest.NeoQuestDrafts.myDeck();
+            mine.getMain().addAll(forge.neo.draft.LimitedAutoBuild.build(new java.util.ArrayList<>(
+                    mine.get(forge.deck.DeckSection.Sideboard).toFlatList()), null));
+            forge.neo.quest.NeoQuestDrafts.start();
+        }
+        if (!"deck".equals(stage) && !"playing".equals(stage)) {
+            boolean first = true;
+            int rounds = 0;
+            while (forge.neo.quest.NeoQuestDrafts.nextMatch() != null && rounds++ < 5) {
+                forge.neo.quest.NeoQuestDrafts.recordMatch(!(first && Boolean.getBoolean("neo.questDraft.lose")));
+                first = false;
+            }
+        }
+        showQuestTournaments();
+        if ("rare".equals(stage) || "haul".equals(stage)) {
+            final forge.neo.ui.QuestTournamentScreen screen = tournament;
+            final PauseTransition later = new PauseTransition(Duration.millis(400));
+            later.setOnFinished(e -> screen.debugCollect("haul".equals(stage)));
+            later.play();
+        }
+    }
+
     void questDemo(final boolean estandar, final boolean straightToDuel) {
         final forge.neo.quest.NeoQuest.Modalidad modalidad = estandar
                 ? forge.neo.quest.NeoQuest.Modalidad.ESTANDAR
@@ -603,6 +972,17 @@ final class NeoAppQuest {
                 System.getProperty("neo.quest.demoWorld"));
         for (int i = 0; i < Integer.getInteger("neo.quest.demoWins", 0); i++) {
             forge.model.FModel.getQuest().getAchievements().addWin();
+        }
+        // -Dneo.quest.demoPets=Wolf:2,Plant:3: mascotas compradas, para ver su
+        // arte en el bazar sin comprarlas (la guía de pruebas).
+        final String pets = System.getProperty("neo.quest.demoPets");
+        if (pets != null) {
+            for (final String one : pets.split(",")) {
+                final String[] kv = one.split(":");
+                if (kv.length == 2) {
+                    forge.model.FModel.getQuest().getAssets().setPetLevel(kv[0].trim(), Integer.parseInt(kv[1].trim()));
+                }
+            }
         }
         final int extra = Integer.getInteger("neo.quest.demoCredits", 0);
         if (extra > 0) {

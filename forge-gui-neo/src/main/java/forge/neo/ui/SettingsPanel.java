@@ -763,6 +763,20 @@ public class SettingsPanel extends VBox {
 
         tab(Tab.TABLE);
 
+        // --- la ronda al lado del turno ---
+        //
+        // Discord, 13-10-2026: "Turn 23 (Round 12)", para quien lleva la
+        // cuenta. Apagado de fabrica. La cuenta la lleva RoundCounter (el
+        // motor no sabe de rondas); sale en el aviso de la derecha y en el
+        // cartel del turno, y se nota en el siguiente que se pinte.
+        getChildren().add(toggleRow(NeoText.get("settings.showRound"),
+                forge.neo.match.RoundCounter.enabled(),
+                on -> {
+                    NeoSettings.setBool(forge.neo.match.RoundCounter.SETTING, on);
+                    NeoSettings.save();
+                    host.refreshTable();
+                }));
+
         // --- todas las mesas a la vez ---
         //
         // Solo cambia algo a mas de dos jugadores: con un rival ya se ve su
@@ -1045,6 +1059,31 @@ public class SettingsPanel extends VBox {
         afkNote.setMinHeight(Region.USE_PREF_SIZE);
         getChildren().add(afkNote);
 
+        // --- Registro detallado ---
+        //
+        // Discord, 13-10-2026: un registro con TODO (paradas de fase, objetivos,
+        // el stack entero...) para poder reportar un fallo con certeza. Apagado
+        // de fabrica; vale desde la partida siguiente. Ver match.DetailLog.
+        getChildren().add(section(NeoText.get("settings.detailLog")));
+        getChildren().add(toggleRow(NeoText.get("settings.detailLog.on"),
+                forge.neo.match.DetailLog.enabled(),
+                on -> {
+                    NeoSettings.setBool(forge.neo.match.DetailLog.SETTING, on);
+                    NeoSettings.save();
+                }));
+        final Label detailNote = new Label(NeoText.get("settings.detailLog.note",
+                forge.neo.match.DetailLog.file().getPath()));
+        detailNote.getStyleClass().add("home-subtitle");
+        detailNote.setWrapText(true);
+        detailNote.setMaxWidth(UiScale.px(560));
+        detailNote.setMinHeight(Region.USE_PREF_SIZE);
+        getChildren().add(detailNote);
+        final Button detailOpen = new Button(NeoText.get("settings.detailLog.open"));
+        detailOpen.getStyleClass().add("segment");
+        detailOpen.setMinWidth(Region.USE_PREF_SIZE);
+        detailOpen.setOnAction(e -> forge.neo.match.DetailLog.openFolder());
+        getChildren().add(detailOpen);
+
         // --- Discord ---
         //
         // Pedido en itch.io el 22-09-2026. El interruptor es obligatorio y no
@@ -1115,6 +1154,37 @@ public class SettingsPanel extends VBox {
         // Aqui, y no en el menu: una casilla del menu es una PREGUNTA distinta
         // (la auditoría del motor 2), y esto es mantenimiento.
         tab(Tab.ART);
+
+        // --- la calidad de las imagenes (solo PC) ---
+        //
+        // Discord, 13-10-2026: "the cards look/feel blurry ... an option for
+        // higher res downloads". Forge baja la version normal (488x680) y la
+        // carta ampliada la estira. La carta en pantalla mide lo mismo: cambia
+        // el detalle. Vale para lo que se baje desde ahora. Ver ImageQuality.
+        final forge.neo.card.ImageQuality[] qualities = forge.neo.card.ImageQuality.values();
+        final String[] qualityLabels = new String[qualities.length];
+        for (int i = 0; i < qualities.length; i++) {
+            qualityLabels[i] = NeoText.get("settings.art.quality." + qualities[i].scryfall);
+        }
+        final Label qualityNote = new Label(qualityNote(forge.neo.card.ImageQuality.current()));
+        qualityNote.getStyleClass().add("home-subtitle");
+        qualityNote.setWrapText(true);
+        qualityNote.setMaxWidth(UiScale.px(560));
+        qualityNote.setMinHeight(Region.USE_PREF_SIZE);
+        getChildren().add(choiceRow(NeoText.get("settings.art.quality"), qualityLabels,
+                NeoText.get("settings.art.quality." + forge.neo.card.ImageQuality.current().scryfall),
+                v -> {
+                    for (final forge.neo.card.ImageQuality q : qualities) {
+                        if (NeoText.get("settings.art.quality." + q.scryfall).equals(v)) {
+                            NeoSettings.set(NeoSettings.IMAGE_QUALITY, q.scryfall);
+                            qualityNote.setText(qualityNote(q));
+                            // Se ve YA, sin reiniciar: fuera lo decodificado y
+                            // los "no esta", y a repintar con la nueva.
+                            forge.neo.card.ArtDownload.afterDownload();
+                        }
+                    }
+                }));
+        getChildren().add(qualityNote);
 
         // --- las cartas sin arte, fuera del juego ---
         //
@@ -1824,6 +1894,16 @@ public class SettingsPanel extends VBox {
         box.setAlignment(Pos.CENTER_LEFT);
         box.setPadding(new Insets(4, 0, 4, 0));
         return box;
+    }
+
+    /**
+     * Lo que supone cada calidad, y en la maxima el aviso de la memoria
+     * (Ana: "avisa que con maxima es mas probable que haya crasheos en
+     * partidas largas").
+     */
+    private static String qualityNote(final forge.neo.card.ImageQuality q) {
+        return NeoText.get("settings.art.quality.note." + q.scryfall) + " "
+                + NeoText.get("settings.art.quality.applies");
     }
 
     private static HBox choiceRow(final String caption, final String[] values,

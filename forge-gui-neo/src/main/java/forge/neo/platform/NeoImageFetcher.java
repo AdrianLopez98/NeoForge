@@ -261,8 +261,22 @@ public class NeoImageFetcher extends ImageFetcher {
         ourCooldownUntil = new Date(System.currentTimeMillis() + secs * 1000L);
     }
 
-    private boolean doFetch(final String urlToDownload, final String destPath,
+    private boolean doFetch(final String requested, final String requestedDest,
                             final Runnable notifyObservers) throws IOException {
+        // La calidad elegida en Ajustes -> Arte (normal, alta o maxima): Forge
+        // pide siempre la normal y la guarda en pics/cards. Una carta se pide a
+        // la calidad elegida y va a SU carpeta; una ficha o un sobre, como
+        // siempre. Ver forge.neo.card.ImageQuality.
+        final forge.neo.card.ImageQuality quality = forge.neo.card.ImageQuality.current();
+        final boolean card = forge.neo.card.ImageQuality.isCardImage(requestedDest);
+        final String urlToDownload = card ? quality.rewrite(requested) : requested;
+        final String destPath = card ? quality.redirect(requestedDest) : requestedDest;
+        if (card && quality != forge.neo.card.ImageQuality.NORMAL) {
+            final java.io.File parent = new java.io.File(destPath).getParentFile();
+            if (parent != null) {
+                parent.mkdirs();
+            }
+        }
 
         if (disableHostedDownload && urlToDownload.startsWith(ForgeConstants.URL_CARDFORGE)) {
             return false;

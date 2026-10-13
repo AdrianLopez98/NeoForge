@@ -1,0 +1,99 @@
+package forge.neo.match;
+
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+import forge.LobbyPlayer;
+import forge.game.card.CardView;
+import forge.game.cost.CostPart;
+import forge.game.player.Player;
+import forge.game.player.actions.PayCostAction;
+import forge.game.spellability.SpellAbility;
+import forge.neo.NeoText;
+import forge.player.PlayerControllerHuman;
+import forge.util.Localizer;
+
+/**
+ * "¿Sacrificar Terrenos expansivos?" en el centro, con la carta delante — y no
+ * abajo a la derecha, donde nadie la ve.
+ *
+ * <p><b>De donde sale esto.</b> Discord, 13-10-2026: <i>"the game stops
+ * responding to interactions occasionally... I click on a sacrifice land and
+ * the game looks at me wondering what I am doing"</i>. Lo que pasaba: un coste
+ * que se paga con la propia carta (sacrificarla, exiliarla, descartarla...) se
+ * confirma con {@code PlayerControllerHuman.confirmPayment}, y en escritorio eso
+ * es un {@code InputConfirm}: la pregunta en el recuadro de abajo a la derecha y
+ * los botones de la barra renombrados a Si/No. Ni dialogo ni carta. El jugador
+ * clica la fetch, la ve girarse y se queda mirandola; la pregunta esta en la
+ * esquina, y volver a clicar la tierra no hace nada porque el motor espera la
+ * respuesta. Con Tesoros, Pistas y Comida, igual, y a media paga.
+ *
+ * <p>Forge en el movil ya lo pregunta asi: con {@code isLibgdxPort()} ese mismo
+ * metodo llama a {@code confirm(carta, pregunta)}, el dialogo con la carta.
+ * Aqui se hace lo mismo sobrescribiendo el metodo (es publico), con un tercer
+ * boton que pidio Ana: <b>"Si, y no volver a preguntar en esta partida"</b>,
+ * que se acuerda por nombre de carta y tipo de coste — con cinco Tesoros, una
+ * pregunta y no cinco. "No" sigue cancelando la activacion: es la red para un
+ * clic por error, y sacrificar no se deshace (principio 6).
+ *
+ * <p>Se deja como estaba (la pregunta de Forge) mientras se reproduce una macro
+ * — la reproduccion contesta ese {@code InputConfirm}, no un dialogo nuestro —
+ * y cuando la interfaz no es una {@link NeoMatchUI} (el otro lado de una
+ * partida en red).
+ *
+ * <p>Va en la misma silla que los otros arreglos con asiento (ver por que en
+ * {@link ManaColor}): {@link AttackCosts.Confirming} hereda de este y este de
+ * {@link TriggerSubject.Telling}.
+ */
+public final class CostConfirm {
+
+    private CostConfirm() {
+    }
+
+    /** El controlador humano de siempre, con los costes de la propia carta en un dialogo. */
+    public static class Asking extends TriggerSubject.Telling {
+
+        /** Lo que no hay que volver a preguntar, y de que partida es. */
+        private final Set<String> noMoreAsking = new HashSet<>();
+        private Object askingGame;
+
+        public Asking(final Player player, final LobbyPlayer lobby,
+                      final PlayerControllerHuman owner) {
+            super(player, lobby, owner);
+        }
+
+        @Override
+        public boolean confirmPayment(final CostPart costPart, final String question, final SpellAbility sa) {
+            final NeoMatchUI ui = NeoMatchUI.of(getGui());
+            final CardView card = sa == null ? null : sa.getCardView();
+            if (ui == null || card == null || question == null || macros().isReplaying()) {
+                return super.confirmPayment(costPart, question, sa);
+            }
+            if (askingGame != getGame()) {
+                // Otra partida: lo de "no volver a preguntar" era de la anterior.
+                noMoreAsking.clear();
+                askingGame = getGame();
+            }
+            final String key = sa.getHostCard().getName() + "|"
+                    + (costPart == null ? "" : costPart.getClass().getSimpleName());
+            boolean yes = noMoreAsking.contains(key);
+            if (!yes) {
+                final Localizer loc = Localizer.getInstance();
+                final int picked = ui.askWithCard(card, question.replace("\n", " "),
+                        List.of(loc.getMessage("lblYes"), loc.getMessage("lblNo"),
+                                NeoText.get("cost.confirm.always")),
+                        0);
+                if (picked == 2) {
+                    noMoreAsking.add(key);
+                }
+                yes = picked != 1;
+            }
+            if (yes) {
+                // Lo mismo que apunta Forge al contestar "Si": las macros lo graban.
+                macros().addRememberedAction(new PayCostAction(card));
+            }
+            return yes;
+        }
+    }
+}

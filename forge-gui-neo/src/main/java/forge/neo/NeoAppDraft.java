@@ -469,7 +469,9 @@ final class NeoAppDraft {
                 final NeoGame.Result r = NeoGame.play(mine, rivals.size(), NeoMatchUI.Mode.HUMAN,
                         3600, false, liveBinder, NeoSettings.get(NeoSettings.AI_PROFILE, null),
                         autoMana, format, rivals, gamesPerMatch);
-                won = r.winner != null && r.winner.equals(
+                // El ganador del PARTIDO: rendirse a mitad de un al mejor de
+                // tres no puede contar como victoria (revision del 13-10-2026).
+                won = r.matchWinner != null && r.matchWinner.equals(
                         forge.player.GamePlayerUtil.getGuiPlayer().getName());
             } catch (final Exception e) {
                 System.err.println("[neo] la partida del draft ha fallado: " + e);

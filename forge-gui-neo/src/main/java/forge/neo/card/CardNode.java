@@ -1489,6 +1489,13 @@ public class CardNode extends StackPane {
                 lines.add(NeoText.get("marker.attractionLights", sb.toString()));
             }
         }
+        // LO ELEGIDO para la carta (el tipo de Herald's Horn, el color, la
+        // carta de Pithing Needle...): sin esto habia que acordarse. Discord,
+        // 13-10-2026. Ver forge.neo.card.ChosenValues.
+        final String chosen = forge.neo.card.ChosenValues.badge(card);
+        if (chosen != null) {
+            lines.add(chosen);
+        }
         // Se apagan con las pastillas, no con los contadores: en la carta
         // AMPLIADA no aportan nada (el texto se lee entero) y en cambio
         // tapan el titulo, que es justo donde caen.

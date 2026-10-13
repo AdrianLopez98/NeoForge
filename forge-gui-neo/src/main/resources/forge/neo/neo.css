@@ -336,6 +336,12 @@
 }
 
 /* Un mazo ilegal no es un detalle: es que no puedes jugar. */
+/* El cuadro del torneo de draft de la Quest (QuestTournamentScreen). */
+.tour-seat { -fx-text-fill: -neo-text; -fx-font-size: 1.05em; }
+.tour-seat-won { -fx-text-fill: -neo-valid; -fx-font-weight: bold; }
+.tour-seat-lost { -fx-text-fill: -neo-text-dim; }
+.tour-seat-me { -fx-font-weight: bold; -fx-underline: true; }
+
 .quest-problem {
     -fx-text-fill: -neo-danger;
     -fx-font-weight: bold;
@@ -2790,6 +2796,16 @@
 .zoom-line {
     -fx-font-size: 13px;
     -fx-text-fill: -neo-text;
+}
+
+/* La expansion de la impresion, arriba a la derecha de la ficha (CardZoom.editionBlock). */
+.zoom-edition {
+    -fx-font-size: 12px;
+    -fx-text-fill: -neo-text-dim;
+}
+
+.zoom-edition-code {
+    -fx-font-weight: bold;
 }
 
 .zoom-dim {

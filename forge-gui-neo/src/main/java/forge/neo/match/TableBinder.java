@@ -62,6 +62,44 @@ public class TableBinder {
         return matchUi;
     }
 
+    /** Por que se ha dejado esta mesa a la fuerza ({@link #fireAbandoned}). */
+    public enum Abandon {
+        /** El motor se ha roto: no lo ha decidido el jugador. */
+        CRASH,
+        /** El jugador ha pedido salir y el motor no ha cerrado a tiempo. */
+        QUIT,
+        /** El jugador ha salido antes de que empezara la partida. */
+        BEFORE_START
+    }
+
+    private volatile boolean abandoned;
+    private volatile java.util.function.Consumer<Abandon> onAbandoned;
+
+    /**
+     * Quien lanzo la partida y tiene algo en juego (la entrada del Coliseo)
+     * quiere saber si la mesa se abandona, y por que, EN ESE MOMENTO: el hilo
+     * del motor puede no volver nunca (motor roto), asi que esperar a que
+     * vuelva no vale. Se llama una vez, en el hilo de interfaz.
+     */
+    public void setOnAbandoned(final java.util.function.Consumer<Abandon> listener) {
+        this.onAbandoned = listener;
+    }
+
+    /** Si esta mesa se ha dejado a la fuerza (ver {@link Abandon}). */
+    public boolean isAbandoned() {
+        return abandoned;
+    }
+
+    /** Lo llama {@code NeoApp} al dejar esta mesa a la fuerza. */
+    public void fireAbandoned(final Abandon why) {
+        abandoned = true;
+        final java.util.function.Consumer<Abandon> listener = onAbandoned;
+        onAbandoned = null;
+        if (listener != null) {
+            listener.accept(why);
+        }
+    }
+
     /** Rival que se esta viendo arriba. Con mas de uno se elige por pestanyas. */
     private volatile PlayerView viewedOpponent;
 

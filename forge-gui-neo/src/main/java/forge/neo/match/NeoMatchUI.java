@@ -229,7 +229,12 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                 Thread.currentThread().interrupt();
                 return;
             }
-            if (closeNotified.get()) {
+            // Con la pantalla de victoria o derrota puesta, el motor SI ha
+            // contestado: la partida se ha acabado y espera el clic del
+            // jugador. Pasa en la Quest (salir es rendirse, y se dice con esa
+            // pantalla): sin esto, a los 6 s te sacaba al menu mientras la
+            // leias, sin botin ni vuelta al cuartel (13-10-2026).
+            if (closeNotified.get() || gameOverShowing) {
                 return;
             }
             System.out.println("[neo] el motor no ha cerrado la partida en "
@@ -341,6 +346,22 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
     private final AtomicBoolean finished = new AtomicBoolean(false);
     private final AtomicInteger decisions = new AtomicInteger();
     private PhaseType lastPhase;
+
+    /**
+     * La ronda, que el motor no lleva (ver {@link RoundCounter}). Una por
+     * partida: se rehace en {@code openView}. Se alimenta siempre, aunque el
+     * ajuste este apagado, para que encenderlo a media partida diga la buena.
+     */
+    private volatile RoundCounter rounds = new RoundCounter();
+
+    /** La ronda que se ensenya: 0 si el ajuste esta apagado o no se sabe. */
+    private int shownRound(final GameView gv) {
+        final int r = gv == null ? 0 : rounds.round(gv);
+        return RoundCounter.enabled() ? r : 0;
+    }
+
+    /** El registro detallado de esta partida, o null si esta apagado. Ver {@link DetailLog}. */
+    private volatile DetailLog detail;
     private int lastTurn = -1;
 
     /** Cuantos asientos de esta partida son mios. 0 = estoy mirando. */
@@ -731,7 +752,16 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             return;
         }
         rememberAttackPlayer(player);
+        didDetail("clicked player " + DetailLog.name(player));
         respondLater(() -> getGameController().selectPlayer(player, null));
+    }
+
+    /** Lo que ha hecho el jugador, al registro detallado si esta encendido. */
+    private void didDetail(final String what) {
+        final DetailLog d = detail;
+        if (d != null) {
+            d.did(what);
+        }
     }
 
     /**
@@ -792,6 +822,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         if (!interactive() || card == null || finished.get()) {
             return;
         }
+        didDetail("clicked card " + DetailLog.card(card));
 
         // A planeswalker/battle explicitly selected for attack supersedes a player choice.
         if (isDeclaringAttackers() && card.getCurrentState() != null
@@ -1180,6 +1211,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         if (!interactive() || finished.get()) {
             return false;
         }
+        didDetail("pass turn (shortcut)");
         final IGameController gc = getGameController();
         final PlayerView me = getCurrentPlayer();
         if (gc == null || me == null) {
@@ -1840,8 +1872,9 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         final boolean yours = isLocalPlayer(player);
         final String who = nameOf(player);
         final int turn = getGameView() == null ? 0 : getGameView().getTurn();
+        final int round = shownRound(getGameView());
         runOnUi(() -> {
-            t.announceTurn(yours, who, turn);
+            t.announceTurn(yours, who, turn, round);
             t.getPhaseRail().setTurnOwner(yours, who);
         });
     }
@@ -2031,6 +2064,14 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         if (phase != lastPhase) {
             lastPhase = phase;
             trace("fase: %s", phase);
+            final DetailLog d = detail;
+            if (d != null) {
+                // Si te paras aqui: las mismas listas que mira isUiSetToSkipPhase.
+                final PlayerView turnOf = gv.getPlayerTurn();
+                d.phase(gv, interactive() && phase != null
+                        ? (turnOf == null || isLocalPlayer(turnOf) ? stops : theirStops).contains(phase)
+                        : null);
+            }
             // De paso, el turno que se ensenya en Discord. Aqui y no en un
             // temporizador propio: es el latido que ya existe. Y no cuesta
             // nada aunque salte mil veces — DiscordRich guarda solo el ultimo
@@ -2075,7 +2116,8 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         lastTurn = turn;
 
         final StringBuilder sb = new StringBuilder();
-        sb.append(String.format("%n-- Turno %d . juega %s", turn, nameOf(gv.getPlayerTurn())));
+        sb.append(String.format("%n-- Turno %d . ronda %d . juega %s", turn, rounds.round(gv),
+                nameOf(gv.getPlayerTurn())));
         for (final PlayerView p : gv.getPlayers()) {
             sb.append(String.format("%n     %-14s %3d vida | mano %2d | mesa %2d | cementerio %2d | mazo %2d",
                     nameOf(p), p.getLife(),
@@ -2110,6 +2152,10 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         // Cada evento del motor (carta jugada, criatura muerta, dano...) puede
         // cambiar lo que se ve. El binder agrupa, asi que esto es barato.
         pushToTable();
+        final DetailLog detailLog = detail;
+        if (detailLog != null) {
+            detailLog.sync(getGameView());
+        }
         refreshCentralPrompt();
         flushStrandedViewChanges();
         final boolean stopped = watchForThingsThatAffectMe(event);
@@ -2199,6 +2245,33 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             forge.sound.SoundSystem.instance.receiveEvent(event);
         } catch (final RuntimeException e) {
             trace("sonido del invitado: %s", e);
+        }
+    }
+
+    /**
+     * EN RED, EL "ESPERANDO A..." QUE PISA TU TURNO (Discord, 13-10-2026:
+     * <i>"constantly says its waiting on other people, when its not ... if the
+     * person tries to interact with a card ... it realises its wrong"</i>).
+     *
+     * <p>Al pasar la prioridad, el anfitrion le manda al invitado
+     * {@code awaitNextInput}, y el invitado se pinta el "esperando" a los 250 ms
+     * por su cuenta ({@code AbstractGuiGame.awaitNextInput}). Lo que lo anula es
+     * {@code cancelAwaitNextInput}, que el motor llama al ensenyar la pregunta
+     * siguiente... en el anfitrion: es {@code final} y no viaja por el cable. Asi
+     * que si la prioridad te vuelve antes de esos 250 ms (el stack resuelve, el
+     * rival pasa), la pregunta de verdad llega y el temporizador la pisa despues:
+     * OK y Cancelar apagados, sin cartas marcadas, y la partida esperandote a ti.
+     * Hasta que clicas algo y el anfitrion te la vuelve a mandar.
+     *
+     * <p>Lo que se hace es lo que haria el anfitrion: una pregunta que llega
+     * anula el "esperando" pendiente. Llamarlo desde el propio temporizador
+     * (que tambien pasa por aqui) no hace nada: la tarea ya esta corriendo.
+     * En una partida local no se toca: ahi el motor ya lo cancela solo.
+     */
+    private void cancelStaleAwaitIfGuest() {
+        final GameView gv = getGameView();
+        if (gv != null && gv.getGame() == null) {
+            cancelAwaitNextInput();
         }
     }
 
@@ -3482,6 +3555,8 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         // FModel.getPreferences()), asi que llegar aqui no es tarde.
         if (mode == Mode.HUMAN) {
             NeoGame.applyEnginePrefs();
+            detail = DetailLog.start(getGameView());
+            rounds = new RoundCounter();
             // Un nodo de Ascenso, con London siempre: con semillas, todos con las
             // mismas reglas (FriendlyMulligan.ASCENT_RULE).
             if (ending == Ending.ASCENT) {
@@ -3797,6 +3872,11 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
     public void finishGame() {
         finishGameCalled = true;
         finished.set(true);
+        final DetailLog detailLog = detail;
+        detail = null;
+        if (detailLog != null) {
+            detailLog.end(getGameView());
+        }
         // Se acabo: lo que el motor estuviera esperando ya no lo espera nadie.
         // Sin esto, el vigilante de la mesa podria reponer una pregunta muerta
         // ENCIMA de la pantalla de victoria. Ver TableScreen.markEngineDialog.
@@ -4009,6 +4089,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
     @Override
     public void showPromptMessage(final PlayerView playerView, final String message, final CardView card) {
         trace("prompt[%s]: %s", nameOf(playerView), message);
+        cancelStaleAwaitIfGuest();
         // El aviso con "null" dentro que suelta el motor al cerrar el ataque.
         // Se tira: ver isStaleAttackPrompt.
         if (isStaleAttackPrompt(message)) {
@@ -4017,6 +4098,11 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         }
         lastPrompt = message == null ? "" : message;
         lastPreparedPrompt = null;
+        final DetailLog detailLog = detail;
+        if (detailLog != null) {
+            detailLog.sync(getGameView());
+            detailLog.prompt(playerView, message, card);
+        }
         tapToPayStep = TapToPayStep.parse(message);
         // CR 903.9a: el comandante que se ha ido al cementerio o al exilio. El
         // motor lo pregunta como un si/no cualquiera y asi se pasa de largo.
@@ -4117,7 +4203,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         sb.append(mine ? NeoText.get("turn.yours")
                 : NeoText.get("prompt.plays", nameOf(active)));
         sb.append(System.lineSeparator());
-        sb.append(NeoText.get("turn.number", gv.getTurn()));
+        sb.append(forge.neo.ui.TurnBanner.turnText(gv.getTurn(), shownRound(gv)));
         final String phase = forge.neo.ui.PhaseRail.nameOf(gv.getPhase());
         if (!phase.isEmpty()) {
             sb.append("  ·  ").append(phase);
@@ -4710,6 +4796,11 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
     @Override
     public void updateButtons(final PlayerView owner, final String okLabel, final String cancelLabel,
                               final boolean okEnabled, final boolean cancelEnabled, final boolean focusOk) {
+        cancelStaleAwaitIfGuest();
+        final DetailLog detailLog = detail;
+        if (detailLog != null) {
+            detailLog.buttons(okLabel, cancelLabel, okEnabled, cancelEnabled);
+        }
         // Que una partida larga no se coma la memoria: las copias de la mesa
         // que el motor no suelta (LkiPruner). Aqui, en el hilo de JavaFX, que es
         // por donde pasan todas las respuestas de este jugador: el motor no
@@ -4866,10 +4957,13 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                             okSentAtGen = askGen.get();
                             okSentAt = System.currentTimeMillis();
                         }
+                        didDetail("pressed OK (" + shownOk + ")");
                         respondLater(() -> getGameController().selectButtonOk());
                     });
-                    table.getActionBar().setOnCancel(() ->
-                            respondLater(() -> getGameController().selectButtonCancel()));
+                    table.getActionBar().setOnCancel(() -> {
+                        didDetail("pressed Cancel (" + cancelLabel + ")");
+                        respondLater(() -> getGameController().selectButtonCancel());
+                    });
 
                     // Y en el centro de la mesa, GRANDE y con la carta, lo que
                     // esta pasando. Sin botones: los de verdad son estos de
@@ -5626,13 +5720,19 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
      * El motor marca y desmarca entidades: el defensor elegido, el atacante
      * sobre el que estas asignando bloqueos, las cartas ya escogidas de una
      * seleccion. Sin pintarlo, el combate se juega a ciegas.
+     *
+     * <p>Desde Forge #12231 (13-10-2026) llegan tambien entradas del STACK
+     * ({@code StackItemView}, lo ya elegido al apuntar a un hechizo): se
+     * guardan arriba como las demas, pero aqui no se pintan — nuestro stack
+     * apunta con el dialogo de siempre ({@code canPickStackTargets} es false).
      */
     @Override
-    public void setHighlighted(final Iterable<GameEntityView> entities, final boolean on) {
+    public void setHighlighted(final Iterable<? extends forge.trackable.TrackableObject> entities,
+                               final boolean on) {
         super.setHighlighted(entities, on);
         // La marca es la respuesta del motor al clic del piloto. Ver pilotClicks.
         if (entities != null && !pilotClicks.isEmpty()) {
-            for (final GameEntityView e : entities) {
+            for (final forge.trackable.TrackableObject e : entities) {
                 if (e instanceof CardView cv) {
                     pilotClicks.remove(cv.getId());
                 }
@@ -6255,6 +6355,23 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             table.getOverlay().show(dialog);
         }, null);
 
+        final DetailLog detailLog = detail;
+        if (detailLog != null) {
+            final java.util.function.Function<T, String> label = o -> display == null
+                    ? defaultLabel(o) : display.apply(o);
+            final List<String> shown = new ArrayList<>();
+            for (final T o : options) {
+                shown.add(label.apply(o));
+            }
+            final List<String> chosen = new ArrayList<>();
+            if (picked != null) {
+                for (final T o : picked) {
+                    chosen.add(label.apply(o));
+                }
+            }
+            detailLog.asked(title + (reveal ? " (shown, nothing to pick)" : " (pick " + lo + "-" + hi + ")"),
+                    shown, picked == null ? null : chosen.isEmpty() ? "(none)" : String.join(" | ", chosen));
+        }
         if (picked != null) {
             return picked;
         }
@@ -6314,6 +6431,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                     table.zoomCardWidth() * 0.62, reply::accept);
             table.getOverlay().show(dialog);
         }, null);
+        askedDetail((card == null ? "" : "[" + DetailLog.card(card) + "] ") + question, options, index);
         return index == null ? defaultOption : index;
     }
 
@@ -6342,7 +6460,17 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                     title, message, options, defaultOption, reply::accept);
             table.getOverlay().show(dialog);
         }, null);
+        askedDetail(message, options, index);
         return index == null ? defaultOption : index;
+    }
+
+    /** Una pregunta de botones, al registro detallado si esta encendido. */
+    private void askedDetail(final String question, final List<String> options, final Integer index) {
+        final DetailLog d = detail;
+        if (d != null) {
+            d.asked(question, options, index == null || index < 0 || index >= options.size()
+                    ? null : options.get(index));
+        }
     }
 
     private double handCardWidth() {

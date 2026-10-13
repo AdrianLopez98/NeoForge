@@ -1781,6 +1781,15 @@ final class NeoAppDebug {
             node.setActionable(i == 5 ? 1 : i == 6 ? 2 : 0);
             node.refresh();
         }
+        // Lo ELEGIDO (ChosenValues): un tipo de criatura en la 6 y un color con
+        // una carta nombrada en la 7, como Herald's Horn y Pithing Needle.
+        if (field.size() >= 7) {
+            field.get(5).getCard().set(forge.trackable.TrackableProperty.ChosenType, "Elf");
+            field.get(5).refresh();
+            field.get(6).getCard().set(forge.trackable.TrackableProperty.ChosenColors, List.of("green"));
+            field.get(6).getCard().set(forge.trackable.TrackableProperty.NamedCard, List.of("Sol Ring"));
+            field.get(6).refresh();
+        }
         // Emparejadas (almas gemelas) y clones: dos relaciones que el motor
         // publica y que solo se ven al ampliar la carta.
         if (field.size() >= 3) {

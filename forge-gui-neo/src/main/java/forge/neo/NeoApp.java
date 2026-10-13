@@ -76,6 +76,14 @@ public class NeoApp extends Application implements SettingsPanel.Host {
      * enciende {@code NeoAppAscent} al lanzar el duelo y lo apaga al volver.
      */
     boolean runAtStake;
+    /** La partida en curso no se puede reiniciar (el torneo de draft de la Quest). */
+    /**
+     * La mesa en la que no se ofrece "Reiniciar" (torneo de draft de la Quest,
+     * Coliseo: seria volver a tirar gratis). Atada a la mesa y no a una marca
+     * suelta: si el hilo de esa partida no vuelve nunca (motor roto), una marca
+     * se quedaria puesta y quitaria Reiniciar de todas las partidas siguientes.
+     */
+    TableBinder noRestartFor;
 
     /** Con que se lanzo la ultima partida, para poder reiniciarla igual. */
     private Deck lastDeck;
@@ -264,6 +272,15 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             }
             if (questApp.reward != null && questApp.reward.getScene() != null) {
                 questApp.reward.refreshArt();
+            }
+            if (questApp.tournament != null && questApp.tournament.getScene() != null) {
+                questApp.tournament.refreshArt();
+            }
+            if (questApp.colosseum != null && questApp.colosseum.getScene() != null) {
+                questApp.colosseum.refreshArt();
+            }
+            if (questApp.bazaar != null && questApp.bazaar.getScene() != null) {
+                questApp.bazaar.refreshArt();
             }
             if (achievements != null && achievements.getScene() != null) {
                 achievements.refreshArt();
@@ -577,47 +594,11 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 }
 
                 if (args.contains("--quit-test")) {
-                    // "Salir al menu" a los N segundos, por el mismo camino que
-                    // el boton del menu de pausa.
-                    //
-                    // Existe porque el fallo que arreglo esto no se ve de otra
-                    // manera: en una mesa a CUATRO, conceder no termina la
-                    // partida —las IAs siguen jugando entre ellas— y la salida
-                    // se quedaba a medias. Con dos jugadores no pasa, asi que
-                    // hay que probarlo con --opponents=3.
-                    final PauseTransition t = new PauseTransition(
-                            Duration.seconds(Integer.getInteger("neo.quit.at", 25)));
-                    t.setOnFinished(e -> {
-                        System.out.println("[quit-test] salir al menu");
-                        leaveMatch(forge.neo.match.NeoMatchUI.Exit.MENU);
-                    });
-                    t.play();
+                    quitTestLater();
                 }
 
                 if (args.contains("--kill-engine")) {
-                    // MATA el hilo de la partida a proposito, para comprobar
-                    // que la interfaz lo cuenta y deja salir.
-                    //
-                    // Se hace por el camino REAL y no llamando a nuestro aviso:
-                    // se lanza una excepcion desde el hilo del motor, igual que
-                    // hizo la IA de Forge al reventar. Asi se recorre la cadena
-                    // entera -- BugReporter -> NeoGuiBase.showBugReportDialog ->
-                    // el aviso en pantalla -- y no solo el ultimo eslabon.
-                    final PauseTransition t = new PauseTransition(
-                            Duration.seconds(Integer.getInteger("neo.kill.at", 10)));
-                    t.setOnFinished(e -> {
-                        final Thread victim = engineThread();
-                        if (victim == null) {
-                            System.out.println("[kill-engine] no encuentro el hilo de la partida");
-                            return;
-                        }
-                        System.out.println("[kill-engine] matando " + victim.getName());
-                        victim.setUncaughtExceptionHandler((th, ex) ->
-                                forge.gui.error.BugReporter.reportException(ex));
-                        victim.interrupt();
-                        victim.stop();
-                    });
-                    t.play();
+                    killEngineLater();
                 }
 
                 if (args.contains("--mock-why")) {
@@ -1205,6 +1186,24 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                     t.record(true);
                 }
                 tournament.showTournamentRun(t);
+            }
+        } else if (args.contains("--quest-tournament")) {
+            // El torneo de draft de la Quest en el punto que se pida, sin jugar:
+            // -Dneo.questDraft.stage=open|picks|deck|playing|finished|rare|haul
+            questApp.questDemo(true, false);
+            questApp.questTournamentDemo(System.getProperty("neo.questDraft.stage", "open"));
+        } else if (args.contains("--quest-colosseum")) {
+            // El Coliseo en una Quest de Commander, sin jugar:
+            // -Dneo.colosseum.demo=screen|won|lost
+            questApp.questDemo(false, false);
+            questApp.colosseumDemo(System.getProperty("neo.colosseum.demo", "screen"));
+            // Con demo=play, las salidas a la fuerza sobre una partida del
+            // Coliseo de verdad (la entrada tiene que liquidarse bien).
+            if (args.contains("--quit-test")) {
+                quitTestLater();
+            }
+            if (args.contains("--kill-engine")) {
+                killEngineLater();
             }
         } else if (args.contains("--quest-prefs")) {
             questApp.questDemo(args.contains("--estandar"), false);
@@ -1825,6 +1824,24 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                     table.getActionBar().pressPrimary();
                     return;
                 }
+                // "@b:N": el boton N (desde 0) del dialogo del motor que este
+                // puesto, p. ej. el "¿Sacrificar...?" de CostConfirm.
+                if (step.startsWith("@b:")) {
+                    final int want = Integer.parseInt(step.substring(3));
+                    final List<javafx.scene.control.Button> buttons = new ArrayList<>();
+                    for (final javafx.scene.Node b : table.getOverlay().lookupAll(".button")) {
+                        if (b instanceof javafx.scene.control.Button bt && bt.isVisible()) {
+                            buttons.add(bt);
+                        }
+                    }
+                    if (want < buttons.size()) {
+                        System.out.println("[mesa] pulso en el dialogo: " + buttons.get(want).getText());
+                        buttons.get(want).fire();
+                    } else {
+                        System.out.println("[mesa] el dialogo no tiene boton " + want + " (" + buttons.size() + ")");
+                    }
+                    return;
+                }
                 // "@close" cierra el visor de zona; "@pile" clica la pila de
                 // cementerio de la mesa, como haria una persona para abrirlo.
                 if (step.equals("@close")) {
@@ -1858,18 +1875,21 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                             + inZone.size() + " cartas a la vista)");
                     return;
                 }
+                // "!Nombre": tambien si esta girada (enderezar un Basalt Monolith).
+                final boolean evenTapped = step.startsWith("!");
+                final String wanted = evenTapped ? step.substring(1) : step;
                 final StringBuilder seen = new StringBuilder();
                 for (final CardNode n : table.selfFieldNodes()) {
-                    if (n.getCard() != null && debug.nameOf(n.getCard()).contains(step)) {
+                    if (n.getCard() != null && debug.nameOf(n.getCard()).contains(wanted)) {
                         seen.append(' ').append(n.getCard().getId())
                                 .append(n.getPseudoClassStates().contains(picked) ? "*" : "")
                                 .append(n.isVisible() && n.getScene() != null ? "" : "(oculta)");
                     }
                 }
-                System.out.println("[mesa] " + step + ":" + seen + "   (* = elegida)");
+                System.out.println("[mesa] " + wanted + ":" + seen + "   (* = elegida)");
                 for (final CardNode n : table.selfFieldNodes()) {
                     final String name = n.getCard() == null ? "" : debug.nameOf(n.getCard());
-                    if (name.contains(step) && !n.isTapped()
+                    if (name.contains(wanted) && (evenTapped || !n.isTapped())
                             && !n.getPseudoClassStates().contains(picked)) {
                         System.out.println("[mesa] clico " + name + " (" + n.getCard().getId() + ")");
                         debug.fire(n, javafx.scene.input.MouseEvent.MOUSE_CLICKED, debug.centreOf(n));
@@ -2821,7 +2841,7 @@ public class NeoApp extends Application implements SettingsPanel.Host {
      *     eso no es el gesto que ese paso esta esperando.
      */
     private PauseMenu openPauseMenu(final boolean countGesture) {
-        final PauseMenu menu = new PauseMenu(new PauseMenu.Actions() {
+        final PauseMenu menu = PauseMenu.forMatch(new PauseMenu.Actions() {
             @Override
             public void resume() {
                 table.getMenuOverlay().hide();
@@ -2852,7 +2872,7 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                     ui.forgetSavedOrders();
                 }
             }
-        }, this, runAtStake, net.isNetMatch());
+        }, this, runAtStake, net.isNetMatch(), noRestartFor == null || noRestartFor != binder);
         // El tutorial tiene un paso para esto, y ni abrir el menu ni entrar en
         // Ajustes llega al motor: se cuenta desde aqui.
         menu.setGestureSpy(table::gesture);
@@ -3058,6 +3078,52 @@ public class NeoApp extends Application implements SettingsPanel.Host {
         }
     }
 
+    /** {@code --quit-test}: ver el sitio donde se llama. */
+    private void quitTestLater() {
+        // "Salir al menu" a los N segundos, por el mismo camino que
+        // el boton del menu de pausa.
+        //
+        // Existe porque el fallo que arreglo esto no se ve de otra
+        // manera: en una mesa a CUATRO, conceder no termina la
+        // partida —las IAs siguen jugando entre ellas— y la salida
+        // se quedaba a medias. Con dos jugadores no pasa, asi que
+        // hay que probarlo con --opponents=3.
+        final PauseTransition t = new PauseTransition(
+                Duration.seconds(Integer.getInteger("neo.quit.at", 25)));
+        t.setOnFinished(e -> {
+            System.out.println("[quit-test] salir al menu");
+            leaveMatch(forge.neo.match.NeoMatchUI.Exit.MENU);
+        });
+        t.play();
+    }
+
+    /** {@code --kill-engine}: ver el sitio donde se llama. */
+    private void killEngineLater() {
+        // MATA el hilo de la partida a proposito, para comprobar
+        // que la interfaz lo cuenta y deja salir.
+        //
+        // Se hace por el camino REAL y no llamando a nuestro aviso:
+        // se lanza una excepcion desde el hilo del motor, igual que
+        // hizo la IA de Forge al reventar. Asi se recorre la cadena
+        // entera -- BugReporter -> NeoGuiBase.showBugReportDialog ->
+        // el aviso en pantalla -- y no solo el ultimo eslabon.
+        final PauseTransition t = new PauseTransition(
+                Duration.seconds(Integer.getInteger("neo.kill.at", 10)));
+        t.setOnFinished(e -> {
+            final Thread victim = engineThread();
+            if (victim == null) {
+                System.out.println("[kill-engine] no encuentro el hilo de la partida");
+                return;
+            }
+            System.out.println("[kill-engine] matando " + victim.getName());
+            victim.setUncaughtExceptionHandler((th, ex) ->
+                    forge.gui.error.BugReporter.reportException(ex));
+            victim.interrupt();
+            victim.stop();
+        });
+        t.play();
+    }
+
     /** Le pide a la partida en curso que se cierre. */
     private void leaveMatch(final forge.neo.match.NeoMatchUI.Exit action) {
         final TableBinder b = binder;
@@ -3068,10 +3134,14 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             // en que hace falta: el jugador ya ha dicho que se quiere ir.
             // Atada a ESTA mesa: si para entonces ya se ha salido (o hay otra
             // partida), la valvula no mueve a nadie. Ver abandonMatch(b).
-            ui.setOnAbandon(() -> Platform.runLater(() -> abandonMatch(b)));
+            ui.setOnAbandon(() -> Platform.runLater(() -> abandonMatch(b, false)));
             ui.leaveMatch(action);
         } else {
-            // Sin partida detras (maqueta): al menu y ya.
+            // Sin partida detras (maqueta, o aun montandose): al menu y ya. Si
+            // se estaba montando, quien la lanzo se entera (TableBinder.Abandon).
+            if (b != null) {
+                b.fireAbandoned(TableBinder.Abandon.BEFORE_START);
+            }
             showHome();
         }
     }
@@ -3101,7 +3171,7 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                     table.getMenuOverlay().hide();
                     // A las bravas y sin conceder: conceder se lo pide al motor,
                     // y el motor es justo lo que ya no esta.
-                    abandonMatch();
+                    abandonMatch(binder, true);
                 }));
     }
 
@@ -3133,25 +3203,20 @@ public class NeoApp extends Application implements SettingsPanel.Host {
     }
 
     /**
-     * El motor no ha cerrado la partida y nos vamos igual.
-     *
-     * <p>Solo lo dispara el vigilante de {@code NeoMatchUI.leaveMatch}, y
-     * significa una cosa: el motor esta muerto o clavado. La partida ya estaba
-     * perdida; lo unico que se rescata es al jugador.
-     */
-    private void abandonMatch() {
-        abandonMatch(binder);
-    }
-
-    /**
-     * Salir a las bravas de la partida de {@code leaving}.
+     * Salir a las bravas de la partida de {@code leaving}: el motor no ha
+     * cerrado la partida y nos vamos igual. Lo disparan el aviso de "la partida
+     * se ha roto" ({@code crashed}) y el vigilante de
+     * {@code NeoMatchUI.leaveMatch} (el jugador pidio salir y el motor esta
+     * clavado). La partida ya estaba perdida; lo unico que se rescata es al
+     * jugador — y quien la lanzo se entera de cual de las dos fue
+     * ({@link TableBinder#fireAbandoned}).
      *
      * <p>Atado a la mesa que se abandona y no a una marca suelta: hasta el
      * 12-10-2026 era un {@code AtomicBoolean} que, si se quedaba en true de una
      * salida anterior, hacia que esta no saliera — la mesa en "Cerrando la
      * partida..." para siempre (Ana, Commander con Archenemy y Planechase).
      */
-    private void abandonMatch(final TableBinder leaving) {
+    private void abandonMatch(final TableBinder leaving, final boolean crashed) {
         if (crashDialogShowing()) {
             // El aviso esta delante con su propio boton: que salga el jugador.
             return;
@@ -3173,6 +3238,7 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             // Ya se salio de esa mesa (por aqui o porque el motor volvio).
             return;
         }
+        leaving.fireAbandoned(crashed ? TableBinder.Abandon.CRASH : TableBinder.Abandon.QUIT);
         abandonedBinder = leaving;
         binder = null;
         showHome();
@@ -3185,7 +3251,7 @@ public class NeoApp extends Application implements SettingsPanel.Host {
      * despertando y volviera por su cuenta, no puede llevarse por delante la
      * pantalla en la que ya esta el jugador.
      */
-    private volatile TableBinder abandonedBinder;
+    volatile TableBinder abandonedBinder;
 
     // ---------------------------------------------------------------
     // SettingsPanel.Host

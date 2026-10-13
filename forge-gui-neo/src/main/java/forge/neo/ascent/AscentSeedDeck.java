@@ -311,6 +311,70 @@ public final class AscentSeedDeck {
     // ------------------------------------------------------------------
 
     private static Deck standard(final String name, final byte colours, final AscentPool pool) {
+        return standard(name, colours, pool, STANDARD_SIZE);
+    }
+
+    /** Cuantas cartas tiene el mazo de salida de una Quest de Estandar por colores. */
+    public static final int QUEST_SIZE = 60;
+
+    /**
+     * El mazo de salida de una <b>Quest</b> de Estandar eligiendo solo los
+     * colores (Discord, 13-10-2026: <i>"another mode that we only choose the
+     * starting color just like ascension"</i>). El mismo mazo flojo de Ascenso
+     * (comunes e infrecuentes, uno o dos colores), pero de {@link #QUEST_SIZE}:
+     * la Quest juega con las reglas de construido de siempre.
+     *
+     * @param colours mascara de {@code MagicColor}, o {@link #NO_COLOURS} al azar
+     */
+    public static Deck questStarter(final String name, final byte colours, final AscentPool pool) {
+        final AscentPool p = pool == null ? AscentPool.ALL : pool;
+        if (Integer.bitCount(colours & 0xFF) > MAX_COLOURS) {
+            return manyColours(name, colours, p, QUEST_SIZE);
+        }
+        return standard(name, colours, p, QUEST_SIZE);
+    }
+
+    /** Cuantos colores como mucho se pueden pedir en la Quest (Ascenso: {@link #MAX_COLOURS}). */
+    public static final int QUEST_MAX_COLOURS = 5;
+
+    /**
+     * El mazo de Quest de TRES A CINCO colores (13-10-2026, Ana: <i>"si alguien
+     * elige un mazo de cinco colores, que le genere lo mas usable posible"</i>).
+     * Solo la Quest llega aqui: en Ascenso el selector no deja pasar de dos y
+     * {@link #standard} no cambia, asi que las semillas dan el mismo mazo.
+     *
+     * <p>El generador de Forge sabe de 3 y de 5 colores; con 4 tira del de 5.
+     * Por eso el filtro se queda con lo que este <b>dentro</b> de los colores
+     * pedidos (identidad, tierras incluidas): sin el, pedir cuatro traeria el
+     * quinto. Y luego lo mismo que con dos: cada color con su parte de
+     * hechizos ({@link #topUpColours}, {@link #colourFloor}) y de basicas
+     * ({@link #ensureColorSources}), con la parte que da {@link #shareFor}.
+     */
+    private static Deck manyColours(final String name, final byte colours, final AscentPool pool,
+                                    final int size) {
+        final Predicate<PaperCard> inColours =
+                c -> (c.getRules().getColorIdentity().getColor() & ~colours) == 0;
+        final Predicate<PaperCard> filter = (pool.isAll() ? BEGINNER : BEGINNER.and(pool::allows)).and(inColours);
+        final Deck full = DeckgenUtil.buildColorDeck(namesOf(colours, QUEST_MAX_COLOURS), filter, false);
+        topUpColours(full, colours, filter, size);
+        return trim(full, null, size, name, colours);
+    }
+
+    /**
+     * Que parte de los huecos se le guarda a cada color pedido: un tercio con
+     * dos ({@link #COLOUR_SHARE}, lo de siempre), y con tres o mas, la mitad
+     * de un reparto a partes iguales (1/6 con tres, 1/10 con cinco): lo justo
+     * para que ninguno se quede fuera, y el resto para lo que traiga el
+     * generador. Con uno o ninguno da {@link #COLOUR_SHARE}, que es lo que se
+     * usaba antes en todos los casos.
+     */
+    private static int shareFor(final byte wanted) {
+        final int n = Integer.bitCount(wanted & 0xFF);
+        return n <= MAX_COLOURS ? COLOUR_SHARE : 2 * n;
+    }
+
+    private static Deck standard(final String name, final byte colours, final AscentPool pool,
+                                 final int size) {
         // El motor ofrece {1,2,3} y {1,2,3,5} colores; ninguno vale para un
         // mazo de 30 cartas, asi que se le pasa la seleccion a mano.
         //
@@ -342,11 +406,11 @@ public final class AscentSeedDeck {
             wanted |= forge.card.MagicColor.fromName(nombre);
         }
         if (Integer.bitCount(wanted & 0xFF) == MAX_COLOURS) {
-            topUpColours(full, wanted, filter);
+            topUpColours(full, wanted, filter, size);
         } else {
             wanted = NO_COLOURS; // uno o al azar: el recorte de siempre
         }
-        return trim(full, null, STANDARD_SIZE, name, wanted);
+        return trim(full, null, size, name, wanted);
     }
 
     /**
@@ -402,8 +466,8 @@ public final class AscentSeedDeck {
      * {@code seedcheck}, que tiene una receta blanco-negro.
      */
     private static void topUpColours(final Deck full, final byte wanted,
-                                     final Predicate<PaperCard> filter) {
-        final int need = (STANDARD_SIZE - landsFor(STANDARD_SIZE)) / COLOUR_SHARE;
+                                     final Predicate<PaperCard> filter, final int size) {
+        final int need = (size - landsFor(size)) / shareFor(wanted);
         final int maxCopies = FModel.getPreferences().getPrefBoolean(
                 forge.localinstance.properties.ForgePreferences.FPref.DECKGEN_SINGLETONS) ? 1 : 4;
         for (int idx = 0; idx < forge.card.MagicColor.WUBRG.length; idx++) {
@@ -473,6 +537,10 @@ public final class AscentSeedDeck {
      * donde se pulsa — un limite que solo esta en la interfaz no es un limite.
      */
     private static List<String> namesOf(final byte colours) {
+        return namesOf(colours, MAX_COLOURS);
+    }
+
+    private static List<String> namesOf(final byte colours, final int max) {
         final List<String> out = new ArrayList<>();
         if ((colours & forge.card.MagicColor.WHITE) != 0) {
             out.add(forge.card.MagicColor.Constant.WHITE);
@@ -489,7 +557,7 @@ public final class AscentSeedDeck {
         if ((colours & forge.card.MagicColor.GREEN) != 0) {
             out.add(forge.card.MagicColor.Constant.GREEN);
         }
-        while (out.size() > MAX_COLOURS) {
+        while (out.size() > max) {
             out.remove(out.size() - 1);
         }
         return out;
@@ -829,7 +897,7 @@ public final class AscentSeedDeck {
             }
             final double exact = (double) slots * pips[i] / totalPips;
             final int floor = (wanted & forge.card.MagicColor.WUBRG[i]) != 0
-                    ? Math.max(1, slots / COLOUR_SHARE) : 1;
+                    ? Math.max(1, slots / shareFor(wanted)) : 1;
             want[i] = Math.max(floor, (int) Math.floor(exact));
             rest[i] = exact - Math.floor(exact);
             given += want[i];
@@ -1053,10 +1121,11 @@ public final class AscentSeedDeck {
     private static List<PaperCard> colourFloor(final List<PaperCard> spells, final byte wanted,
                                                final int slots) {
         final List<PaperCard> out = new ArrayList<>();
-        if (Integer.bitCount(wanted & 0xFF) != MAX_COLOURS || slots <= 0) {
+        // Con dos colores pedidos, o con tres o mas (la Quest): ver shareFor.
+        if (Integer.bitCount(wanted & 0xFF) < MAX_COLOURS || slots <= 0) {
             return out;
         }
-        final int floor = slots / COLOUR_SHARE;
+        final int floor = slots / shareFor(wanted);
         // Por posicion y no por carta: la lista trae una entrada por COPIA, y
         // guardar "Doom Blade" no puede gastar las cuatro.
         final boolean[] taken = new boolean[spells.size()];

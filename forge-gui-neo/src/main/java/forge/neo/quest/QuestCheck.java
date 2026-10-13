@@ -55,6 +55,8 @@ public final class QuestCheck {
         System.out.println();
         ok &= checkCommanderStarter();
         System.out.println();
+        ok &= checkColourStarter();
+        System.out.println();
         ok &= checkRewardText();
         System.out.println();
         ok &= checkOne(NeoQuest.Modalidad.ESTANDAR);
@@ -207,6 +209,108 @@ public final class QuestCheck {
         }
         System.out.println(ok ? "  OK" : "  FALLO");
         return ok;
+    }
+
+    /**
+     * Empezar eligiendo solo los colores (Discord, 13-10-2026). En Estandar:
+     * 60 cartas legales, sin raras ni miticas y sin hechizos de otro color. En
+     * Commander: el comandante sorteado es exactamente de esos colores. Y la
+     * Quest de Estandar arranca con ese mazo, elegido y legal.
+     */
+    private static boolean checkColourStarter() {
+        System.out.println("  --- Quest empezando por colores ---");
+        boolean ok = true;
+        final byte wb = (byte) (forge.card.MagicColor.WHITE | forge.card.MagicColor.BLACK);
+        // Y de tres a cinco (13-10-2026): en la Quest no hay tope de dos.
+        final byte bug = (byte) (forge.card.MagicColor.BLUE | forge.card.MagicColor.BLACK | forge.card.MagicColor.GREEN);
+        final byte four = (byte) (forge.card.MagicColor.ALL_COLORS & ~forge.card.MagicColor.WHITE);
+        final byte[] asks = {wb, forge.card.MagicColor.GREEN, forge.neo.ascent.AscentSeedDeck.NO_COLOURS,
+                bug, four, forge.card.MagicColor.ALL_COLORS};
+        Deck first = null;
+        for (final byte colours : asks) {
+            final Deck d = NeoQuest.colourStarter("neo-check-colours", colours, null);
+            if (d == null) {
+                System.out.printf(Locale.ROOT, "  Estandar %-6s sin mazo: FALLO%n", colourLetters(colours));
+                ok = false;
+                continue;
+            }
+            if (first == null) {
+                first = d;
+            }
+            int rares = 0;
+            int offColour = 0;
+            for (final PaperCard c : d.getMain().toFlatList()) {
+                if (c.getRarity() == CardRarity.Rare || c.getRarity() == CardRarity.MythicRare) {
+                    rares++;
+                }
+                final byte own = c.getRules().getColor().getColor();
+                if (colours != forge.neo.ascent.AscentSeedDeck.NO_COLOURS
+                        && !c.getRules().getType().isLand() && (own & ~colours) != 0) {
+                    offColour++;
+                }
+            }
+            // Cada color pedido con hechizos Y con tierras que lo den: con tres
+            // o mas, un color sin fuentes es un mazo que no se puede jugar.
+            final StringBuilder missing = new StringBuilder();
+            final StringBuilder perColour = new StringBuilder();
+            for (final byte c : forge.card.MagicColor.WUBRG) {
+                if ((colours & c) == 0) {
+                    continue;
+                }
+                int spells = 0;
+                int sources = 0;
+                for (final PaperCard card : d.getMain().toFlatList()) {
+                    final boolean land = card.getRules().getType().isLand();
+                    final boolean has = card.getRules().getColorIdentity().hasAnyColor(c);
+                    if (land && has) {
+                        sources++;
+                    } else if (!land && card.getRules().getColor().hasAnyColor(c)) {
+                        spells++;
+                    }
+                }
+                perColour.append(' ').append(forge.card.MagicColor.toShortString(c))
+                        .append('=').append(spells).append('/').append(sources);
+                if (spells == 0 || sources == 0) {
+                    missing.append(forge.card.MagicColor.toShortString(c));
+                }
+            }
+            final String problem = forge.deck.DeckFormat.Constructed.getDeckConformanceProblem(d);
+            final int size = d.getMain().countAll();
+            final boolean good = problem == null && size == forge.neo.ascent.AscentSeedDeck.QUEST_SIZE
+                    && rares == 0 && offColour == 0 && missing.length() == 0;
+            System.out.printf(Locale.ROOT, "  Estandar %-6s %d cartas | %d raras | %d de otro color |%s%s%n",
+                    colourLetters(colours), size, rares, offColour, perColour,
+                    good ? "" : "  <- FALLO" + (problem == null ? "" : " (" + problem + ")")
+                            + (missing.length() == 0 ? "" : " (sin hechizos o tierras de " + missing + ")"));
+            ok &= good;
+        }
+        for (final byte colours : asks) {
+            final PaperCard cmd = NeoQuest.commanderOfColours(colours, null);
+            final boolean good = cmd != null && (colours == forge.neo.ascent.AscentSeedDeck.NO_COLOURS
+                    || cmd.getRules().getColorIdentity().getColor() == colours);
+            System.out.printf(Locale.ROOT, "  Commander %-6s -> %s%s%n", colourLetters(colours),
+                    cmd == null ? "(ninguno)" : cmd.getName(), good ? "" : "  <- FALLO");
+            ok &= good;
+        }
+        if (first != null) {
+            final String name = "neo-check-colours";
+            NeoQuest.delete(name);
+            NeoQuest.start(name, NeoQuest.Modalidad.ESTANDAR, NeoQuest.Dificultad.NORMAL, first, null);
+            final Deck mine = NeoQuest.currentDeck();
+            final String problem = NeoQuest.problemWith(mine);
+            System.out.printf(Locale.ROOT, "  Quest empezada con %s -> %s%n",
+                    mine == null ? "(ningun mazo)" : mine.getName(),
+                    problem == null ? "legal" : problem);
+            ok &= mine != null && problem == null;
+            NeoQuest.delete(name);
+        }
+        System.out.println(ok ? "  OK" : "  FALLO");
+        return ok;
+    }
+
+    private static String colourLetters(final byte colours) {
+        return colours == forge.neo.ascent.AscentSeedDeck.NO_COLOURS ? "azar"
+                : forge.card.ColorSet.fromMask(colours).toString();
     }
 
     private static boolean checkCommanderRivals() {

@@ -329,8 +329,9 @@ public final class TriggerSubject {
      * El controlador humano de siempre, diciendo de que carta habla el disparo.
      *
      * <p>Va en la misma silla que los otros arreglos con asiento:
-     * {@link AttackCosts.Confirming} hereda de este (y {@link ManaColor} de
-     * aquel), y este de {@link SafeActions.Guarded} (ver por que en
+     * {@link CostConfirm.Asking} hereda de este (y de aquel
+     * {@link AttackCosts.Confirming}, y asi hasta {@link ManaColor}), y este de
+     * {@link SafeActions.Guarded} (ver por que en
      * {@code ManaColor}). Se sobrescribe un metodo; lo demas es Forge sin tocar.
      */
     public static class Telling extends SafeActions.Guarded {

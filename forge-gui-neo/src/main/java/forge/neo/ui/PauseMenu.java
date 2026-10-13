@@ -99,7 +99,7 @@ public class PauseMenu extends StackPane {
     /** El menu del duelo de la Aventura: sin reiniciar, y salir es rendirse. */
     public static PauseMenu forAdventure(final Actions actions,
                                          final SettingsPanel.Host settingsHost) {
-        return new PauseMenu(actions, settingsHost, false, false, true);
+        return new PauseMenu(actions, settingsHost, false, false, true, false);
     }
 
     /**
@@ -127,19 +127,35 @@ public class PauseMenu extends StackPane {
      */
     public PauseMenu(final Actions actions, final SettingsPanel.Host settingsHost,
                      final boolean runAtStake, final boolean netGame) {
-        this(actions, settingsHost, runAtStake, netGame, false);
+        this(actions, settingsHost, runAtStake, netGame, false, false);
+    }
+
+    /**
+     * El de una partida, diciendo ademas si se puede reiniciar. El torneo de
+     * draft de la Quest no deja: reiniciar seria un reintento gratis con
+     * premios en juego (revision del 13-10-2026). Salir sigue con su texto de
+     * siempre, no el de Ascenso.
+     */
+    public static PauseMenu forMatch(final Actions actions, final SettingsPanel.Host settingsHost,
+                                     final boolean runAtStake, final boolean netGame,
+                                     final boolean restartAllowed) {
+        return new PauseMenu(actions, settingsHost, runAtStake, netGame, false, !restartAllowed);
     }
 
     private PauseMenu(final Actions actions, final SettingsPanel.Host settingsHost,
-                      final boolean runAtStake, final boolean netGame, final boolean adventure) {
+                      final boolean runAtStake, final boolean netGame, final boolean adventure,
+                      final boolean noRestart) {
         this.actions = actions;
         this.settingsHost = settingsHost;
         this.runAtStake = runAtStake;
         this.netGame = netGame;
         this.adventure = adventure;
+        this.noRestart = noRestart;
         setAlignment(Pos.CENTER);
         showMain();
     }
+
+    private final boolean noRestart;
 
     private void showMain() {
         root.getStyleClass().addAll("dialog", "pause-menu");
@@ -166,7 +182,7 @@ public class PauseMenu extends StackPane {
 
         // Reiniciar NO se ofrece en una run: reiniciar el duelo es volver a
         // barajar tu mano, o sea la trampa que el modo entero tiene que impedir.
-        if (!runAtStake && !netGame && !adventure) {
+        if (!runAtStake && !netGame && !adventure && !noRestart) {
             root.getChildren().add(item(NeoText.get("pause.restart"), "btn-secondary",
                     () -> confirm(NeoText.get("pause.restart.ask"),
                             NeoText.get("pause.restart.detail"),

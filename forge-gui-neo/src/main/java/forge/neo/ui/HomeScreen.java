@@ -1227,7 +1227,26 @@ et}) y no se tocan.
         return face != null
                 && (face.getName().toLowerCase(java.util.Locale.ROOT).contains(q)
                     || forge.neo.card.CardText.nameOf(face)
-                            .toLowerCase(java.util.Locale.ROOT).contains(q));
+                            .toLowerCase(java.util.Locale.ROOT).contains(q))
+                || matchesEra(deck, q);
+    }
+
+    /**
+     * La expansion del mazo: codigo, nombre y anyo (Discord, 13-10-2026: buscar
+     * por "TDC" o por "2025"). Los preconstruidos de Forge ya lo llevan en el
+     * nombre ("[TDC] [2025]"); esto lo extiende a los demas y al nombre largo
+     * de la expansion. Ver {@link forge.neo.deck.DeckEra}.
+     */
+    static boolean matchesEra(final Deck deck, final String q) {
+        final forge.card.CardEdition era = forge.neo.deck.DeckEra.eraOf(deck);
+        if (era == null) {
+            return false;
+        }
+        final String year = era.getDate() == null ? ""
+                : new java.text.SimpleDateFormat("yyyy", java.util.Locale.ROOT).format(era.getDate());
+        return era.getCode().toLowerCase(java.util.Locale.ROOT).contains(q)
+                || era.getName().toLowerCase(java.util.Locale.ROOT).contains(q)
+                || year.equals(q);
     }
 
     private Region footer(final StartHandler onStart) {

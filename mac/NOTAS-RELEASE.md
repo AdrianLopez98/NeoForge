@@ -1,14 +1,15 @@
-**NeoForge para macOS 1.0.21 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.22 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Archenemy:** también en la partida en red (el anfitrión lo pone en la sala: uno contra todos o Rumble), y ahora solo se ofrece a cuatro jugadores, que es para lo que está hecho.
-- **Partidas largas:** gastan mucha menos memoria. El motor guardaba una copia de la mesa entera cada vez que se usaba algo y no la soltaba nunca; ahora se sueltan una vez por turno.
-- **Mazos:** en los otros formatos la lista (y tus rivales) solo trae mazos legales; filtrar los mazos por formato y por expansión; importar de un enlace conserva el nombre del mazo; y «Agrupar» en el constructor (por tipo, color, coste o rareza).
-- **Sellado y draft:** renombrar y borrar cualquier evento, y un Jumpstart se llama por sus temas.
-- **Planechase:** la IA ya tira el dado planar, y la tirada se ve.
-- **Ascenso:** el maestro cobra lo que dice el botón, el camino del mapa se pinta bien, y un arte favorito de otra rareza ya no cuela raras en el mazo de salida.
-- **Arreglos:** salir al menú en una mesa de tres o más ya no deja la pantalla colgada.
-- **Forge al día:** Alchemy: Reality Fracture y cartas corregidas.
+- **Quest:** **el Coliseo** (solo en Quest de Commander): una partida a cuatro contra tres rivales fuertes, con entrada cara y premio de créditos y un sobre de colector. **Torneos de draft** como los de Forge, con su cuadro y sus premios. **El arte de las mascotas** en el bazar. Y empezar una Quest **eligiendo solo los colores** (de uno a cinco).
+- **Pagar con la propia carta:** sacrificar una fetch, un Tesoro o una Pista pregunta en el centro con la carta (con «Sí, y no volver a preguntar en esta partida»), y no en la esquina, donde parecía que el juego no respondía.
+- **La ronda al lado del turno** («Turno 23 (Ronda 12)»), con un ajuste apagado de fábrica.
+- **La carta ampliada dice su edición**, y lo elegido para una carta (tipo de criatura, color, carta nombrada) se ve en la propia carta.
+- **Calidad de las imágenes** en Ajustes → Arte: normal, alta o máxima.
+- **Registro detallado de la partida** para reportar fallos (Ajustes → Partida).
+- **Mazos:** buscar por código de expansión, nombre de expansión y año.
+- **Arreglos:** rendirse a mitad de un al mejor de tres ya cuenta como derrota; salir de un duelo de la Quest ya no te echa al menú a los 6 s; en red ya no sale un «Esperando a…» falso con la prioridad tuya; Ascenso recuerda el último nivel de Ascensión.
+- **Forge al día:** Hela, Mistress of Darkness y cartas corregidas.
 
 Descarga el `.dmg` de tu Mac:
 

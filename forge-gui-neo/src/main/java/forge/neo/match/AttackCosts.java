@@ -46,7 +46,7 @@ public final class AttackCosts {
     }
 
     /** El controlador humano de siempre, preguntando criatura a criatura. */
-    public static class Confirming extends TriggerSubject.Telling {
+    public static class Confirming extends CostConfirm.Asking {
 
         public Confirming(final Player player, final LobbyPlayer lobby,
                           final PlayerControllerHuman owner) {

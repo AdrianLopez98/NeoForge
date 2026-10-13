@@ -105,6 +105,60 @@ public final class NeoQuest {
     }
 
     // ---------------------------------------------------------------
+    // Empezar eligiendo solo los colores
+    // ---------------------------------------------------------------
+
+    /*
+     * Discord, 13-10-2026: "what if we have another mode that we only choose
+     * the starting color just like ascension? ... too many option is not
+     * freeing, it's limitating". Con 505 preconstruidos (173 en Commander) y
+     * ~10.800 comandantes, elegir el mazo era la parte dura de empezar.
+     *
+     * Es una tercera forma de elegir el mazo de salida, no un modo nuevo: la
+     * Quest que sale es la de siempre. En Estandar, el mazo flojo de Ascenso
+     * por colores a 60 cartas (AscentSeedDeck.questStarter). En Commander, un
+     * comandante al azar de ESOS colores exactos, y su mazo como al elegirlo
+     * (NeoCommanderDuels.starter). Compartido con Android por el jar.
+     */
+
+    /**
+     * Un comandante al azar cuya identidad son exactamente esos colores, del
+     * pozo de la Quest; con {@code NO_COLOURS}, uno cualquiera. Null si no hay
+     * ninguno (un pozo de pocas expansiones puede no tener de esos colores).
+     */
+    public static PaperCard commanderOfColours(final byte colours,
+                                               final forge.neo.ascent.AscentPool pool) {
+        final forge.neo.ascent.AscentPool p = pool == null ? forge.neo.ascent.AscentPool.ALL : pool;
+        if (colours == forge.neo.ascent.AscentSeedDeck.NO_COLOURS) {
+            return forge.neo.ascent.AscentSeedDeck.randomCommander(p);
+        }
+        final List<PaperCard> fit = new ArrayList<>();
+        for (final PaperCard c : forge.neo.ascent.AscentSeedDeck.commanderPool(p)) {
+            if (c.getRules().getColorIdentity().getColor() == colours) {
+                fit.add(c);
+            }
+        }
+        return fit.isEmpty() ? null : fit.get(forge.util.MyRandom.getRandom().nextInt(fit.size()));
+    }
+
+    /**
+     * El mazo de salida de una Quest de Estandar con esos colores (o al azar),
+     * o null si no ha salido. Tarda: llamarlo fuera del hilo de interfaz.
+     *
+     * @param name como se llama el mazo (lo pone quien llama, en su idioma)
+     */
+    public static Deck colourStarter(final String name, final byte colours,
+                                     final forge.neo.ascent.AscentPool pool) {
+        try {
+            final Deck d = forge.neo.ascent.AscentSeedDeck.questStarter(name, colours, pool);
+            return d == null || d.getMain().countAll() == 0 ? null : d;
+        } catch (final RuntimeException e) {
+            System.out.println("[quest] no ha salido el mazo por colores: " + e);
+            return null;
+        }
+    }
+
+    // ---------------------------------------------------------------
     // Empezar, cargar, guardar, abandonar
     // ---------------------------------------------------------------
 
@@ -461,6 +515,7 @@ public final class NeoQuest {
         if (bak.isFile()) {
             bak.delete();
         }
+        NeoColosseum.deleteSaved(name);
         final String current = FModel.getQuestPreferences()
                 .getPref(QuestPreferences.QPref.CURRENT_QUEST);
         if (current != null && current.equals(name + ".dat")) {
