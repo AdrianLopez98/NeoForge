@@ -43,7 +43,15 @@ grep -q '<module>forge-gui-neo</module>' "$FORGE/pom.xml"
 
 echo "== 3. Compilar (siempre dentro del reactor, con -am)"
 export MAVEN_OPTS="-Dfile.encoding=UTF-8 -Xmx2g"
-(cd "$FORGE" && mvn -B -ntp install -DskipTests -pl forge-gui-neo -am)
+# Lo que aqui no hace falta, y es MAS DE LA MITAD del tiempo de Maven en el
+# Mac Intel (medido el 14-10-2026: checkstyle 185 s de 368):
+#  - checkstyle: solo mira el estilo del codigo, y ese codigo es el mismo
+#    que ya ha pasado checkstyle en el build.cmd de casa.
+#  - el jar gordo de forge-gui-mobile-dev (assembly): no se adjunta
+#    (<attach>false</attach>) y nosotros usamos el jar normal.
+#  - el .exe de Windows de forge-gui-mobile-dev (launch4j).
+MVN_RAPIDO=(-Dcheckstyle.skip=true -Dassembly.skipAssembly=true -DskipLaunch4j=true)
+(cd "$FORGE" && mvn -B -ntp install -DskipTests "${MVN_RAPIDO[@]}" -pl forge-gui-neo -am)
 
 echo "== 4. El programa y sus librerias, en una carpeta plana"
 STAGE="$WORK/stage"

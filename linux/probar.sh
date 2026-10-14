@@ -73,8 +73,24 @@ echo "== 4. La Aventura, abierta desde el menu (como la abre el jugador)"
 # padre y al hijo: autoLaunch la abre sola desde el menu, selftest monta un
 # duelo y auto lo juega solo hasta el final ("PARTIDA TERMINADA").
 rm -f "$APP/datos/neo/adventure.log"
+# El juego no se cierra solo al acabar el duelo (vuelve al mapa), asi que
+# esperar al tope eran 8 minutos SIEMPRE. Se vigila el registro y se cierra
+# en cuanto el duelo termina (o el hijo revienta); el tope sigue ahi.
 timeout 480 env JAVA_TOOL_OPTIONS="-Dneo.adventure.autoLaunch=true -Dneo.adventure.selftest=duel -Dneo.adventure.auto=true" \
-    "${PANTALLA[@]}" "$BIN" ui > "$OUT/aventura.log" 2>&1
+    "${PANTALLA[@]}" "$BIN" ui > "$OUT/aventura.log" 2>&1 &
+aventura=$!
+for _ in $(seq 1 96); do
+    sleep 5
+    kill -0 "$aventura" 2>/dev/null || break
+    if grep -qs -e "PARTIDA TERMINADA" -e "VUELTA AL ADVENTURE" -e "Could not find or load main class" \
+            "$OUT/aventura.log" $(find "$APP/datos" -name 'adventure.log' 2>/dev/null); then
+        sleep 5
+        break
+    fi
+done
+kill "$aventura" 2>/dev/null
+pkill -f "$APP/" 2>/dev/null || true
+wait "$aventura" 2>/dev/null
 find "$APP/datos" -name 'adventure.log' -exec cp {} "$OUT/" \; 2>/dev/null || true
 tail -15 "$OUT/adventure.log" 2>/dev/null || tail -15 "$OUT/aventura.log"
 if grep -qs "Could not find or load main class" "$OUT/adventure.log" "$OUT/aventura.log"; then

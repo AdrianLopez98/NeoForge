@@ -60,6 +60,10 @@ EXTRA=()
 if [ "$ARCH" = "arm64" ]; then
     EXTRA+=(-Djavafx.version=21.0.1)
 fi
+# Sin checkstyle (el estilo ya lo mira el build.cmd de casa) ni el jar gordo
+# de forge-gui-mobile-dev, que no se adjunta: medio Maven menos (ver
+# mac/empaquetar.sh).
+EXTRA+=(-Dcheckstyle.skip=true -Dassembly.skipAssembly=true)
 (cd "$FORGE" && mvn -B -ntp install -DskipTests -DskipLaunch4j=true "${EXTRA[@]}" -pl forge-gui-neo -am)
 
 echo "== 4. El programa y sus librerias, en una carpeta plana"
