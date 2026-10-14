@@ -314,6 +314,14 @@ public class NeoApp extends Application implements SettingsPanel.Host {
         // tamanyos: Windows elige el que necesita en cada sitio. Ver NeoLogo.
         forge.neo.NeoLogo.applyTo(stage);
         stage.setScene(scene);
+        // Si cambia la escala de pantalla (la ventana pasa a otro monitor, o
+        // cambia el escalado de Windows), las cartas rehacen su foto en cache:
+        // estaba hecha a la escala de antes y salian borrosas (Discord,
+        // 14-10-2026, 4K al encoger la ventana).
+        final javafx.beans.value.ChangeListener<Number> rescale =
+                (o, was, is) -> forge.neo.card.CardNode.refreshCachesIn(scene.getRoot());
+        stage.renderScaleXProperty().addListener(rescale);
+        stage.renderScaleYProperty().addListener(rescale);
 
         // Discord: "Jugando a Neo Forge", con lo que estas haciendo.
         //
@@ -1192,6 +1200,19 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             // -Dneo.questDraft.stage=open|picks|deck|playing|finished|rare|haul
             questApp.questDemo(true, false);
             questApp.questTournamentDemo(System.getProperty("neo.questDraft.stage", "open"));
+        } else if (args.contains("--quest-daily")) {
+            // El sobre del dia en el cuartel, con la Quest de prueba (que se
+            // rehace, asi que siempre lo tiene por abrir). Con
+            // -Dneo.daily.open=true se abre solo; con =quiet se abre sin
+            // ensenyarlo, para ver que la fila desaparece.
+            questApp.questDemo(args.contains("--estandar"), false);
+            final String dailyOpen = System.getProperty("neo.daily.open", "");
+            if ("true".equals(dailyOpen)) {
+                questApp.openDailyPack();
+            } else if ("quiet".equals(dailyOpen)) {
+                forge.neo.quest.NeoDailyPack.claim();
+                questApp.showQuestHome();
+            }
         } else if (args.contains("--quest-colosseum")) {
             // El Coliseo en una Quest de Commander, sin jugar:
             // -Dneo.colosseum.demo=screen|won|lost
@@ -1824,6 +1845,13 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                     table.getActionBar().pressPrimary();
                     return;
                 }
+                // "@cancel": el boton de la izquierda (Cancelar, o "Fin de
+                // turno" con la prioridad).
+                if (step.equals("@cancel")) {
+                    System.out.println("[mesa] pulso el boton de la izquierda: "
+                            + table.getActionBar().pressSecondary());
+                    return;
+                }
                 // "@b:N": el boton N (desde 0) del dialogo del motor que este
                 // puesto, p. ej. el "¿Sacrificar...?" de CostConfirm.
                 if (step.startsWith("@b:")) {
@@ -1844,6 +1872,60 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 }
                 // "@close" cierra el visor de zona; "@pile" clica la pila de
                 // cementerio de la mesa, como haria una persona para abrirlo.
+                // "@hit": que recibiria de VERDAD un clic en el centro de cada
+                // carta de tu mesa. Los clics de este arnes van directos a la
+                // carta y se saltan lo que haya encima; esto no (Discord,
+                // 14-10-2026: "no puedo activar nada de la mesa" que aqui
+                // nunca salia).
+                if (step.equals("@hit")) {
+                    int covered = 0;
+                    for (final CardNode n : table.selfFieldNodes()) {
+                        if (n.getCard() == null || n.getScene() == null || !n.isVisible()) {
+                            continue;
+                        }
+                        final javafx.geometry.Bounds b = n.localToScene(n.getBoundsInLocal());
+                        final javafx.scene.Node hit = debug.pickAt(scene.getRoot(),
+                                b.getCenterX(), b.getCenterY());
+                        if (!debug.isWithin(hit, n)) {
+                            covered++;
+                            System.out.println("[hit] " + debug.nameOf(n.getCard()) + " TAPADA por "
+                                    + debug.describe(hit));
+                        }
+                    }
+                    System.out.println("[hit] " + covered + " cartas tapadas de "
+                            + table.selfFieldNodes().size());
+                    return;
+                }
+                // "@ids": la identidad de cada nodo de tu mesa. Si cambia entre
+                // dos "@ids" sin que pase nada, la mesa rehace las cartas, y un
+                // clic de verdad (pulsar en una, soltar en la nueva) se pierde.
+                if (step.equals("@ids")) {
+                    final StringBuilder ids = new StringBuilder("[ids]");
+                    for (final CardNode n : table.selfFieldNodes()) {
+                        if (n.getCard() != null) {
+                            ids.append(' ').append(n.getCard().getId()).append('@')
+                                    .append(Integer.toHexString(System.identityHashCode(n)));
+                        }
+                    }
+                    System.out.println(ids);
+                    return;
+                }
+                // "r:Nombre": clic DE VERDAD (por la escena, ver
+                // NeoAppDebug.realClick) en una carta de tu mesa, girada o no.
+                if (step.startsWith("r:")) {
+                    final String want = step.substring(2);
+                    for (final CardNode n : table.selfFieldNodes()) {
+                        if (n.getCard() != null && n.getScene() != null
+                                && debug.nameOf(n.getCard()).contains(want)) {
+                            System.out.println("[mesa] clic real en " + debug.nameOf(n.getCard())
+                                    + " (" + n.getCard().getId() + ")");
+                            debug.realClick(scene, debug.centreOf(n), n);
+                            return;
+                        }
+                    }
+                    System.out.println("[mesa] no hay " + want + " en tu mesa");
+                    return;
+                }
                 if (step.equals("@close")) {
                     System.out.println("[mesa] cierro el visor");
                     table.getMenuOverlay().hide();
@@ -1860,6 +1942,35 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 // "z:Nombre": una carta del VISOR DE ZONA abierto (el cementerio
                 // que abre el motor al pedir un objetivo ahi), por el click de
                 // verdad. Salio de Unlicensed Hearse (Discord, 11-10-2026).
+                // "o:Nombre": una carta del DIALOGO del motor (buscar en la
+                // biblioteca con una fetch, p. ej.), por el click de verdad.
+                // "h:Nombre": jugar una carta de la MANO, por el click de verdad.
+                if (step.startsWith("h:")) {
+                    final String want = step.substring(2);
+                    for (final CardNode n : table.handNodes()) {
+                        if (n.getCard() != null && debug.nameOf(n.getCard()).contains(want)) {
+                            System.out.println("[mesa] clico en la mano " + debug.nameOf(n.getCard()));
+                            debug.fire(n, javafx.scene.input.MouseEvent.MOUSE_CLICKED, debug.centreOf(n));
+                            return;
+                        }
+                    }
+                    System.out.println("[mesa] no hay " + want + " en la mano");
+                    return;
+                }
+                if (step.startsWith("o:")) {
+                    final String want = step.substring(2);
+                    final List<CardNode> inDialog = new ArrayList<>();
+                    debug.collectCardNodes(table.getOverlay(), inDialog);
+                    for (final CardNode n : inDialog) {
+                        if (n.getCard() != null && debug.nameOf(n.getCard()).contains(want)) {
+                            System.out.println("[mesa] clico en el dialogo " + debug.nameOf(n.getCard()));
+                            debug.fire(n, javafx.scene.input.MouseEvent.MOUSE_CLICKED, debug.centreOf(n));
+                            return;
+                        }
+                    }
+                    System.out.println("[mesa] no hay " + want + " en el dialogo (" + inDialog.size() + " cartas)");
+                    return;
+                }
                 if (step.startsWith("z:")) {
                     final String want = step.substring(2);
                     final List<CardNode> inZone = new ArrayList<>();

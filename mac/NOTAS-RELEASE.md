@@ -1,15 +1,12 @@
-**NeoForge para macOS 1.0.22 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.23 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Quest:** **el Coliseo** (solo en Quest de Commander): una partida a cuatro contra tres rivales fuertes, con entrada cara y premio de créditos y un sobre de colector. **Torneos de draft** como los de Forge, con su cuadro y sus premios. **El arte de las mascotas** en el bazar. Y empezar una Quest **eligiendo solo los colores** (de uno a cinco).
-- **Pagar con la propia carta:** sacrificar una fetch, un Tesoro o una Pista pregunta en el centro con la carta (con «Sí, y no volver a preguntar en esta partida»), y no en la esquina, donde parecía que el juego no respondía.
-- **La ronda al lado del turno** («Turno 23 (Ronda 12)»), con un ajuste apagado de fábrica.
-- **La carta ampliada dice su edición**, y lo elegido para una carta (tipo de criatura, color, carta nombrada) se ve en la propia carta.
-- **Calidad de las imágenes** en Ajustes → Arte: normal, alta o máxima.
-- **Registro detallado de la partida** para reportar fallos (Ajustes → Partida).
-- **Mazos:** buscar por código de expansión, nombre de expansión y año.
-- **Arreglos:** rendirse a mitad de un al mejor de tres ya cuenta como derrota; salir de un duelo de la Quest ya no te echa al menú a los 6 s; en red ya no sale un «Esperando a…» falso con la prioridad tuya; Ascenso recuerda el último nivel de Ascensión.
-- **Forge al día:** Hela, Mistress of Darkness y cartas corregidas.
+- **Quest: el sobre del día.** Un sobre gratis al día de una de las expansiones de tu Quest, sin internet. No se acumulan: ábrelo o se pierde.
+- **Cartas exiliadas boca abajo** (Gonti, Night Minister, Predators' Hour, Lobelia...): con una en juego, clicar tus tierras y permanentes ya vuelve a funcionar (antes solo iba arrastrando), y las que puedes jugar se ven por su cara en el visor del exilio.
+- **Compañeros:** decir que no al compañero del banquillo ya no acaba la partida al empezar.
+- **Pantallas grandes:** el dorso de las pilas y los avatares ya no desaparecen al pasar el ratón, «Cleanup» ya no baja sola a otra fila del rail de fases, las cartas se ven nítidas al mover la ventana entre pantallas con escalas distintas, y cambiar el aumento del hover ya no corta las cartas de la mano.
+- **Arreglos:** la calidad de imagen elegida ya no se pierde al cerrar y «Todas las impresiones» baja en esa calidad; en la tienda de la Quest se puede ver solo lo elegido para vender; las cartas del cuartel caben en ventanas bajas; los torneos de draft ya no cuentan las básicas como cartas drafteadas; y al ordenar cartas que van al fondo de la biblioteca la ayuda ya no dice que la 1 es la próxima que robas.
+- **Forge al día:** ordenar las dos cartas que devuelves con los efectos de «roba tres y pon dos encima», y cartas corregidas.
 
 Descarga el `.dmg` de tu Mac:
 

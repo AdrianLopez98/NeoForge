@@ -391,6 +391,25 @@ public final class NeoQuestDrafts {
         return g == null ? null : g.getHumanDeck();
     }
 
+    /**
+     * Cuantas cartas has drafteado: mazo y banda juntos, SIN las basicas. Las
+     * basicas no salieron de ningun sobre y las pone el editor (o "Montar
+     * solo"); contarlas decia "tienes 60 cartas" con 42 drafteadas.
+     */
+    public static int poolSize() {
+        final Deck d = myDeck();
+        if (d == null) {
+            return 0;
+        }
+        int n = 0;
+        for (final java.util.Map.Entry<PaperCard, Integer> e : d.getAllCardsInASinglePool()) {
+            if (!e.getKey().getRules().getType().isBasicLand()) {
+                n += e.getValue();
+            }
+        }
+        return n;
+    }
+
     /** Por que no se puede jugar el mazo (menos de 40 cartas...), o null. */
     public static String deckProblem() {
         final Deck d = myDeck();

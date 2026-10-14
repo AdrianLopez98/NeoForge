@@ -201,6 +201,11 @@ final class NeoAppQuest {
             }
 
             @Override
+            public void dailyPack() {
+                openDailyPack();
+            }
+
+            @Override
             public void newAdventure() {
                 showQuestSetup();
             }
@@ -212,6 +217,29 @@ final class NeoAppQuest {
         });
         app.scene.setRoot(quest);
         app.applyScale();
+    }
+
+    /**
+     * El sobre del dia (14-10-2026): se abre, se rehace el cuartel (para que la
+     * fila pase a "ya abierto") y encima sale lo que ha tocado.
+     */
+    void openDailyPack() {
+        forge.neo.quest.NeoDailyPack.Claimed claimed = null;
+        try {
+            claimed = forge.neo.quest.NeoDailyPack.claim();
+        } catch (final RuntimeException e) {
+            System.out.println("[sobre del dia] no se ha podido abrir: " + e);
+        }
+        showQuestHome();
+        if (quest == null) {
+            return;
+        }
+        if (claimed != null) {
+            quest.showDailyPack(claimed);
+        } else {
+            // Un boton que no hace nada es peor que un aviso (principio 1).
+            quest.showDailyPackFailed();
+        }
     }
 
     QuestScreen quest;

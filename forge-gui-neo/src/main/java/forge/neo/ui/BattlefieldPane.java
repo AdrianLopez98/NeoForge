@@ -308,9 +308,9 @@ public class BattlefieldPane extends Pane {
         }
 
         entries.clear();
-        getChildren().clear();
-        // Los fantasmas van al fondo: lo vivo se pinta por encima.
-        getChildren().addAll(ghosts);
+        // Lo que va a quedar dentro, en orden. Los fantasmas van al fondo: lo
+        // vivo se pinta por encima.
+        final List<javafx.scene.Node> shown = new ArrayList<>(ghosts);
 
         for (final Map.Entry<String, List<CardView>> group : groups.entrySet()) {
             final String key = group.getKey();
@@ -352,7 +352,7 @@ public class BattlefieldPane extends Pane {
             node.getFront().setCombatDirection(combatDirection);
 
             entries.add(new Entry(node));
-            getChildren().add(node);
+            shown.add(node);
         }
 
         // Soltar los nodos de cartas que ya no estan en esta zona.
@@ -367,7 +367,17 @@ public class BattlefieldPane extends Pane {
         }
         lastIds.clear();
         lastIds.addAll(nowIds);
-        getChildren().addAll(previous, next);
+        shown.add(previous);
+        shown.add(next);
+        // Y SOLO si cambia algo. Esto se llama en cada repintado de la mesa, y
+        // sacar una carta de la escena, aunque vuelva en el mismo instante,
+        // le quita a JavaFX el nodo que se pulso: el soltar llega a la fila y
+        // el clic no existe. Con repintados seguidos ningun clic llegaba a la
+        // mesa (Discord, 14-10-2026, ver NeoMatchUI.probing); lo mismo que
+        // le paso a la mano el 11-10-2026 (TableScreen.setHand).
+        if (!getChildren().equals(shown)) {
+            getChildren().setAll(shown);
+        }
         requestLayout();
     }
 

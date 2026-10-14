@@ -37,6 +37,35 @@ import javafx.scene.layout.VBox;
  */
 public class SettingsPanel extends VBox {
 
+    /**
+     * Cambia cuanto crece la carta al pasar el raton. Publico para que la
+     * prueba ({@code --hover-test -Dneo.hover.switchTo}) haga lo MISMO que el
+     * ajuste.
+     */
+    public static void applyHoverZoom(final javafx.scene.Node root, final int pct) {
+        NeoSettings.setInt(NeoSettings.HOVER_ZOOM, pct);
+        NeoSettings.save();
+        // La mano y las filas de la mesa dejan sitio a la carta ampliada en su
+        // recorte, y lo calculan al repartir. Los ajustes se abren con la
+        // partida detras y la mano no se vuelve a repartir hasta que cambia o
+        // se cambia la ventana: de "sin ampliar" a 150 %, la carta de la mano
+        // salia sin cabeza hasta maximizar (Discord, titandino, 14-10-2026).
+        if (root != null) {
+            relayoutHoverRoom(root);
+        }
+    }
+
+    private static void relayoutHoverRoom(final javafx.scene.Node node) {
+        if (node instanceof HandFan || node instanceof BattlefieldPane) {
+            ((javafx.scene.Parent) node).requestLayout();
+        }
+        if (node instanceof javafx.scene.Parent parent) {
+            for (final javafx.scene.Node child : parent.getChildrenUnmodifiable()) {
+                relayoutHoverRoom(child);
+            }
+        }
+    }
+
     /** Lo que el panel necesita de quien lo abre. */
     public interface Host {
         /** Pagar el mana solo al lanzar; puede no haber partida abierta. */
@@ -208,12 +237,8 @@ public class SettingsPanel extends VBox {
         final int hoverNow = (int) Math.round(NeoSettings.hoverZoom() * 100);
         getChildren().add(choiceRow(NeoText.get("settings.hoverZoom"), hoverLabels,
                 hoverNow == 100 ? NeoText.get("settings.hoverZoom.off") : hoverNow + "%",
-                v -> {
-                    final int pct = v.endsWith("%")
-                            ? Integer.parseInt(v.replace("%", "")) : 100;
-                    NeoSettings.setInt(NeoSettings.HOVER_ZOOM, pct);
-                    NeoSettings.save();
-                }));
+                v -> applyHoverZoom(getScene() == null ? null : getScene().getRoot(),
+                        v.endsWith("%") ? Integer.parseInt(v.replace("%", "")) : 100)));
 
         // --- la mano en abanico ---
         //
@@ -1177,6 +1202,9 @@ public class SettingsPanel extends VBox {
                     for (final forge.neo.card.ImageQuality q : qualities) {
                         if (NeoText.get("settings.art.quality." + q.scryfall).equals(v)) {
                             NeoSettings.set(NeoSettings.IMAGE_QUALITY, q.scryfall);
+                            // Guardada YA: set() solo la cambia en memoria, y cerrando el
+                            // juego sin tocar otro ajuste se volvia a abrir en la normal.
+                            NeoSettings.save();
                             qualityNote.setText(qualityNote(q));
                             // Se ve YA, sin reiniciar: fuera lo decodificado y
                             // los "no esta", y a repintar con la nueva.

@@ -156,7 +156,15 @@ public final class ArtDownload extends GuiDownloadService {
             // y las que fallen en esta tanda se apuntan. Ver ArtUnavailable.
             @Override
             protected Map<String, String> getNeededFiles() throws UnsupportedEncodingException {
-                asked = fixForge(super.getNeededFiles());
+                // El de Forge mira si falta en pics/cards y pide la "normal":
+                // con otra calidad, lo que ya estaba en la normal no se bajaba
+                // y lo que si, salia a 488x680 en la carpeta normal (Discord,
+                // 14-10-2026: "downloaded all High quality ... it's 488x680").
+                // Se le deja calentar el indice de la CDN y la lista se rehace
+                // en la carpeta y la version de la calidad elegida.
+                final Map<String, String> forge = super.getNeededFiles();
+                final ImageQuality q = ImageQuality.current();
+                asked = fixForge(q == ImageQuality.NORMAL ? forge : neededIn(q, which));
                 ArtUnavailable.filter(asked);
                 lastAsked = asked;
                 return asked;
@@ -168,6 +176,67 @@ public final class ArtDownload extends GuiDownloadService {
                 super.finish();
             }
         };
+    }
+
+    /**
+     * Lo que le falta a la calidad {@code q} (que no es la normal), como lo
+     * calcula {@code GuiDownloadFilteredCardImages.addIfMissing} pero mirando
+     * y guardando en su carpeta ({@link ImageQuality#exactFile},
+     * {@link ImageQuality#redirect}) y pidiendo su version
+     * ({@link ImageQuality#rewrite}). Las mismas fuentes que Forge: la CDN y,
+     * si el indice no la tiene, la API. Cardforge no: solo tiene la normal, y
+     * guardarla en la carpeta de la alta seria llamar alta a una normal.
+     */
+    private static Map<String, String> neededIn(final ImageQuality q,
+                                                final java.util.function.Predicate<PaperCard> which) {
+        final Map<String, String> out = new java.util.TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        final String lang = FModel.getPreferences().getPref(
+                forge.localinstance.properties.ForgePreferences.FPref.UI_CARD_DOWNLOAD_LANG);
+        for (final PaperCard c : com.google.common.collect.Iterables.concat(
+                FModel.getMagicDb().getCommonCards().getAllCards(),
+                FModel.getMagicDb().getVariantCards().getAllCards())) {
+            if (!which.test(c) || c.getEdition() == null || c.getEdition().isEmpty()
+                    || CardEdition.UNKNOWN_CODE.equals(c.getEdition())) {
+                continue;
+            }
+            addMissingIn(q, c, "", lang, out);
+            if (c.hasBackFace()) {
+                addMissingIn(q, c, "back", lang, out);
+            }
+        }
+        return out;
+    }
+
+    private static void addMissingIn(final ImageQuality q, final PaperCard c, final String face,
+                                     final String lang, final Map<String, String> out) {
+        final String key = forge.util.ImageUtil.getImageKey(c, face, true);
+        if (key == null || q.exactFile(key) != null) {
+            return;
+        }
+        final String fbKey = key.contains(".full") ? key.replace(".full", ".fullborder") : key + ".fullborder";
+        final String dest = q.redirect(new File(ForgeConstants.CACHE_CARD_PICS_DIR, fbKey + ".jpg").getAbsolutePath());
+        if (out.containsKey(dest)) {
+            return;
+        }
+        final String cn = c.getCollectorNumber();
+        if (cn == null || cn.isEmpty() || "0".equals(cn) || PaperCard.NO_COLLECTOR_NUMBER.equals(cn)) {
+            return;
+        }
+        final CardEdition ed = StaticData.instance().getEditions().get(c.getEdition());
+        final String code = ed == null ? null : ed.getScryfallCode();
+        if (code == null || code.isEmpty()) {
+            return;
+        }
+        final String langCode = forge.gui.download.CdnUuidCache.resolvePreferredLangCode(
+                lang, code, cn, ed.getCardsLangCode());
+        String url = forge.gui.download.CdnUuidCache.getCdnUrlIfCached(code, cn, langCode, face, "normal");
+        if (url == null) {
+            final String api = forge.util.ImageUtil.getScryfallDownloadUrl(c, face, code, langCode, false);
+            url = api == null ? null : ForgeConstants.URL_PIC_SCRYFALL_DOWNLOAD + api;
+        }
+        if (url != null) {
+            out.put(dest, q.rewrite(url));
+        }
     }
 
     /**

@@ -191,6 +191,19 @@ public class QuestShopScreen extends StackPane {
     private final Label sellCount = new Label();
     private final Button sellPickAll = new Button();
     private final Button sellPickNone = new Button();
+    /** Ver solo lo elegido, y volver ({@link #toggleOnlyPicked}). */
+    private final Button sellOnlyPicked = new Button();
+    /**
+     * Lo que se esta repasando con "Ver lo elegido": lo elegido AL PULSARLO,
+     * o null si se ve la coleccion. Es una foto y no {@link #sellPicked}: lo
+     * que se desmarca ahi se queda a la vista, sin marco, para poder volver a
+     * marcarlo (si desapareciera, la rejilla se recolocaria bajo el raton y el
+     * siguiente clic caeria en la carta de al lado).
+     */
+    private java.util.Set<PaperCard> sellReview;
+    /** Buscador y filtros: fuera mientras se repasa lo elegido. */
+    private FlowPane sellTools;
+    private boolean sellAdvancedWasOpen;
     private CardFilterBar sellFilters;
     private List<PaperCard> sellAllCards = new ArrayList<>();
     private List<PaperCard> sellShown = new ArrayList<>();
@@ -245,6 +258,10 @@ public class QuestShopScreen extends StackPane {
                 sellFilters.advanced().setManaged(true);
                 markPicked();
                 refreshSell();
+                // -Dneo.shop.sellReview=true: y "Ver lo elegido" pulsado.
+                if (Boolean.getBoolean("neo.shop.sellReview")) {
+                    toggleOnlyPicked();
+                }
             }
         }
 
@@ -1062,6 +1079,7 @@ public class QuestShopScreen extends StackPane {
         final FlowPane tools = new FlowPane(12, 8, sellSearch, sellFilters.bar(),
                 sellSpareOnly, sellFreeOnly);
         tools.setAlignment(Pos.CENTER_LEFT);
+        sellTools = tools;
 
         sellGrid.setAlignment(Pos.TOP_LEFT);
         final ScrollPane scroll = new ScrollPane(sellGrid);
@@ -1086,13 +1104,23 @@ public class QuestShopScreen extends StackPane {
         sellPickNone.setOnAction(e -> {
             sellPicked.clear();
             sellAnchor = null;
+            if (sellReview != null) {
+                // Sin nada elegido no hay nada que repasar: a la coleccion.
+                toggleOnlyPicked();
+                return;
+            }
             markPicked();
             refreshSell();
         });
+        // Pedido (Discord, 14-10-2026): con cientos de cartas elegidas, el
+        // marco de cada una y la cuenta no dejan repasar que se va a vender.
+        sellOnlyPicked.getStyleClass().add("segment");
+        sellOnlyPicked.setMinWidth(Region.USE_PREF_SIZE);
+        sellOnlyPicked.setOnAction(e -> toggleOnlyPicked());
         final Region gapPages = new Region();
         HBox.setHgrow(gapPages, Priority.ALWAYS);
         final HBox pageBar = new HBox(10, sellCount, sellPickAll, sellPickNone,
-                gapPages, sellPager);
+                sellOnlyPicked, gapPages, sellPager);
         pageBar.setAlignment(Pos.CENTER_LEFT);
 
         // --- lo elegido ---
@@ -1144,6 +1172,32 @@ public class QuestShopScreen extends StackPane {
     /** Cuantas copias de cada carta elegida vende cada boton. */
     private enum Mode { ONE, SPARE, FREE }
 
+    /**
+     * Ver solo lo elegido, o volver a la coleccion. Mientras se repasa, el
+     * buscador y los filtros se van: si siguieran, esconderian parte de lo
+     * elegido, y a la vista sin mandar serian controles que no hacen lo que
+     * parecen (las notas de diseño, principio 1). Al volver estan como se dejaron.
+     */
+    private void toggleOnlyPicked() {
+        if (sellReview == null && sellPicked.isEmpty()) {
+            return;
+        }
+        if (sellReview == null) {
+            sellReview = new java.util.HashSet<>(sellPicked);
+            sellAdvancedWasOpen = sellFilters.advanced().isVisible();
+        } else {
+            sellReview = null;
+        }
+        final boolean reviewing = sellReview != null;
+        sellTools.setVisible(!reviewing);
+        sellTools.setManaged(!reviewing);
+        final boolean advanced = !reviewing && sellAdvancedWasOpen;
+        sellFilters.advanced().setVisible(advanced);
+        sellFilters.advanced().setManaged(advanced);
+        sellPager.reset();
+        reloadSell();
+    }
+
     private void reloadSell() {
         // La coleccion se lee entera cada vez porque vender la cambia, y con
         // una copia vieja se podrian vender cartas que ya no estan. Lo de los
@@ -1161,7 +1215,20 @@ public class QuestShopScreen extends StackPane {
         final String q = sellSearch.getText() == null ? ""
                 : sellSearch.getText().trim().toLowerCase(Locale.ROOT);
         sellShown = new ArrayList<>();
-        for (final PaperCard c : sellAllCards) {
+        if (sellReview != null) {
+            // Lo elegido que sigue en la coleccion (vendido, se va), sin filtros.
+            for (final PaperCard c : sellAllCards) {
+                if (sellReview.contains(c)) {
+                    sellShown.add(c);
+                }
+            }
+            if (sellShown.isEmpty()) {
+                // Vendido todo lo que se repasaba: a la coleccion.
+                toggleOnlyPicked();
+                return;
+            }
+        }
+        for (final PaperCard c : sellReview != null ? List.<PaperCard>of() : sellAllCards) {
             if (sellSpareOnly.isSelected() && NeoQuestSell.spareCopies(c) <= 0) {
                 continue;
             }
@@ -1304,6 +1371,9 @@ public class QuestShopScreen extends StackPane {
         sellPickAll.setText(NeoText.get("shop.sell.pickAll", sellShown.size()));
         sellPickAll.setDisable(sellShown.isEmpty() || sellPicked.size() == sellShown.size());
         sellPickNone.setDisable(sellPicked.isEmpty());
+        sellOnlyPicked.setText(sellReview != null ? NeoText.get("shop.sell.showAll")
+                : NeoText.get("shop.sell.showPicked", sellPicked.size()));
+        sellOnlyPicked.setDisable(sellReview == null && sellPicked.isEmpty());
 
         final int spareCount = count(planFor(Mode.SPARE));
         final int freeCount = count(planFor(Mode.FREE));

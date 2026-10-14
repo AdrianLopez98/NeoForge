@@ -344,14 +344,40 @@ public class PhaseRail extends VBox {
         }
         int columns = Math.max(1, Math.min(STOPS.length, (int)((available + 3) / (widest + 3))));
         phases.setPrefColumns(columns);
-        phases.setPrefTileWidth(Math.max(1, Math.floor((available - 3 * (columns - 1) - 4) / columns)));
+        // Un pixel de holgura por fase (Discord, 14-10-2026, 4K a pantalla
+        // completa): con el escalado de Windows (150%) JavaFX redondea cada
+        // fase y cada hueco a pixeles de pantalla, y con 12 fases eso pasaba de
+        // los 4 px de margen: Cleanup bajaba sola a la segunda fila, a la
+        // izquierda y encima de la barra del rival.
+        phases.setPrefTileWidth(Math.max(1, Math.floor((available - 3 * (columns - 1) - 4) / columns) - 1));
         phases.setPrefTileHeight(tallest);
-        alignLastRowRight(columns);
+        // Los huecos de la ultima fila los pone layoutChildren, con las
+        // columnas que de verdad salen: si los pusieran los dos, se pelearian.
         // El dia/noche y el plano activo (Planechase) son filas enteras: si no
         // se cuentan, las fases se salen del hueco y pisan la barra del rival
         // (Discord, 08-10-2026, en 4K con Planechase).
         return 14 + header.prefHeight(width) + rowHeight(dayNight, width) + rowHeight(plane, width)
                 + Math.ceil(STOPS.length / (double) columns) * (tallest + 3);
+    }
+
+    /**
+     * Y si aun asi el TilePane parte la fila distinto de lo calculado, la
+     * ultima fila se alinea con las columnas que HA PUESTO, no con las que se
+     * esperaban: mejor Cleanup a la derecha que debajo de Untap.
+     */
+    @Override
+    protected void layoutChildren() {
+        super.layoutChildren();
+        final double tile = phases.getTileWidth();
+        final double inner = phases.getWidth() - phases.snappedLeftInset() - phases.snappedRightInset();
+        if (tile > 0 && inner > 0) {
+            final int real = Math.max(1, (int) Math.floor((inner + phases.getHgap()) / (tile + phases.getHgap())));
+            final int before = spacersNow;
+            alignLastRowRight(Math.min(real, STOPS.length));
+            if (before != spacersNow) {
+                phases.requestLayout();
+            }
+        }
     }
 
     private static double rowHeight(final Label row, final double width) {

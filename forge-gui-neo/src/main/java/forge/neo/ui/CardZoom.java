@@ -919,6 +919,11 @@ public final class CardZoom {
         localViewers = viewers == null ? java.util.Collections.emptyList() : viewers;
     }
 
+    /** Los mismos "nosotros", para pintar boca arriba lo que podemos mirar ({@code CardNode}). */
+    public static Iterable<PlayerView> localViewers() {
+        return localViewers;
+    }
+
     private static CardStateView otherFace(final CardView card) {
         if (card == null) {
             return null;

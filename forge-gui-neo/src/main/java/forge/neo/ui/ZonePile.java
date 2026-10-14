@@ -25,6 +25,17 @@ import javafx.scene.shape.Rectangle;
 public class ZonePile extends VBox {
 
     private final Rectangle back = new Rectangle();
+    /**
+     * La funda, en su PROPIA capa y sin clase de estilo (Discord, 14-10-2026:
+     * el dorso aparecia y desaparecia solo).  Antes se le ponia a {@code back}
+     * como relleno por codigo, pero {@code back} lleva {@code .zone-pile-face}
+     * con su {@code -fx-fill} en la hoja de estilos, y una hoja de estilos le
+     * gana a lo puesto por codigo: cada vez que JavaFX volvia a aplicar el CSS
+     * (pasar el raton, encenderse como jugable) la funda se borraba hasta el
+     * siguiente refresco.  Un poco mas pequenya, para que se vea el borde.
+     */
+    private final Rectangle sleeve = new Rectangle();
+    private boolean hasSleeve;
     private final Rectangle shadow = new Rectangle();
     private final Label count = new Label("0");
     private final Label caption;
@@ -56,7 +67,10 @@ public class ZonePile extends VBox {
         caption = new Label(captionText);
         caption.getStyleClass().add("caption");
 
-        this.pile = new StackPane(shadow, back, count);
+        sleeve.setMouseTransparent(true);
+        sleeve.setVisible(false);
+        back.visibleProperty().addListener((o, was, is) -> sleeve.setVisible(is && hasSleeve));
+        this.pile = new StackPane(shadow, back, sleeve, count);
         pile.setAlignment(Pos.CENTER);
         getChildren().addAll(pile, caption);
 
@@ -193,6 +207,11 @@ public class ZonePile extends VBox {
         back.setArcWidth(radius * 2);
         back.setArcHeight(radius * 2);
 
+        sleeve.setWidth(Math.max(1, w - 3));
+        sleeve.setHeight(Math.max(1, h - 3));
+        sleeve.setArcWidth(radius * 2);
+        sleeve.setArcHeight(radius * 2);
+
         shadow.setWidth(w);
         shadow.setHeight(h);
         shadow.setArcWidth(radius * 2);
@@ -237,16 +256,25 @@ public class ZonePile extends VBox {
      * blanco esperando a Scryfall, porque las fundas no dependen de la red.
      */
     public void setSleeveImage(final javafx.scene.image.Image image) {
+        hasSleeve = image != null;
+        sleeve.setVisible(hasSleeve && back.isVisible());
         if (image == null) {
-            SceneFill.set(back, null);
+            SceneFill.set(sleeve, null);
+            sleeveShown = null;
             back.getStyleClass().remove("zone-pile-sleeve");
             return;
         }
         // Solo mientras se ve: la imagen es compartida y, puesta a pelo, retenia
-        // la mesa entera de cada partida (ver SceneFill).
-        SceneFill.set(back, new javafx.scene.paint.ImagePattern(image, 0, 0, 1, 1, true));
+        // la mesa entera de cada partida (ver SceneFill).  Una sola vez por
+        // imagen: esto se llama en cada refresco de la mesa.
+        if (image != sleeveShown) {
+            SceneFill.set(sleeve, new javafx.scene.paint.ImagePattern(image, 0, 0, 1, 1, true));
+        }
+        sleeveShown = image;
         if (!back.getStyleClass().contains("zone-pile-sleeve")) {
             back.getStyleClass().add("zone-pile-sleeve");
         }
     }
+
+    private javafx.scene.image.Image sleeveShown;
 }

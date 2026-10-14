@@ -1,8 +1,10 @@
 package forge.neo.ui;
 
 import forge.neo.NeoText;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.DoubleConsumer;
 
 import forge.deck.Deck;
 import forge.game.card.CardView;
@@ -23,6 +25,7 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 
 /**
@@ -44,7 +47,7 @@ import javafx.scene.layout.VBox;
  * rojo duro, morado experto. Es la misma regla que la mesa — el estado se ve, no
  * se lee.
  */
-public class QuestScreen extends BorderPane {
+public class QuestScreen extends StackPane {
 
     /** Lo que se puede hacer desde el cuartel general. */
     public interface Actions {
@@ -75,6 +78,9 @@ public class QuestScreen extends BorderPane {
         /** Las preferencias de la Quest (las de Forge): premios, tienda, dificultad. */
         void preferences();
 
+        /** Abrir el sobre del dia ({@link forge.neo.quest.NeoDailyPack}). */
+        void dailyPack();
+
         void newAdventure();
 
         void back();
@@ -82,27 +88,74 @@ public class QuestScreen extends BorderPane {
 
     private final double cardWidth;
     /**
+     * La capa del sobre del dia ({@link #showDailyPack}). Hasta el 14-10-2026
+     * esta pantalla era un BorderPane a pelo: no tenia nada que ensenyar
+     * encima de si misma.
+     */
+    private final Overlay overlay = new Overlay();
+    /**
      * La carta del comandante rival, como parte de la de la mesa. 0,88 y no
      * 0,95 desde que Volver bajo a su barra (principio 12): con 0,95 el boton
      * JUGAR de los duelos se quedaba bajo el borde en 1080p.
      */
     private static final double DUEL_CARD = 0.88;
+    /** La tira de cartas de "TU MAZO", como parte de la de la mesa. */
+    private static final double STRIP_CARD = 0.58;
+    /**
+     * La carta de esta pantalla, como mucho, como parte del alto de la ventana.
+     *
+     * <p>{@link #cardWidth} sale del ANCHO (once cartas en fila, con un tope que
+     * crece con la pantalla), y aqui las cartas se apilan en VERTICAL: la tira
+     * del mazo y, debajo, la del comandante rival con el JUGAR. Con una ventana
+     * mas ancha que alta de lo que se penso — un ultrapanoramico, una ventana
+     * sin maximizar, o -Dneo.win=2560x1440 en un monitor pequenyo — los JUGAR
+     * se iban bajo el borde (Ana, 14-10-2026). 0,14 deja 1080p y 2K
+     * maximizados exactamente como estaban (136 de 1001 y 183 de 1361 caben
+     * dentro) y solo encoge la carta cuando el alto no da para ella.
+     */
+    private static final double FIT_HEIGHT = 0.14;
+    /** Lo que hay que hacer con cada carta cuando cambia su ancho ({@link #fitToHeight}). */
+    private final List<DoubleConsumer> cardResizers = new ArrayList<>();
+    /** El ancho de carta que se esta ensenyando ahora. */
+    private double shownWidth;
 
     public QuestScreen(final double cardWidth, final Actions actions) {
         this.cardWidth = cardWidth;
         getStyleClass().addAll("table-root", "quest");
 
-        setTop(header(actions));
-        setCenter(body(actions));
+        final BorderPane frame = new BorderPane();
+        frame.setTop(header(actions));
+        frame.setCenter(body(actions));
         // Volver, abajo a la derecha: el mismo sitio en todas las pantallas
         // (las notas de diseño, principio 12). Antes iba en la cabecera.
-        setBottom(BackBar.of(actions::back));
+        frame.setBottom(BackBar.of(actions::back));
+        getChildren().addAll(frame, overlay);
+        overlay.hide();
 
         // Click derecho sobre cualquier carta: a tamanyo de lectura, igual que
         // en la mesa. Aqui las cartas son pequenyas — el comandante del rival
         // ocupa un dedo — y decidir contra quien juegas sin poder leer su carta
         // es decidir a ciegas.
         CardZoom.install(this);
+
+        // Las cartas se miden tambien por el alto de verdad: ver FIT_HEIGHT.
+        // Es su propio alto, asi que no ata la pantalla a nada que viva mas.
+        shownWidth = cardWidth;
+        heightProperty().addListener((o, was, h) -> fitToHeight(h.doubleValue()));
+    }
+
+    private void fitToHeight(final double height) {
+        if (height <= 0) {
+            return;
+        }
+        final double w = Math.min(cardWidth, height * FIT_HEIGHT);
+        if (Math.abs(w - shownWidth) < 1) {
+            return;
+        }
+        shownWidth = w;
+        for (final DoubleConsumer r : cardResizers) {
+            r.accept(w);
+        }
     }
 
     // ---------------------------------------------------------------
@@ -131,7 +184,17 @@ public class QuestScreen extends BorderPane {
 
         final Region gap = new Region();
         HBox.setHgrow(gap, Priority.ALWAYS);
-        final HBox row = new HBox(10, new VBox(2, title, rank), gap, prefs, nueva);
+        final HBox row = new HBox(10, new VBox(2, title, rank), gap);
+        // El sobre del dia, en la cabecera mientras esta por abrir: arriba del
+        // todo sin empujar los duelos (en el cuerpo, en 1080p dejaba los JUGAR
+        // fuera de la vista). Abierto, desaparece (Ana, 14-10-2026).
+        if (forge.neo.quest.NeoDailyPack.available()) {
+            final Region daily = dailyPack(actions);
+            if (daily != null) {
+                row.getChildren().add(daily);
+            }
+        }
+        row.getChildren().addAll(prefs, nueva);
         row.setAlignment(Pos.CENTER_LEFT);
         row.setPadding(new Insets(20, 28, 6, 30));
         return row;
@@ -368,7 +431,7 @@ public class QuestScreen extends BorderPane {
         HBox.setHgrow(gap, Priority.ALWAYS);
 
         final VBox texts = new VBox(2, caption, name, state);
-        final HBox row = new HBox(10, strip(deck, cardWidth * 0.58), texts, gap,
+        final HBox row = new HBox(10, strip(deck), texts, gap,
                 edit, create, change, collection, shop, bazaar, tournaments);
         row.setAlignment(Pos.CENTER_LEFT);
         row.getStyleClass().add("stat-tile");
@@ -377,8 +440,10 @@ public class QuestScreen extends BorderPane {
     }
 
     /** Un mazo como tira de cartas solapadas. Sin tierras: no dicen nada. */
-    private static Region strip(final Deck deck, final double w) {
+    private Region strip(final Deck deck) {
+        final double w = cardWidth * STRIP_CARD;
         final HBox row = new HBox(-w * 0.5);
+        cardResizers.add(cw -> row.setSpacing(-cw * STRIP_CARD * 0.5));
         row.setAlignment(Pos.CENTER_LEFT);
         if (deck != null) {
             int shown = 0;
@@ -387,6 +452,7 @@ public class QuestScreen extends BorderPane {
                     continue;
                 }
                 final CardNode node = new CardNode(w);
+                cardResizers.add(cw -> node.setCardWidth(cw * STRIP_CARD));
                 node.setCard(CardView.getCardForUi(e.getKey()));
                 node.setRotationEnabled(false);
                 row.getChildren().add(node);
@@ -484,6 +550,7 @@ public class QuestScreen extends BorderPane {
         if (face != null) {
             final CardNode node = new CardNode(cardWidth * DUEL_CARD);
             node.setRotationEnabled(false);
+            cardResizers.add(cw -> node.setCardWidth(cw * DUEL_CARD));
             node.setCard(face);
             box.getChildren().add(node);
         } else {
@@ -493,6 +560,7 @@ public class QuestScreen extends BorderPane {
             unknown.getStyleClass().add("duel-unknown");
             unknown.setAlignment(Pos.CENTER);
             unknown.setPrefSize(cardWidth * DUEL_CARD, cardWidth * DUEL_CARD * CardNode.ASPECT);
+            cardResizers.add(cw -> unknown.setPrefSize(cw * DUEL_CARD, cw * DUEL_CARD * CardNode.ASPECT));
             box.getChildren().add(unknown);
         }
         box.getChildren().add(name);
@@ -584,6 +652,78 @@ public class QuestScreen extends BorderPane {
         row.getStyleClass().add("stat-tile");
         row.setPadding(new Insets(12, 18, 12, 18));
         return new VBox(6, caption, row);
+    }
+
+    /**
+     * El sobre del dia (14-10-2026): de que expansion es el de hoy y el boton
+     * de abrirlo. Solo sale mientras esta por abrir. Null si esta Quest no
+     * tiene ninguna expansion con sobre (no hay nada que ofrecer).
+     */
+    private Region dailyPack(final Actions actions) {
+        final forge.card.CardEdition today = forge.neo.quest.NeoDailyPack.todaysEdition();
+        if (today == null) {
+            return null;
+        }
+        final Label caption = new Label(NeoText.get("daily.caption"));
+        caption.getStyleClass().add("caption");
+        final Label text = new Label(NeoText.get("daily.ready", today.getName()));
+        text.getStyleClass().add("home-subtitle");
+        text.setWrapText(true);
+        final Button open = new Button(NeoText.get("daily.open"));
+        open.getStyleClass().add("btn-primary");
+        open.setMinWidth(Region.USE_PREF_SIZE);
+        open.setId("daily-open");
+        // Una vez: el segundo clic llegaria con el sobre ya abierto.
+        open.setOnAction(e -> {
+            open.setDisable(true);
+            actions.dailyPack();
+        });
+        final VBox words = new VBox(2, caption, text);
+        HBox.setHgrow(words, Priority.SOMETIMES);
+        final HBox row = new HBox(14, words, open);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.getStyleClass().add("stat-tile");
+        row.setPadding(new Insets(6, 12, 6, 14));
+        // Compacta: comparte fila con el titulo y los botones de la cabecera.
+        row.setMaxWidth(UiScale.px(620));
+        return row;
+    }
+
+    /** El sobre del dia no ha salido (todas las expansiones probadas revientan). */
+    public void showDailyPackFailed() {
+        overlay.setOnBackgroundClick(overlay::hide);
+        overlay.show(new ConfirmDialog(NeoText.get("daily.caption"), NeoText.get("daily.failed"),
+                List.of(NeoText.get("common.accept")), 0, i -> overlay.hide()));
+    }
+
+    /**
+     * Lo que ha salido del sobre del dia, como en la tienda ({@link PackOpening}).
+     * Se llama recien montada la pantalla, asi que puede no tener medidas
+     * todavia: entonces espera al primer layout (como {@code ColosseumScreen}).
+     */
+    public void showDailyPack(final forge.neo.quest.NeoDailyPack.Claimed claimed) {
+        if (claimed == null) {
+            return;
+        }
+        if (getWidth() <= 0 || getHeight() <= 0) {
+            layoutBoundsProperty().addListener(new javafx.beans.value.ChangeListener<javafx.geometry.Bounds>() {
+                @Override
+                public void changed(final javafx.beans.value.ObservableValue<? extends javafx.geometry.Bounds> o,
+                                    final javafx.geometry.Bounds was, final javafx.geometry.Bounds now) {
+                    if (now.getWidth() > 0 && now.getHeight() > 0) {
+                        layoutBoundsProperty().removeListener(this);
+                        showDailyPack(claimed);
+                    }
+                }
+            });
+            return;
+        }
+        final forge.neo.quest.NeoQuestShop.Opened opened = claimed.opened;
+        overlay.setOnBackgroundClick(overlay::hide);
+        overlay.show(new PackOpening(
+                NeoText.get("daily.openedTitle", claimed.edition.getName()),
+                NeoText.get("daily.openedDetail", opened.getCards().size(), opened.getNewCount()),
+                opened.getCards(), opened::isNew, getWidth(), getHeight(), overlay::hide));
     }
 
     private Region challenges(final Actions actions) {

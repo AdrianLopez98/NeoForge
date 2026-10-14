@@ -302,7 +302,7 @@ public class QuestTournamentScreen extends StackPane {
     private Region deckStep() {
         final Deck d = NeoQuestDrafts.myDeck();
         final int main = d == null ? 0 : d.getMain().countAll();
-        final int pool = d == null ? 0 : d.getAllCardsInASinglePool().countAll();
+        final int pool = NeoQuestDrafts.poolSize();
         final String problem = NeoQuestDrafts.deckProblem();
         final Label what = new Label(NeoText.get("questDraft.deckStep", pool));
         what.getStyleClass().add("home-subtitle");

@@ -223,6 +223,12 @@ public final class NeoMain {
                 banner("Volver a bajar la imagen: solo si hay HD");
                 forge.neo.card.RefreshArtCheck.run();
                 break;
+            case "qualitycheck":
+                // La calidad de imagen elegida (normal/alta) es la que se VE, y
+                // cambiarla se nota sin reiniciar. Necesita red. Ver QualityCheck.
+                banner("Calidad de imagen: la elegida es la que se pinta");
+                forge.neo.card.QualityCheck.run();
+                break;
             case "artecheck":
                 // El arte sin conexion (OfflineArt) se encuentra por NOMBRE, y
                 // el nombre lo calculan igual dos sitios: este codigo y el
@@ -557,6 +563,12 @@ public final class NeoMain {
                 // devolver la entrada si se abandona.
                 banner("Quest: torneo de draft");
                 forge.neo.quest.QuestDraftCheck.run();
+                break;
+            case "dailypackcheck":
+                // El sobre del dia de la Quest: uno al dia (UTC), de las
+                // expansiones de la Quest, apuntado junto a ella.
+                banner("Quest: el sobre del dia");
+                forge.neo.quest.DailyPackCheck.run();
                 break;
             case "colosseumcheck":
                 // El Coliseo de la Quest de Commander: precio y rivales que
@@ -991,12 +1003,33 @@ public final class NeoMain {
         forge.neo.card.ArtDownload.afterDownload();
         int total = 0;
         int found = 0;
+        // Con otra calidad (imageQuality en el -Dneo.settingsFile), en SU carpeta
+        // y a SU tamanyo: hasta el 14-10-2026 bajaba la normal a la normal.
+        final forge.neo.card.ImageQuality quality = forge.neo.card.ImageQuality.current();
         for (final PaperCard pc : forge.model.FModel.getMagicDb().getCommonCards().getAllCards(name)) {
             final String key = forge.util.ImageUtil.getImageKey(pc, "", true);
             if (key == null) {
                 continue;
             }
             total++;
+            if (quality != forge.neo.card.ImageQuality.NORMAL) {
+                final java.io.File f = quality.exactFile(key);
+                if (f != null) {
+                    found++;
+                    try {
+                        final java.awt.image.BufferedImage img = javax.imageio.ImageIO.read(f);
+                        System.out.println("     " + f.getName() + ": "
+                                + (img == null ? "?" : img.getWidth() + "x" + img.getHeight()));
+                        if (img != null && img.getWidth() <= 488) {
+                            throw new IllegalStateException(f + " es de " + img.getWidth()
+                                    + " de ancho: no es la calidad " + quality.scryfall);
+                        }
+                    } catch (final java.io.IOException e) {
+                        throw new IllegalStateException("no se lee " + f, e);
+                    }
+                }
+                continue;
+            }
             final java.io.File full = new java.io.File(
                     forge.localinstance.properties.ForgeConstants.CACHE_CARD_PICS_DIR, key + ".jpg");
             final String fb = key.contains(".full") ? key.replace(".full", ".fullborder") : key + ".fullborder";
@@ -1006,7 +1039,7 @@ public final class NeoMain {
                 found++;
             }
         }
-        System.out.println("  descarga terminada: " + ok + " | impresiones en disco: "
+        System.out.println("  descarga terminada: " + ok + " | impresiones en disco (" + quality.scryfall + "): "
                 + found + " de " + total);
         if (total == 0 || total - found > Math.max(2, total / 10)) {
             throw new IllegalStateException("de " + total + " impresiones de " + name
@@ -1038,9 +1071,11 @@ public final class NeoMain {
             mirados++;
             // Lo que leeria OfflineArt para esa misma carta: su nombre limpio y
             // su carpeta. Si el destino no termina ahi, estan desalineados.
+            // La carpeta es la de la calidad elegida: CardImages la busca con
+            // OfflineArt.find(key, crop, quality.artDir()).
             final String limpio = forge.neo.card.OfflineArt.fileName(nombre);
             final java.io.File esperado = new java.io.File(
-                    new java.io.File(forge.neo.card.OfflineArt.dir(),
+                    new java.io.File(forge.neo.card.ImageQuality.current().artDir(),
                             forge.neo.card.OfflineArt.folder(limpio)), limpio + ".jpg");
             if (!destino.getAbsolutePath().equals(esperado.getAbsolutePath())) {
                 mal++;
@@ -1095,7 +1130,9 @@ public final class NeoMain {
         final int all = forge.neo.card.ArtDownload.missing(forge.neo.card.ArtDownload.Scope.ALL);
         System.out.printf("  por formato: Pauper pide %d (de %d sin filtro), %d ilegales; %d expansiones, la primera %s%n",
                 pending, all, illegal, eds.size(), eds.get(0).getCode());
-        if (illegal > 0 || (all > 0 && pending >= all)) {
+        // Con -Dneo.art.testLimit las dos listas se cortan en N ("3 de 3"):
+        // "pide tantas como sin filtro" no dice nada, solo las ilegales.
+        if (illegal > 0 || (all > 0 && pending >= all && Integer.getInteger("neo.art.testLimit", 0) <= 0)) {
             throw new IllegalStateException("el filtro por formato no filtra: " + illegal + " ilegales");
         }
     }

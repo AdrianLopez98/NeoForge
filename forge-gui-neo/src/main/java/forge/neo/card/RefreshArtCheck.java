@@ -88,9 +88,18 @@ public final class RefreshArtCheck {
             System.out.println("  (sin imagenes recientes en esta maquina: no se puede probar el barrido)");
             return;
         }
-        final File dir = new File(forge.localinstance.properties.ForgeConstants.CACHE_CARD_PICS_DIR,
-                sets.get(0).getCode());
-        final File[] files = dir.listFiles((d, n) -> n.endsWith(".fullborder.jpg"));
+        // En la carpeta de la calidad elegida (ImageQuality), que es la que
+        // barre ArtHdScan; y la primera expansion con dos imagenes o mas.
+        File dir = null;
+        File[] files = null;
+        for (final forge.card.CardEdition ed : sets) {
+            dir = new File(ImageQuality.current().cardsDir(), ed.getCode());
+            files = dir.listFiles((d, n) -> n.endsWith(".fullborder.jpg"));
+            if (files != null && files.length >= 2) {
+                break;
+            }
+        }
+        System.out.println("  calidad " + ImageQuality.current().scryfall + ", en " + dir);
         if (files == null || files.length < 2) {
             System.out.println("  (pocas imagenes en " + dir + ": no se puede probar el barrido)");
             return;

@@ -63,6 +63,48 @@ public final class CostConfirm {
             super(player, lobby, owner);
         }
 
+        /** El companero que se dio al motor en lugar de "ninguno" ({@link CompanionDecline}). */
+        private forge.game.card.Card declinedCompanion;
+
+        @Override
+        public <T extends forge.game.GameEntity> T chooseSingleEntityForEffect(
+                final forge.util.collect.FCollectionView<T> optionList,
+                final forge.game.player.DelayedReveal delayedReveal, final SpellAbility sa,
+                final String title, final boolean isOptional, final Player targetedPlayer,
+                final java.util.Map<String, Object> params) {
+            final T picked = super.chooseSingleEntityForEffect(optionList, delayedReveal, sa, title,
+                    isOptional, targetedPlayer, params);
+            // "Ninguno" al elegir companero: el motor no lo sabe tomar.
+            if (picked == null && sa != null && sa.getApi() == forge.game.ability.ApiType.CompanionChoose
+                    && optionList != null && !optionList.isEmpty()
+                    && optionList.get(0) instanceof forge.game.card.Card first) {
+                declinedCompanion = CompanionDecline.stand(first);
+                return optionList.get(0);
+            }
+            return picked;
+        }
+
+        @Override
+        public java.util.Map<forge.deck.DeckSection, List<? extends forge.item.PaperCard>> complainCardsCantPlayWell(
+                final forge.deck.Deck myDeck) {
+            undoDeclinedCompanion();
+            return super.complainCardsCantPlayWell(myDeck);
+        }
+
+        @Override
+        public boolean mulliganKeepHand(final Player firstPlayer, final int cardsToReturn) {
+            undoDeclinedCompanion();
+            return super.mulliganKeepHand(firstPlayer, cardsToReturn);
+        }
+
+        private void undoDeclinedCompanion() {
+            final forge.game.card.Card c = declinedCompanion;
+            if (c != null) {
+                declinedCompanion = null;
+                CompanionDecline.undo(getPlayer(), c);
+            }
+        }
+
         @Override
         public boolean confirmPayment(final CostPart costPart, final String question, final SpellAbility sa) {
             final NeoMatchUI ui = NeoMatchUI.of(getGui());

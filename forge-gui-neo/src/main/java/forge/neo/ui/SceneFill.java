@@ -34,6 +34,17 @@ final class SceneFill {
             shape.getProperties().put(HOOKED, Boolean.TRUE);
             final ChangeListener<Scene> onScene = (o, was, is) -> apply(shape);
             shape.sceneProperty().addListener(onScene);
+            // Y si la hoja de estilos lo pisa, se repone.  Un -fx-fill de una
+            // hoja de estilos le GANA a setFill: cada vez que JavaFX volvia a
+            // aplicar el CSS (pasar el raton, encenderse la barra del turno)
+            // la funda y el avatar se quedaban lisos hasta el siguiente
+            // refresco (Discord, 14-10-2026: "card back disappears").
+            shape.fillProperty().addListener((o, was, is) -> {
+                final Object want = shape.getProperties().get(PAINT);
+                if (want != null && shape.getScene() != null && is != want) {
+                    shape.setFill((Paint) want);
+                }
+            });
         }
         apply(shape);
     }

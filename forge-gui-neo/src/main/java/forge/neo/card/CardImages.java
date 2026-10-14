@@ -712,16 +712,21 @@ public final class CardImages {
         if (name == null || name.isEmpty()) {
             return null;
         }
-        final File dir = new File(forge.localinstance.properties.ForgeConstants.CACHE_CARD_PICS_DIR);
-        for (final String candidate : new String[] {
-                name.replace(".full", ".fullborder") + ".jpg",
-                name + ".jpg",
-                // Y el recorte de arte, que es otra preferencia del jugador
-                // (UI_CARD_ART_FORMAT) y deja otro nombre de fichero.
-                name.replace(".full", ".artcrop") + ".jpg"}) {
-            final File f = new File(dir, candidate);
-            if (f.exists()) {
-                return f;
+        // Por calidades, como load(): la elegida primero. Solo en la normal,
+        // en "alta" la imagen recien bajada (que doFetch deja en cards-large)
+        // perdia contra la normal que ya hubiera, y se seguia viendo esa.
+        for (final ImageQuality q : ImageQuality.lookupOrder()) {
+            final File dir = q.cardsDir();
+            for (final String candidate : new String[] {
+                    name.replace(".full", ".fullborder") + ".jpg",
+                    name + ".jpg",
+                    // Y el recorte de arte, que es otra preferencia del jugador
+                    // (UI_CARD_ART_FORMAT) y deja otro nombre de fichero.
+                    name.replace(".full", ".artcrop") + ".jpg"}) {
+                final File f = new File(dir, candidate);
+                if (f.exists()) {
+                    return f;
+                }
             }
         }
         return null;
@@ -923,7 +928,10 @@ public final class CardImages {
     public static final ArtHdScan.Store HD_STORE = new ArtHdScan.Store() {
         @Override
         public java.util.List<File> files(final String imageKey) {
-            final File f = cachedFile(imageKey);
+            // Solo el de la calidad elegida: cachedFile cae a la mejor que haya,
+            // y en "alta" eso bajaria la grande ENCIMA del fichero de la normal.
+            final File f = imageKey != null && imageKey.startsWith(ImageKeys.CARD_PREFIX)
+                    ? exactOnDisk(ImageQuality.current(), imageKey) : cachedFile(imageKey);
             return f == null ? java.util.List.of() : java.util.List.of(f);
         }
 

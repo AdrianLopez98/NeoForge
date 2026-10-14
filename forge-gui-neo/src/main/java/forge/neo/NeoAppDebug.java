@@ -75,7 +75,18 @@ final class NeoAppDebug {
                 System.out.println("[hover] no hay carta " + asked + " en pantalla");
                 return;
             }
-            final CardNode card = all.get(which);
+            // -Dneo.hover.hand=N: la carta N de la mano. Y -Dneo.hover.switchTo=P
+            // cambia antes el aumento a P %, por el mismo camino que Ajustes
+            // (titandino, 14-10-2026: de "sin ampliar" a 150 % con la partida
+            // detras, la carta de la mano salia sin cabeza).
+            final Integer inHand = Integer.getInteger("neo.hover.hand");
+            final CardNode card = inHand != null && inHand < app.table.handNodes().size()
+                    ? app.table.handNodes().get(inHand) : all.get(which);
+            final Integer switchTo = Integer.getInteger("neo.hover.switchTo");
+            if (switchTo != null) {
+                forge.neo.ui.SettingsPanel.applyHoverZoom(app.scene.getRoot(), switchTo);
+                System.out.println("[hover] aumento cambiado a " + switchTo + " %");
+            }
             // -Dneo.hover.fire=true: no mueve el puntero, le manda a la carta
             // el MOUSE_ENTERED a mano. No sirve para contar parpadeos (el
             // hoverProperty no se entera), pero SI para capturar la carta
@@ -1516,6 +1527,77 @@ final class NeoAppDebug {
     }
 
     /**
+     * Un clic DE VERDAD: mover, pulsar y, un momento despues, soltar, todo por
+     * la escena como lo manda el raton. Es JavaFX quien busca el nodo, pasa por
+     * todos los filtros y decide si hay clic (pulsar y soltar en el mismo). Los
+     * {@link #fire} van directos a la carta y no ven nada de eso (Discord,
+     * 14-10-2026: con Gonti en juego "no puedo activar nada de la mesa", que
+     * con ellos nunca salia). No mueve el raton de la pantalla.
+     */
+    static void realClick(final javafx.scene.Scene scene, final javafx.geometry.Point2D p,
+                          final javafx.scene.Node card) {
+        if (Boolean.getBoolean("neo.click.trace")) {
+            for (javafx.scene.Node at = card; at != null; at = at.getParent()) {
+                final javafx.scene.Node here = at;
+                if (!SPIED.add(here)) {
+                    continue;
+                }
+                final javafx.event.EventHandler<javafx.scene.input.MouseEvent> spy = ev -> {
+                    if (ev.getEventType() != javafx.scene.input.MouseEvent.MOUSE_MOVED
+                            && ev.getEventType() != javafx.scene.input.MouseEvent.MOUSE_ENTERED_TARGET
+                            && ev.getEventType() != javafx.scene.input.MouseEvent.MOUSE_EXITED_TARGET) {
+                        System.out.println("[traza] " + ev.getEventType() + " en " + describe(here)
+                                + (ev.isConsumed() ? " CONSUMIDO" : ""));
+                    }
+                };
+                here.addEventFilter(javafx.scene.input.MouseEvent.ANY, spy);
+                here.addEventHandler(javafx.scene.input.MouseEvent.ANY, spy);
+            }
+        }
+        final javafx.stage.Window w = scene.getWindow();
+        final double sx = w.getX() + scene.getX() + p.getX();
+        final double sy = w.getY() + scene.getY() + p.getY();
+        // Fuera de la animacion: el arnes llama desde un Timeline, y una carta
+        // con varias habilidades abre su menu con un bucle anidado, que JavaFX
+        // no deja abrir durante una animacion (las notas de diseño, seccion 5).
+        javafx.application.Platform.runLater(() -> {
+            sceneMouse(scene, javafx.scene.input.MouseEvent.MOUSE_MOVED, p, sx, sy, false);
+            sceneMouse(scene, javafx.scene.input.MouseEvent.MOUSE_PRESSED, p, sx, sy, true);
+        });
+        final javafx.animation.PauseTransition hold =
+                new javafx.animation.PauseTransition(javafx.util.Duration.millis(120));
+        hold.setOnFinished(x -> javafx.application.Platform.runLater(() -> sceneMouse(scene,
+                javafx.scene.input.MouseEvent.MOUSE_RELEASED, p, sx, sy, false)));
+        hold.play();
+    }
+
+    /** Los nodos que ya llevan el espia de {@code neo.click.trace}, para no repetirlo. */
+    private static final java.util.Set<javafx.scene.Node> SPIED =
+            java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
+
+    private static void sceneMouse(final javafx.scene.Scene scene,
+                                   final javafx.event.EventType<javafx.scene.input.MouseEvent> type,
+                                   final javafx.geometry.Point2D p, final double sx, final double sy,
+                                   final boolean down) {
+        final boolean moved = type == javafx.scene.input.MouseEvent.MOUSE_MOVED;
+        final javafx.scene.input.MouseEvent e = new javafx.scene.input.MouseEvent(
+                type, p.getX(), p.getY(), sx, sy,
+                moved ? javafx.scene.input.MouseButton.NONE : javafx.scene.input.MouseButton.PRIMARY,
+                moved ? 0 : 1,
+                false, false, false, false,
+                down, false, false,
+                false, false, false, null);
+        try {
+            final java.lang.reflect.Method process = javafx.scene.Scene.class
+                    .getDeclaredMethod("processMouseEvent", javafx.scene.input.MouseEvent.class);
+            process.setAccessible(true);
+            process.invoke(scene, e);
+        } catch (final ReflectiveOperationException ex) {
+            System.out.println("[mesa] no se puede mandar el raton por la escena: " + ex);
+        }
+    }
+
+    /**
      * Maqueta del reparto de dano de combate.
      *
      * <p>El dialogo real solo sale cuando una criatura tuya es bloqueada por
@@ -2359,6 +2441,76 @@ final class NeoAppDebug {
             settle.play();
         });
         wait.play();
+    }
+
+    /**
+     * El nodo que recibiria un clic en ese punto de la escena, como lo elige
+     * JavaFX: de delante a atras (orden de pintado, con {@code viewOrder}), sin
+     * los invisibles ni los transparentes al raton, con su recorte, y "dentro"
+     * segun {@code pickOnBounds} o su forma. Aproximado, pero basta para
+     * encontrar una capa vacia olvidada encima de la mesa ({@code @hit}).
+     */
+    static javafx.scene.Node pickAt(final javafx.scene.Node node, final double sx, final double sy) {
+        if (node == null || !node.isVisible() || node.isMouseTransparent()) {
+            return null;
+        }
+        final javafx.geometry.Point2D local = node.sceneToLocal(sx, sy);
+        if (local == null) {
+            return null;
+        }
+        final javafx.scene.Node clip = node.getClip();
+        if (clip != null && !clip.contains(clip.parentToLocal(local))) {
+            return null;
+        }
+        if (node instanceof javafx.scene.Parent parent) {
+            final List<javafx.scene.Node> kids = new ArrayList<>(parent.getChildrenUnmodifiable());
+            // Orden de pintado: el viewOrder MAS ALTO va detras.
+            kids.sort(java.util.Comparator.comparingDouble(javafx.scene.Node::getViewOrder).reversed());
+            for (int i = kids.size() - 1; i >= 0; i--) {
+                final javafx.scene.Node hit = pickAt(kids.get(i), sx, sy);
+                if (hit != null) {
+                    return hit;
+                }
+            }
+        }
+        final boolean inside = node.isPickOnBounds()
+                ? node.getBoundsInLocal().contains(local) : node.contains(local);
+        return inside ? node : null;
+    }
+
+    /** Si {@code hit} es {@code target} o algo de dentro. */
+    static boolean isWithin(final javafx.scene.Node hit, final javafx.scene.Node target) {
+        for (javafx.scene.Node n = hit; n != null; n = n.getParent()) {
+            if (n == target) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Para el registro: clase, id, clases de estilo y de quien cuelga. */
+    static String describe(final javafx.scene.Node n) {
+        if (n == null) {
+            return "nada";
+        }
+        final StringBuilder sb = new StringBuilder();
+        for (javafx.scene.Node x = n; x != null; x = x.getParent()) {
+            if (sb.length() > 0) {
+                sb.append(" < ");
+            }
+            sb.append(x.getClass().getSimpleName());
+            if (x.getId() != null) {
+                sb.append('#').append(x.getId());
+            }
+            if (!x.getStyleClass().isEmpty()) {
+                sb.append('.').append(String.join(".", x.getStyleClass()));
+            }
+            if (sb.length() > 600) {
+                sb.append(" ...");
+                break;
+            }
+        }
+        return sb.toString();
     }
 
 }

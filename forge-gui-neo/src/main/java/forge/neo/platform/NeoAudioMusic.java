@@ -27,6 +27,15 @@ public class NeoAudioMusic implements IAudioMusic {
      * @param path ruta completa del fichero de musica
      */
     public NeoAudioMusic(final String path) {
+        // Sin JavaFX arrancado (los comprobadores, que van sin ventana) no hay
+        // musica: el lector de etiquetas del mp3 avisa por Platform.runLater, que
+        // revienta ("Toolkit not initialized"), y desde el 14-10-2026 la JVM
+        // entera caia con el (questcheck, codigo 0xC0000005). Jugando el
+        // toolkit siempre esta, asi que al jugador no le cambia nada.
+        if (!toolkitUp()) {
+            this.player = null;
+            return;
+        }
         try {
             this.player = new MediaPlayer(new Media(new File(path).toURI().toString()));
             this.player.setVolume(volume);
@@ -105,6 +114,16 @@ public class NeoAudioMusic implements IAudioMusic {
     @Override
     public boolean isPlaying() {
         return playing;
+    }
+
+    /** Si JavaFX esta arrancado: sin el, runLater lanza IllegalStateException. */
+    private static boolean toolkitUp() {
+        try {
+            Platform.runLater(() -> { });
+            return true;
+        } catch (final IllegalStateException e) {
+            return false;
+        }
     }
 
     private static void run(final Runnable action) {

@@ -504,6 +504,24 @@ public class CardNode extends StackPane {
      * habria quedado sin brillar. Una optimizacion que no optimiza y encima
      * tiene un caso raro no se queda.
      */
+    /**
+     * Rehace la foto en cache de cada carta de ese arbol.  La cache se pinta a
+     * la escala de pantalla del momento y no se invalida sola si esta cambia.
+     */
+    public static void refreshCachesIn(final javafx.scene.Node root) {
+        if (root instanceof CardNode cn) {
+            if (!cn.foilTicking) {
+                cn.setCache(false);
+                cn.setCache(true);
+            }
+        }
+        if (root instanceof javafx.scene.Parent p) {
+            for (final javafx.scene.Node child : p.getChildrenUnmodifiable()) {
+                refreshCachesIn(child);
+            }
+        }
+    }
+
     private void updateFoilMotion() {
         final boolean want = foil && foilEffect && foilMotion
                 && getScene() != null && isVisible();
@@ -578,8 +596,7 @@ public class CardNode extends StackPane {
 
     private void updateSideways() {
         final Image img = art.getImage();
-        final CardStateView st = card == null ? null
-                : forcedFace != null ? forcedFace : card.getCurrentState();
+        final CardStateView st = card == null ? null : shownState();
         final forge.card.CardTypeView t = st == null ? null : st.getType();
         final boolean landscapeCard = t != null && (t.isPlane() || t.isPhenomenon() || t.isBattle());
         final boolean wide = img != null && img.getWidth() > img.getHeight() * 1.15;
@@ -757,6 +774,38 @@ public class CardNode extends StackPane {
     private CardStateView forcedFace;
 
     /**
+     * La cara que se pinta: la forzada, o la que esta boca arriba.
+     *
+     * <p>Salvo una carta <b>boca abajo fuera de la mesa que puedes mirar</b> —
+     * lo que exilia Gonti, Night Minister ("puedes jugarla mientras siga
+     * exiliada") o una carta escondida con hideaway —: esa se pinta por su
+     * cara. El dorso no tiene arte, asi que salia un marco vacio y la carta
+     * solo se veia en la descripcion (Discord, 14-10-2026). En la mesa no: un
+     * morfo es un 2/2 sin nombre aunque sepas lo que es. Quien puede mirarla lo
+     * dice el motor ({@code canFaceDownBeShownToAny}), con los mismos
+     * "nosotros" que la carta ampliada ({@code CardZoom.localViewers}).
+     */
+    private CardStateView shownState() {
+        if (forcedFace != null) {
+            return forcedFace;
+        }
+        final CardStateView current = card.getCurrentState();
+        if (card.isFaceDown() && card.getZone() != ZoneType.Battlefield) {
+            try {
+                if (card.canFaceDownBeShownToAny(forge.neo.ui.CardZoom.localViewers())) {
+                    final CardStateView real = card.getAlternateState();
+                    if (real != null && real != current && real.getImageKey() != null) {
+                        return real;
+                    }
+                }
+            } catch (final RuntimeException e) {
+                // Sin poder preguntarlo, el dorso: nunca ensenyar de mas.
+            }
+        }
+        return current;
+    }
+
+    /**
      * Si al cambiar de carta se borra el arte mientras llega el nuevo.
      *
      * <p><b>Apagado por defecto, y a proposito.</b> En la mesa, en la mano y en
@@ -870,7 +919,7 @@ public class CardNode extends StackPane {
             refreshKeywords();
             return;
         }
-        final CardStateView st = forcedFace != null ? forcedFace : card.getCurrentState();
+        final CardStateView st = shownState();
 
         // --- imagen ---
         //

@@ -242,6 +242,10 @@ public final class NeoQuest {
     public static void start(final String name, final Modalidad modalidad,
                              final Dificultad dificultad, final Deck startingDeck,
                              final String worldName, final forge.neo.ascent.AscentPool pool) {
+        // Una Quest nueva con el nombre de otra: lo que aquella dejo junto a la
+        // partida (los rivales del Coliseo, el sobre del dia) no es de esta.
+        NeoColosseum.deleteSaved(name);
+        NeoDailyPack.deleteSaved(name);
         final boolean limited = pool != null && !pool.isAll();
         final forge.game.GameFormat format = limited ? formatOf(pool) : null;
         Deck deck = startingDeck;
@@ -516,6 +520,7 @@ public final class NeoQuest {
             bak.delete();
         }
         NeoColosseum.deleteSaved(name);
+        NeoDailyPack.deleteSaved(name);
         final String current = FModel.getQuestPreferences()
                 .getPref(QuestPreferences.QPref.CURRENT_QUEST);
         if (current != null && current.equals(name + ".dat")) {

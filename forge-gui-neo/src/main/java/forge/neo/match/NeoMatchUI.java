@@ -2134,6 +2134,10 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         if (event == null) {
             return;
         }
+        // Lo ha provocado una pregunta nuestra, no la partida. Ver probing.
+        if (probing == Thread.currentThread()) {
+            return;
+        }
         // EL PRIMERO, y a proposito. Lo que viene detras puede tardar mucho
         // (watchForThingsThatAffectMe llega a PARAR el hilo del motor hasta que
         // pulsas "Entendido") y puede reventar, y en los dos casos el aviso se
@@ -3312,7 +3316,13 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             }
             for (final forge.game.card.Card c : owner.getCardsIn(card.getZone())) {
                 if (c.getId() == card.getId()) {
-                    return !c.getAllPossibleAbilities(me, true).isEmpty();
+                    final Thread was = probing;
+                    probing = Thread.currentThread();
+                    try {
+                        return !c.getAllPossibleAbilities(me, true).isEmpty();
+                    } finally {
+                        probing = was;
+                    }
                 }
             }
             return true;
@@ -3322,6 +3332,24 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             return true;
         }
     }
+
+    /**
+     * El hilo que esta preguntando al motor por su cuenta ({@link #castableNow}),
+     * o null. Lo que el motor avise DESDE ESE HILO mientras tanto lo ha
+     * provocado la pregunta, no la partida, y {@link #handleGameEvent} lo tira.
+     *
+     * <p>Preguntar no es gratis: para mirar una carta boca abajo del exilio
+     * (las de Gonti, las de Predators' Hour) el motor le da la vuelta y la
+     * vuelve a tapar ({@code Spell.getAlternateHost} → {@code forceTurnFaceUp}),
+     * y cada vuelta avisa ({@code GameEventCardStatsChanged}). El aviso
+     * repintaba la mesa, el repintado volvia a preguntar... unos 200 repintados
+     * por segundo mientras tuvieras la prioridad, y cada uno saca y vuelve a
+     * meter las cartas de la mesa: un clic cae siempre entre dos y se pierde.
+     * Discord, 14-10-2026: <i>"no puedo activar nada de la mesa, ni las
+     * basicas"</i> en cuanto habia una carta exiliada boca abajo, con el
+     * arrastre (que no es un clic) funcionando.
+     */
+    private volatile Thread probing;
 
     boolean isMayhemCastable(final CardView card) {
         final GameView gv = getGameView();
@@ -6014,6 +6042,9 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
      * desde un hilo cualquiera funciona, pero va mucho mas lento por contencion.
      * En la fase 4 quien llame a esto sera el manejador del click del usuario.
      */
+    /** Cuantas respuestas han reventado en el motor en esta partida (para el registro). */
+    private final AtomicInteger droppedResponses = new AtomicInteger();
+
     private void respondLater(final Runnable action) {
         decisions.incrementAndGet();
         final Runnable safe = () -> {
@@ -6022,6 +6053,15 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             } catch (final Exception e) {
                 // El motor puede haber avanzado ya; no es fatal.
                 trace("respuesta descartada: %s", e.getClass().getSimpleName());
+                // Pero SIEMPRE al registro: un clic que revienta aqui se pierde
+                // sin que se vea nada, y sin esta linea tampoco quedaba en el
+                // neo.log que nos manda quien lo reporta (Discord, 14-10-2026:
+                // "no puedo activar nada de la mesa"). Con la traza las primeras
+                // veces, para no llenarlo si se repite.
+                System.err.println("[neo] respuesta descartada: " + e);
+                if (droppedResponses.incrementAndGet() <= 5) {
+                    e.printStackTrace();
+                }
             }
         };
         final UiDispatcher ui = uiDispatcher();
