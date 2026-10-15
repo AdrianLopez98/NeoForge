@@ -41,6 +41,19 @@ public final class DialogBackdrop extends FScreen {
     }
 
     /**
+     * Sin pantalla de fondo, como la mesa de Forge ({@code MatchScreen}). La de
+     * serie es {@code HomeScreen.instance}, y desde Forge #12258 (15-10-2026)
+     * crearla revienta en nuestro Adventure (su color de tema llega nulo): al
+     * volver de CADA duelo, "la vuelta al Adventure ha fallado" en
+     * {@code setSize}. Este fondo ocupa la pantalla entera y no necesita nada
+     * detras.
+     */
+    @Override
+    public FScreen getLandscapeBackdropScreen() {
+        return null;
+    }
+
+    /**
      * En el hilo de libGDX. Si ya hay una pantalla de Forge, no se toca.
      * Publico porque Android tiene el mismo puente ({@code PuenteAventura}) y
      * el mismo fallo: no depende de JavaFX.
