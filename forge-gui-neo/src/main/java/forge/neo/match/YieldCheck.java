@@ -38,6 +38,11 @@ import forge.player.PlayerControllerHuman;
  *       dice que si; el de la interfaz no se queda con la marca.</li>
  *   <li>Ya en el turno del rival, el motor la ha cancelado ({@code
  *       autoPassCancel} al final de cada turno).</li>
+ *   <li>En ese turno del rival se vuelve a pulsar, y el rival lanza unos
+ *       Llanowar Elves: el pase se tiene que cortar ahi, como en Forge
+ *       ({@code YIELD_INTERRUPT_ON_OPPONENT_SPELL}). Discord, 15-10-2026: no se
+ *       cortaba, porque el aviso del hechizo iba al controlador de la interfaz
+ *       y el pase estaba en el sentado. Ahora los dos comparten el suyo.</li>
  *   <li>Turno 5, con el pase encendido como viene: "control total" lo apaga
  *       en el sentado, y otra pulsacion lo vuelve a encender.</li>
  * </ol>
@@ -54,6 +59,8 @@ public final class YieldCheck {
     private static final int PASSING = 1;
     private static final int WAIT_FULL = 2;
     private static final int DONE = 3;
+    private static final int OPP_PASSING = 4;
+    private static final String ELVES = "Llanowar Elves";
 
     private static int passed;
     private static int failed;
@@ -65,8 +72,14 @@ public final class YieldCheck {
         final AtomicBoolean relayed = new AtomicBoolean();
         final AtomicBoolean eotOnSeated = new AtomicBoolean();
         final AtomicBoolean seatedMayPass = new AtomicBoolean();
-        final AtomicBoolean uiClean = new AtomicBoolean();
+        final AtomicBoolean shared = new AtomicBoolean();
+        final AtomicBoolean interruptReaches = new AtomicBoolean();
+        final AtomicBoolean cancelReaches = new AtomicBoolean();
         final AtomicBoolean cancelledNextTurn = new AtomicBoolean();
+        final AtomicBoolean oppArmed = new AtomicBoolean();
+        final AtomicInteger elvesBefore = new AtomicInteger();
+        final java.util.concurrent.atomic.AtomicReference<String> oppWhere =
+                new java.util.concurrent.atomic.AtomicReference<>();
         final AtomicBoolean fullOff = new AtomicBoolean();
         final AtomicBoolean fullOffReported = new AtomicBoolean();
         final AtomicBoolean fullBackOn = new AtomicBoolean();
@@ -86,7 +99,9 @@ public final class YieldCheck {
             while (alive.get() && seen.stage.get() != DONE) {
                 try {
                     step(gui[0], seen);
-                    Thread.sleep(50L);
+                    // Al cambiar de turno, mas a menudo: el del rival llega a su
+                    // fase principal en nada, y hay que armar el pase antes.
+                    Thread.sleep(seen.stage.get() == PASSING ? 1L : 50L);
                 } catch (final InterruptedException e) {
                     Thread.currentThread().interrupt();
                     return;
@@ -116,12 +131,24 @@ public final class YieldCheck {
         check(seen.seatedMayPass.get(),
                 "y el motor pasaria la prioridad sola (mayAutoPass del sentado)",
                 "el motor no pasaria la prioridad: te volveria a parar");
-        check(seen.uiClean.get(),
-                "el controlador de la interfaz no se queda con la marca",
-                "la marca se quedo en el controlador de la interfaz, donde nadie la borra");
+        check(seen.shared.get(),
+                "la interfaz y el sentado tienen el MISMO pase (el aviso, el Cancelar y los cortes de Forge lo ven)",
+                "la interfaz y el sentado tienen pases distintos: Cancelar y los cortes no llegan");
+        check(seen.interruptReaches.get(),
+                "el corte de Forge por un hechizo del rival para el pase que lee el motor",
+                "el corte de Forge no llega al pase que lee el motor");
+        check(seen.cancelReaches.get(),
+                "y su boton Cancelar tambien",
+                "el Cancelar de Forge no llega al pase que lee el motor");
         check(seen.cancelledNextTurn.get(),
                 "en el turno del rival el motor ya la ha cancelado",
                 "la marca seguia puesta en el turno del rival");
+        check(seen.oppArmed.get(),
+                "en el turno del rival se vuelve a pulsar \"pasar turno\"",
+                "no se pudo armar el pase en el turno del rival");
+        check(seen.oppWhere.get() != null,
+                "y en una partida de verdad lo corta lo que hace el rival, como en Forge (en " + seen.oppWhere.get() + ")",
+                "el pase siguio hasta el final del turno del rival: ni su ataque ni sus hechizos lo cortaron");
         check(seen.fullOff.get(),
                 "\"control total\" apaga el pase automatico en el sentado",
                 "\"control total\" no apago el pase que lee el motor");
@@ -192,7 +219,19 @@ public final class YieldCheck {
                         ui.armPassTurn(gc, me.getView(), false);
                         seen.eotOnSeated.set(yields.autoPassUntilEndOfTurn());
                         seen.seatedMayPass.set(seated.mayAutoPass());
-                        seen.uiClean.set(seated == gc || !gc.getYieldController().autoPassUntilEndOfTurn());
+                        seen.shared.set(gc.getYieldController() == seated.getYieldController()
+                                && gc.getYieldController().autoPassUntilEndOfTurn());
+                        // Lo que hace FControlGameEventHandler con un hechizo del
+                        // rival: applyInterrupt sobre el controlador que le dio
+                        // HostedMatch, que es el de la interfaz.
+                        gc.getYieldController().applyInterrupt();
+                        seen.interruptReaches.set(!yields.autoPassUntilEndOfTurn() && !seated.mayAutoPass());
+                        // Y el Cancelar del aviso "Cediendo hasta el final del
+                        // turno" (InputLockUI.selectButtonCancel), igual.
+                        ui.armPassTurn(gc, me.getView(), false);
+                        gc.getYieldController().clearActiveYieldAndDispatch();
+                        seen.cancelReaches.set(!yields.autoPassUntilEndOfTurn());
+                        ui.armPassTurn(gc, me.getView(), false);
                         // Y ahora el OK, como la tecla sobre el aviso rutinario.
                         gc.selectButtonOk();
                     });
@@ -201,7 +240,29 @@ public final class YieldCheck {
             case PASSING:
                 if (!ph.isPlayerTurn(me)) {
                     seen.cancelledNextTurn.set(!yields.autoPassUntilEndOfTurn());
+                    seen.stage.set(OPP_PASSING);
+                    // "Pasar turno" en el turno del rival, antes de que lance
+                    // nada: lo que tiene que cortar el pase es su hechizo. Desde
+                    // aqui y no por el hilo de la interfaz, que llega tarde: su
+                    // mantenimiento y su robo pasan en un suspiro.
+                    // Los elfos que ya tenia: cuenta uno NUEVO, lanzado con el pase puesto.
+                    seen.elvesBefore.set(opponentElves(game, me));
+                    {
+                        YieldController.endTurn(seated, me.getView());
+                        seen.oppArmed.set(yields.autoPassUntilEndOfTurn());
+                    }
+                }
+                break;
+            case OPP_PASSING:
+                if (ph.isPlayerTurn(me)) {
                     seen.stage.set(WAIT_FULL);
+                } else if (seen.oppArmed.get() && seen.oppWhere.get() == null && !yields.autoPassUntilEndOfTurn()
+                        && ph.getPhase() != null && ph.getPhase().isBefore(PhaseType.END_OF_TURN)) {
+                    // Cortado antes de acabar su turno: sin el arreglo solo se
+                    // quitaba en su limpieza. Lo corta su ataque (el elfo te
+                    // ataca: YIELD_INTERRUPT_ON_ATTACKERS) o su hechizo.
+                    seen.oppWhere.set(ph.getPhase() + (opponentElves(game, me) > seen.elvesBefore.get()
+                            ? ", con un elfo nuevo lanzado" : ""));
                 }
                 break;
             case WAIT_FULL:
@@ -249,6 +310,28 @@ public final class YieldCheck {
         t.start();
     }
 
+    /** Cuantos elfos tiene el rival en la pila y en la mesa. */
+    private static int opponentElves(final Game game, final Player me) {
+        int n = 0;
+        for (final forge.game.spellability.SpellAbilityStackInstance si : game.getStack()) {
+            if (si.getActivatingPlayer() != me && si.getSourceCard() != null
+                    && ELVES.equals(si.getSourceCard().getName())) {
+                n++;
+            }
+        }
+        for (final Player p : game.getRegisteredPlayers()) {
+            if (p == me) {
+                continue;
+            }
+            for (final forge.game.card.Card c : p.getCardsIn(forge.game.zone.ZoneType.Battlefield)) {
+                if (ELVES.equals(c.getName())) {
+                    n++;
+                }
+            }
+        }
+        return n;
+    }
+
     private static Player human(final Game game) {
         if (game == null) {
             return null;
@@ -276,8 +359,9 @@ public final class YieldCheck {
                 "humanexile=",
                 "humancommand=",
                 "aibattlefield=" + FOREST,
-                "aihand=",
-                "ailibrary=" + library,
+                "aihand=" + ELVES + "|Set:M19",
+                // Solo elfos: con su bosque, el rival lanza uno en cada turno.
+                "ailibrary=" + String.join(";", Collections.nCopies(20, ELVES + "|Set:M19")),
                 "aigraveyard=",
                 "aiexile=",
                 "aicommand=");

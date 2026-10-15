@@ -172,6 +172,11 @@ public final class NeoQuestArt {
         int decks = 0;
         for (final Deck deck : NeoQuest.decks()) {
             boolean touched = false;
+            // Nunca mas de las que has PAGADO. En un mazo normal da igual (lleva
+            // como mucho las que tienes, y lo que no cubre la vieja son justo
+            // las cambiadas), pero uno de la lista de deseos lleva mas de las
+            // que tienes: 4 en el mazo, 1 tuya, pagas 1... y se cambiaban las 4.
+            int swapLeft = n;
             for (final Map.Entry<DeckSection, CardPool> section : deck) {
                 final CardPool pool = section.getValue();
                 final int inSection = pool.count(from);
@@ -181,7 +186,8 @@ public final class NeoQuestArt {
                 // Lo que la vieja puede seguir cubriendo se reparte por secciones
                 // en el orden en que salen; lo que no, se cambia.
                 final int keep = Math.min(inSection, Math.max(0, left - countElsewhere(deck, from, section.getKey())));
-                final int swap = inSection - keep;
+                final int swap = Math.min(inSection - keep, swapLeft);
+                swapLeft -= Math.max(0, swap);
                 if (swap > 0) {
                     pool.remove(from, swap);
                     pool.add(to, swap);

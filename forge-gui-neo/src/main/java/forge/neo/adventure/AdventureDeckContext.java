@@ -362,6 +362,30 @@ final class AdventureDeckContext implements DeckContext {
         return out;
     }
 
+    /** Lo mismo que {@link #catalogueActions}, como interruptor: todo o nada. */
+    @Override
+    public AutoSellToggle autoSellToggle(final PaperCard card, final int copiesInThisDeck) {
+        if (card == null || isBasic(card) || card.hasNoSellValue()) {
+            return null;
+        }
+        final String k = key(card);
+        int total = 0;
+        int used = 0;
+        for (final Map.Entry<PaperCard, Integer> e : player.getCards()) {
+            if (key(e.getKey()).equals(k)) {
+                total += e.getValue();
+                used += player.getCopiesUsedInDecks(e.getKey());
+            }
+        }
+        if (total <= 0) {
+            return null;
+        }
+        final int inAutoSell = countIn(player.getAutoSellCards(), k);
+        final int spare = Math.max(0, total - Math.max(used, copiesInThisDeck) - inAutoSell);
+        return new AutoSellToggle(inAutoSell, spare,
+                () -> moveToAutoSell(card, spare), () -> takeBack(card, inAutoSell));
+    }
+
     private static int countIn(final Iterable<Map.Entry<PaperCard, Integer>> pool, final String k) {
         int n = 0;
         for (final Map.Entry<PaperCard, Integer> e : pool) {

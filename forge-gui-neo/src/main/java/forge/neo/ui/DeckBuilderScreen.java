@@ -121,6 +121,8 @@ public class DeckBuilderScreen extends StackPane {
     private final Button foilAllButton = new Button(NeoText.get("deck.foilAll"));
 
     private final Button cleanup = new Button(NeoText.get("deck.cleanup"));
+    /** "Quitar las que no tengo": la lista de deseos de la Quest, de vuelta a lo tuyo. */
+    private final Button removeMissing = new Button(NeoText.get("deck.removeMissing"));
     /**
      * Vaciar el banquillo cuando se pasa del limite del formato (Discord,
      * 06-10-2026): el banquillo no se ve en ninguna pantalla, y un mazo
@@ -613,9 +615,8 @@ public class DeckBuilderScreen extends StackPane {
 
         // Con catalogo limitado esta columna ya no es "el catalogo de Magic":
         // es TU COLECCION. Decirlo cambia lo que el jugador espera encontrar.
-        final HBox caption = new HBox(10,
-                label(editor.getFormat().catalogueLabel()), pickingBadge,
-                gap, legal);
+        final Label catalogueTitle = label(editor.getFormat().catalogueLabel());
+        final HBox caption = new HBox(10, catalogueTitle, pickingBadge, gap, legal);
         if (world != null) {
             caption.getChildren().add(caption.getChildren().indexOf(legal), world);
         }
@@ -633,6 +634,12 @@ public class DeckBuilderScreen extends StackPane {
             copy.setMinWidth(Region.USE_PREF_SIZE);
             copy.setOnAction(e -> copyCollection());
             caption.getChildren().add(caption.getChildren().indexOf(legal), copy);
+        }
+        // "Mis cartas / Todas las cartas", como en Arena (la Quest): con todas,
+        // se pueden meter las que aun no tienes y el mazo se guarda, pero no se
+        // juega hasta conseguirlas (Discord, 15-10-2026).
+        if (editor.canShowAllCards()) {
+            caption.getChildren().add(caption.getChildren().indexOf(legal), showAllToggle(catalogueTitle));
         }
         if (editor.bulkAutoSell(List.of()) != null) {
             final Button sell = new Button(NeoText.get("deck.autoSellFiltered"));
@@ -910,6 +917,55 @@ public class DeckBuilderScreen extends StackPane {
     }
 
     /** La coleccion entera, para copiarla (ver DeckContext.collectionText). */
+    /**
+     * El interruptor del catalogo: tu coleccion o todas las cartas. Cambiarlo
+     * rehace el catalogo y deja el mazo como esta.
+     */
+    private Region showAllToggle(final Label title) {
+        final Button mine = new Button(NeoText.get("deck.showMine"));
+        final Button all = new Button(NeoText.get("deck.showAll"));
+        for (final Button b : new Button[] {mine, all}) {
+            b.getStyleClass().add("segment");
+            b.setMinWidth(Region.USE_PREF_SIZE);
+            b.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("deck.showAll.tip")));
+        }
+        mine.setId("builder-show-mine");
+        all.setId("builder-show-all");
+        final Runnable paint = () -> {
+            mine.pseudoClassStateChanged(SELECTED, !editor.showsAllCards());
+            all.pseudoClassStateChanged(SELECTED, editor.showsAllCards());
+            // "TU COLECCION" o "CATALOGO": el titulo dice lo que hay debajo.
+            title.setText(editor.getFormat().catalogueLabel());
+        };
+        mine.setOnAction(e -> {
+            editor.setShowAllCards(false);
+            paint.run();
+            refreshCatalogue();
+        });
+        all.setOnAction(e -> {
+            editor.setShowAllCards(true);
+            paint.run();
+            refreshCatalogue();
+        });
+        // -Dneo.builder.showAll=true lo abre con todas, para capturarlo.
+        if (Boolean.getBoolean("neo.builder.showAll")) {
+            editor.setShowAllCards(true);
+            // -Dneo.builder.addCard=Nombre mete 2 de esa carta, para ver el "falta".
+            final String add = System.getProperty("neo.builder.addCard");
+            final PaperCard extra = add == null ? null : forge.model.FModel.getMagicDb().getCommonCards().getCard(add);
+            if (extra != null) {
+                editor.add(extra, 2);
+                // Y la busca, para que se vea su casilla del catalogo en la captura.
+                final String name = extra.getName();
+                javafx.application.Platform.runLater(() -> searchFor(name));
+            }
+        }
+        paint.run();
+        final HBox box = new HBox(2, mine, all);
+        box.setAlignment(Pos.CENTER_LEFT);
+        return box;
+    }
+
     private void copyCollection() {
         final String text = editor.getFormat().collectionText();
         overlay.show(TextDialog.block(NeoText.get("deck.copyCollection.title"),
@@ -975,7 +1031,9 @@ public class DeckBuilderScreen extends StackPane {
         if (ed.getCode().equalsIgnoreCase(card.getEdition())) {
             return true;
         }
-        if (editor.getFormat().pool() != null) {
+        // Con "Todas las cartas" (la Quest), una que no tienes es como en el
+        // catalogo de todo Magic: vale cualquier impresion suya en esa expansion.
+        if (editor.getFormat().pool() != null && !(editor.showsAllCards() && editor.owned(card) == 0)) {
             return false;
         }
         final forge.neo.deck.CardLibrary lib = library;
@@ -1519,6 +1577,11 @@ public class DeckBuilderScreen extends StackPane {
         cleanup.setOnAction(e -> removeIllegal());
         cleanup.setVisible(false);
         cleanup.setManaged(false);
+        removeMissing.getStyleClass().add("btn-secondary");
+        removeMissing.setId("deck-remove-missing");
+        removeMissing.setOnAction(e -> removeMissing());
+        removeMissing.setVisible(false);
+        removeMissing.setManaged(false);
         clearSide.getStyleClass().add("btn-secondary");
         clearSide.setId("deck-clear-sideboard");
         clearSide.setOnAction(e -> clearSideboard());
@@ -1534,14 +1597,14 @@ public class DeckBuilderScreen extends StackPane {
 
         // Ningun boton se encoge por debajo de su texto: cuando la fila no cabe,
         // JavaFX lo corta con puntos suspensivos y queda un pie ilegible.
-        for (final Button b : new Button[] {back, cleanup, clearSide, commander, spellButton, generate,
+        for (final Button b : new Button[] {back, cleanup, removeMissing, clearSide, commander, spellButton, generate,
                 autoBuild, clearMain, importer, export, save}) {
             b.setMinWidth(Region.USE_PREF_SIZE);
         }
 
         final FlowPane actions =
-                new FlowPane(8, 8, cleanup, clearSide, commander, spellButton, generate, autoBuild, clearMain,
-                        importer, export);
+                new FlowPane(8, 8, cleanup, removeMissing, clearSide, commander, spellButton, generate, autoBuild,
+                        clearMain, importer, export);
         actions.setAlignment(Pos.CENTER_RIGHT);
         actions.setMinWidth(0);
         HBox.setHgrow(actions, Priority.ALWAYS);
@@ -1771,8 +1834,9 @@ public class DeckBuilderScreen extends StackPane {
         final boolean grouped = editor.getGroup() != DeckEditor.Group.NONE && !commanderMode;
         final Map<String, Integer> perGroup = new java.util.HashMap<>();
         if (grouped) {
+            // Las copias que tienes, no las cartas distintas: como las del mazo.
             for (final PaperCard c : catalogueHits) {
-                perGroup.merge(editor.catalogueGroupOf(c), 1, Integer::sum);
+                perGroup.merge(editor.catalogueGroupOf(c), editor.catalogueCopies(c), Integer::sum);
             }
         }
         String lastGroup = null;
@@ -1862,6 +1926,17 @@ public class DeckBuilderScreen extends StackPane {
         final int have = editor.countOf(card);
         count.setText(countLabel(have, editor.owned(card)));
         count.setVisible(!count.getText().isEmpty());
+        // Lleva mas de las que tienes (la lista de deseos de la Quest): en ambar.
+        if (editor.missingOf(card) > 0) {
+            count.getStyleClass().add("catalogue-count-missing");
+        }
+        // Con "Todas las cartas", las que no tienes en gris, como en Arena. Gris
+        // y no transparente: transparente ya quiere decir "no cabe" (abajo).
+        // Y sin el "0/0" mientras no esten en el mazo: en cada carta, no dice nada.
+        if (editor.showsAllCards() && editor.owned(card) == 0) {
+            node.setEffect(new javafx.scene.effect.ColorAdjust(0, -0.85, -0.15, 0));
+            count.setVisible(have > 0);
+        }
 
         // Una carta que ya no cabe se ve apagada. Es mas honesto que dejarla
         // igual y contestar con un aviso solo cuando la clicas.
@@ -1925,6 +2000,11 @@ public class DeckBuilderScreen extends StackPane {
             final int now = editor.countOf(card);
             count.setText(countLabel(now, editor.owned(card)));
             count.setVisible(!count.getText().isEmpty());
+            // Y si ya lleva mas de las que tienes, en ambar desde este clic.
+            count.getStyleClass().remove("catalogue-count-missing");
+            if (editor.missingOf(card) > 0) {
+                count.getStyleClass().add("catalogue-count-missing");
+            }
             // Al llegar al limite la carta se apaga sin tener que rebuscar.
             if (editor.rejectionReason(card) != null) {
                 node.setOpacity(0.4);
@@ -2093,6 +2173,10 @@ public class DeckBuilderScreen extends StackPane {
         }
         cleanup.setVisible(!illegal.isEmpty());
         cleanup.setManaged(!illegal.isEmpty());
+        // Solo cuando el mazo lleva cartas que no tienes (la Quest).
+        final boolean lacking = editor.missingTotal() > 0;
+        removeMissing.setVisible(lacking);
+        removeMissing.setManaged(lacking);
         final boolean sideTooBig = editor.sideboardOverflow() > 0;
         clearSide.setText(NeoText.get("deck.clearSideboard", editor.sideboardWithoutCompanion()));
         clearSide.setVisible(sideTooBig);
@@ -2196,6 +2280,13 @@ public class DeckBuilderScreen extends StackPane {
         HBox.setHgrow(name, Priority.ALWAYS);
 
         final Region cost = manaCost(card);
+        // Las que aun no tienes (lista de deseos de la Quest), a la vista.
+        final int missing = editor.missingOf(card);
+        final Label lacking = new Label(missing > 0 ? NeoText.get("deck.missing", missing) : "");
+        lacking.getStyleClass().add("deck-row-missing");
+        lacking.setMinWidth(Region.USE_PREF_SIZE);
+        lacking.setVisible(missing > 0);
+        lacking.setManaged(missing > 0);
 
         final Button less = stepper("-", () -> {
             editor.remove(card, 1);
@@ -2217,7 +2308,7 @@ public class DeckBuilderScreen extends StackPane {
         steps.setAlignment(Pos.CENTER_RIGHT);
         steps.setVisible(true);
 
-        final HBox content = new HBox(7, qty, name, cost, steps);
+        final HBox content = new HBox(7, qty, name, lacking, cost, steps);
         content.setAlignment(Pos.CENTER_LEFT);
         content.setPadding(new Insets(7, 8, 7, 8));
         final StackPane row = new StackPane(new DeckArtStrip(card), content);
@@ -2656,6 +2747,39 @@ public class DeckBuilderScreen extends StackPane {
                 }));
     }
 
+    /**
+     * "Quitar las que no tengo": deja el mazo con lo que tienes, preguntando
+     * antes con la lista. Es la salida de quien ha importado una lista o
+     * apuntado cartas y quiere jugar YA con lo suyo, sin quitarlas una a una.
+     */
+    private void removeMissing() {
+        final java.util.Map<PaperCard, Integer> lacking = editor.missingCards();
+        if (lacking.isEmpty()) {
+            return;
+        }
+        int total = 0;
+        final List<String> names = new ArrayList<>();
+        for (final Map.Entry<PaperCard, Integer> e : lacking.entrySet()) {
+            total += e.getValue();
+            names.add(CardText.nameOf(e.getKey()) + (e.getValue() > 1 ? " \u00d7" + e.getValue() : ""));
+        }
+        final StringBuilder sb = new StringBuilder(total == 1 ? NeoText.get("deck.removeMissing.askOne")
+                : NeoText.get("deck.removeMissing.ask", total))
+                .append(System.lineSeparator());
+        appendSome(sb, names);
+        overlay.setOnBackgroundClick(null);
+        overlay.show(new ConfirmDialog(NeoText.get("deck.removeMissing"), sb.toString(),
+                java.util.List.of(NeoText.get("deck.removeThem"), NeoText.get("common.cancel")), 0,
+                choice -> {
+                    overlay.hide();
+                    if (choice == 0) {
+                        editor.removeMissing();
+                        refreshDeck();
+                        refreshCatalogue();
+                    }
+                }));
+    }
+
     /** Vaciar el banquillo, preguntando antes: no se deshace. */
     private void clearSideboard() {
         final int n = editor.sideboardWithoutCompanion();
@@ -2798,15 +2922,23 @@ public class DeckBuilderScreen extends StackPane {
 
         final List<PaperCard> illegal = editor.illegalCards();
         final PaperCard companion = editor.companion();
+        // En la Quest lo que no tienes entra igual (la lista de deseos): se dice,
+        // o el "todo bien" esconderia que el mazo aun no se puede jugar.
+        final int missing = editor.missingTotal();
+        final String missingNote = missing == 0 ? "" : "\n\n" + NeoText.get("deck.import.missing", missing);
         if (unknown == 0 && illegal.isEmpty() && badCommanders.isEmpty() && badCompanions.isEmpty()) {
             message(NeoText.get("deck.import.ok"), NeoText.get("deck.import.added", added)
                     + (companion == null ? "" : "\n\n" + NeoText.get("deck.import.companion",
-                            CardText.nameOf(companion))));
+                            CardText.nameOf(companion)))
+                    + missingNote);
             return;
         }
 
         final StringBuilder sb = new StringBuilder();
         sb.append(NeoText.get("deck.import.added", added)).append('\n');
+        if (missing > 0) {
+            sb.append(missingNote.substring(1)).append('\n');
+        }
         // De quien es el mazo se dice SIEMPRE, aunque haya ido bien. Es lo que
         // decide que cartas caben, o sea el motivo de casi todo lo que venga
         // debajo — y cuando la lista lo trae en el banquillo (Moxfield), es una

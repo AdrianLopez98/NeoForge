@@ -62,6 +62,16 @@ public final class QuestDeckContext implements DeckContext {
      */
     private final Map<String, List<PaperCard>> printings;
 
+    /**
+     * El interruptor "Todas las cartas" (Discord, 15-10-2026, como en Arena).
+     * Apagado de fabrica: el constructor de la Quest se abre con tu coleccion,
+     * como siempre.
+     */
+    private boolean showAll;
+
+    /** Tu coleccion mas el resto de Magic que deja la Quest; se monta la primera vez. */
+    private List<PaperCard> allPool;
+
     public QuestDeckContext() {
         this.pool = new ArrayList<>();
         this.owned = new HashMap<>();
@@ -242,7 +252,95 @@ public final class QuestDeckContext implements DeckContext {
 
     @Override
     public List<PaperCard> pool() {
-        return pool;
+        return showAll ? allPool() : pool;
+    }
+
+    /**
+     * Lo que se pueden meter cartas que no tienes: siempre en la Quest. El
+     * interruptor solo decide QUE ensenya el catalogo; un mazo guardado con
+     * cartas de mas no se toca nunca al volver a abrirlo. Ver
+     * {@link DeckContext#allowsMissing()}.
+     */
+    @Override
+    public boolean allowsMissing() {
+        return true;
+    }
+
+    @Override
+    public boolean canShowAllCards() {
+        return true;
+    }
+
+    /** Sin banquillo libre: cargar la Quest lo vacia. Ver DeckContext.allowsSideboard. */
+    @Override
+    public boolean allowsSideboard() {
+        return false;
+    }
+
+    /** Con "Todas las cartas" ya no es tu coleccion: es el catalogo. */
+    @Override
+    public String catalogueLabel() {
+        return forge.neo.NeoText.get(showAll ? "deck.catalogue" : "deck.collection");
+    }
+
+    @Override
+    public boolean showsAllCards() {
+        return showAll;
+    }
+
+    @Override
+    public void setShowAllCards(final boolean on) {
+        showAll = on;
+    }
+
+    /**
+     * Tu coleccion y, ademas, una impresion de cada carta de Magic que puede
+     * salir en ESTA Quest: si se creo con unas expansiones, solo esas
+     * ({@code getMainFormat}); si no, todas. De lo tuyo se queda TU impresion,
+     * para que el arte que veas sea el que tienes.
+     */
+    /**
+     * Si una carta puede llegar a tus manos en la Quest. Fuera las rebalanceadas
+     * de Alchemy ("A-..."): no salen en ningun sobre ni en la tienda, y la
+     * mitad las mete el motor en el set desconocido ("???", donde
+     * {@code isRebalanced()} ya no las reconoce). Llenaban la primera pagina,
+     * sin foto, con cartas que nunca vas a tener.
+     */
+    private static boolean obtainable(final PaperCard c) {
+        return !c.getName().startsWith("A-") && !c.isRebalanced()
+                && !forge.card.CardEdition.UNKNOWN_CODE.equals(c.getEdition());
+    }
+
+    private List<PaperCard> allPool() {
+        if (allPool != null) {
+            return allPool;
+        }
+        final Map<String, PaperCard> byName = new HashMap<>();
+        for (final PaperCard c : pool) {
+            byName.put(key(c), c);
+        }
+        java.util.function.Predicate<PaperCard> allowed = c -> true;
+        try {
+            final forge.game.GameFormat f = NeoQuest.isActive() ? NeoQuest.engine().getMainFormat() : null;
+            if (f != null && f.getAllowedSetCodes() != null && !f.getAllowedSetCodes().isEmpty()) {
+                allowed = f.getFilterRules();
+            }
+        } catch (final RuntimeException e) {
+            // Sin formato que leer: todo Magic, que es lo de una Quest normal.
+        }
+        // Las reliquias de Ascenso tampoco: son cartas nuestras registradas en
+        // caliente y pueden acabar en getUniqueCards (ver CardIndex).
+        final java.util.Set<String> ours = forge.neo.ascent.AscentRelics.allCardNames();
+        for (final PaperCard c : forge.model.FModel.getMagicDb().getCommonCards().getUniqueCards()) {
+            if (c != null && c.getRules() != null && allowed.test(c) && obtainable(c)
+                    && !ours.contains(c.getName())) {
+                byName.putIfAbsent(key(c), c);
+            }
+        }
+        final List<PaperCard> out = new ArrayList<>(byName.values());
+        out.sort(java.util.Comparator.comparing(PaperCard::getName));
+        allPool = out;
+        return out;
     }
 
     @Override
@@ -263,7 +361,12 @@ public final class QuestDeckContext implements DeckContext {
         }
         final List<PaperCard> mine = printings.get(key(card));
         if (mine == null || mine.isEmpty()) {
-            // No la tienes: no hay arte que ofrecer, ni siquiera el suyo.
+            // No la tienes: no hay arte que ofrecer, ni siquiera el suyo. Tampoco
+            // con "Todas las cartas": la que aun no tienes se apunta con su arte
+            // de siempre, y el resto se elige al conseguirla, como cualquier
+            // otra. Si no, se apuntaba la de Secret Lair y en cuanto abrieras
+            // una normal se jugaba con ella: arte gratis, sin abrirlo ni
+            // pagarlo (NeoQuestArt).
             return List.of();
         }
         final List<PaperCard> out = new ArrayList<>(mine);

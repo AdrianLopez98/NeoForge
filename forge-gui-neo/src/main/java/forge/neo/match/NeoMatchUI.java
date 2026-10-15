@@ -17,7 +17,6 @@ import forge.LobbyPlayer;
 import forge.deck.CardPool;
 import forge.game.Game;
 import forge.game.GameEntityView;
-import forge.game.GameState;
 import forge.game.GameView;
 import forge.game.card.CardView;
 import forge.game.spellability.StackItemView;
@@ -1220,6 +1219,10 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         final String prompt = lastPrompt;
         final boolean passNow = !payingMana && !isSelecting() && getSelectionMax() <= 0
                 && prompt != null && isRoutinePriorityPrompt(prompt);
+        // En tu turno, la misma pregunta que el boton.
+        if (passNow && confirmEndingTurn(() -> respondLater(() -> armPassTurn(gc, me, true)))) {
+            return true;
+        }
         respondLater(() -> armPassTurn(gc, me, passNow));
         return true;
     }
@@ -1401,12 +1404,13 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
      *
      * <p>No es el que tiene la interfaz ({@code getGameController}): en
      * {@code openView} se sienta un relevo ({@link ManaColor}) que comparte
-     * interfaz, {@code InputQueue} e {@code InputProxy}, pero tiene SU PROPIO
-     * {@code YieldController}. Y quien decide si la prioridad se pasa sola
-     * ({@code chooseSpellAbilityToPlay}) es el sentado, con el suyo. Lo que se
-     * le cambiara al de la interfaz — el pase automatico, "hasta final de
-     * turno" — no lo leia nadie. Visto el 25-09-2026 midiendo la macro: la
-     * interfaz decia pase apagado y el sentado lo tenia encendido.
+     * interfaz, {@code InputQueue} e {@code InputProxy}. Hasta el 15-10-2026
+     * tenia ademas SU PROPIO {@code YieldController}, y quien decide si la
+     * prioridad se pasa sola ({@code chooseSpellAbilityToPlay}) es el sentado:
+     * lo que se le cambiara al de la interfaz no lo leia nadie (visto el
+     * 25-09-2026 midiendo la macro). Ahora los dos comparten uno
+     * ({@code SafeActions.Guarded.getYieldController}), pero se sigue pasando
+     * por aqui: si alguna vez no se pudiera compartir, esto es lo que vale.
      *
      * <p>Lo usan la macro, "control total" y "pasar turno": todo lo que toca
      * el estado del pase. Los clics siguen yendo al de la interfaz, que es por
@@ -4537,6 +4541,89 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                 && System.currentTimeMillis() - okSentAt < OK_WAIT_MS;
     }
 
+    /** Si el boton izquierdo es el "Fin de turno" del motor (y no "Deshacer"). */
+    private static boolean isEndTurnLabel(final String label) {
+        return label != null && label.equals(forge.util.Localizer.getInstance().getMessage("lblEndTurn"));
+    }
+
+    /**
+     * "¿Terminar tu turno?" al pulsar Fin de turno en TU turno, diciendo a quien
+     * le toca despues (Discord, 15-10-2026: <i>"a confirmation ... that
+     * indicates who the turn will pass to, in case you accidentally click it on
+     * your turn without realizing"</i>).
+     *
+     * <p>Es el principio 6b otra vez: saltarse lo que queda de tu turno no se
+     * deshace. Va con el MISMO ajuste que {@link #confirmLeavingMain} y con su
+     * misma regla: antes de la segunda fase principal (te saltas el combate)
+     * pregunta con "al ir al combate"; en la segunda, solo con "en las dos".
+     * Fuera de tu turno no pregunta: ahi "Fin de turno" es lo normal.
+     *
+     * @param go lo que hace "Terminar el turno"
+     * @return true si se ha preguntado (y el que llama no hace nada mas)
+     */
+    private boolean confirmEndingTurn(final Runnable go) {
+        if (table == null || !interactive() || finished.get()) {
+            return false;
+        }
+        final int mode = forge.neo.NeoSettings.confirmPhaseMode();
+        final GameView gv = getGameView();
+        if (mode <= 0 || gv == null || !isMe(gv.getPlayerTurn())) {
+            return false;
+        }
+        final PhaseType phase = gv.getPhase();
+        if (phase == null || !phase.isBefore(PhaseType.END_OF_TURN)
+                || (phase == PhaseType.MAIN2 && mode < 2)) {
+            return false;
+        }
+        if (payingMana || isSelecting() || getSelectionMax() > 0 || topOfStack() != null) {
+            return false;
+        }
+        final String prompt = lastPrompt;
+        if (prompt == null || prompt.isBlank() || !isRoutinePriorityPrompt(prompt)
+                || table.getOverlay().isShowing()) {
+            return false;
+        }
+        // A quien le toca: getNextTurn sabe de turnos extra. Sin partida en
+        // esta maquina (invitado en red) no se sabe, y se dice sin nombre.
+        String next = null;
+        boolean mine = false;
+        try {
+            final forge.game.Game game = gv.getGame();
+            final forge.game.player.Player p = game == null ? null : game.getPhaseHandler().getNextTurn();
+            if (p != null) {
+                mine = isMe(p.getView());
+                next = p.getName();
+            }
+        } catch (final RuntimeException e) {
+            next = null;
+        }
+        final String detail = mine ? NeoText.get("phase.ask.endTurnDetailYou")
+                : next == null ? NeoText.get("phase.ask.endTurnDetailNoName")
+                : NeoText.get("phase.ask.endTurnDetail", next);
+        final AtomicBoolean answered = new AtomicBoolean();
+        final ConfirmDialog dialog = new ConfirmDialog(
+                NeoText.get("phase.ask.endTurnTitle"), detail,
+                List.of(NeoText.get("phase.ask.stay"), NeoText.get("phase.ask.endGo")),
+                0,
+                index -> {
+                    if (!answered.compareAndSet(false, true)) {
+                        return;
+                    }
+                    table.getOverlay().hide();
+                    if (index != null && index == 1) {
+                        go.run();
+                    }
+                });
+        dialog.getStyleClass().add("phase-ask");
+        // El piloto de pruebas pulsa el primer .btn-primary: ver confirmLeavingMain.
+        if (dialog.option(1) != null) {
+            dialog.option(1).getStyleClass().add("phase-ask-go");
+        }
+        table.getOverlay().show(dialog);
+        table.requestLayout();
+        return true;
+    }
+
     private boolean confirmLeavingMain() {
         if (table == null || !interactive() || finished.get()) {
             return false;
@@ -4989,6 +5076,13 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                         respondLater(() -> getGameController().selectButtonOk());
                     });
                     table.getActionBar().setOnCancel(() -> {
+                        // "Fin de turno" en tu turno: preguntar antes.
+                        if (isEndTurnLabel(cancelLabel) && confirmEndingTurn(() -> {
+                            didDetail("pressed Cancel (" + cancelLabel + "), confirmed");
+                            respondLater(() -> getGameController().selectButtonCancel());
+                        })) {
+                            return;
+                        }
                         didDetail("pressed Cancel (" + cancelLabel + ")");
                         respondLater(() -> getGameController().selectButtonCancel());
                     });
@@ -8040,12 +8134,6 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         return !(!forge.gui.FThreads.isGuiThread()
                 && getGameController() instanceof forge.player.PlayerControllerHuman human
                 && PhaseOnlyAbilities.worthStopping(human.getPlayer(), phase));
-    }
-
-    @Override
-    public GameState getGamestate() {
-        // Puerta trasera al estado vivo. Solo para depurar; la GUI lee *View.
-        return null;
     }
 
     // ---------------------------------------------------------------

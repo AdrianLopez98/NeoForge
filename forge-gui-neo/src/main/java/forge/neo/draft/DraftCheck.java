@@ -34,11 +34,42 @@ public final class DraftCheck {
 
         int picks = 0;
         int lastRound = -1;
+        // El orden de la pantalla de picks (PackOrder, como en Arena), en cada
+        // sobre de verdad: las mismas cartas, la rareza de mayor a menor y la
+        // basica al final.
+        boolean ordered = true;
         while (!draft.isDone() && picks < 200) {
             final List<PaperCard> pack = draft.currentCards();
             if (pack.isEmpty()) {
                 break;
             }
+            final List<PaperCard> shown = PackOrder.sort(pack);
+            if (picks == 0) {
+                final StringBuilder sb = new StringBuilder("  Primer sobre, como se ensenya:");
+                for (final PaperCard c : shown) {
+                    sb.append(' ').append(c.getName()).append(" (")
+                            .append(c.getRarity() == null ? "?" : c.getRarity().toString()).append(')');
+                }
+                System.out.println(sb);
+            }
+            boolean sameCards = shown.size() == pack.size() && shown.containsAll(pack);
+            for (int k = 1; k < shown.size(); k++) {
+                final PaperCard a = shown.get(k - 1);
+                final PaperCard b = shown.get(k);
+                if (PackOrder.basicLast(a) > PackOrder.basicLast(b)
+                        || (PackOrder.basicLast(a) == PackOrder.basicLast(b)
+                            && PackOrder.rarityRank(a) > PackOrder.rarityRank(b))) {
+                    sameCards = false;
+                }
+                // Y dentro de la misma rareza, por color (el de la carta).
+                if (PackOrder.basicLast(a) == PackOrder.basicLast(b)
+                        && PackOrder.rarityRank(a) == PackOrder.rarityRank(b)
+                        && PackOrder.landLast(a) == PackOrder.landLast(b)
+                        && PackOrder.colourRank(a) > PackOrder.colourRank(b)) {
+                    sameCards = false;
+                }
+            }
+            ordered &= sameCards;
             if (draft.round() != lastRound) {
                 lastRound = draft.round();
                 System.out.printf(Locale.ROOT, "  Ronda %d: sobre de %d cartas%n",
@@ -70,8 +101,10 @@ public final class DraftCheck {
                 picks, pool, emptyAtSave, main, group.getAiDecks().size(),
                 (System.currentTimeMillis() - t0) / 1000);
 
+        System.out.printf(Locale.ROOT, "  Los sobres se ensenyan por rareza con la basica al final: %s%n",
+                ordered ? "si, en todos" : "NO");
         final boolean ok = picks >= 40 && pool == picks && emptyAtSave == planned.size() && main >= 40
-                && group.getAiDecks().size() == 7;
+                && group.getAiDecks().size() == 7 && ordered;
         System.out.println(ok
                 ? "  OK - el draft se completa y deja ocho mazos"
                 : "  FALLO - revisa el ciclo de picks");

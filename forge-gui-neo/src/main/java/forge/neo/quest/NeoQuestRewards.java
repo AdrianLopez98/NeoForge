@@ -65,6 +65,15 @@ public final class NeoQuestRewards implements IWinLoseView<IButton> {
             java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
     private boolean won;
 
+    /**
+     * Lo que ha fallado al repartir, o null si nada. Se ensenya en el botin y
+     * Android lo apunta en "Ultimos fallos": hasta el 15-10-2026 un fallo aqui
+     * solo salia por la consola, y dos jugadores de Android acabaron con una
+     * Quest que no apuntaba ni victorias ni derrotas sin que hubiera nada que
+     * mandar para saber por que.
+     */
+    private String failure;
+
     private NeoQuestRewards() {
     }
 
@@ -83,42 +92,83 @@ public final class NeoQuestRewards implements IWinLoseView<IButton> {
         if (game == null || !NeoQuest.isActive()) {
             return view;
         }
+        // Por PARTES, cada una con su red (15-10-2026): un fallo repartiendo los
+        // premios no puede impedir que se apunte el resultado, que es lo que
+        // hace que la Quest avance. Antes todo iba en un solo try, y un fallo
+        // en cualquier sitio se llevaba la victoria o la derrota sin decir nada.
+        final QuestWinLoseController controller;
         try {
-            final QuestWinLoseController controller = new QuestWinLoseController(game, view);
-            // Dos llamadas, y las dos hacen falta:
-            //
-            //   showRewards()  reparte lo que has ganado (creditos, cartas,
-            //                  sobres, rachas, ediciones desbloqueadas).
-            //   actionOnQuit() ANOTA el resultado — addWin() / addLost() — y
-            //                  guarda.
-            //
-            // En la GUI vieja la segunda corre al cerrar la pantalla de
-            // recompensas, asi que es facil no verla. Sin ella el duelo se juega,
-            // se cobra... y el marcador se queda igual: sintoma exacto que salio
-            // en questcheck, "15-0 -> 15-0, creditos 200 -> 200". Y como el nivel
-            // de los rivales depende de las victorias, la aventura no avanzaria
-            // nunca.
-            // El sobre de premio lo damos NOSOTROS, no el motor: el suyo te
-            // pregunta por un "formato" y da un revoltijo; el nuestro te deja
-            // elegir expansion. Ver NeoQuestPrize.
-            //
-            // Se repone la preferencia ANTES de actionOnQuit(), que es quien
-            // guarda el fichero de preferencias — compartido con la instalacion
-            // normal de Forge del usuario.
-            final boolean won = game.isMatchWonBy(
-                    forge.player.GamePlayerUtil.getQuestPlayer());
-            view.won = won;
-            // La foto de lo que tenias, ANTES de que el motor reparta nada.
-            final Set<String> before = NeoQuestShop.ownedNames();
-            final boolean prizeDue = NeoQuestPrize.isDue(won);
-            final String wasBooster = NeoQuestPrize.muteEngineBooster();
-            try {
-                controller.showRewards();
-            } finally {
-                NeoQuestPrize.unmuteEngineBooster(wasBooster);
+            controller = new QuestWinLoseController(game, view);
+        } catch (final RuntimeException e) {
+            fail(view, "controller", e);
+            return view;
+        }
+        // Dos llamadas, y las dos hacen falta:
+        //
+        //   showRewards()  reparte lo que has ganado (creditos, cartas,
+        //                  sobres, rachas, ediciones desbloqueadas).
+        //   actionOnQuit() ANOTA el resultado — addWin() / addLost() — y
+        //                  guarda.
+        //
+        // En la GUI vieja la segunda corre al cerrar la pantalla de
+        // recompensas, asi que es facil no verla. Sin ella el duelo se juega,
+        // se cobra... y el marcador se queda igual: sintoma exacto que salio
+        // en questcheck, "15-0 -> 15-0, creditos 200 -> 200". Y como el nivel
+        // de los rivales depende de las victorias, la aventura no avanzaria
+        // nunca.
+        // El sobre de premio lo damos NOSOTROS, no el motor: el suyo te
+        // pregunta por un "formato" y da un revoltijo; el nuestro te deja
+        // elegir expansion. Ver NeoQuestPrize.
+        //
+        // Se repone la preferencia ANTES de actionOnQuit(), que es quien
+        // guarda el fichero de preferencias — compartido con la instalacion
+        // normal de Forge del usuario.
+        // (lo de arriba explica el orden: premios, y despues anotar)
+        boolean won = false;
+        try {
+            won = game.isMatchWonBy(forge.player.GamePlayerUtil.getQuestPlayer());
+        } catch (final RuntimeException e) {
+            fail(view, "won", e);
+        }
+        view.won = won;
+        // La foto de lo que tenias, ANTES de que el motor reparta nada.
+        Set<String> before = java.util.Collections.emptySet();
+        boolean prizeDue = false;
+        try {
+            before = NeoQuestShop.ownedNames();
+            prizeDue = NeoQuestPrize.isDue(won);
+        } catch (final RuntimeException e) {
+            fail(view, "before", e);
+        }
+        String wasBooster = null;
+        try {
+            wasBooster = NeoQuestPrize.muteEngineBooster();
+            // Gancho de prueba: questcheck comprueba que un reparto que revienta
+            // no se lleva el resultado (-Dneo.quest.failRewards=true).
+            if (Boolean.getBoolean("neo.quest.failRewards")) {
+                throw new IllegalStateException("reparto roto a proposito (prueba)");
             }
+            // Con el ante puesto, perder la apuesta quita cartas por el
+            // motor (loseCards -> removeCard), y eso se llevaba de los
+            // mazos de deseos lo que nunca tuviste. Ver keepingWishlist.
+            NeoQuestSell.keepingWishlist(controller::showRewards);
+        } catch (final RuntimeException e) {
+            fail(view, "showRewards", e);
+        } finally {
+            try {
+                NeoQuestPrize.unmuteEngineBooster(wasBooster);
+            } catch (final RuntimeException e) {
+                fail(view, "unmute", e);
+            }
+        }
+        // EL RESULTADO, pase lo que pase arriba.
+        try {
             controller.actionOnQuit();
+        } catch (final RuntimeException e) {
+            fail(view, "actionOnQuit", e);
+        }
 
+        try {
             if (prizeDue) {
                 final NeoQuestShop.Opened prize = NeoQuestPrize.award();
                 if (prize != null) {
@@ -154,10 +204,31 @@ public final class NeoQuestRewards implements IWinLoseView<IButton> {
             NeoQuest.forgetDuels();
             NeoQuest.save();
         } catch (final RuntimeException e) {
-            System.err.println("[neo] las recompensas de la aventura han fallado: " + e);
-            e.printStackTrace();
+            fail(view, "after", e);
+        }
+        if (view.failure != null) {
+            view.messages.add(forge.neo.NeoText.get("quest.rewards.failed", view.failure));
         }
         return view;
+    }
+
+    /** Apunta un fallo del reparto: a la consola entero y a la vista resumido. */
+    private static void fail(final NeoQuestRewards view, final String where, final Throwable e) {
+        System.err.println("[neo] las recompensas de la aventura han fallado (" + where + "): " + e);
+        e.printStackTrace();
+        Throwable root = e;
+        while (root.getCause() != null && root.getCause() != root) {
+            root = root.getCause();
+        }
+        final StackTraceElement[] st = root.getStackTrace();
+        final String line = where + ": " + root
+                + (st.length > 0 ? " @ " + st[0].getClassName().replaceAll(".*\\.", "") + ":" + st[0].getLineNumber() : "");
+        view.failure = view.failure == null ? line : view.failure + " | " + line;
+    }
+
+    /** Lo que ha fallado al repartir, o null. Ver {@link #failure}. */
+    public String getFailure() {
+        return failure;
     }
 
     /** Las lineas que el motor queria ensenyar ("Has ganado 150 creditos"...). */

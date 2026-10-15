@@ -204,6 +204,7 @@ public class LookScreen extends BorderPane {
         }
         content.getChildren().add(rows);
         content.getChildren().add(poolRow());
+        content.getChildren().add(aiImportRow());
 
         final Runnable save = () -> {
             final List<String> names = new ArrayList<>();
@@ -337,30 +338,37 @@ public class LookScreen extends BorderPane {
         select(lastTab);
     }
 
-    /** La forma de jugar de un rival: la general, uno de los cuatro o al azar. */
+    /**
+     * La forma de jugar de un rival: la general, uno de los cuatro, al azar o,
+     * en otra fila, uno de los perfiles del jugador.
+     */
     private Region rivalAiChoice(final int rival) {
         final List<String> values = new ArrayList<>();
         values.add("");
         values.addAll(java.util.Arrays.asList(forge.neo.look.RivalSetup.PROFILES));
         values.add(forge.neo.look.RivalSetup.RANDOM);
         final String current = forge.neo.look.RivalSetup.mode(rival);
-        final HBox row = new HBox(4);
+        final VBox lines = new VBox(4);
         final List<Button> buttons = new ArrayList<>();
-        for (final String v : values) {
-            final Button b = new Button(aiLabel(v));
-            b.getStyleClass().add("segment");
-            b.setMinWidth(Region.USE_PREF_SIZE);
-            b.pseudoClassStateChanged(SELECTED, v.equals(current));
-            b.setOnAction(e -> {
-                forge.neo.look.RivalSetup.setMode(rival, v);
-                for (final Button other : buttons) {
-                    other.pseudoClassStateChanged(SELECTED, other == b);
-                }
-            });
-            buttons.add(b);
-            row.getChildren().add(b);
+        for (final List<String> rowValues : HomeScreen.aiRows(values)) {
+            final HBox row = new HBox(4);
+            for (final String v : rowValues) {
+                final Button b = new Button(aiLabel(v));
+                b.getStyleClass().add("segment");
+                b.setMinWidth(Region.USE_PREF_SIZE);
+                b.pseudoClassStateChanged(SELECTED, v.equals(current));
+                b.setOnAction(e -> {
+                    forge.neo.look.RivalSetup.setMode(rival, v);
+                    for (final Button other : buttons) {
+                        other.pseudoClassStateChanged(SELECTED, other == b);
+                    }
+                });
+                buttons.add(b);
+                row.getChildren().add(b);
+            }
+            lines.getChildren().add(row);
         }
-        return row;
+        return lines;
     }
 
     /** "La general", "Al azar" o el nombre del perfil de Forge. */
@@ -388,34 +396,119 @@ public class LookScreen extends BorderPane {
         return aiLabel(general);
     }
 
-    /** Entre que perfiles se sortea "Al azar". Al menos uno siempre marcado. */
+    /**
+     * Entre que perfiles se sortea "Al azar". Al menos uno siempre marcado.
+     * Aqui salen todos una vez, asi que es tambien donde se quita uno del
+     * jugador: clic derecho, como sus avatares y sus tapetes.
+     */
     private Region poolRow() {
         final List<String> pool = new ArrayList<>(forge.neo.look.RivalSetup.pool());
-        final HBox row = new HBox(4);
-        for (final String p : forge.neo.look.RivalSetup.PROFILES) {
-            final Button b = new Button(p);
-            b.getStyleClass().add("segment");
-            b.setMinWidth(Region.USE_PREF_SIZE);
-            b.pseudoClassStateChanged(SELECTED, pool.contains(p));
-            b.setOnAction(e -> {
-                if (pool.contains(p)) {
-                    // El pozo no se puede quedar vacio: no habria entre que
-                    // sortear. El ultimo marcado no se desmarca.
-                    if (pool.size() > 1) {
-                        pool.remove(p);
-                    }
-                } else {
-                    pool.add(p);
-                }
-                forge.neo.look.RivalSetup.setPool(pool);
+        final VBox lines = new VBox(4);
+        for (final List<String> rowValues : HomeScreen.aiRows(
+                java.util.Arrays.asList(forge.neo.look.RivalSetup.PROFILES))) {
+            final HBox row = new HBox(4);
+            for (final String p : rowValues) {
+                final Button b = new Button(p);
+                b.getStyleClass().add("segment");
+                b.setMinWidth(Region.USE_PREF_SIZE);
                 b.pseudoClassStateChanged(SELECTED, pool.contains(p));
-            });
-            row.getChildren().add(b);
+                if (forge.neo.look.AiProfiles.isCustom(p)) {
+                    b.setOnMouseClicked(e -> {
+                        if (e.getButton() == javafx.scene.input.MouseButton.SECONDARY
+                                && forge.neo.look.AiProfiles.delete(p)) {
+                            aiStatus = NeoText.get("look.rivals.aiImport.removed", p);
+                            select(lastTab);
+                        }
+                    });
+                }
+                b.setOnAction(e -> {
+                    if (pool.contains(p)) {
+                        // El pozo no se puede quedar vacio: no habria entre que
+                        // sortear. El ultimo marcado no se desmarca.
+                        if (pool.size() > 1) {
+                            pool.remove(p);
+                        }
+                    } else {
+                        pool.add(p);
+                    }
+                    forge.neo.look.RivalSetup.setPool(pool);
+                    b.pseudoClassStateChanged(SELECTED, pool.contains(p));
+                });
+                row.getChildren().add(b);
+            }
+            lines.getChildren().add(row);
         }
-        final HBox line = new HBox(12, caption(NeoText.get("look.rivals.pool")), row);
+        final HBox line = new HBox(12, caption(NeoText.get("look.rivals.pool")), lines);
+        line.setAlignment(Pos.TOP_LEFT);
+        line.setPadding(new Insets(6, 0, 0, 0));
+        return line;
+    }
+
+    /**
+     * Lo que dijo la ultima importacion (o el ultimo perfil quitado). Estatico
+     * porque importar rehace la pestanya entera ({@link #select}) y el aviso
+     * tiene que salir en la nueva.
+     */
+    private static String aiStatus;
+
+    /**
+     * Traer un perfil de IA de Forge (un {@code .ai}). Pedido en Discord el
+     * 14-10-2026: se habia dejado uno en la carpeta y "no aparece en la lista".
+     * Se copia ya limpio a los datos del jugador ({@link forge.neo.look.AiProfiles}),
+     * y desde ese momento sale en el menu, en cada rival y en el pozo.
+     */
+    private Region aiImportRow() {
+        final Button bring = new Button(NeoText.get("look.rivals.aiImport"));
+        bring.getStyleClass().add("btn-secondary");
+        bring.setMinWidth(Region.USE_PREF_SIZE);
+        bring.setOnAction(e -> {
+            final File chosen = choose(NeoText.get("look.choose.ai"),
+                    new FileChooser.ExtensionFilter(NeoText.get("look.filter.ai"), "*.ai", "*.txt"));
+            if (chosen == null) {
+                return;
+            }
+            aiStatus = importAi(chosen);
+            select(lastTab);
+        });
+
+        final Label hint = new Label(NeoText.get("look.rivals.aiImport.hint"));
+        hint.getStyleClass().add("home-subtitle");
+        hint.setWrapText(true);
+        hint.setMaxWidth(UiScale.px(820));
+        hint.setMinHeight(Region.USE_PREF_SIZE);
+
+        final VBox text = new VBox(4, hint);
+        if (aiStatus != null) {
+            final Label status = new Label(aiStatus);
+            status.getStyleClass().add("caption");
+            status.setWrapText(true);
+            status.setMaxWidth(UiScale.px(820));
+            status.setMinHeight(Region.USE_PREF_SIZE);
+            text.getChildren().add(status);
+            aiStatus = null;
+        }
+        final HBox line = new HBox(14, bring, text);
         line.setAlignment(Pos.CENTER_LEFT);
         line.setPadding(new Insets(6, 0, 0, 0));
         return line;
+    }
+
+    /** Importa y devuelve lo que hay que decirle al jugador. */
+    static String importAi(final File chosen) {
+        try {
+            final forge.neo.look.AiProfiles.Imported r = forge.neo.look.AiProfiles.importFile(chosen);
+            if (r.name == null) {
+                return NeoText.get("look.rivals.aiImport.bad");
+            }
+            if (r.skipped.isEmpty()) {
+                return NeoText.get("look.rivals.aiImport.ok", r.name, r.settings);
+            }
+            return NeoText.get("look.rivals.aiImport.skipped", r.name, r.settings,
+                    r.skipped.size(), r.skipped.get(0));
+        } catch (final java.io.IOException | RuntimeException ex) {
+            System.err.println("[neo] no se ha podido importar el perfil de IA " + chosen + ": " + ex);
+            return NeoText.get("look.rivals.aiImport.bad");
+        }
     }
 
     // ---------------------------------------------------------------

@@ -406,6 +406,9 @@ public final class NeoLanguage {
             // jugador lo pidio. Va aqui porque este es el gancho que usan el PC
             // y Android. Ver forge.neo.card.ArtlessCards.
             forge.neo.card.ArtlessCards.applyTo(prefs);
+            // Y que no lea las tablas del generador de mazos byte a byte: las
+            // leemos nosotros al acabar, con bufer. Ver FastDeckGen.
+            forge.neo.deck.FastDeckGen.skipInEngine(prefs);
             return null;
         };
     }
@@ -423,6 +426,9 @@ public final class NeoLanguage {
     public static void restoreEngineValue() {
         // Y la de las cartas sin arte, por lo mismo (ver ArtlessCards).
         forge.neo.card.ArtlessCards.restoreEngineValue();
+        // Y las tablas del generador de mazos (FastDeckGen): la preferencia
+        // vuelve a como estaba y se leen, antes de que nadie pida un mazo.
+        forge.neo.deck.FastDeckGen.loadNow();
         final String before = engineValueBefore;
         if (before == null) {
             return;

@@ -1,12 +1,13 @@
-**NeoForge para macOS 1.0.23 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.24 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Quest: el sobre del día.** Un sobre gratis al día de una de las expansiones de tu Quest, sin internet. No se acumulan: ábrelo o se pierde.
-- **Cartas exiliadas boca abajo** (Gonti, Night Minister, Predators' Hour, Lobelia...): con una en juego, clicar tus tierras y permanentes ya vuelve a funcionar (antes solo iba arrastrando), y las que puedes jugar se ven por su cara en el visor del exilio.
-- **Compañeros:** decir que no al compañero del banquillo ya no acaba la partida al empezar.
-- **Pantallas grandes:** el dorso de las pilas y los avatares ya no desaparecen al pasar el ratón, «Cleanup» ya no baja sola a otra fila del rail de fases, las cartas se ven nítidas al mover la ventana entre pantallas con escalas distintas, y cambiar el aumento del hover ya no corta las cartas de la mano.
-- **Arreglos:** la calidad de imagen elegida ya no se pierde al cerrar y «Todas las impresiones» baja en esa calidad; en la tienda de la Quest se puede ver solo lo elegido para vender; las cartas del cuartel caben en ventanas bajas; los torneos de draft ya no cuentan las básicas como cartas drafteadas; y al ordenar cartas que van al fondo de la biblioteca la ayuda ya no dice que la 1 es la próxima que robas.
-- **Forge al día:** ordenar las dos cartas que devuelves con los efectos de «roba tres y pon dos encima», y cartas corregidas.
+- **«Fin de turno» se para cuando el rival hace algo:** si lanza un hechizo o te ataca mientras pasas, puedes responder, y mientras pasa hay un botón para cancelarlo. En tu propio turno pregunta antes y dice a quién le toca (con el ajuste de «Preguntar antes de dejar tu fase principal»).
+- **Quest:** mazos con cartas que aún no tienes (lista de deseos, también al importar), la tienda dice cuántas copias tienes de cada suelta y las enseña grandes y agrupadas como en Arena, el resultado de un duelo se apunta siempre, «Guardar una copia» ya no estropea el original, el sobre del día se puede apagar y el bazar enseña las mascotas que esperan a tu rango.
+- **Draft:** el sobre sale ordenado como en Arena (rareza, color y coste, la básica al final).
+- **Constructor:** las cabeceras de grupo cuentan copias («Tierras (18)»).
+- **Rivales con tu propio perfil de IA** (`.ai` de Forge), y el pase automático cuenta el maná de Lion's Eye Diamond.
+- **Arreglos:** imágenes en calidad máxima, la carta del comandante ya no se corta al achicar la ventana, y los nombres de mazo largos ya no sacan el botón de jugar de la pantalla.
+- **Forge al día.**
 
 Descarga el `.dmg` de tu Mac:
 

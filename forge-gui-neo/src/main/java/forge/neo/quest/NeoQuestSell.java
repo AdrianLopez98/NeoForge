@@ -134,7 +134,7 @@ public final class NeoQuestSell {
             if (commit) {
                 // Las mismas dos llamadas que hace el sellCard privado del
                 // motor, mas devolver la carta al mostrador.
-                NeoQuest.engine().getCards().removeCard(card, spare);
+                removeKeepingWishlist(card, spare);
                 NeoQuest.engine().getAssets().addCredits((long) price * spare);
                 NeoQuest.engine().getAssets().getShopList().add(card, spare);
             }
@@ -250,7 +250,7 @@ public final class NeoQuestSell {
             return 0;
         }
         final int price = priceOf(card);
-        NeoQuest.engine().getCards().removeCard(card, qty);
+        removeKeepingWishlist(card, qty);
         NeoQuest.engine().getAssets().addCredits((long) price * qty);
         NeoQuest.engine().getAssets().getShopList().add(card, qty);
         NeoQuest.save();
@@ -347,6 +347,100 @@ public final class NeoQuestSell {
         return used;
     }
 
+    /**
+     * Quita {@code qty} copias de la coleccion como el motor
+     * ({@code QuestUtilCards.removeCard}), pero <b>sin llevarse de los mazos
+     * las copias que nunca tuviste</b>. Ver {@link #keepingWishlist}.
+     */
+    static void removeKeepingWishlist(final PaperCard card, final int qty) {
+        keepingWishlist(() -> NeoQuest.engine().getCards().removeCard(card, qty));
+    }
+
+    /**
+     * Corre algo del motor que te QUITA cartas (vender, perder la apuesta del
+     * ante: {@code QuestUtilCards.removeCard} / {@code loseCards}) sin que se
+     * lleve de los mazos la lista de deseos (Discord, 15-10-2026).
+     *
+     * <p>El motor, al quitar una carta, deja cada mazo con como mucho las
+     * copias de esa impresion que te quedan. Con un mazo de deseos eso borraba
+     * la lista: 4 Rayos en el mazo, 1 en la coleccion, vendes ese 1... y el
+     * mazo se quedaba sin los 4.
+     *
+     * <p>Asi que antes se apunta, mazo a mazo, que cartas pide <b>de mas</b>
+     * — por NOMBRE, como cuentan el editor y {@code NeoQuest.missingCards}: 2
+     * Rayos de M10 y 2 de 2XM con 2 de M10 en la coleccion es pedir de mas,
+     * aunque por impresion no lo parezca — y despues se les devuelve TODO lo
+     * que el motor les haya quitado de esas cartas, la copia que tenias
+     * incluida: lo que dice un mazo de deseos es lo que quieres llevar, no lo
+     * que tienes. Un mazo que no pedia de mas (uno normal) pierde la carta
+     * como siempre.
+     */
+    public static void keepingWishlist(final Runnable engineRemoval) {
+        if (!NeoQuest.isActive() || NeoQuest.collection() == null) {
+            engineRemoval.run();
+            return;
+        }
+        final Map<String, Integer> owned = new java.util.HashMap<>();
+        for (final Map.Entry<PaperCard, Integer> e : NeoQuest.collection()) {
+            if (e.getKey() != null) {
+                owned.merge(nameKey(e.getKey()), e.getValue(), Integer::sum);
+            }
+        }
+        final forge.deck.DeckSection[] counted = {forge.deck.DeckSection.Commander,
+                forge.deck.DeckSection.Main, forge.deck.DeckSection.Sideboard};
+        final List<forge.deck.Deck> decks = new ArrayList<>();
+        final List<Map<PaperCard, int[]>> before = new ArrayList<>();
+        for (final forge.deck.Deck deck : NeoQuest.decks()) {
+            final Map<String, Integer> need = new java.util.HashMap<>();
+            for (final forge.deck.DeckSection section : counted) {
+                if (deck.has(section)) {
+                    for (final Map.Entry<PaperCard, Integer> e : deck.get(section)) {
+                        need.merge(nameKey(e.getKey()), e.getValue(), Integer::sum);
+                    }
+                }
+            }
+            // Lo que el motor recorta es el principal y el banquillo.
+            final Map<PaperCard, int[]> snap = new java.util.HashMap<>();
+            for (int i = 0; i < 2; i++) {
+                final forge.deck.DeckSection section = i == 0
+                        ? forge.deck.DeckSection.Main : forge.deck.DeckSection.Sideboard;
+                if (!deck.has(section)) {
+                    continue;
+                }
+                for (final Map.Entry<PaperCard, Integer> e : deck.get(section)) {
+                    final String k = nameKey(e.getKey());
+                    if (need.getOrDefault(k, 0) > owned.getOrDefault(k, 0)) {
+                        snap.computeIfAbsent(e.getKey(), c -> new int[2])[i] += e.getValue();
+                    }
+                }
+            }
+            if (!snap.isEmpty()) {
+                decks.add(deck);
+                before.add(snap);
+            }
+        }
+        engineRemoval.run();
+        for (int i = 0; i < decks.size(); i++) {
+            final forge.deck.Deck deck = decks.get(i);
+            for (final Map.Entry<PaperCard, int[]> e : before.get(i).entrySet()) {
+                final PaperCard card = e.getKey();
+                final int[] b = e.getValue();
+                final int main = deck.getMain().count(card);
+                final int side = deck.has(forge.deck.DeckSection.Sideboard)
+                        ? deck.get(forge.deck.DeckSection.Sideboard).count(card) : 0;
+                int back = (b[0] + b[1]) - (main + side);
+                final int toMain = Math.min(back, b[0] - main);
+                if (toMain > 0) {
+                    deck.getMain().add(card, toMain);
+                    back -= toMain;
+                }
+                if (back > 0) {
+                    deck.getOrCreate(forge.deck.DeckSection.Sideboard).add(card, back);
+                }
+            }
+        }
+    }
+
     /** Como cuenta el editor de mazos de la Quest: por nombre. */
     private static String nameKey(final PaperCard card) {
         return card.getName().toLowerCase(java.util.Locale.ROOT);
@@ -418,7 +512,7 @@ public final class NeoQuestSell {
             sold.copies += qty;
             sold.credits += price * qty;
             if (commit) {
-                NeoQuest.engine().getCards().removeCard(card, qty);
+                removeKeepingWishlist(card, qty);
                 NeoQuest.engine().getAssets().addCredits((long) price * qty);
                 NeoQuest.engine().getAssets().getShopList().add(card, qty);
             }

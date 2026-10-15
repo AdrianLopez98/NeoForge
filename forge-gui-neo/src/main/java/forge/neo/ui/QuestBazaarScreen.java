@@ -191,7 +191,9 @@ public class QuestBazaarScreen extends StackPane {
         box.setPadding(new Insets(14, 18, 14, 18));
 
         final List<IQuestBazaarItem> items = stall.getItems();
-        if (items.isEmpty()) {
+        // "Ya has comprado todo" solo si es verdad: una mascota que espera a
+        // tu rango no esta agotada (Discord, 15-10-2026).
+        if (items.isEmpty() && stall.getLocked().isEmpty()) {
             final Label sold = new Label(NeoText.get("bazaar.soldOut"));
             sold.getStyleClass().add("caption");
             box.getChildren().add(sold);
@@ -200,7 +202,38 @@ public class QuestBazaarScreen extends StackPane {
         for (final IQuestBazaarItem item : items) {
             box.getChildren().add(itemRow(item));
         }
+        for (final NeoQuestBazaar.LockedPet locked : stall.getLocked()) {
+            box.getChildren().add(lockedRow(locked));
+        }
         return box;
+    }
+
+    /**
+     * Una mascota cuyo nivel siguiente aun no se vende: apagada, sin boton, y
+     * diciendo cuantas victorias faltan. Se ensenya para que se sepa que hay
+     * mas y como llegar.
+     */
+    private Region lockedRow(final NeoQuestBazaar.LockedPet locked) {
+        final Label name = new Label(NeoText.get("bazaar.petLevel",
+                locked.pet().getName(), locked.nextLevel()));
+        name.getStyleClass().add("duel-name");
+
+        final Label what = new Label(NeoText.get("bazaar.petLocked",
+                locked.rank(), locked.winsLeft()));
+        what.getStyleClass().add("home-subtitle");
+        what.setWrapText(true);
+        what.setMaxWidth(UiScale.px(620));
+        what.setMinHeight(Region.USE_PREF_SIZE);
+
+        final HBox row = new HBox(14, new VBox(2, name, what));
+        final Region card = petCard(locked.pet(), locked.nextLevel());
+        if (card != null) {
+            row.getChildren().add(0, card);
+        }
+        row.setOpacity(0.55);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.setPadding(new Insets(8, 4, 8, 4));
+        return row;
     }
 
     private Region itemRow(final IQuestBazaarItem item) {

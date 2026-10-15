@@ -57,13 +57,15 @@ public final class NeoQuestBazaar {
         private final String title;
         private final String fluff;
         private final List<IQuestBazaarItem> items;
+        private final List<LockedPet> locked;
 
         Stall(final String name, final String title, final String fluff,
-              final List<IQuestBazaarItem> items) {
+              final List<IQuestBazaarItem> items, final List<LockedPet> locked) {
             this.name = name;
             this.title = title;
             this.fluff = fluff;
             this.items = items;
+            this.locked = locked;
         }
 
         /** El nombre interno, que es el que usa el motor. */
@@ -84,6 +86,63 @@ public final class NeoQuestBazaar {
         /** Lo que se puede comprar HOY en el. Puede estar vacio. */
         public List<IQuestBazaarItem> getItems() {
             return items;
+        }
+
+        /**
+         * Las mascotas de este puesto cuyo nivel siguiente <b>aun no se vende</b>
+         * por rango. Solo para ensenyarlas: no se compran.
+         */
+        public List<LockedPet> getLocked() {
+            return locked;
+        }
+    }
+
+    /**
+     * Una mascota cuyo nivel siguiente espera a tu rango.
+     *
+     * <p>Discord, 15-10-2026: <i>"it got sold out so I was not sure when the
+     * store gives better ones"</i>. Forge solo pone a la venta el nivel N+1 de
+     * una mascota cuando tu rango de Quest llega a N
+     * ({@code QuestPetController.isAvailableForPurchase}), y el rango sube con
+     * las victorias ({@code QuestAchievements.getLevel}: una cada 3, 4, 5 o 6
+     * segun la dificultad). Mientras tanto la mascota <b>desaparecia</b> del
+     * mostrador, y si era lo unico del puesto salia "ya has comprado todo",
+     * que es falso. Ahora se queda, apagada, diciendo cuantas victorias faltan.
+     *
+     * @param pet       la mascota
+     * @param nextLevel el nivel que se compraria
+     * @param rank      el rango que hace falta para comprarlo
+     * @param winsLeft  las victorias que faltan para ese rango
+     */
+    public record LockedPet(QuestPetController pet, int nextLevel, int rank, int winsLeft) {
+    }
+
+    /**
+     * La mascota de ese nombre si esta bloqueada por rango, o null. La regla es
+     * la del motor; aqui solo se repite para poder decir cuanto falta, y por eso
+     * se le pregunta primero a {@code isAvailableForPurchase}: si el motor
+     * cambia la regla, lo peor que pasa es que no salga el aviso.
+     */
+    private static LockedPet lockedPet(final QuestController q, final String itemName) {
+        try {
+            final QuestPetController pet = q.getPetsStorage().getPet(itemName);
+            if (pet == null) {
+                return null;
+            }
+            final int level = q.getAssets().getPetLevel(pet.getSaveFileKey());
+            if (level >= pet.getMaxLevel() || pet.isAvailableForPurchase(q.getAssets(), q)) {
+                return null;
+            }
+            final forge.gamemodes.quest.data.QuestAchievements a = q.getAchievements();
+            final int perRank = forge.model.FModel.getQuestPreferences().getPrefInt(
+                    forge.gamemodes.quest.data.QuestPreferences.DifficultyPrefs.WINS_RANKUP,
+                    a.getDifficulty());
+            if (perRank <= 0 || q.getLevel() >= level) {
+                return null;
+            }
+            return new LockedPet(pet, level + 1, level, Math.max(1, level * perRank - a.getWin()));
+        } catch (final RuntimeException e) {
+            return null;
         }
     }
 
@@ -107,10 +166,19 @@ public final class NeoQuestBazaar {
                 final QuestStallDefinition def = q.getBazaar().getStall(name);
                 final List<IQuestBazaarItem> items =
                         new ArrayList<>(q.getBazaar().getItems(q, name));
+                final List<LockedPet> locked = new ArrayList<>();
+                if (def != null && def.getItems() != null) {
+                    for (final String itemName : def.getItems()) {
+                        final LockedPet l = lockedPet(q, itemName);
+                        if (l != null) {
+                            locked.add(l);
+                        }
+                    }
+                }
                 out.add(new Stall(name,
                         def == null || def.getDisplayName() == null ? name : def.getDisplayName(),
                         def == null ? "" : def.getFluff(),
-                        items));
+                        items, locked));
             }
         } catch (final RuntimeException e) {
             System.err.println("[bazar] no se ha podido leer el bazar: " + e);

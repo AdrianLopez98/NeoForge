@@ -1,6 +1,5 @@
 package forge.neo.platform;
 
-import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -8,8 +7,6 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLConnection;
 import java.util.Date;
-
-import javax.imageio.ImageIO;
 
 import forge.ImageKeys;
 import forge.StaticData;
@@ -321,29 +318,16 @@ public class NeoImageFetcher extends ImageFetcher {
             }
         }
 
-        final BufferedImage image;
+        // Los bytes TAL CUAL, despues de mirar que son una imagen. Antes se
+        // decodificaba y se volvia a escribir en JPG, como el Swing de Forge:
+        // el PNG de la calidad "Maxima" trae transparencia, el escritor JPG de
+        // Java devuelve false con ella, y no bajaba ni una carta suelta
+        // (Discord, 14-10-2026). Ver forge.neo.card.ImageSave.
+        final byte[] bytes;
         try (InputStream is = connection.getInputStream()) {
-            image = ImageIO.read(is);
+            bytes = is.readAllBytes();
         }
-        if (image == null) {
-            return false;
-        }
-
-        // Escribir primero a .tmp para que nadie lea una descarga a medias.
-        final File tmp = new File(destination + ".tmp");
-        final File parent = tmp.getParentFile();
-        if (parent != null) {
-            parent.mkdirs();
-        }
-        if (!ImageIO.write(image, "jpg", tmp)) {
-            return false;
-        }
-        final File dest = new File(destination);
-        if (dest.exists()) {
-            dest.delete();
-        }
-        if (!tmp.renameTo(dest)) {
-            tmp.delete();
+        if (!forge.neo.card.ImageSave.save(bytes, new File(destination))) {
             return false;
         }
         if (DEBUG) {

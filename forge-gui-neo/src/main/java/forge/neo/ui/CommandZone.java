@@ -355,8 +355,13 @@ public class CommandZone extends Pane {
                 step = Math.max(1, (span - w) / (cols - 1));
             }
         }
-        if (rows > 1) {
-            // Con varias filas manda tambien el alto: que quepan todas.
+        // Manda tambien el ALTO, con varias filas y con una: que quepan todas.
+        // Con una sola fila no se miraba, y el ancho de carta se fija al montar
+        // la mesa: si luego la ventana se hacia pequenya, la mano encogia (ella
+        // si mira su alto, HandFan) y el comandante no, y se salia por debajo
+        // de la ventana (Discord, titandino, 14-10-2026, en 4K con la ventana
+        // a un cuarto). Antes del primer reparto el alto es 0: no se toca.
+        if (h > 0) {
             w = Math.min(w, Math.max(MIN_CARD_WIDTH,
                     ((h - CAPTION_ROOM - 4) - GAP * (rows - 1)) / rows / CardNode.ASPECT));
             step = Math.min(w + GAP, step);

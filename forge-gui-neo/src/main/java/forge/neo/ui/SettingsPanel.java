@@ -1023,6 +1023,18 @@ public class SettingsPanel extends VBox {
                     NeoSettings.save();
                 }));
 
+        // --- el sobre del dia (Quest) ---
+        //
+        // Encendido de fabrica; apagado, el cuartel no lo ensenya (Discord,
+        // 14-10-2026: "I'd rather earn boosters just through my own play").
+        // Ver NeoDailyPack.ENABLED.
+        getChildren().add(toggleRow(NeoText.get("settings.questDailyPack"),
+                forge.neo.quest.NeoDailyPack.isEnabled(),
+                on -> {
+                    NeoSettings.setBool(forge.neo.quest.NeoDailyPack.ENABLED, on);
+                    NeoSettings.save();
+                }));
+
         // --- rating de pick en el draft ---
         //
         // Apagado de fabrica: para quien ya sabe draftear es la respuesta

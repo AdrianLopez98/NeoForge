@@ -48,7 +48,7 @@ public final class DeckEditor {
      * construido al abrir el editor. Con catalogo completo es el global, que se
      * comparte y se construye una sola vez.
      */
-    private final CardIndex index;
+    private CardIndex index;
 
     /**
      * Con que nombre esta guardado este mazo AHORA MISMO, o {@code null} si
@@ -68,15 +68,199 @@ public final class DeckEditor {
     public DeckEditor(final DeckContext format, final Deck deck) {
         this.format = format;
         this.deck = deck;
-        this.index = format.isLimited() ? CardIndex.of(format.pool())
-                : format.poolFormat() != null ? CardIndex.of(poolCards(format.poolFormat()))
-                : CardIndex.get();
+        this.index = buildIndex(format);
         // Si el mazo ya existe con este nombre, es el que hay que sustituir al
         // renombrar. Y si no — un preconstruido de Forge, uno de internet, uno
         // nuevo — no hay nada que borrar nunca: se guarda y punto.
         if (deck != null && deck.getName() != null && format.storage().contains(deck.getName())) {
             this.savedAs = deck.getName();
         }
+    }
+
+    private static CardIndex buildIndex(final DeckContext format) {
+        return format.isLimited() ? CardIndex.of(format.pool())
+                : format.poolFormat() != null ? CardIndex.of(poolCards(format.poolFormat()))
+                : CardIndex.get();
+    }
+
+    /**
+     * El interruptor "Todas las cartas / Mis cartas" del catalogo (la Quest).
+     * Rehace el indice sin tocar el mazo: lo que se lleva puesto, guardado o
+     * no, se queda tal cual. Ver {@link DeckContext#canShowAllCards()}.
+     */
+    public void setShowAllCards(final boolean on) {
+        if (!format.canShowAllCards() || on == format.showsAllCards()) {
+            return;
+        }
+        // Los dos indices se guardan: el de todas son ~33.000 cartas (y fuera
+        // del ingles, con nombre y tipo traducidos), y rehacerlo en cada ida y
+        // vuelta del interruptor congelaba el catalogo cada vez.
+        if (on) {
+            ownIndex = index;
+            format.setShowAllCards(true);
+            if (allIndex == null) {
+                allIndex = buildIndex(format);
+            }
+            index = allIndex;
+        } else {
+            format.setShowAllCards(false);
+            index = ownIndex != null ? ownIndex : buildIndex(format);
+        }
+    }
+
+    /** Los dos catalogos del interruptor, para no rehacerlos (ver setShowAllCards). */
+    private CardIndex ownIndex;
+    private CardIndex allIndex;
+
+    /** Si el catalogo ensenya ahora todas las cartas. */
+    public boolean showsAllCards() {
+        return format.showsAllCards();
+    }
+
+    /** Si aqui existe ese interruptor. */
+    public boolean canShowAllCards() {
+        return format.canShowAllCards();
+    }
+
+    /**
+     * El techo de lo que TIENES al anyadir: con "Todas las cartas" no hay
+     * (se monta la lista de deseos), y si no, lo que tienes.
+     */
+    private int ownedCap(final PaperCard card) {
+        return format.showsAllCards() ? Integer.MAX_VALUE : format.owned(card);
+    }
+
+    /**
+     * Cuantas copias de esa carta lleva el mazo que NO tienes (por nombre, en
+     * el principal, la zona de mando y el BANQUILLO: el motor carga el
+     * banquillo, y de ahi salen el companero y lo que busca un Wish). Cero
+     * fuera de la Quest, y cero para las basicas normales, que el motor da por
+     * gratis (no las quita de un mazo al venderlas: {@code QuestUtilCards.removeCard}).
+     */
+    public int missingOf(final PaperCard card) {
+        if (card == null || !format.allowsMissing() || (card.isVeryBasicLand() && !card.isFoil())) {
+            return 0;
+        }
+        final int have = format.owned(card);
+        if (have == Integer.MAX_VALUE) {
+            return 0;
+        }
+        final String key = normalized(card.getName());
+        int placed = countInMain(card);
+        for (final DeckSection section : new DeckSection[] {DeckSection.Commander, DeckSection.Sideboard}) {
+            final CardPool pool = deck.get(section);
+            if (pool == null) {
+                continue;
+            }
+            for (final Map.Entry<PaperCard, Integer> e : pool) {
+                if (normalized(e.getKey().getName()).equals(key)) {
+                    placed += e.getValue();
+                }
+            }
+        }
+        return Math.max(0, placed - have);
+    }
+
+    /**
+     * Cuantas copias del mazo entero (principal, zona de mando y banquillo) NO
+     * tienes: la suma de {@link #missingOf} por carta, contada una vez por nombre.
+     */
+    public int missingTotal() {
+        if (!format.allowsMissing()) {
+            return 0;
+        }
+        final java.util.Set<String> seen = new java.util.HashSet<>();
+        int total = 0;
+        for (final DeckSection section : new DeckSection[] {
+                DeckSection.Commander, DeckSection.Main, DeckSection.Sideboard}) {
+            final CardPool pool = deck.get(section);
+            if (pool == null) {
+                continue;
+            }
+            for (final Map.Entry<PaperCard, Integer> e : pool) {
+                if (seen.add(normalized(e.getKey().getName()))) {
+                    total += missingOf(e.getKey());
+                }
+            }
+        }
+        return total;
+    }
+
+    /**
+     * Cuantas copias mas de esa carta caben con lo que TIENES (por nombre,
+     * contando todo el mazo). Sin limite si no se cuenta (todo Magic, o una
+     * basica de las que salen gratis).
+     */
+    private int ownedRoom(final PaperCard card) {
+        if (card.isVeryBasicLand() && !card.isFoil()) {
+            return Integer.MAX_VALUE;
+        }
+        final int have = format.owned(card);
+        if (have == Integer.MAX_VALUE) {
+            return Integer.MAX_VALUE;
+        }
+        final String key = normalized(card.getName());
+        int placed = 0;
+        for (final DeckSection section : new DeckSection[] {
+                DeckSection.Commander, DeckSection.Main, DeckSection.Sideboard}) {
+            final CardPool pool = deck.get(section);
+            if (pool == null) {
+                continue;
+            }
+            for (final Map.Entry<PaperCard, Integer> e : pool) {
+                if (normalized(e.getKey().getName()).equals(key)) {
+                    placed += e.getValue();
+                }
+            }
+        }
+        return Math.max(0, have - placed);
+    }
+
+    /**
+     * Las cartas del mazo que NO tienes, una por nombre y con cuantas copias
+     * faltan, en el orden del mazo (mando, principal, banquillo). Para
+     * preguntar antes de {@link #removeMissing()}.
+     */
+    public java.util.LinkedHashMap<PaperCard, Integer> missingCards() {
+        final java.util.LinkedHashMap<PaperCard, Integer> out = new java.util.LinkedHashMap<>();
+        if (!format.allowsMissing()) {
+            return out;
+        }
+        final java.util.Set<String> seen = new java.util.HashSet<>();
+        for (final DeckSection section : new DeckSection[] {
+                DeckSection.Commander, DeckSection.Main, DeckSection.Sideboard}) {
+            final CardPool pool = deck.get(section);
+            if (pool == null) {
+                continue;
+            }
+            for (final Map.Entry<PaperCard, Integer> e : pool) {
+                if (seen.add(normalized(e.getKey().getName()))) {
+                    final int n = missingOf(e.getKey());
+                    if (n > 0) {
+                        out.put(e.getKey(), n);
+                    }
+                }
+            }
+        }
+        return out;
+    }
+
+    /**
+     * "Quitar las que no tengo": deja el mazo con lo que TIENES. Es lo que
+     * hacia "Limpiar" antes de la lista de deseos, cuando lo que no tenias era
+     * ilegal: quien importa una lista y quiere quedarse con lo suyo no tiene
+     * que quitarlas una a una. Se quita primero del banquillo, luego del
+     * principal y por ultimo de la zona de mando (un comandante que no tienes).
+     *
+     * @return cuantas copias se han quitado
+     */
+    public int removeMissing() {
+        int removed = 0;
+        for (final Map.Entry<PaperCard, Integer> e : missingCards().entrySet()) {
+            removed += drop(e.getKey(), e.getValue(),
+                    new DeckSection[] {DeckSection.Sideboard, DeckSection.Main, DeckSection.Commander});
+        }
+        return removed;
     }
 
     /**
@@ -137,6 +321,22 @@ public final class DeckEditor {
     /** Si el catalogo es un pool cerrado (tu coleccion) en vez de todo Magic. */
     public boolean isLimited() {
         return format.isLimited();
+    }
+
+    /**
+     * Lo que suma una carta en la cabecera de su grupo del catalogo
+     * («Criaturas (130)»): en una coleccion o un pool, las COPIAS que tienes;
+     * en todo Magic (o con «Todas las cartas»), una. Discord, 15-10-2026:
+     * <i>"these summary lines should show the total number of cards that you
+     * hold, duplicate or not"</i> — como ya hacen las del mazo.
+     */
+    public int catalogueCopies(final PaperCard card) {
+        if (!format.isLimited() || format.showsAllCards()) {
+            return 1;
+        }
+        final int n = format.owned(card);
+        // Las basicas que se dan gratis (la Aventura) no se cuentan: una.
+        return n == Integer.MAX_VALUE ? 1 : Math.max(0, n);
     }
 
     /** Cuantas copias de esta carta TIENES. Sin limite fuera de la aventura. */
@@ -470,6 +670,11 @@ public final class DeckEditor {
         return format.bulkAutoSell(cards, this::countOf);
     }
 
+    /** El autovender de esa carta como interruptor, o null si aqui no se vende (ver DeckContext). */
+    public DeckContext.AutoSellToggle autoSellToggle(final PaperCard card) {
+        return format.autoSellToggle(card, countOf(card));
+    }
+
     /** Lo que el contexto anyade al menu de una carta del catalogo (ver DeckContext). */
     public List<DeckContext.Action> contextActions(final PaperCard card) {
         return format.catalogueActions(card, countOf(card));
@@ -569,9 +774,21 @@ public final class DeckEditor {
         // recien generado saldria ya sin poderse guardar.
         GeneratedDecks.fixCopyLimits(generated, deckFormat(), outsideMain());
         deck.getOrCreate(DeckSection.Main).clear();
+        // En la Quest con "Mis cartas", solo lo que TIENES: el generador tira
+        // de todo Magic. Antes lo que no tenias salia ilegal y "Limpiar" lo
+        // quitaba; con la lista de deseos (que no es ilegal) se quedaba entero
+        // y el mazo generado no se podia jugar. Con "Todas", el mazo entero,
+        // como lista de deseos: es lo que se ha pedido.
+        final boolean onlyOwned = format.allowsMissing() && !format.showsAllCards();
         int added = 0;
         for (final Map.Entry<PaperCard, Integer> e : generated.getMain()) {
-            added += addAnyway(e.getKey(), e.getValue());
+            int n = e.getValue();
+            if (onlyOwned) {
+                n = Math.min(n, ownedRoom(e.getKey()));
+            }
+            if (n > 0) {
+                added += addAnyway(e.getKey(), n);
+            }
         }
         dirty = true;
         return added;
@@ -906,7 +1123,7 @@ public final class DeckEditor {
         // Y el otro techo, que no es una regla de Magic: las que TIENES. En la
         // aventura no se monta con lo que existe, se monta con lo que has
         // ganado y comprado.
-        final int have = format.owned(card);
+        final int have = ownedCap(card);
         // Por el mismo motivo que en roomFor: en limitado lo colocado es lo que
         // hay en el PRINCIPAL, porque el pozo ya cuenta la banda.
         final int placed = format.poolInSideboard() ? countInMain(card) : countOf(card);
@@ -964,7 +1181,7 @@ public final class DeckEditor {
         final int roomByRules = byRules == Integer.MAX_VALUE
                 ? Integer.MAX_VALUE : Math.max(0, byRules - countOf(card));
 
-        final int owned = format.owned(card);
+        final int owned = ownedCap(card);
         // En limitado, lo que esta en la banda es JUSTO lo que se puede mover al
         // mazo: lo colocado es lo que hay en el principal, y nada mas.
         final int used = format.poolInSideboard() ? countInMain(card) : countOf(card);
@@ -1233,8 +1450,11 @@ public final class DeckEditor {
         }
         // Y tienes que TENERLO. Por el catalogo no puede colarse — solo ensenya
         // lo tuyo — pero por la importacion de una lista si, y un mazo con un
-        // comandante que no tienes no se puede jugar.
-        if (format.owned(card) <= 0) {
+        // comandante que no tienes no se puede jugar. Salvo en la Quest, donde
+        // entra como cualquier otra carta que te falta (la lista de deseos): lo
+        // cuenta missingOf y lo impide jugar NeoQuest.problemWith. Si no, al
+        // importar una lista con "Mis cartas" se perdia el comandante.
+        if (!format.allowsMissing() && ownedCap(card) <= 0) {
             return false;
         }
         deck.getMain().remove(card, deck.getMain().count(card));
@@ -1346,6 +1566,11 @@ public final class DeckEditor {
      * impedia guardar un mazo perfectamente legal.
      */
     private boolean overOwned(final PaperCard card) {
+        // En la Quest lo que no tienes no es ilegal: es la lista de deseos, y
+        // se guarda (ver DeckContext.allowsMissing).
+        if (format.allowsMissing()) {
+            return false;
+        }
         final int have = format.owned(card);
         return have != Integer.MAX_VALUE && countInMain(card) > have;
     }
@@ -1428,7 +1653,7 @@ public final class DeckEditor {
             // lo mismo. Primero el de la coleccion, que es del PRINCIPAL — ahi
             // hay que quitar del principal, es donde sobran.
             final int have = format.owned(card);
-            if (have != Integer.MAX_VALUE) {
+            if (have != Integer.MAX_VALUE && !format.allowsMissing()) {
                 removed += dropFromMain(card, Math.max(0, countInMain(card) - have));
             }
             // Y luego el del formato, que cuenta todo: ahi se empieza por el
@@ -1654,7 +1879,7 @@ public final class DeckEditor {
 
     /** Si este mazo tiene banquillo que se pueda tocar (no en limitado, ni en la Aventura). */
     public boolean hasSideboard() {
-        return !format.poolInSideboard() && deckFormat().getSideRange() != null
+        return !format.poolInSideboard() && format.allowsSideboard() && deckFormat().getSideRange() != null
                 && (deckFormat().getSideRange().getMaximum() == null || deckFormat().getSideRange().getMaximum() > 0);
     }
 
@@ -2604,7 +2829,13 @@ public final class DeckEditor {
      * copias.
      */
     public void save() {
-        format.storage().add(deck);
+        // Una COPIA, no el mazo que se sigue editando. Los almacenes guardan la
+        // referencia (QuestDeckMap: map.put(nombre, mazo)), asi que con el mismo
+        // objeto todo lo que viniera despues se colaba en lo guardado: los
+        // cambios SIN guardar, y "Guardar una copia" le cambiaba el nombre al
+        // ORIGINAL, que se quedaba con el de la copia bajo su clave de siempre y
+        // ya no se podia elegir (Ana, "Quest 5", 15-10-2026).
+        format.storage().add(new Deck(deck, deck.getName()));
         final String now = deck.getName();
         if (savedAs != null && !savedAs.equals(now) && format.storage().contains(savedAs)) {
             format.storage().delete(savedAs);

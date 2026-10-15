@@ -474,6 +474,54 @@
 
 /* Verde lo que puedes pagar, apagado lo que no. Se lee sin contar. */
 /* "Nueva" en las sueltas de la tienda de la Quest: no tienes ninguna con ese nombre. */
+/* Lo que aun no tienes en un mazo de la Quest (lista de deseos, 15-10-2026).
+   Con DOS clases: ".deck-builder .catalogue-count", mas abajo, gana a una sola.
+   HUECA: la normal ya es dorada (#d4a466) y un ambar macizo no se distinguia. */
+.catalogue-count.catalogue-count-missing,
+.deck-builder .catalogue-count.catalogue-count-missing {
+    -fx-text-fill: #E0A63C;
+    -fx-background-color: #12161C;
+    -fx-border-color: #E0A63C;
+    -fx-border-width: 2;
+    -fx-border-radius: 12;
+    -fx-background-radius: 12;
+}
+.deck-row-missing {
+    -fx-font-size: 0.78em;
+    -fx-font-weight: bold;
+    -fx-text-fill: #12161C;
+    -fx-background-color: #E0A63C;
+    -fx-background-radius: 999;
+    -fx-padding: 0.05em 0.55em 0.1em 0.55em;
+}
+
+/* Las copias de mas de una suelta de la tienda: "x5" abajo a la derecha (Discord, 15-10-2026). */
+.shop-count {
+    -fx-font-size: 0.95em;
+    -fx-font-weight: bold;
+    -fx-text-fill: #E6EBF2;
+    -fx-background-color: rgba(18, 22, 28, 0.88);
+    -fx-border-color: -neo-accent;
+    -fx-border-width: 1;
+    -fx-border-radius: 999;
+    -fx-background-radius: 999;
+    -fx-padding: 0.05em 0.6em 0.1em 0.6em;
+}
+
+/* Cuantas tienes ya de una suelta de la tienda: abajo a la izquierda, en verde
+   (Discord, 15-10-2026). Fondo oscuro para leerse encima de cualquier arte. */
+.shop-owned {
+    -fx-font-size: 0.72em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -neo-valid;
+    -fx-background-color: rgba(18, 22, 28, 0.88);
+    -fx-border-color: -neo-valid;
+    -fx-border-width: 1;
+    -fx-border-radius: 999;
+    -fx-background-radius: 999;
+    -fx-padding: 0.05em 0.55em 0.1em 0.55em;
+}
+
 .shop-new {
     -fx-font-size: 0.72em;
     -fx-font-weight: bold;

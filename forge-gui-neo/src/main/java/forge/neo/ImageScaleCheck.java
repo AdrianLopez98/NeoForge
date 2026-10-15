@@ -96,11 +96,83 @@ public final class ImageScaleCheck {
         }
         check(refused, "un tamano de cero se rechaza en vez de devolver una imagen vacia");
 
+        // 9. Guardar lo bajado (forge.neo.card.ImageSave). Discord, 14-10-2026:
+        //    en calidad "Maxima" no bajaba ni una carta suelta, porque el PNG de
+        //    Scryfall trae transparencia y se volvia a escribir en JPG.
+        savingKeepsTheBytes();
+
         System.out.println();
         System.out.printf(Locale.ROOT, "  %d bien, %d mal%n", passed, failed);
         if (failed > 0) {
             throw new IllegalStateException(failed + " comprobacion(es) del reescalado han fallado");
         }
+    }
+
+    /**
+     * Lo bajado se guarda tal cual: un PNG con transparencia (las esquinas de
+     * la carta) y un JPG salen identicos byte a byte, y lo que no es una imagen
+     * no deja nada en la cache. Sin red: las imagenes se fabrican aqui.
+     */
+    private static void savingKeepsTheBytes() {
+        java.io.File dir = null;
+        try {
+            dir = java.nio.file.Files.createTempDirectory("neo-imgsave-").toFile();
+            final java.awt.image.BufferedImage card = new java.awt.image.BufferedImage(
+                    60, 84, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+            for (int y = 0; y < 84; y++) {
+                for (int x = 0; x < 60; x++) {
+                    // Esquinas transparentes, como el PNG de Scryfall.
+                    final boolean corner = (x < 4 || x > 55) && (y < 4 || y > 79);
+                    card.setRGB(x, y, corner ? 0x00000000 : 0xFF000000 | (x * 4 << 16) | (y * 3 << 8) | 0x40);
+                }
+            }
+            final java.io.ByteArrayOutputStream png = new java.io.ByteArrayOutputStream();
+            javax.imageio.ImageIO.write(card, "png", png);
+
+            // La causa, escrita: el escritor JPG de Java no sabe con alfa.
+            final boolean oldWay = javax.imageio.ImageIO.write(card, "jpg",
+                    new java.io.File(dir, "viejo.jpg"));
+            check(!oldWay, "la causa: re-escribir en JPG un PNG con transparencia no escribe nada");
+
+            final java.io.File asPng = new java.io.File(dir, "SET/Carta.fullborder.jpg");
+            final boolean savedPng = forge.neo.card.ImageSave.save(png.toByteArray(), asPng);
+            check(savedPng && java.util.Arrays.equals(png.toByteArray(),
+                    java.nio.file.Files.readAllBytes(asPng.toPath())),
+                    "un PNG con transparencia se guarda, y byte a byte igual (sin recomprimir)");
+            check(javax.imageio.ImageIO.read(asPng) != null && javax.imageio.ImageIO.read(asPng).getColorModel().hasAlpha(),
+                    "y se lee aunque el fichero se llame .jpg (se mira el contenido)");
+
+            final java.awt.image.BufferedImage opaque = new java.awt.image.BufferedImage(
+                    60, 84, java.awt.image.BufferedImage.TYPE_INT_RGB);
+            final java.io.ByteArrayOutputStream jpg = new java.io.ByteArrayOutputStream();
+            javax.imageio.ImageIO.write(opaque, "jpg", jpg);
+            final java.io.File asJpg = new java.io.File(dir, "SET/Otra.fullborder.jpg");
+            check(forge.neo.card.ImageSave.save(jpg.toByteArray(), asJpg)
+                    && java.util.Arrays.equals(jpg.toByteArray(), java.nio.file.Files.readAllBytes(asJpg.toPath())),
+                    "un JPG se guarda tal cual, sin volver a comprimirlo");
+
+            final java.io.File junk = new java.io.File(dir, "SET/Basura.fullborder.jpg");
+            final boolean savedJunk = forge.neo.card.ImageSave.save(
+                    "<html>Too Many Requests</html>".getBytes(java.nio.charset.StandardCharsets.UTF_8), junk);
+            check(!savedJunk && !junk.exists() && !new java.io.File(junk.getPath() + ".tmp").exists(),
+                    "lo que no es una imagen no deja nada (ni el fichero ni el .tmp)");
+        } catch (final java.io.IOException e) {
+            check(false, "guardar imagenes sin excepciones: " + e);
+        } finally {
+            if (dir != null) {
+                deleteTree(dir);
+            }
+        }
+    }
+
+    private static void deleteTree(final java.io.File f) {
+        final java.io.File[] kids = f.listFiles();
+        if (kids != null) {
+            for (final java.io.File k : kids) {
+                deleteTree(k);
+            }
+        }
+        f.delete();
     }
 
     private static int[] solid(final int w, final int h, final int argb) {

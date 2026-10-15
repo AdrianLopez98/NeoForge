@@ -35,6 +35,7 @@ public final class LookCheck {
         importedMusicIsKept();
         aiNamesAreRealAndStable();
         rivalsPlayTheirOwnWay();
+        aiProfilesComeAndGo();
         deckCarriesItsOwnSleeve();
         hoverZoomBehaves();
 
@@ -587,6 +588,196 @@ public final class LookCheck {
             }
             forge.neo.NeoSettings.save();
         }
+    }
+
+    /**
+     * Los perfiles de IA que trae el jugador ({@link AiProfiles}). Pedido en
+     * Discord el 14-10-2026: un {@code .ai} propio "no aparece en la lista".
+     *
+     * <p>Lo que se mira es lo que no se ve en el menu: que el MOTOR lo tenga
+     * cargado con sus valores (un nombre en un boton no prueba nada), que los
+     * de fabrica sigan intactos, y que un fichero con basura no tumbe la carga
+     * — Forge revienta con un ajuste que no existe, y si eso pasa al arrancar
+     * el juego no abre.
+     *
+     * <p>Corre sobre los datos de quien la lance (la bateria le da los suyos
+     * propios): solo crea perfiles que empiezan por "NeoCheck" y los quita al
+     * acabar, y devuelve los ajustes que toca.
+     */
+    private static void aiProfilesComeAndGo() {
+        final String profileBefore = forge.neo.NeoSettings.get(forge.neo.NeoSettings.AI_PROFILE, null);
+        final String poolBefore = forge.neo.NeoSettings.get(RivalSetup.POOL, null);
+        final List<File> temps = new java.util.ArrayList<>();
+        final File broken = new File(AiProfiles.userDir(), "NeoCheck roto.ai");
+        // Los nombres que la prueba crea sin el prefijo "NeoCheck" (los de Forge
+        // numerados). Solo se quitan al acabar los que NO tuviera ya el jugador:
+        // "Default 2" es justo como se llama su Default.ai retocado.
+        final List<String> ours = new java.util.ArrayList<>();
+        try {
+            // 1. Lo de fabrica pasa el filtro entero: si no, el filtro es mas
+            //    estricto que el motor y le quitaria ajustes buenos a la gente.
+            boolean factoryClean = true;
+            final File[] factory = new File(forge.localinstance.properties.ForgeConstants.AI_PROFILE_DIR)
+                    .listFiles((d, n) -> n.endsWith(".ai"));
+            for (final File f : factory == null ? new File[0] : factory) {
+                final AiProfiles.Parsed p = AiProfiles.parse(java.nio.file.Files.readAllLines(f.toPath()));
+                if (!p.skipped.isEmpty() || p.lines.size() < 50) {
+                    System.out.println("        " + f.getName() + ": " + p.lines.size() + " validas, saltadas "
+                            + p.skipped);
+                    factoryClean = false;
+                }
+            }
+            check("IA propia: los perfiles de fabrica pasan el filtro sin perder una linea",
+                    factory != null && factory.length >= 4 && factoryClean);
+
+            // 2. Limpiar: espacios, BOM, repetidos; saltar lo que reventaria.
+            final List<String> raw = java.util.Arrays.asList("﻿# mi IA", "MULLIGAN_THRESHOLD = 2 ",
+                    "PLAY_AGGRO=true", "AJUSTE_QUE_NO_EXISTE=3", "CHANCE_TO_ATTACK_INTO_TRADE=mucho",
+                    "PLAY_AGGRO=false", "una linea sin igual", "MOVE_EQUIPMENT_TO_BETTER_CREATURES=never");
+            final AiProfiles.Parsed parsed = AiProfiles.parse(raw);
+            check("IA propia: se queda con lo que vale, limpio y con el ultimo de los repetidos",
+                    parsed.lines.equals(java.util.Arrays.asList("MULLIGAN_THRESHOLD=2", "PLAY_AGGRO=false",
+                            "MOVE_EQUIPMENT_TO_BETTER_CREATURES=never")));
+            check("IA propia: y salta lo que haria reventar al motor (clave rara, numero que no es)",
+                    parsed.skipped.size() == 3);
+
+            // 3. Importar: el motor lo tiene, con SUS valores.
+            final File src = tempProfile(temps, "NeoCheck Pabi.txt", raw);
+            final AiProfiles.Imported imp = AiProfiles.importFile(src);
+            final String name = "NeoCheck Pabi";
+            check("IA propia: importar le da el nombre del fichero y cuenta lo que ha saltado",
+                    name.equals(imp.name) && imp.settings == 3 && imp.skipped.size() == 3);
+            check("IA propia: el motor la tiene, junto a las de fabrica",
+                    forge.ai.AiProfileUtil.getAvailableProfiles().contains(name)
+                            && forge.ai.AiProfileUtil.getAvailableProfiles().containsAll(
+                                    java.util.Arrays.asList(RivalSetup.PROFILES)));
+            check("IA propia: sale donde se elige (menu, cada rival, el pozo)",
+                    AiProfiles.all().contains(name) && RivalSetup.isProfile(name));
+            final forge.LobbyPlayer mine = aiWith(name);
+            check("IA propia: el rival que la lleva juega con SUS valores",
+                    "2".equals(forge.ai.AiProfileUtil.getAIProp(mine, forge.ai.AiProps.MULLIGAN_THRESHOLD))
+                            && "false".equals(forge.ai.AiProfileUtil.getAIProp(mine, forge.ai.AiProps.PLAY_AGGRO)));
+            final forge.LobbyPlayer reckless = aiWith("Reckless");
+            check("IA propia: y las de fabrica siguen con los suyos (Reckless es agresiva)",
+                    "true".equals(forge.ai.AiProfileUtil.getAIProp(reckless, forge.ai.AiProps.PLAY_AGGRO)));
+            check("IA propia: se ha guardado limpia en los datos del jugador",
+                    new File(AiProfiles.userDir(), name + ".ai").isFile());
+
+            // 4. Volver a importar con el mismo nombre la sustituye (asi se retoca).
+            AiProfiles.importFile(tempProfile(temps, "NeoCheck Pabi.ai",
+                    java.util.Arrays.asList("MULLIGAN_THRESHOLD=4")));
+            check("IA propia: reimportar con el mismo nombre la sustituye",
+                    "4".equals(forge.ai.AiProfileUtil.getAIProp(aiWith(name),
+                            forge.ai.AiProps.MULLIGAN_THRESHOLD))
+                            && java.util.Collections.frequency(AiProfiles.custom(), name) == 1);
+
+            // 5. Con el nombre de una de Forge no la pisa: se numera. Si el
+            //    jugador ya tiene un "Default 2" (su Default.ai retocado), esto
+            //    se lo sustituiria: entonces se salta.
+            if (AiProfiles.isCustom("Default 2")) {
+                System.out.println("        (saltada la de Default.ai: ya tienes un \"Default 2\")");
+            } else {
+                ours.add("Default 2");
+                final AiProfiles.Imported clash = AiProfiles.importFile(tempProfile(temps, "Default.ai",
+                        java.util.Arrays.asList("PLAY_AGGRO=true")));
+                check("IA propia: un Default.ai propio entra como \"Default 2\" y Default sigue siendo el de Forge",
+                        "Default 2".equals(clash.name) && "false".equals(forge.ai.AiProfileUtil.getAIProp(
+                                aiWith("Default"), forge.ai.AiProps.PLAY_AGGRO)));
+                AiProfiles.delete("Default 2");
+            }
+
+            // 5b. Los nombres "Random (...)": el motor trata aparte los suyos, y
+            //     una numeracion por prefijo no acababa nunca (la ventana colgada,
+            //     revisor 14-10-2026). Si esto se cuelga, la bateria lo corta.
+            check("IA propia: solo se reservan los nombres exactos",
+                    AiProfiles.isReserved("Random (Every Match)") && AiProfiles.isReserved("random")
+                            && !AiProfiles.isReserved("Random (aggro)")
+                            && !AiProfiles.isReserved("Random (Every Match) 2"));
+            if (!AiProfiles.isCustom("Random (Every Match) 2")) {
+                ours.add("Random (Every Match) 2");
+                final AiProfiles.Imported rnd = AiProfiles.importFile(tempProfile(temps,
+                        "Random (Every Match).ai", java.util.Arrays.asList("PLAY_AGGRO=true")));
+                check("IA propia: \"Random (Every Match).ai\" entra numerado y no cuelga",
+                        "Random (Every Match) 2".equals(rnd.name));
+                AiProfiles.delete("Random (Every Match) 2");
+            }
+
+            // 5c. Una tilde de un comentario guardado en ANSI (Bloc de notas,
+            //     Notepad++) no puede impedir importar: Forge lo cargaria.
+            final File ansi = tempProfile(temps, "NeoCheck ansi.ai", java.util.Collections.emptyList());
+            java.nio.file.Files.write(ansi.toPath(),
+                    "# mi versi\u00f3n\r\nMULLIGAN_THRESHOLD=3\r\n".getBytes(java.nio.charset.StandardCharsets.ISO_8859_1));
+            final AiProfiles.Imported ansiImp = AiProfiles.importFile(ansi);
+            check("IA propia: un fichero en ANSI (una tilde en un comentario) se importa",
+                    "NeoCheck ansi".equals(ansiImp.name) && ansiImp.settings == 1);
+
+            // 6. Nada valido: no se importa nada.
+            final AiProfiles.Imported junk = AiProfiles.importFile(tempProfile(temps, "NeoCheck basura.ai",
+                    java.util.Arrays.asList("hola", "ESTO=no")));
+            check("IA propia: un fichero sin un ajuste valido no se importa",
+                    junk.name == null && !AiProfiles.isCustom("NeoCheck basura"));
+
+            // 7. Uno roto dejado a mano en la carpeta no tumba la carga.
+            java.nio.file.Files.write(broken.toPath(), java.util.Arrays.asList("NO_EXISTE=1"));
+            AiProfiles.install();
+            check("IA propia: uno roto dejado a mano se ignora y los demas siguen",
+                    !AiProfiles.isCustom("NeoCheck roto") && AiProfiles.isCustom(name));
+
+            // 7b. Cargar NO cambia la IA guardada aunque nombre a una que no
+            //     esta: un fichero que un dia no se pudo leer la habria puesto
+            //     en Default para siempre. El menu la ensenya como Default.
+            forge.neo.NeoSettings.set(forge.neo.NeoSettings.AI_PROFILE, "NeoCheck fantasma");
+            AiProfiles.install();
+            check("IA propia: cargar no toca la IA guardada; el menu la ve como Default",
+                    "NeoCheck fantasma".equals(forge.neo.NeoSettings.get(forge.neo.NeoSettings.AI_PROFILE, null))
+                            && "Default".equals(AiProfiles.orDefault("NeoCheck fantasma"))
+                            && name.equals(AiProfiles.orDefault(name)) && "".equals(AiProfiles.orDefault("")));
+
+            // 8. Quitarla: el ajuste que la nombraba vuelve solo a Default.
+            forge.neo.NeoSettings.set(forge.neo.NeoSettings.AI_PROFILE, name);
+            RivalSetup.setPool(java.util.Arrays.asList("Cautious", name));
+            final boolean gone = AiProfiles.delete(name);
+            check("IA propia: quitarla la quita del motor y de la lista",
+                    gone && !forge.ai.AiProfileUtil.getAvailableProfiles().contains(name)
+                            && !RivalSetup.isProfile(name));
+            check("IA propia: y lo que la tenia elegida vuelve solo a lo de siempre",
+                    "Default".equals(forge.neo.NeoSettings.get(forge.neo.NeoSettings.AI_PROFILE, null))
+                            && RivalSetup.pool().equals(java.util.Arrays.asList("Cautious")));
+        } catch (final java.io.IOException | RuntimeException e) {
+            e.printStackTrace(System.out);
+            check("IA propia: sin excepciones", false);
+        } finally {
+            broken.delete();
+            for (final String n : new java.util.ArrayList<>(AiProfiles.custom())) {
+                if (n.startsWith("NeoCheck") || ours.contains(n)) {
+                    AiProfiles.delete(n);
+                }
+            }
+            for (final File f : temps) {
+                f.delete();
+            }
+            AiProfiles.install();
+            forge.neo.NeoSettings.set(forge.neo.NeoSettings.AI_PROFILE, profileBefore);
+            forge.neo.NeoSettings.set(RivalSetup.POOL, poolBefore);
+            forge.neo.NeoSettings.save();
+        }
+    }
+
+    /** Un rival de IA con ese perfil, sin sortear ni guardar nombres (NeoPlayers.ai los guarda). */
+    private static forge.LobbyPlayer aiWith(final String profile) {
+        final forge.ai.LobbyPlayerAi p = new forge.ai.LobbyPlayerAi("NeoCheck", null);
+        p.setAiProfile(profile);
+        return p;
+    }
+
+    private static File tempProfile(final List<File> temps, final String name, final List<String> lines)
+            throws java.io.IOException {
+        final File dir = java.nio.file.Files.createTempDirectory("neo-ai-").toFile();
+        final File f = new File(dir, name);
+        java.nio.file.Files.write(f.toPath(), lines, java.nio.charset.StandardCharsets.UTF_8);
+        temps.add(f);
+        temps.add(dir);
+        return f;
     }
 
     // ---------------------------------------------------------------

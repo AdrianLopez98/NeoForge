@@ -289,7 +289,8 @@ public class DraftScreen extends BorderPane {
         pack.getChildren().clear();
         final boolean showRanking = NeoSettings.showDraftRanking();
         int i = 0;
-        for (final PaperCard pc : draft.currentCards()) {
+        // Como en Arena: por rareza, y la tierra basica al final (PackOrder).
+        for (final PaperCard pc : forge.neo.draft.PackOrder.sort(draft.currentCards())) {
             final CardNode node = new CardNode(packCardWidth);
             final CardView view = CardView.getCardForUi(pc);
             node.setCard(view);
@@ -566,7 +567,8 @@ public class DraftScreen extends BorderPane {
             return;
         }
         final CardNode node = (CardNode) pack.getChildren().get(0);
-        final List<PaperCard> cards = draft.currentCards();
+        // La misma que la primera de la rejilla: el sobre se ensenya ordenado.
+        final List<PaperCard> cards = forge.neo.draft.PackOrder.sort(draft.currentCards());
         if (!cards.isEmpty()) {
             take(cards.get(0), node);
         }

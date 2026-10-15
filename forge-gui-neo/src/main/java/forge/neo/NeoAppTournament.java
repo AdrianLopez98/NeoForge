@@ -165,7 +165,7 @@ final class NeoAppTournament {
             boolean won = false;
             try {
                 final NeoGame.Result r = NeoGame.play(mine, 1, NeoMatchUI.Mode.HUMAN, 3600,
-                        false, liveBinder, NeoSettings.get(NeoSettings.AI_PROFILE, null),
+                        false, liveBinder, forge.neo.look.AiProfiles.orDefault(NeoSettings.get(NeoSettings.AI_PROFILE, null)),
                         autoMana, format, java.util.List.of(rival), 1);
                 won = r.winner != null && r.winner.equals(
                         forge.player.GamePlayerUtil.getGuiPlayer().getName());

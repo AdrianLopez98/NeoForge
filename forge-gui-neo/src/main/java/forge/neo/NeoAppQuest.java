@@ -411,7 +411,7 @@ final class NeoAppQuest {
             forge.neo.quest.NeoColosseumMatch.Outcome out = null;
             try {
                 out = forge.neo.quest.NeoColosseumMatch.play(liveBinder, NeoMatchUI.Mode.HUMAN,
-                        NeoSettings.autoPayMana(), NeoSettings.get(NeoSettings.AI_PROFILE, null));
+                        NeoSettings.autoPayMana(), forge.neo.look.AiProfiles.orDefault(NeoSettings.get(NeoSettings.AI_PROFILE, null)));
             } catch (final Exception e) {
                 System.err.println("[neo] la partida del Coliseo ha fallado: " + e);
                 e.printStackTrace();
@@ -503,7 +503,7 @@ final class NeoAppQuest {
             forge.neo.quest.NeoQuestDraftMatch.Outcome out = null;
             try {
                 out = forge.neo.quest.NeoQuestDraftMatch.play(liveBinder, NeoMatchUI.Mode.HUMAN,
-                        NeoSettings.autoPayMana(), NeoSettings.get(NeoSettings.AI_PROFILE, null));
+                        NeoSettings.autoPayMana(), forge.neo.look.AiProfiles.orDefault(NeoSettings.get(NeoSettings.AI_PROFILE, null)));
             } catch (final Exception e) {
                 // Si la partida revienta, no se apunta: se puede volver a jugar.
                 System.err.println("[neo] la partida del torneo ha fallado: " + e);
@@ -789,6 +789,13 @@ final class NeoAppQuest {
      */
     void playQuestEvent(final forge.gamemodes.quest.QuestEvent event,
                                 final String title) {
+        // Si el mazo no se puede jugar (le faltan cartas que no tienes, o no
+        // cumple las reglas), de vuelta al cuartel, que dice por que. El
+        // boton ya va apagado; esto es para cualquier otro camino.
+        if (forge.neo.quest.NeoQuest.problemWith(forge.neo.quest.NeoQuest.currentDeck()) != null) {
+            showQuestHome();
+            return;
+        }
         // Mesa NUEVA, como en cualquier otra partida.
         //
         // Antes se llamaba a showTable() a secas, que solo crea la mesa si no
@@ -1015,6 +1022,27 @@ final class NeoAppQuest {
         final int extra = Integer.getInteger("neo.quest.demoCredits", 0);
         if (extra > 0) {
             forge.model.FModel.getQuest().getAssets().addCredits(extra);
+        }
+        // -Dneo.quest.demoMissing=N: N cartas que no tienes en tu mazo (la lista
+        // de deseos), para ver el aviso largo del cuartel. Mejor con --estandar:
+        // en Commander las que entran pueden no ser de tu identidad.
+        final int missing = Integer.getInteger("neo.quest.demoMissing", 0);
+        final forge.deck.Deck current = forge.neo.quest.NeoQuest.currentDeck();
+        if (missing > 0 && current != null) {
+            int added = 0;
+            for (final forge.item.PaperCard c
+                    : forge.model.FModel.getMagicDb().getCommonCards().getUniqueCards()) {
+                if (added >= missing) {
+                    break;
+                }
+                if (c.getRules() != null && !c.getName().startsWith("A-") && !c.getRules().getType().isLand()
+                        && !c.getRules().getType().isLegendary()
+                        && forge.neo.quest.NeoQuestSell.owned(c) == 0) {
+                    current.getMain().add(c, 1 + added % 3);
+                    added++;
+                }
+            }
+            forge.neo.quest.NeoQuest.save();
         }
         showQuestHome();
         final int clickAt = Integer.getInteger("neo.quest.clickCollection", 0);

@@ -75,6 +75,13 @@ public final class DailyPackCheck {
         NeoQuest.start(NAME, NeoQuest.Modalidad.ESTANDAR, NeoQuest.Dificultad.NORMAL,
                 NeoQuest.colourStarter("neo-check-diario-mazo", forge.neo.ascent.AscentSeedDeck.NO_COLOURS, null));
         ok &= check(NeoDailyPack.available(day1), "en una Quest nueva hay sobre del dia");
+        // Apagado en Ajustes (Discord, 14-10-2026): no hay, ni se puede abrir.
+        final String wasOn = forge.neo.NeoSettings.get(NeoDailyPack.ENABLED, null);
+        forge.neo.NeoSettings.setBool(NeoDailyPack.ENABLED, false);
+        ok &= check(!NeoDailyPack.available(day1) && NeoDailyPack.claim(day1) == null,
+                "apagado en Ajustes no hay sobre del dia (ni se abre)");
+        forge.neo.NeoSettings.set(NeoDailyPack.ENABLED, wasOn);
+        ok &= check(NeoDailyPack.available(day1), "y encendido otra vez, vuelve");
         final CardEdition today = NeoDailyPack.todaysEdition(day1);
         ok &= check(today != null && NeoQuestShop.editions().contains(today),
                 "el de hoy es de una expansion de la Quest: " + (today == null ? "-" : today.getCode()));

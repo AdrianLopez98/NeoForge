@@ -42,6 +42,12 @@ import forge.neo.ascent.AscentSeed;
  *       Quest sin sobre hasta esa fecha).</li>
  *   <li><b>No se acumulan</b> (Ana): el dia que no entras, ese sobre se
  *       pierde. Solo hay el de hoy, y abierto, el cuartel ya no lo ensenya.</li>
+ *   <li><b>Se puede apagar</b> en Ajustes ({@link #ENABLED}, encendido de
+ *       fabrica). Discord, 14-10-2026: <i>"I'd rather earn boosters just
+ *       through my own play ... and the option also removes the current
+ *       visual"</i>. Apagado, {@link #available} dice que no y el cuartel no
+ *       ensenya nada. Uno solo para todas las Quests (Ana: uno por Quest y
+ *       otro general se podian contradecir).</li>
  * </ul>
  */
 public final class NeoDailyPack {
@@ -66,6 +72,14 @@ public final class NeoDailyPack {
      */
     private static final int TRIES = 12;
 
+    /** Ajustes -> Modos: dar el sobre del dia en la Quest. Encendido de fabrica. */
+    public static final String ENABLED = "quest.dailyPack";
+
+    /** Si esta encendido en Ajustes. */
+    public static boolean isEnabled() {
+        return forge.neo.NeoSettings.getBool(ENABLED, true);
+    }
+
     // ---------------------------------------------------------------
     // Hoy
 
@@ -75,7 +89,7 @@ public final class NeoDailyPack {
     }
 
     public static boolean available(final Instant now) {
-        if (!NeoQuest.isActive()) {
+        if (!NeoQuest.isActive() || !isEnabled()) {
             return false;
         }
         final long last = lastDay(NeoQuest.name());

@@ -66,7 +66,9 @@ public final class NeoQuestMatch {
      */
     public static NeoQuestRewards play(final QuestEvent duel, final TableBinder binder,
                                        final boolean autoPayMana, final NeoMatchUI.Mode mode) {
-        return playFully(duel, binder, autoPayMana, mode).rewards;
+        // null si no se ha llegado a jugar (el mazo no vale: ver playFully).
+        final Outcome outcome = playFully(duel, binder, autoPayMana, mode);
+        return outcome == null ? null : outcome.rewards;
     }
 
     /**
@@ -90,6 +92,15 @@ public final class NeoQuestMatch {
     /** Igual, pero contando ademas como se ha salido de la partida. */
     public static Outcome playFully(final QuestEvent duel, final TableBinder binder,
                                     final boolean autoPayMana, final NeoMatchUI.Mode mode) {
+        // El candado, AQUI y no solo en el boton del cuartel: el motor no mira
+        // si tienes las cartas (QuestUtil.finishStartingGame), asi que un mazo
+        // de la lista de deseos que llegara hasta aqui por cualquier camino se
+        // jugaba con cartas que no tienes. Lo cazo questcheck (15-10-2026).
+        final String problem = NeoQuest.problemWith(NeoQuest.currentDeck());
+        if (problem != null) {
+            System.out.println("[quest] no se juega el duelo: " + problem);
+            return null;
+        }
         final NeoMatchUI gui = new NeoMatchUI(mode, false);
         gui.setEnding(NeoMatchUI.Ending.QUEST);
         gui.setAutoPayMana(autoPayMana);

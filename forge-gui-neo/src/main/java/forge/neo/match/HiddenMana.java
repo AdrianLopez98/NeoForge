@@ -58,6 +58,22 @@ import forge.game.zone.ZoneType;
  * colores), así que alguna vez puede pararte sin que al final llegue: te
  * cuesta un clic. Lo contrario te cuesta el turno.
  *
+ * <p><b>Y las fuentes que la IA no usa nunca</b> (itch.io, 15-10-2026: Lion's
+ * Eye Diamond con Underworld Breach y Brain Freeze, <i>"it moves to the next
+ * phase anyways"</i>). El mismo barrido suma tu maná con la lista de fuentes
+ * de la IA ({@code ComputerUtilMana.getAvailableManaSources}), y esa lista deja
+ * fuera el LED ({@code Sac<1/CARDNAME> Discard<0/Hand>}): medido, el motor no
+ * lo cuenta ni con un Shock en la mano, y si cuenta un Lotus Petal o una isla.
+ * Así que aquí cuenta como oculta toda fuente que puedas activar ahora y que
+ * <b>no esté en esa lista</b>, con lo que da de verdad ({@code Amount}, 3 el
+ * LED). Se le pregunta a la lista del propio motor y no por el coste, para no
+ * adivinar qué fuentes salta: si un día la IA cuenta el LED, deja de salir.
+ *
+ * <p><b>Y se mira también el cementerio y el exilio</b> al buscar algo que
+ * pagar: lo que da Underworld Breach (escapar) o el retrospectivo vive en el
+ * cementerio, y con el maná del LED es justo lo que se va a lanzar. El motor ya
+ * lo ve cuando el maná sale de tierras (medido: tres islas y Breach, sí).
+ *
  * <p>Lo que NO hace: iluminar la carta como jugable (los resaltados salen del
  * mismo barrido del motor y siguen sin verla), ni saltarse un "pasar hasta fin
  * de turno" que hayas pedido tú. {@code -Dneo.hiddenmana=false} lo apaga.
@@ -74,9 +90,14 @@ public final class HiddenMana {
     /** Los nombres de color que entiende {@code ManaAtom.fromName}. */
     private static final String[] COLORS = {"White", "Blue", "Black", "Red", "Green"};
 
-    /** Las zonas desde las que se puede hacer algo: las del barrido del motor y el mando. */
+    /**
+     * Las zonas desde las que se puede hacer algo: las del barrido del motor, el
+     * mando, y el cementerio y el exilio (escapar con Underworld Breach,
+     * retrospectiva, lo que se juega desde el exilio).
+     */
     private static final ZoneType[] ZONES = {
-            ZoneType.Hand, ZoneType.Command, ZoneType.Battlefield, ZoneType.Flashback};
+            ZoneType.Hand, ZoneType.Command, ZoneType.Battlefield, ZoneType.Flashback,
+            ZoneType.Graveyard, ZoneType.Exile};
 
     /**
      * Lo que se ha visto en una prioridad.
@@ -157,6 +178,10 @@ public final class HiddenMana {
         final List<String> hidden = new ArrayList<>();
         int budget = p.getManaPool().totalMana();
         boolean underestimated = false;
+        // Las fuentes que cuenta el motor (la lista de la IA): lo que puedas
+        // activar y no este aqui, el motor no lo suma (el LED).
+        final java.util.Set<Card> counted = new java.util.HashSet<>(
+                forge.ai.ComputerUtilMana.getAvailableManaSources(p, true));
 
         for (final Card c : p.getCardsIn(ZoneType.Battlefield)) {
             int normal = 0;       // lo que da por una habilidad corriente
@@ -170,6 +195,14 @@ public final class HiddenMana {
                 final int[] real = chosenColorAmount(c, ma);
                 if (real == null) {
                     normal = Math.max(normal, 1);
+                    if (!counted.contains(c)) {
+                        // Una fuente que el motor no cuenta: con lo que da.
+                        final int net = plainAmount(c, ma) - activationMana(ma);
+                        if (net > 0) {
+                            isHidden = true;
+                            best = Math.max(best, net);
+                        }
+                    }
                     continue;
                 }
                 final int net = real[1] - activationMana(ma);
@@ -215,6 +248,17 @@ public final class HiddenMana {
             return false;
         }
         return ma.canPlay();
+    }
+
+    /** Lo que da una habilidad de maná corriente: su {@code Amount}, o 1. */
+    private static int plainAmount(final Card host, final SpellAbility ma) {
+        for (SpellAbility part = ma; part != null; part = part.getSubAbility()) {
+            if (part.getApi() == ApiType.Mana) {
+                return part.hasParam("Amount")
+                        ? Math.max(1, AbilityUtils.calculateAmount(host, part.getParam("Amount"), part)) : 1;
+            }
+        }
+        return 1;
     }
 
     private static int activationMana(final SpellAbility ma) {

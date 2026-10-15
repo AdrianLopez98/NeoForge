@@ -393,9 +393,16 @@ public final class NeoQuest {
             return false;
         }
         try {
-            FModel.getQuest().load(QuestDataIO.loadData(file));
+            final forge.gamemodes.quest.data.QuestData data = QuestDataIO.loadData(file);
+            // Guardar va a <nombre INTERNO>.dat, y se ha leido <name>.dat: si no
+            // coinciden, cada duelo se guardaria en OTRO fichero y al volver a
+            // abrir esta Quest saldria siempre como estaba (15-10-2026).
+            final boolean aligned = alignName(data, name);
+            FModel.getQuest().load(data);
             oneGamePerDuel();
-            if (dropSideboards()) {
+            // Las tres arreglan algo guardado mal; las tres, antes de guardar.
+            final boolean renamed = repairDeckNames();
+            if (dropSideboards() | renamed | aligned) {
                 save();
             }
             forgetDuels();
@@ -451,6 +458,89 @@ public final class NeoQuest {
      *
      * @return true si habia algo que quitar (o sea, si hay que guardar)
      */
+    /**
+     * Que la Quest cargada se llame como el fichero del que se ha leido.
+     *
+     * <p>El motor guarda en {@code <nombre interno>.dat}
+     * ({@code QuestDataIO.saveData}) y nosotros leemos del fichero que sale en
+     * la lista. Si alguna vez no coinciden (un fichero copiado o renombrado
+     * fuera, una copia de seguridad restaurada con otro nombre, una
+     * sincronizacion), cada duelo se guardaria en otro fichero: la Quest de la
+     * lista no avanzaria nunca. Discord, 15-10-2026, "Android Quest no
+     * rewards". El campo es privado y no tiene setter que no mueva ficheros
+     * ({@code QuestData.rename} mueve el del nombre interno, que podria ser el
+     * de OTRA Quest), asi que se pone directamente.
+     *
+     * @return true si se ha corregido (hay que guardar)
+     */
+    static boolean alignName(final forge.gamemodes.quest.data.QuestData data, final String fileName) {
+        if (data == null || fileName == null || fileName.equals(data.getName())) {
+            return false;
+        }
+        try {
+            final java.lang.reflect.Field f = forge.gamemodes.quest.data.QuestData.class.getDeclaredField("name");
+            f.setAccessible(true);
+            System.out.println("[quest] la Quest \"" + fileName + "\" se llamaba por dentro \""
+                    + data.getName() + "\": se guardaba en otro fichero. Corregido.");
+            f.set(data, fileName);
+            return true;
+        } catch (final ReflectiveOperationException | RuntimeException e) {
+            System.err.println("[quest] no se ha podido corregir el nombre de la Quest: " + e);
+            return false;
+        }
+    }
+
+    /**
+     * Repara los mazos cuyo NOMBRE no es el de su clave en el almacen.
+     *
+     * <p>Lo dejaba "Guardar una copia" hasta el 15-10-2026: guardar metia el
+     * mismo objeto que se seguia editando, y la copia le cambiaba el nombre al
+     * ORIGINAL ("Abzan Armor [TDC] [2025]" guardado como "... (2)"). El
+     * almacen busca por la clave y el selector ensenya el nombre, asi que al
+     * elegirlo no se encontraba ("No deck picked"). Se le devuelve el nombre de
+     * su clave, que es el que tenia; si el mazo elegido era el nombre roto,
+     * pasa a ser ese mazo. Y si dos claves comparten el mismo objeto, la
+     * segunda se queda con una copia suya.
+     *
+     * @return true si se ha cambiado algo (o sea, si hay que guardar)
+     */
+    public static boolean repairDeckNames() {
+        final QuestController q = FModel.getQuest();
+        if (q == null || q.getMyDecks() == null) {
+            return false;
+        }
+        final forge.util.storage.IStorage<Deck> decks = q.getMyDecks();
+        final String current = q.getCurrentDeck();
+        String newCurrent = null;
+        final java.util.Map<Deck, String> seen = new java.util.IdentityHashMap<>();
+        final List<Deck> fixed = new ArrayList<>();
+        for (final String key : new ArrayList<>(decks.getItemNames())) {
+            final Deck d = decks.get(key);
+            if (d == null || key == null) {
+                continue;
+            }
+            if (!key.equals(d.getName()) || seen.containsKey(d)) {
+                if (current != null && current.equals(d.getName()) && decks.get(current) == null) {
+                    newCurrent = key;
+                }
+                fixed.add(new Deck(d, key));
+            } else {
+                seen.put(d, key);
+            }
+        }
+        for (final Deck d : fixed) {
+            decks.add(d);
+        }
+        if (newCurrent != null) {
+            q.setCurrentDeck(newCurrent);
+        }
+        if (!fixed.isEmpty()) {
+            System.out.println("[quest] mazos con el nombre cambiado, reparados: " + fixed.size()
+                    + (newCurrent == null ? "" : " (el elegido vuelve a ser \"" + newCurrent + "\")"));
+        }
+        return !fixed.isEmpty();
+    }
+
     public static boolean dropSideboards() {
         final QuestController q = FModel.getQuest();
         if (q == null || q.getMyDecks() == null) {
@@ -466,8 +556,23 @@ public final class NeoQuest {
                 // tus mazos al comprar un preconstruido es el MISMO objeto que
                 // tiene la tienda en su catalogo. Vaciarlo ahi le quitaria el
                 // banquillo al preconstruido para el resto de la sesion.
+                // Menos el COMPANERO: va en el banquillo porque asi lo pide el
+                // motor, y el editor de la Quest lo deja poner. Vaciarlo entero
+                // se lo llevaba al volver a cargar la Quest (15-10-2026).
+                final List<PaperCard> companions = new ArrayList<>();
+                for (final java.util.Map.Entry<PaperCard, Integer> e : side) {
+                    if (forge.neo.deck.DeckEditor.isCompanionCard(e.getKey())) {
+                        companions.add(e.getKey());
+                    }
+                }
+                if (companions.size() == 1 && side.countAll() == 1) {
+                    continue;
+                }
                 final Deck copy = new Deck(deck, deck.getName());
                 copy.get(forge.deck.DeckSection.Sideboard).clear();
+                if (!companions.isEmpty()) {
+                    copy.get(forge.deck.DeckSection.Sideboard).add(companions.get(0), 1);
+                }
                 fixed.add(copy);
             }
         }
@@ -1039,8 +1144,94 @@ public final class NeoQuest {
         // sin Localizer, asi que llegan en ingles en los once idiomas. Aqui se
         // leen en el cuartel general, que es donde te enteras de que no puedes
         // jugar. Lo que DeckProblem no reconoce pasa tal cual.
-        return forge.neo.deck.DeckProblem.translate(
+        final String rules = forge.neo.deck.DeckProblem.translate(
                 forge.gamemodes.quest.QuestUtil.getDeckConformanceProblemsBeforeGame(deck));
+        if (rules != null) {
+            return rules;
+        }
+        // Y las cartas que no tienes: un mazo de la Quest puede llevarlas (la
+        // lista de deseos, Discord 15-10-2026), pero no jugarse hasta tenerlas.
+        // Como se mira aqui, en cada pantalla y cada vez, el mazo vale SOLO en
+        // cuanto las consigues: no hay nada que apuntar ni que refrescar.
+        return missingText(missingCards(deck));
+    }
+
+    /**
+     * Las cartas del mazo que NO tienes, de una en una: la carta (la del mazo)
+     * y cuantas copias faltan. Se cuenta por NOMBRE, como el constructor
+     * ({@code QuestDeckContext}): el Sol Ring de otra edicion vale. Cuentan el
+     * principal, la zona de mando y el BANQUILLO: el motor lo carga, y de ahi
+     * salen el companero y lo que busca un Wish. Las basicas normales no: el motor las da por gratis y no las quita de un
+     * mazo al venderlas ({@code QuestUtilCards.removeCard}), asi que un mazo de
+     * hoy no puede quedarse bloqueado por ellas.
+     */
+    public static java.util.LinkedHashMap<PaperCard, Integer> missingCards(final Deck deck) {
+        final java.util.LinkedHashMap<PaperCard, Integer> out = new java.util.LinkedHashMap<>();
+        if (deck == null || !isActive() || collection() == null) {
+            return out;
+        }
+        final java.util.Map<String, Integer> owned = new java.util.HashMap<>();
+        for (final java.util.Map.Entry<PaperCard, Integer> e : collection()) {
+            if (e.getKey() != null) {
+                owned.merge(e.getKey().getName().toLowerCase(java.util.Locale.ROOT), e.getValue(), Integer::sum);
+            }
+        }
+        final java.util.Map<String, Integer> need = new java.util.LinkedHashMap<>();
+        final java.util.Map<String, PaperCard> shown = new java.util.HashMap<>();
+        for (final forge.deck.DeckSection section : new forge.deck.DeckSection[] {
+                forge.deck.DeckSection.Commander, forge.deck.DeckSection.Main,
+                forge.deck.DeckSection.Sideboard}) {
+            final forge.deck.CardPool pool = deck.get(section);
+            if (pool == null) {
+                continue;
+            }
+            for (final java.util.Map.Entry<PaperCard, Integer> e : pool) {
+                final PaperCard c = e.getKey();
+                if (c == null || (c.isVeryBasicLand() && !c.isFoil())) {
+                    continue;
+                }
+                final String k = c.getName().toLowerCase(java.util.Locale.ROOT);
+                need.merge(k, e.getValue(), Integer::sum);
+                shown.putIfAbsent(k, c);
+            }
+        }
+        for (final java.util.Map.Entry<String, Integer> e : need.entrySet()) {
+            final int miss = e.getValue() - owned.getOrDefault(e.getKey(), 0);
+            if (miss > 0) {
+                out.put(shown.get(e.getKey()), miss);
+            }
+        }
+        return out;
+    }
+
+    /** "Te faltan N cartas: A, B, C..." o null si no falta ninguna. */
+    private static String missingText(final java.util.Map<PaperCard, Integer> missing) {
+        if (missing.isEmpty()) {
+            return null;
+        }
+        int total = 0;
+        for (final int n : missing.values()) {
+            total += n;
+        }
+        final StringBuilder names = new StringBuilder();
+        int i = 0;
+        for (final java.util.Map.Entry<PaperCard, Integer> e : missing.entrySet()) {
+            if (i == 4) {
+                names.append(", \u2026");
+                break;
+            }
+            if (i > 0) {
+                names.append(", ");
+            }
+            names.append(forge.neo.card.CardText.nameOf(e.getKey()));
+            if (e.getValue() > 1) {
+                names.append(" \u00d7").append(e.getValue());
+            }
+            i++;
+        }
+        return total == 1
+                ? forge.neo.NeoText.get("quest.missing.one", names.toString())
+                : forge.neo.NeoText.get("quest.missing.many", total, names.toString());
     }
 
     // ---------------------------------------------------------------

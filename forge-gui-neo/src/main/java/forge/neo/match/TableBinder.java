@@ -655,6 +655,15 @@ public class TableBinder {
         }
     }
 
+    private static int drawnThisTurn(final PlayerView p) {
+        try {
+            return p == null ? 0 : p.getNumDrawnThisTurn();
+        } catch (final RuntimeException e) {
+            // En red o recien empezada la partida puede no estar puesto.
+            return 0;
+        }
+    }
+
     /**
      * Los contadores del jugador, o nada si el motor aun no los ha puesto.
      *
@@ -811,6 +820,9 @@ public class TableBinder {
         // Y si es el monarca o tiene la iniciativa: del rival no se veia (ver
         // PlayerBar.setTitles).
         bar.setTitles(PlayerTitles.of(p));
+        // Y cuantas ha robado este turno, si mas de una (Orcish Bowmasters y
+        // compania: ver PlayerBar.setDrawnThisTurn).
+        bar.setDrawnThisTurn(drawnThisTurn(p));
         // Y las maldiciones que le encantan y las batallas que protege: estan
         // en la mesa de quien las controla (Discord, 03-10-2026). Ver
         // AttachedToPlayer.

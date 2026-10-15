@@ -102,6 +102,9 @@ public final class NeoBoot {
         System.out.println("        idioma: " + NeoLanguage.currentLabel());
         FModel.initialize(bar, NeoLanguage.hook());
         NeoLanguage.restoreEngineValue();
+        // Los perfiles de IA que haya traido el jugador, junto a los de Forge
+        // (FModel acaba de cargar solo los de res/ai). Sin ninguno, nada.
+        forge.neo.look.AiProfiles.install();
         // Antes de que nadie lea los mazos: uno roto, Forge lo borra o tumba la
         // carpeta entera (BrokenDecks).
         forge.neo.deck.BrokenDecks.atStartup();

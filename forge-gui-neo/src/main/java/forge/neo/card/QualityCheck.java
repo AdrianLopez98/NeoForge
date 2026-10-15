@@ -52,19 +52,30 @@ public final class QualityCheck {
         fx.await();
 
         final String name = System.getProperty("neo.quality.card", "Skullclamp");
-        final List<String> keys = new ArrayList<>();
-        for (final PaperCard pc : FModel.getMagicDb().getCommonCards().getAllCards(name)) {
-            final String key = CardView.getCardForUi(pc).getCurrentState().getImageKey();
-            if (key != null && !keys.contains(key)) {
-                keys.add(key);
-            }
-        }
+        final List<String> keys = keysOf(name);
         System.out.println("  " + keys.size() + " impresiones de " + name);
         final String was = NeoSettings.get(NeoSettings.IMAGE_QUALITY, ImageQuality.NORMAL.scryfall);
         try {
             phase(ImageQuality.LARGE, keys, 672);
             phase(ImageQuality.NORMAL, keys, 488);
             phase(ImageQuality.LARGE, keys, 672);
+            // La maxima no se probaba, y no bajaba ni una carta suelta: el PNG
+            // trae transparencia y se re-escribia en JPG (Discord, 14-10-2026,
+            // ver ImageSave). Con OTRA carta y solo las impresiones que no
+            // esten en disco en ninguna calidad: con una normal o alta ya
+            // bajada se ensenya esa (la mejor que tengas, decision del
+            // 13-10-2026) y no se pide. Scryfall la sirve a 745 o 744 de ancho.
+            final List<String> fresh = new ArrayList<>();
+            for (final String k : keysOf(System.getProperty("neo.quality.pngCard", "Brainstorm"))) {
+                if (CardImages.cachedFile(k) == null && fresh.size() < 6) {
+                    fresh.add(k);
+                }
+            }
+            if (fresh.isEmpty()) {
+                System.out.println("  (maxima saltada: esas impresiones ya estan en disco)");
+            } else {
+                phase(ImageQuality.PNG, fresh, 745);
+            }
         } finally {
             NeoSettings.set(NeoSettings.IMAGE_QUALITY, was);
             ArtDownload.afterDownload();
@@ -76,18 +87,35 @@ public final class QualityCheck {
         }
     }
 
+    private static List<String> keysOf(final String name) {
+        final List<String> keys = new ArrayList<>();
+        for (final PaperCard pc : FModel.getMagicDb().getCommonCards().getAllCards(name)) {
+            final String key = CardView.getCardForUi(pc).getCurrentState().getImageKey();
+            if (key != null && !keys.contains(key)) {
+                keys.add(key);
+            }
+        }
+        return keys;
+    }
+
     /** Pone esa calidad como lo hace Ajustes y mira que todas se vean a ese ancho. */
     private static void phase(final ImageQuality q, final List<String> keys, final int width) throws InterruptedException {
         NeoSettings.set(NeoSettings.IMAGE_QUALITY, q.scryfall);
         ArtDownload.afterDownload();
         final Map<String, Image> got = new HashMap<>();
         final long until = System.currentTimeMillis() + 120_000;
-        while (got.size() < keys.size() && System.currentTimeMillis() < until) {
+        // Mientras baja la calidad pedida se ensenya la mejor que ya haya en
+        // disco (ImageQuality.lookupOrder): se espera a que cada una llegue en
+        // la suya, que es lo que ve el jugador al cabo de un momento.
+        int settled = 0;
+        while (settled < keys.size() && System.currentTimeMillis() < until) {
+            settled = 0;
             for (final String k : keys) {
-                if (!got.containsKey(k)) {
-                    final Image img = CardImages.get(k);
-                    if (img != null) {
-                        got.put(k, img);
+                final Image img = CardImages.get(k);
+                if (img != null) {
+                    got.put(k, img);
+                    if (Math.abs((int) img.getWidth() - width) <= 1) {
+                        settled++;
                     }
                 }
             }
@@ -97,7 +125,11 @@ public final class QualityCheck {
         for (final Image img : got.values()) {
             widths.merge((int) img.getWidth(), 1, Integer::sum);
         }
-        final boolean ok = got.size() == keys.size() && widths.size() == 1 && widths.containsKey(width);
+        boolean near = !widths.isEmpty();
+        for (final int w : widths.keySet()) {
+            near &= Math.abs(w - width) <= 1;
+        }
+        final boolean ok = got.size() == keys.size() && near;
         System.out.println("  [" + (ok ? "OK " : "MAL") + "] calidad " + q.scryfall + ": "
                 + got.size() + " de " + keys.size() + " cargadas, anchos " + widths + " (se esperaba " + width + ")");
         if (!ok) {

@@ -34,8 +34,10 @@ public final class ResolveAll {
      * Lo enciende.
      *
      * <p>Se le pone a LOS DOS controladores, el de la interfaz y el sentado
-     * ({@link NeoMatchUI#seated}, el relevo de {@code ManaColor}, que tiene SU
-     * PROPIO {@code YieldController}). Quien decide si la prioridad se pasa
+     * ({@link NeoMatchUI#seated}, el relevo de {@code ManaColor}). Desde el
+     * 15-10-2026 comparten el mismo {@code YieldController}
+     * ({@code SafeActions.Guarded}) y esto escribe dos veces lo mismo; se deja
+     * por si alguna vez no se pudiera compartir, que es cuando hacia falta. Quien decide si la prioridad se pasa
      * sola es el sentado; pero quien escucha si un rival lanza algo
      * ({@code FControlGameEventHandler}) y quien atiende el Cancelar del aviso
      * ({@code InputLockUI}) es el de la interfaz. Con uno solo se queda a

@@ -46,7 +46,10 @@ public final class RivalSetup {
     private RivalSetup() {
     }
 
-    /** Los perfiles que trae Forge en {@code res/ai/}. */
+    /**
+     * Los perfiles que trae Forge en {@code res/ai/}. Los que traiga el jugador
+     * van aparte ({@link AiProfiles}) y valen igual en todo lo de abajo.
+     */
     public static final String[] PROFILES = {"Cautious", "Default", "Reckless", "Experimental"};
 
     /** Sortear uno del pozo en cada partida. */
@@ -152,7 +155,7 @@ public final class RivalSetup {
     // Forma de jugar
     // ---------------------------------------------------------------
 
-    /** "" (la general), uno de {@link #PROFILES} o {@link #RANDOM}. */
+    /** "" (la general), uno de {@link #PROFILES} o de los del jugador, o {@link #RANDOM}. */
     public static String mode(final int rival) {
         final String m = slot(MODES, rival);
         return isProfile(m) || RANDOM.equals(m) ? m : "";
@@ -196,13 +199,18 @@ public final class RivalSetup {
         NeoSettings.save();
     }
 
+    /**
+     * Si es un perfil que el motor tiene cargado: uno de Forge o uno del
+     * jugador. Uno del jugador que se haya quitado deja de valer, y los
+     * ajustes que lo nombraban vuelven solos a lo de siempre.
+     */
     public static boolean isProfile(final String s) {
         for (final String p : PROFILES) {
             if (p.equals(s)) {
                 return true;
             }
         }
-        return false;
+        return AiProfiles.isCustom(s);
     }
 
     /** La forma de jugar general, marcada para que cada rival use la suya. */

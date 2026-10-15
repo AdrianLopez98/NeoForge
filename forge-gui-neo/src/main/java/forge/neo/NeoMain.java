@@ -223,6 +223,12 @@ public final class NeoMain {
                 banner("Volver a bajar la imagen: solo si hay HD");
                 forge.neo.card.RefreshArtCheck.run();
                 break;
+            case "deckgencheck":
+                // Las tablas del generador de mazos, leidas con bufer (FastDeckGen),
+                // iguales que las de Forge, y generando mazos. Sin red.
+                banner("Generador de mazos: tablas con bufer");
+                forge.neo.deck.FastDeckGenCheck.run();
+                break;
             case "qualitycheck":
                 // La calidad de imagen elegida (normal/alta) es la que se VE, y
                 // cambiarla se nota sin reiniciar. Necesita red. Ver QualityCheck.

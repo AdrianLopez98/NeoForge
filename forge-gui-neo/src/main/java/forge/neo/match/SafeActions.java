@@ -200,9 +200,10 @@ public final class SafeActions {
     /**
      * Corre {@code body} con el barrido apagado y lo deja como estaba.
      *
-     * <p>Los overrides viven en el {@link YieldController} de <b>este</b>
-     * controlador, que nace con el relevo y muere con la partida: no se escribe
-     * nada en {@code %APPDATA%} ni se toca el {@code FModel} compartido.
+     * <p>Los overrides viven en el {@link YieldController} del asiento (desde
+     * el 15-10-2026 uno solo, compartido por el relevo y el relevado: ver
+     * {@link Guarded#getYieldController}), que muere con la partida: no se
+     * escribe nada en {@code %APPDATA%} ni se toca el {@code FModel} compartido.
      */
     private static <T> T withoutScan(final PlayerControllerHuman controller,
                                      final Supplier<T> body) {
@@ -254,6 +255,19 @@ public final class SafeActions {
      * {@link TriggerSubject.Telling}. Cada arreglo con asiento se apila igual —
      * no se puede sentar a dos.
      */
+    /** Pone en {@code relay} el {@code YieldController} de {@code owner}. Ver {@link Guarded#getYieldController}. */
+    static boolean shareYields(final PlayerControllerHuman relay, final PlayerControllerHuman owner) {
+        try {
+            final java.lang.reflect.Field f = PlayerControllerHuman.class.getDeclaredField("yieldController");
+            f.setAccessible(true);
+            f.set(relay, owner.getYieldController());
+            return true;
+        } catch (final ReflectiveOperationException | RuntimeException e) {
+            System.err.println("[neo] el relevo no comparte el pase automatico: " + e);
+            return false;
+        }
+    }
+
     public static class Guarded extends PlayerControllerHuman {
 
         /** El controlador al que se releva: el que tiene la interfaz en la mano. */
@@ -263,6 +277,40 @@ public final class SafeActions {
                        final PlayerControllerHuman owner) {
             super(player, lobby, owner);
             this.owner = owner;
+            sharedYields = shareYields(this, owner);
+        }
+
+        /** Si el campo ya es el del relevado. Ver {@link #getYieldController}. */
+        private final boolean sharedYields;
+
+        /**
+         * El pase automatico tambien es UNO, el del relevado.
+         *
+         * <p>Discord, 15-10-2026: <i>"when you click End Turn ... you can not
+         * cancel"</i>, y ni un Cyclonic Rift del rival lo paraba. Forge lo trae
+         * todo hecho, pero cada pieza mira un controlador distinto: "pasar
+         * turno" se arma en este (es el que el motor consulta, ver
+         * {@code NeoMatchUI.seated}), y los cortes cuando un rival lanza algo
+         * o te ataca ({@code FControlGameEventHandler}, cableado por
+         * {@code HostedMatch} ANTES de sentarnos), el aviso "Cediendo hasta el
+         * final del turno" con su Cancelar ({@code AbstractGuiGame} e
+         * {@code InputLockUI}) miran el relevado. Cada {@code PlayerControllerHuman}
+         * crea su propio {@code YieldController}, asi que el pase se quedaba en
+         * uno y los cortes y el Cancelar iban al otro, que no tenia nada.
+         *
+         * <p>El campo es privado y final, y el motor lo usa por el campo (no por
+         * el getter), asi que se le pone el del relevado. Su dueño sigue siendo
+         * el relevado: comparten interfaz, jugador y asiento, que es todo lo que
+         * le pregunta.
+         *
+         * <p>El getter devuelve el del relevado SOLO si el campo ya es ese. Si la
+         * reflexion fallara, el motor seguiria leyendo el campo (el del relevo),
+         * y un getter apuntando al otro partiria en dos lo que hoy va junto: el
+         * control total y la pausa de la macro escriben por el getter.
+         */
+        @Override
+        public forge.gamemodes.match.YieldController getYieldController() {
+            return sharedYields ? owner.getYieldController() : super.getYieldController();
         }
 
         /**

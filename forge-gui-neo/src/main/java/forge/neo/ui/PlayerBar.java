@@ -820,6 +820,33 @@ public class PlayerBar extends HBox {
     }
 
     /**
+     * Cuantas cartas ha robado este jugador este turno, si son mas de una
+     * (Discord, 14-10-2026, con Orcish Bowmasters: <i>"sometimes AI plays
+     * something that I didn't catch and it draws more ... I have no way of
+     * knowing how much damage I can deal"</i>). Cada disparo se pone en la pila
+     * de uno en uno, eligiendo objetivo, asi que mientras eliges el primero los
+     * demas no se ven en ningun sitio; lo que si se sabe es lo que ha robado.
+     * Con una (la del paso de robar) no sale: seria ruido todos los turnos.
+     *
+     * <p>Lo da el motor ({@code PlayerView.getNumDrawnThisTurn}); antes solo
+     * estaba en el texto del detalle, al pasar el raton. Se llama despues de
+     * {@link #setCounters}: quita la suya y la vuelve a poner al final.
+     */
+    public void setDrawnThisTurn(final int drawn) {
+        playerCounters.getChildren().removeIf(n -> n.getStyleClass().contains("player-counter-drawn"));
+        if (drawn > 1) {
+            final Label pill = new Label(drawn + " " + NeoText.get("bar.drawn"));
+            pill.getStyleClass().addAll("player-counter", "player-counter-drawn");
+            javafx.scene.control.Tooltip.install(pill,
+                    new javafx.scene.control.Tooltip(NeoText.get("bar.drawn.tip", drawn)));
+            playerCounters.getChildren().add(pill);
+        }
+        final boolean any = !playerCounters.getChildren().isEmpty();
+        playerCounters.setVisible(any);
+        playerCounters.setManaged(any);
+    }
+
+    /**
      * Las maldiciones que encantan a este jugador y las batallas que protege
      * (Discord, 03-10-2026: <i>"there's no way to actually tell who is
      * actually cursed without simply remembering or checking the log"</i>).

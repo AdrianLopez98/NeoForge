@@ -69,6 +69,12 @@ public final class QuestCheck {
         System.out.println();
         ok &= checkSideboardTrap();
         System.out.println();
+        ok &= checkWishlist();
+        ok &= checkWishlistCommander();
+        ok &= checkWishlistAttacks();
+        ok &= checkSaveAsCopy();
+        ok &= checkDuelAfterTravel();
+        System.out.println();
         ok &= checkEveryRivalHasAFace();
         System.out.println();
         ok &= checkChallenges();
@@ -1363,6 +1369,535 @@ public final class QuestCheck {
      *       lista pegada, un mazo viejo).</li>
      * </ol>
      */
+    /**
+     * Mazos con cartas que NO tienes: la lista de deseos (Discord, 15-10-2026:
+     * <i>"being able to import or build decks with cards you don't have"</i>).
+     *
+     * <p>El ciclo entero, porque cada paso se rompe por un sitio distinto:
+     * con "Mis cartas" no entra; con "Todas" entra y el mazo se GUARDA; no se
+     * puede jugar y dice que falta; al reabrirlo con "Mis cartas" ni es ilegal
+     * ni "Limpiar" se la lleva; vender la copia que tenias no borra las que
+     * nunca tuviste (el motor si lo hacia); conseguirlas lo deja jugable solo;
+     * y vender una carta de un mazo normal la sigue quitando, como siempre.
+     */
+    private static boolean checkWishlist() {
+        final String name = "neo-questcheck-deseos";
+        NeoQuest.delete(name);
+        System.out.println("  --- Mazos con cartas que no tienes (lista de deseos) ---");
+        final boolean[] ok = {true};
+        final java.util.function.BiConsumer<String, Boolean> ck = (what, good) -> {
+            System.out.printf(Locale.ROOT, "  [%s] %s%n", good ? "OK " : "MAL", what);
+            ok[0] &= good;
+        };
+        final Deck precon = NeoQuest.starterDecks(NeoQuest.Modalidad.ESTANDAR).get(0);
+        NeoQuest.start(name, NeoQuest.Modalidad.ESTANDAR, NeoQuest.Dificultad.NORMAL, precon);
+        try {
+            final Deck mine = NeoQuest.currentDeck();
+            ck.accept("el mazo de inicio se puede jugar", NeoQuest.problemWith(mine) == null);
+
+            final QuestDeckContext ctx = new QuestDeckContext();
+            // Una criatura normal que no tengas, de cuatro copias.
+            PaperCard want = null;
+            for (final PaperCard c : FModel.getMagicDb().getCommonCards().getUniqueCards()) {
+                if (c.getRules() != null && !c.getRules().isCustom()
+                        && c.getRules().getType().isCreature() && !c.getRules().getType().isLegendary()
+                        && !c.getName().startsWith("A-") && ctx.owned(c) == 0
+                        && forge.game.GameType.Quest.getDeckFormat().getMaxCardCopies(c) >= 4) {
+                    want = c;
+                    break;
+                }
+            }
+            ck.accept("hay una carta que no tienes para probar: " + (want == null ? "-" : want.getName()),
+                    want != null);
+            if (want == null) {
+                return false;
+            }
+            final String wantName = want.getName();
+
+            final Deck copy = new Deck(mine, "NeoCheck deseos");
+            final DeckEditor ed = new DeckEditor(ctx, copy);
+            ck.accept("con «Mis cartas» una que no tienes no entra", ed.rejectionReason(want) != null);
+            final long t0 = System.nanoTime();
+            ed.setShowAllCards(true);
+            final long firstMs = (System.nanoTime() - t0) / 1_000_000;
+            ed.setShowAllCards(false);
+            final long t1 = System.nanoTime();
+            ed.setShowAllCards(true);
+            final long againMs = (System.nanoTime() - t1) / 1_000_000;
+            System.out.printf(Locale.ROOT, "        pasar a «Todas»: %d ms la primera vez, %d ms al volver%n",
+                    firstMs, againMs);
+            ck.accept("volver a «Todas» no rehace el catalogo (" + againMs + " ms)", againMs < 200);
+            boolean inCatalogue = false;
+            final java.util.Set<String> relics = forge.neo.ascent.AscentRelics.allCardNames();
+            final List<String> unobtainable = new java.util.ArrayList<>();
+            for (final PaperCard c : ctx.pool()) {
+                if (c.getName().equals(wantName)) {
+                    inCatalogue = true;
+                }
+                if (ctx.owned(c) == 0 && (c.getName().startsWith("A-") || relics.contains(c.getName())
+                        || forge.card.CardEdition.UNKNOWN_CODE.equals(c.getEdition()))) {
+                    unobtainable.add(c.getName());
+                }
+            }
+            ck.accept("con «Todas las cartas» sale en el catalogo (" + ctx.pool().size() + " cartas)",
+                    inCatalogue && ctx.pool().size() > 10_000);
+            ck.accept("sin rebalanceadas A-, set desconocido ni reliquias de Ascenso"
+                    + (unobtainable.isEmpty() ? "" : ": " + unobtainable.subList(0, Math.min(5, unobtainable.size()))),
+                    unobtainable.isEmpty());
+            ck.accept("y entra", ed.rejectionReason(want) == null);
+            ck.accept("con «Todas», la cabecera del grupo cuenta cartas, no copias",
+                    ed.catalogueCopies(want) == 1);
+            ed.add(want, 2);
+            ck.accept("el editor dice que faltan 2", ed.missingOf(want) == 2);
+            ck.accept("el mazo con lo que falta se puede GUARDAR", ed.blockingProblem() == null);
+            ed.save();
+            final Deck saved = forge.model.FModel.getQuest().getMyDecks().get("NeoCheck deseos");
+            ck.accept("se ha guardado", saved != null && countByName(saved, wantName) == 2);
+            final String problem = NeoQuest.problemWith(saved);
+            System.out.println("        " + problem);
+            ck.accept("pero no se puede jugar, y dice cual falta",
+                    problem != null && problem.contains(forge.neo.card.CardText.nameOf(want)));
+            ck.accept("el mazo de inicio sigue siendo jugable", NeoQuest.problemWith(mine) == null);
+
+            // Al reabrirlo con "Mis cartas", nada se pierde.
+            final DeckEditor again = new DeckEditor(new QuestDeckContext(), new Deck(saved, saved.getName()));
+            ck.accept("al reabrirlo con «Mis cartas» no es ilegal", again.blockingProblem() == null);
+            ck.accept("y «Limpiar» no quita la lista de deseos",
+                    again.removeIllegal() == 0 && again.countOf(want) == 2);
+            ck.accept("y el mazo entero dice que faltan 2", again.missingTotal() == 2);
+
+            // Importar una lista (addAnyway): lo que no tienes entra igual, sin
+            // ser ilegal, y se cuenta para avisarlo.
+            final DeckEditor imp = new DeckEditor(new QuestDeckContext(), new Deck(mine, "NeoCheck importada"));
+            imp.addAnyway(want, 3);
+            ck.accept("importar con 3 que no tienes: entran, no son ilegales y faltan 3 ("
+                    + imp.illegalCards().size() + " ilegales, faltan " + imp.missingTotal() + ")",
+                    imp.countOf(want) == 3 && imp.illegalCards().isEmpty() && imp.missingTotal() == 3);
+
+            // El banquillo tambien cuenta: el motor lo carga, y de ahi salen el
+            // companero y lo que busca un Wish. Si no, una carta que no tienes se
+            // jugaba con solo pasarla al banquillo (revisor, 15-10-2026).
+            final Deck withSide = new Deck(mine, "NeoCheck banquillo");
+            withSide.getOrCreate(forge.deck.DeckSection.Sideboard).add(want, 1);
+            ck.accept("una que no tienes en el BANQUILLO cuenta como que falta",
+                    sum(NeoQuest.missingCards(withSide)) == 1);
+            final DeckEditor side = new DeckEditor(new QuestDeckContext(), new Deck(mine, "NeoCheck banquillo"));
+            side.setShowAllCards(true);
+            if (side.hasSideboard() && side.addToSideboard(want) == null) {
+                ck.accept("y el editor tambien la cuenta (falta " + side.missingOf(want) + ")",
+                        side.missingOf(want) == 1 && side.missingTotal() == 1);
+            }
+
+            // Vender la que tenias no se lleva las que nunca tuviste.
+            NeoQuest.engine().getCards().addSingleCard(want, 1);
+            ck.accept("con 1 de 2, falta 1", sum(NeoQuest.missingCards(saved)) == 1);
+            NeoQuestSell.sellOne(want, 1);
+            final Deck afterSale = forge.model.FModel.getQuest().getMyDecks().get("NeoCheck deseos");
+            ck.accept("vender la que tenias no borra del mazo las 2 deseadas",
+                    afterSale != null && countByName(afterSale, wantName) == 2);
+
+            // Conseguirlas lo deja jugable solo.
+            NeoQuest.engine().getCards().addSingleCard(want, 2);
+            ck.accept("al conseguirlas, el mazo se puede jugar sin tocar nada",
+                    NeoQuest.problemWith(afterSale) == null);
+
+            // Por NOMBRE, no por impresion: 2 de una edicion y 2 de otra, con 2
+            // de la primera. Por impresion no parecia un mazo de deseos y vender
+            // una de las tuyas lo dejaba en 3 (revisor, 15-10-2026).
+            final List<PaperCard> bolts = new java.util.ArrayList<>();
+            for (final PaperCard b : FModel.getMagicDb().getCommonCards().getAllCards("Lightning Bolt")) {
+                final boolean newSet = bolts.stream().noneMatch(x -> x.getEdition().equals(b.getEdition()));
+                if (!b.isFoil() && newSet && NeoQuest.engine().getCards().getCardpool().count(b) == 0) {
+                    bolts.add(b);
+                }
+                if (bolts.size() == 2) {
+                    break;
+                }
+            }
+            if (bolts.size() == 2) {
+                final PaperCard a = bolts.get(0);
+                final PaperCard b = bolts.get(1);
+                NeoQuest.engine().getCards().addSingleCard(a, 2);
+                final Deck mixed = new Deck("NeoCheck por nombre");
+                mixed.getMain().add(a, 2);
+                mixed.getMain().add(b, 2);
+                forge.model.FModel.getQuest().getMyDecks().add(mixed);
+                ck.accept("2 de " + a.getEdition() + " y 2 de " + b.getEdition() + ", con 2 de la primera: faltan 2",
+                        sum(NeoQuest.missingCards(mixed)) == 2);
+                NeoQuestSell.sellOne(a, 1);
+                final Deck mixedAfter = forge.model.FModel.getQuest().getMyDecks().get("NeoCheck por nombre");
+                final int left = mixedAfter == null ? -1 : countByName(mixedAfter, "Lightning Bolt");
+                ck.accept("vender 1 de las tuyas no quita nada de ese mazo (" + left + " de 4)", left == 4);
+                // Y perder la apuesta (ante) pasa por el mismo envoltorio.
+                NeoQuestSell.keepingWishlist(() -> NeoQuest.engine().getCards().loseCards(List.of(a)));
+                final int afterAnte = mixedAfter == null ? -1 : countByName(mixedAfter, "Lightning Bolt");
+                ck.accept("perder la otra en el ante tampoco (" + afterAnte + " de 4, te quedan "
+                        + NeoQuest.engine().getCards().getCardpool().count(a) + ")",
+                        afterAnte == 4 && NeoQuest.engine().getCards().getCardpool().count(a) == 0);
+            }
+
+            // Y un mazo normal: vender una carta suya la sigue quitando.
+            PaperCard used = null;
+            for (final java.util.Map.Entry<PaperCard, Integer> e : mine.getMain()) {
+                final PaperCard c = e.getKey();
+                if (!c.getRules().getType().isLand()
+                        && NeoQuest.engine().getCards().getCardpool().count(c) == e.getValue()) {
+                    used = c;
+                    break;
+                }
+            }
+            if (used != null) {
+                final int before = mine.getMain().count(used);
+                NeoQuestSell.sellOne(used, 1);
+                ck.accept("vender una carta de un mazo normal la quita de el, como siempre ("
+                        + used.getName() + " " + before + " -> " + mine.getMain().count(used) + ")",
+                        mine.getMain().count(used) == before - 1);
+            }
+        } finally {
+            NeoQuest.delete(name);
+        }
+        System.out.println(ok[0]
+                ? "  OK - un mazo puede llevar lo que te falta, y se juega en cuanto lo tienes"
+                : "  FALLO - la lista de deseos");
+        return ok[0];
+    }
+
+    /**
+     * Intentar ROMPER la lista de deseos (Ana, 15-10-2026: "intenta romperlo
+     * y si lo haces arreglalo"). Cada bloque es un camino por el que un mazo
+     * con cartas que no tienes podia perder la lista, colarse en una partida o
+     * regalar algo: guardar y cargar, las ventas en bloque y la automatica,
+     * el cambio de arte de pago, quitar lo que falta y el arranque del duelo.
+     */
+    private static boolean checkWishlistAttacks() {
+        final String name = "neo-questcheck-deseos-ataques";
+        NeoQuest.delete(name);
+        System.out.println("  --- Intentar romper la lista de deseos ---");
+        final boolean[] ok = {true};
+        final java.util.function.BiConsumer<String, Boolean> ck = (what, good) -> {
+            System.out.printf(Locale.ROOT, "  [%s] %s%n", good ? "OK " : "MAL", what);
+            ok[0] &= good;
+        };
+        final Deck precon = NeoQuest.starterDecks(NeoQuest.Modalidad.ESTANDAR).get(0);
+        NeoQuest.start(name, NeoQuest.Modalidad.ESTANDAR, NeoQuest.Dificultad.NORMAL, precon);
+        try {
+            final QuestDeckContext ctx = new QuestDeckContext();
+            PaperCard want = null;
+            for (final PaperCard c : FModel.getMagicDb().getCommonCards().getUniqueCards()) {
+                if (c.getRules() != null && !c.getRules().isCustom()
+                        && c.getRules().getType().isCreature() && !c.getRules().getType().isLegendary()
+                        && !c.getName().startsWith("A-") && ctx.owned(c) == 0
+                        && forge.game.GameType.Quest.getDeckFormat().getMaxCardCopies(c) == 4) {
+                    want = c;
+                    break;
+                }
+            }
+            if (want == null) {
+                ck.accept("hay una carta que no tienes para probar", false);
+                return false;
+            }
+            final String wantName = want.getName();
+            final String deckName = "NeoCheck ataques";
+
+            // 1. El tope de copias del formato sigue mandando con "Todas".
+            final DeckEditor ed = new DeckEditor(ctx, new Deck(NeoQuest.currentDeck(), deckName));
+            ed.setShowAllCards(true);
+            final int got = ed.add(want, 10);
+            ck.accept("con «Todas», pedir 10 mete " + got + " (el tope del formato es 4)",
+                    got == 4 && ed.countOf(want) == 4);
+            ed.save();
+
+            // 2. Guardar y volver a cargar la Quest no le quita nada.
+            NeoQuest.save();
+            NeoQuest.load(name);
+            final Deck reloaded = FModel.getQuest().getMyDecks().get(deckName);
+            final int afterLoad = reloaded == null ? -1 : countByName(reloaded, wantName);
+            ck.accept("al volver a cargar la Quest sigue con las 4 (" + afterLoad + ")", afterLoad == 4);
+            ck.accept("y sigue sin poderse jugar", reloaded != null && NeoQuest.problemWith(reloaded) != null);
+
+            // 3. Las ventas en bloque y la automatica no se llevan las que usa.
+            NeoQuest.engine().getCards().addSingleCard(want, 1);
+            final java.util.Map<PaperCard, Integer> plan = NeoQuestSell.notInDecksPlan();
+            int offered = 0;
+            for (final java.util.Map.Entry<PaperCard, Integer> e : plan.entrySet()) {
+                if (e.getKey().getName().equals(wantName)) {
+                    offered += e.getValue();
+                }
+            }
+            ck.accept("«Vender lo que no va en un mazo» no ofrece la que usa (" + offered + ")", offered == 0);
+            NeoQuestSell.sell();
+            final Deck afterAuto = FModel.getQuest().getMyDecks().get(deckName);
+            ck.accept("la venta automatica tampoco (tienes " + NeoQuestSell.owned(want) + ", el mazo lleva "
+                            + (afterAuto == null ? -1 : countByName(afterAuto, wantName)) + ")",
+                    NeoQuestSell.owned(want) == 1 && afterAuto != null && countByName(afterAuto, wantName) == 4);
+
+            // 4. "Quitar las que no tengo": deja solo las tuyas.
+            final DeckEditor clean = new DeckEditor(new QuestDeckContext(), new Deck(afterAuto, deckName));
+            final int removed = clean.removeMissing();
+            ck.accept("«Quitar las que no tengo» quita " + removed + " y deja " + clean.countOf(want),
+                    removed == 3 && clean.countOf(want) == 1 && clean.missingTotal() == 0);
+
+            // 5. El cambio de arte de pago solo cambia las copias que pagas.
+            final List<PaperCard> bolts = new java.util.ArrayList<>();
+            for (final PaperCard b : FModel.getMagicDb().getCommonCards().getAllCards("Lightning Bolt")) {
+                final boolean newSet = bolts.stream().noneMatch(x -> x.getEdition().equals(b.getEdition()));
+                if (!b.isFoil() && newSet && NeoQuestSell.owned(b) == 0) {
+                    bolts.add(b);
+                }
+                if (bolts.size() == 2) {
+                    break;
+                }
+            }
+            if (bolts.size() == 2) {
+                final PaperCard a = bolts.get(0);
+                final PaperCard b = bolts.get(1);
+                NeoQuest.engine().getCards().addSingleCard(a, 1);
+                NeoQuest.engine().getAssets().addCredits(100_000);
+                final Deck art = new Deck("NeoCheck arte");
+                art.getMain().add(a, 4);
+                FModel.getQuest().getMyDecks().add(art);
+                final int paid = NeoQuestArt.change(a, b, 1);
+                final Deck artAfter = FModel.getQuest().getMyDecks().get("NeoCheck arte");
+                final int nb = artAfter == null ? -1 : artAfter.getMain().count(b);
+                final int na = artAfter == null ? -1 : artAfter.getMain().count(a);
+                ck.accept("pagar el arte de 1 cambia 1, no las 4 (" + nb + " de " + b.getEdition() + ", "
+                        + na + " de " + a.getEdition() + ")", paid >= 0 && nb == 1 && na == 3);
+            }
+
+            // 6. Y el candado al ARRANCAR el duelo, no solo en el boton.
+            NeoQuest.setCurrentDeck(deckName);
+            ck.accept("con ese mazo el cuartel no deja jugar", NeoQuest.problemWith(NeoQuest.currentDeck()) != null);
+            final List<QuestEventDuel> duels = NeoQuest.duels();
+            if (!duels.isEmpty()) {
+                final Object[] out = {"sin volver"};
+                final Thread t = new Thread(() -> out[0] = NeoQuestMatch.playFully(duels.get(0), null, true,
+                        forge.neo.match.NeoMatchUI.Mode.AUTO_PLAY), "neo-check-candado");
+                t.setDaemon(true);
+                t.start();
+                try {
+                    t.join(30_000);
+                } catch (final InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                ck.accept("y si algo llama al duelo igual, no arranca (" + (t.isAlive() ? "SIGUE JUGANDO" : "vuelve") + ")",
+                        !t.isAlive() && out[0] == null);
+            }
+        } finally {
+            NeoQuest.delete(name);
+        }
+        System.out.println(ok[0]
+                ? "  OK - ni guardar, ni vender, ni el arte, ni arrancar el duelo rompen la lista"
+                : "  FALLO - la lista de deseos se puede romper");
+        return ok[0];
+    }
+
+    /**
+     * "Guardar una copia" no puede tocar el ORIGINAL (Ana, 15-10-2026, en su
+     * "Quest 5"): abrir el mazo, Guardar, Guardar una copia, editar la copia
+     * y renombrarla... y el original se quedaba con el nombre de la copia
+     * guardado bajo su clave de siempre, sin poderse elegir ("No deck
+     * picked"). Guardar metia en el almacen el MISMO objeto que el editor
+     * seguia editando. Se repite la secuencia tal cual, y ademas: lo que se
+     * cambia sin guardar no se cuela, y una Quest ya rota se repara al cargar.
+     */
+    private static boolean checkSaveAsCopy() {
+        final String name = "neo-questcheck-copia";
+        NeoQuest.delete(name);
+        System.out.println("  --- Guardar una copia no toca el original ---");
+        final boolean[] ok = {true};
+        final java.util.function.BiConsumer<String, Boolean> ck = (what, good) -> {
+            System.out.printf(Locale.ROOT, "  [%s] %s%n", good ? "OK " : "MAL", what);
+            ok[0] &= good;
+        };
+        final Deck precon = NeoQuest.starterDecks(NeoQuest.Modalidad.ESTANDAR).get(0);
+        NeoQuest.start(name, NeoQuest.Modalidad.ESTANDAR, NeoQuest.Dificultad.NORMAL, precon);
+        try {
+            final String original = NeoQuest.currentDeck().getName();
+            final int originalCount = NeoQuest.currentDeck().getMain().countAll();
+            final forge.util.storage.IStorage<Deck> mine = FModel.getQuest().getMyDecks();
+
+            // La secuencia del autor: abrir, Guardar, Guardar una copia.
+            final DeckEditor ed = DeckEditor.copyOf(new QuestDeckContext(), NeoQuest.currentDeck());
+            ed.save();
+            final String copyName = ed.copyName();
+            ck.accept("se guarda la copia «" + copyName + "»", ed.saveAsCopy(copyName));
+            final Deck stored = mine.get(original);
+            ck.accept("el original sigue llamandose «" + original + "» ("
+                            + (stored == null ? "NO ESTA" : stored.getName()) + ")",
+                    stored != null && original.equals(stored.getName()));
+
+            // Editar la copia (sin guardar) no toca el original...
+            final PaperCard first = ed.getDeck().getMain().toFlatList().get(0);
+            ed.remove(first, 1);
+            ck.accept("quitar una carta de la copia, sin guardar, no cambia el original ("
+                    + (stored == null ? -1 : stored.getMain().countAll()) + " de " + originalCount + ")",
+                    stored != null && stored.getMain().countAll() == originalCount);
+            // ...ni la copia guardada.
+            final Deck storedCopy = mine.get(copyName);
+            ck.accept("ni la copia guardada, hasta que se guarda",
+                    storedCopy != null && storedCopy.getMain().countAll() == originalCount);
+
+            // Renombrar la copia y guardar: el original sigue elegible.
+            ed.getDeck().setName("NeoCheck renombrada");
+            ed.save();
+            NeoQuest.setCurrentDeck(original);
+            ck.accept("el original se puede elegir y jugar",
+                    NeoQuest.currentDeck() != null && original.equals(NeoQuest.currentDeck().getName()));
+            ck.accept("la copia vive con su nombre nuevo, y la de antes ya no",
+                    mine.get("NeoCheck renombrada") != null && mine.get(copyName) == null);
+
+            // Una Quest YA rota (como la del autor): un mazo guardado con otro
+            // nombre, y el mazo elegido apuntando a ese nombre. Al cargar se arregla.
+            final Deck broken = new Deck(mine.get(original), original);
+            mine.add(broken);
+            broken.setName(original + " (9)");
+            FModel.getQuest().setCurrentDeck(original + " (9)");
+            NeoQuest.save();
+            NeoQuest.load(name);
+            final Deck repaired = FModel.getQuest().getMyDecks().get(original);
+            ck.accept("al cargar, el mazo vuelve a llamarse como su clave ("
+                            + (repaired == null ? "NO ESTA" : repaired.getName()) + ")",
+                    repaired != null && original.equals(repaired.getName()));
+            ck.accept("y vuelve a ser el elegido (" + FModel.getQuest().getCurrentDeck() + ")",
+                    NeoQuest.currentDeck() != null && original.equals(NeoQuest.currentDeck().getName()));
+        } finally {
+            NeoQuest.delete(name);
+        }
+        System.out.println(ok[0] ? "  OK - la copia y el original van cada uno por su lado"
+                : "  FALLO - guardar una copia toca el original");
+        return ok[0];
+    }
+
+    /**
+     * Un COMANDANTE que no tienes (revisor, 15-10-2026): al importar una lista
+     * con "Mis cartas" se perdia, porque setCommander exigia tenerlo. En la
+     * Quest entra como cualquier otra carta que falta, y lo que impide jugar es
+     * NeoQuest.problemWith.
+     */
+    private static boolean checkWishlistCommander() {
+        final String name = "neo-questcheck-deseos-cmd";
+        NeoQuest.delete(name);
+        System.out.println("  --- Un comandante que no tienes (lista de deseos) ---");
+        final List<Deck> starters = NeoQuest.starterDecks(NeoQuest.Modalidad.COMMANDER);
+        if (starters.isEmpty()) {
+            System.out.println("  (sin mazos de inicio de Commander: no se prueba)");
+            return true;
+        }
+        boolean ok = true;
+        NeoQuest.start(name, NeoQuest.Modalidad.COMMANDER, NeoQuest.Dificultad.NORMAL, starters.get(0));
+        try {
+            final QuestDeckContext ctx = new QuestDeckContext();
+            final DeckEditor ed = new DeckEditor(ctx, new Deck(NeoQuest.currentDeck(), "NeoCheck comandante"));
+            PaperCard cmd = null;
+            for (final PaperCard c : FModel.getMagicDb().getCommonCards().getUniqueCards()) {
+                if (c.getRules() != null && !c.getName().startsWith("A-") && ctx.owned(c) == 0
+                        && ed.deckFormat().isLegalCommander(c.getRules())) {
+                    cmd = c;
+                    break;
+                }
+            }
+            if (cmd == null) {
+                System.out.println("  (no hay comandante que no tengas: no se prueba)");
+                return true;
+            }
+            final boolean set = ed.setCommander(cmd);
+            System.out.printf(Locale.ROOT, "  [%s] con «Mis cartas» (lo de importar), %s entra de comandante%n",
+                    set ? "OK " : "MAL", cmd.getName());
+            ok &= set;
+            final int miss = ed.missingOf(cmd);
+            System.out.printf(Locale.ROOT, "  [%s] y cuenta como que falta (%d)%n", miss == 1 ? "OK " : "MAL", miss);
+            ok &= miss == 1;
+            // Lo que impide jugarlo: NeoQuest.problemWith pone delante los
+            // problemas de reglas (este mazo de prueba ya tiene uno), asi que se
+            // mira la lista de lo que falta, que es de donde sale su aviso.
+            final String cmdName = cmd.getName();
+            final boolean listed = NeoQuest.missingCards(ed.getDeck()).keySet().stream()
+                    .anyMatch(c -> c.getName().equals(cmdName));
+            final boolean blocked = NeoQuest.problemWith(ed.getDeck()) != null;
+            System.out.printf(Locale.ROOT, "  [%s] y el mazo no se puede jugar: esta en lo que falta%n",
+                    listed && blocked ? "OK " : "MAL");
+            ok &= listed && blocked;
+
+            // "Generar mazo" con "Mis cartas": solo con lo que tienes. Antes
+            // lo que no tenias salia ilegal y "Limpiar" lo quitaba; con la
+            // lista de deseos se habria quedado entero, sin poder jugarse.
+            final DeckEditor gen = new DeckEditor(new QuestDeckContext(),
+                    new Deck(NeoQuest.currentDeck(), "NeoCheck generado"));
+            final int added = gen.generateForCommander();
+            System.out.printf(Locale.ROOT, "  [%s] «Generar mazo» con «Mis cartas» usa solo lo tuyo (%d cartas, faltan %d)%n",
+                    added >= 0 && gen.missingTotal() == 0 ? "OK " : "MAL", added, gen.missingTotal());
+            ok &= added >= 0 && gen.missingTotal() == 0;
+
+            // Con "Todas", el mazo entero, como lista de deseos: es lo pedido.
+            final DeckEditor genAll = new DeckEditor(new QuestDeckContext(),
+                    new Deck(NeoQuest.currentDeck(), "NeoCheck generado entero"));
+            genAll.setShowAllCards(true);
+            final int addedAll = genAll.generateForCommander();
+            System.out.printf(Locale.ROOT, "  [%s] con «Todas», el mazo entero (%d cartas, faltan %d)%n",
+                    addedAll >= 90 ? "OK " : "MAL", addedAll, genAll.missingTotal());
+            ok &= addedAll >= 90;
+
+            // "Quitar las que no tengo" tambien se lleva un COMANDANTE que no tienes.
+            final int before = ed.commanders().size();
+            ed.removeMissing();
+            final boolean gone = ed.commanders().stream().noneMatch(c -> c.getName().equals(cmdName))
+                    && ed.missingTotal() == 0;
+            System.out.printf(Locale.ROOT, "  [%s] «Quitar las que no tengo» quita el comandante que no tienes (%d -> %d)%n",
+                    gone ? "OK " : "MAL", before, ed.commanders().size());
+            ok &= gone;
+
+            // En la Quest no hay banquillo libre: lo borraba cargar la Quest
+            // (NeoQuest.dropSideboards), con lo que hubiera dentro.
+            System.out.printf(Locale.ROOT, "  [%s] en la Quest no hay banquillo libre%n", !gen.hasSideboard() ? "OK " : "MAL");
+            ok &= !gen.hasSideboard();
+
+            // Pero el companero si, y sobrevive a cargar la Quest.
+            PaperCard companion = null;
+            for (final PaperCard c : FModel.getMagicDb().getCommonCards().getUniqueCards()) {
+                if (DeckEditor.isCompanionCard(c)) {
+                    companion = c;
+                    break;
+                }
+            }
+            if (companion != null) {
+                final Deck withCompanion = new Deck(NeoQuest.currentDeck(), "NeoCheck companero");
+                withCompanion.getOrCreate(DeckSection.Sideboard).add(companion, 1);
+                withCompanion.getOrCreate(DeckSection.Sideboard).add(cmd, 1);
+                FModel.getQuest().getMyDecks().add(withCompanion);
+                NeoQuest.dropSideboards();
+                final Deck after = FModel.getQuest().getMyDecks().get("NeoCheck companero");
+                final forge.deck.CardPool side = after == null ? null : after.get(DeckSection.Sideboard);
+                final boolean kept = side != null && side.count(companion) == 1 && side.countAll() == 1;
+                System.out.printf(Locale.ROOT, "  [%s] cargar la Quest conserva el companero (%s) y quita lo demas%n",
+                        kept ? "OK " : "MAL", companion.getName());
+                ok &= kept;
+            }
+        } finally {
+            NeoQuest.delete(name);
+        }
+        System.out.println(ok ? "  OK - el comandante que te falta se apunta y bloquea jugar"
+                : "  FALLO - el comandante que no tienes");
+        return ok;
+    }
+
+    private static int countByName(final Deck deck, final String name) {
+        int n = 0;
+        for (final java.util.Map.Entry<PaperCard, Integer> e : deck.getMain()) {
+            if (e.getKey().getName().equals(name)) {
+                n += e.getValue();
+            }
+        }
+        return n;
+    }
+
+    private static int sum(final java.util.Map<PaperCard, Integer> m) {
+        int n = 0;
+        for (final int v : m.values()) {
+            n += v;
+        }
+        return n;
+    }
+
     private static boolean checkSideboardTrap() {
         final String name = "neo-questcheck-banquillo";
         NeoQuest.delete(name);
@@ -1500,7 +2035,21 @@ public final class QuestCheck {
         // Los dos techos, cada uno sobre lo suyo: el del formato cuenta TODO,
         // el de tu coleccion solo lo que has puesto en el principal.
         ok &= byRules == Integer.MAX_VALUE || left <= byRules;
-        ok &= have == Integer.MAX_VALUE || leftMain <= have;
+        if (context.allowsMissing()) {
+            // Desde la lista de deseos (15-10-2026) lo que pasa de lo que TIENES
+            // no se quita: se guarda, y lo que impide es JUGARLO. Lo que tiene
+            // que pasar es que se sepa que falta.
+            int missing = 0;
+            for (final int n : NeoQuest.missingCards(test).values()) {
+                missing += n;
+            }
+            // Y cuenta TODO lo que lleva, banquillo incluido: el motor lo carga
+            // (companero, Wish), asi que tambien tiene que faltar.
+            System.out.printf(Locale.ROOT, "  Lo que pasa de lo que tienes no se quita: falta %d%n", missing);
+            ok &= missing == Math.max(0, left - have);
+        } else {
+            ok &= have == Integer.MAX_VALUE || leftMain <= have;
+        }
 
         return ok;
     }
@@ -1577,17 +2126,28 @@ public final class QuestCheck {
         // tienes. Pedir de mas nunca puede pasarse de ninguno.
         ok &= got <= have;
         ok &= got <= editor.deckFormat().getMaxCardCopies(owned);
+        // La cabecera de su grupo en el catalogo suma las COPIAS que tienes
+        // (Discord, 15-10-2026: "Lands (2)" con 18 en el mazo no decia nada).
+        System.out.printf(Locale.ROOT, "  En la cabecera de su grupo cuenta %d (tienes %d)%n",
+                editor.catalogueCopies(owned), have);
+        ok &= editor.catalogueCopies(owned) == have;
         ok &= editor.rejectionReason(owned) != null || editor.countOf(owned) < have;
 
-        // ---- ni un comandante que no tienes ----
+        // ---- un comandante que no tienes ----
         //
-        // Por el catalogo no puede colarse (solo ensenya lo tuyo), pero por la
-        // importacion de una lista pegada si.
+        // Desde la lista de deseos (15-10-2026) entra, como cualquier otra carta
+        // que te falta: lo que no puede es entrar SIN contar como que falta, que
+        // es lo que dejaria jugarlo. Lo prueba entero checkWishlistCommander.
         if (notOwned != null) {
             final boolean set = editor.setCommander(notOwned);
+            final boolean counted = !set || editor.missingOf(notOwned) > 0;
             System.out.printf(Locale.ROOT, "  Nombrar comandante una carta que no tienes: %s%n",
-                    set ? "LO ACEPTA (mal)" : "lo rechaza (bien)");
-            ok &= !set;
+                    !set ? "no entra (no es comandante aqui)"
+                            : counted ? "entra y cuenta como que falta (bien)" : "ENTRA SIN CONTAR COMO QUE FALTA (mal)");
+            ok &= counted;
+            if (set) {
+                editor.removeCommander(notOwned);
+            }
         }
 
         // ---- se guarda, y aparece en los mazos de la aventura ----
@@ -1789,8 +2349,32 @@ public final class QuestCheck {
         final String name = "neo-questcheck-challenge";
         NeoQuest.delete(name);
         final List<Deck> starters = NeoQuest.starterDecks(NeoQuest.Modalidad.COMMANDER);
+        // Uno que pase las reglas. Desde que el duelo no arranca con un mazo que
+        // no vale (NeoQuestMatch.playFully, 15-10-2026), coger el primero sin
+        // mas fallaba: es Abzan Armor [TDC], que en los datos de Forge trae 98
+        // cartas y no 99. Se dice aqui, para que se vea si alguno mas se rompe.
+        // Las reglas son las de la Quest CARGADA: primero se crea la de Commander.
         NeoQuest.start(name, NeoQuest.Modalidad.COMMANDER, NeoQuest.Dificultad.FACIL,
                 starters.isEmpty() ? null : starters.get(0));
+        Deck starter = null;
+        int bad = 0;
+        for (final Deck d : starters) {
+            final String rules = forge.neo.deck.DeckProblem.translate(
+                    forge.gamemodes.quest.QuestUtil.getDeckConformanceProblemsBeforeGame(d));
+            if (rules == null) {
+                if (starter == null) {
+                    starter = d;
+                }
+            } else {
+                bad++;
+                System.out.printf(Locale.ROOT, "  (aviso) mazo de inicio que no pasa las reglas: %s -> %s%n",
+                        d.getName(), rules);
+            }
+        }
+        System.out.printf(Locale.ROOT, "  Mazos de inicio de Commander: %d, %d no pasan las reglas%n",
+                starters.size(), bad);
+        NeoQuest.delete(name);
+        NeoQuest.start(name, NeoQuest.Modalidad.COMMANDER, NeoQuest.Dificultad.FACIL, starter);
 
         boolean ok = true;
 
@@ -1836,7 +2420,8 @@ public final class QuestCheck {
             System.out.printf(Locale.ROOT,
                     "  Resultado: desafios jugados %d -> %d | creditos %d -> %d%n",
                     playedBefore, NeoQuest.challengesPlayed(), creditsBefore, NeoQuest.credits());
-            for (final String line : rewards.getMessages()) {
+            for (final String line : rewards == null
+                    ? List.of("(NO SE HA JUGADO: el mazo no vale)") : rewards.getMessages()) {
                 System.out.println("    " + line);
             }
             // Lo que de verdad prueba que el motor lo ha tratado COMO desafio y
@@ -2358,6 +2943,90 @@ public final class QuestCheck {
     }
 
     /**
+     * Discord, 15-10-2026 ("Android Quest no rewards", dos jugadores): en UNA
+     * Quest (no en otra nueva) ni las victorias ni las derrotas se apuntan, y
+     * el que da mas pistas habia viajado a Bloomburrow antes de jugar. Se viaja
+     * y se juega, ganando y perdiendo, y se VUELVE A CARGAR la Quest del disco:
+     * apuntarlo en memoria y no guardarlo se veria igual en la pantalla.
+     */
+    private static boolean checkDuelAfterTravel() {
+        final String name = "neo-questcheck-viaje";
+        NeoQuest.delete(name);
+        System.out.println("  --- Jugar despues de viajar a otro mundo ---");
+        final List<Deck> starters = NeoQuest.starterDecks(NeoQuest.Modalidad.ESTANDAR);
+        NeoQuest.start(name, NeoQuest.Modalidad.ESTANDAR, NeoQuest.Dificultad.NORMAL,
+                starters.isEmpty() ? null : starters.get(0));
+        boolean ok = true;
+        try {
+            final forge.gamemodes.quest.QuestWorld bloom = NeoQuestWorlds.byName("Bloomburrow (*)");
+            final boolean went = bloom != null && NeoQuestWorlds.travelTo(bloom);
+            System.out.printf(Locale.ROOT, "  Viaje a Bloomburrow: %s (mundo: %s)%n", went ? "si" : "NO",
+                    NeoQuestWorlds.current() == null ? "-" : NeoQuestWorlds.current().getName());
+            ok &= went;
+            ok &= playOneDuel(true);
+            ok &= playOneDuel(false);
+            final int wins = NeoQuest.wins();
+            final int losses = NeoQuest.losses();
+            NeoQuest.load(name);
+            System.out.printf(Locale.ROOT, "  Tras volver a cargar la Quest: %d-%d (en memoria era %d-%d)%n",
+                    NeoQuest.wins(), NeoQuest.losses(), wins, losses);
+            ok &= NeoQuest.wins() == wins && NeoQuest.losses() == losses && wins >= 1 && losses >= 1;
+
+            // Un reparto que REVIENTA no se lleva el resultado, y lo dice.
+            final List<QuestEventDuel> duels = NeoQuest.duels();
+            if (!duels.isEmpty()) {
+                final QuestEventDuel duel = duels.get(0);
+                duel.setEventDeck(NeoQuest.tinyCopyOf(duel.getEventDeck()));
+                final int winsBefore = NeoQuest.wins();
+                System.setProperty("neo.quest.failRewards", "true");
+                final NeoQuestRewards broken;
+                try {
+                    broken = NeoQuestMatch.play(duel, null, true, forge.neo.match.NeoMatchUI.Mode.AUTO_PLAY);
+                } finally {
+                    System.clearProperty("neo.quest.failRewards");
+                }
+                final boolean recorded = NeoQuest.wins() == winsBefore + 1;
+                final boolean told = broken != null && broken.getFailure() != null
+                        && broken.getMessages().stream().anyMatch(m -> m.contains(broken.getFailure()));
+                System.out.printf(Locale.ROOT, "  [%s] con el reparto roto, la victoria se apunta (%d -> %d) y se dice: %s%n",
+                        recorded && told ? "OK " : "MAL", winsBefore, NeoQuest.wins(),
+                        broken == null ? "-" : broken.getFailure());
+                ok &= recorded && told;
+            }
+
+            // Una Quest cuyo FICHERO no se llama como ella por dentro: guardar
+            // iba a otro fichero y la de la lista no avanzaba nunca.
+            NeoQuest.save();
+            final java.io.File dir = new java.io.File(forge.localinstance.properties.ForgeConstants.QUEST_SAVE_DIR);
+            final String other = name + "-otro-fichero";
+            try {
+                java.nio.file.Files.copy(new java.io.File(dir, name + ".dat").toPath(),
+                        new java.io.File(dir, other + ".dat").toPath(),
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                NeoQuest.load(other);
+                final boolean renamedOk = other.equals(NeoQuest.name());
+                final int w0 = NeoQuest.wins();
+                playOneDuel(true);
+                final int w1 = NeoQuest.wins();
+                NeoQuest.load(other);
+                System.out.printf(Locale.ROOT, "  [%s] con otro nombre de fichero, se guarda en ESE fichero (%d -> %d, al reabrir %d)%n",
+                        renamedOk && w1 == w0 + 1 && NeoQuest.wins() == w1 ? "OK " : "MAL", w0, w1, NeoQuest.wins());
+                ok &= renamedOk && w1 == w0 + 1 && NeoQuest.wins() == w1;
+            } catch (final java.io.IOException e) {
+                System.out.println("  [MAL] no se ha podido copiar la Quest: " + e);
+                ok = false;
+            } finally {
+                NeoQuest.delete(other);
+            }
+        } finally {
+            NeoQuest.delete(name);
+        }
+        System.out.println(ok ? "  OK - tras viajar, ganar y perder se apuntan y se guardan"
+                : "  FALLO - tras viajar no se apunta el resultado");
+        return ok;
+    }
+
+    /**
      * Juega un duelo de verdad y comprueba que el motor cobra.
      *
      * <p>Lo que se verifica no es quien gana — da igual — sino que la partida
@@ -2394,10 +3063,11 @@ public final class QuestCheck {
                 "  Resultado: %d-%d -> %d-%d | creditos %d -> %d | %ds%n",
                 winsBefore, lossesBefore, winsAfter, lossesAfter,
                 creditsBefore, NeoQuest.credits(), (System.currentTimeMillis() - t0) / 1000);
-        for (final String line : rewards.getMessages()) {
+        for (final String line : rewards == null
+                    ? List.of("(NO SE HA JUGADO: el mazo no vale)") : rewards.getMessages()) {
             System.out.println("    " + line);
         }
-        if (!rewards.getCards().isEmpty()) {
+        if (rewards != null && !rewards.getCards().isEmpty()) {
             System.out.printf(Locale.ROOT, "    y %d cartas nuevas%n", rewards.getCards().size());
         }
 

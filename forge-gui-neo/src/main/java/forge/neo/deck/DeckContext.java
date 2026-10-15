@@ -69,6 +69,18 @@ public interface DeckContext {
     }
 
     /**
+     * Si el mazo puede llevar un banquillo LIBRE ("Al banquillo", "Anyadir al
+     * banquillo"). Falso en la Quest: cargarla lo vacia
+     * ({@code NeoQuest.dropSideboards}), asi que lo que se pusiera ahi
+     * desaparecia en silencio al volver a entrar — con una carta de la lista
+     * de deseos, la lista. El companero no cuenta: va por su propio camino
+     * ({@code DeckEditor.usesCompanion}) y cargar la Quest lo conserva.
+     */
+    default boolean allowsSideboard() {
+        return true;
+    }
+
+    /**
      * El mazo principal que montaria el motor con este pool, o null si este
      * contexto no sabe montarlo solo.
      *
@@ -208,6 +220,40 @@ public interface DeckContext {
     }
 
     /**
+     * Si un mazo puede llevar cartas que NO tienes: la "lista de deseos" de la
+     * Quest (Discord, 15-10-2026: <i>"being able to import or build decks with
+     * cards you don't have ... helps while getting stuff you'll need without
+     * losing track"</i>).
+     *
+     * <p>Cierto, lo que falta <b>no es ilegal</b>: el mazo se guarda, ni
+     * "Limpiar" ni volver a abrirlo le quitan nada, y solo se impide JUGARLO
+     * (eso lo dice {@link #conformanceProblem}). Si lo de mas fuera ilegal, la
+     * siguiente vez que se editara con el interruptor apagado se perderia la
+     * lista entera. Falso en todo lo demas: en un draft o en la Aventura, lo que
+     * no tienes no entra.
+     */
+    default boolean allowsMissing() {
+        return false;
+    }
+
+    /**
+     * Si el catalogo puede ensenyar TODAS las cartas ademas de las tuyas (el
+     * interruptor de arriba, como en Arena). Solo la Quest.
+     */
+    default boolean canShowAllCards() {
+        return false;
+    }
+
+    /** Si el catalogo ensenya ahora todas las cartas (ver {@link #canShowAllCards()}). */
+    default boolean showsAllCards() {
+        return false;
+    }
+
+    /** Cambia el interruptor; quien lo llama rehace el indice ({@code DeckEditor.setShowAllCards}). */
+    default void setShowAllCards(boolean on) {
+    }
+
+    /**
      * Que impresiones de esa carta se pueden elegir, o null si todas.
      *
      * <p>Fuera de la aventura, todas: montar un mazo de Commander es un
@@ -329,5 +375,19 @@ public interface DeckContext {
      * y lo que hace. La pantalla refresca catalogo y mazo despues.
      */
     record Action(String label, String note, boolean enabled, Runnable run) {
+    }
+
+    /**
+     * El autovender de una carta como un INTERRUPTOR (la Aventura): cuantas
+     * copias hay marcadas, cuantas mas se podrian marcar, y marcarlas todas o
+     * desmarcarlas todas. Android lo pone en la carta ampliada sin cerrar el
+     * carrusel (Discord, 15-10-2026: el dialogo cortaba el ir pasando cartas).
+     * Null donde no se vende.
+     */
+    default AutoSellToggle autoSellToggle(final PaperCard card, final int copiesInThisDeck) {
+        return null;
+    }
+
+    record AutoSellToggle(int marked, int spare, Runnable markAll, Runnable unmarkAll) {
     }
 }

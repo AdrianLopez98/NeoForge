@@ -134,6 +134,27 @@ public class QuestShopScreen extends StackPane {
     private final Button buySingle = new Button();
     private List<PaperCard> singles = new ArrayList<>();
     private List<PaperCard> singlesShown = new ArrayList<>();
+    /**
+     * Cuantas copias hay de cada impresion en el mostrador: la misma carta
+     * repetida sale UNA vez con su "xN" (Discord, 15-10-2026: "instead of
+     * showing X times the same card, show it only once and put a xNumber").
+     */
+    private final java.util.Map<PaperCard, Integer> singleCounts = new java.util.HashMap<>();
+    /** Los filtros de las sueltas, como en Arena: color, tipo y si la tienes. */
+    private final java.util.Set<Byte> singleColours = new java.util.HashSet<>();
+    private boolean singleColourless;
+    private final java.util.Set<forge.card.CardType.CoreType> singleTypes =
+            java.util.EnumSet.noneOf(forge.card.CardType.CoreType.class);
+    /** 0 todas, 1 solo las que no tienes, 2 solo las que ya tienes. */
+    private int singleOwned;
+    private final List<Button> singleFilterButtons = new ArrayList<>();
+    private final ScrollPane singleScroll = new ScrollPane();
+    /**
+     * El ancho de carta de las sueltas: lo que quepa en el hueco (ver
+     * {@link #fitSingles}), no uno fijo. Con el fijo salian dos filas
+     * pequenyas y media pantalla vacia (Discord, 15-10-2026).
+     */
+    private double singleCardW = -1;
     private PaperCard chosenSingle;
 
     // --- preconstruidos y cajas ---
@@ -650,20 +671,27 @@ public class QuestShopScreen extends StackPane {
             reloadSingles();
         });
 
-        final Label cap = new Label(NeoText.get("shop.singles.caption"));
-        cap.getStyleClass().add("caption");
-
-        final Region gapTools = new Region();
-        HBox.setHgrow(gapTools, Priority.ALWAYS);
-        final HBox tools = new HBox(12, singleSearch, gapTools);
+        // Los filtros, en la misma fila que el buscador y en una FlowPane: si
+        // no caben (ventana estrecha, escala grande) bajan de linea en vez de
+        // salirse por la derecha.
+        final FlowPane tools = new FlowPane(12, 8);
         tools.setAlignment(Pos.CENTER_LEFT);
+        tools.getChildren().addAll(singleSearch, singleColourRow(), singleTypeRow(), singleOwnedRow());
 
         singleGrid.setAlignment(Pos.TOP_LEFT);
-        final ScrollPane scroll = new ScrollPane(singleGrid);
+        final ScrollPane scroll = singleScroll;
+        scroll.setContent(singleGrid);
         scroll.getStyleClass().add("dialog-scroll");
         scroll.setFitToWidth(true);
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         VBox.setVgrow(scroll, Priority.ALWAYS);
+        // Alto PEDIDO pequenyo: crece con lo que sobre (Vgrow) y no con lo que
+        // mida la rejilla. Si pidiera el alto de su contenido, cartas mas
+        // grandes agrandarian el visor, el visor agrandaria las cartas... y la
+        // pagina se saldria de la pantalla, cortada por arriba.
+        scroll.setPrefViewportHeight(UiScale.px(120));
+        scroll.setMinViewportHeight(UiScale.px(120));
+        scroll.viewportBoundsProperty().addListener((o, was, is) -> fitSingles());
 
         singleName.getStyleClass().add("quest-deck-name");
         singlePrice.getStyleClass().add("shop-price");
@@ -674,30 +702,42 @@ public class QuestShopScreen extends StackPane {
 
         final Region gap = new Region();
         HBox.setHgrow(gap, Priority.ALWAYS);
-        final HBox row = new HBox(16, new VBox(2, singleName, singlePrice), gap, buySingle);
+        // El paginador va en la barra de comprar y sin el rotulo de arriba: a
+        // 1080p el hueco de las cartas era de 300 px y solo cabia una fila de
+        // las grandes (15-10-2026). Cada linea que no esta es casi una fila.
+        final HBox row = new HBox(16, singlePager, new VBox(2, singleName, singlePrice), gap, buySingle);
         row.setAlignment(Pos.CENTER_LEFT);
         row.getStyleClass().add("stat-tile");
-        row.setPadding(new Insets(14, 18, 14, 18));
+        row.setPadding(new Insets(10, 18, 10, 18));
 
-        final VBox box = new VBox(12, cap, tools, scroll, singlePager, row);
+        final VBox box = new VBox(10, tools, scroll, row);
         return box;
     }
 
     /** Los nombres que ya tienes: lo que no este aqui lleva "Nueva". */
     private java.util.Set<String> ownedNames = java.util.Set.of();
 
+    /** Cuantas tienes de cada carta, por nombre: la pastilla "Tienes N". */
+    private java.util.Map<String, Integer> ownedByName = java.util.Map.of();
+
     private void reloadSingles() {
         singles = NeoQuestShop.singles();
         ownedNames = forge.neo.quest.NeoQuestCollection.ownedNames();
+        ownedByName = ownedCounts();
         final String q = singleSearch.getText() == null ? ""
                 : singleSearch.getText().trim().toLowerCase(Locale.ROOT);
         singlesShown = new ArrayList<>();
+        singleCounts.clear();
         for (final PaperCard c : singles) {
+            // La misma impresion, una vez: las demas copias van en su "xN".
+            if (singleCounts.merge(c, 1, Integer::sum) > 1) {
+                continue;
+            }
             // Se busca por el nombre que se VE, que en castellano no es el
             // ingles. Es la misma regla que en el deck builder.
             final String shown = forge.neo.card.CardText.nameOf(c).toLowerCase(Locale.ROOT);
-            if (q.isEmpty() || shown.contains(q)
-                    || c.getName().toLowerCase(Locale.ROOT).contains(q)) {
+            if ((q.isEmpty() || shown.contains(q)
+                    || c.getName().toLowerCase(Locale.ROOT).contains(q)) && passesSingleFilters(c)) {
                 singlesShown.add(c);
             }
         }
@@ -724,11 +764,225 @@ public class QuestShopScreen extends StackPane {
         }
     }
 
+    // --- los filtros de las sueltas ---
+
+    private boolean passesSingleFilters(final PaperCard c) {
+        final forge.card.CardRules rules = c.getRules();
+        if (!singleColours.isEmpty() || singleColourless) {
+            final forge.card.ColorSet colour = rules.getColor();
+            boolean ok = singleColourless && colour.isColorless();
+            for (final byte b : singleColours) {
+                ok |= colour.hasAnyColor(b);
+            }
+            if (!ok) {
+                return false;
+            }
+        }
+        if (!singleTypes.isEmpty()) {
+            boolean ok = false;
+            for (final forge.card.CardType.CoreType t : singleTypes) {
+                ok |= rules.getType().hasType(t);
+            }
+            if (!ok) {
+                return false;
+            }
+        }
+        if (singleOwned != 0) {
+            final boolean fresh = forge.neo.quest.NeoQuestCollection.isNew(c, ownedNames);
+            return singleOwned == 1 ? fresh : !fresh;
+        }
+        return true;
+    }
+
+    private void singleFiltersChanged() {
+        singlePager.reset();
+        reloadSingles();
+    }
+
+    /** Los cinco colores e incolora, los mismos botones que el constructor. */
+    private HBox singleColourRow() {
+        final HBox row = new HBox(4);
+        row.setAlignment(Pos.CENTER_LEFT);
+        final String[] letters = {"W", "U", "B", "R", "G"};
+        final byte[] masks = {forge.card.MagicColor.WHITE, forge.card.MagicColor.BLUE,
+                forge.card.MagicColor.BLACK, forge.card.MagicColor.RED, forge.card.MagicColor.GREEN};
+        for (int i = 0; i < letters.length; i++) {
+            final byte colour = masks[i];
+            final Button b = new Button(letters[i]);
+            b.getStyleClass().addAll("segment", "colour-filter", "mana-" + letters[i].toLowerCase(Locale.ROOT));
+            b.setMinWidth(Region.USE_PREF_SIZE);
+            b.setOnAction(e -> {
+                if (!singleColours.remove(colour)) {
+                    singleColours.add(colour);
+                }
+                b.pseudoClassStateChanged(SELECTED, singleColours.contains(colour));
+                singleFiltersChanged();
+            });
+            row.getChildren().add(b);
+        }
+        final Button colourless = new Button("C");
+        colourless.getStyleClass().addAll("segment", "colour-filter", "mana-c");
+        colourless.setMinWidth(Region.USE_PREF_SIZE);
+        colourless.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("deck.colorless")));
+        colourless.setOnAction(e -> {
+            singleColourless = !singleColourless;
+            colourless.pseudoClassStateChanged(SELECTED, singleColourless);
+            singleFiltersChanged();
+        });
+        row.getChildren().add(colourless);
+        return row;
+    }
+
+    /** Los tipos, con su nombre traducido del motor, como en el constructor. */
+    private HBox singleTypeRow() {
+        final HBox row = new HBox(4);
+        row.setAlignment(Pos.CENTER_LEFT);
+        for (final forge.card.CardType.CoreType t : new forge.card.CardType.CoreType[] {
+                forge.card.CardType.CoreType.Creature, forge.card.CardType.CoreType.Instant,
+                forge.card.CardType.CoreType.Sorcery, forge.card.CardType.CoreType.Artifact,
+                forge.card.CardType.CoreType.Enchantment, forge.card.CardType.CoreType.Planeswalker,
+                forge.card.CardType.CoreType.Land}) {
+            final Button b = new Button(t.getTranslatedName());
+            b.getStyleClass().addAll("segment", "type-filter");
+            b.setMinWidth(Region.USE_PREF_SIZE);
+            b.setOnAction(e -> {
+                if (!singleTypes.remove(t)) {
+                    singleTypes.add(t);
+                }
+                b.pseudoClassStateChanged(SELECTED, singleTypes.contains(t));
+                singleFiltersChanged();
+            });
+            row.getChildren().add(b);
+        }
+        return row;
+    }
+
+    /** Todas, solo las nuevas o solo las que ya tienes. */
+    private HBox singleOwnedRow() {
+        final HBox row = new HBox(4);
+        row.setAlignment(Pos.CENTER_LEFT);
+        final String[] keys = {"shop.singles.all", "shop.singles.newOnly", "shop.singles.ownedOnly"};
+        final List<Button> group = new ArrayList<>();
+        for (int i = 0; i < keys.length; i++) {
+            final int which = i;
+            final Button b = new Button(NeoText.get(keys[i]));
+            b.getStyleClass().add("segment");
+            b.setMinWidth(Region.USE_PREF_SIZE);
+            b.pseudoClassStateChanged(SELECTED, which == singleOwned);
+            b.setOnAction(e -> {
+                singleOwned = which;
+                for (final Button o : group) {
+                    o.pseudoClassStateChanged(SELECTED, o == b);
+                }
+                singleFiltersChanged();
+            });
+            group.add(b);
+            row.getChildren().add(b);
+        }
+        return row;
+    }
+
+    /** Margen de cada casilla, a cada lado. */
+    private static final double SINGLE_PAD = 6;
+
+    /**
+     * Las cartas lo mas grandes que quepan, y la pagina lo que quepa con ese
+     * tamanyo (Discord, 15-10-2026: "re-layout ... similar to MTGA, where it is
+     * easier to read the cards"). Se prueba con 1, 2, 3... filas y se queda la
+     * primera con la que entran al menos 20 en la pagina (como las 21 de Arena; con 10, a 1080p y 4K de verdad salian solo 14 enormes): cuantas menos filas,
+     * mas grande la carta. Las casillas tienen tamanyo FIJO y la cuenta deja
+     * unos px de margen, asi que la pagina cabe entera sin barra y sin que la
+     * FlowPane mande una carta a una fila de mas.
+     */
+    private void fitSingles() {
+        final javafx.geometry.Bounds b = singleScroll.getViewportBounds();
+        // Margen de sobra: calculada al pixel, la casilla con su borde de CSS se
+        // pasaba un pelo y la pagina salia cortada por arriba (visto a 2K).
+        final double width = b.getWidth() - 10;
+        final double height = b.getHeight() - 14;
+        if (width <= 0 || height <= 0) {
+            return;
+        }
+        final double gap = singleGrid.getHgap();
+        final double under = UiScale.px(26);
+        // Mas un margen: la casilla lleva su borde de CSS, y una que mida un
+        // pelo mas de lo calculado empuja la pagina y la corta por arriba.
+        final double extra = SINGLE_PAD * 2 + 2 + under + UiScale.px(12);
+        // El minimo NO crece con la escala: a 2K el resto de la pantalla ya
+        // crece y deja menos hueco, y un minimo escalado dejaba una sola fila
+        // de cinco cartas enormes.
+        final double min = 72;
+        final double max = UiScale.px(250);
+        double w = min;
+        int cols = 1;
+        int rows = 1;
+        for (int r = 1; r <= 6; r++) {
+            final double tileH = (height - gap * (r - 1)) / r;
+            final double cw = Math.min(max, (tileH - extra) / CardNode.ASPECT);
+            if (cw < min) {
+                break;
+            }
+            final int c = (int) Math.floor((width + gap) / (cw + SINGLE_PAD * 2 + gap));
+            if (c < 1) {
+                continue;
+            }
+            w = cw;
+            cols = c;
+            rows = r;
+            if (c * r >= 20) {
+                break;
+            }
+        }
+        final int size = Math.max(1, cols * rows);
+        if (Math.abs(w - singleCardW) < 1 && size == singlePager.getPageSize()) {
+            return;
+        }
+        singleCardW = w;
+        final int first = singlePager.from();
+        singlePager.setPageSize(size);
+        singlePager.goToItem(first);
+        singlePager.setTotal(singlesShown.size());
+        paintSingles();
+    }
+
     private Region singleTile(final PaperCard card) {
-        final CardNode node = new CardNode(cardWidth * 0.82);
+        final double w = singleCardW > 0 ? singleCardW : cardWidth * 0.82;
+        final CardNode node = new CardNode(w);
         node.setRotationEnabled(false);
         node.setBadgesVisible(false);
+        // Sin levantarse al pasar el raton: la carta crecia, empujaba la pagina
+        // y la cortaba por arriba. Aqui se elige con clic y se lee con el
+        // derecho.
+        node.setHoverEnabled(false);
         node.setCard(forge.game.card.CardView.getCardForUi(card));
+        // Las copias de mas, en una pastilla abajo a la derecha (como Arena).
+        final StackPane face = new StackPane(node);
+        // Del tamanyo calculado, para que la cuenta de fitSingles case.
+        final double faceH = w * CardNode.ASPECT;
+        face.setMinSize(w, faceH);
+        face.setPrefSize(w, faceH);
+        face.setMaxSize(w, faceH);
+        final int copies = singleCounts.getOrDefault(card, 1);
+        if (copies > 1) {
+            final Label count = new Label("\u00d7" + copies);
+            count.getStyleClass().add("shop-count");
+            StackPane.setAlignment(count, Pos.BOTTOM_RIGHT);
+            StackPane.setMargin(count, new Insets(0, 4, 4, 0));
+            face.getChildren().add(count);
+        }
+        // Cuantas TIENES ya, abajo a la izquierda y en verde (Discord,
+        // 15-10-2026: "a little indication of how many copies of the cards we
+        // already own ... easier than having to go back and forth to
+        // collection"). Por nombre, como "Nueva": cualquier impresion cuenta.
+        final int have = ownedByName.getOrDefault(card.getName(), 0);
+        if (have > 0) {
+            final Label owned = new Label(NeoText.get("shop.owned", have));
+            owned.getStyleClass().add("shop-owned");
+            owned.setMinWidth(Region.USE_PREF_SIZE);
+            StackPane.setAlignment(owned, Pos.BOTTOM_LEFT);
+            StackPane.setMargin(owned, new Insets(0, 0, 4, 4));
+            face.getChildren().add(owned);
+        }
 
         final int price = NeoQuestShop.priceOfCard(card);
         final Label cost = new Label(NeoText.get("shop.credits.short", price));
@@ -743,10 +997,21 @@ public class QuestShopScreen extends StackPane {
             fresh.getStyleClass().add("shop-new");
             under.getChildren().add(fresh);
         }
-        final VBox tile = new VBox(2, node, under);
+        // Alto fijo para la fila del precio: con el de cada una, una casilla
+        // con "Nueva" mediria distinto y la cuenta de filas de fitSingles no
+        // casaria con lo pintado.
+        final double underH = UiScale.px(26);
+        under.setMinHeight(underH);
+        under.setPrefHeight(underH);
+        under.setMaxHeight(underH);
+        final VBox tile = new VBox(2, face, under);
         tile.setAlignment(Pos.CENTER);
         tile.getStyleClass().add("set-tile");
-        tile.setPadding(new Insets(6, 6, 6, 6));
+        tile.setPadding(new Insets(SINGLE_PAD));
+        final double tileW = w + SINGLE_PAD * 2;
+        tile.setMinWidth(tileW);
+        tile.setPrefWidth(tileW);
+        tile.setMaxWidth(tileW);
         tile.pseudoClassStateChanged(PICKED, card.equals(chosenSingle));
         tile.setOnMouseClicked(ev -> {
             if (ev.getButton() == javafx.scene.input.MouseButton.PRIMARY) {
@@ -786,7 +1051,9 @@ public class QuestShopScreen extends StackPane {
         // Sin panel de "lo que te ha tocado" (Discord, 11-10-2026: "I find it
         // useless and just breaks flow"): la carta ya la has visto al elegirla,
         // y ya has pulsado comprar. Se dice en el pie y se sigue comprando.
-        chosenSingle = null;
+        // Si quedan mas copias, sigue elegida: comprar dos del mismo es pulsar
+        // dos veces, no volver a buscarla.
+        chosenSingle = singleCounts.getOrDefault(card, 1) > 1 ? card : null;
         reloadSingles();
         singleName.setText(NeoText.get("shop.boughtSingle",
                 forge.neo.card.CardText.nameOf(card), bought.getPaid()));

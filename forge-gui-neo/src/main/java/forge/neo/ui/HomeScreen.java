@@ -43,6 +43,23 @@ public class HomeScreen extends javafx.scene.layout.StackPane {
     private static final String[] AI_PROFILES = {"Cautious", "Default", "Reckless", "Experimental",
             forge.neo.look.RivalSetup.RANDOM};
 
+    /**
+     * Las filas del selector de IA: la de siempre ({@link #AI_PROFILES}) y,
+     * debajo, los perfiles que haya traido el jugador
+     * ({@link forge.neo.look.AiProfiles}), de cinco en cinco. En otra fila
+     * para que la de siempre no cambie, y en tantas como hagan falta para que
+     * ninguno se quede fuera (principio 5).
+     */
+    static List<List<String>> aiRows(final List<String> first) {
+        final List<List<String>> rows = new ArrayList<>();
+        rows.add(first);
+        final List<String> custom = forge.neo.look.AiProfiles.custom();
+        for (int i = 0; i < custom.size(); i += 5) {
+            rows.add(custom.subList(i, Math.min(custom.size(), i + 5)));
+        }
+        return rows;
+    }
+
     /** Que hacer al pulsar JUGAR. */
     public interface StartHandler {
         /**
@@ -251,7 +268,7 @@ et}) y no se tocan.
         this.onDownload = onDownload;
         this.opponents = clamp(
                 NeoSettings.opponents(format), 1, 3);
-        this.aiProfile = NeoSettings.get(NeoSettings.AI_PROFILE, "Default");
+        this.aiProfile = forge.neo.look.AiProfiles.orDefault(NeoSettings.get(NeoSettings.AI_PROFILE, "Default"));
         this.teams = forge.neo.match.NeoTeams.fromSetting(
                 NeoSettings.teams(format), opponents);
 
@@ -1266,7 +1283,7 @@ et}) y no se tocan.
                             rebuildOpponentRow();
                             updateSummary();
                         }),
-                choice(NeoText.get("home.ai"), AI_PROFILES, aiProfile,
+                choice(NeoText.get("home.ai"), aiRows(java.util.Arrays.asList(AI_PROFILES)), aiProfile,
                         v -> {
                             aiProfile = v;
                             NeoSettings.set(NeoSettings.AI_PROFILE, v);
@@ -1313,8 +1330,14 @@ et}) y no se tocan.
      * cada rival, que es lo que se quiere casi siempre.
      */
     private Region opponentRow() {
-        final HBox row = new HBox(6);
+        // Una FlowPane y no una HBox: si no cabe, BAJA a una segunda linea
+        // (Discord, 15-10-2026, Steam Deck a 1280x800 y escala 130%: con tres
+        // rivales y nombres de mazo largos la HBox no encogia - sus botones no
+        // bajan de su texto - y empujaba JUGAR fuera de la pantalla). Como la
+        // fila de opciones de debajo, que ya era una FlowPane por lo mismo.
+        final FlowPane row = new FlowPane(6, 6);
         row.setAlignment(Pos.CENTER_LEFT);
+        row.setMinWidth(0);
         return row;
     }
 
@@ -1322,7 +1345,7 @@ et}) y no se tocan.
         if (opponentRow == null) {
             return;
         }
-        final HBox row = (HBox) opponentRow;
+        final javafx.scene.layout.Pane row = (javafx.scene.layout.Pane) opponentRow;
         row.getChildren().clear();
         opponentButtons.clear();
         teamBoxes.clear();
@@ -1338,7 +1361,11 @@ et}) y no se tocan.
             commanderButton = new Button();
             commanderButton.setId("home-commander");
             commanderButton.getStyleClass().add("segment");
-            commanderButton.setMinWidth(Region.USE_PREF_SIZE);
+            commanderButton.setMinWidth(UiScale.px(140));
+            // Con tope: "Commander: Tymna the Weaver + Thrasios..." no tiene
+            // limite y era lo mas ancho de la fila. Lo que no cabe acaba en
+            // "..." y se lee entero en su tooltip (refreshCommander).
+            commanderButton.setMaxWidth(UiScale.px(300));
             commanderButton.setOnAction(e -> pickCommander(-1));
             final Region sep = new Region();
             sep.setMinWidth(14);
@@ -1470,7 +1497,8 @@ et}) y no se tocan.
         final Boolean known = commanderChoices.get(deck);
         if (known != null) {
             b.setDisable(!known);
-            b.setTooltip(known ? null : new javafx.scene.control.Tooltip(NeoText.get("commander.pick.none")));
+            // Con el nombre entero: el boton tiene tope y puede salir cortado.
+            b.setTooltip(new javafx.scene.control.Tooltip(known ? b.getText() : NeoText.get("commander.pick.none")));
             return;
         }
         b.setDisable(true);
@@ -1617,8 +1645,12 @@ et}) y no se tocan.
         for (int i = 0; i < opponentButtons.size(); i++) {
             final Deck d = i < opponentDecks.size() ? opponentDecks.get(i) : null;
             final String pool = d == null ? opponentPools.get(i) : null;
+            // -Dneo.home.rivalLabel=X: ese nombre para todos los rivales, para
+            // capturar la fila con nombres largos sin tener esos mazos.
+            final String forced = System.getProperty("neo.home.rivalLabel");
             opponentButtons.get(i).setText(NeoText.get("home.aiDeck", i + 1,
-                    d != null ? shorten(d.getName())
+                    forced != null && !forced.isBlank() ? shorten(forced)
+                            : d != null ? shorten(d.getName())
                             : pool != null ? NeoText.get("home.randomFrom", shorten(poolName(pool)))
                             : NeoText.get("home.random")));
         }
@@ -1984,30 +2016,41 @@ et}) y no se tocan.
 
     private Region choice(final String caption, final String[] values, final String current,
                           final Consumer<String> onPick) {
+        return choice(caption, java.util.Collections.singletonList(java.util.Arrays.asList(values)),
+                current, onPick);
+    }
+
+    /** Lo mismo, en varias filas que se eligen como una sola (ver {@link #aiRows}). */
+    private Region choice(final String caption, final List<List<String>> rows, final String current,
+                          final Consumer<String> onPick) {
         final Label label = new Label(caption);
         label.getStyleClass().add("caption");
 
-        final HBox row = new HBox(4);
+        final VBox lines = new VBox(4);
         final List<Button> buttons = new ArrayList<>();
-        for (final String value : values) {
-            final Button b = new Button(LookScreen.aiLabel(value));
-            b.getStyleClass().add("segment");
-            // Sin esto, cuando la fila no cabe JavaFX encoge los botones por
-            // debajo de su texto y lo corta con puntos suspensivos: salian
-            // "Cautio...", "Reckl...", e incluso "A..." en la escala.
-            b.setMinWidth(Region.USE_PREF_SIZE);
-            b.pseudoClassStateChanged(SELECTED, value.equals(current));
-            b.setOnAction(e -> {
-                for (final Button other : buttons) {
-                    other.pseudoClassStateChanged(SELECTED, other == b);
-                }
-                onPick.accept(value);
-            });
-            buttons.add(b);
-            row.getChildren().add(b);
+        for (final List<String> values : rows) {
+            final HBox row = new HBox(4);
+            for (final String value : values) {
+                final Button b = new Button(LookScreen.aiLabel(value));
+                b.getStyleClass().add("segment");
+                // Sin esto, cuando la fila no cabe JavaFX encoge los botones por
+                // debajo de su texto y lo corta con puntos suspensivos: salian
+                // "Cautio...", "Reckl...", e incluso "A..." en la escala.
+                b.setMinWidth(Region.USE_PREF_SIZE);
+                b.pseudoClassStateChanged(SELECTED, value.equals(current));
+                b.setOnAction(e -> {
+                    for (final Button other : buttons) {
+                        other.pseudoClassStateChanged(SELECTED, other == b);
+                    }
+                    onPick.accept(value);
+                });
+                buttons.add(b);
+                row.getChildren().add(b);
+            }
+            lines.getChildren().add(row);
         }
 
-        final VBox box = new VBox(4, label, row);
+        final VBox box = new VBox(4, label, lines);
         box.setAlignment(Pos.CENTER_LEFT);
         return box;
     }
