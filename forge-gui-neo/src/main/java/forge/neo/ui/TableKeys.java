@@ -82,6 +82,80 @@ public final class TableKeys {
         };
         scene.addEventFilter(KeyEvent.KEY_PRESSED, guard);
         scene.addEventFilter(KeyEvent.KEY_RELEASED, guard);
+        numberedChoices(scene, table);
+    }
+
+    /**
+     * <b>Las teclas 1 a 9 contestan la pregunta del motor</b> que haya en la
+     * capa de dialogos ({@link NumberedChoice}): la opcion N, y mantenida, la
+     * de la pregunta siguiente (Discord, 16-10-2026, para las macros).
+     *
+     * <p>Va aqui y no en los atajos porque tiene que valer en las dos mesas
+     * (ver arriba). Solo con la capa de los dialogos del MOTOR delante: con el
+     * menu de pausa o una carta ampliada encima, el numero no puede contestar
+     * una pregunta que no se esta viendo (principio 10). Ni escribiendo en un
+     * buscador, ni con Mayus/Ctrl/Alt: Mayus+2 y Mayus+3 son las macros.
+     */
+    private static void numberedChoices(final Scene scene, final Supplier<TableScreen> table) {
+        final java.util.Set<KeyCode> held = new java.util.HashSet<>();
+        scene.addEventFilter(KeyEvent.KEY_PRESSED, ev -> {
+            final int n = digit(ev);
+            if (n <= 0) {
+                return;
+            }
+            final boolean repeat = !held.add(ev.getCode());
+            final TableScreen now = table.get();
+            if (now == null || now.getScene() != scene || now.isConsultShowing()) {
+                return;
+            }
+            if (scene.getFocusOwner() instanceof javafx.scene.control.TextInputControl) {
+                return;
+            }
+            final Overlay overlay = now.getOverlay();
+            if (!overlay.isShowing() || overlay.isPeeking()) {
+                return;
+            }
+            final NumberedChoice choice = find(overlay.getContent(), 4);
+            if (choice != null && choice.pickNumber(n, repeat)) {
+                ev.consume();
+            }
+        });
+        scene.addEventFilter(KeyEvent.KEY_RELEASED, ev -> held.remove(ev.getCode()));
+    }
+
+    /** 1 a 9 (fila de arriba o teclado numerico) sin modificadores; si no, 0. */
+    private static int digit(final KeyEvent ev) {
+        if (ev.isShiftDown() || ev.isControlDown() || ev.isAltDown() || ev.isMetaDown()
+                || ev.isShortcutDown()) {
+            return 0;
+        }
+        final KeyCode c = ev.getCode();
+        if (c == null) {
+            return 0;
+        }
+        if (c.ordinal() >= KeyCode.DIGIT1.ordinal() && c.ordinal() <= KeyCode.DIGIT9.ordinal()) {
+            return c.ordinal() - KeyCode.DIGIT1.ordinal() + 1;
+        }
+        if (c.ordinal() >= KeyCode.NUMPAD1.ordinal() && c.ordinal() <= KeyCode.NUMPAD9.ordinal()) {
+            return c.ordinal() - KeyCode.NUMPAD1.ordinal() + 1;
+        }
+        return 0;
+    }
+
+    /** El dialogo numerado, aunque venga envuelto (pocos niveles: es un dialogo, no la mesa). */
+    private static NumberedChoice find(final Node node, final int depth) {
+        if (node instanceof NumberedChoice c) {
+            return c;
+        }
+        if (depth > 0 && node instanceof javafx.scene.Parent p) {
+            for (final Node child : p.getChildrenUnmodifiable()) {
+                final NumberedChoice c = find(child, depth - 1);
+                if (c != null) {
+                    return c;
+                }
+            }
+        }
+        return null;
     }
 
     /** ¿Este nodo cuelga de la mesa? (el foco puede estar en otra pantalla). */

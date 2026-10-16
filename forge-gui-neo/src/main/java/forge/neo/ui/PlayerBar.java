@@ -118,6 +118,27 @@ public class PlayerBar extends HBox {
     private boolean compact;
 
     /**
+     * LOS COMANDANTES DEL RIVAL, en miniatura, en la barra compacta (Discord,
+     * 15-10-2026). Viendo todas las mesas el campo del rival va sin pilas
+     * (TableScreen: le costaban un tercio del ancho), asi que su zona de mando
+     * ({@code PlayerField.setCommand}) no se ve ahi. Va en la FILA DEL NOMBRE,
+     * justo a la izquierda de la vida, donde siempre sobra hueco: no entra en la
+     * fila de zonas, ni en la del mana, ni en la de los contadores del jugador
+     * (veneno, energia...) ni en la de las reliquias. Primero fue en una columna
+     * bajo la vida, y en una tele 4K con escala automatica la fila de zonas
+     * ocupaba casi toda la barra y se quitaba siempre. Del alto de la vida, para
+     * no agrandar la barra; y si aun asi no cabe, se quita ella antes que apretar
+     * nada (ver {@link #layoutChildren}): queda el "CMD".
+     * Solo comandantes (uno, o dos con partner); hover para el detalle, clic
+     * derecho amplia (lo hace la mesa para cualquier carta) y clic abre la zona.
+     * Se apaga con {@code PlayerField.SHOW_OPPONENT_COMMAND}.
+     */
+    private final HBox commanderThumbs = new HBox(4);
+    private java.util.function.Consumer<forge.neo.card.CardNode> onThumbHover;
+    /** Si hay comandantes que ensenyar (aunque luego no quepan). */
+    private boolean hasThumbs;
+
+    /**
      * BARRA COMPACTA (itch.io, 04-10-2026: <i>"the part where it shows our stats
      * is so big and take so much space, turning the hand small"</i>). Ajuste,
      * apagado de fabrica: la misma barra con letra y avatar mas pequenyos y
@@ -236,6 +257,11 @@ public class PlayerBar extends HBox {
 
         getChildren().addAll(avatar, lifeBox, info, gap, relics, manaBox);
 
+        commanderThumbs.setAlignment(Pos.CENTER_RIGHT);
+        commanderThumbs.getStyleClass().add("bar-commanders");
+        commanderThumbs.setVisible(false);
+        commanderThumbs.setManaged(false);
+
         // Toda la barra es zona de click, no solo el circulo: es un objetivo
         // mucho mas facil de acertar.
         setOnMouseClicked(e -> {
@@ -272,7 +298,7 @@ public class PlayerBar extends HBox {
         }
         compact = on;
         if (on) {
-            nameRow.getChildren().addAll(spacer, lifeBox);
+            nameRow.getChildren().addAll(spacer, commanderThumbs, lifeBox);
             info.getChildren().setAll(nameRow, zones, manaBox, playerCounters, relics);
             zones.setSpacing(6);
             setSpacing(10);
@@ -280,7 +306,7 @@ public class PlayerBar extends HBox {
             getChildren().setAll(avatar, info);
             HBox.setHgrow(info, Priority.ALWAYS);
         } else {
-            nameRow.getChildren().removeAll(spacer, lifeBox);
+            nameRow.getChildren().removeAll(spacer, commanderThumbs, lifeBox);
             info.getChildren().setAll(nameRow, zones, playerCounters);
             zones.setSpacing(14);
             setSpacing(18);
@@ -290,6 +316,102 @@ public class PlayerBar extends HBox {
         requestLayout();
     }
 
+    /** Que hacer al pasar el raton por un comandante de la barra (el detalle). */
+    public void setOnCommanderHover(final java.util.function.Consumer<forge.neo.card.CardNode> handler) {
+        this.onThumbHover = handler;
+    }
+
+    /**
+     * Los comandantes de este jugador para la columna de la barra compacta. Ver
+     * {@link #commanderThumbs}. Lo que no es comandante (emblemas, un plano) no
+     * entra: para eso esta el "CMD".
+     */
+    public void setCommanders(final List<forge.game.card.CardView> commandZone) {
+        setCommanders(commandZone, false);
+    }
+
+    /** Con {@code onlyCommanders} la lista ya son solo comandantes (la maqueta). */
+    public void setCommanders(final List<forge.game.card.CardView> commandZone, final boolean onlyCommanders) {
+        final List<forge.game.card.CardView> cmds = new ArrayList<>();
+        if (commandZone != null && PlayerField.SHOW_OPPONENT_COMMAND) {
+            for (final forge.game.card.CardView c : commandZone) {
+                if (c != null && (onlyCommanders || c.isCommander())) {
+                    cmds.add(c);
+                }
+            }
+        }
+        final List<forge.neo.card.CardNode> nodes = new ArrayList<>();
+        for (final javafx.scene.Node n : commanderThumbs.getChildren()) {
+            nodes.add((forge.neo.card.CardNode) n);
+        }
+        // Se reutilizan los nodos (las notas de diseño): solo se crean o se quitan los que sobran.
+        while (nodes.size() > cmds.size()) {
+            commanderThumbs.getChildren().remove(nodes.remove(nodes.size() - 1));
+        }
+        final double w = UiScale.px(40);
+        while (nodes.size() < cmds.size()) {
+            final forge.neo.card.CardNode n = new forge.neo.card.CardNode(w);
+            n.setRotationEnabled(false);
+            n.setBadgesVisible(false);
+            n.setCursor(javafx.scene.Cursor.HAND);
+            n.hoverProperty().addListener((o, was, is) -> {
+                if (is && onThumbHover != null) {
+                    onThumbHover.accept(n);
+                }
+            });
+            n.setOnMouseClicked(e -> {
+                // Que no llegue a la barra: mirarlo no es "elegir a este jugador".
+                e.consume();
+                if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY
+                        && onZone != null && player != null) {
+                    onZone.accept(player, forge.game.zone.ZoneType.Command);
+                }
+            });
+            nodes.add(n);
+            commanderThumbs.getChildren().add(n);
+        }
+        for (int i = 0; i < cmds.size(); i++) {
+            nodes.get(i).setCard(cmds.get(i));
+        }
+        hasThumbs = !cmds.isEmpty();
+        requestLayout();
+    }
+
+    /**
+     * La columna de comandantes, solo en la barra compacta y SOLO si cabe sin
+     * apretar lo demas: se mide lo que pide la barra entera con ella, y si no
+     * llega el ancho se quita (antes de que JavaFX empiece a recortar las
+     * zonas, que es lo que se veia a 1024 con tres rivales).
+     */
+    @Override
+    protected void layoutChildren() {
+        boolean want = compact && hasThumbs;
+        if (want) {
+            // Del alto de la vida (y nunca mas de 40 px de escala): asi la fila
+            // del nombre no crece y la barra no cambia de alto.
+            final double lifeH = lifeBox.prefHeight(-1);
+            final double w = Math.max(16, Math.min(UiScale.px(40),
+                    lifeH / forge.neo.card.CardNode.ASPECT));
+            for (final javafx.scene.Node n : commanderThumbs.getChildren()) {
+                final forge.neo.card.CardNode c = (forge.neo.card.CardNode) n;
+                if (Math.abs(c.getCardWidth() - w) > 0.5) {
+                    c.setCardWidth(w);
+                }
+            }
+            final double thumbsW = commanderThumbs.getChildren().size() * (w + 4) + nameRow.getSpacing();
+            final double rowW = commanderThumbs.isManaged()
+                    ? nameRow.prefWidth(-1) : nameRow.prefWidth(-1) + thumbsW;
+            final Insets in = getInsets();
+            final double need = in.getLeft() + in.getRight() + avatar.prefWidth(-1) + getSpacing() + rowW;
+            want = need <= getWidth() + 0.5;
+        }
+        if (commanderThumbs.isManaged() != want) {
+            commanderThumbs.setVisible(want);
+            commanderThumbs.setManaged(want);
+        }
+        super.layoutChildren();
+    }
+
     /** true si la barra esta en su version de dos filas. */
     public boolean isCompact() {
         return compact;
@@ -297,6 +419,48 @@ public class PlayerBar extends HBox {
 
     public void setPlayer(final forge.game.player.PlayerView p) {
         this.player = p;
+    }
+
+    /** La partida de esta chapa, para preguntar al motor si su IA esta pensando. */
+    private int gameId = -1;
+    private boolean thinking;
+
+    public void setGameId(final int id) {
+        gameId = id;
+    }
+
+    /**
+     * LA IA ESTA PENSANDO (Forge #12265, 16-10-2026): cuando una IA lleva mas
+     * de 2 s decidiendo, el motor lo publica ({@code AITimeoutTracker}) y el
+     * Forge de siempre pinta una barra ambar sobre su retrato que se vacia
+     * hasta su tiempo limite. Aqui es el BORDE del retrato el que se vuelve
+     * ambar y se vacia: no mueve nada de la barra. Principio 9: la IA no tiene
+     * manos, y sin esto una IA pensando parece una partida colgada.
+     *
+     * @return si esta pensando (para seguir repintando)
+     */
+    public boolean refreshThinking() {
+        final forge.game.player.PlayerView p = player;
+        final float f = p == null || gameId < 0 ? -1f
+                : forge.util.AITimeoutTracker.getRemainingFraction(
+                        forge.util.AITimeoutTracker.key(gameId, p.getId()));
+        if (f < 0f) {
+            if (thinking) {
+                thinking = false;
+                avatar.setStyle("");
+                avatar.getStrokeDashArray().clear();
+                avatar.getStyleClass().remove("avatar-thinking");
+            }
+            return false;
+        }
+        final double around = 2 * Math.PI * avatar.getRadius();
+        if (!thinking) {
+            thinking = true;
+            avatar.getStyleClass().add("avatar-thinking");
+        }
+        avatar.setStyle("-fx-stroke: #E0A63C; -fx-stroke-width: 3;");
+        avatar.getStrokeDashArray().setAll(Math.max(0.5, around * f), around);
+        return true;
     }
 
     /**

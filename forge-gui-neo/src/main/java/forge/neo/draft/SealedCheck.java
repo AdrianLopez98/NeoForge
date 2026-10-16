@@ -295,6 +295,31 @@ public final class SealedCheck {
                 draftMix.label(), draft == null ? "no arranca" : draft.productName(), round1, round3);
         ok &= draft != null && "DOM".equals(round1) && "M19".equals(round3);
 
+        // ---- sobres AL AZAR (Discord, 16-10-2026) ----
+        // Los sobres pedidos, ninguno digital ni de broma, y un sellado y un
+        // draft de verdad con esa tirada.
+        final java.util.Random rnd = new java.util.Random(16102026L);
+        boolean paperOnly = true;
+        for (int t = 0; t < 20; t++) {
+            for (final java.util.Map.Entry<forge.card.CardEdition, Integer> e : PackMix.random(6, rnd).entries()) {
+                final forge.card.CardEdition.Type k = e.getKey().getType();
+                paperOnly &= k == forge.card.CardEdition.Type.CORE || k == forge.card.CardEdition.Type.EXPANSION
+                        || k == forge.card.CardEdition.Type.DRAFT || k == forge.card.CardEdition.Type.REPRINT;
+            }
+        }
+        final PackMix randomMix = PackMix.random(6, rnd);
+        final String rname = "NeoCheck al azar";
+        borrar(rname);
+        final DeckGroup rgroup = randomMix.total() == 6 ? NeoSealed.create(rname, randomMix) : null;
+        final int rcards = rgroup == null ? 0
+                : rgroup.getHumanDeck().getOrCreate(forge.deck.DeckSection.Sideboard).countAll();
+        borrar(rname);
+        final NeoDraft rdraft = NeoDraft.start(PackMix.random(3, rnd));
+        System.out.printf(Locale.ROOT, "  Al azar: %s -> sellado de %d cartas; draft %s; 120 sobres, %s%n",
+                randomMix.label(), rcards, rdraft == null ? "no arranca" : rdraft.productName(),
+                paperOnly ? "todos de papel" : "ALGUNO DIGITAL O DE BROMA");
+        ok &= paperOnly && randomMix.total() == 6 && rcards > 60 && rdraft != null;
+
         System.out.println(ok ? "  OK mezcla y bloques" : "  FALLO en la mezcla o los bloques");
         return ok;
     }

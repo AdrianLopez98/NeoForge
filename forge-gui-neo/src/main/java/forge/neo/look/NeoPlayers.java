@@ -65,9 +65,9 @@ public final class NeoPlayers {
         if (sprite < 0 && !face.isEmpty()) {
             CUSTOM_FACES.put(name, face);
         }
-        System.out.printf(java.util.Locale.ROOT, "  Rival %d: %s | IA %s%s%n", index + 1, name,
-                profile.isEmpty() ? "(la de Forge)" : profile,
-                face.isEmpty() ? "" : " | cara " + face);
+        System.out.printf(java.util.Locale.ROOT, "  Opponent %d: %s | AI %s%s%n", index + 1, name,
+                profile.isEmpty() ? "(Forge's)" : profile,
+                face.isEmpty() ? "" : " | face " + face);
         return GamePlayerUtil.createAiPlayer(name, sprite >= 0 ? sprite : index, profile);
     }
 
@@ -103,7 +103,7 @@ public final class NeoPlayers {
         if (sprite < 0 && !face.isEmpty()) {
             CUSTOM_FACES.put(name, face);
         }
-        System.out.printf(java.util.Locale.ROOT, "  Rival %d: %s | PERSONA (hot seat)%n", index + 1, name);
+        System.out.printf(java.util.Locale.ROOT, "  Opponent %d: %s | HUMAN (hot seat)%n", index + 1, name);
         return GamePlayerUtil.getGuiPlayer(name, sprite >= 0 ? sprite : index, 0, false);
     }
 

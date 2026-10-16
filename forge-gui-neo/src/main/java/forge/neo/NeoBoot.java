@@ -95,11 +95,11 @@ public final class NeoBoot {
         if (loaded) {
             return;
         }
-        System.out.println("[2/2] Cargando base de cartas...");
+        System.out.println("[2/2] Loading the card database...");
         final long t0 = System.currentTimeMillis();
         // El idioma se aplica AQUI y no despues: el motor precarga los nombres
         // de carta traducidos antes de leer las cartas. Ver NeoLanguage.
-        System.out.println("        idioma: " + NeoLanguage.currentLabel());
+        System.out.println("        language: " + NeoLanguage.currentLabel());
         FModel.initialize(bar, NeoLanguage.hook());
         NeoLanguage.restoreEngineValue();
         // Los perfiles de IA que haya traido el jugador, junto a los de Forge
@@ -109,7 +109,7 @@ public final class NeoBoot {
         // carpeta entera (BrokenDecks).
         forge.neo.deck.BrokenDecks.atStartup();
         loaded = true;
-        System.out.printf(Locale.ROOT, "        %,d cartas . %,d ediciones . %ds%n",
+        System.out.printf(Locale.ROOT, "        %,d cards . %,d editions . %ds%n",
                 FModel.getMagicDb().getCommonCards().getAllCards().size(),
                 FModel.getMagicDb().getEditions().size(),
                 (System.currentTimeMillis() - t0) / 1000);

@@ -138,7 +138,7 @@ public final class NeoFonts {
             final Boolean f = forced("neo.text.lcd");
             useLcd = Boolean.TRUE.equals(f);
             if (useLcd) {
-                System.out.println("[neo] Texto por el camino LCD (forzado)");
+                System.out.println("[neo] Text through the LCD path (forced)");
             }
         }
         return useLcd;
@@ -200,8 +200,8 @@ public final class NeoFonts {
                 // Una que falle no impide las demas.
             }
         }
-        System.out.println("[neo] Sin Segoe UI" + (forced ? " (forzado)" : "")
-                + ": letra de repuesto Inter, " + loaded + " de " + FILES.length + " cortes cargados");
+        System.out.println("[neo] No Segoe UI" + (forced ? " (forced)" : "")
+                + ": fallback font Inter, " + loaded + " of " + FILES.length + " weights loaded");
         // Si no se ha cargado ni la normal, la hoja no serviria de nada.
         return loaded > 0;
     }

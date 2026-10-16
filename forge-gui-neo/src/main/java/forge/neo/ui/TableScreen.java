@@ -320,6 +320,15 @@ public class TableScreen extends Pane {
         // de juego. Ver Rtl.
         Rtl.keepLtr(this);
         this.cardWidth = cardWidth;
+        // La IA pensando: la mesa que se ve es la que atiende el aviso del
+        // motor, y al salir de la escena se para (principio 11).
+        sceneProperty().addListener((o, was, is) -> {
+            if (is != null) {
+                live = new java.lang.ref.WeakReference<>(this);
+            } else {
+                aiThinking.stop();
+            }
+        });
         this.sideWidth = sideWidth;
         this.hand = new HandFan(cardWidth * 1.12);
         this.handPeek = new CardNode(cardWidth * 2.4);
@@ -550,6 +559,7 @@ public class TableScreen extends Pane {
 
         combatOverlay.setLocator(this::boundsOf);
         opponentBar.setOnZoneClicked(this::showZone);
+        opponentBar.setOnCommanderHover(this::hovered);
         selfBar.setOnZoneClicked(this::showZone);
         // Las pilas grandes de la mesa abren el mismo visor que el contador
         // pequenyo de la barra. Son lo que de verdad se mira — estan en el campo
@@ -1355,6 +1365,17 @@ public class TableScreen extends Pane {
         oppFields.get(seat).setZoneCounts(graveyard, exile, gravePlayable, exilePlayable);
     }
 
+    /** La zona de mando de ese rival, en su campo. Ver {@code PlayerField.setCommand}. */
+    public void setOpponentCommand(final int seat, final List<CardView> cards) {
+        if (seat < 0 || seat >= oppFields.size()) {
+            return;
+        }
+        oppFields.get(seat).setCommand(cards);
+        if (seat < oppBars.size()) {
+            oppBars.get(seat).setCommanders(cards);
+        }
+    }
+
     /** La barra de ese asiento de rival. */
     public PlayerBar opponentBar(final int seat) {
         return oppBars.get(Math.max(0, Math.min(seat, oppBars.size() - 1)));
@@ -1549,6 +1570,7 @@ public class TableScreen extends Pane {
 
             final PlayerBar b = new PlayerBar(true);
             b.setOnZoneClicked(this::showZone);
+            b.setOnCommanderHover(this::hovered);
             b.setOnPlayerClicked(onPlayerClicked);
             b.setSelectable(playersSelectable);
             oppBars.add(b);
@@ -3194,8 +3216,83 @@ public class TableScreen extends Pane {
     }
 
     /** true si hay algo modal delante de la mesa. */
+    // ---------------------------------------------------------------
+    // La IA esta pensando (Forge #12265): el borde de su retrato
+    // ---------------------------------------------------------------
+
+    /** Repinta cada 100 ms mientras alguna IA piensa, y se para sola. */
+    private final javafx.animation.Timeline aiThinking = new javafx.animation.Timeline(
+            new javafx.animation.KeyFrame(javafx.util.Duration.millis(100), e -> {
+                if (!refreshAiThinking()) {
+                    stopAiThinking();
+                }
+            }));
+
+    /** La mesa que se ve, para el aviso del motor (que es estatico): debil, no la retiene. */
+    private static volatile java.lang.ref.WeakReference<TableScreen> live = new java.lang.ref.WeakReference<>(null);
+
+    static {
+        // El motor avisa cuando una barra va a aparecer y cuando una decision
+        // de la IA acaba: no hace falta mirar a cada rato.
+        forge.util.AITimeoutTracker.setRepaintHook(() -> javafx.application.Platform.runLater(() -> {
+            final TableScreen t = live.get();
+            if (t != null) {
+                t.kickAiThinking();
+            }
+        }));
+    }
+
+    /** La partida que se ensenya, para preguntar por sus IA. */
+    public void setAiGameId(final int id) {
+        for (final PlayerBar b : thinkingBars()) {
+            b.setGameId(id);
+        }
+    }
+
+    private void kickAiThinking() {
+        if (getScene() == null) {
+            return;
+        }
+        if (refreshAiThinking()) {
+            if (aiThinking.getStatus() != javafx.animation.Animation.Status.RUNNING) {
+                aiThinking.setCycleCount(javafx.animation.Animation.INDEFINITE);
+                aiThinking.play();
+            }
+        } else {
+            stopAiThinking();
+        }
+    }
+
+    private void stopAiThinking() {
+        aiThinking.stop();
+        refreshAiThinking();
+    }
+
+    private boolean refreshAiThinking() {
+        boolean any = false;
+        for (final PlayerBar b : thinkingBars()) {
+            any |= b.refreshThinking();
+        }
+        return any;
+    }
+
+    private List<PlayerBar> thinkingBars() {
+        final List<PlayerBar> out = new ArrayList<>(oppBars);
+        // opponentBar puede no estar en oppBars (con un solo rival).
+        if (!out.contains(opponentBar)) {
+            out.add(opponentBar);
+        }
+        out.add(selfBar);
+        return out;
+    }
+
     public boolean isModalShowing() {
         return overlay.isShowing() || menuOverlay.isShowing() || zoomOverlay.isShowing();
+    }
+
+    /** Lo que se CONSULTA (menu de pausa, carta ampliada) esta encima de la pregunta del motor. */
+    public boolean isConsultShowing() {
+        return menuOverlay.isShowing() || zoomOverlay.isShowing();
     }
 
     /**

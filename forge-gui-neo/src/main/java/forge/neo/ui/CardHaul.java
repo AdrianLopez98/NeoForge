@@ -100,6 +100,40 @@ public final class CardHaul {
                                final List<String> notes, final double minCard,
                                final double availW, final double availH,
                                final Runnable onDone) {
+        return panel(title, subtitle, cards, isNew, isBonus, notes, minCard, availW, availH, onDone, null);
+    }
+
+    /**
+     * Lo que el botin de la Quest anyade a cada carta (Discord, 16-10-2026):
+     * cuantas tienes ya, y venderla ahi mismo. Null en todo lo demas (sobres,
+     * draft, Ascenso), que se queda como estaba.
+     */
+    public interface Extras {
+        /** Cuantas tienes de esta carta (por nombre, ya con las del botin); 0 = no se dice. */
+        int owned(PaperCard card);
+
+        /** Si se puede vender una ahora. */
+        boolean canSell(PaperCard card);
+
+        /** Si no se vende porque la usa un mazo tuyo. */
+        boolean keptForDecks(PaperCard card);
+
+        int price(PaperCard card);
+
+        /** Vende una. @return lo cobrado, 0 si no */
+        int sell(PaperCard card);
+
+        /** La linea de lo vendido hasta ahora, o null si nada. */
+        String soldLine();
+    }
+
+    /** Lo mismo, con lo que tienes y el boton de vender debajo de cada carta ({@code extras}). */
+    public static Region panel(final String title, final String subtitle,
+                               final List<PaperCard> cards, final Predicate<PaperCard> isNew,
+                               final Predicate<PaperCard> isBonus,
+                               final List<String> notes, final double minCard,
+                               final double availW, final double availH,
+                               final Runnable onDone, final Extras extras) {
 
         final Label heading = new Label(title);
         heading.getStyleClass().add("dialog-title");
@@ -110,6 +144,17 @@ public final class CardHaul {
             sub.getStyleClass().add("home-subtitle");
             head.getChildren().add(sub);
         }
+        // Lo vendido desde aqui, con los creditos que te quedan. Escondida
+        // hasta la primera venta.
+        final Label soldLine = new Label();
+        soldLine.setId("haul-sold");
+        soldLine.getStyleClass().add("haul-sold");
+        soldLine.setVisible(false);
+        soldLine.setManaged(false);
+        head.getChildren().add(soldLine);
+        // Dos copias de la misma carta en el botin son dos casillas: al vender
+        // una se repintan todas.
+        final List<Runnable> refreshers = new java.util.ArrayList<>();
 
         final VBox box = new VBox(12, head);
         box.getStyleClass().add("dialog");
@@ -165,8 +210,9 @@ public final class CardHaul {
                 head.getChildren().add(more);
             }
             final int columns = columnsFor(shown.size());
+            final double below = extras == null ? 26 : 46;
             final double w = cardWidthFor(shown.size(), columns, minCard, availW, availH,
-                    notes != null && !notes.isEmpty());
+                    notes != null && !notes.isEmpty(), below);
 
             final GridPane grid = new GridPane();
             grid.setHgap(10);
@@ -193,6 +239,9 @@ public final class CardHaul {
                     badge.getStyleClass().add("new-badge");
                     cell.getChildren().add(badge);
                 }
+                if (extras != null) {
+                    cell.getChildren().add(extrasRow(card, extras, soldLine, refreshers));
+                }
                 grid.add(cell, i % columns, i / columns);
                 Anim.dealIn(node, i, columns, true);
                 i++;
@@ -206,7 +255,7 @@ public final class CardHaul {
             // Se mide igual que en cardWidthFor: si el ajuste ha mandado, cabe
             // por construccion y no hay visor; solo lo hay si gano el suelo.
             final int rows = (int) Math.ceil(shown.size() / (double) columns);
-            final double gridH = rows * (w * CardNode.ASPECT + 26);
+            final double gridH = rows * (w * CardNode.ASPECT + below);
             final double room = Math.max(240, availH - chromeH(notes != null && !notes.isEmpty()));
             if (gridH > room + 1) {
                 final ScrollPane sp = new ScrollPane(grid);
@@ -295,14 +344,60 @@ public final class CardHaul {
     /** El ancho de carta, medido contra el hueco de verdad. */
     private static double cardWidthFor(final int count, final int columns, final double minCard,
                                        final double availW, final double availH,
-                                       final boolean hasNotes) {
+                                       final boolean hasNotes, final double below) {
         final int rows = (int) Math.ceil(count / (double) columns);
         final double w = Math.max(400, availW - 200) / columns - 12;
-        final double h = Math.max(240, availH - chromeH(hasNotes)) / rows - 26;
+        final double h = Math.max(240, availH - chromeH(hasNotes)) / rows - below;
         // Un maximo por arriba: con tres cartas no tiene sentido que ocupen
         // media pantalla cada una.
         return Math.max(minCard * 0.8,
                 Math.min(Math.min(w, h / CardNode.ASPECT), minCard * 2.4));
+    }
+
+    /**
+     * "Tienes 3" y "Vender · 12 cr" debajo de una carta del botin. Lo que usa un
+     * mazo tuyo no se vende desde aqui: el boton lo dice y se queda apagado.
+     */
+    private static Region extrasRow(final PaperCard card, final Extras extras, final Label soldLine,
+                                    final List<Runnable> refreshers) {
+        final Label owned = new Label();
+        owned.getStyleClass().add("haul-owned");
+        final Button sell = new Button();
+        sell.getStyleClass().addAll("btn-secondary", "haul-sell");
+        sell.setMinWidth(Region.USE_PREF_SIZE);
+        final Runnable refresh = () -> {
+            final int n = extras.owned(card);
+            owned.setText(n > 0 ? NeoText.get("haul.owned", n) : "");
+            owned.setTooltip(n > 0 ? new javafx.scene.control.Tooltip(NeoText.get("haul.owned.tip", n)) : null);
+            owned.setVisible(n > 0);
+            owned.setManaged(n > 0);
+            if (extras.canSell(card)) {
+                sell.setText(NeoText.get("haul.sell", extras.price(card)));
+                sell.setDisable(false);
+                sell.setTooltip(null);
+            } else {
+                final boolean kept = extras.keptForDecks(card);
+                sell.setText(NeoText.get(kept ? "haul.sell.kept" : "haul.sell.none"));
+                sell.setDisable(true);
+            }
+        };
+        sell.setOnAction(e -> {
+            if (extras.sell(card) > 0) {
+                for (final Runnable r : refreshers) {
+                    r.run();
+                }
+                final String line = extras.soldLine();
+                soldLine.setText(line == null ? "" : line);
+                soldLine.setVisible(line != null);
+                soldLine.setManaged(line != null);
+            }
+        });
+        refreshers.add(refresh);
+        refresh.run();
+        // En UNA linea: cada fila de alto de mas encoge todas las cartas.
+        final HBox row = new HBox(6, owned, sell);
+        row.setAlignment(Pos.CENTER);
+        return row;
     }
 
     /**

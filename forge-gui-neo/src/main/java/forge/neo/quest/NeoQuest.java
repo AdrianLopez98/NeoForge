@@ -246,6 +246,7 @@ public final class NeoQuest {
         // partida (los rivales del Coliseo, el sobre del dia) no es de esta.
         NeoColosseum.deleteSaved(name);
         NeoDailyPack.deleteSaved(name);
+        QuestAcquired.deleteSaved(name);
         final boolean limited = pool != null && !pool.isAll();
         final forge.game.GameFormat format = limited ? formatOf(pool) : null;
         Deck deck = startingDeck;
@@ -399,6 +400,7 @@ public final class NeoQuest {
             // abrir esta Quest saldria siempre como estaba (15-10-2026).
             final boolean aligned = alignName(data, name);
             FModel.getQuest().load(data);
+            QuestAcquired.forget();
             oneGamePerDuel();
             // Las tres arreglan algo guardado mal; las tres, antes de guardar.
             final boolean renamed = repairDeckNames();
@@ -597,6 +599,8 @@ public final class NeoQuest {
 
     public static void save() {
         FModel.getQuest().save();
+        // Cuando entro cada carta, para "lo ultimo primero" (QuestAcquired).
+        QuestAcquired.sync();
     }
 
     /** true si hay una aventura cargada ahora mismo. */
@@ -626,6 +630,7 @@ public final class NeoQuest {
         }
         NeoColosseum.deleteSaved(name);
         NeoDailyPack.deleteSaved(name);
+        QuestAcquired.deleteSaved(name);
         final String current = FModel.getQuestPreferences()
                 .getPref(QuestPreferences.QPref.CURRENT_QUEST);
         if (current != null && current.equals(name + ".dat")) {
@@ -981,6 +986,33 @@ public final class NeoQuest {
     }
 
     /**
+     * Una copia de un mazo de la aventura, con otro nombre libre ("Nombre (2)",
+     * "(3)"...), y el original sin tocar. Tal cual: cada impresion, cada foil,
+     * el banquillo y el comandante. No cuesta cartas: en la aventura un mazo es
+     * una lista sobre tu coleccion.
+     *
+     * <p>Discord, 16-10-2026: con varios mazos no habia forma de partir de uno
+     * para probar otra cosa sin perderlo.
+     *
+     * @return el nombre de la copia, o null si no se ha podido
+     */
+    public static String duplicateDeck(final String deckName) {
+        final Deck original = deckName == null ? null : FModel.getQuest().getMyDecks().get(deckName);
+        if (original == null) {
+            return null;
+        }
+        final String base = deckName.replaceAll(" \\(\\d+\\)$", "");
+        int n = 2;
+        while (FModel.getQuest().getMyDecks().get(base + " (" + n + ")") != null) {
+            n++;
+        }
+        final String name = base + " (" + n + ")";
+        FModel.getQuest().getMyDecks().add(new Deck(original, name));
+        save();
+        return FModel.getQuest().getMyDecks().get(name) != null ? name : null;
+    }
+
+    /**
      * Borra un mazo de la aventura. Devuelve true si de verdad se ha ido.
      *
      * <p>Las cartas <b>no</b> se pierden: en la aventura el mazo es una lista
@@ -1165,6 +1197,42 @@ public final class NeoQuest {
      * mazo al venderlas ({@code QuestUtilCards.removeCard}), asi que un mazo de
      * hoy no puede quedarse bloqueado por ellas.
      */
+    /**
+     * Lo que te falta en tus mazos, por nombre (en minusculas) y cuantas copias
+     * como mucho: las copias se comparten entre mazos, asi que vale el que mas
+     * pide. Lo usa la tienda (Discord, 15-10-2026: "ping the user whenever a
+     * card that is not owned, but it is inside one of the decks, is available
+     * in the shop") para marcar esas sueltas y ponerlas las primeras.
+     */
+    public static java.util.Map<String, Integer> wantedByName() {
+        final java.util.Map<String, Integer> out = new java.util.HashMap<>();
+        if (!isActive()) {
+            return out;
+        }
+        // Solo lo que vale con CUALQUIER arte: si lo que falta es un arte
+        // deseado, comprar otro no lo arregla (eso es wantedArts).
+        final java.util.Map<String, Integer> byName = new java.util.HashMap<>();
+        if (collection() != null) {
+            for (final java.util.Map.Entry<PaperCard, Integer> e : collection()) {
+                if (e.getKey() != null) {
+                    byName.merge(e.getKey().getName().toLowerCase(java.util.Locale.ROOT), e.getValue(), Integer::sum);
+                }
+            }
+        }
+        final java.util.function.ToIntFunction<PaperCard> exact = exactCounts();
+        for (final Deck d : decks()) {
+            for (final PaperCard c : missingCards(d).keySet()) {
+                final String k = c.getName().toLowerCase(java.util.Locale.ROOT);
+                final int general = forge.neo.deck.ArtWishes.missing(d, c.getName(),
+                        byName.getOrDefault(k, 0), exact)[0];
+                if (general > 0) {
+                    out.merge(k, general, Math::max);
+                }
+            }
+        }
+        return out;
+    }
+
     public static java.util.LinkedHashMap<PaperCard, Integer> missingCards(final Deck deck) {
         final java.util.LinkedHashMap<PaperCard, Integer> out = new java.util.LinkedHashMap<>();
         if (deck == null || !isActive() || collection() == null) {
@@ -1195,10 +1263,57 @@ public final class NeoQuest {
                 shown.putIfAbsent(k, c);
             }
         }
+        final java.util.function.ToIntFunction<PaperCard> exact = exactCounts();
         for (final java.util.Map.Entry<String, Integer> e : need.entrySet()) {
-            final int miss = e.getValue() - owned.getOrDefault(e.getKey(), 0);
+            // Las de arte deseado necesitan su impresion (ArtWishes).
+            final int[] m = forge.neo.deck.ArtWishes.missing(deck, shown.get(e.getKey()).getName(),
+                    owned.getOrDefault(e.getKey(), 0), exact);
+            final int miss = m[0] + m[1];
             if (miss > 0) {
                 out.put(shown.get(e.getKey()), miss);
+            }
+        }
+        return out;
+    }
+
+    /** Cuantas tienes de cada impresion exacta de tu coleccion. */
+    private static java.util.function.ToIntFunction<PaperCard> exactCounts() {
+        final java.util.Map<String, Integer> exact = new java.util.HashMap<>();
+        if (collection() != null) {
+            for (final java.util.Map.Entry<PaperCard, Integer> e : collection()) {
+                if (e.getKey() != null) {
+                    exact.merge(forge.neo.deck.ArtWishes.printKey(e.getKey()), e.getValue(), Integer::sum);
+                }
+            }
+        }
+        return c -> exact.getOrDefault(forge.neo.deck.ArtWishes.printKey(c), 0);
+    }
+
+    /**
+     * Los ARTES deseados que te faltan en tus mazos ({@code ArtWishes.printKey}):
+     * esas impresiones, y solo esas, desbloquean sus copias. La tienda las marca
+     * igual que lo que te falta por carta.
+     */
+    public static java.util.Set<String> wantedArts() {
+        final java.util.Set<String> out = new java.util.HashSet<>();
+        if (!isActive()) {
+            return out;
+        }
+        final java.util.function.ToIntFunction<PaperCard> exact = exactCounts();
+        for (final Deck d : decks()) {
+            for (final forge.deck.DeckSection section : new forge.deck.DeckSection[] {
+                    forge.deck.DeckSection.Commander, forge.deck.DeckSection.Main,
+                    forge.deck.DeckSection.Sideboard}) {
+                final forge.deck.CardPool pool = d.get(section);
+                if (pool == null) {
+                    continue;
+                }
+                for (final java.util.Map.Entry<PaperCard, Integer> e : pool) {
+                    if (forge.neo.deck.ArtWishes.isWished(d, e.getKey())
+                            && exact.applyAsInt(e.getKey()) < e.getValue()) {
+                        out.add(forge.neo.deck.ArtWishes.printKey(e.getKey()));
+                    }
+                }
             }
         }
         return out;

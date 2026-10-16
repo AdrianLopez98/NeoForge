@@ -85,7 +85,7 @@ public final class ConsoleUiDispatcher implements UiDispatcher {
             try {
                 task.run();
             } catch (final Exception e) {
-                System.err.println("[neo-ui] excepcion: " + e);
+                System.err.println("[neo-ui] exception: " + e);
                 e.printStackTrace();
             }
         };

@@ -173,7 +173,7 @@ public final class SafeAi {
             n++;
         }
         if (n > 0) {
-            System.out.printf(Locale.ROOT, "  [ia] %d rival(es) blindado(s) contra fallos%n", n);
+            System.out.printf(Locale.ROOT, "  [ai] %d opponent(s) guarded against engine crashes%n", n);
         }
         return n;
     }

@@ -19,7 +19,23 @@ import javafx.scene.layout.VBox;
  * verdad, no una lista con un "Aceptar" aparte: un click menos en algo que
  * aparece constantemente.
  */
-public class ConfirmDialog extends VBox {
+public class ConfirmDialog extends VBox implements NumberedChoice {
+
+    /**
+     * La tecla N pulsa el N-esimo boton, pero SOLO al pulsarla: mantenida no
+     * contesta. Aqui viven las preguntas que cortan la inercia (dejar tu fase
+     * principal, principio 6b) y un "si" de mas no se deshace.
+     */
+    @Override
+    public boolean pickNumber(final int n, final boolean repeat) {
+        if (n < 1 || n > options.size()) {
+            return false;
+        }
+        if (!repeat && !options.get(n - 1).isDisabled()) {
+            options.get(n - 1).fire();
+        }
+        return true;
+    }
 
     public ConfirmDialog(final String title, final String message, final List<String> options,
                          final int defaultOption, final Consumer<Integer> onChoice) {
@@ -53,6 +69,9 @@ public class ConfirmDialog extends VBox {
             final Button b = new Button(options.get(i));
             b.getStyleClass().add(i == defaultOption ? "btn-primary" : "btn-secondary");
             b.setOnAction(e -> onChoice.accept(index));
+            if (options.size() > 1 && i < 9) {
+                b.setGraphic(NumberedChoice.hint(i + 1));
+            }
             buttons.getChildren().add(b);
             this.options.add(b);
         }

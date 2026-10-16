@@ -60,7 +60,7 @@ public final class NeoDownloads {
         } catch (final RuntimeException e) {
             // Sin linea, o con la lista mal: no es motivo para tirar la
             // aplicacion. Quien pidio la descarga se entera de que no hubo.
-            System.err.println("[neo] la descarga ha fallado: " + e);
+            System.err.println("[neo] the download failed: " + e);
             once.accept(false);
         }
     }
@@ -92,7 +92,7 @@ public final class NeoDownloads {
         });
         try {
             if (!done.await(timeoutSeconds, java.util.concurrent.TimeUnit.SECONDS)) {
-                System.err.println("[neo] la descarga no ha terminado a tiempo");
+                System.err.println("[neo] the download did not finish in time");
                 service.setCancel(true);
                 return false;
             }
@@ -464,7 +464,7 @@ public final class NeoDownloads {
             try {
                 c.run();
             } catch (final RuntimeException e) {
-                System.err.println("[neo] la descarga ha fallado: " + e);
+                System.err.println("[neo] the download failed: " + e);
                 done.accept(false);
             }
         }

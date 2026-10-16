@@ -161,7 +161,15 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
          * partida" y "volver al menu" hacian los dos eso mismo, o sea que
          * mentian los dos.
          */
-        NET
+        NET,
+        /**
+         * Una repeticion (Forge #12255, 16-10-2026): una partida grabada que se
+         * vuelve a ver. Llega como a un invitado de una partida en red —los
+         * mensajes que habria recibido un espectador— y no hay motor detras:
+         * los dos botones son Pausa y Velocidad ({@code ReplayPlayer}), salir es
+         * cerrarla, y el final tiene un solo boton, "cerrar la repeticion".
+         */
+        REPLAY
     }
 
     private volatile Ending ending = Ending.NORMAL;
@@ -249,6 +257,12 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
 
     public void leaveMatch(final Exit action) {
         this.exitAction = action;
+        if (isReplay()) {
+            // Ni motor ni partida que conceder: se para la reproduccion, y
+            // ella misma llama a afterGameEnd, que es lo que quita la mesa.
+            forge.gamemodes.net.client.ReplayPlayer.stopFor(this, true);
+            return;
+        }
         // Igual que en finishGame: se abandona, asi que nada de reponer la
         // pregunta a medias por la que se estaba saliendo.
         uiRunLater(() -> table.forgetEngineDialogs());
@@ -1270,6 +1284,9 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             return null;
         }
         final boolean willRecord = !gc.macros().isRecording();
+        if (willRecord) {
+            macroChoices.clear();
+        }
         respondLater(() -> {
             if (willRecord) {
                 holdAutoPassForMacro(gc);
@@ -1289,12 +1306,32 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         if (gc == null || gc.macros() == null) {
             return false;
         }
+        macroChoices.rewind();
         respondLater(() -> {
             holdAutoPassForMacro(gc);
             gc.macros().repeatRememberedActions();
             syncMacroAutoPass(gc);
         });
         return true;
+    }
+
+    /** Las elecciones que la macro de Forge no recuerda (ver {@link MacroChoices}). */
+    private final MacroChoices macroChoices = new MacroChoices();
+
+    /** 0 nada, 1 grabando, 2 repitiendo. Desde el hilo del motor, que es el que pregunta. */
+    private int macroMode() {
+        try {
+            final IGameController gc = getGameController();
+            if (gc == null || gc.macros() == null) {
+                return 0;
+            }
+            if (gc.macros().isReplaying()) {
+                return 2;
+            }
+            return gc.macros().isRecording() ? 1 : 0;
+        } catch (final RuntimeException e) {
+            return 0;
+        }
     }
 
     /** La siguiente accion de la macro, una sola (Forge: Mayus+2). */
@@ -1670,7 +1707,12 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
 
     /** Si clicar esta carta significa "deshacer" en vez de "activar". */
     private boolean canUndoClick(final CardView card) {
-        return card.equals(lastManaSource) && card.isTapped() && localPoolSize() > 0;
+        // Y solo si, tapada, no le queda NADA que hacer (Discord, 16-10-2026,
+        // Basalt Monolith: tapada para mana, su "{3}: Untap" se paga con ese
+        // mismo mana, y el clic deshacia el mana en vez de ofrecerlo). Si el
+        // motor la ilumina como usable, el clic es suyo; deshacer sigue en Ctrl+Z.
+        return card.equals(lastManaSource) && card.isTapped() && localPoolSize() > 0
+                && actionableStrength(card) <= 0;
     }
 
     /**
@@ -1898,7 +1940,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
     @Override
     public void showCoinFlip(final boolean heads, final String caption, final boolean waitForTap) {
         final forge.neo.ui.TableScreen t = table;
-        log("Moneda: %s (%s)", caption, heads ? "cara" : "cruz");
+        log("Coin: %s (%s)", caption, heads ? "heads" : "tails");
         if (!interactive() || t == null || !forge.neo.card.CardNode.areAnimationsEnabled()) {
             return;
         }
@@ -1952,7 +1994,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         final CardView source = top == null ? null : top.getSourceCard();
         final String caption = forge.neo.match.DiceCaption.of(whoRolled(),
                 source == null ? null : forge.neo.card.CardText.nameOf(source), sides, results);
-        log("Dados: %s -> %s", caption, results);
+        log("Dice: %s -> %s", caption, results);
         animateDice(sides, results, caption);
     }
 
@@ -1982,7 +2024,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         }
         final String caption = forge.neo.match.DiceCaption.planar(roller == null ? null : roller.getName(),
                 forge.neo.NeoText.get("dice.planar." + result.name().toLowerCase(java.util.Locale.ROOT)));
-        log("Dado planar: %s", caption);
+        log("Planar die: %s", caption);
         animateDice(6, List.of(face), caption);
     }
 
@@ -2120,10 +2162,10 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         lastTurn = turn;
 
         final StringBuilder sb = new StringBuilder();
-        sb.append(String.format("%n-- Turno %d . ronda %d . juega %s", turn, rounds.round(gv),
+        sb.append(String.format("%n-- Turn %d . round %d . %s to play", turn, rounds.round(gv),
                 nameOf(gv.getPlayerTurn())));
         for (final PlayerView p : gv.getPlayers()) {
-            sb.append(String.format("%n     %-14s %3d vida | mano %2d | mesa %2d | cementerio %2d | mazo %2d",
+            sb.append(String.format("%n     %-14s %3d life | hand %2d | field %2d | graveyard %2d | library %2d",
                     nameOf(p), p.getLife(),
                     p.getZoneSize(ZoneType.Hand),
                     p.getZoneSize(ZoneType.Battlefield),
@@ -2291,7 +2333,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         if (gv == null || gv.getGame() != null || finished.get()) {
             return;
         }
-        log("fin de partida recibido por la red");
+        log("game over received from the network");
         forge.gui.GuiBase.getInterface().invokeInEdtLater(this::finishGame);
     }
 
@@ -2710,7 +2752,9 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         // 15-09-2026: un click por cada cosa del rival cansa). Se devuelve
         // false para que la pausa entre carta y carta de la IA siga dando el
         // tiempo de leerlo.
-        if (forge.neo.NeoSettings.getInt(forge.neo.NeoSettings.NEWS_STYLE, 0) == 0) {
+        // En una repeticion, siempre en la esquina: parar aqui era parar la
+        // reproduccion entera hasta pulsar "Entendido".
+        if (forge.neo.NeoSettings.getInt(forge.neo.NeoSettings.NEWS_STYLE, 0) == 0 || isReplay()) {
             final forge.neo.ui.TableScreen t = table;
             uiRunLater(() -> t.showNotice(text));
             return false;
@@ -3007,7 +3051,8 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         });
         // Las macros, tambien con el raton. Mismo camino que su tecla.
         table.getMacroRecordButton().setOnAction(e -> pressMacroRecord());
-        table.getMacroRecordButton().setVisible(true);
+        // En una repeticion no hay nada que grabar: no hay motor que la repita.
+        table.getMacroRecordButton().setVisible(!isReplay());
         table.getMacroPlayButton().setOnAction(e -> pressMacroPlay());
     }
 
@@ -3016,7 +3061,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
      * En el hilo de interfaz. Devuelve false si ahora no se puede.
      */
     public boolean pressMacroRecord() {
-        if (table == null || table.isModalShowing()) {
+        if (table == null || isReplay() || table.isModalShowing()) {
             return false;
         }
         final Boolean recording = toggleMacroRecording();
@@ -3033,7 +3078,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
 
     /** Repetir la macro, desde la tecla o desde el boton. */
     public boolean pressMacroPlay() {
-        if (table == null || table.isModalShowing() || !playMacro()) {
+        if (table == null || isReplay() || table.isModalShowing() || !playMacro()) {
             return false;
         }
         table.setMacroRecording(false);
@@ -3586,15 +3631,21 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         // preferencias se leen en vivo (YieldController.getStringPref cae a
         // FModel.getPreferences()), asi que llegar aqui no es tarde.
         if (mode == Mode.HUMAN) {
-            NeoGame.applyEnginePrefs();
-            detail = DetailLog.start(getGameView());
+            // Una repeticion no es una partida: ni preferencias del motor ni
+            // registro detallado (abrirlo rota detailed-game.log y se llevaba
+            // por delante el de la ultima partida de verdad, que es el que se
+            // manda cuando algo falla).
+            if (ending != Ending.REPLAY) {
+                NeoGame.applyEnginePrefs();
+                detail = DetailLog.start(getGameView());
+            }
             rounds = new RoundCounter();
             // Un nodo de Ascenso, con London siempre: con semillas, todos con las
             // mismas reglas (FriendlyMulligan.ASCENT_RULE).
             if (ending == Ending.ASCENT) {
                 forge.StaticData.instance().setMulliganRule(
                         FriendlyMulligan.apply(FriendlyMulligan.ASCENT_RULE));
-                log("Ascenso: mulligan %s (el ajuste dice %s)", FriendlyMulligan.ASCENT_RULE,
+                log("Ascent: mulligan %s (the setting says %s)", FriendlyMulligan.ASCENT_RULE,
                         forge.neo.NeoSettings.get(forge.neo.NeoSettings.MULLIGAN_RULE,
                                 forge.neo.NeoSettings.MULLIGAN_RULE_DEFAULT));
             }
@@ -3622,8 +3673,8 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         forge.neo.platform.NeoGuiBase.clearEngineCrash();
         lastPhase = null;
         lastTurn = -1;
-        log("Partida abierta. Asientos locales: %s",
-                myPlayers == null ? "(ninguno, modo observador)" : myPlayers.toString());
+        log("Game opened. Local seats: %s",
+                myPlayers == null ? "(none, watching)" : myPlayers.toString());
         final TableBinder b = binder;
         if (b != null && myPlayers != null && !myPlayers.isEmpty()) {
             // Nuestro asiento va abajo, como en cualquier juego de cartas.
@@ -3633,7 +3684,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         front = null;
         if (myPlayers != null && myPlayers.size() > 1 && mode == Mode.HUMAN) {
             front = myPlayers.iterator().next();
-            log("Hot seat: %d personas en este aparato", myPlayers.size());
+            log("Hot seat: %d people on this device", myPlayers.size());
         }
         // Quien somos, para que el click derecho no ensenye el morfo del
         // rival. Ver el porque en forge.neo.ui.CardZoom.localViewers.
@@ -3653,7 +3704,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         if (myPlayers != null) {
             for (final PlayerView seat : myPlayers) {
                 if (ManaColor.install(getGameController(seat))) {
-                    log("Tierras de dos colores: preguntaran el color (%s)",
+                    log("Dual lands: will ask for the color (%s)",
                             PlayerName.of(seat));
                 }
             }
@@ -3771,7 +3822,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             if (p.getController() instanceof forge.player.PlayerControllerHuman pch
                     && pch.getGui() instanceof forge.gamemodes.net.server.RemoteClientGuiGame
                     && ManaColor.install(pch)) {
-                log("Tierras de dos colores: preguntaran el color (%s, en red)", p.getName());
+                log("Dual lands: will ask for the color (%s, online)", p.getName());
             }
         }
     }
@@ -3868,7 +3919,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         // mira el vigilante de "salir" para saber si la partida se cerro de
         // verdad.
         final boolean first = closeNotified.compareAndSet(false, true);
-        if (first && ending == Ending.NET && gameOverShowing) {
+        if (first && (ending == Ending.NET || ending == Ending.REPLAY) && gameOverShowing) {
             // En red la partida la cierra el PRIMERO que contesta: si el
             // anfitrion pulsa "volver a la sala" al momento, al invitado se le
             // iba la pantalla de victoria o derrota antes de leerla. Se espera
@@ -3916,9 +3967,9 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         final GameView gv = getGameView();
         System.out.println();
         if (gv != null && gv.isGameOver()) {
-            log("PARTIDA TERMINADA - gana: %s", gv.getWinningPlayerName());
+            log("GAME OVER - winner: %s", gv.getWinningPlayerName());
         } else {
-            log("PARTIDA TERMINADA");
+            log("GAME OVER");
         }
 
         // Al acabar la partida, Forge espera a que el jugador decida que hacer
@@ -4007,7 +4058,8 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         // Y en el invitado isMatchOver() es una copia por deltas que puede
         // llegar DESPUES del final (ver finishGame): fiarse de ella ofreceria
         // "siguiente partida" en una partida que ya no tiene siguiente.
-        final boolean matchOver = ending == Ending.NET || gv == null || gv.isMatchOver();
+        final boolean matchOver = ending == Ending.NET || ending == Ending.REPLAY
+                || gv == null || gv.isMatchOver();
         final int totalGames = gv == null ? 0 : gv.getNumGamesInMatch();
         // NumPlayedGamesInMatch se congela al construir esta GameView (antes
         // de que ESTA partida empezara), asi que +1 es la que se acaba de
@@ -4024,8 +4076,8 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                     // perdido" (Discord, 12-10-2026, un evento de la Aventura
                     // al mejor de tres) no se podia distinguir de un "rendir
                     // el partido" pulsado sin querer.
-                    log("Fin de la partida %d de %d (%s): el jugador elige %s", gameNumber, totalGames,
-                            won ? "ganada" : "perdida", decision);
+                    log("End of game %d of %d (%s): the player chooses %s", gameNumber, totalGames,
+                            won ? "won" : "lost", decision);
                     if (closeDeferred) {
                         // El anfitrion ya cerro la partida mientras leiamos
                         // esto: no se contesta nada (ver afterGameEnd) y se
@@ -4118,9 +4170,44 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         return false;
     }
 
+    /**
+     * Los botones de una repeticion: Pausa / Seguir y Velocidad, tal cual.
+     *
+     * <p>Nada de lo que vigila el OK de una partida (el aviso de dejar tu fase
+     * principal, el de no bloquear, el de fin de turno, el OK en rafaga) tiene
+     * sentido aqui, y alguno estorbaba: la fase que se ve es la GRABADA, y
+     * pulsar Pausa en tu fase principal preguntaba si querias ir al combate.
+     */
+    private void replayButtons(final String okLabel, final String cancelLabel,
+                               final boolean okEnabled, final boolean cancelEnabled) {
+        final UiDispatcher ui = uiDispatcher();
+        if (ui == null) {
+            return;
+        }
+        final boolean showCancel = cancelLabel != null && !cancelLabel.isBlank();
+        ui.runLater(() -> {
+            table.getActionBar().setButtons(ReplayText.label(okLabel),
+                    showCancel ? ReplayText.label(cancelLabel) : " ", okEnabled, cancelEnabled && showCancel);
+            table.getActionBar().setPlayerChoices(null);
+            table.getActionBar().setResolveAll(null, null, null);
+            table.getMacroRecordButton().setVisible(false);
+            table.getActionBar().setOnOk(() -> respondLater(() -> getGameController().selectButtonOk()));
+            table.getActionBar().setOnCancel(() -> respondLater(() -> getGameController().selectButtonCancel()));
+        });
+    }
+
     @Override
     public void showPromptMessage(final PlayerView playerView, final String message, final CardView card) {
         trace("prompt[%s]: %s", nameOf(playerView), message);
+        if (isReplay()) {
+            // Lo unico que llega es lo que pone ReplayPlayer ("Replaying Speed
+            // 2x."), en ingles: se traduce y no se busca nada mas en el.
+            final TableBinder rb = binder;
+            if (rb != null) {
+                rb.setPrompt(ReplayText.prompt(message));
+            }
+            return;
+        }
         cancelStaleAwaitIfGuest();
         // El aviso con "null" dentro que suelta el motor al cerrar el ataque.
         // Se tira: ver isStaleAttackPrompt.
@@ -4179,7 +4266,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             final String tapToPay = tapToPayPrompt(tapToPayStep);
             final String prepared = forge.neo.EngineText.prompt(
                     isRoutinePriorityPrompt(message) ? routinePrompt() : frontLoadInstruction(asked))
-                    + proliferateHint(message);
+                    + proliferateHint(message) + sleightHint(message);
             lastPreparedPrompt = isRoutinePriorityPrompt(message) ? null : prepared;
             final String shown = tapToPay != null ? tapToPay : prepared + pickedSuffix();
             if (!shown.equals(message)) {
@@ -4188,6 +4275,16 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             b.setPrompt(shown);
         }
         refreshCentralPrompt();
+    }
+
+    /**
+     * Sleight of Hand, la mejora del bazar de la Quest: la carta de mas llega
+     * DESPUES de devolver las del mulligan, y sin esto parecia no funcionar.
+     * Ver {@link forge.neo.quest.QuestSleight}.
+     */
+    private String sleightHint(final String message) {
+        final String note = forge.neo.quest.QuestSleight.note(message, getGameView());
+        return note == null ? "" : System.lineSeparator() + note;
     }
 
     /**
@@ -4911,6 +5008,10 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
     @Override
     public void updateButtons(final PlayerView owner, final String okLabel, final String cancelLabel,
                               final boolean okEnabled, final boolean cancelEnabled, final boolean focusOk) {
+        if (isReplay()) {
+            replayButtons(okLabel, cancelLabel, okEnabled, cancelEnabled);
+            return;
+        }
         cancelStaleAwaitIfGuest();
         final DetailLog detailLog = detail;
         if (detailLog != null) {
@@ -5498,7 +5599,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                 trace("resaltados: vuelven tras el pago");
             }
         } catch (final RuntimeException e) {
-            log("No se han podido volver a pedir los resaltados: %s", e);
+            log("Could not request the highlights again: %s", e);
         }
     }
 
@@ -6462,6 +6563,28 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         final int lo = reveal ? -1 : Math.max(0, Math.min(min, options.size()));
         final int hi = reveal ? -1 : Math.max(lo, Math.min(max, options.size()));
 
+        // LA MACRO (MacroChoices): repitiendo, la misma pregunta con las mismas
+        // opciones se contesta como al grabar; grabando, se apunta.
+        final int macro = reveal ? 0 : macroMode();
+        final List<String> macroLabels = new ArrayList<>();
+        if (macro != 0) {
+            for (final T o : options) {
+                macroLabels.add(display == null ? defaultLabel(o) : display.apply(o));
+            }
+        }
+        if (macro == 2) {
+            final List<String> want = macroChoices.replay("choice", title, macroLabels);
+            final List<Integer> at = want == null ? null : MacroChoices.indicesOf(macroLabels, want);
+            if (at != null && at.size() >= lo && at.size() <= hi) {
+                final List<T> out = new ArrayList<>();
+                for (final int i : at) {
+                    out.add(options.get(i));
+                }
+                trace("macro: '%s' -> %s", title, want);
+                return out;
+            }
+        }
+
         final List<T> picked = askUser(reply -> {
             final ChoiceDialog<T> dialog = new ChoiceDialog<>(
                     title, options, lo, hi,
@@ -6505,6 +6628,13 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             }
             detailLog.asked(title + (reveal ? " (shown, nothing to pick)" : " (pick " + lo + "-" + hi + ")"),
                     shown, picked == null ? null : chosen.isEmpty() ? "(none)" : String.join(" | ", chosen));
+        }
+        if (macro == 1 && picked != null) {
+            final List<String> chosenLabels = new ArrayList<>();
+            for (final T o : picked) {
+                chosenLabels.add(display == null ? defaultLabel(o) : display.apply(o));
+            }
+            macroChoices.record("choice", title, macroLabels, chosenLabels);
         }
         if (picked != null) {
             return picked;
@@ -6874,12 +7004,20 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             // ("Damaged: Lisian"): el Parapet Thrasher a cinco jugadores.
             // En red, al invitado esa linea le llega pegada al titulo: se
             // despega y se pinta igual que en casa.
+            // Y si no es un disparo, la carta que avisa setCard (War o Peace de
+            // Archangel of Strife): con la carta delante se lee que hace cada
+            // opcion. Si se eligen cartas, ya se ven ellas.
+            final List<TriggerSubject.Subject> about = subjectsFor(choices);
             return askChoice(TriggerSubject.titleOf(message), choices, min, max, display,
-                    TriggerSubject.forChoices(choices), false, TriggerSubject.detailFor(choices, message));
+                    about, false, TriggerSubject.detailFor(choices, message));
         }
         // Sin jugador delante solo se apunta, para TriggerDetailCheck: la
         // linea que el dialogo habria ensenyado, y la que habria viajado a un
-        // invitado pegada al titulo.
+        // invitado pegada al titulo. Y la carta (AskingCardCheck).
+        final List<TriggerSubject.Subject> shownAbout = subjectsFor(choices);
+        if (!shownAbout.isEmpty()) {
+            lastShownSubject = shownAbout.get(0).card();
+        }
         final String detail = TriggerSubject.detailFor(choices);
         if (detail != null) {
             lastTriggerDetail = detail;
@@ -7155,6 +7293,24 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             if (grouped.length == 1) {
                 return choices.get(grouped[0]);
             }
+            // LA MACRO (MacroChoices): Forge graba el clic en la carta, pero no
+            // cual de sus habilidades; repitiendo, se elige la misma si sigue
+            // estando y se puede pagar.
+            final int macro = macroMode();
+            final String hostName = hostCard == null || hostCard.getCurrentState() == null
+                    ? "" : hostCard.getCurrentState().getName();
+            final List<String> abilityLabels = new ArrayList<>();
+            for (final SpellAbilityView sa : choices) {
+                abilityLabels.add(sa == null ? "" : String.valueOf(sa.getDescription()));
+            }
+            if (macro == 2) {
+                final List<String> want = macroChoices.replay("ability", hostName, abilityLabels);
+                final List<Integer> at = want == null ? null : MacroChoices.indicesOf(abilityLabels, want);
+                if (at != null && at.size() == 1 && choices.get(at.get(0)).canPlay()) {
+                    trace("macro: habilidad de %s -> %s", hostName, want);
+                    return choices.get(at.get(0));
+                }
+            }
             final Integer picked = askUser(reply -> {
                 final AbilityMenu menu = new AbilityMenu(
                         hostCard, choices, table.zoomCardWidth() * 0.62, reply::accept);
@@ -7165,6 +7321,10 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             // clicar una carta por error te obligaba a activar algo.
             if (picked == null || picked < 0 || picked >= choices.size()) {
                 return null;
+            }
+            if (macro == 1) {
+                macroChoices.record("ability", hostName, abilityLabels,
+                        java.util.List.of(abilityLabels.get(picked)));
             }
             return choices.get(picked);
         }
@@ -7806,6 +7966,50 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
      */
     @Override
     public void setCard(final CardView card) {
+        // DE QUE CARTA VIENE LA PREGUNTA QUE LLEGA AHORA (Discord, 16-10-2026,
+        // Archangel of Strife: "War" o "Peace" sin decir de donde salia, y sin
+        // poder leer la carta). Forge lo avisa justo antes de las elecciones que
+        // no son disparos —"al entrar" (GenericChoice), "elige uno"— y el Forge
+        // de siempre la pinta en su panel de detalle; aqui se tiraba. Se apunta
+        // y la pregunta siguiente la ensenya (askingCard).
+        askingCard = card;
+        askingAt = System.currentTimeMillis();
+    }
+
+    /**
+     * De que carta habla una pregunta: la del disparo ({@link TriggerSubject}),
+     * y si no es un disparo, la que acaba de avisar {@link #setCard} — salvo que
+     * lo que se elige sean cartas, que ya se ven.
+     */
+    private List<TriggerSubject.Subject> subjectsFor(final List<?> choices) {
+        final List<TriggerSubject.Subject> about = TriggerSubject.forChoices(choices);
+        final CardView asking = takeAskingCard();
+        if (about.isEmpty() && asking != null && choices != null && !choices.isEmpty()
+                && !(choices.get(0) instanceof CardView)) {
+            return List.of(new TriggerSubject.Subject(asking, null));
+        }
+        return about;
+    }
+
+    /** La ultima carta que una pregunta habria ensenyado (sin jugador delante). Solo pruebas. */
+    private volatile CardView lastShownSubject;
+
+    public CardView lastShownSubject() {
+        return lastShownSubject;
+    }
+
+    /** La carta de {@link #setCard} y cuando llego. */
+    private volatile CardView askingCard;
+    private volatile long askingAt;
+
+    /**
+     * La carta que acaba de avisar el motor, si la pregunta llega enseguida
+     * (4 s), y se gasta: no puede colgarse de una pregunta de dentro de un rato.
+     */
+    private CardView takeAskingCard() {
+        final CardView c = askingCard;
+        askingCard = null;
+        return c != null && System.currentTimeMillis() - askingAt < 4000 ? c : null;
     }
     @Override public void setPanelSelection(final CardView card) { }
     @Override public void setPlayerAvatar(final LobbyPlayer player, final IHasIcon icon) { }

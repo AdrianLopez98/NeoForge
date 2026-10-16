@@ -62,6 +62,9 @@ public final class QuestDeckContext implements DeckContext {
      */
     private final Map<String, List<PaperCard>> printings;
 
+    /** Cuantas tienes de cada impresion exacta ({@code ArtWishes.printKey}). */
+    private final Map<String, Integer> exact = new HashMap<>();
+
     /**
      * El interruptor "Todas las cartas" (Discord, 15-10-2026, como en Arena).
      * Apagado de fabrica: el constructor de la Quest se abre con tu coleccion,
@@ -89,6 +92,7 @@ public final class QuestDeckContext implements DeckContext {
             for (final Map.Entry<PaperCard, Integer> e : NeoQuest.collection()) {
                 final String key = key(e.getKey());
                 owned.merge(key, e.getValue(), Integer::sum);
+                exact.merge(forge.neo.deck.ArtWishes.printKey(e.getKey()), e.getValue(), Integer::sum);
                 unique.putIfAbsent(key, e.getKey());
                 final List<PaperCard> arts =
                         printings.computeIfAbsent(key, k -> new ArrayList<>());
@@ -99,6 +103,25 @@ public final class QuestDeckContext implements DeckContext {
         }
         pool.addAll(unique.values());
         pool.sort(java.util.Comparator.comparing(PaperCard::getName));
+        // Lo que haya entrado por un camino que guarda por su cuenta, con hora
+        // antes de abrir el editor ("lo ultimo primero").
+        QuestAcquired.sync();
+    }
+
+    /** "Lo ultimo primero" (Discord, 16-10-2026). Ver {@link QuestAcquired}. */
+    @Override
+    public boolean tracksAcquisition() {
+        return true;
+    }
+
+    @Override
+    public long acquiredAt(final PaperCard card) {
+        return QuestAcquired.acquiredAt(card);
+    }
+
+    @Override
+    public String acquisitionTip() {
+        return "deck.newest.tip.quest";
     }
 
     private static String key(final PaperCard card) {
@@ -346,6 +369,11 @@ public final class QuestDeckContext implements DeckContext {
     @Override
     public int owned(final PaperCard card) {
         return card == null ? 0 : owned.getOrDefault(key(card), 0);
+    }
+
+    @Override
+    public int ownedExact(final PaperCard card) {
+        return card == null ? 0 : exact.getOrDefault(forge.neo.deck.ArtWishes.printKey(card), 0);
     }
 
     /**

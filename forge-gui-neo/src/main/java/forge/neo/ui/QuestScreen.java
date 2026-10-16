@@ -67,6 +67,11 @@ public class QuestScreen extends StackPane {
 
         void shop();
 
+        /** La tienda, en las sueltas que te faltan en tus mazos. */
+        default void shopWanted() {
+            shop();
+        }
+
         void bazaar();
 
         /** Los torneos de draft: los abiertos o el que estes jugando. */
@@ -405,10 +410,31 @@ public class QuestScreen extends StackPane {
 
         // Secundario a proposito: en esta pantalla la accion principal es
         // JUGAR un duelo, y el boton destacado tiene que ser uno solo.
-        final Button shop = new Button(NeoText.get("quest.shop"));
+        // Si hoy hay a la venta cartas que te faltan en tus mazos, el boton lo
+        // dice y abre directamente esas (Discord, 15-10-2026: "ping the user
+        // whenever a card ... inside one of the decks, is available in the
+        // shop"). Sin fila nueva: la cabecera ya va justa con el sobre del dia.
+        int wantedNow = 0;
+        try {
+            wantedNow = forge.neo.quest.NeoQuestShop.wantedInShop();
+        } catch (final RuntimeException e) {
+            wantedNow = 0;
+        }
+        final Button shop = new Button(wantedNow > 0
+                ? NeoText.get("quest.shopWanted", wantedNow) : NeoText.get("quest.shop"));
         shop.getStyleClass().add("btn-secondary");
+        if (wantedNow > 0) {
+            shop.getStyleClass().add("quest-shop-wanted");
+        }
         shop.setMinWidth(Region.USE_PREF_SIZE);
-        shop.setOnAction(e -> actions.shop());
+        final boolean toWanted = wantedNow > 0;
+        shop.setOnAction(e -> {
+            if (toWanted) {
+                actions.shopWanted();
+            } else {
+                actions.shop();
+            }
+        });
 
         // El bazar es la OTRA forma de gastar creditos, y la que no da cartas.
         // Va al lado de la tienda porque es la misma decision: en que me gasto

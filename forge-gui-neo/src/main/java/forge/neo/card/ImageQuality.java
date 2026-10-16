@@ -113,12 +113,21 @@ public enum ImageQuality {
         if (this == NORMAL || relative == null || relative.isEmpty()) {
             return null;
         }
-        final File dir = cardsDir();
-        if (!dir.isDirectory()) {
+        return findIn(cardsDir(), relative);
+    }
+
+    /** {@link #exactFile} dentro de {@code dir}: lo prueba {@code imagecheck} sin el motor. */
+    public static File findIn(final File dir, final String relative) {
+        if (dir == null || !dir.isDirectory() || relative == null || relative.isEmpty()) {
             return null;
         }
+        // Los PLANOS y los fenomenos no llevan ".full" en la clave del motor
+        // (ImageUtil.getImageRelativePath), pero el descargador los guarda igual
+        // como ".fullborder" (ArtDownload.addMissingIn). Sin mirar ese nombre,
+        // en alta salian como que faltaban SIEMPRE (Discord, 16-10-2026: 293).
         final String border = relative.endsWith(".full")
-                ? relative.substring(0, relative.length() - 5) + ".fullborder" : null;
+                ? relative.substring(0, relative.length() - 5) + ".fullborder"
+                : relative.endsWith(".fullborder") ? null : relative + ".fullborder";
         if (border != null) {
             final File f = new File(dir, border + ".jpg");
             if (f.exists()) {

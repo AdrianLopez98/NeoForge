@@ -82,7 +82,7 @@ public final class FxUiDispatcher implements UiDispatcher {
         try {
             task.run();
         } catch (final Exception e) {
-            System.err.println("[neo-fx] excepcion en el hilo de UI: " + e);
+            System.err.println("[neo-fx] exception on the UI thread: " + e);
             e.printStackTrace();
         }
     }

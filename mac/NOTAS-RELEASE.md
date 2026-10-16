@@ -1,12 +1,14 @@
-**NeoForge para macOS 1.0.24 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.25 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **«Fin de turno» se para cuando el rival hace algo:** si lanza un hechizo o te ataca mientras pasas, puedes responder, y mientras pasa hay un botón para cancelarlo. En tu propio turno pregunta antes y dice a quién le toca (con el ajuste de «Preguntar antes de dejar tu fase principal»).
-- **Quest:** mazos con cartas que aún no tienes (lista de deseos, también al importar), la tienda dice cuántas copias tienes de cada suelta y las enseña grandes y agrupadas como en Arena, el resultado de un duelo se apunta siempre, «Guardar una copia» ya no estropea el original, el sobre del día se puede apagar y el bazar enseña las mascotas que esperan a tu rango.
-- **Draft:** el sobre sale ordenado como en Arena (rareza, color y coste, la básica al final).
-- **Constructor:** las cabeceras de grupo cuentan copias («Tierras (18)»).
-- **Rivales con tu propio perfil de IA** (`.ai` de Forge), y el pase automático cuenta el maná de Lion's Eye Diamond.
-- **Arreglos:** imágenes en calidad máxima, la carta del comandante ya no se corta al achicar la ventana, y los nombres de mazo largos ya no sacan el botón de jugar de la pantalla.
+- **Repeticiones:** tus últimas 20 partidas contra la IA se graban solas y se vuelven a ver desde «Repeticiones», en el pie del menú, con pausa y velocidad (×1 a ×8). Se apaga en Ajustes.
+- **La IA que piensa se ve:** si tarda más de 2 s en decidir, el borde de su retrato se vuelve ámbar y se vacía hasta su tiempo límite. El ajuste del tiempo vale ahora para cada decisión (con opción de 60 s).
+- **Teclas 1, 2, 3… para contestar** en el menú de habilidades y en los diálogos, y las macros recuerdan más elecciones.
+- **La zona de mando del rival, a la vista**, y una elección que no sale de la pila dice de qué carta viene.
+- **Quest:** cuántas tienes de cada carta del botín y venderla ahí mismo, la tienda avisa de lo que falta en tus mazos, y el arte de una carta se puede cambiar aunque no lo tengas.
+- **Buscadores:** miran también el texto de reglas, y filtro de color al elegir mazo.
+- **Draft y sellado:** sobres al azar.
+- **Arreglos:** los planos en alta calidad, y clicar otra vez una fuente de maná ya no deshace si le queda algo que hacer. El registro, en inglés.
 - **Forge al día.**
 
 Descarga el `.dmg` de tu Mac:

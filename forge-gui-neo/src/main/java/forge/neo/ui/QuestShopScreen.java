@@ -720,10 +720,46 @@ public class QuestShopScreen extends StackPane {
     /** Cuantas tienes de cada carta, por nombre: la pastilla "Tienes N". */
     private java.util.Map<String, Integer> ownedByName = java.util.Map.of();
 
+    /**
+     * Lo que te falta en tus mazos (por nombre en minusculas): esas sueltas
+     * llevan "Para tu mazo", salen LAS PRIMERAS y tienen su filtro. Ver
+     * {@code NeoQuest.wantedByName}.
+     */
+    private java.util.Map<String, Integer> wanted = java.util.Map.of();
+    /** Los artes deseados que te faltan: solo esa impresion cuenta. */
+    private java.util.Set<String> wantedArts = java.util.Set.of();
+
+    private boolean isWanted(final PaperCard c) {
+        return NeoQuestShop.isWanted(c, wanted, wantedArts);
+    }
+
+    /** Los botones de "Todas / Nuevas / Las tengo / Para mis mazos". */
+    private final List<Button> ownedButtons = new ArrayList<>();
+
+    /**
+     * Abre las sueltas con solo lo que te falta en tus mazos: es lo que hace el
+     * aviso del boton de la tienda en el cuartel.
+     */
+    public void openWanted() {
+        tab = Tab.SINGLES;
+        final int index = Tab.SINGLES.ordinal();
+        for (int i = 0; i < tabBar.getChildren().size(); i++) {
+            tabBar.getChildren().get(i).pseudoClassStateChanged(SELECTED, i == index);
+        }
+        singleOwned = 3;
+        for (int i = 0; i < ownedButtons.size(); i++) {
+            ownedButtons.get(i).pseudoClassStateChanged(SELECTED, i == singleOwned);
+        }
+        showPage();
+        singleFiltersChanged();
+    }
+
     private void reloadSingles() {
         singles = NeoQuestShop.singles();
         ownedNames = forge.neo.quest.NeoQuestCollection.ownedNames();
         ownedByName = ownedCounts();
+        wanted = forge.neo.quest.NeoQuest.wantedByName();
+        wantedArts = forge.neo.quest.NeoQuest.wantedArts();
         final String q = singleSearch.getText() == null ? ""
                 : singleSearch.getText().trim().toLowerCase(Locale.ROOT);
         singlesShown = new ArrayList<>();
@@ -737,9 +773,15 @@ public class QuestShopScreen extends StackPane {
             // ingles. Es la misma regla que en el deck builder.
             final String shown = forge.neo.card.CardText.nameOf(c).toLowerCase(Locale.ROOT);
             if ((q.isEmpty() || shown.contains(q)
-                    || c.getName().toLowerCase(Locale.ROOT).contains(q)) && passesSingleFilters(c)) {
+                    || c.getName().toLowerCase(Locale.ROOT).contains(q)
+                    || matchesTypeOrText(c, q)) && passesSingleFilters(c)) {
                 singlesShown.add(c);
             }
+        }
+        // Lo que te falta en tus mazos, lo primero: con varias paginas, no
+        // tener que pasarlas buscandolo era justo lo que se pedia.
+        if (!wanted.isEmpty()) {
+            singlesShown.sort(java.util.Comparator.comparingInt(c -> isWanted(c) ? 0 : 1));
         }
         singlePager.setTotal(singlesShown.size());
         if (chosenSingle != null && !singlesShown.contains(chosenSingle)) {
@@ -748,6 +790,28 @@ public class QuestShopScreen extends StackPane {
         paintSingles();
         refreshSingle();
         refreshMoney();
+    }
+
+    /**
+     * Si el TIPO o el TEXTO de la carta llevan lo buscado, en ingles o
+     * traducido (Discord, 16-10-2026: <i>"searching for things written in the
+     * card - such as deathtouch or flash"</i>). Como el buscador del
+     * constructor: es como se busca cuando no sabes el nombre de nada. El
+     * mostrador son unos cientos de cartas, asi que se mira todo siempre, sin
+     * interruptor.
+     */
+    private static boolean matchesTypeOrText(final PaperCard c, final String q) {
+        if (c.getRules() == null) {
+            return false;
+        }
+        final String type = c.getRules().getType() == null ? "" : c.getRules().getType().toString();
+        final String oracle = c.getRules().getOracleText() == null ? "" : c.getRules().getOracleText();
+        if (type.toLowerCase(Locale.ROOT).contains(q) || oracle.toLowerCase(Locale.ROOT).contains(q)
+                || forge.neo.card.CardText.typeOf(c).toLowerCase(Locale.ROOT).contains(q)) {
+            return true;
+        }
+        final String translated = forge.util.CardTranslation.getTranslatedOracle(c.getName());
+        return translated != null && translated.toLowerCase(Locale.ROOT).contains(q);
     }
 
     private void paintSingles() {
@@ -786,6 +850,9 @@ public class QuestShopScreen extends StackPane {
             if (!ok) {
                 return false;
             }
+        }
+        if (singleOwned == 3) {
+            return isWanted(c);
         }
         if (singleOwned != 0) {
             final boolean fresh = forge.neo.quest.NeoQuestCollection.isNew(c, ownedNames);
@@ -861,8 +928,10 @@ public class QuestShopScreen extends StackPane {
     private HBox singleOwnedRow() {
         final HBox row = new HBox(4);
         row.setAlignment(Pos.CENTER_LEFT);
-        final String[] keys = {"shop.singles.all", "shop.singles.newOnly", "shop.singles.ownedOnly"};
-        final List<Button> group = new ArrayList<>();
+        final String[] keys = {"shop.singles.all", "shop.singles.newOnly", "shop.singles.ownedOnly",
+                "shop.singles.wantedOnly"};
+        final List<Button> group = ownedButtons;
+        group.clear();
         for (int i = 0; i < keys.length; i++) {
             final int which = i;
             final Button b = new Button(NeoText.get(keys[i]));
@@ -974,6 +1043,17 @@ public class QuestShopScreen extends StackPane {
         // 15-10-2026: "a little indication of how many copies of the cards we
         // already own ... easier than having to go back and forth to
         // collection"). Por nombre, como "Nueva": cualquier impresion cuenta.
+        // Te falta en algun mazo: arriba a la izquierda, en ambar, como el
+        // "falta N" del constructor.
+        if (isWanted(card)) {
+            final Label want = new Label(NeoText.get("shop.wanted"));
+            want.getStyleClass().add("shop-wanted");
+            want.setMinWidth(Region.USE_PREF_SIZE);
+            StackPane.setAlignment(want, Pos.TOP_LEFT);
+            // Bajo la franja del nombre, sobre el arte: arriba del todo tapaba el nombre.
+            StackPane.setMargin(want, new Insets(Math.round(w * 0.13), 0, 0, 4));
+            face.getChildren().add(want);
+        }
         final int have = ownedByName.getOrDefault(card.getName(), 0);
         if (have > 0) {
             final Label owned = new Label(NeoText.get("shop.owned", have));

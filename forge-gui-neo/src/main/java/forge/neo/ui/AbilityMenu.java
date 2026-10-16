@@ -40,7 +40,20 @@ import javafx.scene.layout.VBox;
  *       a activar algo.</li>
  * </ul>
  */
-public class AbilityMenu extends VBox {
+public class AbilityMenu extends VBox implements NumberedChoice {
+
+    /** Los botones de las habilidades, en el orden en que se ven: la tecla N es el N-esimo. */
+    private final List<Button> items = new ArrayList<>();
+
+    @Override
+    public boolean pickNumber(final int n, final boolean repeat) {
+        if (n < 1 || n > items.size() || items.get(n - 1).isDisabled()) {
+            return false;
+        }
+        items.get(n - 1).fire();
+        return true;
+    }
+
 
     /**
      * @param onPick recibe el indice elegido, o -1 si se cancela
@@ -149,6 +162,10 @@ public class AbilityMenu extends VBox {
             b.setAlignment(Pos.CENTER_LEFT);
             b.setDisable(!can);
             b.setOnAction(e -> onPick.accept(index));
+            if (i < 9) {
+                b.setGraphic(NumberedChoice.hint(i + 1));
+            }
+            items.add(b);
             list.getChildren().add(b);
         }
         // Los recuadros acompanyan a la carta: ni tan estrechos que el texto se

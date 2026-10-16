@@ -40,10 +40,10 @@ public final class BrokenDecks {
         try {
             final long t0 = System.currentTimeMillis();
             final List<String> moved = quarantine(new File(forge.localinstance.properties.ForgeConstants.DECK_BASE_DIR));
-            System.out.println("        mazos ilegibles apartados: " + moved.size() + " ("
+            System.out.println("        unreadable decks set aside: " + moved.size() + " ("
                     + (System.currentTimeMillis() - t0) + " ms)");
         } catch (final RuntimeException e) {
-            System.err.println("[neo] no se pudieron revisar los mazos: " + e);
+            System.err.println("[neo] could not check the decks: " + e);
         }
     }
 

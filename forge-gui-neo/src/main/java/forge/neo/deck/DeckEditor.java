@@ -145,20 +145,56 @@ public final class DeckEditor {
         if (have == Integer.MAX_VALUE) {
             return 0;
         }
-        final String key = normalized(card.getName());
-        int placed = countInMain(card);
-        for (final DeckSection section : new DeckSection[] {DeckSection.Commander, DeckSection.Sideboard}) {
-            final CardPool pool = deck.get(section);
-            if (pool == null) {
-                continue;
-            }
-            for (final Map.Entry<PaperCard, Integer> e : pool) {
-                if (normalized(e.getKey().getName()).equals(key)) {
-                    placed += e.getValue();
-                }
-            }
+        // Las de arte deseado necesitan su impresion; las demas, la carta con
+        // cualquier arte (ArtWishes).
+        final int[] miss = ArtWishes.missing(deck, card.getName(), have, format::ownedExact);
+        return miss[0] + miss[1];
+    }
+
+    /**
+     * Si tienes ESA impresion (o no hace falta: fuera de la Quest, o una basica
+     * normal). Lo que no, sale en gris en "Todos los artes" y, si se elige, es
+     * un arte deseado ({@link ArtWishes}).
+     */
+    public boolean ownsPrinting(final PaperCard p) {
+        if (p == null || !format.allowsMissing() || (p.isVeryBasicLand() && !p.isFoil())) {
+            return true;
         }
-        return Math.max(0, placed - have);
+        return format.ownedExact(p) > 0;
+    }
+
+    /** Si este editor deja elegir artes que no tienes (la Quest: "Mis artes / Todos"). */
+    public boolean allowsArtWishes() {
+        return format.allowsMissing();
+    }
+
+    /**
+     * TODAS las impresiones de la carta, con la actual la primera: lo que sale
+     * con "Todos" en el selector de arte de la Quest (Ana, 16-10-2026: "que te
+     * deje cambiar arte siempre aunque no tengas el arte pero ... que no te
+     * deje jugar"). Fuera de la Quest es {@link #printingsOf}.
+     */
+    public List<PaperCard> allPrintingsOf(final PaperCard card) {
+        if (card == null || !format.allowsMissing()) {
+            return printingsOf(card);
+        }
+        final List<PaperCard> all =
+                new ArrayList<>(FModel.getMagicDb().getCommonCards().getAllCards(card.getName()));
+        all.sort(Comparator.comparing(PaperCard::getEdition)
+                .thenComparing(PaperCard::getCollectorNumber));
+        if (all.remove(card)) {
+            all.add(0, card);
+        }
+        return all;
+    }
+
+    /** Tras cambiar de arte: si el nuevo no es tuyo es un deseo; y fuera las marcas viejas. */
+    private void noteArtWish(final PaperCard to) {
+        if (!format.allowsMissing()) {
+            return;
+        }
+        ArtWishes.setWished(deck, to, !ownsPrinting(to));
+        ArtWishes.prune(deck);
     }
 
     /**
@@ -1259,10 +1295,11 @@ public final class DeckEditor {
      *
      * @return cuantas ha metido
      */
-    public int addAnyway(final PaperCard card, final int amount) {
-        if (card == null || amount <= 0) {
+    public int addAnyway(final PaperCard imported, final int amount) {
+        if (imported == null || amount <= 0) {
             return 0;
         }
+        final PaperCard card = ownedArt(imported);
         deck.getOrCreate(DeckSection.Main).add(card, amount);
         takeFromPool(card, amount);
         dirty = true;
@@ -1426,7 +1463,34 @@ public final class DeckEditor {
      * <p>La carta se saca del mazo principal si estaba: el comandante vive en su
      * propia zona y contarlo dos veces haria que el mazo nunca fuera legal.
      */
-    public boolean setCommander(final PaperCard card) {
+    /**
+     * En la Quest, el ARTE que entra por importar es uno que TIENES (Discord,
+     * 16-10-2026: "some of them came with alt art that I don't own yet and I
+     * can't change it ... You can get an alt art by just importing the deck").
+     * La lista trae una impresion concreta, y se metia tal cual: un showcase
+     * que no has abierto, gratis, y encima sin poder cambiarlo por el tuyo.
+     * Ahora: si tienes la carta, con un arte tuyo; si no la tienes, con su arte
+     * de siempre, como al anyadirla a mano con "Todas las cartas". Fuera de la
+     * Quest ({@code allowsMissing} false) no cambia nada. Y no se hace al
+     * guardar: desharia los artes pagados con creditos ({@code NeoQuestArt}).
+     */
+    private PaperCard ownedArt(final PaperCard card) {
+        if (card == null || !format.allowsMissing()) {
+            return card;
+        }
+        final List<PaperCard> mine = format.printingsOf(card);
+        if (mine == null || mine.contains(card)) {
+            return card;
+        }
+        if (!mine.isEmpty()) {
+            return mine.get(0);
+        }
+        final PaperCard plain = FModel.getMagicDb().getCommonCards().getCard(card.getName());
+        return plain == null ? card : plain;
+    }
+
+    public boolean setCommander(final PaperCard picked) {
+        final PaperCard card = ownedArt(picked);
         // Primero: que el formato TENGA zona de mando.
         //
         // El motor no contesta eso. {@code isLegalCommander} responde a otra
@@ -2066,6 +2130,16 @@ public final class DeckEditor {
         // que has abierto, y fuera de ella todos. Ver DeckContext.printingsOf.
         final List<PaperCard> mine = format.printingsOf(card);
         if (mine != null) {
+            // Si el arte que LLEVAS no es de los tuyos (un mazo importado antes
+            // de ownedArt), va el primero: asi "Cambiar arte" se enciende y se
+            // puede pasar a uno tuyo. Con uno solo se apagaba, como si ese
+            // fuera el que ya llevas.
+            if (!mine.isEmpty() && !mine.contains(card)) {
+                final List<PaperCard> withCurrent = new ArrayList<>(mine.size() + 1);
+                withCurrent.add(card);
+                withCurrent.addAll(mine);
+                return withCurrent;
+            }
             return mine;
         }
         final List<PaperCard> all =
@@ -2098,6 +2172,7 @@ public final class DeckEditor {
         deck.getMain().remove(from, copies);
         deck.getMain().add(to, copies);
         dirty = true;
+        noteArtWish(to);
         return copies;
     }
 
@@ -2159,6 +2234,7 @@ public final class DeckEditor {
         if (changed > 0) {
             dirty = true;
             rememberArt(to);
+            noteArtWish(to);
         }
         return changed;
     }

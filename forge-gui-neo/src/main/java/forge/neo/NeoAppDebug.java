@@ -1989,6 +1989,38 @@ final class NeoAppDebug {
             bar.setMana(0, i, 2, 0, 1, 1);
             bar.setActiveTurn(i == 1);
             view.opponentField(i).setZoneCounts(3 + i, i);
+            // La zona de mando del rival (PlayerField.setCommand): dos con su
+            // comandante y el ultimo vacio, que es como queda con el comandante
+            // en la mesa.
+            // El segundo con PARTNER (dos comandantes), para la barra compacta.
+            final String[][] commanders = {{"Atraxa, Praetors' Voice"},
+                    {"Thrasios, Triton Hero", "Tymna the Weaver"}};
+            final List<CardView> zone = new ArrayList<>();
+            if (i < commanders.length) {
+                for (final String name : commanders[i]) {
+                    final PaperCard pc = forge.model.FModel.getMagicDb().getCommonCards().getCard(name);
+                    if (pc != null) {
+                        zone.add(CardView.getCardForUi(pc));
+                    }
+                }
+            }
+            view.opponentField(i).setCommand(zone);
+            // Como el modo de verdad: sin pilas en la mesa, las barras en dos
+            // filas (TableScreen.setOpponentSeats). Y contadores del jugador en
+            // el segundo, para ver que la columna de comandantes no los pisa.
+            if (!piles) {
+                bar.setCompact(true);
+            }
+            // Las de la maqueta no llevan la marca de comandante: ya son solo esos.
+            bar.setCommanders(zone, true);
+            if (i == 1) {
+                final com.google.common.collect.Multiset<forge.game.card.CounterType> ctrs =
+                        com.google.common.collect.HashMultiset.create();
+                ctrs.add(forge.game.card.CounterEnumType.POISON, 7);
+                ctrs.add(forge.game.card.CounterEnumType.ENERGY, 12);
+                ctrs.add(forge.game.card.CounterEnumType.EXPERIENCE, 3);
+                bar.setCounters(ctrs, 0, 10, null, 0, null);
+            }
         }
 
         view.setSelfBoard(boards.get(opponents), everywhere);

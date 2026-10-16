@@ -220,6 +220,15 @@ public interface DeckContext {
     }
 
     /**
+     * Cuantas tienes de ESA impresion exacta (sin contar el foil). Solo la usa
+     * la Quest, para los artes deseados ({@link ArtWishes}); fuera, lo mismo que
+     * {@link #owned}.
+     */
+    default int ownedExact(PaperCard card) {
+        return owned(card);
+    }
+
+    /**
      * Si un mazo puede llevar cartas que NO tienes: la "lista de deseos" de la
      * Quest (Discord, 15-10-2026: <i>"being able to import or build decks with
      * cards you don't have ... helps while getting stuff you'll need without
@@ -352,6 +361,14 @@ public interface DeckContext {
     /** Cuando entro esa carta (milisegundos), o 0 si no se sabe. */
     default long acquiredAt(PaperCard card) {
         return 0;
+    }
+
+    /**
+     * La clave del texto que explica "lo ultimo primero": desde cuando se lleva
+     * la cuenta no es lo mismo en la Aventura (la 3.9) que en la Quest.
+     */
+    default String acquisitionTip() {
+        return "deck.newest.tip";
     }
 
     /**

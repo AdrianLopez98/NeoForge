@@ -157,6 +157,19 @@ public class PauseMenu extends StackPane {
 
     private final boolean noRestart;
 
+    /**
+     * Una repeticion (Forge #12255): ni se reinicia ni se pierde nada, asi que
+     * en vez de "Reiniciar" y "Salir al menu" (con sus avisos de partida
+     * perdida, que aqui mentian) hay un solo "Cerrar la repeticion", sin
+     * pregunta. Vuelve a la lista.
+     */
+    private boolean replay;
+
+    public void asReplay() {
+        replay = true;
+        showMain();
+    }
+
     private void showMain() {
         root.getStyleClass().addAll("dialog", "pause-menu");
         root.setSpacing(10);
@@ -182,6 +195,11 @@ public class PauseMenu extends StackPane {
 
         // Reiniciar NO se ofrece en una run: reiniciar el duelo es volver a
         // barajar tu mano, o sea la trampa que el modo entero tiene que impedir.
+        if (replay) {
+            root.getChildren().add(item(NeoText.get("over.replay"), "btn-secondary", actions::quitToMenu));
+            getChildren().setAll(root);
+            return;
+        }
         if (!runAtStake && !netGame && !adventure && !noRestart) {
             root.getChildren().add(item(NeoText.get("pause.restart"), "btn-secondary",
                     () -> confirm(NeoText.get("pause.restart.ask"),
@@ -204,6 +222,10 @@ public class PauseMenu extends StackPane {
      * las mismas palabras, incluido el aviso de que en Ascenso cuesta la run.
      */
     public void askQuit() {
+        if (replay) {
+            actions.quitToMenu();
+            return;
+        }
         if (adventure) {
             confirm(NeoText.get("adventure.concede.ask"),
                     NeoText.get("adventure.concede.detail"),

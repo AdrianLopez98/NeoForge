@@ -404,10 +404,13 @@ public final class NeoSettings {
     public static final String AI_CHEAT_SHUFFLE = "aiCheatShuffle";
 
     /**
-     * Segundos que la IA se puede tomar para pensar el combate
+     * Segundos que la IA se puede tomar para cada decision
      * ({@code MATCH_AI_TIMEOUT} de Forge, 5 de fabrica). No es dificultad: es
-     * un tope de tiempo para no dejar que un combate enorme cuelgue el turno
-     * del rival — {@code AiAttackController} lo usa para cortar la busqueda.
+     * un tope de tiempo para no dejar que una mesa enorme cuelgue el turno del
+     * rival. Hasta Forge #12265 (16-10-2026) solo cortaba la busqueda de
+     * atacantes; desde ahi vale para todo (hechizos, ataque y bloqueo) y al
+     * acabarse la IA pasa prioridad, bloquea solo lo obligatorio o ataca con
+     * lo que ya tenia. Es el reloj del aro ambar de su retrato.
      * {@code HostedMatch.startGame()} ya lo lee solo de
      * {@code FModel.getPreferences()} en cada partida; aqui solo hace falta
      * escribirlo, en {@code NeoGame.applyEnginePrefs}.
@@ -628,6 +631,18 @@ public final class NeoSettings {
      * este o no encendido.
      */
     public static final String UPDATE_CHECK = "updateCheck";
+
+    /**
+     * Grabar tus partidas para volver a verlas (Forge #12255, 16-10-2026).
+     * Encendido de fabrica, como en Forge; se pasa al motor en
+     * {@code NeoGame.applyEnginePrefs}, solo en memoria. Las repeticiones se
+     * ven desde el menu ({@code ReplaysScreen}); Forge guarda las 20 ultimas.
+     */
+    public static final String RECORD_REPLAYS = "recordReplays";
+
+    public static boolean recordReplays() {
+        return getBool(RECORD_REPLAYS, true);
+    }
 
     public static boolean updateCheck() {
         return getBool(UPDATE_CHECK, true);
@@ -1189,8 +1204,8 @@ public final class NeoSettings {
         final long t0 = System.currentTimeMillis();
         final int changed = forge.neo.card.UniquePrints.rebuild();
         forge.neo.deck.CardLibrary.invalidate();
-        System.out.printf("[arte] politica %s%s: %d cartas a su impresion normal (%d ms)%n",
-                latest ? "mas reciente" : "original", coreOnly ? ", solo expansiones normales" : "",
+        System.out.printf("[art] policy %s%s: %d cards to their default printing (%d ms)%n",
+                latest ? "latest" : "original", coreOnly ? ", core sets only" : "",
                 changed, System.currentTimeMillis() - t0);
         // UI_RANDOM_ART_IN_POOLS si es una preferencia de Forge de verdad
         // (Quest y el generador de pools sellados la leen sola de

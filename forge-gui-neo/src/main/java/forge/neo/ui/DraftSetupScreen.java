@@ -200,7 +200,15 @@ public class DraftSetupScreen extends BorderPane {
      */
     private void mixTestHook(final Runnable toMix, final Runnable toBlock) {
         final String t = System.getProperty("neo.mixTest");
-        if ("block".equals(t)) {
+        if ("random".equals(t)) {
+            // =random: "Mezclar" y el boton "Al azar" pulsado (PackMix.random).
+            toMix.run();
+            javafx.application.Platform.runLater(() -> {
+                if (lookup("#mix-random") instanceof Button b) {
+                    b.fire();
+                }
+            });
+        } else if ("block".equals(t)) {
             toBlock.run();
         } else if ("mix".equals(t)) {
             for (final CardEdition e : NeoSealed.editions()) {

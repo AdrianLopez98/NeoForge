@@ -205,6 +205,33 @@ public class PrintingDialog extends VBox {
         return this;
     }
 
+    /**
+     * Unos botones de segmento debajo de la ayuda ("Mis artes / Todos" en la
+     * Quest). Al pulsar uno se avisa con su posicion; el que llama vuelve a
+     * abrir el dialogo con la otra lista.
+     */
+    public PrintingDialog withSegments(final List<String> labels, final int selected,
+                                       final java.util.function.IntConsumer onPick) {
+        final HBox row = new HBox(4);
+        row.setAlignment(Pos.CENTER_LEFT);
+        for (int i = 0; i < labels.size(); i++) {
+            final int which = i;
+            final Button b = new Button(labels.get(i));
+            b.getStyleClass().add("segment");
+            b.setMinWidth(Region.USE_PREF_SIZE);
+            b.pseudoClassStateChanged(javafx.css.PseudoClass.getPseudoClass("selected"), i == selected);
+            b.setId("printing-segment-" + i);
+            b.setOnAction(e -> {
+                if (which != selected) {
+                    onPick.accept(which);
+                }
+            });
+            row.getChildren().add(b);
+        }
+        getChildren().add(2, row);
+        return this;
+    }
+
     /** Otra ayuda debajo del titulo (despues de {@link #offerCopies}, que pone la suya). */
     public PrintingDialog withHelp(final String text) {
         hint.setText(text);

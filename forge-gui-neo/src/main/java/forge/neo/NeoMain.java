@@ -172,8 +172,8 @@ public final class NeoMain {
 
         GuiBase.setInterface(new NeoGuiBase(
                 windowed ? new FxUiDispatcher() : new ConsoleUiDispatcher()));
-        System.out.println("[1/2] IGuiBase registrado -> NeoGuiBase ("
-                + (windowed ? "hilo JavaFX" : "hilo dedicado") + ")");
+        System.out.println("[1/2] IGuiBase registered -> NeoGuiBase ("
+                + (windowed ? "JavaFX thread" : "dedicated thread") + ")");
 
         // 2. Motor: base de cartas, ediciones, mazos, preferencias.
         //
@@ -202,7 +202,7 @@ public final class NeoMain {
                 runGame(deckName, opponents, NeoMatchUI.Mode.OBSERVE, timeout, verbose);
                 break;
             case "ui":
-                banner("FASE 2 - interfaz JavaFX");
+                banner("PHASE 2 - JavaFX interface");
                 // Los textos del motor, antes de construir NeoApp: hay campos
                 // suyos que tocan GameType, y GameType pide el Localizer nada
                 // mas cargarse. Ver NeoBoot.prepareTexts.
@@ -462,6 +462,18 @@ public final class NeoMain {
                 // solo. Discord, 02-10-2026. Ver OptionalPayCheck.
                 banner("Un pago opcional no se paga solo");
                 forge.neo.match.OptionalPayCheck.run();
+                break;
+            case "replaycheck":
+                // Las repeticiones (Forge #12255): se graban segun el ajuste,
+                // la lista las lee y sus botones se traducen. Ver ReplayCheck.
+                banner("Las repeticiones");
+                forge.neo.match.ReplayCheck.run();
+                break;
+            case "askingcardcheck":
+                // Una eleccion que no es disparo dice de que carta viene
+                // (Archangel of Strife, Discord 16-10-2026). Ver AskingCardCheck.
+                banner("Una eleccion dice de que carta viene");
+                forge.neo.match.AskingCardCheck.run();
                 break;
             case "triggerdetailcheck":
                 // El modo de un disparo dice de QUIEN habla ("Damaged:

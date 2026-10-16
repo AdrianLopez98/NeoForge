@@ -510,6 +510,23 @@
 
 /* Cuantas tienes ya de una suelta de la tienda: abajo a la izquierda, en verde
    (Discord, 15-10-2026). Fondo oscuro para leerse encima de cualquier arte. */
+.shop-wanted {
+    -fx-background-color: rgba(18, 22, 28, 0.88);
+    -fx-border-color: #E0A63C;
+    -fx-border-width: 1.5;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-text-fill: #E0A63C;
+    -fx-font-weight: bold;
+    -fx-padding: 1 6 1 6;
+}
+
+/* El boton de la tienda en el cuartel cuando hay cartas que te faltan. */
+.button.quest-shop-wanted {
+    -fx-border-color: #E0A63C;
+    -fx-text-fill: #E0A63C;
+}
+
 .shop-owned {
     -fx-font-size: 0.72em;
     -fx-font-weight: bold;
@@ -4152,4 +4169,30 @@
 }
 .ascent-remember:selected .mark {
     -fx-background-color: #4A3B22;
+}
+
+/* La tecla de cada opcion de una pregunta del motor (1-9, NumberedChoice). */
+.key-hint {
+    -fx-text-fill: #E6EBF2;
+    -fx-background-color: #2C3542;
+    -fx-background-radius: 4;
+    -fx-border-color: #4A5566;
+    -fx-border-radius: 4;
+    -fx-font-weight: bold;
+    -fx-font-size: 0.8em;
+    -fx-padding: 1 6 1 6;
+}
+
+/* El botin de la Quest: cuantas tienes y venderla ahi mismo (CardHaul.Extras). */
+.haul-owned {
+    -fx-text-fill: #8D9AAB;
+    -fx-font-size: 0.85em;
+}
+.haul-sell {
+    -fx-font-size: 0.8em;
+    -fx-padding: 2 8 2 8;
+}
+.haul-sold {
+    -fx-text-fill: #4FB477;
+    -fx-font-weight: bold;
 }

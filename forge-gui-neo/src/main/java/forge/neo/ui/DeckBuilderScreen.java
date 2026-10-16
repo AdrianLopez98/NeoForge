@@ -165,7 +165,14 @@ public class DeckBuilderScreen extends StackPane {
             java.util.EnumSet.noneOf(forge.card.CardType.CoreType.class);
 
     /** Buscar tambien en el texto de reglas, no solo en el nombre y el tipo. */
-    private boolean searchRules;
+    /**
+     * Buscar tambien en el texto de reglas. ENCENDIDO de fabrica (16-10-2026,
+     * Discord y Ana: "defender" no salia en ningun sitio): quien busca una
+     * palabra la espera tambien en el texto. Por eso no cuenta como filtro, y
+     * "Limpiar" lo deja encendido; apagado, solo nombre y tipo.
+     */
+    private boolean searchRules = true;
+    private Button rulesButton;
 
     private final DeckStatsPane stats = new DeckStatsPane();
     private boolean onlyLegal = true;
@@ -382,7 +389,7 @@ public class DeckBuilderScreen extends StackPane {
 
     /** La columna de la izquierda: buscar entre todas las cartas de Magic. */
     private Region catalogue() {
-        search.setPromptText(NeoText.get("deck.search"));
+        search.setPromptText(NeoText.get(searchRules ? "deck.search.rules" : "deck.search"));
         search.getStyleClass().add("text-input");
         HBox.setHgrow(search, Priority.ALWAYS);
 
@@ -483,6 +490,8 @@ public class DeckBuilderScreen extends StackPane {
         final Button rules = new Button(NeoText.get("deck.rulesText"));
         rules.getStyleClass().add("segment");
         filterButtons.add(rules);
+        rulesButton = rules;
+        rules.pseudoClassStateChanged(SELECTED, searchRules);
         rules.setMinWidth(Region.USE_PREF_SIZE);
         rules.setOnAction(e -> {
             searchRules = !searchRules;
@@ -871,7 +880,7 @@ public class DeckBuilderScreen extends StackPane {
             refreshCatalogue();
         });
         if (editor.tracksAcquisition()) {
-            box.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("deck.newest.tip")));
+            box.setTooltip(new javafx.scene.control.Tooltip(NeoText.get(editor.getFormat().acquisitionTip())));
         }
         box.valueProperty().addListener((o, was, is) -> {
             if (is == null) {
@@ -1107,7 +1116,7 @@ public class DeckBuilderScreen extends StackPane {
         b.setId("builder-newest");
         b.getStyleClass().add("segment");
         b.setMinWidth(Region.USE_PREF_SIZE);
-        b.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("deck.newest.tip")));
+        b.setTooltip(new javafx.scene.control.Tooltip(NeoText.get(editor.getFormat().acquisitionTip())));
         editor.setNewestFirst(newestFirstChosen);
         b.pseudoClassStateChanged(SELECTED, newestFirstChosen);
         b.setOnAction(e -> {
@@ -1195,14 +1204,17 @@ public class DeckBuilderScreen extends StackPane {
         rarities.clear();
         cmcs.clear();
         types.clear();
-        searchRules = false;
+        searchRules = true;
         onlyLegal = false;
         worldOnly = false;
         for (final Button n : filterButtons) {
             n.pseudoClassStateChanged(SELECTED, false);
         }
+        if (rulesButton != null) {
+            rulesButton.pseudoClassStateChanged(SELECTED, true);
+        }
         setHideUsed(false);
-        search.setPromptText(NeoText.get("deck.search"));
+        search.setPromptText(NeoText.get("deck.search.rules"));
         refreshCatalogue();
     }
 
@@ -1689,7 +1701,7 @@ public class DeckBuilderScreen extends StackPane {
 
     private void updateFilterToggle() {
         final int active = colours.size() + (colourlessOn ? 1 : 0) + (multicolourOn ? 1 : 0)
-                + rarities.size() + cmcs.size() + types.size() + (searchRules ? 1 : 0)
+                + rarities.size() + cmcs.size() + types.size() + (searchRules ? 0 : 1)
                 + powers.size() + toughnesses.size() + (hideUsed ? 1 : 0)
                 + (setBox.getValue() != null ? 1 : 0) + (formatBox.getValue() != null ? 1 : 0);
         filterToggle.setText(NeoText.get("deck.filters") + (active == 0 ? "" : " · " + active)
@@ -2558,7 +2570,10 @@ public class DeckBuilderScreen extends StackPane {
      * hacerlo.
      */
     private CardActionMenu.Action printingAction(final PaperCard card) {
-        final int printings = editor.printingsOf(card).size();
+        // En la Quest tambien cuentan los que no tienes: se pueden elegir con
+        // "Todos" (ArtWishes), asi que la opcion no se apaga por tener uno.
+        final int printings = editor.allowsArtWishes()
+                ? editor.allPrintingsOf(card).size() : editor.printingsOf(card).size();
         return new CardActionMenu.Action(NeoText.get("deck.changePrinting"),
                 printings > 1 ? NeoText.get("deck.arts", printings)
                         : NeoText.get("printing.only"),
@@ -2636,8 +2651,19 @@ public class DeckBuilderScreen extends StackPane {
 
     /** Abre el selector de edicion y aplica lo elegido. */
     private void choosePrinting(final PaperCard card) {
-        final List<PaperCard> printings = editor.printingsOf(card);
-        if (printings.size() <= 1) {
+        choosePrinting(card, false);
+    }
+
+    /**
+     * Con {@code all}, en la Quest, TODAS las impresiones: las que no tienes
+     * llevan "No la tienes", y elegir una la deja como arte deseado (esas copias
+     * no se juegan hasta conseguirla: ArtWishes). Por defecto, las tuyas (Ana,
+     * 16-10-2026: "que por defecto salgan los artes que tienes").
+     */
+    private void choosePrinting(final PaperCard card, final boolean all) {
+        final boolean wishes = editor.allowsArtWishes();
+        final List<PaperCard> printings = wishes && all ? editor.allPrintingsOf(card) : editor.printingsOf(card);
+        if (printings.size() <= 1 && !wishes) {
             return;
         }
         overlay.setOnBackgroundClick(overlay::hide);
@@ -2652,6 +2678,15 @@ public class DeckBuilderScreen extends StackPane {
                 refreshCatalogue();
             }
         }, overlay::hide).offerCopies(editor.copiesOfPrintingInMain(card));
+        if (wishes) {
+            dialog[0].withSegments(List.of(NeoText.get("printing.mine"), NeoText.get("printing.all")),
+                    all ? 1 : 0, which -> choosePrinting(card, which == 1));
+            if (all) {
+                dialog[0].withNote(p -> editor.ownsPrinting(p) ? null : NeoText.get("printing.notOwned"),
+                        editor::ownsPrinting);
+                dialog[0].withHelp(NeoText.get("printing.hint.wish"));
+            }
+        }
         overlay.show(dialog[0]);
     }
 
@@ -3754,8 +3789,9 @@ public class DeckBuilderScreen extends StackPane {
     public void choosePrintingForTest() {
         for (final Map.Entry<String, Integer> group : editor.typeCounts().entrySet()) {
             for (final Map.Entry<PaperCard, Integer> e : editor.cardsInGroup(group.getKey())) {
-                if (e.getValue() > 1 && editor.printingsOf(e.getKey()).size() > 1) {
-                    choosePrinting(e.getKey());
+                if (e.getValue() > 1 && (editor.printingsOf(e.getKey()).size() > 1
+                        || (editor.allowsArtWishes() && !e.getKey().isVeryBasicLand()))) {
+                    choosePrinting(e.getKey(), Boolean.getBoolean("neo.printing.all"));
                     return;
                 }
             }

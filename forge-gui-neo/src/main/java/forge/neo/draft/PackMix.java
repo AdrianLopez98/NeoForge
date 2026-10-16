@@ -239,6 +239,35 @@ public final class PackMix {
         return m;
     }
 
+    /**
+     * <b>Sobres al azar</b> (Discord, 16-10-2026: <i>"adding random to sealed and
+     * draft ... so we could just have random pack, we only choose the amount of
+     * packs"</i>): {@code packs} sobres, cada uno de una expansion con sobre
+     * elegida al azar ({@link NeoSealed#editions()}, la misma lista que la
+     * rejilla, sin las digitales ni las de broma). Puede repetir expansion, como el "Chaos draft" de Forge; luego
+     * se retoca como cualquier mezcla.
+     */
+    public static PackMix random(final int packs, final java.util.Random rnd) {
+        final PackMix m = new PackMix();
+        // De papel y de las de siempre: fuera las de Arena (Alchemy, ONLINE),
+        // las de broma y las promos. En la rejilla siguen todas.
+        final java.util.EnumSet<CardEdition.Type> kinds = java.util.EnumSet.of(CardEdition.Type.CORE,
+                CardEdition.Type.EXPANSION, CardEdition.Type.DRAFT, CardEdition.Type.REPRINT);
+        final List<CardEdition> sets = new ArrayList<>();
+        for (final CardEdition e : NeoSealed.editions()) {
+            if (kinds.contains(e.getType())) {
+                sets.add(e);
+            }
+        }
+        if (sets.isEmpty() || packs <= 0) {
+            return m;
+        }
+        for (int i = 0; i < packs; i++) {
+            m.add(sets.get(rnd.nextInt(sets.size())));
+        }
+        return m;
+    }
+
     /** Los codigos de un bloque, para la ficha: {@code KTK · FRF}. */
     public static String blockCodes(final CardBlock block) {
         final List<String> codes = new ArrayList<>();

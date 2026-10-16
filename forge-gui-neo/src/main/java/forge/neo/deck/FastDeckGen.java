@@ -117,7 +117,7 @@ public final class FastDeckGen {
         } catch (final RuntimeException e) {
             System.err.println("[neo] deckgen: " + e);
         }
-        System.out.println("        generador de mazos: " + (System.currentTimeMillis() - t0) + " ms");
+        System.out.println("        deck generator: " + (System.currentTimeMillis() - t0) + " ms");
     }
 
     @SuppressWarnings("unchecked")

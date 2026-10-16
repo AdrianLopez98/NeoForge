@@ -281,7 +281,7 @@ public class NeoGuiBase implements IGuiBase {
             java.awt.Toolkit.getDefaultToolkit().getSystemClipboard()
                     .setContents(new java.awt.datatransfer.StringSelection(text), null);
         } catch (final RuntimeException e) {
-            System.err.println("[neo] no se ha podido copiar al portapapeles: " + e);
+            System.err.println("[neo] could not copy to the clipboard: " + e);
         }
     }
 
@@ -328,7 +328,7 @@ public class NeoGuiBase implements IGuiBase {
                 java.awt.Desktop.getDesktop().browse(new java.net.URI(url));
             }
         } catch (final Exception e) {
-            System.err.println("[neo] no se ha podido abrir " + url + ": " + e);
+            System.err.println("[neo] could not open " + url + ": " + e);
         }
     }
 
@@ -406,7 +406,7 @@ public class NeoGuiBase implements IGuiBase {
                 } catch (final RuntimeException e) {
                     // Estamos en el hilo de una partida que ya se ha caido:
                     // aqui no se puede empeorar nada, pero tampoco tirar mas.
-                    System.err.println("[neo] no se ha podido avisar del fallo: " + e);
+                    System.err.println("[neo] could not report the error: " + e);
                 }
             }
         }
@@ -442,7 +442,7 @@ public class NeoGuiBase implements IGuiBase {
             synchronized (NOTICES) {
                 NOTICES.add(line);
             }
-            System.out.println("  [logro] " + line);
+            System.out.println("  [achievement] " + line);
         }
     }
 

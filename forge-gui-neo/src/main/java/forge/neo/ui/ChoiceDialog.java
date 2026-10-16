@@ -36,7 +36,38 @@ import javafx.scene.layout.VBox;
  *
  * @param <T> tipo de lo que se elige
  */
-public class ChoiceDialog<T> extends VBox {
+public class ChoiceDialog<T> extends VBox implements NumberedChoice {
+
+    /** Quien recibe la respuesta: lo usan Aceptar, Auto y las teclas. */
+    private Consumer<List<T>> done;
+
+    /**
+     * La tecla N es la N-esima opcion que se ve. Si solo se elige una, la
+     * elige y contesta (mantenida, contesta tambien la siguiente pregunta);
+     * si se eligen varias, la marca o la desmarca, y mantenida no hace nada.
+     * Con el buscador de las listas enormes no: ahi los numeros se escriben.
+     */
+    @Override
+    public boolean pickNumber(final int n, final boolean repeat) {
+        if (readOnly || searchMode || n < 1 || n > nodesInOrder.size() || done == null) {
+            return false;
+        }
+        final int idx = n - 1;
+        if (cardSearch != null && idx < cardBoxes.size() && !cardBoxes.get(idx).isVisible()) {
+            return false;
+        }
+        final T option = optionsInOrder.get(idx);
+        if (max == 1) {
+            chosen.clear();
+            chosen.add(option);
+            done.accept(new ArrayList<>(chosen));
+            return true;
+        }
+        if (!repeat) {
+            toggle(option, nodesInOrder.get(idx));
+        }
+        return true;
+    }
 
     private final List<T> chosen = new ArrayList<>();
     // Por NODO y no por VALOR: dos copias de la misma carta (dos Sol Ring en
@@ -70,6 +101,13 @@ public class ChoiceDialog<T> extends VBox {
     private final FlowPane items;
     private final ScrollPane scroll;
     private final boolean anyCard;
+    /**
+     * Si las opciones de texto se alinean a la izquierda: TODAS o ninguna.
+     * Antes lo decidia cada boton por su largo, y en una misma lista salian
+     * unas centradas y otras no (Discord, 16-10-2026: los sobres de premio,
+     * "Outlaws of Thunder Junction Commander · 650 cr." pasaba de 48 letras).
+     */
+    private final boolean leftText;
     private boolean sized;
 
     // ---- LISTAS ENORMES: buscador (Discord, 06-10-2026) ----
@@ -179,6 +217,19 @@ public class ChoiceDialog<T> extends VBox {
             }
         }
         searchMode = !card0 && !readOnly && options.size() > SEARCH_FROM;
+        boolean longest = false;
+        for (final T option : options) {
+            try {
+                final String text = display == null ? String.valueOf(option) : display.apply(option);
+                if (text != null && text.length() > LEFT_FROM) {
+                    longest = true;
+                    break;
+                }
+            } catch (final RuntimeException ignored) {
+                // la opcion se pinta igual; aqui solo se decide la alineacion
+            }
+        }
+        leftText = longest;
         for (final T option : searchMode ? List.<T>of() : options) {
             final Region node = optionNode(option, display, cardWidth, items);
             if (readOnly) {
@@ -195,6 +246,10 @@ public class ChoiceDialog<T> extends VBox {
             items.getChildren().add(box);
             nodesInOrder.add(node);
             optionsInOrder.add(option);
+            // Su tecla, delante (solo las de texto: una carta ya se distingue).
+            if (!readOnly && node instanceof Button nb && nodesInOrder.size() <= 9 && options.size() > 1) {
+                nb.setGraphic(NumberedChoice.hint(nodesInOrder.size()));
+            }
             if (card0) {
                 cardBoxes.add(box);
                 cardKeys.add(cardKey(option));
@@ -242,6 +297,7 @@ public class ChoiceDialog<T> extends VBox {
         counter.setVisible(!readOnly);
 
         accept.getStyleClass().add("btn-primary");
+        done = onDone;
         accept.setOnAction(e -> {
             chosen.clear();
             chosen.addAll(selected.values());
@@ -454,8 +510,8 @@ public class ChoiceDialog<T> extends VBox {
         // boton se queda con el alto de una linea y el parrafo sale cortado.
         b.setMinHeight(Region.USE_PREF_SIZE);
         // Un parrafo se lee alineado a la izquierda; una etiqueta corta
-        // ("Ixalan") queda mejor centrada. Lo decide su propia longitud.
-        if (b.getText() != null && b.getText().length() > 48) {
+        // ("Ixalan") queda mejor centrada. Lo decide la mas larga, para todas.
+        if (leftText) {
             b.setAlignment(Pos.CENTER_LEFT);
             b.setTextAlignment(javafx.scene.text.TextAlignment.LEFT);
         }
@@ -763,6 +819,9 @@ public class ChoiceDialog<T> extends VBox {
         }
         return fold(sb.toString());
     }
+
+    /** Desde cuantas letras una opcion es un parrafo y no una etiqueta. */
+    private static final int LEFT_FROM = 60;
 
     /** El boton de la opcion {@code i}, creado la primera vez que hace falta. */
     private Region searchNode(final int i) {

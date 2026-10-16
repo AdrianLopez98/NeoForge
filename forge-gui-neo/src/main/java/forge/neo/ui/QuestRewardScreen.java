@@ -88,9 +88,52 @@ public class QuestRewardScreen extends StackPane {
         if (!built && getWidth() > 0 && getHeight() > 0) {
             built = true;
             getChildren().add(CardHaul.panel(title, subtitle, cards, isNew, isBonus, notes,
-                    cardWidth, getWidth(), getHeight(), onDone));
+                    cardWidth, getWidth(), getHeight(), onDone, extras()));
         }
         super.layoutChildren();
+    }
+
+    /**
+     * Lo que tienes de cada carta y venderla aqui mismo (Discord, 16-10-2026).
+     * Solo con una Quest abierta: la maqueta de captura no tiene coleccion.
+     */
+    private CardHaul.Extras extras() {
+        if (!forge.neo.quest.NeoQuest.isActive() || cards == null || cards.isEmpty()) {
+            return null;
+        }
+        final forge.neo.quest.NeoQuestHaul haul = new forge.neo.quest.NeoQuestHaul();
+        return new CardHaul.Extras() {
+            @Override
+            public int owned(final PaperCard card) {
+                return haul.ownedByName(card);
+            }
+
+            @Override
+            public boolean canSell(final PaperCard card) {
+                return haul.canSell(card);
+            }
+
+            @Override
+            public boolean keptForDecks(final PaperCard card) {
+                return haul.keptForDecks(card);
+            }
+
+            @Override
+            public int price(final PaperCard card) {
+                return haul.price(card);
+            }
+
+            @Override
+            public int sell(final PaperCard card) {
+                return haul.sell(card);
+            }
+
+            @Override
+            public String soldLine() {
+                return haul.sold() == 0 ? null
+                        : NeoText.get("haul.sold", haul.sold(), haul.earned(), haul.credits());
+            }
+        };
     }
 
     private static String subtitle(final boolean won, final String opponent,

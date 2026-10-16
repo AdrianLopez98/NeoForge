@@ -767,11 +767,21 @@ public class TableBinder {
      *             Con el ajuste apagado solo existe el asiento 0, que es el
      *             {@code opponentBar}/{@code opponentField} de toda la vida
      */
+    /** Solo pruebas: a quien ya se ha puesto a "pensar" (-Dneo.aiThinkTest). */
+    private final java.util.Set<Integer> thinkTested = new java.util.HashSet<>();
+
     private void applyPlayer(final GameView gv, final PlayerView p, final int seat) {
         final boolean opponent = seat >= 0;
         final var bar = opponent ? table.opponentBar(seat) : table.getSelfBar();
 
         bar.setPlayer(p);
+        bar.setGameId(gv.getId());
+        // -Dneo.aiThinkTest=true: el rival "piensa" 30 s, para capturar el borde
+        // ambar de su retrato sin esperar a una IA lenta (Forge #12265).
+        if (opponent && Boolean.getBoolean("neo.aiThinkTest") && thinkTested.add(p.getId())) {
+            forge.util.AITimeoutTracker.begin(forge.util.AITimeoutTracker.key(gv.getId(), p.getId()),
+                    java.util.concurrent.TimeUnit.SECONDS.toNanos(30));
+        }
         bar.setAvatarImage(faceOf(p, opponent));
         (opponent ? table.opponentField(seat) : table.getSelfField())
                 .setSleeveImage(sleeveOf(p, opponent));
@@ -866,6 +876,7 @@ public class TableBinder {
             table.setOpponentZonePiles(seat, p.getZoneSize(ZoneType.Graveyard),
                     p.getZoneSize(ZoneType.Exile),
                     hasPlayable(p, ZoneType.Graveyard), hasPlayable(p, ZoneType.Exile));
+            table.setOpponentCommand(seat, toList(p.getCommand()));
         } else {
             table.setSelfBattlefield(battlefield);
             // El mazo, con su primera carta si algo te deja mirarla (Bolas's

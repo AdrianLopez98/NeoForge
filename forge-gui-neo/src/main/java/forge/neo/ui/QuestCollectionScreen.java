@@ -67,6 +67,8 @@ public class QuestCollectionScreen extends BorderPane {
         private final int count;
         private final String lowerName;
         private final String lowerType;
+        /** El texto de la carta: "defender" no salia (16-10-2026, Discord). */
+        private final String lowerText;
 
         Entry(final PaperCard card, final int count) {
             this.card = card;
@@ -77,6 +79,8 @@ public class QuestCollectionScreen extends BorderPane {
                     + forge.neo.card.CardText.nameOf(card)).toLowerCase(Locale.ROOT);
             this.lowerType = (card.getRules().getType().toString() + " "
                     + forge.neo.card.CardText.typeOf(card)).toLowerCase(Locale.ROOT);
+            final String oracle = card.getRules().getOracleText();
+            this.lowerText = oracle == null ? "" : oracle.toLowerCase(Locale.ROOT);
         }
     }
 
@@ -135,7 +139,7 @@ public class QuestCollectionScreen extends BorderPane {
     }
 
     private Region body() {
-        search.setPromptText(NeoText.get("deck.search"));
+        search.setPromptText(NeoText.get("deck.search.rules"));
         search.getStyleClass().add("text-input");
         search.setPrefColumnCount(22);
         search.textProperty().addListener((o, was, is) -> {
@@ -157,6 +161,10 @@ public class QuestCollectionScreen extends BorderPane {
         tools.setAlignment(Pos.CENTER_LEFT);
 
         grid.setAlignment(Pos.TOP_LEFT);
+        // El sitio de la carta con el raton encima, que crece y sube: sin el,
+        // el visor le cortaba la cabeza a la primera fila (Discord, 16-10-2026).
+        // Lo mismo que las reliquias de Ascenso y el visor de zonas.
+        grid.setPadding(CardNode.hoverRoomFor(cardWidth));
         final ScrollPane scroll = new ScrollPane(grid);
         scroll.getStyleClass().add("dialog-scroll");
         scroll.setFitToWidth(true);
@@ -178,7 +186,7 @@ public class QuestCollectionScreen extends BorderPane {
 
         filtered = new ArrayList<>();
         for (final Entry e : all) {
-            if (q.isEmpty() || e.lowerName.contains(q) || e.lowerType.contains(q)) {
+            if (q.isEmpty() || e.lowerName.contains(q) || e.lowerType.contains(q) || e.lowerText.contains(q)) {
                 filtered.add(e);
             }
         }
@@ -239,6 +247,9 @@ public class QuestCollectionScreen extends BorderPane {
 
         final StackPane box = new StackPane(node);
         box.getStyleClass().add("catalogue-tile");
+        // La ampliada por encima de las vecinas: las de la derecha y la fila de
+        // abajo se pintan despues y le tapaban el borde.
+        node.hoverProperty().addListener((o, was, is) -> box.setViewOrder(is ? -1 : 0));
         box.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
 
         // El "×N" solo cuando hay mas de una: en Commander casi todo va a 1 y

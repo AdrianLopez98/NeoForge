@@ -83,10 +83,10 @@ public final class NeoLog {
             if (target.isFile()) {
                 final File previous = new File(dir, PREVIOUS);
                 if (previous.isFile() && !previous.delete()) {
-                    System.err.println("[log] no se ha podido borrar " + previous);
+                    System.err.println("[log] could not delete " + previous);
                 }
                 if (!target.renameTo(previous)) {
-                    System.err.println("[log] no se ha podido rotar " + target);
+                    System.err.println("[log] could not rotate " + target);
                 }
             }
 
@@ -95,7 +95,7 @@ public final class NeoLog {
             System.setErr(tee(System.err, out));
             file = target;
         } catch (final IOException | RuntimeException e) {
-            System.err.println("[log] no se ha podido abrir el registro: " + e);
+            System.err.println("[log] could not open the log: " + e);
         }
     }
 

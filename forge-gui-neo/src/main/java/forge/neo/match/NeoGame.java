@@ -388,12 +388,12 @@ public final class NeoGame {
             players.add(ai);
         }
 
-        System.out.printf(Locale.ROOT, "  Formato: %s | modo: %s | asientos: %d | mazo: %s | IA: %s%n",
+        System.out.printf(Locale.ROOT, "  Format: %s | mode: %s | seats: %d | deck: %s | AI: %s%n",
                 format, mode, players.size(), deck.getName(),
-                aiProfile == null || aiProfile.isBlank() ? "(por defecto)"
-                        : aiProfile.replace("neo:perRival:", "por rival, general "));
+                aiProfile == null || aiProfile.isBlank() ? "(default)"
+                        : aiProfile.replace("neo:perRival:", "per opponent, overall "));
         for (int i = 0; i < aiCount; i++) {
-            System.out.printf(Locale.ROOT, "    %s juega: %s%n",
+            System.out.printf(Locale.ROOT, "    %s plays: %s%n",
                     forge.neo.look.NeoPlayers.aiName(i),
                     deckForOpponent(opponentDecks, i, deck).getName());
         }
@@ -489,7 +489,7 @@ public final class NeoGame {
 
         if (!completed) {
             System.out.printf(Locale.ROOT,
-                    "%n  TIMEOUT: la partida no ha terminado en %ds (turno %d).%n",
+                    "%n  TIMEOUT: the game did not finish in %ds (turn %d).%n",
                     timeoutSecs, turns);
         }
 
@@ -657,7 +657,7 @@ public final class NeoGame {
         ai.setStartingHand(0);
         players.add(ai);
 
-        System.out.printf(Locale.ROOT, "  Tutorial: %s (%d pasos)%n",
+        System.out.printf(Locale.ROOT, "  Tutorial: %s (%d steps)%n",
                 lesson.getId(), lesson.getSteps().size());
 
         final GameRules rules = new GameRules(GameType.Puzzle);
@@ -1030,6 +1030,9 @@ public final class NeoGame {
     public static void applyEnginePrefs() {
         final ForgePreferences prefs = FModel.getPreferences();
         prefs.setPref(FPref.YIELD_AUTO_PASS_NO_ACTIONS, NeoSettings.getBool(NeoSettings.AUTO_PASS, true));
+        // Grabar la partida (ReplaySession.begin lo mira ANTES de openView: por
+        // eso va aqui, que tambien se llama antes de arrancar cada partida).
+        prefs.setPref(FPref.UI_RECORD_REPLAYS, NeoSettings.recordReplays());
         // El volumen, aqui tambien: es el punto por el que pasan TODAS las
         // partidas (principio 8). En la ventana normal ya lo aplico NeoApp al
         // arrancar, pero el proceso de la Aventura no pasa por ahi.

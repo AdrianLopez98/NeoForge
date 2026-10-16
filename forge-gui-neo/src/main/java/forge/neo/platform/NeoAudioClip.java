@@ -69,7 +69,7 @@ public class NeoAudioClip implements IAudioClip {
                 action.run();
             } catch (final RuntimeException e) {
                 // Sin sonido se puede jugar; sin partida no.
-                System.err.println("[neo] fallo de audio: " + e);
+                System.err.println("[neo] audio error: " + e);
             }
         };
         if (Platform.isFxApplicationThread()) {

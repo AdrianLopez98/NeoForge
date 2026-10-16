@@ -397,7 +397,7 @@ public class NeoApp extends Application implements SettingsPanel.Host {
         // Lo que tardo en verse ALGO, que es el numero que importa de todo
         // esto. Queda en el registro para poder comprobarlo en el ordenador de
         // otro, que es donde se noto el problema.
-        System.out.println("[arranque] ventana visible a los "
+        System.out.println("[startup] window visible at "
                 + forge.neo.NeoBoot.sinceStart() + " ms");
         // Y si vuelven a abrir el juego estando ya abierto, ponerse delante en
         // vez de no hacer nada. Ver NeoLock.
@@ -449,7 +449,7 @@ public class NeoApp extends Application implements SettingsPanel.Host {
      */
     private void afterEngineReady(final Stage stage, final List<String> args,
                                   final String snapshotPath, final int waitSecs) {
-        System.out.println("[arranque] listo para jugar a los "
+        System.out.println("[startup] ready to play at "
                 + forge.neo.NeoBoot.sinceStart() + " ms");
         applyEngineSettings();
 
@@ -803,7 +803,32 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                     table.getOverlay().show(new forge.neo.ui.AbilityMenu(
                             table.selfFieldNodes().get(0).getCard(), labels, can,
                             table.zoomCardWidth() * 0.62,
-                            i -> table.getOverlay().hide()));
+                            i -> {
+                                System.out.println("[teclas] habilidad elegida: " + i);
+                                table.getOverlay().hide();
+                            }));
+                    // -Dneo.keys.press=2,1: pulsa esas teclas (1-9) a los dos
+                    // segundos, una por segundo, como el jugador (NumberedChoice).
+                    final String press = System.getProperty("neo.keys.press");
+                    if (press != null) {
+                        int k = 0;
+                        for (final String d : press.split(",")) {
+                            final javafx.animation.PauseTransition later = new javafx.animation.PauseTransition(
+                                    javafx.util.Duration.seconds(2 + k++));
+                            later.setOnFinished(e -> {
+                                final javafx.scene.input.KeyCode code =
+                                        javafx.scene.input.KeyCode.getKeyCode(d.trim());
+                                System.out.println("[teclas] pulso " + d.trim());
+                                javafx.event.Event.fireEvent(scene, new javafx.scene.input.KeyEvent(
+                                        javafx.scene.input.KeyEvent.KEY_PRESSED, "", "", code,
+                                        false, false, false, false));
+                                javafx.event.Event.fireEvent(scene, new javafx.scene.input.KeyEvent(
+                                        javafx.scene.input.KeyEvent.KEY_RELEASED, "", "", code,
+                                        false, false, false, false));
+                            });
+                            later.play();
+                        }
+                    }
                 }
                 if (args.contains("--mock-banner")) {
                     // El cartel central, tal y como sale en partida: espejo de
@@ -1238,6 +1263,10 @@ public class NeoApp extends Application implements SettingsPanel.Host {
         } else if (args.contains("--quest-shop")) {
             questApp.questDemo(args.contains("--estandar"), false);
             questApp.showQuestShop();
+            // Como el boton del cuartel con cartas que te faltan (ver demoWanted).
+            if (Boolean.getBoolean("neo.shop.wanted") && questApp.shop != null) {
+                questApp.shop.openWanted();
+            }
             if (args.contains("--shop-auto")) {
                 questApp.autoOpenPack();
             }
@@ -1262,6 +1291,15 @@ public class NeoApp extends Application implements SettingsPanel.Host {
         } else if (args.contains("--quest-deck")) {
             questApp.questDemo(args.contains("--estandar"), false);
             questApp.showQuestDeckBuilder(forge.neo.quest.NeoQuest.currentDeck());
+            // --printing: el selector de arte de la Quest ("Mis artes / Todos";
+            // -Dneo.printing.all=true lo abre en "Todos").
+            if (args.contains("--printing") && builder != null) {
+                builder.choosePrintingForTest();
+            }
+            final String questQuery = optionOf(args, "--search");
+            if (questQuery != null && builder != null) {
+                builder.searchFor(questQuery);
+            }
         } else if (System.getProperty("neo.quest.open") != null) {
             // -Dneo.quest.open=Nombre: abre esa Quest guardada y su cuartel, para
             // capturarla (p. ej. una copia de la de un jugador en los datos de prueba).
@@ -1316,6 +1354,16 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 showMainMenu();
             } else {
                 draft.showDraftDeckBuilder(run, args);
+            }
+        } else if (args.contains("--replays")) {
+            // -Dneo.replay.play=true: abre la mas reciente directamente
+            showReplays();
+            if (Boolean.getBoolean("neo.replay.play")) {
+                final java.util.List<forge.gamemodes.replay.ReplayStore.Info> all =
+                        forge.gamemodes.replay.ReplayStore.list();
+                if (!all.isEmpty()) {
+                    playReplay(all.get(0).file);
+                }
             }
         } else if (args.contains("--achievements")) {
             showAchievements();
@@ -2995,6 +3043,10 @@ public class NeoApp extends Application implements SettingsPanel.Host {
         }, this, runAtStake, net.isNetMatch(), noRestartFor == null || noRestartFor != binder);
         // El tutorial tiene un paso para esto, y ni abrir el menu ni entrar en
         // Ajustes llega al motor: se cuenta desde aqui.
+        final forge.neo.match.NeoMatchUI shown = binder == null ? null : binder.getMatchUi();
+        if (shown != null && shown.isReplay()) {
+            menu.asReplay();
+        }
         menu.setGestureSpy(table::gesture);
         table.getMenuOverlay().show(menu);
         if (countGesture) {
@@ -3699,6 +3751,11 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             }
 
             @Override
+            public void replays() {
+                showReplays();
+            }
+
+            @Override
             public void settings() {
                 showMenuSettings();
             }
@@ -3741,6 +3798,97 @@ public class NeoApp extends Application implements SettingsPanel.Host {
 
     /** Los logros que se ha ido apuntando el motor. Se leen, no se juegan. */
     private forge.neo.ui.AchievementsScreen achievements;
+
+    /** Las repeticiones (Forge #12255): la lista, y de ahi a verlas. */
+    void showReplays() {
+        scene.setRoot(new forge.neo.ui.ReplaysScreen(this::playReplay, this::showMainMenu));
+        applyScale();
+    }
+
+    /**
+     * Ver una partida grabada en la mesa de siempre.
+     *
+     * <p>Se monta como la de un invitado en red ({@code NeoAppNet.newNetMatchUi}):
+     * una grabacion son los mensajes que habria recibido un espectador, y
+     * {@code ReplayPlayer} los pasa por el mismo cliente. Al acabar (o al
+     * salir con Escape) se vuelve a la lista.
+     */
+    private void playReplay(final java.io.File file) {
+        if (forge.gamemodes.net.client.ReplayPlayer.isPlaying()) {
+            return;
+        }
+        final TableScreen oldTable = table;
+        final TableBinder oldBinder = binder;
+        table = new TableScreen(cardWidth, sideWidth);
+        table.getDetailPanel().setTextZoom(NeoSettings.getDouble(NeoSettings.TEXT_ZOOM, 1.15));
+        final TableBinder b = new TableBinder(table);
+        binder = b;
+        // Sin "Reiniciar" en su menu de Escape (ver PauseMenu.asReplay).
+        noRestartFor = b;
+        final NeoMatchUI gui = new NeoMatchUI(NeoMatchUI.Mode.HUMAN, false);
+        gui.setBinder(b);
+        gui.setTable(table);
+        gui.setEnding(NeoMatchUI.Ending.REPLAY);
+        b.setMatchUi(gui);
+        gui.setOnOpened(() -> {
+            Platform.runLater(this::showTable);
+            // Solo pruebas: a x8 desde el principio (tres veces "Velocidad"), para
+            // llegar al final de una partida entera en una captura.
+            if (Boolean.getBoolean("neo.replay.fast")) {
+                final Thread t = new Thread(() -> {
+                    try {
+                        Thread.sleep(1500);
+                    } catch (final InterruptedException e) {
+                        return;
+                    }
+                    for (int i = 0; i < 3; i++) {
+                        Platform.runLater(() -> gui.getGameController().selectButtonCancel());
+                    }
+                    // Y al final, "Cerrar la repeticion" del cuadro del final:
+                    // tiene que volver a la lista.
+                    for (int i = 0; i < 150; i++) {
+                        try {
+                            Thread.sleep(1000);
+                        } catch (final InterruptedException e) {
+                            return;
+                        }
+                        final boolean[] done = {false};
+                        final java.util.concurrent.CountDownLatch l = new java.util.concurrent.CountDownLatch(1);
+                        Platform.runLater(() -> {
+                            final javafx.scene.Node over = scene.getRoot().lookup(".game-over .btn-primary");
+                            if (over instanceof javafx.scene.control.Button b2) {
+                                System.out.println("[neo] replay test: pressing " + b2.getText());
+                                b2.fire();
+                                done[0] = true;
+                            }
+                            l.countDown();
+                        });
+                        try {
+                            l.await();
+                        } catch (final InterruptedException e) {
+                            return;
+                        }
+                        if (done[0]) {
+                            return;
+                        }
+                    }
+                }, "neo-replay-fast");
+                t.setDaemon(true);
+                t.start();
+            }
+        });
+        gui.setOnClosed(() -> Platform.runLater(this::showReplays));
+        try {
+            System.out.println("[neo] Replay: " + file.getName());
+            forge.gamemodes.net.client.ReplayPlayer.play(file, gui);
+        } catch (final java.io.IOException | RuntimeException e) {
+            System.out.println("[neo] Could not open the replay " + file.getName() + ": " + e);
+            // Que nadie se quede mirando una mesa que no se llego a abrir.
+            table = oldTable;
+            binder = oldBinder;
+            forge.neo.ui.Toast.show(NeoText.get("replays.broken"));
+        }
+    }
 
     private void showAchievements() {
         achievements = new forge.neo.ui.AchievementsScreen(cardWidth, this::showMainMenu);

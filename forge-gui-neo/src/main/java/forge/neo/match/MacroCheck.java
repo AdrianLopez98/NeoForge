@@ -104,6 +104,7 @@ public final class MacroCheck {
     public static void run() {
         passed = 0;
         failed = 0;
+        checkChoices();
 
         final TutorialLesson lesson = position();
         final TutorialState state = new TutorialState(lesson.getState());
@@ -404,6 +405,49 @@ public final class MacroCheck {
                 "aiexile=",
                 "aicommand=");
         return new TutorialLesson("macro", state, List.of());
+    }
+
+    /**
+     * Lo que la macro de Forge no recuerda y recordamos nosotros (MacroChoices,
+     * Discord 16-10-2026): solo se contesta sola la MISMA pregunta con las
+     * MISMAS opciones, y en el orden en que se contesto al grabar.
+     */
+    private static void checkChoices() {
+        final MacroChoices m = new MacroChoices();
+        final List<String> abilities = List.of("{T}: Add {G}.", "{1}{G}, {T}: Draw a card.");
+        m.record("ability", "Elvish Archivist", abilities, List.of("{1}{G}, {T}: Draw a card."));
+        check(List.of("{1}{G}, {T}: Draw a card.").equals(m.replay("ability", "Elvish Archivist", abilities)),
+                "elecciones: la habilidad grabada se repite", "elecciones: la habilidad grabada no se repite");
+        check(m.replay("ability", "Llanowar Elves", abilities) == null,
+                "elecciones: otra carta no se contesta sola", "elecciones: se contesta en otra carta");
+        check(m.replay("ability", "Elvish Archivist", List.of("{T}: Add {G}.")) == null,
+                "elecciones: con otras opciones se pregunta", "elecciones: contesta con otras opciones");
+        check(List.of("{1}{G}, {T}: Draw a card.").equals(m.replay("ability", "Elvish Archivist",
+                List.of("{1}{G}, {T}: Draw a card.", "{T}: Add {G}."))),
+                "elecciones: el orden de las opciones da igual", "elecciones: depende del orden de las opciones");
+        final List<String> modes = List.of("Destroy target artifact", "Draw a card");
+        m.clear();
+        m.record("choice", "Choose one", modes, List.of("Draw a card"));
+        m.record("choice", "Choose one", modes, List.of("Destroy target artifact"));
+        final List<String> a = m.replay("choice", "Choose one", modes);
+        final List<String> b = m.replay("choice", "Choose one", modes);
+        final List<String> c = m.replay("choice", "Choose one", modes);
+        check(List.of("Draw a card").equals(a) && List.of("Destroy target artifact").equals(b)
+                        && List.of("Draw a card").equals(c),
+                "elecciones: varias respuestas a la misma pregunta, en su orden y en bucle",
+                "elecciones: el orden de varias respuestas no se respeta (" + a + ", " + b + ", " + c + ")");
+        m.rewind();
+        check(List.of("Draw a card").equals(m.replay("choice", "Choose one", modes)),
+                "elecciones: al volver a repetir empieza por la primera",
+                "elecciones: repetir no vuelve a la primera");
+        check(List.of(0, 1).equals(MacroChoices.indicesOf(List.of("Forest", "Forest", "Island"),
+                List.of("Forest", "Forest")))
+                        && MacroChoices.indicesOf(List.of("Forest"), List.of("Island")) == null,
+                "elecciones: dos opciones iguales son dos, y una que falta no se inventa",
+                "elecciones: indicesOf falla con opciones repetidas o que faltan");
+        m.clear();
+        check(m.isEmpty() && m.replay("choice", "Choose one", modes) == null,
+                "elecciones: grabar de nuevo borra lo anterior", "elecciones: grabar de nuevo no borra lo anterior");
     }
 
     private static void check(final boolean ok, final String good, final String bad) {

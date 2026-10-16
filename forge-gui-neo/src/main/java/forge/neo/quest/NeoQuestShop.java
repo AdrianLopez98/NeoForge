@@ -26,6 +26,35 @@ import forge.model.FModel;
  */
 public final class NeoQuestShop {
 
+    /**
+     * Cuantas cartas DISTINTAS de las que te faltan en tus mazos estan hoy en
+     * las sueltas. Es el aviso del boton de la tienda en el cuartel.
+     */
+    public static int wantedInShop() {
+        final java.util.Map<String, Integer> wanted = NeoQuest.wantedByName();
+        final java.util.Set<String> arts = NeoQuest.wantedArts();
+        if (wanted.isEmpty() && arts.isEmpty()) {
+            return 0;
+        }
+        final java.util.Set<String> seen = new java.util.HashSet<>();
+        for (final forge.item.PaperCard c : singles()) {
+            if (isWanted(c, wanted, arts)) {
+                seen.add(c.getName().toLowerCase(java.util.Locale.ROOT));
+            }
+        }
+        return seen.size();
+    }
+
+    /**
+     * Si esta suelta te sirve para un mazo: la carta te falta (con cualquier
+     * arte), o es justo el arte deseado que te falta ({@code ArtWishes}).
+     */
+    public static boolean isWanted(final forge.item.PaperCard c, final java.util.Map<String, Integer> wanted,
+                                   final java.util.Set<String> arts) {
+        return c != null && (wanted.containsKey(c.getName().toLowerCase(java.util.Locale.ROOT))
+                || arts.contains(forge.neo.deck.ArtWishes.printKey(c)));
+    }
+
     private NeoQuestShop() {
     }
 

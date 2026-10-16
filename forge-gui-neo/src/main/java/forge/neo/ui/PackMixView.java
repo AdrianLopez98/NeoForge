@@ -73,6 +73,19 @@ final class PackMixView {
         final Label total = new Label(NeoText.get("mix.total", mix.total(), target));
         total.getStyleClass().add(mix.total() == target ? "quest-ok" : "quest-problem");
         row.getChildren().add(total);
+        // AL AZAR (Discord, 16-10-2026): rellena la mezcla con sobres de
+        // expansiones al azar; otra vez, otra tirada. Solo eliges cuantos.
+        final Button random = small(NeoText.get("mix.random"), () -> {
+            final PackMix r = PackMix.random(target, new java.util.Random());
+            mix.clear();
+            for (final Map.Entry<CardEdition, Integer> e : r.entries()) {
+                mix.set(e.getKey(), e.getValue());
+            }
+            onChange.run();
+        });
+        random.setId("mix-random");
+        random.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("mix.random.tip")));
+        row.getChildren().add(random);
         if (!mix.isEmpty()) {
             row.getChildren().add(small(NeoText.get("mix.clear"), () -> {
                 mix.clear();

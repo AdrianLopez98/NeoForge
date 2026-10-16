@@ -75,7 +75,8 @@ public class CardLibraryScreen extends StackPane {
 
     private final TextField search = new TextField();
     private final Button rulesButton = new Button(NeoText.get("deck.rulesText"));
-    private boolean rulesText;
+    /** Tambien en el texto de reglas: encendido de fabrica, como el editor (16-10-2026). */
+    private boolean rulesText = true;
     private final CardFilterBar filters = new CardFilterBar(this::refilter);
     private final ComboBox<SetChoice> set = new ComboBox<>();
     private final ComboBox<GameFormat> format = new ComboBox<>();
@@ -175,7 +176,7 @@ public class CardLibraryScreen extends StackPane {
     }
 
     private Region body() {
-        search.setPromptText(NeoText.get("deck.search"));
+        search.setPromptText(NeoText.get(rulesText ? "deck.search.rules" : "deck.search"));
         search.getStyleClass().add("text-input");
         search.setPrefColumnCount(20);
         HBox.setHgrow(search, Priority.SOMETIMES);
@@ -184,6 +185,7 @@ public class CardLibraryScreen extends StackPane {
         // El texto de reglas, como en el constructor: "sacrifice", "flying".
         rulesButton.getStyleClass().add("segment");
         rulesButton.setMinWidth(Region.USE_PREF_SIZE);
+        rulesButton.pseudoClassStateChanged(SELECTED, rulesText);
         rulesButton.setOnAction(e -> {
             rulesText = !rulesText;
             rulesButton.pseudoClassStateChanged(SELECTED, rulesText);

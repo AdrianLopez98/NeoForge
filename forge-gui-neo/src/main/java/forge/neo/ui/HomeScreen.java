@@ -158,6 +158,80 @@ et}) y no se tocan.
     private static final int MAX_TILES = 60;
 
     private final javafx.scene.control.TextField search = new javafx.scene.control.TextField();
+
+    /**
+     * EL FILTRO DE COLOR (Discord, 16-10-2026: "in the android version ... you
+     * can filter by w,b,u,g ... I cant find those same filters in the desktop
+     * version"). Mascara de {@code MagicColor}; 0 = sin filtro. Como en
+     * Android: los mazos que tienen TODOS los colores marcados.
+     */
+    private int colourFilter;
+    /** Los colores de cada mazo, calculados una vez (son cientos y se filtra al teclear). */
+    private final java.util.Map<Deck, Integer> colourCache = new java.util.IdentityHashMap<>();
+
+    /**
+     * Los colores de un mazo: en Commander, la identidad de sus comandantes —
+     * la regla que decide que puede entrar—; sin comandante, los colores de sus
+     * cartas (las tierras no cuentan: una dual no hace bicolor a un mazo).
+     */
+    private int coloursOf(final Deck deck) {
+        return colourCache.computeIfAbsent(deck, d -> {
+            int mask = 0;
+            try {
+                final List<forge.item.PaperCard> commanders = d.getCommanders();
+                if (commanders != null && !commanders.isEmpty()) {
+                    for (final forge.item.PaperCard c : commanders) {
+                        mask |= c.getRules().getColorIdentity().getColor() & 0xFF;
+                    }
+                    return mask;
+                }
+                if (d.getMain() != null) {
+                    for (final java.util.Map.Entry<forge.item.PaperCard, Integer> e : d.getMain()) {
+                        if (!e.getKey().getRules().getType().isLand()) {
+                            mask |= e.getKey().getRules().getColor().getColor() & 0xFF;
+                        }
+                    }
+                }
+            } catch (final RuntimeException ex) {
+                // Un mazo raro no tumba la lista: sale como incoloro.
+            }
+            return mask;
+        });
+    }
+
+    /** Los cinco botones de color, junto al buscador. */
+    private HBox colourButtons() {
+        final HBox row = new HBox(4);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.setMinWidth(Region.USE_PREF_SIZE);
+        final String[] letters = {"W", "U", "B", "R", "G"};
+        final byte[] masks = {forge.card.MagicColor.WHITE, forge.card.MagicColor.BLUE,
+                forge.card.MagicColor.BLACK, forge.card.MagicColor.RED, forge.card.MagicColor.GREEN};
+        final javafx.css.PseudoClass selectedState = javafx.css.PseudoClass.getPseudoClass("selected");
+        // -Dneo.home.colours=bg: ya marcados, para capturarlo.
+        final String preset = System.getProperty("neo.home.colours");
+        for (int i = 0; i < letters.length; i++) {
+            final int bit = masks[i] & 0xFF;
+            if (preset != null && preset.toUpperCase(java.util.Locale.ROOT).contains(letters[i])) {
+                colourFilter |= bit;
+            }
+            final Button b = new Button(letters[i]);
+            b.getStyleClass().addAll("segment", "colour-filter",
+                    "mana-" + letters[i].toLowerCase(java.util.Locale.ROOT));
+            b.setId("home-colour-" + letters[i].toLowerCase(java.util.Locale.ROOT));
+            b.setMinWidth(Region.USE_PREF_SIZE);
+            b.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("home.colour.tip")));
+            b.pseudoClassStateChanged(selectedState, (colourFilter & bit) != 0);
+            b.setOnAction(e -> {
+                colourFilter ^= bit;
+                b.pseudoClassStateChanged(selectedState, (colourFilter & bit) != 0);
+                pager.reset();
+                fillGrid();
+            });
+            row.getChildren().add(b);
+        }
+        return row;
+    }
     private final FlowPane grid = new FlowPane(18, 18);
     private final Label gridCount = new Label();
     private final java.util.EnumMap<Tab, Button> tabButtons = new java.util.EnumMap<>(Tab.class);
@@ -592,8 +666,8 @@ et}) y no se tocan.
             setUpEraFilters();
         }
         final HBox right = byEra
-                ? new HBox(8, pager, randomMine, formatFilter, eraFilter, search, gridCount)
-                : new HBox(8, pager, randomMine, search, gridCount);
+                ? new HBox(8, pager, randomMine, formatFilter, eraFilter, colourButtons(), search, gridCount)
+                : new HBox(8, pager, randomMine, colourButtons(), search, gridCount);
         right.setAlignment(Pos.CENTER_RIGHT);
         right.setMinWidth(Region.USE_PREF_SIZE);
         final BorderPane bar = new BorderPane();
@@ -1067,7 +1141,8 @@ et}) y no se tocan.
         for (final Deck d : source) {
             if ((q.isEmpty() || matches(d, q))
                     && (legalIn == null || forge.neo.deck.DeckEra.legalIn(d, legalIn))
-                    && (era == null || forge.neo.deck.DeckEra.eraOf(d) == era)) {
+                    && (era == null || forge.neo.deck.DeckEra.eraOf(d) == era)
+                    && (colourFilter == 0 || (coloursOf(d) & colourFilter) == colourFilter)) {
                 hits.add(d);
             }
         }
@@ -1106,7 +1181,7 @@ et}) y no se tocan.
 
         if (hits.isEmpty()) {
             // Con un filtro puesto, la lista no esta vacia: es el filtro.
-            final Label empty = new Label((legalIn != null || era != null) && !source.isEmpty()
+            final Label empty = new Label((legalIn != null || era != null || colourFilter != 0) && !source.isEmpty()
                     ? NeoText.get("home.filter.none")
                     : showing == Tab.MINE
                     ? NeoText.get("home.empty.mine", NeoText.get("home.newDeck"))

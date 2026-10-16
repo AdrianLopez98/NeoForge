@@ -88,6 +88,11 @@ public class GameOverScreen extends VBox {
                 ? NeoText.get("over.hotseat", winner)
                 : won ? NeoText.get("over.won") : NeoText.get("over.lost"));
         title.getStyleClass().addAll("game-over-title", won ? "victory" : "defeat");
+        // Como las dos GUIs de Forge ("Replay: ..."): que no parezca que acabas
+        // de ganar o perder una partida ahora.
+        if (ending == NeoMatchUI.Ending.REPLAY) {
+            title.setText(NeoText.get("replay.titled", title.getText()));
+        }
 
         final StringBuilder detail = new StringBuilder();
         if (!matchOver && totalGames > 0) {
@@ -192,6 +197,8 @@ public class GameOverScreen extends VBox {
                 return won ? "over.ascent" : "over.menu";
             case NET:
                 return "over.lobby";
+            case REPLAY:
+                return "over.replay";
             default:
                 return "over.menu";
         }

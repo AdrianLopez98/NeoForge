@@ -55,7 +55,8 @@ import forge.localinstance.properties.ForgeConstants;
  */
 public final class EnginePhrase {
 
-    private static final Pattern PLACEHOLDER = Pattern.compile("\\{\\d+\\}");
+    /** Los huecos: {0} de MessageFormat, y %d / %s de las que Forge formatea con String.format. */
+    private static final Pattern PLACEHOLDER = Pattern.compile("\\{\\d+\\}|%[ds]");
 
     /** Un trozo mas corto que esto no distingue nada. */
     private static final int MIN_FRAGMENT = 4;

@@ -176,6 +176,14 @@ final class NeoAppQuest {
             }
 
             @Override
+            public void shopWanted() {
+                showQuestShop();
+                if (shop != null) {
+                    shop.openWanted();
+                }
+            }
+
+            @Override
             public void shop() {
                 showQuestShop();
             }
@@ -557,6 +565,25 @@ final class NeoAppQuest {
         reward.setBonus(rewards::isBonus);
         app.scene.setRoot(reward);
         app.applyScale();
+        // -Dneo.haul.sellFirst=true: pulsa el primer "Vender" que se pueda, como
+        // el jugador, para comprobar que cobra (CardHaul.Extras).
+        if (Boolean.getBoolean("neo.haul.sellFirst")) {
+            final PauseTransition later = new PauseTransition(Duration.millis(1500));
+            later.setOnFinished(x -> {
+                for (final javafx.scene.Node n : reward.lookupAll(".haul-sell")) {
+                    if (n instanceof javafx.scene.control.Button b && !b.isDisabled()) {
+                        final long before = forge.neo.quest.NeoQuest.credits();
+                        System.out.println("[botin] vendo: " + b.getText() + " (creditos " + before + ")");
+                        b.fire();
+                        System.out.println("[botin] despues: " + forge.neo.quest.NeoQuest.credits()
+                                + " creditos; el boton dice: " + b.getText());
+                        return;
+                    }
+                }
+                System.out.println("[botin] no hay nada que vender");
+            });
+            later.play();
+        }
 
         // Herramienta de prueba: capturar el botin de un duelo DE VERDAD, con
         // sus cartas y sus lineas. Es la unica forma de verlo sin ganar una
@@ -1022,6 +1049,33 @@ final class NeoAppQuest {
         final int extra = Integer.getInteger("neo.quest.demoCredits", 0);
         if (extra > 0) {
             forge.model.FModel.getQuest().getAssets().addCredits(extra);
+        }
+        // -Dneo.quest.demoWanted=N: N sueltas de la tienda que no tienes, metidas
+        // en tu mazo con OTRO arte si lo hay: el aviso del boton de la tienda y
+        // la pastilla "Para tu mazo", que cuentan por carta y no por arte.
+        final int wantedDemo = Integer.getInteger("neo.quest.demoWanted", 0);
+        final forge.deck.Deck wantDeck = forge.neo.quest.NeoQuest.currentDeck();
+        if (wantedDemo > 0 && wantDeck != null) {
+            final java.util.Set<String> done = new java.util.HashSet<>();
+            for (final forge.item.PaperCard c : forge.neo.quest.NeoQuestShop.singles()) {
+                if (done.size() >= wantedDemo) {
+                    break;
+                }
+                if (c.getRules() == null || c.getRules().getType().isLand()
+                        || forge.neo.quest.NeoQuestSell.owned(c) > 0 || !done.add(c.getName())) {
+                    continue;
+                }
+                forge.item.PaperCard art = c;
+                for (final forge.item.PaperCard p
+                        : forge.model.FModel.getMagicDb().getCommonCards().getAllCards(c.getName())) {
+                    if (!p.getEdition().equals(c.getEdition()) || p.getArtIndex() != c.getArtIndex()) {
+                        art = p;
+                        break;
+                    }
+                }
+                wantDeck.getMain().add(art, 1);
+            }
+            forge.neo.quest.NeoQuest.save();
         }
         // -Dneo.quest.demoMissing=N: N cartas que no tienes en tu mazo (la lista
         // de deseos), para ver el aviso largo del cuartel. Mejor con --estandar:

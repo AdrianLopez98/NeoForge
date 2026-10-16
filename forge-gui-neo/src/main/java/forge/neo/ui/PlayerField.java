@@ -63,6 +63,27 @@ public class PlayerField extends Pane {
      * (Bolas's Citadel y familia). Ver {@code ZonePile.setTopCard}.
      */
     private final ZonePile library;
+
+    /**
+     * La zona de mando del RIVAL, con su comandante boca arriba (Discord,
+     * 15-10-2026: "no se ve la zona de comando rival en commander"). Antes
+     * solo salia el numero "CMD" en su barra. Va SIEMPRE debajo del cementerio
+     * y nunca le quita ancho a las cartas: como tercera pila, a 2K con tres
+     * rivales las cartas bajaban de 92 a 40 px. Si no cabe entera se encoge, y
+     * si ni asi cabe no se pinta (queda el "CMD" de la barra, que se clica).
+     * Vacia no ocupa nada. Para quitarla: {@link #SHOW_OPPONENT_COMMAND}.
+     */
+    private final ZonePile command;
+
+    /**
+     * Interruptor de la zona de mando del rival en la mesa. Para quitarla basta
+     * con ponerlo a false (o {@code -Dneo.oppCommand=false} para probar sin
+     * ella): todo lo demas se queda como estaba.
+     */
+    static final boolean SHOW_OPPONENT_COMMAND = !"false".equals(System.getProperty("neo.oppCommand"));
+
+    /** Si la pila de mando del rival se esta ensenyando (hay algo en la zona). */
+    private boolean commandShown;
     private final boolean opponent;
     private final double baseCardWidth;
 
@@ -91,6 +112,9 @@ public class PlayerField extends Pane {
         this.library = new ZonePile(NeoText.get("zone.library"), baseCardWidth * 0.62);
         this.library.setVisible(!opponent);
         this.library.setManaged(!opponent);
+        this.command = new ZonePile(NeoText.get("zone.command"), baseCardWidth * 0.62);
+        this.command.setVisible(false);
+        this.command.setManaged(false);
 
         setPickOnBounds(false);
         landRow.getStyleClass().add("arena-lands");
@@ -106,13 +130,14 @@ public class PlayerField extends Pane {
         // debajo. Con la fila de atras pintada despues, un equipo quedaba
         // escondido detras de una tierra: visible en la maqueta y en el campo
         // del rival, invisible justo en el tuyo.
-        getChildren().addAll(permanentRow, landRow, creatureRow, graveyard, exile, library);
+        getChildren().addAll(permanentRow, landRow, creatureRow, graveyard, exile, library, command);
     }
 
     public void setOnCardHover(final Consumer<CardNode> handler) {
         creatureRow.setOnCardHover(handler);
         permanentRow.setOnCardHover(handler);
         landRow.setOnCardHover(handler);
+        command.setOnTopHover(handler);
     }
 
     /** Que fichas estan ya elegidas: parte las pilas. Ver BattlefieldPane. */
@@ -245,6 +270,41 @@ public class PlayerField extends Pane {
         graveyard.setSleeveImage(image);
         exile.setSleeveImage(image);
         library.setSleeveImage(image);
+        command.setSleeveImage(image);
+    }
+
+    /**
+     * La zona de mando de este rival: el comandante (o lo primero que haya)
+     * boca arriba y cuantas cartas hay. En tu campo no hace nada: la tuya va
+     * al lado de la mano ({@code CommandZone}).
+     */
+    public void setCommand(final List<CardView> cards) {
+        if (!opponent || !SHOW_OPPONENT_COMMAND) {
+            return;
+        }
+        final int n = cards == null ? 0 : cards.size();
+        CardView shown = null;
+        if (n > 0) {
+            for (final CardView c : cards) {
+                if (c != null && c.isCommander()) {
+                    shown = c;
+                    break;
+                }
+            }
+            if (shown == null) {
+                shown = cards.get(0);
+            }
+        }
+        command.setCount(n);
+        command.setTopCard(shown);
+        wireZone(command, forge.game.zone.ZoneType.Command, n);
+        final boolean show = n > 0;
+        if (show != commandShown) {
+            commandShown = show;
+            command.setVisible(show && pilesOnBoard);
+            command.setManaged(show && pilesOnBoard);
+            requestLayout();
+        }
     }
 
     public void setZoneCounts(final int graveyardSize, final int exileSize) {
@@ -347,6 +407,7 @@ public class PlayerField extends Pane {
         // Dos pilas en el campo del rival (cementerio y exilio) y tres en el
         // tuyo, que ademas lleva el mazo. Se cuenta, no se da por hecho: este
         // ancho es lo que se le quita a las cartas.
+        // La de mando del rival va debajo del cementerio: no cuenta aqui.
         final int piles = pilesOnBoard ? (opponent ? 2 : 3) : 0;
         final double stripW = piles == 0 ? 0 : graveyard.getCardWidth() * piles + 6 * (piles + 1);
         final double rowsW = Math.max(1, w - stripW - 20);
@@ -504,13 +565,38 @@ public class PlayerField extends Pane {
         final double pileW = graveyard.getCardWidth();
         final double pileH = graveyard.prefHeight(pileW);
         final double x = w - stripW - 6;
-        final double y = Math.max(0, (h - pileH) / 2);
+        // La de mando, debajo y a la escala que quepa (como mucho la de las
+        // otras pilas). Por debajo de MIN_COMMAND_SCALE no se lee: fuera.
+        double scale = 0;
+        if (opponent && commandShown) {
+            scale = Math.min(1, (h - pileH - PILE_GAP) / pileH);
+            if (scale < MIN_COMMAND_SCALE) {
+                scale = 0;
+            }
+        }
+        final boolean below = scale > 0;
+        command.setVisible(below);
+        final double cmdW = pileW * scale;
+        if (below && Math.abs(command.getCardWidth() - cmdW) > 0.5) {
+            command.setCardWidth(cmdW);
+        }
+        final double cmdH = below ? command.prefHeight(cmdW) : 0;
+        final double y = below
+                ? Math.max(0, (h - pileH - PILE_GAP - cmdH) / 2)
+                : Math.max(0, (h - pileH) / 2);
         graveyard.resizeRelocate(x, y, pileW + 6, pileH);
         exile.resizeRelocate(x + pileW + 12, y, pileW + 6, pileH);
         if (!opponent) {
             library.resizeRelocate(x + (pileW + 12) * 2, y, pileW + 6, pileH);
+        } else if (below) {
+            command.resizeRelocate(x, y + pileH + PILE_GAP, cmdW + 6, cmdH);
         }
     }
+
+    private static final double PILE_GAP = 8;
+
+    /** Por debajo de esta escala la carta del comandante no se lee y no se pinta. */
+    private static final double MIN_COMMAND_SCALE = 0.45;
 
     /**
      * Pinta (o no) el cementerio y el exilio en el borde de la mesa.
@@ -529,6 +615,8 @@ public class PlayerField extends Pane {
         exile.setManaged(on);
         library.setVisible(on && !opponent);
         library.setManaged(on && !opponent);
+        command.setVisible(on && commandShown);
+        command.setManaged(on && commandShown);
         requestLayout();
     }
 

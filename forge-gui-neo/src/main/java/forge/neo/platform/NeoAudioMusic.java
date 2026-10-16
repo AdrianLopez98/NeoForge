@@ -40,7 +40,7 @@ public class NeoAudioMusic implements IAudioMusic {
             this.player = new MediaPlayer(new Media(new File(path).toURI().toString()));
             this.player.setVolume(volume);
         } catch (final RuntimeException e) {
-            System.err.println("[neo] no se ha podido cargar la musica: " + path);
+            System.err.println("[neo] could not load the music: " + path);
             this.player = null;
         }
     }
@@ -131,7 +131,7 @@ public class NeoAudioMusic implements IAudioMusic {
             try {
                 action.run();
             } catch (final RuntimeException e) {
-                System.err.println("[neo] fallo de musica: " + e);
+                System.err.println("[neo] music error: " + e);
             }
         };
         if (Platform.isFxApplicationThread()) {

@@ -762,8 +762,11 @@ public class SettingsPanel extends VBox {
                     NeoSettings.save();
                 }, aiNote)));
 
-        final String[] timeoutLabels = {"2 s", "5 s", "10 s", "20 s"};
-        final int[] timeoutValues = {2, 5, 10, 20};
+        // 60 s como en las dos GUIs de Forge, para quien prefiera esperar a que
+        // piense mas en una mesa enorme (desde Forge #12265 el tope vale para
+        // TODA decision, no solo el combate).
+        final String[] timeoutLabels = {"2 s", "5 s", "10 s", "20 s", "60 s"};
+        final int[] timeoutValues = {2, 5, 10, 20, 60};
         final int timeoutNow = NeoSettings.getInt(NeoSettings.AI_TIMEOUT, NeoSettings.AI_TIMEOUT_DEFAULT);
         String timeoutCurrent = timeoutLabels[1];
         for (int i = 0; i < timeoutValues.length; i++) {
@@ -1144,6 +1147,15 @@ public class SettingsPanel extends VBox {
         // Pedido en itch.io el 28-09-2026. Encendido de fabrica; se apaga aqui
         // porque preguntar a itch.io le ensenya tu IP. Encenderlo pregunta en
         // el acto si aun no se habia hecho. Ver forge.neo.update.NeoUpdate.
+        // --- repeticiones (Forge #12255) ---
+        getChildren().add(section(NeoText.get("settings.replays")));
+        getChildren().add(toggleRow(NeoText.get("settings.replays.on"),
+                NeoSettings.recordReplays(),
+                on -> {
+                    NeoSettings.setBool(NeoSettings.RECORD_REPLAYS, on);
+                    NeoSettings.save();
+                }));
+
         getChildren().add(section(NeoText.get("settings.update")));
         getChildren().add(toggleRow(NeoText.get("settings.update.on"),
                 NeoSettings.updateCheck(),

@@ -100,6 +100,7 @@ public final class ImageScaleCheck {
         //    en calidad "Maxima" no bajaba ni una carta suelta, porque el PNG de
         //    Scryfall trae transparencia y se volvia a escribir en JPG.
         savingKeepsTheBytes();
+        planesInEveryQuality();
 
         System.out.println();
         System.out.printf(Locale.ROOT, "  %d bien, %d mal%n", passed, failed);
@@ -161,6 +162,36 @@ public final class ImageScaleCheck {
         } finally {
             if (dir != null) {
                 deleteTree(dir);
+            }
+        }
+    }
+
+    /**
+     * Los PLANOS en alta calidad (Discord, 16-10-2026: "High: 293 missing" con
+     * los ficheros ahi). Su clave del motor no lleva ".full" y el descargador
+     * los guarda como ".fullborder": {@code exactFile} tiene que encontrarlos.
+     */
+    private static void planesInEveryQuality() {
+        java.io.File root = null;
+        try {
+            root = java.nio.file.Files.createTempDirectory("neo-planes-").toFile();
+            final java.io.File set = new java.io.File(root, "ZZNEOPLN");
+            set.mkdirs();
+            final java.io.File plane = new java.io.File(set, "Bloodhill Bastion.fullborder.jpg");
+            final java.io.File card = new java.io.File(set, "Skullclamp.fullborder.jpg");
+            java.nio.file.Files.write(plane.toPath(), new byte[] {1});
+            java.nio.file.Files.write(card.toPath(), new byte[] {1});
+            check(plane.equals(forge.neo.card.ImageQuality.findIn(root, "ZZNEOPLN/Bloodhill Bastion")),
+                    "un plano (clave sin \".full\") se encuentra en alta como .fullborder");
+            check(card.equals(forge.neo.card.ImageQuality.findIn(root, "ZZNEOPLN/Skullclamp.full")),
+                    "y una carta normal (\".full\") sigue encontrandose");
+            check(forge.neo.card.ImageQuality.findIn(root, "ZZNEOPLN/Chaotic Aether") == null,
+                    "y lo que no esta sigue sin estar");
+        } catch (final java.io.IOException e) {
+            check(false, "planos en alta sin excepciones: " + e);
+        } finally {
+            if (root != null) {
+                deleteTree(root);
             }
         }
     }

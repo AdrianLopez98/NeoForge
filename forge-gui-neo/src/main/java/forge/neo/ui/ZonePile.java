@@ -118,7 +118,13 @@ public class ZonePile extends VBox {
             // para lanzarla pagando vidas seria muy facil de hacer sin querer.
             top.setRotationEnabled(false);
             top.setBadgesVisible(false);
-            top.setMouseTransparent(true);
+            top.setMouseTransparent(onTopHover == null);
+            final CardNode node = top;
+            node.hoverProperty().addListener((o, was, is) -> {
+                if (is && onTopHover != null) {
+                    onTopHover.accept(node);
+                }
+            });
             pile.getChildren().add(pile.getChildren().indexOf(count), top);
         }
         top.setVisible(true);
@@ -157,6 +163,24 @@ public class ZonePile extends VBox {
     }
 
     private CardNode top;
+
+    /**
+     * Que hacer al pasar el raton por la carta de arriba, o null.
+     *
+     * <p>Por defecto la carta deja pasar el raton (ver {@link #setTopCard}). Con
+     * esto lo recibe, para el detalle y la carta grande del hover; el clic
+     * sigue subiendo a la pila y abre el visor. Lo usa la zona de mando del
+     * rival ({@code PlayerField}): ahi la carta es el comandante, y lo primero
+     * que se quiere es leerlo.
+     */
+    public void setOnTopHover(final java.util.function.Consumer<CardNode> handler) {
+        this.onTopHover = handler;
+        if (top != null) {
+            top.setMouseTransparent(handler == null);
+        }
+    }
+
+    private java.util.function.Consumer<CardNode> onTopHover;
 
     /** La carta que se esta ensenyando boca arriba, si hay alguna. */
     public forge.game.card.CardView getTopCard() {
