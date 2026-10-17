@@ -463,6 +463,23 @@ public final class NeoMain {
                 banner("Un pago opcional no se paga solo");
                 forge.neo.match.OptionalPayCheck.run();
                 break;
+            case "handabilitycheck":
+                // Ciclar sin querer: una carta de la mano que no se puede lanzar
+                // y que tocarla la ciclaria pregunta antes. Ver HandAbilityCheck.
+                banner("Ciclar sin querer");
+                forge.neo.match.HandAbilityCheck.run();
+                break;
+            case "loglinkscheck":
+                // Las cartas del registro: que trozos de una linea son una carta.
+                banner("Las cartas del registro");
+                forge.neo.match.LogLinksCheck.run();
+                break;
+            case "friendlycheck":
+                // "Agresividad de la IA contigo": en Commander, con el ajuste,
+                // la IA ataca a otra IA si no eres claramente la mayor amenaza.
+                banner("La IA amable");
+                forge.neo.match.FriendlyCheck.run();
+                break;
             case "replaycheck":
                 // Las repeticiones (Forge #12255): se graban segun el ajuste,
                 // la lista las lee y sus botones se traducen. Ver ReplayCheck.

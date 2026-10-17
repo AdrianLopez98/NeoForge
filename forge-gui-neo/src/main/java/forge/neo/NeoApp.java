@@ -463,6 +463,7 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 || args.contains("--mock-combat") || args.contains("--mock-damage")
                 || args.contains("--mock-gameover") || args.contains("--mock-pause")
                 || args.contains("--mock-settings") || args.contains("--mock-zoom")
+                || args.contains("--mock-log")
                 || args.contains("--nested-test") || args.contains("--mock-abilities")
                 || args.contains("--mock-banner") || args.contains("--mock-alert")
                 || args.contains("--mock-notice")
@@ -726,11 +727,16 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 if (args.contains("--mock-pause")) {
                     togglePauseMenu();
                 }
+                if (args.contains("--mock-log")) {
+                    // El registro con cartas (Discord, 17-10-2026): lineas de
+                    // muestra con su carta y nombres con numero de partida.
+                    mockGameLog();
+                }
                 if (args.contains("--mock-settings")) {
                     final SettingsPanel mockSettings = new SettingsPanel(
                             this, () -> table.getMenuOverlay().hide());
                     table.getMenuOverlay().show(mockSettings);
-                    // -Dneo.settings.tab=general|game|table|display|sound|art|modes|data
+                    // -Dneo.settings.tab=general|game|table|display|sound|art|modes|data|support
                     final String settingsTab = System.getProperty("neo.settings.tab");
                     if (settingsTab != null) {
                         mockSettings.showTab(settingsTab);
@@ -1393,8 +1399,26 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             }
         } else if (optionOf(args, "--home") != null) {
             // La pantalla de mazos de un formato, sin pasar por el menu.
-            showHome(NeoFormat.valueOf(
-                    optionOf(args, "--home").toUpperCase(java.util.Locale.ROOT)));
+            final NeoFormat homeFormat = NeoFormat.valueOf(
+                    optionOf(args, "--home").toUpperCase(java.util.Locale.ROOT));
+            showHome(homeFormat);
+            // -Dneo.home.reopenAt=N: a los N ms se quitan los filtros puestos
+            // con -D y se rehace la pantalla, como al volver del constructor:
+            // lo que se vea son los filtros que la pantalla ha recordado.
+            final int reopenAt = Integer.getInteger("neo.home.reopenAt", -1);
+            if (reopenAt >= 0) {
+                final javafx.animation.PauseTransition p =
+                        new javafx.animation.PauseTransition(javafx.util.Duration.millis(reopenAt));
+                p.setOnFinished(e -> {
+                    System.clearProperty("neo.home.filterFormat");
+                    System.clearProperty("neo.home.filterEra");
+                    System.clearProperty("neo.home.colours");
+                    System.clearProperty("neo.home.tab");
+                    showHome(homeFormat);
+                    System.out.println("[home] rehecha");
+                });
+                p.play();
+            }
             if (args.contains("--pick-rival") && home != null) {
                 // El selector del mazo de rival: hace falta un click para verlo.
                 home.openOpponentPicker(0, args.contains("--stock"));
@@ -1900,6 +1924,42 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 if (step.equals("@ok")) {
                     System.out.println("[mesa] pulso el boton grande");
                     table.getActionBar().pressPrimary();
+                    return;
+                }
+                // "x:Nombre": un clic de raton DE VERDAD sobre el "xN" de la pila
+                // de ese nombre (al atacar, atacan todas: Discord, 17-10-2026).
+                if (step.startsWith("x:")) {
+                    final String want = step.substring(2);
+                    for (final CardNode n : table.selfFieldNodes()) {
+                        if (n.getCard() == null || !want.equalsIgnoreCase(n.getCard().getName())
+                                || !(n.getParent() instanceof forge.neo.ui.CardStackNode stack)) {
+                            continue;
+                        }
+                        final javafx.geometry.Point2D at = stack.countCenterInScene();
+                        if (at == null) {
+                            continue;
+                        }
+                        System.out.println("[mesa] clic en el x" + stack.getStackSize() + " de " + want);
+                        javafx.event.Event.fireEvent(n, new javafx.scene.input.MouseEvent(
+                                javafx.scene.input.MouseEvent.MOUSE_CLICKED, at.getX(), at.getY(),
+                                at.getX(), at.getY(), javafx.scene.input.MouseButton.PRIMARY, 1,
+                                false, false, false, false, true, false, false, true, false, true, null));
+                        return;
+                    }
+                    System.out.println("[mesa] no hay pila de " + want);
+                    return;
+                }
+                // "@attacking": cuantas cartas tuyas estan atacando.
+                if (step.equals("@attacking")) {
+                    int attacking = 0;
+                    final TableBinder ab = binder;
+                    final forge.neo.match.NeoMatchUI aui = ab == null ? null : ab.getMatchUi();
+                    final forge.game.GameView agv = aui == null ? null : aui.getGameView();
+                    if (agv != null && agv.getCombat() != null) {
+                        attacking = agv.getCombat().getAttackers() == null ? 0
+                                : com.google.common.collect.Iterables.size(agv.getCombat().getAttackers());
+                    }
+                    System.out.println("[mesa] atacando: " + attacking);
                     return;
                 }
                 // "@cancel": el boton de la izquierda (Cancelar, o "Fin de
@@ -3799,6 +3859,52 @@ public class NeoApp extends Application implements SettingsPanel.Host {
     /** Los logros que se ha ido apuntando el motor. Se leen, no se juegan. */
     private forge.neo.ui.AchievementsScreen achievements;
 
+    /** La maqueta del registro con cartas ({@code --mock-log}). */
+    private void mockGameLog() {
+        final forge.card.CardDb db = forge.model.FModel.getMagicDb().getCommonCards();
+        // Fuera de una partida todas las cartas tienen id -1: se les da uno
+        // propio, que es lo que haria la partida (y lo que lleva el texto).
+        final java.util.Map<Integer, forge.game.card.CardView> byId = new java.util.HashMap<>();
+        final java.util.Map<forge.game.card.CardView, Integer> ids = new java.util.IdentityHashMap<>();
+        final java.util.function.Function<String, forge.game.card.CardView> card = name -> {
+            final forge.item.PaperCard pc = db.getCard(name);
+            final forge.game.card.CardView v = pc == null ? null : forge.game.card.CardView.getCardForUi(pc);
+            if (v != null) {
+                final int id = 170 + byId.size() * 43;
+                byId.put(id, v);
+                ids.put(v, id);
+            }
+            return v;
+        };
+        final forge.game.card.CardView tiny = card.apply("Tinybones, Pocket Nuisance");
+        final forge.game.card.CardView oni = card.apply("Oni of Wild Places");
+        final forge.game.card.CardView dragon = card.apply("Shimmer Dragon");
+        final forge.game.card.CardView hydra = card.apply("Whiptongue Hydra");
+        final forge.game.card.CardView swamp = card.apply("Swamp");
+        final java.util.List<forge.game.GameLogEntry> entries = new java.util.ArrayList<>();
+        final java.util.function.BiConsumer<forge.game.GameLogEntryType, Object[]> add = (type, o) ->
+                entries.add(new forge.game.GameLogEntry(type, (String) o[0], (forge.game.card.CardView) o[1]));
+        add.accept(forge.game.GameLogEntryType.TURN, new Object[] {"Turn 9 (Remingten)", null});
+        final java.util.function.Function<forge.game.card.CardView, Integer> id = v -> ids.getOrDefault(v, -1);
+        add.accept(forge.game.GameLogEntryType.LAND, new Object[] {"Remingten played Swamp (" + id.apply(swamp) + ")", swamp});
+        add.accept(forge.game.GameLogEntryType.STACK_ADD, new Object[] {"Remingten cast Tinybones, Pocket Nuisance", tiny});
+        add.accept(forge.game.GameLogEntryType.DISCARD, new Object[] {"Herbert discards Oni of Wild Places (" + id.apply(oni) + ").", null});
+        add.accept(forge.game.GameLogEntryType.DISCARD, new Object[] {"Lily discards Shimmer Dragon (" + id.apply(dragon) + ").", null});
+        add.accept(forge.game.GameLogEntryType.DISCARD, new Object[] {"Victor discards Whiptongue Hydra (" + id.apply(hydra) + ").", null});
+        add.accept(forge.game.GameLogEntryType.STACK_RESOLVE, new Object[] {
+                "When Tinybones enters, each opponent discards a card. [Zone Changer: Tinybones, Pocket Nuisance ("
+                        + id.apply(tiny) + ")]", tiny});
+        add.accept(forge.game.GameLogEntryType.LIFE, new Object[] {"Life: Herbert 40 > 37", null});
+        final forge.neo.ui.GameLogView view = new forge.neo.ui.GameLogView(() -> table.getMenuOverlay().hide());
+        view.update(entries, null, byId::get);
+        table.getMenuOverlay().show(view);
+        if (Boolean.getBoolean("neo.log.hoverFirst")) {
+            final PauseTransition t = new PauseTransition(Duration.millis(1500));
+            t.setOnFinished(e -> view.showFirstCardTip());
+            t.play();
+        }
+    }
+
     /** Las repeticiones (Forge #12255): la lista, y de ahi a verlas. */
     void showReplays() {
         scene.setRoot(new forge.neo.ui.ReplaysScreen(this::playReplay, this::showMainMenu));
@@ -4404,6 +4510,13 @@ public class NeoApp extends Application implements SettingsPanel.Host {
         // de JavaFX, la ventana se congelaria en el primer prompt.
         final Thread engine = new Thread(() -> {
             NeoMatchUI.Exit exit = NeoMatchUI.Exit.MENU;
+            // "Agresividad de la IA contigo": SOLO en una partida libre de
+            // Commander jugada por ti (decision del autor, 17-10-2026). Ni Quest,
+            // ni Ascenso, ni draft, ni torneo: esos no pasan por aqui.
+            if (format == forge.neo.match.NeoFormat.COMMANDER && mode == NeoMatchUI.Mode.HUMAN) {
+                forge.neo.match.FriendlyAttacks.arm(NeoSettings.getInt(
+                        forge.neo.match.FriendlyAttacks.SETTING, forge.neo.match.FriendlyAttacks.NORMAL));
+            }
             try {
                 // lastOpponentDecks lo deja puesto startFromHome. A null (modos
                 // de prueba) todos los rivales llevan el mazo del humano, que es
@@ -4430,6 +4543,7 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 System.err.println("[neo] la partida ha fallado: " + e);
                 e.printStackTrace();
             } finally {
+                forge.neo.match.FriendlyAttacks.disarm();
                 // play() no vuelve hasta que el match se cierra de verdad: al
                 // ganar o perder, o al salir desde el menu de pausa.
                 if (backToHome) {

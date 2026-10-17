@@ -146,17 +146,40 @@ public class GameLogView extends VBox {
      * @param me el jugador de abajo, para saber que resaltar
      */
     public void update(final GameLog log, final PlayerView me) {
-        lines.getChildren().clear();
+        update(log, me, null);
+    }
+
+    /**
+     * Lo mismo, con las cartas a la vista (Discord, 17-10-2026: <i>"clicking or
+     * hovering a card name can display a picture of it"</i>): la carta de cada
+     * linea en miniatura delante, y los nombres de carta subrayados; con el
+     * raton encima sale la carta, y con un clic, ampliada. Ver
+     * {@link forge.neo.match.LogCardLinks}.
+     *
+     * @param lookup carta por id de partida ({@code LogCardLinks.lookupIn}), o null
+     */
+    public void update(final GameLog log, final PlayerView me,
+                       final java.util.function.IntFunction<CardView> lookup) {
         if (log == null) {
+            this.lookup = lookup;
+            lines.getChildren().clear();
             return;
         }
+        update(log.getAllEntries(), me, lookup);
+    }
+
+    /** Lo mismo, con las entradas ya sacadas (tambien lo usa la maqueta {@code --mock-log}). */
+    public void update(final List<GameLogEntry> entries, final PlayerView me,
+                       final java.util.function.IntFunction<CardView> lookup) {
+        this.lookup = lookup;
+        lines.getChildren().clear();
 
         // OJO: getAllEntries() ya viene en ORDEN DE INSERCION, o sea lo mas
         // viejo primero — el que devuelve lo reciente primero es getLogEntries.
         // Aqui habia un reverse() por esa confusion, y luego otro sobre los
         // grupos que lo tapaba a medias: los turnos salian en orden pero las
         // lineas de dentro al reves. Se lee tal cual.
-        final List<GameLogEntry> all = log.getAllEntries();
+        final List<GameLogEntry> all = entries;
 
         // El nombre DE PARTIDA, no el del perfil: las lineas del registro las
         // escribe el motor con Player.toString(), que es el desempatado. Con
@@ -228,7 +251,17 @@ public class GameLogView extends VBox {
         return l;
     }
 
-    private static Region line(final GameLogEntry entry, final boolean mine) {
+    /** Carta por id, para los nombres con numero; null sin partida. */
+    private java.util.function.IntFunction<CardView> lookup;
+
+    private Region line(final GameLogEntry entry, final boolean mine) {
+        final List<forge.neo.match.LogCardLinks.Piece> pieces =
+                forge.neo.match.LogCardLinks.split(entry.message(), entry.sourceCard(), lookup);
+        final boolean anyCard = entry.sourceCard() != null
+                || pieces.stream().anyMatch(p -> p.card() != null);
+        if (anyCard) {
+            return cardLine(entry, mine, pieces);
+        }
         final Label l = new Label(entry.message());
         l.getStyleClass().add("log-line");
         l.getStyleClass().add(styleFor(entry.type()));
@@ -239,6 +272,101 @@ public class GameLogView extends VBox {
         l.setMaxWidth(Double.MAX_VALUE);
         l.setMinHeight(Region.USE_PREF_SIZE);
         return l;
+    }
+
+    /**
+     * Una linea con cartas: la miniatura de la suya delante, y el texto con los
+     * nombres subrayados. El color y la negrita son los de siempre
+     * ({@code .log-flow} en neo.css repite los de {@code .log-line}).
+     */
+    private Region cardLine(final GameLogEntry entry, final boolean mine,
+                            final List<forge.neo.match.LogCardLinks.Piece> pieces) {
+        final javafx.scene.text.TextFlow flow = new javafx.scene.text.TextFlow();
+        flow.getStyleClass().addAll("log-flow", styleFor(entry.type()));
+        if (mine) {
+            flow.getStyleClass().add("log-mine");
+        }
+        for (final forge.neo.match.LogCardLinks.Piece p : pieces) {
+            final javafx.scene.text.Text t = new javafx.scene.text.Text(p.text());
+            // Un Text no lleva clase de estilo de fabrica: sin esta, el CSS no lo ve.
+            t.getStyleClass().add("log-text");
+            if (p.card() != null) {
+                t.getStyleClass().add("log-card");
+                linkTo(t, p.card());
+            }
+            flow.getChildren().add(t);
+        }
+        HBox.setHgrow(flow, Priority.ALWAYS);
+        flow.setMaxWidth(Double.MAX_VALUE);
+
+        final HBox row = new HBox(6);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.getStyleClass().add("log-row");
+        final CardView source = entry.sourceCard();
+        if (source != null) {
+            final forge.neo.card.CardNode thumb = new forge.neo.card.CardNode(UiScale.px(22));
+            thumb.setHoverEnabled(false);
+            thumb.setCard(source);
+            thumb.getStyleClass().add("log-thumb");
+            linkTo(thumb, source);
+            row.getChildren().add(thumb);
+        } else {
+            // Sin carta de la linea, un hueco del mismo ancho: el texto alineado.
+            final Region gap = new Region();
+            gap.setMinWidth(UiScale.px(22));
+            row.getChildren().add(gap);
+        }
+        row.getChildren().add(flow);
+        return row;
+    }
+
+    /**
+     * Con el raton encima, la carta (no un texto: la imagen, a tamanyo de
+     * leer); con un clic, ampliada como en el resto del juego. El zoom va en su
+     * propia capa, encima del registro (principio 10: esto es consultar).
+     */
+    private static void linkTo(final javafx.scene.Node node, final CardView card) {
+        node.setCursor(javafx.scene.Cursor.HAND);
+        final javafx.scene.control.Tooltip tip = new javafx.scene.control.Tooltip();
+        tip.getStyleClass().add("log-card-tip");
+        tip.setShowDelay(javafx.util.Duration.millis(150));
+        tip.setHideDelay(javafx.util.Duration.millis(50));
+        tip.setShowDuration(javafx.util.Duration.INDEFINITE);
+        tip.setOnShowing(e -> {
+            // Se fabrica al ensenyarla y no antes: un registro de 80 turnos son
+            // cientos de enlaces, y la mayoria no se miran nunca.
+            if (tip.getGraphic() == null) {
+                final forge.neo.card.CardNode big = new forge.neo.card.CardNode(UiScale.px(230));
+                big.setHoverEnabled(false);
+                big.setCard(card);
+                tip.setGraphic(big);
+            }
+        });
+        javafx.scene.control.Tooltip.install(node, tip);
+        // Para la maqueta: poder ensenyarla sin raton.
+        node.getProperties().put(LOG_TIP, tip);
+        node.setOnMouseClicked(e -> {
+            tip.hide();
+            CardZoom.show(node, card);
+            e.consume();
+        });
+    }
+
+    static final String LOG_TIP = "neo.log.tip";
+
+    /** Solo pruebas ({@code -Dneo.log.hoverFirst=true}): la carta del primer nombre, como al pasar el raton. */
+    public void showFirstCardTip() {
+        final javafx.scene.Node first = lines.lookup(".log-card");
+        if (first == null) {
+            return;
+        }
+        final Object tip = first.getProperties().get(LOG_TIP);
+        if (tip instanceof javafx.scene.control.Tooltip t) {
+            final javafx.geometry.Bounds b = first.localToScreen(first.getBoundsInLocal());
+            if (b != null) {
+                t.show(first, b.getMaxX() + 12, b.getMinY());
+            }
+        }
     }
 
     /** Un color por clase de suceso: se distingue sin leer. */

@@ -206,7 +206,11 @@ public final class SafeAi {
                 // bloquear solo si alguien te ataca. Con una prueba que
                 // depende de que te ataquen, unas veces se ejecuta y otras no.
                 boom();
-                super.declareAttackers(attacker, combat);
+                // "Agresividad de la IA contigo" (FriendlyAttacks): en una
+                // partida libre de Commander con el ajuste puesto, decide sin
+                // ti si no eres claramente la mayor amenaza. Si no, como
+                // siempre.
+                FriendlyAttacks.declare(attacker, combat, () -> super.declareAttackers(attacker, combat));
             } catch (final RuntimeException | StackOverflowError e) {
                 // Sin atacantes: esta IA se queda en casa este turno.
                 if (!GUARD) {

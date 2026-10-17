@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
-import forge.card.ColorSet;
 import forge.card.MagicColor;
 import forge.deck.Deck;
 import forge.game.card.CardView;
@@ -1711,20 +1710,17 @@ public class DeckBuilderScreen extends StackPane {
 
     private void refreshCatalogue() {
         updateFilterToggle();
-        // Dentro del grupo de color se SUMA: verde, o incolora, o multicolor.
+        // El color: las de esos colores, las tierras que los dan, y las
+        // multicolor solo con "M" (o con todos sus colores marcados). Es
+        // ColourFilter, el mismo que Android (Discord, 17-10-2026).
+        byte mask = 0;
+        for (final byte c : colours) {
+            mask |= c;
+        }
+        final byte colourMask = mask;
         final Predicate<PaperCard> colourFilter =
-                colours.isEmpty() && !colourlessOn && !multicolourOn ? null : card -> {
-            final ColorSet id = card.getRules().getColorIdentity();
-            for (final byte c : colours) {
-                if (id.hasAnyColor(c)) {
-                    return true;
-                }
-            }
-            if (colourlessOn && id.isColorless()) {
-                return true;
-            }
-            return multicolourOn && id.countColors() > 1;
-        };
+                colours.isEmpty() && !colourlessOn && !multicolourOn ? null
+                        : card -> forge.neo.deck.ColourFilter.matches(card, colourMask, colourlessOn, multicolourOn);
 
         // Lo ya puesto del todo se pregunta UNA vez, sobre el mazo: carta a
         // carta del catalogo serian 33.000 recorridos (ver usedUpNames). En

@@ -1971,6 +1971,55 @@
     -fx-font-weight: bold;
 }
 
+/* La pestanya de apoyar el proyecto, con el rojo del corazon de Ko-fi para
+   que se vea que no es un ajuste mas (17-10-2026). */
+.settings-tab-support { -fx-text-fill: #FF7A77; }
+.settings-tab-support:selected { -fx-background-color: #FF5E5B; -fx-text-fill: #0B0E13; }
+
+.support-card {
+    -fx-background-color: -neo-panel;
+    -fx-background-radius: 8;
+    -fx-border-color: -neo-line;
+    -fx-border-radius: 8;
+    -fx-padding: 22 26 22 26;
+}
+.support-title {
+    -fx-font-size: 1.35em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -neo-text;
+}
+.support-text {
+    -fx-font-size: 0.98em;
+    -fx-text-fill: -neo-text;
+    -fx-line-spacing: 3;
+}
+.support-thanks {
+    -fx-font-size: 0.95em;
+    -fx-font-style: italic;
+    -fx-text-fill: -neo-text-dim;
+}
+/* Valorar en itch.io: secundario, en el ambar de "decision pendiente". */
+.support-rate {
+    -fx-background-color: transparent;
+    -fx-border-color: -neo-warn;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-text-fill: -neo-warn;
+    -fx-font-weight: bold;
+    -fx-font-size: 0.95em;
+    -fx-padding: 8 16 8 16;
+    -fx-cursor: hand;
+}
+.support-rate:hover { -fx-background-color: rgba(224, 166, 60, 0.12); }
+/* Los botones de la cabecera, con su nombre al lado del logo. */
+.support-link {
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-font-size: 0.95em;
+    -fx-graphic-text-gap: 10;
+    -fx-padding: 9 16 9 12;
+}
+
 .settings-label {
     -fx-font-size: 0.95em;
     -fx-text-fill: -neo-text;
@@ -2587,6 +2636,37 @@
 .game-log .log-mine {
     -fx-font-weight: bold;
     -fx-text-fill: -neo-text;
+}
+
+/* Las lineas con cartas (Discord, 17-10-2026): la miniatura delante y los
+   nombres subrayados. Un TextFlow no tiene -fx-text-fill: sus Text llevan
+   -fx-fill, asi que aqui se repiten los colores de .log-line uno a uno. */
+.game-log .log-row {
+    -fx-padding: 1 0 1 0;
+}
+.game-log .log-flow > .log-text {
+    -fx-font-size: 0.78em;
+    -fx-fill: -neo-text-dim;
+}
+.game-log .log-flow.log-damage > .log-text { -fx-fill: -neo-danger; }
+.game-log .log-flow.log-spell > .log-text  { -fx-fill: -neo-text; }
+.game-log .log-flow.log-zone > .log-text   { -fx-fill: -neo-warn; }
+.game-log .log-flow.log-mine > .log-text {
+    -fx-font-weight: bold;
+    -fx-fill: -neo-text;
+}
+.game-log .log-flow > .log-text.log-card {
+    -fx-underline: true;
+    -fx-fill: -neo-accent;
+}
+.game-log .log-flow > .log-text.log-card:hover {
+    -fx-fill: -neo-text;
+}
+/* La carta al pasar el raton: solo la imagen, sin la caja del tooltip. */
+.log-card-tip {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.6), 18, 0.2, 0, 4);
 }
 
 .game-log .log-turn {

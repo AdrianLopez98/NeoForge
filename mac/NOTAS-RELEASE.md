@@ -1,14 +1,15 @@
-**NeoForge para macOS 1.0.25 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.26 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Repeticiones:** tus últimas 20 partidas contra la IA se graban solas y se vuelven a ver desde «Repeticiones», en el pie del menú, con pausa y velocidad (×1 a ×8). Se apaga en Ajustes.
-- **La IA que piensa se ve:** si tarda más de 2 s en decidir, el borde de su retrato se vuelve ámbar y se vacía hasta su tiempo límite. El ajuste del tiempo vale ahora para cada decisión (con opción de 60 s).
-- **Teclas 1, 2, 3… para contestar** en el menú de habilidades y en los diálogos, y las macros recuerdan más elecciones.
-- **La zona de mando del rival, a la vista**, y una elección que no sale de la pila dice de qué carta viene.
-- **Quest:** cuántas tienes de cada carta del botín y venderla ahí mismo, la tienda avisa de lo que falta en tus mazos, y el arte de una carta se puede cambiar aunque no lo tengas.
-- **Buscadores:** miran también el texto de reglas, y filtro de color al elegir mazo.
-- **Draft y sellado:** sobres al azar.
-- **Arreglos:** los planos en alta calidad, y clicar otra vez una fuente de maná ya no deshace si le queda algo que hacer. El registro, en inglés.
+- **Agresividad de la IA contigo (Commander):** Normal (de fábrica), Baja o Muy baja. Con Baja o Muy baja, las IA prefieren atacarse entre ellas salvo que seas claramente la mayor amenaza.
+- **El registro, con las cartas:** cada línea lleva la miniatura de su carta y los nombres van subrayados; al pasar el ratón sale la carta y un clic la amplía.
+- **Estadísticas al final de la partida:** quién hizo más daño, la carta que más pegó, el golpe más grande, hechizos y criaturas.
+- **Ciclar sin querer, se acabó:** si una carta de la mano no se puede lanzar ahora y tocarla solo la ciclaría, pregunta antes.
+- **Lista de mazos:** el filtro (búsqueda, colores, formato, expansión y pestaña) se recuerda al volver de editar; Commander tiene filtro de formato y de expansión, y los preconstruidos de Commander salen con su expansión de verdad; el mazo de cada rival también se recuerda.
+- **Constructor:** el filtro de color enseña las cartas de ese color (y las tierras que lo dan), no todas las multicolores.
+- **Un clic en el «×N» de una pila de fichas iguales ataca con todas**, como en Arena.
+- **Ordenar muchos disparos:** el botón «Auto» sale también con más de 60.
+- **Pestaña «Apoyar» en Ajustes,** con Ko-fi, itch.io y un botón para valorar el juego.
 - **Forge al día.**
 
 Descarga el `.dmg` de tu Mac:

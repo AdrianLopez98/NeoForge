@@ -771,10 +771,7 @@ public class QuestShopScreen extends StackPane {
             }
             // Se busca por el nombre que se VE, que en castellano no es el
             // ingles. Es la misma regla que en el deck builder.
-            final String shown = forge.neo.card.CardText.nameOf(c).toLowerCase(Locale.ROOT);
-            if ((q.isEmpty() || shown.contains(q)
-                    || c.getName().toLowerCase(Locale.ROOT).contains(q)
-                    || matchesTypeOrText(c, q)) && passesSingleFilters(c)) {
+            if ((q.isEmpty() || matchesSearch(c, q)) && passesSingleFilters(c)) {
                 singlesShown.add(c);
             }
         }
@@ -800,18 +797,27 @@ public class QuestShopScreen extends StackPane {
      * mostrador son unos cientos de cartas, asi que se mira todo siempre, sin
      * interruptor.
      */
-    private static boolean matchesTypeOrText(final PaperCard c, final String q) {
+    private static boolean matchesSearch(final PaperCard c, final String q) {
+        // Cada palabra en cualquiera de estos, en cualquier orden
+        // (forge.neo.deck.SearchTerms, 16-10-2026): "flying vigilance".
+        final String shown = forge.neo.card.CardText.nameOf(c).toLowerCase(Locale.ROOT);
+        final String name = c.getName().toLowerCase(Locale.ROOT);
         if (c.getRules() == null) {
-            return false;
+            return forge.neo.deck.SearchTerms.matches(q, shown, name);
         }
-        final String type = c.getRules().getType() == null ? "" : c.getRules().getType().toString();
-        final String oracle = c.getRules().getOracleText() == null ? "" : c.getRules().getOracleText();
-        if (type.toLowerCase(Locale.ROOT).contains(q) || oracle.toLowerCase(Locale.ROOT).contains(q)
-                || forge.neo.card.CardText.typeOf(c).toLowerCase(Locale.ROOT).contains(q)) {
-            return true;
+        final String type = c.getRules().getType() == null ? ""
+                : c.getRules().getType().toString().toLowerCase(Locale.ROOT);
+        final String oracle = c.getRules().getOracleText() == null ? ""
+                : c.getRules().getOracleText().toLowerCase(Locale.ROOT);
+        final String typeShown = forge.neo.card.CardText.typeOf(c).toLowerCase(Locale.ROOT);
+        String translated = null;
+        try {
+            translated = forge.util.CardTranslation.getTranslatedOracle(c.getName());
+        } catch (final RuntimeException ignored) {
+            // sin traduccion
         }
-        final String translated = forge.util.CardTranslation.getTranslatedOracle(c.getName());
-        return translated != null && translated.toLowerCase(Locale.ROOT).contains(q);
+        return forge.neo.deck.SearchTerms.matches(q, shown, name, type, oracle, typeShown,
+                translated == null ? null : translated.toLowerCase(Locale.ROOT));
     }
 
     private void paintSingles() {
@@ -1586,9 +1592,8 @@ public class QuestShopScreen extends StackPane {
                 continue;
             }
             // Por el nombre que se VE, como en el resto de la aplicacion.
-            final String shown = forge.neo.card.CardText.nameOf(c).toLowerCase(Locale.ROOT);
-            if (q.isEmpty() || shown.contains(q)
-                    || c.getName().toLowerCase(Locale.ROOT).contains(q)) {
+            // Y por su tipo y su texto, como el resto de buscadores.
+            if (q.isEmpty() || matchesSearch(c, q)) {
                 sellShown.add(c);
             }
         }
@@ -2864,7 +2869,7 @@ public class QuestShopScreen extends StackPane {
                     : find.getText().trim().toLowerCase(Locale.ROOT);
             shown = new ArrayList<>();
             for (final T item : items) {
-                if (!q.isEmpty() && !haystack(item).contains(q)) {
+                if (!q.isEmpty() && !forge.neo.deck.SearchTerms.matches(q, haystack(item))) {
                     continue;
                 }
                 if (affordable.isSelected() && NeoQuest.credits() < pricing.applyAsInt(item)) {

@@ -242,6 +242,13 @@ public class BattlefieldPane extends Pane {
         this.onClick = handler;
     }
 
+    /** Que hacer al clicar el "xN" de una pila de fichas: recibe todas sus cartas. */
+    public void setOnStackCountClick(final Consumer<java.util.List<forge.game.card.CardView>> handler) {
+        this.onStackCountClick = handler;
+    }
+
+    private Consumer<java.util.List<forge.game.card.CardView>> onStackCountClick;
+
     /**
      * Que hacer al clicar el contador de lo enganchado, cuando va apilado
      * ({@code NeoSettings.ATTACHMENTS_STACKED}). La mesa lo abre en el visor.
@@ -342,6 +349,7 @@ public class BattlefieldPane extends Pane {
                 node.getFront().setCard(members.get(0));
             }
 
+            node.setMembers(members);
             node.setAttachmentHandlers(this::fireClick, this::fireHover);
             node.setOnAttachPeek((host, carried) -> {
                 if (onAttachPeek != null) {
@@ -495,6 +503,11 @@ public class BattlefieldPane extends Pane {
         node.getFront().setOnMouseClicked(e -> {
             // El derecho lo usa la mesa para ampliar la carta.
             if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY) {
+                // Sobre el "xN": la pila entera (al atacar, atacan todas).
+                if (onStackCountClick != null && node.countHit(e.getSceneX(), e.getSceneY())) {
+                    onStackCountClick.accept(node.getMembers());
+                    return;
+                }
                 fireClick(node.getFront());
             }
         });

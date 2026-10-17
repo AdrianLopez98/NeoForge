@@ -154,6 +154,25 @@ et}) y no se tocan.
     private static Tab lastViewTab;
     private static String lastViewCollection;
 
+    /**
+     * Y lo que tenias filtrado, mientras dure la sesion y por formato (Discord,
+     * 17-10-2026: <i>"if we then back out, the filter we had set is reset ...
+     * if I want to view different precon decks in say Premodern, I have to
+     * keep going back and entering the filter each time"</i>). Al volver del
+     * constructor la pantalla se rehace entera: sin esto, la busqueda, los
+     * colores, el formato, la epoca y la pagina volvian a cero.
+     */
+    private static forge.neo.match.NeoFormat lastFilterFor;
+    private static String lastSearch = "";
+    private static int lastColours;
+    private static forge.neo.match.NeoFormat lastLegalIn;
+    private static String lastEraCode;
+    private static int lastFirstItem;
+
+    /** Hasta que se han repuesto los filtros, {@link #fillGrid} no los apunta. */
+    private boolean filtersRestored;
+    private final java.util.Map<Integer, Button> colourButtonByBit = new java.util.LinkedHashMap<>();
+
     /** Cuantos mazos por pagina. Con cientos de golpe, la rejilla se arrastra. */
     private static final int MAX_TILES = 60;
 
@@ -222,6 +241,7 @@ et}) y no se tocan.
             b.setMinWidth(Region.USE_PREF_SIZE);
             b.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("home.colour.tip")));
             b.pseudoClassStateChanged(selectedState, (colourFilter & bit) != 0);
+            colourButtonByBit.put(bit, b);
             b.setOnAction(e -> {
                 colourFilter ^= bit;
                 b.pseudoClassStateChanged(selectedState, (colourFilter & bit) != 0);
@@ -367,6 +387,7 @@ et}) y no se tocan.
                 decks.addAll(in);
             }
         }
+        restoreRivals();
         // Si no tienes ninguno propio, se abre por el catalogo de Forge: una
         // pestanya vacia como primera impresion no ayuda a nadie.
         showing = mine.isEmpty() && collections.isEmpty() ? Tab.STOCK : Tab.MINE;
@@ -378,6 +399,9 @@ et}) y no se tocan.
         layout.setCenter(deckGrid());
         layout.setBottom(footer(onStart));
         getChildren().addAll(layout, overlay);
+
+        // Lo que tenias filtrado en este formato, antes de rehacer la rejilla.
+        final int firstItem = restoreFilters();
 
         // Se abre por donde lo dejaste la ultima vez.
         final String last = NeoSettings.get(NeoSettings.DECK, null);
@@ -434,6 +458,10 @@ et}) y no se tocan.
             fillGrid();
         } else if (!decks.isEmpty()) {
             initial = source().isEmpty() ? decks.get(0) : source().get(0);
+        }
+        // Y la pagina en la que estabas (despues de la pestanya: es de su lista).
+        if (firstItem > 0) {
+            pager.goToItem(firstItem);
         }
         select(initial);
         restoreRandom();
@@ -742,6 +770,33 @@ et}) y no se tocan.
         }
     }
 
+    /**
+     * Repone lo filtrado la ultima vez en este formato (ver {@link #lastFilterFor})
+     * y devuelve el primer mazo de la pagina en la que estabas, o 0.
+     */
+    private int restoreFilters() {
+        int firstItem = 0;
+        if (lastFilterFor == format) {
+            colourFilter = lastColours;
+            final javafx.css.PseudoClass selectedState = javafx.css.PseudoClass.getPseudoClass("selected");
+            colourButtonByBit.forEach((bit, b) -> b.pseudoClassStateChanged(selectedState, (colourFilter & bit) != 0));
+            final int f = lastLegalIn == null ? -1 : formatChoices.indexOf(lastLegalIn);
+            if (f >= 0) {
+                formatFilter.getSelectionModel().select(f + 1);
+            }
+            for (int i = 0; lastEraCode != null && i < eraChoices.size(); i++) {
+                if (eraChoices.get(i).getCode().equalsIgnoreCase(lastEraCode)) {
+                    eraFilter.getSelectionModel().select(i + 1);
+                }
+            }
+            search.setText(lastSearch == null ? "" : lastSearch);
+            firstItem = lastFirstItem;
+        }
+        filtersRestored = true;
+        fillGrid();
+        return firstItem;
+    }
+
     /** El formato elegido en el filtro, o null si es "cualquiera". */
     private forge.neo.match.NeoFormat filterFormat() {
         final int i = formatFilter.getSelectionModel().getSelectedIndex();
@@ -902,9 +957,14 @@ et}) y no se tocan.
             e.getValue().pseudoClassStateChanged(SELECTED,
                     showing == Tab.COLLECTION && e.getKey().equalsIgnoreCase(collection));
         }
-        lastViewFormat = format;
-        lastViewTab = showing;
-        lastViewCollection = collection;
+        // Solo despues de haber leido la anterior: al montar la pantalla,
+        // rebuildTabRow pasa por aqui con "Mis mazos" y pisaba la pestanya que
+        // se queria reponer (la de volver del constructor no se recordaba).
+        if (filtersRestored) {
+            lastViewFormat = format;
+            lastViewTab = showing;
+            lastViewCollection = collection;
+        }
     }
 
     // ---------------------------------------------------------------
@@ -1148,6 +1208,14 @@ et}) y no se tocan.
         }
 
         pager.setTotal(hits.size());
+        if (filtersRestored) {
+            lastFilterFor = format;
+            lastSearch = search.getText();
+            lastColours = colourFilter;
+            lastLegalIn = legalIn;
+            lastEraCode = era == null ? null : era.getCode();
+            lastFirstItem = pager.from();
+        }
 
         grid.getChildren().clear();
         tiles.clear();
@@ -1782,6 +1850,49 @@ et}) y no se tocan.
         }
     }
 
+    /**
+     * Lo que se eligio para cada rival la ultima vez, en este formato (Discord,
+     * 17-10-2026: <i>"retain AI random deck selection of a collection between
+     * matches? It keeps resetting back to all decks"</i>). La pantalla se
+     * rehace al volver de cada partida, y esto vivia solo en ella. Un mazo o
+     * una coleccion que ya no existen vuelven a "al azar", sin aviso.
+     */
+    private void restoreRivals() {
+        for (int i = 0; i < 3; i++) {
+            final String saved = NeoSettings.rivalDeck(format, i);
+            if (saved.startsWith("pool:")) {
+                final String key = saved.substring(5);
+                if (!key.startsWith("c:") || collections.containsKey(key.substring(2))) {
+                    while (opponentDecks.size() <= i) {
+                        opponentDecks.add(null);
+                    }
+                    opponentPools.put(i, key);
+                }
+            } else if (saved.startsWith("deck:")) {
+                final String name = saved.substring(5);
+                Deck d = findByName(decks, name);
+                if (d == null) {
+                    d = findByName(net, name);
+                }
+                if (d != null) {
+                    while (opponentDecks.size() <= i) {
+                        opponentDecks.add(null);
+                    }
+                    opponentDecks.set(i, d);
+                }
+            }
+        }
+    }
+
+    /** Guarda lo elegido para ese rival, en cuanto se elige (ver {@link #restoreRivals}). */
+    private void saveRival(final int index) {
+        final String pool = opponentPools.get(index);
+        final Deck d = index < opponentDecks.size() ? opponentDecks.get(index) : null;
+        NeoSettings.setRivalDeck(format, index,
+                pool != null ? "pool:" + pool : d != null ? "deck:" + d.getName() : "");
+        NeoSettings.save();
+    }
+
     private void pickOpponentDeck(final int index) {
         // "Los tuyos" del selector del rival: los SUELTOS. Los de las colecciones
         // van en su pestanya (setCollections), como en la pantalla de mazos.
@@ -1794,6 +1905,7 @@ et}) y no se tocan.
                     }
                     opponentDecks.set(index, chosen);
                     opponentPools.remove(index);
+                    saveRival(index);
                     opponentCommanders.remove(index);
                     rivalCommanderButtons.remove(index);
                     rebuildOpponentRow();
@@ -1820,6 +1932,7 @@ et}) y no se tocan.
             }
             opponentDecks.set(index, null);
             opponentPools.put(index, key);
+            saveRival(index);
             opponentCommanders.remove(index);
             rivalCommanderButtons.remove(index);
             rebuildOpponentRow();

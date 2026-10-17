@@ -826,6 +826,20 @@ public final class NeoSettings {
      */
     public static final String CONFIRM_ACTIVATE = "confirmActivate";
 
+    /**
+     * Preguntar antes de que tocar una carta de la mano la cicle (o use otra
+     * habilidad desde la mano) en vez de lanzarla: pasa con algo en la pila,
+     * cuando la carta no se puede lanzar y ciclarla es lo unico que puede hacer
+     * (Discord, 17-10-2026). ENCENDIDO de fabrica, por decision del autor: es un
+     * accidente que tiene casi todo el mundo y solo pregunta en ese caso. Ver
+     * {@code ActivateGuard.handAbilityFor}.
+     */
+    public static final String CONFIRM_HAND_ABILITY = "confirmHandAbility";
+
+    public static boolean confirmHandAbility() {
+        return getBool(CONFIRM_HAND_ABILITY, true);
+    }
+
     public static boolean confirmActivate() {
         return getBool(CONFIRM_ACTIVATE, false);
     }
@@ -1104,6 +1118,23 @@ public final class NeoSettings {
 
     public static void setOpponents(final forge.neo.match.NeoFormat format, final int n) {
         setInt(OPPONENTS + "." + format.name(), n);
+    }
+
+    /**
+     * Con que mazo juega el rival {@code seat} (0, 1, 2) de este formato: el
+     * nombre de un mazo, o la clave de un sorteo ("Al azar de <coleccion>"), o
+     * vacio = al azar entre todos. Cada pantalla guarda su propia clave; aqui
+     * solo se guarda (Discord, 17-10-2026: <i>"retain AI random deck selection
+     * of a collection between matches? It keeps resetting back to all
+     * decks"</i>). Por formato, como {@link #opponents}.
+     */
+    public static String rivalDeck(final forge.neo.match.NeoFormat format, final int seat) {
+        return get("rivalDeck." + format.name() + "." + seat, "");
+    }
+
+    public static void setRivalDeck(final forge.neo.match.NeoFormat format, final int seat,
+                                    final String choice) {
+        set("rivalDeck." + format.name() + "." + seat, choice == null ? "" : choice);
     }
 
     /** Los equipos de este formato. Por formato por lo mismo que {@link #opponents}. */

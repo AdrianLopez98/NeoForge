@@ -58,13 +58,19 @@ public final class DeckEra {
     private static final Map<NeoFormat, Map<Deck, Boolean>> LEGAL = new LinkedHashMap<>();
 
     /**
-     * Si el filtro de formato tiene sentido para la lista de ese formato: solo
-     * en construido de 60 cartas (Estandar y sus "otros formatos").
+     * Si el filtro de formato tiene sentido para la lista de ese formato: en
+     * construido de 60 cartas (Estandar y sus "otros formatos") y, desde el
+     * 17-10-2026, en los de comandante (Discord: <i>"Commander mode, could we
+     * add a filter for Formats and sets please. Same as we have in
+     * Standard"</i>) — los preconstruidos de Commander son de muchas epocas, y
+     * "solo cartas de Premodern" o "de Pauper" tambien es una pregunta que se
+     * le hace a un mazo de 100. Lo que no: draft, sellado y los demas
+     * limitados, cuyas listas no son de construido.
      */
     public static boolean appliesTo(final NeoFormat listFormat) {
         return listFormat != null
-                && listFormat.getGameType() == forge.game.GameType.Constructed
-                && !listFormat.isCommanderStyle();
+                && (listFormat.getGameType() == forge.game.GameType.Constructed
+                        || listFormat.isCommanderStyle());
     }
 
     /**
@@ -81,6 +87,9 @@ public final class DeckEra {
             }
         }
         CardEdition era = preconEdition(deck);
+        if (era == null) {
+            era = nameEdition(deck);
+        }
         if (era == null) {
             try {
                 final CardEdition found = StaticData.instance().getEditions()
@@ -132,6 +141,35 @@ public final class DeckEra {
             }
         }
         return known.get(deck);
+    }
+
+    /** "Adaptive Enchantment [C18] [2018]": la expansion y el anyo al final del nombre. */
+    private static final java.util.regex.Pattern NAMED_SET =
+            java.util.regex.Pattern.compile("\\[([A-Za-z0-9]{2,6})\\]\\s*\\[\\d{4}\\]\\s*$");
+
+    /**
+     * La expansion que dice el NOMBRE del mazo, como los preconstruidos de
+     * Commander de Forge ({@code res/quest/commanderprecons}): "Adaptive
+     * Enchantment [C18] [2018]". Su fichero declara {@code Set=C18}, pero el
+     * {@code Deck} no lo guarda, y la regla de las cartas con ellos no vale:
+     * 136 de los 180 salian de "TMC" (Discord, 17-10-2026, el filtro de
+     * expansion en Commander). Solo si el codigo es una expansion que existe.
+     */
+    private static CardEdition nameEdition(final Deck deck) {
+        final String name = deck.getName();
+        if (name == null) {
+            return null;
+        }
+        final java.util.regex.Matcher m = NAMED_SET.matcher(name);
+        if (!m.find()) {
+            return null;
+        }
+        try {
+            final CardEdition ed = StaticData.instance().getEditions().get(m.group(1));
+            return ed == null || ed == CardEdition.UNKNOWN ? null : ed;
+        } catch (final RuntimeException e) {
+            return null;
+        }
     }
 
     /** Si todas las cartas del mazo son legales en ese formato. */

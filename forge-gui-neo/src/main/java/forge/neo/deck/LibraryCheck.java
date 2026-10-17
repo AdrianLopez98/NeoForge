@@ -221,6 +221,27 @@ public final class LibraryCheck {
         tq.rulesText = false;
         check("y sin texto de reglas no", !hasName(lib.find(tq), "Sol Ring"));
 
+        // Cada palabra, en cualquier orden y en cualquier sitio (SearchTerms,
+        // 16-10-2026): "flying, dou" sacaba a Zetalpa y "flying, vigi" no,
+        // porque entre las dos tiene "double strike".
+        tq.rulesText = true;
+        tq.text = "flying, vigilance";
+        check("\"flying, vigilance\" encuentra a Zetalpa (tiene otra cosa en medio)",
+                hasName(lib.find(tq), "Zetalpa, Primal Dawn"));
+        tq.text = "vigilance flying";
+        check("y en el otro orden, sin coma, tambien", hasName(lib.find(tq), "Zetalpa, Primal Dawn"));
+        tq.text = "defender";
+        check("\"defender\" encuentra los muros por su texto", hasName(lib.find(tq), "Wall of Omens"));
+        tq.text = "\"double strike\" indestructible";
+        check("entre comillas, la frase exacta", hasName(lib.find(tq), "Zetalpa, Primal Dawn"));
+        tq.rulesText = false;
+        tq.text = "bolt lightning";
+        check("un nombre de dos palabras sale en cualquier orden", hasName(lib.find(tq), "Lightning Bolt"));
+        tq.text = "";
+        final String[] parsed = SearchTerms.parse("\"Double Strike\", elf;  ");
+        check("las palabras: la frase entre comillas y \"elf\" (" + String.join("|", parsed) + ")",
+                parsed.length == 2 && parsed[0].equals("double strike") && parsed[1].equals("elf"));
+
         artPolicy();
 
         System.out.println();

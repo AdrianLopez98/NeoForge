@@ -183,6 +183,31 @@ public class GameOverScreen extends VBox {
     }
 
     /**
+     * "Estadisticas", justo detras de "Registro" (Discord, 17-10-2026: <i>"a
+     * post game review"</i>). Tampoco contesta al motor: va en la capa de
+     * consultar, como el registro. Se llama despues de {@link #addLookButtons}.
+     *
+     * @param onStats abre las estadisticas, o null para no ponerlo
+     */
+    public void addStatsButton(final Runnable onStats) {
+        if (onStats == null) {
+            return;
+        }
+        final Button stats = new Button(NeoText.get("stats.button"));
+        stats.getStyleClass().add("btn-secondary");
+        stats.setOnAction(e -> onStats.run());
+        // Detras de "Registro" si lo hay; si no, el primero.
+        int at = 0;
+        for (int i = 0; i < buttons.getChildren().size(); i++) {
+            if (buttons.getChildren().get(i) instanceof Button b
+                    && NeoText.get("table.log").equals(b.getText())) {
+                at = i + 1;
+            }
+        }
+        buttons.getChildren().add(at, stats);
+    }
+
+    /**
      * Que pone el boton de salir.
      *
      * <p>Una run de Ascenso perdida no "continua": el modo la borra y te deja

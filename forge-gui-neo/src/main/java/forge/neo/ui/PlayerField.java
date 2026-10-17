@@ -160,6 +160,13 @@ public class PlayerField extends Pane {
         landRow.setOnCardClick(handler);
     }
 
+    /** El "xN" de una pila de fichas, en cualquiera de las filas. */
+    public void setOnStackCountClick(final Consumer<java.util.List<forge.game.card.CardView>> handler) {
+        creatureRow.setOnStackCountClick(handler);
+        permanentRow.setOnStackCountClick(handler);
+        landRow.setOnStackCountClick(handler);
+    }
+
     /**
      * Reparte los permanentes entre las zonas.
      *

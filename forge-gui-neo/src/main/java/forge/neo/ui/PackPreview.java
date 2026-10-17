@@ -248,14 +248,15 @@ public final class PackPreview extends StackPane {
     }
 
     private static boolean matches(final PaperCard c, final String q) {
-        if (c.getName().toLowerCase(Locale.ROOT).contains(q)) {
-            return true;
-        }
+        // Cada palabra en el nombre, el tipo o el texto, en cualquier orden
+        // (forge.neo.deck.SearchTerms, 16-10-2026).
         final String translated = forge.neo.card.CardText.nameOf(c);
-        if (translated != null && translated.toLowerCase(Locale.ROOT).contains(q)) {
-            return true;
-        }
-        return c.getRules() != null && c.getRules().getType().toString().toLowerCase(Locale.ROOT).contains(q);
+        final String type = c.getRules() == null ? null
+                : c.getRules().getType().toString().toLowerCase(Locale.ROOT);
+        final String oracle = c.getRules() == null || c.getRules().getOracleText() == null ? null
+                : c.getRules().getOracleText().toLowerCase(Locale.ROOT);
+        return forge.neo.deck.SearchTerms.matches(q, c.getName().toLowerCase(Locale.ROOT),
+                translated == null ? null : translated.toLowerCase(Locale.ROOT), type, oracle);
     }
 
     /** La pagina actual, con un rotulo al empezar cada rareza. */

@@ -105,12 +105,19 @@ public final class UniquePrints {
                 }
                 continue;
             }
-            PaperCard want = u;
-            if (u.getArtIndex() > 1) {
-                final PaperCard first = db.getCard(name, u.getEdition(), 1);
-                if (first != null && first.getArtIndex() == 1 && u.getEdition().equals(first.getEdition())
+            // Desde Forge #12275 (17-10-2026) el recalculo REAPLICA las artes
+            // "preferidas", y las nuestras tambien lo son: la que fijamos con la
+            // politica de antes se queda por encima de la de ahora (con "solo
+            // expansiones normales" seguia saliendo Attempted Murder de
+            // Unfinity). Asi que, para las nuestras, la de esta politica se
+            // calcula aqui, con el mismo criterio que getBestUniquePrint.
+            final PaperCard base = mine ? policyBest(db, name, lang, u) : u;
+            PaperCard want = base;
+            if (base.getArtIndex() > 1) {
+                final PaperCard first = db.getCard(name, base.getEdition(), 1);
+                if (first != null && first.getArtIndex() == 1 && base.getEdition().equals(first.getEdition())
                         && first.getRarity() != CardRarity.Special
-                        && (lang == null || !inLanguage(u, lang) || inLanguage(first, lang))) {
+                        && (lang == null || !inLanguage(base, lang) || inLanguage(first, lang))) {
                     want = first;
                 }
             }
@@ -127,6 +134,65 @@ public final class UniquePrints {
             }
         }
         return changed;
+    }
+
+    /**
+     * La impresion que daria el motor a esa carta con la politica de ahora, sin
+     * contar arte preferido: lo mismo que {@code CardDb.getBestUniquePrint} —sin
+     * especiales; el borde, si la politica lo exige; el idioma; la edicion segun
+     * la politica; el marco tradicional; y el numero— con su API publica.
+     */
+    private static PaperCard policyBest(final CardDb db, final String name,
+                                        final BiPredicate<String, String> lang, final PaperCard fallback) {
+        final CardDb.CardArtPreference pref = db.getCardArtPreference();
+        final forge.card.CardEdition.Collection eds = FModel.getMagicDb().getEditions();
+        if (pref == null || eds == null) {
+            return fallback;
+        }
+        try {
+            PaperCard best = null;
+            for (final PaperCard pc : db.getAllCards(name)) {
+                if (pc == null || pc.getRarity() == CardRarity.Special) {
+                    continue;
+                }
+                if (best == null || compareLikeEngine(db, pref, eds, lang, pc, best) < 0) {
+                    best = pc;
+                }
+            }
+            return best == null ? fallback : best;
+        } catch (final RuntimeException e) {
+            return fallback;
+        }
+    }
+
+    private static int compareLikeEngine(final CardDb db, final CardDb.CardArtPreference pref,
+                                         final forge.card.CardEdition.Collection eds,
+                                         final BiPredicate<String, String> lang, final PaperCard a, final PaperCard b) {
+        final CardEdition ea = eds.get(a.getEdition());
+        final CardEdition eb = eds.get(b.getEdition());
+        int c = Integer.compare(borderMismatch(pref, ea), borderMismatch(pref, eb));
+        if (c != 0) {
+            return c;
+        }
+        c = Integer.compare(lang != null && inLanguage(a, lang) ? 0 : 1, lang != null && inLanguage(b, lang) ? 0 : 1);
+        if (c != 0) {
+            return c;
+        }
+        if (ea != null && eb != null) {
+            c = pref.compare(ea, eb);
+            if (c != 0) {
+                return c;
+            }
+        }
+        c = Integer.compare(db.isTraditionalFramePrint(a) ? 0 : 1, db.isTraditionalFramePrint(b) ? 0 : 1);
+        if (c != 0) {
+            return c;
+        }
+        return a.getCollectorNumber().compareTo(b.getCollectorNumber());
+    }
+
+    private static int borderMismatch(final CardDb.CardArtPreference pref, final CardEdition ed) {
+        return pref.blackBorderOnly && ed != null && ed.getBorderColor() != CardEdition.BorderColor.BLACK ? 1 : 0;
     }
 
     private static boolean inLanguage(final PaperCard pc, final BiPredicate<String, String> lang) {

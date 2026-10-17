@@ -352,6 +352,8 @@ public class TableScreen extends Pane {
         selfField.setOnCardHover(this::hovered);
         opponentField.setOnCardClick(this::cardClicked);
         selfField.setOnCardClick(this::cardClicked);
+        opponentField.setOnStackCountClick(this::stackCountClicked);
+        selfField.setOnStackCountClick(this::stackCountClicked);
         opponentField.setOnAttachPeek((host, carried) -> showAttached(host, carried, false));
         selfField.setOnAttachPeek((host, carried) -> showAttached(host, carried, true));
 
@@ -1560,6 +1562,7 @@ public class TableScreen extends Pane {
             final PlayerField f = new PlayerField(cardWidth * 0.92, true);
             f.setOnCardHover(this::hovered);
             f.setOnCardClick(this::cardClicked);
+            f.setOnStackCountClick(this::stackCountClicked);
             f.setOnZoneClicked(this::showZone);
             // Con varias mesas en fila, el cementerio y el exilio se quedan en
             // el contador de la barra: esa tira cuesta 173 px de ancho y a
@@ -2771,8 +2774,14 @@ public class TableScreen extends Pane {
 
     /** Levanta el registro de partida. */
     public void showGameLog(final forge.game.GameLog log, final PlayerView me) {
+        showGameLog(log, me, null);
+    }
+
+    /** Con las cartas del registro a la vista (ver {@link GameLogView#update}). */
+    public void showGameLog(final forge.game.GameLog log, final PlayerView me,
+                            final java.util.function.IntFunction<forge.game.card.CardView> lookup) {
         final GameLogView view = new GameLogView(menuOverlay::hide);
-        view.update(log, me);
+        view.update(log, me, lookup);
         logButton.pseudoClassStateChanged(UNREAD, false);
         menuOverlay.setOnBackgroundClick(menuOverlay::hide);
         menuOverlay.show(view);
@@ -3701,6 +3710,28 @@ public class TableScreen extends Pane {
     private void cardClicked(final CardNode n) {
         if (onCardClicked != null && n.getCard() != null) {
             onCardClicked.accept(n.getCard());
+        }
+    }
+
+    /**
+     * Que hacer al clicar el "xN" de una pila de fichas (recibe todas sus
+     * cartas). Sin nadie que lo quiera, es un clic en la de delante, que es lo
+     * que hacia antes.
+     */
+    public void setOnStackCountClicked(final Consumer<java.util.List<CardView>> handler) {
+        this.onStackCountClicked = handler;
+    }
+
+    private Consumer<java.util.List<CardView>> onStackCountClicked;
+
+    private void stackCountClicked(final java.util.List<CardView> cards) {
+        if (cards == null || cards.isEmpty()) {
+            return;
+        }
+        if (onStackCountClicked != null) {
+            onStackCountClicked.accept(cards);
+        } else {
+            cardClickedDirect(cards.get(0));
         }
     }
 

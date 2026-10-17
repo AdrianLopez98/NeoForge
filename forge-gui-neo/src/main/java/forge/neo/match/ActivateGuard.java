@@ -50,9 +50,57 @@ public final class ActivateGuard {
     private ActivateGuard() {
     }
 
-    /** Si el ajuste esta puesto y este toque activaria una habilidad. */
+    /**
+     * Si este toque activaria una habilidad y su ajuste esta puesto: la de un
+     * permanente ({@code CONFIRM_ACTIVATE}, apagado de fabrica) o una desde la
+     * MANO en vez de lanzar la carta ({@code CONFIRM_HAND_ABILITY}, encendido).
+     */
     public static boolean shouldAsk(final IGameController controller, final CardView card) {
-        return forge.neo.NeoSettings.confirmActivate() && abilityFor(controller, card) != null;
+        return (forge.neo.NeoSettings.confirmActivate() && abilityFor(controller, card) != null)
+                || (forge.neo.NeoSettings.confirmHandAbility() && handAbilityFor(controller, card) != null);
+    }
+
+    /** Si la pregunta es por una carta de la mano (para el titulo: "no se puede lanzar ahora"). */
+    public static boolean fromHand(final IGameController controller, final CardView card) {
+        return handAbilityFor(controller, card) != null;
+    }
+
+    /**
+     * <b>Ciclar sin querer</b> (Discord, 17-10-2026: <i>"Can we get a confirmation
+     * before Cycling cards? I do it too many times accidentally when things are
+     * on the stack and I mean to play the actual card"</i>). Con algo en la
+     * pila una criatura no se puede lanzar, y lo UNICO que puede hacer la carta
+     * es ciclarse; con una sola opcion el motor no pregunta, y la carta se va.
+     *
+     * <p>La habilidad que haria este toque sobre una carta de TU MANO, si es lo
+     * unico que puede hacer y no es lanzarla: ciclo, canalizar, ninjutsu,
+     * conspirar... Null si se puede lanzar (entonces es lo que se quiere, o hay
+     * varias y el motor ya pregunta cual), si es jugar una tierra o si es de
+     * mana (se usa al pagar).
+     */
+    public static SpellAbility handAbilityFor(final IGameController controller, final CardView card) {
+        if (card == null || !(controller instanceof PlayerControllerHuman human)) {
+            return null;
+        }
+        try {
+            if (!(human.getInputQueue().getInput() instanceof InputPassPriority)) {
+                return null;
+            }
+            final Player me = human.getPlayer();
+            final Game game = me == null ? null : me.getGame();
+            final Card c = game == null ? null : game.findById(card.getId());
+            if (c == null || !c.isInZone(ZoneType.Hand) || c.getOwner() != me) {
+                return null;
+            }
+            final List<SpellAbility> abilities = c.getAllPossibleAbilities(me, true);
+            if (abilities.size() != 1) {
+                return null;
+            }
+            final SpellAbility sa = abilities.get(0);
+            return !sa.isSpell() && !sa.isLandAbility() && !sa.isManaAbility() ? sa : null;
+        } catch (final RuntimeException e) {
+            return null;
+        }
     }
 
     /**
@@ -87,7 +135,10 @@ public final class ActivateGuard {
 
     /** Lo que hace esa habilidad, ya traducido por el motor, para la pregunta. */
     public static String describe(final IGameController controller, final CardView card) {
-        final SpellAbility sa = abilityFor(controller, card);
+        SpellAbility sa = abilityFor(controller, card);
+        if (sa == null) {
+            sa = handAbilityFor(controller, card);
+        }
         if (sa == null) {
             return "";
         }

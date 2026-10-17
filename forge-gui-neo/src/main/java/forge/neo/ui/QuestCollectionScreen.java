@@ -61,6 +61,14 @@ public class QuestCollectionScreen extends BorderPane {
     private final List<Entry> all = new ArrayList<>();
     private List<Entry> filtered = new ArrayList<>();
 
+    /**
+     * Los filtros del constructor (color, tipo, rareza y coste), los mismos
+     * botones que en la tienda y la enciclopedia. Pedido el 16-10-2026: "todas
+     * esas cosas que tenemos en el creador de mazos tenemos que tenerlo tambien
+     * en la parte de coleccion".
+     */
+    private final CardFilterBar filters;
+
     /** Una carta de la coleccion y cuantas copias tienes. */
     private static final class Entry {
         private final PaperCard card;
@@ -79,8 +87,16 @@ public class QuestCollectionScreen extends BorderPane {
                     + forge.neo.card.CardText.nameOf(card)).toLowerCase(Locale.ROOT);
             this.lowerType = (card.getRules().getType().toString() + " "
                     + forge.neo.card.CardText.typeOf(card)).toLowerCase(Locale.ROOT);
+            // Y el texto traducido, si lo hay: en castellano se busca "vuela".
             final String oracle = card.getRules().getOracleText();
-            this.lowerText = oracle == null ? "" : oracle.toLowerCase(Locale.ROOT);
+            String translated = null;
+            try {
+                translated = forge.util.CardTranslation.getTranslatedOracle(card.getName());
+            } catch (final RuntimeException ignored) {
+                // sin traduccion: solo el ingles
+            }
+            this.lowerText = ((oracle == null ? "" : oracle) + " "
+                    + (translated == null ? "" : translated)).toLowerCase(Locale.ROOT);
         }
     }
 
@@ -89,6 +105,10 @@ public class QuestCollectionScreen extends BorderPane {
         getStyleClass().addAll("table-root", "quest");
 
         pager = new Pager(PAGE, this::paint);
+        filters = new CardFilterBar(() -> {
+            pager.reset();
+            reload();
+        });
 
         load();
         setTop(header(onBack));
@@ -156,7 +176,7 @@ public class QuestCollectionScreen extends BorderPane {
 
         final Region gap = new Region();
         HBox.setHgrow(gap, Priority.ALWAYS);
-        final HBox tools = new HBox(12, search, new Label(NeoText.get("sort.caption")), sort,
+        final HBox tools = new HBox(12, search, filters.bar(), new Label(NeoText.get("sort.caption")), sort,
                 gap, resultCount);
         tools.setAlignment(Pos.CENTER_LEFT);
 
@@ -173,7 +193,7 @@ public class QuestCollectionScreen extends BorderPane {
 
         hint.getStyleClass().add("home-subtitle");
 
-        final VBox content = new VBox(12, tools, scroll, pager);
+        final VBox content = new VBox(12, tools, filters.advanced(), scroll, pager);
         content.setPadding(new Insets(4, 30, 18, 30));
         return content;
     }
@@ -181,12 +201,15 @@ public class QuestCollectionScreen extends BorderPane {
     // ---------------------------------------------------------------
 
     private void reload() {
-        final String q = search.getText() == null ? ""
-                : search.getText().trim().toLowerCase(Locale.ROOT);
+        // Cada palabra en cualquier sitio de la carta y en cualquier orden:
+        // "flying, vigilance" encuentra a Zetalpa aunque tenga "double strike"
+        // en medio (forge.neo.deck.SearchTerms, 16-10-2026).
+        final String[] terms = forge.neo.deck.SearchTerms.parse(search.getText());
 
         filtered = new ArrayList<>();
         for (final Entry e : all) {
-            if (q.isEmpty() || e.lowerName.contains(q) || e.lowerType.contains(q) || e.lowerText.contains(q)) {
+            if (filters.test(e.card)
+                    && forge.neo.deck.SearchTerms.allIn(terms, e.lowerName, e.lowerType, e.lowerText)) {
                 filtered.add(e);
             }
         }
@@ -200,7 +223,7 @@ public class QuestCollectionScreen extends BorderPane {
             total += e.count;
         }
         summary.setText(NeoText.get("collection.summary", all.size(), total));
-        resultCount.setText(q.isEmpty()
+        resultCount.setText(terms.length == 0 && !filters.isActive()
                 ? NeoText.get("count.cards", filtered.size())
                 : NeoText.get("collection.someOf", filtered.size(), all.size()));
     }

@@ -180,6 +180,28 @@ public final class DeckRulesCheck {
         }
         check("Colores: \"witch\" sigue encontrando Witch's Oven (un nombre anyade, no quita)", witchStill);
 
+        // El filtro de color (ColourFilter, Discord 17-10-2026): negro solo son
+        // las negras y las tierras que dan negro; las doradas, con "M".
+        final byte black = forge.card.MagicColor.BLACK;
+        final byte blackRed = (byte) (forge.card.MagicColor.BLACK | forge.card.MagicColor.RED);
+        final PaperCard specter = FModel.getMagicDb().getCommonCards().getCard("Hypnotic Specter");
+        final PaperCard solkanar = FModel.getMagicDb().getCommonCards().getCard("Sol'kanar the Swamp King");
+        final PaperCard rakdos = FModel.getMagicDb().getCommonCards().getCard("Rakdos Cackler");
+        final PaperCard badlands = FModel.getMagicDb().getCommonCards().getCard("Badlands");
+        final PaperCard wormwood = FModel.getMagicDb().getCommonCards().getCard("Wormwood Treefolk");
+        final PaperCard solRing = FModel.getMagicDb().getCommonCards().getCard("Sol Ring");
+        check("Color: con el negro sale Hypnotic Specter", ColourFilter.matches(specter, black, false, false));
+        check("Color: con el negro solo NO sale Sol'kanar (azul, negro y rojo)",
+                !ColourFilter.matches(solkanar, black, false, false));
+        check("Color: con el negro y M si sale Sol'kanar", ColourFilter.matches(solkanar, black, false, true));
+        check("Color: con negro y rojo sale una negro-roja", ColourFilter.matches(rakdos, blackRed, false, false));
+        check("Color: con el negro solo sale Badlands (la tierra da negro)",
+                ColourFilter.matches(badlands, black, false, false));
+        check("Color: con el negro NO sale Wormwood Treefolk (verde con {B} en una habilidad)",
+                !ColourFilter.matches(wormwood, black, false, false));
+        check("Color: Sol Ring solo con C", !ColourFilter.matches(solRing, black, false, true)
+                && ColourFilter.matches(solRing, (byte) 0, true, false));
+
         final PaperCard aurelia = FModel.getMagicDb().getCommonCards().getCard("Aurelia, the Warleader");
         final PaperCard atraxa = FModel.getMagicDb().getCommonCards().getCard("Atraxa, Praetors' Voice");
         final PaperCard krenko = FModel.getMagicDb().getCommonCards().getCard("Krenko, Mob Boss");
@@ -1343,7 +1365,7 @@ public final class DeckRulesCheck {
                         + "; " + eras.size() + " epocas en " + all.size() + " mazos, en " + erasMs + " ms",
                 ajani != null && ajaniEra != null && "M19".equals(ajaniEra.getCode())
                         && eras.size() > 10 && DeckEra.appliesTo(NeoFormat.ESTANDAR)
-                        && !DeckEra.appliesTo(NeoFormat.COMMANDER));
+                        && DeckEra.appliesTo(NeoFormat.COMMANDER));
         check("Formato: filtrar Estandar por Premodern da los mismos " + premodern.size()
                         + " que la lista de Premodern (" + premodernByFilter + ")",
                 premodernByFilter == premodern.size());

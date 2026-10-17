@@ -491,7 +491,7 @@ public class MainMenu extends BorderPane {
      * El dibujo es el de Simple Icons (CC0), en su caja de 24x24, como el de
      * itch.io.
      */
-    private static Button kofiButton() {
+    static Button kofiButton() {
         final javafx.scene.shape.SVGPath logo = new javafx.scene.shape.SVGPath();
         logo.setContent("M23.881 8.948c-.773-4.085-4.859-4.593-4.859-4.593H.723c-.604 0-.679.798-.679.798"
                 + "s-.082 7.324-.022 11.822c.164 2.424 2.586 2.672 2.586 2.672s8.267-.023 11.966-.049"
@@ -543,7 +543,7 @@ public class MainMenu extends BorderPane {
      * tamanyo y misma forma que el de Discord, con el rojo de itch.io. El
      * dibujo es el de Simple Icons (CC0), en su caja de 24x24.
      */
-    private static Button itchButton() {
+    static Button itchButton() {
         final javafx.scene.shape.SVGPath logo = new javafx.scene.shape.SVGPath();
         logo.setContent("M3.13 1.338C2.08 1.96.02 4.328 0 4.95v1.03c0 1.303 1.22 2.45 2.325 2.45 "
                 + "1.33 0 2.436-1.102 2.436-2.41 0 1.308 1.07 2.41 2.4 2.41 1.328 0 2.362-1.102 "

@@ -377,6 +377,43 @@ public class CardStackNode extends Pane {
         return front;
     }
 
+    /**
+     * Todas las cartas de la pila, la de delante la primera. Para el "xN"
+     * clicable: con un clic en el contador atacan todas, como en Arena
+     * (Discord, 17-10-2026: <i>"clicking the upper right corner number (x5)
+     * has all copies of that creature attack with one click"</i>). Lo pone
+     * {@code BattlefieldPane} en cada reparto.
+     */
+    private List<CardView> members = List.of();
+
+    public void setMembers(final List<CardView> cards) {
+        this.members = cards == null ? List.of() : List.copyOf(cards);
+    }
+
+    public List<CardView> getMembers() {
+        return members;
+    }
+
+    /**
+     * Si ese punto (de la escena) cae sobre el contador "xN". El contador no
+     * coge el raton —si lo cogiera, al pasar por encima la carta dejaria de
+     * estar "bajo el raton" y se encogeria—: es el clic de la carta el que
+     * pregunta esto.
+     */
+    /** El centro del "xN" en la escena, o null si no se ve. Para las pruebas ({@code --field-click x:}). */
+    public javafx.geometry.Point2D countCenterInScene() {
+        if (size <= 1 || !count.isVisible()) {
+            return null;
+        }
+        final javafx.geometry.Bounds b = count.localToScene(count.getBoundsInLocal());
+        return new javafx.geometry.Point2D(b.getCenterX(), b.getCenterY());
+    }
+
+    public boolean countHit(final double sceneX, final double sceneY) {
+        return size > 1 && count.isVisible()
+                && count.localToScene(count.getBoundsInLocal()).contains(sceneX, sceneY);
+    }
+
     public int getStackSize() {
         return size;
     }

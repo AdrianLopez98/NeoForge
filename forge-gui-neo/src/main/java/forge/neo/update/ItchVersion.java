@@ -34,6 +34,13 @@ public final class ItchVersion {
     /** La pagina del juego: a donde llevan el boton y el aviso. */
     public static final String PAGE_URL = "https://dokkodolabs.itch.io/neo-forge";
 
+    /**
+     * Valorar el juego (la pestanya Apoyar, 17-10-2026): con sesion en itch.io
+     * abre la valoracion; sin ella, pide entrar y vuelve aqui. Comprobado a
+     * mano: una ruta inventada da 404, esta lleva al login con return_to.
+     */
+    public static final String RATE_URL = PAGE_URL + "/rate?source=game";
+
     /** Usuario y juego en itch.io, como los escribe butler. */
     static final String TARGET = "dokkodolabs/neo-forge";
 

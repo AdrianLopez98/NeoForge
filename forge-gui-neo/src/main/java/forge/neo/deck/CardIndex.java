@@ -137,10 +137,10 @@ final class CardIndex {
      * recuerdas el nombre exacto: "elfo", "instant", "equipment".
      */
     boolean matches(final int i, final String lowerQuery) {
-        return lowerQuery.isEmpty()
-                || names[i].contains(lowerQuery)
-                || types[i].contains(lowerQuery)
-                || (translated != null && translated[i].contains(lowerQuery));
+        // Cada palabra, en cualquier orden y en cualquiera de los campos
+        // (SearchTerms): "elf warrior" encuentra el tipo entero.
+        return lowerQuery.isEmpty() || SearchTerms.matches(lowerQuery,
+                names[i], types[i], translated == null ? null : translated[i]);
     }
 
     /** Si el nombre EMPIEZA por lo buscado, para poner esas primero. */
@@ -157,10 +157,13 @@ final class CardIndex {
      * que es lo que se pregunta al montar un mazo.
      */
     boolean matchesText(final int i, final String lowerQuery) {
-        if (lowerQuery.isEmpty() || matches(i, lowerQuery)) {
+        if (lowerQuery.isEmpty()) {
             return true;
         }
-        return rulesText()[i].contains(lowerQuery);
+        // "flying, vigilance" encuentra lo que tenga las dos, en el orden que
+        // sea y aunque haya mas cosas en medio (SearchTerms, 16-10-2026).
+        return SearchTerms.matches(lowerQuery, names[i], types[i],
+                translated == null ? null : translated[i], rulesText()[i]);
     }
 
     /**

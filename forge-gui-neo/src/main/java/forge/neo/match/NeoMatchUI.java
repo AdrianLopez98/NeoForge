@@ -650,6 +650,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         final Runnable wire = () -> {
             wireGameLogButton();
             table.setOnCardClicked(this::onCardClicked);
+            table.setOnStackCountClicked(this::onStackCountClicked);
             table.setOnPlayerClicked(this::onPlayerClicked);
             // Lanzar desde el cementerio o el exilio: el visor de la zona deja
             // clicar lo que el motor dice que se puede lanzar desde ahi.
@@ -831,6 +832,27 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         return !payingMana && !isSelecting() && getSelectionMax() <= 0 && isMe(gv.getPlayerTurn());
     }
 
+    /**
+     * El "xN" de una pila de fichas iguales. Al declarar atacantes, como en
+     * Arena, atacan todas de un clic (Discord, 17-10-2026): es lo mismo que
+     * clicarlas una a una, y el motor decide, como siempre, cual puede atacar.
+     * En cualquier otro momento es un clic en la de delante, lo de antes.
+     */
+    private void onStackCountClicked(final List<CardView> cards) {
+        if (cards == null || cards.isEmpty()) {
+            return;
+        }
+        if (!isDeclaringAttackers()) {
+            onCardClicked(cards.get(0));
+            return;
+        }
+        for (final CardView card : cards) {
+            if (!card.isAttacking()) {
+                onCardClicked(card);
+            }
+        }
+    }
+
     private void onCardClicked(final CardView card) {
         if (!interactive() || card == null || finished.get()) {
             return;
@@ -1009,11 +1031,16 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             return false;
         }
         final String what = forge.neo.match.ActivateGuard.describe(getGameController(), card);
+        // Desde la mano (ciclar sin querer, Discord 17-10-2026): se dice POR QUE
+        // no se lanza, que es lo que el jugador no espera.
+        final boolean fromHand = forge.neo.match.ActivateGuard.fromHand(getGameController(), card);
+        final String name = forge.neo.card.CardText.nameOf(card);
         final AtomicBoolean answered = new AtomicBoolean();
         final ConfirmDialog dialog = new ConfirmDialog(
-                NeoText.get("activate.ask.title", forge.neo.card.CardText.nameOf(card)),
-                what,
-                List.of(NeoText.get("activate.ask.cancel"), NeoText.get("activate.ask.go")),
+                fromHand ? NeoText.get("activate.hand.title", name) : NeoText.get("activate.ask.title", name),
+                fromHand ? NeoText.get("activate.hand.text", what) : what,
+                List.of(NeoText.get("activate.ask.cancel"),
+                        NeoText.get(fromHand ? "activate.hand.go" : "activate.ask.go")),
                 0,
                 index -> {
                     if (!answered.compareAndSet(false, true)) {
@@ -3046,7 +3073,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         table.getLogButton().setOnAction(e -> {
             final GameView gv = getGameView();
             if (gv != null) {
-                table.showGameLog(gv.getGameLog(), localPlayer());
+                table.showGameLog(gv.getGameLog(), localPlayer(), LogCardLinks.lookupIn(gv));
             }
         });
         // Las macros, tambien con el raton. Mismo camino que su tecla.
@@ -3630,6 +3657,11 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         // modo, asi que un camino nuevo no puede olvidarse de esto. Y las
         // preferencias se leen en vivo (YieldController.getStringPref cae a
         // FModel.getPreferences()), asi que llegar aqui no es tarde.
+        // Las estadisticas del final (GameStats, Discord 17-10-2026): tambien
+        // aqui, por lo mismo. Una repeticion no se cuenta.
+        if (ending != Ending.REPLAY && getGameView() != null) {
+            GameStats.attach(getGameView().getGame());
+        }
         if (mode == Mode.HUMAN) {
             // Una repeticion no es una partida: ni preferencias del motor ni
             // registro detallado (abrirlo rota detailed-game.log y se llevaba
@@ -4117,8 +4149,22 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
     private GameOverScreen lookButtons(final GameView gv, final GameOverScreen screen) {
         screen.addLookButtons(
                 gv == null || gv.getGameLog() == null ? null
-                        : () -> table.showGameLog(gv.getGameLog(), localPlayer()),
+                        : () -> table.showGameLog(gv.getGameLog(), localPlayer(), LogCardLinks.lookupIn(gv)),
                 () -> table.getOverlay().setPeeking(true));
+        // "Estadisticas", al lado del registro (GameStats).
+        final GameStats stats = gv == null ? null : GameStats.of(gv.getGame());
+        final Runnable openStats = stats == null ? null : () -> {
+            final forge.neo.ui.Overlay menu = table.getMenuOverlay();
+            menu.setOnBackgroundClick(menu::hide);
+            menu.show(new forge.neo.ui.GameStatsView(stats.summary(localPlayer()), menu::hide));
+        };
+        screen.addStatsButton(openStats);
+        // -Dneo.stats.open=true: se abren solas al acabar (para capturarlas),
+        // y las frases salen tambien por la consola.
+        if (openStats != null && Boolean.getBoolean("neo.stats.open")) {
+            stats.summary(localPlayer()).forEach(l -> System.out.println("[stats] " + l));
+            openStats.run();
+        }
         return screen;
     }
 
@@ -5005,11 +5051,99 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         return null;
     }
 
+    /**
+     * La pregunta del motor de la que ya ha llegado su {@link #setSelection}.
+     * Ver {@link #earlyButtons}.
+     */
+    private volatile Object selectionFor;
+
+    /**
+     * Los botones de una pregunta nueva que han llegado ANTES que su seleccion,
+     * aparcados hasta que llegue: {pregunta, owner, okLabel, cancelLabel,
+     * okEnabled, cancelEnabled, focusOk}.
+     *
+     * <p>Desde Forge #12259 (17-10-2026) {@code InputBase.showMessageInitial}
+     * pide los botones y DESPUES manda la seleccion; antes las cartas elegibles
+     * llegaban primero (desde el constructor). Todo lo nuestro que decide en
+     * {@code updateButtons} mira la seleccion —el piloto de las pruebas elige
+     * cartas, el pase automatico y los avisos miran {@code isSelecting} y
+     * {@code getSelectionMax}— y la veia vacia: el piloto no elegia nada (la
+     * partida se quedaba esperando en el descarte de la limpieza) o pulsaba
+     * Cancelar. Asi que los botones se procesan cuando llega la seleccion de su
+     * misma pregunta, en el orden de siempre. Solo para las preguntas de
+     * {@code InputBase}, que siempre la mandan; y si no llegara, a los
+     * {@link #EARLY_BUTTONS_WAIT_MS}.
+     */
+    private volatile Object[] earlyButtons;
+
+    /** Cuanto se espera la seleccion de unos botones aparcados antes de procesarlos igual. */
+    private static final int EARLY_BUTTONS_WAIT_MS = 300;
+
+    /**
+     * La "pregunta" de los botones del INVITADO en red: no tiene el motor en
+     * su proceso y no sabe de que pregunta son. Los suyos esperan a la
+     * siguiente seleccion que llegue por el cable (el anfitrion la manda justo
+     * detras, por el mismo orden), o a {@link #EARLY_BUTTONS_WAIT_MS}.
+     */
+    private static final class GuestAsk {
+    }
+
+    /**
+     * La marca de cada aparcamiento del invitado: UNA NUEVA cada vez, no una
+     * comun. Con una comun, el temporizador de unos botones viejos soltaba los
+     * nuevos antes de que llegara su seleccion; el piloto los veia sin cartas
+     * elegibles, no hacia nada, y la seleccion ya no encontraba nada que soltar
+     * (lobbycheck, rojo solo con carga: el invitado clavado en el descarte).
+     */
+    private static Object newGuestAsk() {
+        return new GuestAsk();
+    }
+
+    /** Mientras se procesan unos botones aparcados: que no se vuelvan a aparcar. */
+    private static final ThreadLocal<Boolean> FLUSHING_EARLY = ThreadLocal.withInitial(() -> false);
+
+    /** Procesa los botones aparcados de esa pregunta, si siguen ahi. */
+    private void flushEarlyButtons(final Object asked) {
+        final Object[] b;
+        synchronized (this) {
+            b = earlyButtons;
+            if (b == null || b[0] != asked) {
+                return;
+            }
+            earlyButtons = null;
+        }
+        FLUSHING_EARLY.set(true);
+        try {
+            updateButtons((PlayerView) b[1], (String) b[2], (String) b[3],
+                    (Boolean) b[4], (Boolean) b[5], (Boolean) b[6]);
+        } finally {
+            FLUSHING_EARLY.set(false);
+        }
+    }
+
+    /** Si somos el invitado de una partida en red (sin el motor en este proceso). */
+    private boolean isNetGuest() {
+        final GameView gv = getGameView();
+        return gv != null && gv.getGame() == null;
+    }
+
     @Override
     public void updateButtons(final PlayerView owner, final String okLabel, final String cancelLabel,
                               final boolean okEnabled, final boolean cancelEnabled, final boolean focusOk) {
         if (isReplay()) {
             replayButtons(okLabel, cancelLabel, okEnabled, cancelEnabled);
+            return;
+        }
+        // Los botones de una pregunta nueva, antes que su seleccion: se aparcan
+        // hasta que llegue (ver earlyButtons).
+        final Object pending = pendingInput(getGameController());
+        final Object asked = pending == null && isNetGuest() ? newGuestAsk() : pending;
+        if (!FLUSHING_EARLY.get() && (asked instanceof GuestAsk
+                || asked instanceof forge.gamemodes.match.input.InputBase && asked != selectionFor)) {
+            synchronized (this) {
+                earlyButtons = new Object[] {asked, owner, okLabel, cancelLabel, okEnabled, cancelEnabled, focusOk};
+            }
+            forge.util.ThreadUtil.delay(EARLY_BUTTONS_WAIT_MS, () -> flushEarlyButtons(asked));
             return;
         }
         cancelStaleAwaitIfGuest();
@@ -5906,26 +6040,73 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
 
     private volatile List<CardView> selectables = List.of();
 
+    /**
+     * Lo que marca la pregunta que espera: las cartas elegibles con su minimo
+     * y maximo, los jugadores y entradas del stack que acepta, y lo ya elegido.
+     *
+     * <p>Hasta Forge #12259 (17-10-2026) eran tres llamadas —{@code setSelectables}
+     * al abrir la eleccion, {@code setHighlighted} en cada marca y
+     * {@code clearSelectables} al cerrarla— y ahora llega el estado ENTERO en cada
+     * cambio. Asi que lo de "al abrir" (abrir la zona, reiniciar el piloto) se
+     * hace solo cuando cambian las cartas elegibles; lo de "al cerrar", cuando se
+     * quedan en nada; y lo de "al marcar", con la diferencia entre lo elegido antes
+     * y ahora. Es lo mismo que hace {@code CMatchUI.setSelection}.
+     */
     @Override
-    public void setSelectables(final Iterable<CardView> cards, final int min, final int max) {
-        super.setSelectables(cards, min, max);
-        final List<CardView> list = new ArrayList<>();
-        if (cards != null) {
-            cards.forEach(list::add);
+    public void setSelection(final forge.gamemodes.match.Selection selection) {
+        final forge.gamemodes.match.Selection prev = getSelection();
+        super.setSelection(selection);
+        if (!prev.cards().equals(selection.cards())) {
+            if (selection.cards().isEmpty()) {
+                selectionEnded();
+            } else {
+                selectionStarted(selection.cards(), selection.min(), selection.max());
+            }
         }
+        // La marca es la respuesta del motor al clic del piloto. Ver pilotClicks.
+        if (!pilotClicks.isEmpty()) {
+            for (final forge.trackable.TrackableObject e : com.google.common.collect.Sets.symmetricDifference(
+                    new java.util.HashSet<>(prev.chosen()), new java.util.HashSet<>(selection.chosen()))) {
+                if (e instanceof CardView cv) {
+                    pilotClicks.remove(cv.getId());
+                }
+            }
+        }
+        // El defensor elegido, el atacante sobre el que asignas bloqueos, las
+        // cartas ya escogidas: sin pintarlo, el combate se juega a ciegas. Las
+        // entradas del STACK se guardan arriba como las demas pero no se pintan:
+        // nuestro stack apunta con el dialogo de siempre (canPickStackTargets es false).
+        if (!prev.equals(selection)) {
+            refreshHighlights();
+        }
+        // Y los botones de esta pregunta, si llegaron antes (ver earlyButtons).
+        final Object asked = pendingInput(getGameController());
+        selectionFor = asked;
+        if (asked != null) {
+            flushEarlyButtons(asked);
+        } else if (isNetGuest()) {
+            final Object[] parked = earlyButtons;
+            if (parked != null && parked[0] instanceof GuestAsk) {
+                flushEarlyButtons(parked[0]);
+            }
+        }
+    }
+
+    /** Empieza una eleccion de cartas (lo que antes era {@code setSelectables}). */
+    private void selectionStarted(final List<CardView> cards, final int min, final int max) {
+        final List<CardView> list = new ArrayList<>(cards);
         selectables = list;
         noPickWarned.set(false);
         pilotClicks.clear();
-        trace("setSelectables: %d elegibles (min %d, max %d)", list.size(), min, max);
+        trace("setSelection: %d elegibles (min %d, max %d)", list.size(), min, max);
         // Un maximo de 0 es "solo resaltar": quien llama ensenya lo suyo.
         if (max > 0 && showSelectionZone(list)) {
             selectionZoneShown.set(true);
         }
     }
 
-    @Override
-    public void clearSelectables() {
-        super.clearSelectables();
+    /** Se acaba la eleccion de cartas (lo que antes era {@code clearSelectables}). */
+    private void selectionEnded() {
         selectables = List.of();
         noPickWarned.set(false);
         pilotClicks.clear();
@@ -5937,31 +6118,6 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                 ui.runLater(() -> table.hideZoneViewer());
             }
         }
-    }
-
-    /**
-     * El motor marca y desmarca entidades: el defensor elegido, el atacante
-     * sobre el que estas asignando bloqueos, las cartas ya escogidas de una
-     * seleccion. Sin pintarlo, el combate se juega a ciegas.
-     *
-     * <p>Desde Forge #12231 (13-10-2026) llegan tambien entradas del STACK
-     * ({@code StackItemView}, lo ya elegido al apuntar a un hechizo): se
-     * guardan arriba como las demas, pero aqui no se pintan — nuestro stack
-     * apunta con el dialogo de siempre ({@code canPickStackTargets} es false).
-     */
-    @Override
-    public void setHighlighted(final Iterable<? extends forge.trackable.TrackableObject> entities,
-                               final boolean on) {
-        super.setHighlighted(entities, on);
-        // La marca es la respuesta del motor al clic del piloto. Ver pilotClicks.
-        if (entities != null && !pilotClicks.isEmpty()) {
-            for (final forge.trackable.TrackableObject e : entities) {
-                if (e instanceof CardView cv) {
-                    pilotClicks.remove(cv.getId());
-                }
-            }
-        }
-        refreshHighlights();
     }
 
     private void refreshHighlights() {

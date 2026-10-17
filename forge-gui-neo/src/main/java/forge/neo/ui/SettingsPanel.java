@@ -583,6 +583,15 @@ public class SettingsPanel extends VBox {
                     NeoSettings.save();
                 }));
 
+        // --- y desde la mano: ciclar sin querer (Discord, 17-10-2026) ---
+        // Encendido de fabrica: solo pregunta cuando la carta no se puede
+        // lanzar y tocarla haria otra cosa (ciclar, canalizar...).
+        getChildren().add(toggleRow(NeoText.get("settings.confirmHandAbility"),
+                NeoSettings.confirmHandAbility(), on -> {
+                    NeoSettings.setBool(NeoSettings.CONFIRM_HAND_ABILITY, on);
+                    NeoSettings.save();
+                }));
+
         // --- pararse cuando pasa algo importante ---
         //
         // Es el YieldController de Forge, que ya estaba escrito entero y solo
@@ -787,6 +796,29 @@ public class SettingsPanel extends VBox {
                     NeoSettings.setInt(NeoSettings.AI_TIMEOUT, value);
                     NeoSettings.save();
                 }, aiNote)));
+        // "Agresividad de la IA contigo" (Discord, 17-10-2026): en Commander,
+        // que las IA se peleen mas entre ellas. Solo en partidas libres de
+        // Commander; de fabrica, Normal. Ver forge.neo.match.FriendlyAttacks.
+        final String[] friendlyLabels = {NeoText.get("settings.aiFriendly.normal"),
+                NeoText.get("settings.aiFriendly.low"), NeoText.get("settings.aiFriendly.veryLow")};
+        final int friendlyNow = Math.max(0, Math.min(2, NeoSettings.getInt(
+                forge.neo.match.FriendlyAttacks.SETTING, forge.neo.match.FriendlyAttacks.NORMAL)));
+        getChildren().add(choiceRow(NeoText.get("settings.aiFriendly"),
+                friendlyLabels, friendlyLabels[friendlyNow],
+                nextGame(v -> {
+                    int value = forge.neo.match.FriendlyAttacks.NORMAL;
+                    for (int i = 0; i < friendlyLabels.length; i++) {
+                        if (friendlyLabels[i].equals(v)) {
+                            value = i;
+                        }
+                    }
+                    NeoSettings.setInt(forge.neo.match.FriendlyAttacks.SETTING, value);
+                    NeoSettings.save();
+                }, aiNote)));
+        final Label friendlyHint = new Label(NeoText.get("settings.aiFriendly.note"));
+        friendlyHint.getStyleClass().add("settings-note");
+        friendlyHint.setWrapText(true);
+        getChildren().add(friendlyHint);
         getChildren().add(aiNote);
 
         tab(Tab.TABLE);
@@ -1342,6 +1374,16 @@ public class SettingsPanel extends VBox {
         shortcuts.setOnAction(e -> showShortcuts());
         getChildren().add(row(NeoText.get("settings.shortcuts"), shortcuts));
 
+        // --- apoyar el proyecto ---
+        //
+        // Pedido por Ana el 17-10-2026: el boton de Ko-fi de la cabecera del
+        // menu es un logo, y quien no conoce Ko-fi no sabe que es para donar ni
+        // por que clicarlo. Aqui se cuenta, con su texto, y con los MISMOS dos
+        // botones de la cabecera (Ko-fi e itch.io) con su nombre al lado. La
+        // ultima pestanya: no es un ajuste, y no tiene que estorbar a ninguno.
+        tab(Tab.SUPPORT);
+        getChildren().add(supportCard());
+
         final Button close = new Button(NeoText.get("common.close"));
         close.getStyleClass().add("btn-primary");
         close.setOnAction(e -> onClose.run());
@@ -1383,6 +1425,9 @@ public class SettingsPanel extends VBox {
             final javafx.scene.control.ToggleButton b =
                     new javafx.scene.control.ToggleButton(NeoText.get("settings.tab." + t.id));
             b.getStyleClass().add("settings-tab");
+            if (t == Tab.SUPPORT) {
+                b.getStyleClass().add("settings-tab-support");
+            }
             b.setToggleGroup(group);
             b.setMaxWidth(Double.MAX_VALUE);
             b.setOnAction(e -> showTab(t));
@@ -1417,7 +1462,7 @@ public class SettingsPanel extends VBox {
     /** Las pestanyas, en el orden del carril. El id es el de su texto y el que se guarda. */
     public enum Tab {
         GENERAL("general"), GAME("game"), TABLE("table"), DISPLAY("display"),
-        SOUND("sound"), ART("art"), MODES("modes"), DATA("data");
+        SOUND("sound"), ART("art"), MODES("modes"), DATA("data"), SUPPORT("support");
 
         public final String id;
 
@@ -1869,6 +1914,60 @@ public class SettingsPanel extends VBox {
             }
         }
         return n;
+    }
+
+    /**
+     * La pestanya de apoyar el proyecto: un texto que explica que Neo Forge es
+     * gratis y de una sola persona, y los botones de Ko-fi e itch.io de la
+     * cabecera del menu, esta vez con su nombre escrito.
+     */
+    private static Region supportCard() {
+        final Label title = new Label(NeoText.get("support.title"));
+        title.getStyleClass().add("support-title");
+        title.setWrapText(true);
+
+        final VBox card = new VBox(UiScale.px(12), title);
+        for (final String key : new String[] {"support.text1", "support.text2"}) {
+            final Label p = new Label(NeoText.get(key));
+            p.getStyleClass().add("support-text");
+            p.setWrapText(true);
+            p.setMinHeight(Region.USE_PREF_SIZE);
+            card.getChildren().add(p);
+        }
+
+        final Button kofi = MainMenu.kofiButton();
+        kofi.setText(NeoText.get("support.kofi"));
+        kofi.getStyleClass().add("support-link");
+        final Button itch = MainMenu.itchButton();
+        itch.setText(NeoText.get("support.itch"));
+        itch.getStyleClass().add("support-link");
+        final javafx.scene.layout.FlowPane links =
+                new javafx.scene.layout.FlowPane(UiScale.px(12), UiScale.px(10), kofi, itch);
+        links.setPadding(new Insets(UiScale.px(6), 0, UiScale.px(2), 0));
+        card.getChildren().add(links);
+
+        final Label thanks = new Label(NeoText.get("support.thanks"));
+        thanks.getStyleClass().add("support-thanks");
+        thanks.setWrapText(true);
+        card.getChildren().add(thanks);
+
+        // Valorar en itch.io (17-10-2026): 18 valoraciones de 9.000 descargas,
+        // y el "Popular" de itch.io cuenta lo reciente. Pedir no cuesta nada.
+        final Button rate = new Button(NeoText.get("support.rate"));
+        rate.getStyleClass().add("support-rate");
+        rate.setMinWidth(Region.USE_PREF_SIZE);
+        rate.setOnAction(e -> {
+            try {
+                forge.gui.GuiBase.getInterface().browseToUrl(forge.neo.update.ItchVersion.RATE_URL);
+            } catch (final Exception ex) {
+                System.err.println("[neo] no se ha podido abrir itch.io: " + ex);
+            }
+        });
+        card.getChildren().add(rate);
+
+        card.getStyleClass().add("support-card");
+        card.setMaxWidth(UiScale.px(640));
+        return card;
     }
 
     private static Label section(final String text) {

@@ -343,9 +343,22 @@ public class ChoiceDialog<T> extends VBox implements NumberedChoice {
         auto.setOnAction(e -> {
             chosen.clear();
             chosen.addAll(selected.values());
-            for (int i = 0; i < nodesInOrder.size(); i++) {
-                if (!selected.containsKey(nodesInOrder.get(i))) {
-                    chosen.add(optionsInOrder.get(i));
+            if (searchMode) {
+                // Con buscador las opciones no estan todas pintadas: el resto
+                // sale de la lista entera, en su orden (por identidad: dos
+                // disparos iguales son dos opciones distintas).
+                final java.util.Set<T> taken = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+                taken.addAll(chosen);
+                for (final T o : allOptions) {
+                    if (!taken.contains(o)) {
+                        chosen.add(o);
+                    }
+                }
+            } else {
+                for (int i = 0; i < nodesInOrder.size(); i++) {
+                    if (!selected.containsKey(nodesInOrder.get(i))) {
+                        chosen.add(optionsInOrder.get(i));
+                    }
                 }
             }
             onDone.accept(new ArrayList<>(chosen));
@@ -370,12 +383,13 @@ public class ChoiceDialog<T> extends VBox implements NumberedChoice {
         footer.setAlignment(Pos.CENTER_LEFT);
 
         if (searchMode) {
-            // "Todas en orden" y "Auto" son para listas cortas que se ven
-            // enteras; con un buscador no se sabe que es "todas".
+            // "Todas en orden" es para listas cortas que se ven enteras; con
+            // un buscador no se sabe que es "todas". "Auto" SI se queda cuando
+            // hay que ordenarlas todas: ahi "todas" no tiene duda, y es justo
+            // con 144 disparos cuando mas falta (Discord, 17-10-2026: Black
+            // Sun's Zenith con Hapatra, Auntie Ool y Cauldron of Essence).
             selectAll.setVisible(false);
             selectAll.setManaged(false);
-            auto.setVisible(false);
-            auto.setManaged(false);
             allOptions = new ArrayList<>(options);
             searchDisplay = display;
             searchCardWidth = cardWidth;
