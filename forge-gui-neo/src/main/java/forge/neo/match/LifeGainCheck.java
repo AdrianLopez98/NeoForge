@@ -44,6 +44,10 @@ public final class LifeGainCheck {
         System.out.println("  Se quita un contador para ganar 2 vidas: tendria que quedarse con 3.");
 
         final AtomicBoolean activated = new AtomicBoolean(false);
+        // La entrada sobre la que se clica: mientras siga siendo esa, el clic
+        // aun no ha llegado y el piloto NO puede pasar (ver abajo).
+        final java.util.concurrent.atomic.AtomicReference<Object> clickedOn =
+                new java.util.concurrent.atomic.AtomicReference<>();
         final AtomicBoolean done = new AtomicBoolean(false);
         final AtomicInteger lifeBefore = new AtomicInteger(-1);
         final AtomicInteger lifeAfter = new AtomicInteger(-1);
@@ -53,13 +57,17 @@ public final class LifeGainCheck {
         final TutorialLesson lesson = position();
         NeoGame.playTutorial(lesson, new TutorialState(lesson.getState()),
                 NeoMatchUI.Mode.AUTO_PLAY, 40, null, false, ui -> {
-                    ui.setAutoPlayHold(() -> !activated.get() && myMain(ui));
+                    // Quieto hasta activar, y tambien hasta que el clic EMPIECE:
+                    // con la maquina cargada (la bateria en paralelo) el piloto
+                    // pasaba prioridad entre "activado" y el clic del otro hilo,
+                    // y la habilidad se quedaba sin activar (18-10-2026).
+                    ui.setAutoPlayHold(() -> (!activated.get() || clickPending(ui, clickedOn)) && myMain(ui));
                     final Thread pilot = new Thread(() -> {
                         try {
                             for (int i = 0; i < 600 && !done.get(); i++) {
                                 Thread.sleep(50L);
                                 try {
-                                    step(ui, activated, done, lifeBefore, lifeAfter, countersAfter, notes);
+                                    step(ui, activated, clickedOn, done, lifeBefore, lifeAfter, countersAfter, notes);
                                 } catch (final RuntimeException e) {
                                     // Partida a medio montar: se reintenta. La
                                     // primera se apunta, por si no es eso.
@@ -96,7 +104,16 @@ public final class LifeGainCheck {
         }
     }
 
-    private static void step(final NeoMatchUI ui, final AtomicBoolean activated, final AtomicBoolean done,
+    /** Si la entrada sigue siendo la que se clico: el clic aun no se ha atendido. */
+    private static boolean clickPending(final NeoMatchUI ui,
+            final java.util.concurrent.atomic.AtomicReference<Object> clickedOn) {
+        final Object was = clickedOn.get();
+        return was != null && ui.getGameController() instanceof PlayerControllerHuman gc
+                && gc.getInputQueue().getInput() == was;
+    }
+
+    private static void step(final NeoMatchUI ui, final AtomicBoolean activated,
+            final java.util.concurrent.atomic.AtomicReference<Object> clickedOn, final AtomicBoolean done,
             final AtomicInteger lifeBefore, final AtomicInteger lifeAfter,
             final AtomicInteger countersAfter, final StringBuilder notes) {
         if (ui.getGameView() == null || ui.getGameView().getGame() == null) {
@@ -124,12 +141,13 @@ public final class LifeGainCheck {
                 return;
             }
             lifeBefore.set(me.getLife());
-            activated.set(true);
             // Lo que hace el clic del jugador una vez elegida la habilidad del
             // menu: InputPassPriority.selectAbility (el selectAbility del
             // controlador solo vale tras ofrecer la lista, spellViewCache).
             final SpellAbility chosen = gain;
             final InputPassPriority input = (InputPassPriority) gc.getInputQueue().getInput();
+            clickedOn.set(input);
+            activated.set(true);
             // En un hilo aparte: la pregunta del coste ("quitar un contador?")
             // lo bloquea hasta que el piloto contesta.
             final Thread click = new Thread(() -> {
