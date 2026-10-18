@@ -430,6 +430,21 @@ public final class CardImages {
     }
 
     /**
+     * Lo que ocupan, decodificadas, las imagenes que hay ahora en la cache
+     * (ancho x alto x 4 bytes). Para medir, no para decidir nada:
+     * {@code -Dneo.fx.bench=true}.
+     */
+    public static long cachedBytes() {
+        long total = 0;
+        for (final Image im : CACHE.asMap().values()) {
+            if (im != null) {
+                total += (long) im.getWidth() * (long) im.getHeight() * 4L;
+            }
+        }
+        return total;
+    }
+
+    /**
      * Tira la cache y vuelve a empezar.
      *
      * <p>Solo hace falta al cambiar el idioma del arte: las imagenes ya

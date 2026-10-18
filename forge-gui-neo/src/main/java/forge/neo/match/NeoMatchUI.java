@@ -961,7 +961,18 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
 
         clickTrace(card, "activar");
         lastClicked = card;
-        respondLater(() -> getGameController().selectCard(card, null, null));
+        respondLater(() -> {
+            // Si el motor no la acepta, decir POR QUE cuando se sabe (CantPlay):
+            // un permanente cuya habilidad no se puede usar no hacia nada al
+            // clicarlo (Discord, 18-10-2026, Weathered Wayfarer). Sin motivo
+            // seguro, como antes: nada.
+            if (!getGameController().selectCard(card, null, null)) {
+                final String why = CantPlay.reason(getGameController(), card);
+                if (why != null) {
+                    showWhy(why);
+                }
+            }
+        });
     }
 
     /**
@@ -1213,6 +1224,22 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
     public void applyYieldUpdate(final forge.gamemodes.match.YieldUpdate update) {
         super.applyYieldUpdate(update);
         ResolveAll.mirrorOff(getGameController(), update);
+    }
+
+    /**
+     * El estado de las macros del anfitrion, en una partida en red (Forge
+     * #12288): el invitado no tiene sistema de macros propio y sus botones lo
+     * leen de lo que manda el anfitrion. Como la GUI vieja, se repintan al
+     * recibirlo, sin esperar al siguiente updateButtons.
+     */
+    @Override
+    public void applyMacroState(final forge.interfaces.IMacroSystem.State state) {
+        super.applyMacroState(state);
+        runOnUi(() -> {
+            if (table != null) {
+                table.setMacroState(isMacroRecording(), hasMacro());
+            }
+        });
     }
 
     /** Solo pruebas: si sigue puesto en alguno de los dos controladores. */
@@ -2621,10 +2648,131 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         // Juntas, nunca una tarea por aviso: ver CardPulses (una cascada de
         // contadores dejo el juego sin memoria).
         if (event instanceof forge.game.event.GameEventCardDamaged e && e.amount() > 0) {
-            pulsesFor(t).hit(e.card());
+            // El golpe del combate: quien hace el dano se lanza hacia su victima.
+            final boolean combat = e.source() != null && (e.source().isAttacking() || e.source().isBlocking());
+            // El golpe va con los efectos, como en Android: apagados, como antes.
+            if (combat && forge.neo.ui.ImpactLayer.isEnabled()) {
+                final CardView src = e.source();
+                final CardView dst = e.card();
+                runOnUi(() -> t.strike(src, dst));
+            }
+            if (forge.neo.ui.ImpactLayer.isEnabled()) {
+                // El numero del dano, y el destello cuando llega el golpe.
+                final CardView dst = e.card();
+                final int amount = e.amount();
+                final boolean poison = e.type() == forge.game.event.GameEventCardDamaged.DamageType.M1M1Counters;
+                runOnUi(() -> t.damagePop(dst, amount, combat, poison));
+            } else {
+                pulsesFor(t).hit(e.card());
+            }
+        } else if (event instanceof forge.game.event.GameEventPlayerDamaged e && e.amount() > 0) {
+            final PlayerView dst = e.target();
+            if (e.combat() && e.source() != null && forge.neo.ui.ImpactLayer.isEnabled()) {
+                final CardView src = e.source();
+                runOnUi(() -> t.strike(src, dst));
+            }
+            if (forge.neo.ui.ImpactLayer.isEnabled()) {
+                final int amount = e.amount();
+                final boolean combat = e.combat();
+                final boolean poison = e.infect();
+                runOnUi(() -> t.damagePop(dst, amount, combat, poison));
+            }
         } else if (event instanceof forge.game.event.GameEventCardCounters e
                 && e.oldValue() != e.newValue()) {
             pulsesFor(t).bump(e.card());
+        } else if (event instanceof forge.game.event.GameEventSpellResolved e && !e.hasFizzled()
+                && forge.neo.ui.ImpactLayer.isEnabled()) {
+            noteImpacts(t, e);
+        } else if (event instanceof forge.game.event.GameEventCardChangeZone e
+                && forge.neo.ui.ImpactLayer.isEntranceEnabled()) {
+            noteCommanderEntrance(t, e);
+        }
+    }
+
+    /**
+     * <b>Tu comandante acaba de entrar en la mesa</b>: lanzado desde la zona de
+     * mando o de cualquier otra forma (parpadeo, reanimar). Solo el tuyo — el
+     * del rival ya lo cuentan el registro y el aviso. Ver
+     * {@link forge.neo.ui.CommanderEntrance}.
+     */
+    private void noteCommanderEntrance(final forge.neo.ui.TableScreen t,
+            final forge.game.event.GameEventCardChangeZone e) {
+        final CardView card = e.card();
+        // De TODOS, no solo el tuyo (Ana, 18-10-2026: "que te enteres cuando
+        // saca el comandante el rival tambien").
+        if (card == null || e.to() == null || e.to().zoneType() != forge.game.zone.ZoneType.Battlefield
+                || (e.from() != null && e.from().zoneType() == forge.game.zone.ZoneType.Battlefield)
+                || !card.isCommander()) {
+            return;
+        }
+        final PlayerView owner = card.getController() != null ? card.getController() : card.getOwner();
+        final String subtitle = isMine(card) || owner == null
+                ? NeoText.get("entrance.commander")
+                : NeoText.get("entrance.commanderOf", nameOf(owner));
+        final CardView.CardStateView state = card.getCurrentState();
+        final List<javafx.scene.paint.Color> colors = forge.neo.ui.ImpactLayer.colorsOf(
+                state == null ? null : state.getColors());
+        // Los famosos llevan firma (CommanderSignature); alguna, solo si es tuyo.
+        final CommanderSignature signature = CommanderSignature.of(card, isMine(card));
+        if (Boolean.getBoolean("neo.impact.log")) {
+            System.out.println("[entrada] " + card + (signature == CommanderSignature.NONE ? "" : " firma " + signature));
+        }
+        runOnUi(() -> t.commanderEntrance(card, colors, subtitle, signature));
+    }
+
+    /**
+     * <b>Los destellos de lo que se acaba de resolver</b> (Discord, 17-10-2026):
+     * chispas del color del hechizo sobre cada objetivo — cartas y jugadores —
+     * y un remolino bajo el permanente que entra lanzado. Lo que se ha golpeado
+     * lo lee {@link SpellImpact} (el mismo para Android), aqui en el hilo del
+     * motor y en el momento del aviso, que es el unico en que se puede. Se
+     * pinta en {@link forge.neo.ui.ImpactLayer}.
+     *
+     * <p>Al invitado de red no le sale: no tiene la partida, solo vistas.
+     */
+    private void noteImpacts(final forge.neo.ui.TableScreen t,
+            final forge.game.event.GameEventSpellResolved e) {
+        final GameView view = getGameView();
+        final SpellImpact impact = SpellImpact.read(view == null ? null : view.getGame(), e);
+        if (impact == null) {
+            return;
+        }
+        // -Dneo.impact.log=true: lo que se ha leido, para probarlo sin mirar.
+        if (Boolean.getBoolean("neo.impact.log")) {
+            System.out.println("[destellos] " + e.spell().getHostCard() + ": " + impact);
+        }
+        // Juntas, como CardPulses: en la cola de la interfaz hay como mucho UNA
+        // tarea, y lo que pase del tope no se apunta (no cabria en pantalla).
+        if (pendingImpacts.size() < 24) {
+            pendingImpacts.add(new Object[] {t, impact});
+        }
+        if (impactsScheduled.compareAndSet(false, true)) {
+            runOnUi(this::flushImpacts);
+        }
+    }
+
+    private final java.util.concurrent.ConcurrentLinkedQueue<Object[]> pendingImpacts =
+            new java.util.concurrent.ConcurrentLinkedQueue<>();
+    private final java.util.concurrent.atomic.AtomicBoolean impactsScheduled =
+            new java.util.concurrent.atomic.AtomicBoolean();
+
+    /** En el hilo de interfaz. */
+    private void flushImpacts() {
+        // Antes de vaciar: lo que llegue mientras tanto encola otra ronda.
+        impactsScheduled.set(false);
+        Object[] next;
+        while ((next = pendingImpacts.poll()) != null) {
+            final forge.neo.ui.TableScreen t = (forge.neo.ui.TableScreen) next[0];
+            final SpellImpact impact = (SpellImpact) next[1];
+            final List<javafx.scene.paint.Color> colors = forge.neo.ui.ImpactLayer.colorsOf(impact.colors);
+            for (final Object o : impact.targets) {
+                t.impactHit(o, colors, impact.source);
+            }
+            // Un comandante ya tiene su entrada de cine: la otra sobraria.
+            if (impact.arrived != null && !(impact.arrived.isCommander()
+                    && forge.neo.ui.ImpactLayer.isEntranceEnabled())) {
+                t.impactArrive(impact.arrived, colors);
+            }
         }
     }
 

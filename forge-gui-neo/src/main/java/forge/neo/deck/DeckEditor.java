@@ -282,6 +282,20 @@ public final class DeckEditor {
     }
 
     /**
+     * Las cartas del mazo que NO tienes, como lista para copiar ("2 Sol
+     * Ring"), una linea por nombre con las copias que faltan. Discord,
+     * 18-10-2026: <i>"export a list of just the cards we are missing from a
+     * deck in quest mode"</i>. Vacio fuera de la Quest o si no falta nada.
+     */
+    public String missingText() {
+        final StringBuilder sb = new StringBuilder();
+        for (final Map.Entry<PaperCard, Integer> e : missingCards().entrySet()) {
+            sb.append(e.getValue()).append(' ').append(e.getKey().getName()).append('\n');
+        }
+        return sb.toString();
+    }
+
+    /**
      * "Quitar las que no tengo": deja el mazo con lo que TIENES. Es lo que
      * hacia "Limpiar" antes de la lista de deseos, cuando lo que no tenias era
      * ilegal: quien importa una lista y quiere quedarse con lo suyo no tiene

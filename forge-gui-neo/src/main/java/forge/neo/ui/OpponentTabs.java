@@ -163,6 +163,7 @@ public class OpponentTabs extends HBox {
                         : NeoText.get("bar.hand.revealed", seen[0]));
             }
             markPickable(tab, p);
+            tab.getProperties().put(PLAYER_KEY, p);
             tab.setOnMouseClicked(e -> {
                 if (onSelect != null) {
                     onSelect.accept(p);
@@ -170,6 +171,24 @@ public class OpponentTabs extends HBox {
             });
             getChildren().add(tab);
         }
+    }
+
+    private static final String PLAYER_KEY = "neo.tab.player";
+
+    /**
+     * La pestanya de ese jugador, o null. Para los efectos (golpes, destellos)
+     * sobre un rival cuya mesa no se esta viendo: apuntan a su pestanya.
+     */
+    public javafx.scene.Node tabOf(final PlayerView p) {
+        if (p == null || !isVisible()) {
+            return null;
+        }
+        for (final javafx.scene.Node n : getChildren()) {
+            if (p.equals(n.getProperties().get(PLAYER_KEY))) {
+                return n;
+            }
+        }
+        return null;
     }
 
     /** El texto de cada pestanya, en orden. Solo para pruebas. */

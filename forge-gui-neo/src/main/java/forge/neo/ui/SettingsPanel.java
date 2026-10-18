@@ -333,6 +333,28 @@ public class SettingsPanel extends VBox {
                     }
                 }));
 
+        // --- destellos de hechizos (ImpactLayer) ---
+        //
+        // Discord, 17-10-2026: chispas del color del hechizo sobre lo que tenia
+        // por objetivo, y un remolino al entrar lo lanzado. Encendido de
+        // fabrica; apagable para quien solo quiera rendimiento.
+        getChildren().add(toggleRow(NeoText.get("settings.impactEffects"),
+                NeoSettings.getBool(NeoSettings.IMPACT_EFFECTS, true),
+                on -> {
+                    ImpactLayer.setEnabled(on);
+                    NeoSettings.setBool(NeoSettings.IMPACT_EFFECTS, on);
+                    NeoSettings.save();
+                }));
+
+        // --- la entrada de tu comandante (CommanderEntrance) ---
+        getChildren().add(toggleRow(NeoText.get("settings.commanderEntrance"),
+                NeoSettings.getBool(NeoSettings.COMMANDER_ENTRANCE, true),
+                on -> {
+                    ImpactLayer.setEntranceEnabled(on);
+                    NeoSettings.setBool(NeoSettings.COMMANDER_ENTRANCE, on);
+                    NeoSettings.save();
+                }));
+
         // --- cartas nitidas ---
         //
         // Reducir la imagen UNA vez y con un buen filtro, en vez de dejar que

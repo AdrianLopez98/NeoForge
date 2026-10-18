@@ -397,6 +397,44 @@ public class PlayerField extends Pane {
         landRow.refreshAll();
     }
 
+    /** Ver {@link BattlefieldPane#holdGhost}. */
+    public void holdGhost(final forge.game.card.CardView card) {
+        creatureRow.holdGhost(card);
+        permanentRow.holdGhost(card);
+        landRow.holdGhost(card);
+    }
+
+    /** Ver {@link BattlefieldPane#lastSceneBoundsOf}. */
+    public javafx.geometry.Bounds lastSceneBoundsOf(final forge.game.card.CardView card) {
+        for (final BattlefieldPane row : List.of(creatureRow, permanentRow, landRow)) {
+            final javafx.geometry.Bounds b = row.lastSceneBoundsOf(card);
+            if (b != null) {
+                return b;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * El fantasma de esa carta si se esta yendo, o la pila que la lleva dentro.
+     * Ver {@link BattlefieldPane#ghostOf} y {@link BattlefieldPane#stackHolding}.
+     */
+    public CardNode ghostOf(final forge.game.card.CardView card) {
+        for (final BattlefieldPane row : List.of(creatureRow, permanentRow, landRow)) {
+            final CardNode g = row.ghostOf(card);
+            if (g != null) {
+                return g;
+            }
+        }
+        for (final BattlefieldPane row : List.of(creatureRow, permanentRow, landRow)) {
+            final CardNode g = row.stackHolding(card);
+            if (g != null) {
+                return g;
+            }
+        }
+        return null;
+    }
+
     public List<CardNode> nodes() {
         final List<CardNode> out = new ArrayList<>(creatureRow.nodes());
         out.addAll(permanentRow.nodes());

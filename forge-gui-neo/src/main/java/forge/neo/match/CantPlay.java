@@ -74,10 +74,12 @@ public final class CantPlay {
         }
         final Card card = inHand(me, clicked);
         if (card == null) {
-            // Solo se explica lo que hay en la mano. Una carta de la mesa que
-            // no responde puede ser mil cosas (un input a medias, una eleccion
-            // en curso), y ahi una frase segura no la hay.
-            return null;
+            // De la mesa, solo las habilidades activadas de lo TUYO, y solo
+            // con un motivo seguro (Discord, 18-10-2026, Weathered Wayfarer:
+            // "no activated-ability option is presented"). Lo demas que no
+            // responde puede ser mil cosas, y ahi una frase segura no la hay.
+            final Card mine = onMyBattlefield(me, clicked);
+            return mine == null ? null : activateReason(me, mine);
         }
 
         final List<SpellAbility> jugables = card.getAllPossibleAbilities(me, true);
@@ -135,6 +137,91 @@ public final class CantPlay {
             }
         }
         return falta;
+    }
+
+    /** La carta del motor que corresponde a esa vista, si esta en tu mesa. */
+    private static Card onMyBattlefield(final Player me, final CardView view) {
+        for (final Card c : me.getCardsIn(ZoneType.Battlefield)) {
+            if (c.getId() == view.getId()) {
+                return c;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Un permanente tuyo con habilidades activadas y ninguna que se pueda usar
+     * ahora: por que. Se contesta con la primera habilidad que sepamos
+     * explicar, y en este orden, que es el de lo que mas se ve en la mesa:
+     * girada, recien llegada (mareo) y la condicion de la propia carta
+     * ("Activa solo si..."), que es lo que pasaba con Weathered Wayfarer.
+     */
+    private static String activateReason(final Player me, final Card card) {
+        if (!card.getAllPossibleAbilities(me, true).isEmpty()) {
+            return null;
+        }
+        final String name = forge.neo.card.CardText.nameOf(card.getView());
+        for (final SpellAbility sa : card.getAllPossibleAbilities(me, false)) {
+            if (!sa.isActivatedAbility() || sa.isManaAbility()) {
+                continue;
+            }
+            final boolean tap = sa.getPayCosts() != null && sa.getPayCosts().hasTapCost();
+            if (tap && card.isTapped()) {
+                return NeoText.get("why.cant.tapped", name);
+            }
+            if (tap && card.isSick()) {
+                return NeoText.get("why.cant.sick", name);
+            }
+            if (sa.getRestrictions() != null) {
+                if (sa.getActivatingPlayer() == null) {
+                    sa.setActivatingPlayer(me);
+                }
+                if (!sa.getRestrictions().canPlay(card, sa)) {
+                    final String condition = conditionSentence(card, sa);
+                    return condition != null
+                            ? NeoText.get("why.cant.condition", condition)
+                            : NeoText.get("why.cant.conditionAny", name);
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * La frase de la condicion de esa habilidad ("Activate only if..."), en el
+     * idioma de las cartas si hay traduccion. Es la ultima frase de su renglon
+     * del texto: se busca en ingles y se toma el mismo renglon traducido.
+     */
+    private static String conditionSentence(final Card card, final SpellAbility sa) {
+        final String desc = sa.getDescription() == null ? "" : sa.getDescription();
+        final java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("(Activate[^.]*\\bonly\\b[^.]*\\.)").matcher(desc);
+        if (!m.find()) {
+            return null;
+        }
+        final String english = m.group(1).trim();
+        try {
+            final String oracle = card.getRules() == null ? null : card.getRules().getOracleText();
+            final String translated = forge.util.CardTranslation.getTranslatedOracle(card.getName());
+            if (oracle != null && translated != null && !translated.isBlank()) {
+                final String[] en = oracle.split("\\\\n|\\n");
+                final String[] tr = translated.split("\\\\n|\\n");
+                if (en.length == tr.length) {
+                    for (int i = 0; i < en.length; i++) {
+                        if (en[i].contains(english)) {
+                            final String[] parts = tr[i].trim().split("(?<=[.\u3002])\\s*");
+                            final String last = parts[parts.length - 1].trim();
+                            if (!last.isEmpty()) {
+                                return last;
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (final RuntimeException ignored) {
+            // La traduccion es un extra: si algo no cuadra, la frase en ingles.
+        }
+        return english;
     }
 
     /** La carta del motor que corresponde a esa vista, si esta en tu mano. */

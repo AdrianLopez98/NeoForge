@@ -86,8 +86,31 @@ public final class Anim {
         sc.setToY(0.82);
         sc.setInterpolator(Interpolator.EASE_IN);
         final ParallelTransition p = new ParallelTransition(f, sc);
-        p.setOnFinished(e -> onDone.run());
+        p.setOnFinished(e -> {
+            node.getProperties().remove(LEAVE_KEY);
+            onDone.run();
+        });
+        node.getProperties().put(LEAVE_KEY, p);
         p.play();
+    }
+
+    /** La salida en marcha de un nodo, para poder pararla (ver {@link GhostHold}). */
+    static final String LEAVE_KEY = "neo.anim.leave";
+
+    /**
+     * Para la salida de un fantasma y lo deja entero otra vez. Devuelve si
+     * habia una en marcha.
+     */
+    static boolean holdLeave(final Node node) {
+        final Object running = node.getProperties().remove(LEAVE_KEY);
+        if (running instanceof ParallelTransition p) {
+            p.setOnFinished(null);
+            p.stop();
+        }
+        node.setOpacity(1);
+        node.setScaleX(1);
+        node.setScaleY(1);
+        return running != null;
     }
 
     /**
@@ -235,7 +258,86 @@ public final class Anim {
     }
 
     private static final String HIT_KEY = "neo.anim.hit";
+    private static final String STRIKE_KEY = "neo.anim.strike";
+
+    /**
+     * <b>El golpe del combate</b>, como en Arena: la criatura que hace dano se
+     * lanza un instante hacia lo que golpea y vuelve (Ana, 18-10-2026). El
+     * avance de "esta atacando" ya existia; esto es el momento del dano.
+     *
+     * <p>Con una {@code Translate} propia y temporal, no con translateX/Y: esos
+     * los usan el avance del combate y el hover, y pisarlos los dejaria
+     * descolocados. Al acabar se quita.
+     *
+     * @param target el centro de lo golpeado, en coordenadas de la escena
+     */
+    public static void strike(final Node node, final javafx.geometry.Point2D target) {
+        if (!CardNode.areAnimationsEnabled() || node == null || target == null
+                || node.getParent() == null || !claim(node, STRIKE_KEY)) {
+            return;
+        }
+        final javafx.geometry.Point2D to = node.getParent().sceneToLocal(target);
+        final javafx.geometry.Bounds b = node.getBoundsInParent();
+        final double dx = to.getX() - b.getCenterX();
+        final double dy = to.getY() - b.getCenterY();
+        final double dist = Math.hypot(dx, dy);
+        if (dist < 1) {
+            node.getProperties().remove(STRIKE_KEY);
+            return;
+        }
+        final double reach = Math.min(dist * 0.35, b.getHeight() * 0.45);
+        final javafx.scene.transform.Translate jab = new javafx.scene.transform.Translate();
+        node.getTransforms().add(jab);
+        final javafx.animation.Timeline t = new javafx.animation.Timeline(
+                new javafx.animation.KeyFrame(Duration.ZERO,
+                        new javafx.animation.KeyValue(jab.xProperty(), 0),
+                        new javafx.animation.KeyValue(jab.yProperty(), 0)),
+                new javafx.animation.KeyFrame(Duration.millis(110),
+                        new javafx.animation.KeyValue(jab.xProperty(), dx / dist * reach, Interpolator.EASE_IN),
+                        new javafx.animation.KeyValue(jab.yProperty(), dy / dist * reach, Interpolator.EASE_IN)),
+                new javafx.animation.KeyFrame(Duration.millis(330),
+                        new javafx.animation.KeyValue(jab.xProperty(), 0, Interpolator.EASE_OUT),
+                        new javafx.animation.KeyValue(jab.yProperty(), 0, Interpolator.EASE_OUT)));
+        t.setOnFinished(e -> {
+            node.getTransforms().remove(jab);
+            node.getProperties().remove(STRIKE_KEY);
+        });
+        t.play();
+    }
     private static final String BUMP_KEY = "neo.anim.bump";
+
+    /**
+     * <b>Una sacudida</b>: el retrato del jugador que recibe dano, como en Arena
+     * (Discord, 18-10-2026: <i>"some kind of effect when you damage yourself
+     * like in arena"</i>). Cuatro idas y vueltas de pocos pixeles en 240 ms,
+     * con una {@code Translate} propia y temporal como {@link #strike}. Una a
+     * la vez por nodo.
+     */
+    public static void shake(final Node node) {
+        if (!CardNode.areAnimationsEnabled() || node == null || node.getScene() == null
+                || !claim(node, SHAKE_KEY)) {
+            return;
+        }
+        final double a = Math.max(3, Math.min(7, node.getBoundsInLocal().getWidth() * 0.06));
+        final javafx.scene.transform.Translate jolt = new javafx.scene.transform.Translate();
+        node.getTransforms().add(jolt);
+        final javafx.animation.Timeline t = new javafx.animation.Timeline(
+                new javafx.animation.KeyFrame(Duration.ZERO, new javafx.animation.KeyValue(jolt.xProperty(), 0)),
+                new javafx.animation.KeyFrame(Duration.millis(40), new javafx.animation.KeyValue(jolt.xProperty(), -a)),
+                new javafx.animation.KeyFrame(Duration.millis(90), new javafx.animation.KeyValue(jolt.xProperty(), a)),
+                new javafx.animation.KeyFrame(Duration.millis(140),
+                        new javafx.animation.KeyValue(jolt.xProperty(), -a * 0.55)),
+                new javafx.animation.KeyFrame(Duration.millis(190),
+                        new javafx.animation.KeyValue(jolt.xProperty(), a * 0.3)),
+                new javafx.animation.KeyFrame(Duration.millis(240), new javafx.animation.KeyValue(jolt.xProperty(), 0)));
+        t.setOnFinished(e -> {
+            node.getTransforms().remove(jolt);
+            node.getProperties().remove(SHAKE_KEY);
+        });
+        t.play();
+    }
+
+    private static final String SHAKE_KEY = "neo.anim.shake";
 
     /**
      * UNA animacion de cada tipo por carta a la vez. Una cascada de disparos

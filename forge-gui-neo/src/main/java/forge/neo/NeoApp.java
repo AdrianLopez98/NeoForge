@@ -151,6 +151,10 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 NeoSettings.getBool(NeoSettings.ANIMATIONS, true));
         forge.neo.card.CardNode.setFoilEffectEnabled(
                 NeoSettings.getBool(NeoSettings.FOIL_EFFECT, true));
+        forge.neo.ui.ImpactLayer.setEnabled(
+                NeoSettings.getBool(NeoSettings.IMPACT_EFFECTS, true));
+        forge.neo.ui.ImpactLayer.setEntranceEnabled(
+                NeoSettings.getBool(NeoSettings.COMMANDER_ENTRANCE, true));
         forge.neo.card.CardNode.setKeywordBadgesEnabled(
                 NeoSettings.getBool(NeoSettings.KEYWORD_BADGES, true));
         forge.neo.ui.HandFan.setFanned(NeoSettings.handFan());
@@ -1815,7 +1819,13 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                     Long.getLong("neo.board.zoomAt", 1500L)));
             t.setOnFinished(e -> {
                 final CardNode card = debug.firstCardNode(scene.getRoot());
-                final javafx.geometry.Point2D at = card != null ? debug.centreOf(card)
+                // -Dneo.board.at=0.3,0.45: el punto, en fracciones de la ventana.
+                final String fixed = System.getProperty("neo.board.at");
+                final javafx.geometry.Point2D at = fixed != null
+                        ? new javafx.geometry.Point2D(
+                                scene.getWidth() * Double.parseDouble(fixed.split(",")[0].trim()),
+                                scene.getHeight() * Double.parseDouble(fixed.split(",")[1].trim()))
+                        : card != null ? debug.centreOf(card)
                         : new javafx.geometry.Point2D(scene.getWidth() / 2,
                                 scene.getHeight() / 2);
                 final int steps = Integer.getInteger("neo.board.steps", 6);
@@ -2029,6 +2039,20 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 }
                 // "r:Nombre": clic DE VERDAD (por la escena, ver
                 // NeoAppDebug.realClick) en una carta de tu mesa, girada o no.
+                // "e:Nombre": una carta de la mesa de un RIVAL (un objetivo).
+                if (step.startsWith("e:")) {
+                    final String want = step.substring(2);
+                    for (final CardNode n : table.oppFieldNodes()) {
+                        if (n.getCard() != null && n.getScene() != null
+                                && debug.nameOf(n.getCard()).contains(want)) {
+                            System.out.println("[mesa] clico del rival " + debug.nameOf(n.getCard()));
+                            debug.fire(n, javafx.scene.input.MouseEvent.MOUSE_CLICKED, debug.centreOf(n));
+                            return;
+                        }
+                    }
+                    System.out.println("[mesa] no veo en el rival " + want);
+                    return;
+                }
                 if (step.startsWith("r:")) {
                     final String want = step.substring(2);
                     for (final CardNode n : table.selfFieldNodes()) {
@@ -2195,6 +2219,40 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                         words.getMessage("lblHeads"), words.getMessage("lblTails"),
                         () -> System.out.println("[moneda] ha caido: " + (heads ? "cara" : "cruz")));
             });
+            t.play();
+        }
+
+        // Medir lo que cuesta la interfaz: -Dneo.fx.bench=true (ver FxBench).
+        FxBench.start(scene);
+
+        // Los destellos (ImpactLayer) sobre lo que haya en la mesa, una tanda
+        // cada 0,8 s desde -Dneo.impact.testAt=N (ms): asi cualquier --wait
+        // los pilla a medias.
+        if (args.contains("--impact-test")) {
+            final javafx.animation.Timeline t = new javafx.animation.Timeline(
+                    new javafx.animation.KeyFrame(Duration.millis(Long.getLong("neo.impact.every", 800L)), e -> {
+                        if (table != null) {
+                            table.impactTest();
+                            System.out.println("[destellos] en marcha: " + table.impactCount());
+                        }
+                    }));
+            t.setCycleCount(javafx.animation.Animation.INDEFINITE);
+            t.setDelay(Duration.millis(Long.getLong("neo.impact.testAt", 1500L)));
+            t.play();
+        }
+
+        // La entrada de comandante (CommanderEntrance) con tu primera carta de
+        // la mesa, una cada 2,5 s desde -Dneo.entrance.testAt=N (ms).
+        if (args.contains("--entrance-test")) {
+            final javafx.animation.Timeline t = new javafx.animation.Timeline(
+                    new javafx.animation.KeyFrame(Duration.millis(2500), e -> {
+                        if (table != null) {
+                            table.entranceTest();
+                            System.out.println("[entrada] en marcha: " + table.entranceShowing());
+                        }
+                    }));
+            t.setCycleCount(javafx.animation.Animation.INDEFINITE);
+            t.setDelay(Duration.millis(Long.getLong("neo.entrance.testAt", 1500L)));
             t.play();
         }
 

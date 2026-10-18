@@ -79,6 +79,20 @@ public final class NeoSettings {
      */
     public static final String FOIL_EFFECT = "foilEffect";
     /**
+     * Los destellos sobre lo que acaba de ser objetivo de un hechizo y el
+     * remolino del permanente que entra lanzado ({@code forge.neo.ui.ImpactLayer}).
+     * Encendido de fabrica, como el brillo de las foil: es adorno que ademas
+     * informa, y no cambia el ritmo de la partida. Apagado, la mesa de siempre.
+     */
+    public static final String IMPACT_EFFECTS = "impactEffects";
+    /**
+     * La entrada de cine de TU comandante al entrar en la mesa
+     * ({@code forge.neo.ui.CommanderEntrance}). Encendido de fabrica; con su
+     * propio interruptor porque dura 1,8 s y hay quien lo querra quitar
+     * dejando los destellos.
+     */
+    public static final String COMMANDER_ENTRANCE = "commanderEntrance";
+    /**
      * Las chapitas de palabras clave de combate sobre las cartas de la mesa
      * (volar, toque mortal...). Encendido de fabrica: es lo que se mira al
      * bloquear. Ver {@code forge.neo.card.KeywordIcon}.

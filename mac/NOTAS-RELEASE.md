@@ -1,15 +1,12 @@
-**NeoForge para macOS 1.0.26 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.27 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Agresividad de la IA contigo (Commander):** Normal (de fábrica), Baja o Muy baja. Con Baja o Muy baja, las IA prefieren atacarse entre ellas salvo que seas claramente la mayor amenaza.
-- **El registro, con las cartas:** cada línea lleva la miniatura de su carta y los nombres van subrayados; al pasar el ratón sale la carta y un clic la amplía.
-- **Estadísticas al final de la partida:** quién hizo más daño, la carta que más pegó, el golpe más grande, hechizos y criaturas.
-- **Ciclar sin querer, se acabó:** si una carta de la mano no se puede lanzar ahora y tocarla solo la ciclaría, pregunta antes.
-- **Lista de mazos:** el filtro (búsqueda, colores, formato, expansión y pestaña) se recuerda al volver de editar; Commander tiene filtro de formato y de expansión, y los preconstruidos de Commander salen con su expansión de verdad; el mazo de cada rival también se recuerda.
-- **Constructor:** el filtro de color enseña las cartas de ese color (y las tierras que lo dan), no todas las multicolores.
-- **Un clic en el «×N» de una pila de fichas iguales ataca con todas**, como en Arena.
-- **Ordenar muchos disparos:** el botón «Auto» sale también con más de 60.
-- **Pestaña «Apoyar» en Ajustes,** con Ko-fi, itch.io y un botón para valorar el juego.
+- **Efectos de los hechizos:** al resolverse, el hechizo vuela de quien lo lanza hasta su objetivo y estalla con su color: fuego, humo morado, agua, hojas, luz o chispas. La criatura que lo recibe espera al golpe antes de irse, y lo que entra lanzado se materializa en la mesa.
+- **El combate, como en Arena:** la criatura que golpea se lanza hacia su víctima, salta el número del daño sobre criaturas y jugadores, y al jugador que recibe daño se le sacude el retrato.
+- **La entrada de los comandantes:** el tuyo y los de tus rivales entran con un momento de cine. Algunos famosos traen la suya: el ala negra y las plumas de Sephiroth, el Omnislash de Cloud y el viento de Tsushima de Jin Sakai.
+- Las dos cosas se apagan en Ajustes («Efectos de los hechizos y del combate» y «Entrada de los comandantes»).
+- **Tocar un permanente cuya habilidad no se puede usar dice por qué:** girado, recién llegado o la condición de la propia carta.
+- **Quest:** «Exportar lo que falta» de un mazo, y el sobre de premio ya no enseña números que no hacían nada.
 - **Forge al día.**
 
 Descarga el `.dmg` de tu Mac:

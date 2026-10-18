@@ -110,6 +110,8 @@ public class TableScreen extends Pane {
     private final VBox stackBox = new VBox(6);
     private final ActionBar actionBar = new ActionBar();
     private final CombatOverlay combatOverlay = new CombatOverlay();
+    /** Los destellos de "esto acaba de recibir". Ver {@link ImpactLayer}. */
+    private final ImpactLayer impactLayer = new ImpactLayer();
     private final Overlay overlay = new Overlay();
     private final PromptBanner promptBanner;
     private final TurnBanner turnBanner;
@@ -462,7 +464,7 @@ public class TableScreen extends Pane {
         spotlight.setFill(javafx.scene.paint.Color.TRANSPARENT);
 
         getChildren().addAll(opponentTabs, opponentBar, viewport,
-                selfBar, hand, commandZone, phaseRail, side, combatOverlay, logButton, menuButton, chatButton, macroRecordButton, macroPlayButton, cooldownBadge,
+                selfBar, hand, commandZone, phaseRail, side, combatOverlay, impactLayer, logButton, menuButton, chatButton, macroRecordButton, macroPlayButton, cooldownBadge,
                 stackChip, promptBanner, notices, turnBanner, coinFlip, diceRoll, playerDetails, zoomBadge, macroBadge, spotlight,
                 handPeek, overlay, menuOverlay, zoomOverlay, curtain);
         curtain.getStyleClass().add("hotseat-curtain");
@@ -560,6 +562,10 @@ public class TableScreen extends Pane {
         });
 
         combatOverlay.setLocator(this::boundsOf);
+        impactLayer.setLocator(this::impactBoundsOf);
+        // Se coloca a mano en layoutChildren; sin esto, cada fotograma de un
+        // destello pediria recolocar la mesa entera.
+        impactLayer.setManaged(false);
         opponentBar.setOnZoneClicked(this::showZone);
         opponentBar.setOnCommanderHover(this::hovered);
         selfBar.setOnZoneClicked(this::showZone);
@@ -705,6 +711,7 @@ public class TableScreen extends Pane {
             }
         }
         combatOverlay.resizeRelocate(0, 0, w, h);
+        impactLayer.resizeRelocate(0, 0, w, h);
 
         // Encima del boton del registro: la misma esquina muerta, y solo
         // aparece cuando hace falta.
@@ -1269,7 +1276,8 @@ public class TableScreen extends Pane {
         final boolean on = zoom > 1.001;
         zoomBadge.setText(NeoText.get("table.zoom", String.format("%.1f", zoom)));
         if (zoomBadge.isVisible() != on) {
-            zoomBadge.setVisible(on);
+            // -Dneo.board.noBadge=true: sin la pastilla (para grabar video).
+            zoomBadge.setVisible(on && !Boolean.getBoolean("neo.board.noBadge"));
             requestLayout();
         }
         if (!on) {
@@ -3949,6 +3957,216 @@ public class TableScreen extends Pane {
         return all;
     }
 
+    /**
+     * Destellos sobre lo que acaba de ser objetivo de algo ({@link ImpactLayer}).
+     * Solo en el hilo de interfaz.
+     */
+    public void impactHit(final Object entity, final List<javafx.scene.paint.Color> colors, final Object source) {
+        // Que la carta espere entera a que le llegue (GhostHold).
+        if (entity instanceof CardView cv && ImpactLayer.isEnabled()) {
+            GhostHold.hold(cv.getId());
+            selfField.holdGhost(cv);
+            for (final PlayerField f : oppFields) {
+                f.holdGhost(cv);
+            }
+        }
+        impactLayer.hit(entity, colors, source);
+    }
+
+    /** La entrada de tu comandante ({@link CommanderEntrance}). Solo en el hilo de interfaz. */
+    public void commanderEntrance(final CardView card, final List<javafx.scene.paint.Color> colors,
+            final String subtitle, final forge.neo.match.CommanderSignature signature) {
+        impactLayer.commander(card, colors, subtitle, signature);
+    }
+
+    /** Si hay una entrada de comandante en pantalla. Para {@code --entrance-test}. */
+    public boolean entranceShowing() {
+        return impactLayer.entranceShowing();
+    }
+
+    /**
+     * {@code --entrance-test}: la entrada de comandante con la primera carta
+     * tuya de la mesa (tu comandante si lo hay), sin partida que la provoque.
+     */
+    public void entranceTest() {
+        CardNode pick = null;
+        for (final CardNode n : selfField.nodes()) {
+            if (n.getCard() != null && (pick == null || n.getCard().isCommander())) {
+                pick = n;
+            }
+        }
+        if (pick != null) {
+            impactLayer.commander(pick.getCard(), List.of(ImpactLayer.RED, ImpactLayer.WHITE),
+                    forge.neo.NeoText.get("entrance.commander"),
+                    forge.neo.match.CommanderSignature.of(pick.getCard(), true));
+        }
+    }
+
+    /**
+     * El golpe del combate: la carta que hace dano se lanza hacia lo que
+     * golpea ({@link Anim#strike}). Solo en el hilo de interfaz.
+     */
+    public void strike(final CardView source, final Object target) {
+        final CardNode n = nodeOf(source);
+        final Bounds to = impactBoundsOf(target);
+        if (Boolean.getBoolean("neo.impact.log")) {
+            System.out.println("[golpe] " + source + " -> " + target
+                    + (n == null || n.getScene() == null ? " (atacante no se ve)" : to == null ? " (victima no se ve)" : ""));
+        }
+        if (n == null || to == null || n.getScene() == null) {
+            return;
+        }
+        Anim.strike(n, localToScene(to.getCenterX(), to.getCenterY()));
+    }
+
+    /**
+     * <b>El dano que acaba de recibir</b> una carta o un jugador: su numero
+     * salta cuando llega el golpe ({@link ImpactLayer#damage}); en ese instante
+     * la carta da su destello rojo y el retrato del jugador se sacude. Y la
+     * carta que muere del golpe espera entera a recibirlo ({@link GhostHold}),
+     * como con los hechizos: <i>"the creature going to the graveyard or being
+     * destroyed upon hit"</i>. Con los efectos apagados, nada de esto: el
+     * destello de siempre y punto (lo hace NeoMatchUI).
+     */
+    public void damagePop(final Object entity, final int amount, final boolean combat, final boolean poison) {
+        if (entity instanceof CardView cv) {
+            GhostHold.hold(cv.getId());
+            selfField.holdGhost(cv);
+            for (final PlayerField f : oppFields) {
+                f.holdGhost(cv);
+            }
+        }
+        impactLayer.damage(entity, amount, combat, poison, () -> {
+            if (entity instanceof CardView cv) {
+                CardNode n = nodeOf(cv);
+                if (n == null || n.getScene() == null) {
+                    n = selfField.ghostOf(cv);
+                    for (int i = 0; n == null && i < oppFields.size(); i++) {
+                        n = oppFields.get(i).ghostOf(cv);
+                    }
+                }
+                Anim.hit(n);
+            } else if (entity instanceof PlayerView pv) {
+                Anim.shake(portraitOf(pv));
+            }
+        });
+    }
+
+    /** El retrato de ese jugador en la mesa, o su pestanya si su mesa no se ve. */
+    private Node portraitOf(final PlayerView pv) {
+        final PlayerBar bar = barOf(pv);
+        if (bar != null && bar.getPortrait() != null && bar.getPortrait().getScene() != null) {
+            return bar.getPortrait();
+        }
+        return opponentTabs.tabOf(pv);
+    }
+
+    /** Remolino bajo un permanente que acaba de entrar lanzado. */
+    public void impactArrive(final Object entity, final List<javafx.scene.paint.Color> colors) {
+        impactLayer.arrive(entity, colors);
+    }
+
+    /** Cuantos destellos hay en marcha. Para {@code --impact-test}. */
+    public int impactCount() {
+        return impactLayer.liveCount();
+    }
+
+    /**
+     * {@code --impact-test}: destellos sobre lo que haya en la mesa, sin
+     * partida que los provoque. Las cartas del rival y los jugadores reciben;
+     * las tuyas entran. Un color por carta, el ultimo multicolor.
+     */
+    private int impactTick;
+
+    public void impactTest() {
+        final List<javafx.scene.paint.Color> palette = List.of(ImpactLayer.RED, ImpactLayer.BLUE,
+                ImpactLayer.GREEN, ImpactLayer.BLACK, ImpactLayer.WHITE, ImpactLayer.COLORLESS);
+        // -Dneo.impact.only=N: solo ese color de la paleta (0 rojo ... 5 incoloro).
+        final int only = Integer.getInteger("neo.impact.only", -1);
+        final Object me = selfBar.getPlayer();
+        int i = 0;
+        // -Dneo.impact.damage=true: el numero del dano sobre las cartas del
+        // rival y sobre los dos jugadores (uno en verde, de veneno).
+        if (Boolean.getBoolean("neo.impact.damage")) {
+            int k = impactTick++;
+            for (final PlayerField f : oppFields) {
+                for (final CardNode n : f.nodes()) {
+                    if (n.getCard() != null) {
+                        damagePop(n.getCard(), 1 + k++ % 6, true, false);
+                    }
+                }
+            }
+            damagePop(me, 3, true, false);
+            if (opponentBar.getPlayer() != null) {
+                damagePop(opponentBar.getPlayer(), 1 + k % 5, false, k % 2 == 0);
+            }
+            return;
+        }
+        // -Dneo.impact.one=true: UNO cada vez, rotando carta y color (para grabar).
+        if (Boolean.getBoolean("neo.impact.one")) {
+            final List<CardNode> targets = new ArrayList<>();
+            for (final PlayerField f : oppFields) {
+                for (final CardNode n : f.nodes()) {
+                    if (n.getCard() != null && n.getCard().getCurrentState() != null
+                            && n.getCard().getCurrentState().isCreature()) {
+                        targets.add(n);
+                    }
+                }
+            }
+            if (!targets.isEmpty()) {
+                final int k = impactTick++;
+                impactLayer.hit(targets.get(k % targets.size()).getCard(),
+                        List.of(palette.get(k % palette.size())), me);
+            }
+            return;
+        }
+        // -Dneo.impact.arriveOnly=true: solo las entradas en la mesa.
+        final boolean arriveOnly = Boolean.getBoolean("neo.impact.arriveOnly");
+        for (final PlayerField f : arriveOnly ? List.<PlayerField>of() : oppFields) {
+            for (final CardNode n : f.nodes()) {
+                final javafx.scene.paint.Color c = palette.get(only >= 0 ? only : i++ % palette.size());
+                impactLayer.hit(n.getCard(), List.of(c), me);
+            }
+        }
+        for (final CardNode n : selfField.nodes()) {
+            impactLayer.arrive(n.getCard(), List.of(palette.get(only >= 0 ? only : i++ % palette.size())));
+        }
+    }
+
+    /**
+     * Como {@link #boundsOf}, pero una carta que se esta yendo cuenta: el
+     * destello sale sobre su fantasma. Solo para los destellos — las flechas
+     * no deben apuntar a algo que ya no esta en la partida.
+     */
+    private Bounds impactBoundsOf(final Object entity) {
+        final Bounds live = boundsOf(entity);
+        if (live != null) {
+            return live;
+        }
+        // Un rival cuya mesa no se esta viendo (Commander a 4): su pestanya.
+        if (entity instanceof PlayerView pv) {
+            final Node tab = opponentTabs.tabOf(pv);
+            return tab == null || tab.getScene() == null ? null
+                    : sceneToLocal(tab.localToScene(tab.getBoundsInLocal()));
+        }
+        if (!(entity instanceof CardView cv)) {
+            return null;
+        }
+        CardNode ghost = selfField.ghostOf(cv);
+        for (int i = 0; ghost == null && i < oppFields.size(); i++) {
+            ghost = oppFields.get(i).ghostOf(cv);
+        }
+        if (ghost != null && ghost.getScene() != null) {
+            return boundsOfNode(ghost);
+        }
+        // Ni fantasma: se fue mientras la partida estaba parada en un aviso.
+        Bounds was = selfField.lastSceneBoundsOf(cv);
+        for (int i = 0; was == null && i < oppFields.size(); i++) {
+            was = oppFields.get(i).lastSceneBoundsOf(cv);
+        }
+        return was == null ? null : sceneToLocal(was);
+    }
+
     private Bounds boundsOf(final Object entity) {
         Node node = null;
         if (entity instanceof CardView cv) {
@@ -3962,6 +4180,11 @@ public class TableScreen extends Pane {
         if (node == null || node.getScene() == null) {
             return null;
         }
+        return boundsOfNode(node);
+    }
+
+    /** El rectangulo de ese nodo en la mesa, recortado a la fila que lo ensenya. */
+    private Bounds boundsOfNode(final Node node) {
         final Bounds bounds = sceneToLocal(node.localToScene(node.getBoundsInLocal()));
         // A scrolled card still owns its combat link. Anchor an off-screen end
         // at the row edge instead of drawing across another player's board/HUD.
@@ -4007,6 +4230,15 @@ public class TableScreen extends Pane {
     }
 
     /** Los nodos del campo propio. */
+    /** Las cartas de las mesas de los rivales. Para las pruebas ({@code e:} de --field-click). */
+    public List<CardNode> oppFieldNodes() {
+        final List<CardNode> out = new ArrayList<>();
+        for (final PlayerField f : oppFields) {
+            out.addAll(f.nodes());
+        }
+        return out;
+    }
+
     public List<CardNode> selfFieldNodes() {
         return selfField.nodes();
     }

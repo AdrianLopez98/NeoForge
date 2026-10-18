@@ -96,10 +96,16 @@ public final class NeoQuestRewards implements IWinLoseView<IButton> {
         // premios no puede impedir que se apunte el resultado, que es lo que
         // hace que la Quest avance. Antes todo iba en un solo try, y un fallo
         // en cualquier sitio se llevaba la victoria o la derrota sin decir nada.
+        // Y la red coge tambien los LinkageError (18-10-2026): en Android 8-13
+        // una API de Java 16 que el movil no trae (Stream.toList, en la tienda
+        // de un mundo) revienta con NoSuchMethodError, que es un Error y se
+        // escapaba de todos los catch: ni premio, ni victoria apuntada, y la
+        // pantalla decia "has perdido". Android ya lo arregla al compilar
+        // (decision 423); esto es para la proxima que no conozcamos.
         final QuestWinLoseController controller;
         try {
             controller = new QuestWinLoseController(game, view);
-        } catch (final RuntimeException e) {
+        } catch (final RuntimeException | LinkageError e) {
             fail(view, "controller", e);
             return view;
         }
@@ -127,7 +133,7 @@ public final class NeoQuestRewards implements IWinLoseView<IButton> {
         boolean won = false;
         try {
             won = game.isMatchWonBy(forge.player.GamePlayerUtil.getQuestPlayer());
-        } catch (final RuntimeException e) {
+        } catch (final RuntimeException | LinkageError e) {
             fail(view, "won", e);
         }
         view.won = won;
@@ -137,7 +143,7 @@ public final class NeoQuestRewards implements IWinLoseView<IButton> {
         try {
             before = NeoQuestShop.ownedNames();
             prizeDue = NeoQuestPrize.isDue(won);
-        } catch (final RuntimeException e) {
+        } catch (final RuntimeException | LinkageError e) {
             fail(view, "before", e);
         }
         String wasBooster = null;
@@ -152,19 +158,19 @@ public final class NeoQuestRewards implements IWinLoseView<IButton> {
             // motor (loseCards -> removeCard), y eso se llevaba de los
             // mazos de deseos lo que nunca tuviste. Ver keepingWishlist.
             NeoQuestSell.keepingWishlist(controller::showRewards);
-        } catch (final RuntimeException e) {
+        } catch (final RuntimeException | LinkageError e) {
             fail(view, "showRewards", e);
         } finally {
             try {
                 NeoQuestPrize.unmuteEngineBooster(wasBooster);
-            } catch (final RuntimeException e) {
+            } catch (final RuntimeException | LinkageError e) {
                 fail(view, "unmute", e);
             }
         }
         // EL RESULTADO, pase lo que pase arriba.
         try {
             controller.actionOnQuit();
-        } catch (final RuntimeException e) {
+        } catch (final RuntimeException | LinkageError e) {
             fail(view, "actionOnQuit", e);
         }
 
@@ -203,7 +209,7 @@ public final class NeoQuestRewards implements IWinLoseView<IButton> {
             view.messages.addAll(forge.neo.platform.NeoGuiBase.drainNotices());
             NeoQuest.forgetDuels();
             NeoQuest.save();
-        } catch (final RuntimeException e) {
+        } catch (final RuntimeException | LinkageError e) {
             fail(view, "after", e);
         }
         if (view.failure != null) {
@@ -304,6 +310,9 @@ public final class NeoQuestRewards implements IWinLoseView<IButton> {
         final Thread t = new Thread(() -> {
             try {
                 runnable.run();
+            } catch (final RuntimeException | LinkageError e) {
+                // En este hilo nadie mas lo coge: que se vea en "Ultimos fallos".
+                fail(this, "rewards", e);
             } finally {
                 done.countDown();
             }

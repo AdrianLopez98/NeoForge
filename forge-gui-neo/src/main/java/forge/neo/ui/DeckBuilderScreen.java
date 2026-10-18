@@ -122,6 +122,8 @@ public class DeckBuilderScreen extends StackPane {
     private final Button cleanup = new Button(NeoText.get("deck.cleanup"));
     /** "Quitar las que no tengo": la lista de deseos de la Quest, de vuelta a lo tuyo. */
     private final Button removeMissing = new Button(NeoText.get("deck.removeMissing"));
+    /** "Exportar lo que falta": la lista de las que no tienes, para copiarla. */
+    private final Button exportMissing = new Button(NeoText.get("deck.exportMissing"));
     /**
      * Vaciar el banquillo cuando se pasa del limite del formato (Discord,
      * 06-10-2026): el banquillo no se ve en ninguna pantalla, y un mazo
@@ -966,6 +968,13 @@ public class DeckBuilderScreen extends StackPane {
                 // Y la busca, para que se vea su casilla del catalogo en la captura.
                 final String name = extra.getName();
                 javafx.application.Platform.runLater(() -> searchFor(name));
+                // -Dneo.builder.exportMissing=true abre "Exportar lo que falta".
+                if (Boolean.getBoolean("neo.builder.exportMissing")) {
+                    final javafx.animation.PauseTransition later =
+                            new javafx.animation.PauseTransition(javafx.util.Duration.millis(1500));
+                    later.setOnFinished(ev -> exportMissing());
+                    later.play();
+                }
             }
         }
         paint.run();
@@ -1593,6 +1602,11 @@ public class DeckBuilderScreen extends StackPane {
         removeMissing.setOnAction(e -> removeMissing());
         removeMissing.setVisible(false);
         removeMissing.setManaged(false);
+        exportMissing.getStyleClass().add("btn-secondary");
+        exportMissing.setId("deck-export-missing");
+        exportMissing.setOnAction(e -> exportMissing());
+        exportMissing.setVisible(false);
+        exportMissing.setManaged(false);
         clearSide.getStyleClass().add("btn-secondary");
         clearSide.setId("deck-clear-sideboard");
         clearSide.setOnAction(e -> clearSideboard());
@@ -1608,13 +1622,13 @@ public class DeckBuilderScreen extends StackPane {
 
         // Ningun boton se encoge por debajo de su texto: cuando la fila no cabe,
         // JavaFX lo corta con puntos suspensivos y queda un pie ilegible.
-        for (final Button b : new Button[] {back, cleanup, removeMissing, clearSide, commander, spellButton, generate,
+        for (final Button b : new Button[] {back, cleanup, removeMissing, exportMissing, clearSide, commander, spellButton, generate,
                 autoBuild, clearMain, importer, export, save}) {
             b.setMinWidth(Region.USE_PREF_SIZE);
         }
 
         final FlowPane actions =
-                new FlowPane(8, 8, cleanup, removeMissing, clearSide, commander, spellButton, generate, autoBuild,
+                new FlowPane(8, 8, cleanup, removeMissing, exportMissing, clearSide, commander, spellButton, generate, autoBuild,
                         clearMain, importer, export);
         actions.setAlignment(Pos.CENTER_RIGHT);
         actions.setMinWidth(0);
@@ -2185,6 +2199,8 @@ public class DeckBuilderScreen extends StackPane {
         final boolean lacking = editor.missingTotal() > 0;
         removeMissing.setVisible(lacking);
         removeMissing.setManaged(lacking);
+        exportMissing.setVisible(lacking);
+        exportMissing.setManaged(lacking);
         final boolean sideTooBig = editor.sideboardOverflow() > 0;
         clearSide.setText(NeoText.get("deck.clearSideboard", editor.sideboardWithoutCompanion()));
         clearSide.setVisible(sideTooBig);
@@ -3215,6 +3231,30 @@ public class DeckBuilderScreen extends StackPane {
         overlay.show(TextDialog.block(NeoText.get("deck.export.title"),
                 NeoText.get("deck.export.hint"),
                 editor.toText(), NeoText.get("deck.export.copy"),
+                text -> {
+                    final javafx.scene.input.ClipboardContent content =
+                            new javafx.scene.input.ClipboardContent();
+                    content.putString(text);
+                    javafx.scene.input.Clipboard.getSystemClipboard().setContent(content);
+                    overlay.hide();
+                },
+                overlay::hide));
+    }
+
+    /**
+     * Solo lo que te falta del mazo, como texto para copiar (Discord,
+     * 18-10-2026). El mismo cuadro que "Exportar".
+     */
+    private void exportMissing() {
+        final java.util.LinkedHashMap<forge.item.PaperCard, Integer> missing = editor.missingCards();
+        int copies = 0;
+        for (final int n : missing.values()) {
+            copies += n;
+        }
+        overlay.show(TextDialog.block(NeoText.get("deck.exportMissing.title"),
+                copies == 1 ? NeoText.get("deck.exportMissing.hintOne")
+                        : NeoText.get("deck.exportMissing.hint", copies, missing.size()),
+                editor.missingText(), NeoText.get("deck.export.copy"),
                 text -> {
                     final javafx.scene.input.ClipboardContent content =
                             new javafx.scene.input.ClipboardContent();

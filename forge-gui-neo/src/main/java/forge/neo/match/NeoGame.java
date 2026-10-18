@@ -1088,9 +1088,11 @@ public final class NeoGame {
      *
      * <p><b>Esto no lo programamos nosotros.</b> Forge trae el sistema entero
      * en {@code forge.gamemodes.match.YieldController}, y quien dispara las
-     * interrupciones es su {@code FControlGameEventHandler}, que
-     * {@code HostedMatch} ya suscribe al bus de cada partida. O sea que aqui
-     * solo se encienden preferencias: cero logica nuestra.
+     * interrupciones es el propio {@code YieldController}, que
+     * {@code HostedMatch} suscribe al bus de cada partida (desde Forge #12291;
+     * antes lo hacia su {@code FControlGameEventHandler}, y solo para el
+     * jugador local). O sea que aqui solo se encienden preferencias: cero
+     * logica nuestra.
      *
      * <p>Lo que faltaba era el <b>interruptor maestro</b>. Nosotros ya
      * poniamos {@code YIELD_AUTO_PASS_NO_ACTIONS} ("pasa sola si no tengo nada

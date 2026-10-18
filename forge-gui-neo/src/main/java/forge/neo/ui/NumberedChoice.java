@@ -25,11 +25,55 @@ public interface NumberedChoice {
      */
     boolean pickNumber(int n, boolean repeat);
 
-    /** El "1", "2"... que va delante de una opcion. */
+    /**
+     * El "1", "2"... que va delante de una opcion.
+     *
+     * <p>Solo se ve dentro de la capa de dialogos de una mesa, que es lo unico
+     * que escucha {@code TableKeys}. Los mismos dialogos salen tambien fuera de
+     * partida (el sobre de premio de la Quest, Discord 18-10-2026), y ahi un
+     * numero que la tecla no pulsa es un control que no hace lo que parece
+     * (principio 1). Se mira al entrar en escena: el dialogo ya esta colgado
+     * de su capa.
+     *
+     * <p>Fuera de la mesa se QUITA del boton, no se esconde: el skin de un
+     * {@code Labeled} decide al montarse si cuenta con el grafico y no vuelve a
+     * mirarlo, asi que uno escondido deja su hueco y uno sin gestionar ya no
+     * sale nunca. Y en un {@code runLater}, porque esto llega a mitad de meter
+     * el dialogo en la escena.
+     */
     static Label hint(final int n) {
         final Label l = new Label(String.valueOf(n));
         l.getStyleClass().add("key-hint");
         l.setMinWidth(Label.USE_PREF_SIZE);
+        l.sceneProperty().addListener((obs, was, now) -> {
+            if (now == null || inTableDialogs(l)) {
+                return;
+            }
+            final javafx.scene.Parent owner = l.getParent();
+            if (owner instanceof javafx.scene.control.Labeled labeled) {
+                javafx.application.Platform.runLater(() -> {
+                    if (labeled.getGraphic() == l) {
+                        labeled.setGraphic(null);
+                    }
+                });
+            } else {
+                l.setVisible(false);
+            }
+        });
         return l;
+    }
+
+    /** Si el nodo cuelga de la capa de dialogos del motor de una mesa. */
+    private static boolean inTableDialogs(final javafx.scene.Node node) {
+        javafx.scene.Node overlay = null;
+        for (javafx.scene.Node p = node.getParent(); p != null; p = p.getParent()) {
+            if (p instanceof TableScreen table) {
+                return overlay != null && overlay == table.getOverlay();
+            }
+            if (p instanceof Overlay) {
+                overlay = p;
+            }
+        }
+        return false;
     }
 }

@@ -400,6 +400,43 @@ public class BattlefieldPane extends Pane {
     private final List<CardStackNode> ghosts = new ArrayList<>();
 
     /**
+     * La carta de delante de la pila que lleva esa carta DENTRO (el "xN"). La
+     * mesa solo indexa la de delante, asi que el objetivo de un Bolt que es la
+     * tercera de cinco fichas iguales no tendria donde destellar.
+     */
+    public CardNode stackHolding(final forge.game.card.CardView card) {
+        if (card == null) {
+            return null;
+        }
+        for (final Entry e : entries) {
+            for (final forge.game.card.CardView m : e.node.getMembers()) {
+                if (m != null && m.getId() == card.getId()) {
+                    return e.node.getFront();
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * El fantasma de esa carta, si se esta yendo ahora mismo. Para los
+     * destellos ({@link ImpactLayer}): el hechizo se resuelve y su objetivo ya
+     * va camino del cementerio, pero el destello tiene que salir donde estaba.
+     */
+    public CardNode ghostOf(final forge.game.card.CardView card) {
+        if (card == null) {
+            return null;
+        }
+        for (final CardStackNode g : ghosts) {
+            final forge.game.card.CardView cv = g.getFront().getCard();
+            if (cv != null && cv.getId() == card.getId()) {
+                return g.getFront();
+            }
+        }
+        return null;
+    }
+
+    /**
      * Como se pinto cada carta (por id) la vez anterior: girada o no. El
      * CardView no sirve para esto, porque el motor lo cambia por debajo y ya
      * dice como esta AHORA. Ver el alta de nodos en setCards.
@@ -464,16 +501,96 @@ public class BattlefieldPane extends Pane {
      * nuevo en la mesa; estamos mirando a otro sitio.
      */
 
+    /**
+     * Donde estaba (en la escena) cada carta que se ha ido hace poco, por id.
+     * Para los destellos, cuando ni el fantasma queda: el aviso de "esto te
+     * acaba de pasar" para el motor a mitad de la resolucion, y el destello
+     * llega cuando pulsas Entendido.
+     */
+    private final java.util.Map<Integer, Object[]> gone = new java.util.HashMap<>();
+    private static final long GONE_NS = 30_000_000_000L;
+
+    /** Ver {@link #gone}. En coordenadas de la escena, o null. */
+    public javafx.geometry.Bounds lastSceneBoundsOf(final forge.game.card.CardView card) {
+        final Object[] g = card == null ? null : gone.get(card.getId());
+        return g == null || System.nanoTime() - (Long) g[1] > GONE_NS
+                ? null : (javafx.geometry.Bounds) g[0];
+    }
+
+    private void rememberGone(final CardStackNode node) {
+        final forge.game.card.CardView cv = node.getFront().getCard();
+        if (cv == null || node.getScene() == null) {
+            return;
+        }
+        final long now = System.nanoTime();
+        gone.values().removeIf(g -> now - (Long) g[1] > GONE_NS);
+        gone.put(cv.getId(), new Object[] {
+                node.getFront().localToScene(node.getFront().getBoundsInLocal()), now});
+    }
+
     private void startGhost(final CardStackNode node) {
         if (node == null || ghosts.contains(node)) {
             return;
         }
+        rememberGone(node);
         ghosts.add(node);
         trace("se va", node.getFront().getCard());
+        // Si va un hechizo hacia ella, espera a recibirlo (GhostHold).
+        final forge.game.card.CardView cv = node.getFront().getCard();
+        final long wait = cv == null ? 0 : GhostHold.remainingMs(cv.getId());
+        if (wait > 0) {
+            leaveLater(node, wait);
+        } else {
+            leaveNow(node);
+        }
+    }
+
+    private void leaveNow(final CardStackNode node) {
+        if (node.getProperties().remove(HOLD_KEY) != null && Boolean.getBoolean("neo.impact.log")) {
+            System.out.printf("[fantasma] %d se va tras esperar%n", System.nanoTime() / 1_000_000L);
+        }
         Anim.leave(node, () -> {
             ghosts.remove(node);
             getChildren().remove(node);
         });
+    }
+
+    private static final String HOLD_KEY = "neo.ghost.hold";
+
+    private void leaveLater(final CardStackNode node, final long ms) {
+        if (Boolean.getBoolean("neo.impact.log")) {
+            System.out.printf("[fantasma] %d espera %d ms: %s%n", System.nanoTime() / 1_000_000L, ms,
+                    node.getFront().getCard());
+        }
+        node.setMouseTransparent(true);
+        final Object old = node.getProperties().remove(HOLD_KEY);
+        if (old instanceof javafx.animation.PauseTransition p) {
+            p.stop();
+        }
+        final javafx.animation.PauseTransition wait =
+                new javafx.animation.PauseTransition(javafx.util.Duration.millis(ms));
+        wait.setOnFinished(e -> leaveNow(node));
+        node.getProperties().put(HOLD_KEY, wait);
+        wait.play();
+    }
+
+    /**
+     * Va un hechizo hacia esa carta: si ya se estaba yendo, que espere entera a
+     * recibirlo ({@link GhostHold}). El aviso del motor puede llegar despues
+     * de que la mesa la haya quitado.
+     */
+    public void holdGhost(final forge.game.card.CardView card) {
+        if (card == null) {
+            return;
+        }
+        for (final CardStackNode g : ghosts) {
+            final forge.game.card.CardView cv = g.getFront().getCard();
+            if (cv != null && cv.getId() == card.getId()) {
+                Anim.holdLeave(g);
+                leaveLater(g, GhostHold.remainingMs(card.getId()));
+                return;
+            }
+        }
     }
 
     private void wire(final CardStackNode node) {
