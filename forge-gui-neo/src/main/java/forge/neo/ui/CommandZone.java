@@ -59,7 +59,6 @@ public class CommandZone extends Pane {
     private static final double MIN_CARD_WIDTH = 34;
 
     private final Label caption = new Label(NeoText.get("zone.command"));
-    private final Label tax = new Label();
     private final List<CardStackNode> piles = new ArrayList<>();
     private final List<CardNode> cards = new ArrayList<>();
 
@@ -74,9 +73,7 @@ public class CommandZone extends Pane {
         this.cardWidth = cardWidth;
         setPickOnBounds(false);
         caption.getStyleClass().add("caption");
-        tax.getStyleClass().add("commander-tax");
-        tax.setVisible(false);
-        getChildren().addAll(caption, tax);
+        getChildren().add(caption);
     }
 
     public void setOnCardHover(final Consumer<CardNode> handler) {
@@ -119,7 +116,6 @@ public class CommandZone extends Pane {
         piles.clear();
         cards.clear();
 
-        int casts = 0;
         if (command != null) {
             // Lo indistinguible se junta ANTES de crear ningun nodo: crear once
             // y esconder diez seria pagar once cartas y once imagenes.
@@ -130,9 +126,6 @@ public class CommandZone extends Pane {
             for (final CardView cv : command) {
                 if (isSilentEffect(cv)) {
                     continue;
-                }
-                if (owner != null && cv.isCommander()) {
-                    casts = Math.max(casts, owner.getCommanderCast(cv));
                 }
                 final String key = groupKey(cv);
                 final Integer at = key == null ? null : seen.get(key);
@@ -169,6 +162,7 @@ public class CommandZone extends Pane {
                         n.setCard(cv);
                     }
                     n.setCommanderStyle(cv.isCommander());
+                    showTax(n, owner);
                     piles.add(kept);
                     cards.add(n);
                     continue;
@@ -176,6 +170,7 @@ public class CommandZone extends Pane {
                 final CardStackNode pile = new CardStackNode(cardWidth, cv, howMany.get(i));
                 final CardNode n = pile.getFront();
                 n.setCommanderStyle(cv.isCommander());
+                showTax(n, owner);
                 n.hoverProperty().addListener((o, was, is) -> {
                     if (is && onHover != null) {
                         onHover.accept(n);
@@ -218,16 +213,38 @@ public class CommandZone extends Pane {
             }
         }
         setViewOrder(hoveredCount > 0 ? -1 : 0);
-
-        // El impuesto son {2} por cada vez que ya se ha lanzado.
-        if (casts > 0) {
-            tax.setText("+" + (casts * 2));
-            tax.setVisible(true);
-        } else {
-            tax.setVisible(false);
-        }
         requestLayout();
     }
+
+    /**
+     * El impuesto de ESE comandante, sobre su propia carta: con companyeros
+     * cada uno lleva el suyo (antes salia uno solo, el mayor). Son {2} por cada
+     * vez que se ha lanzado desde la zona de mando, y lo cuenta el motor.
+     *
+     * <p>Y al dejar el raton encima, cuantas veces ha sido: es lo otro que se
+     * pregunta en Commander, y el +8 a secas no lo dice.
+     */
+    private static void showTax(final CardNode n, final PlayerView owner) {
+        final CardView cv = n.getCard();
+        final int casts = owner != null && cv != null && cv.isCommander()
+                ? owner.getCommanderCast(cv) : 0;
+        n.setCommanderTax(casts * 2);
+        final Object old = n.getProperties().get(TAX_TIP);
+        if (casts > 0) {
+            final javafx.scene.control.Tooltip tip = old instanceof javafx.scene.control.Tooltip
+                    ? (javafx.scene.control.Tooltip) old : new javafx.scene.control.Tooltip();
+            tip.setText(NeoText.get("zone.commanderTax", casts * 2, casts));
+            if (old == null) {
+                javafx.scene.control.Tooltip.install(n, tip);
+                n.getProperties().put(TAX_TIP, tip);
+            }
+        } else if (old instanceof javafx.scene.control.Tooltip) {
+            javafx.scene.control.Tooltip.uninstall(n, (javafx.scene.control.Tooltip) old);
+            n.getProperties().remove(TAX_TIP);
+        }
+    }
+
+    private static final String TAX_TIP = "neo.commanderTaxTip";
 
     /**
      * Con que se reconoce una pila de la vez anterior para reutilizarla: la
@@ -379,7 +396,6 @@ public class CommandZone extends Pane {
         }
 
         caption.resizeRelocate(0, Math.max(0, top - 14), Math.max(40, span), 12);
-        tax.resizeRelocate(Math.max(0, w - 30), top - 2, 30, 16);
     }
 
     /** Lo que ocupa el rotulo "CMD" encima de las cartas. */

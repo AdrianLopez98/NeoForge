@@ -105,7 +105,7 @@ public final class NeoQuestSell {
         // El multiplicador de venta sube con tus victorias y vive en un campo
         // privado y estatico de QuestSpellShop: hay que pedir que lo recalcule
         // ANTES de tasar nada, o se tasa con el de la partida anterior.
-        final double multiplier = QuestSpellShop.updateMultiplier();
+        final double multiplier = sellMultiplier();
         final int limit = NeoQuest.engine().getCards().getSellPriceLimit();
 
         // Se copia la lista antes de tocarla: vender modifica la coleccion, y
@@ -188,6 +188,40 @@ public final class NeoQuestSell {
     // ===============================================================
 
     /**
+     * El multiplicador de venta, <b>con Estates</b>.
+     *
+     * <p>Estates (bazaar) promete dos cosas: mas creditos por victoria y vender
+     * mas caro. Lo primero lo da el motor en cualquier Quest
+     * ({@code QuestWinLoseController}); lo segundo solo en el modo Fantasy
+     * ({@code QuestUtilCards.getSellMultiplier} mira {@code getMode()}), y las
+     * nuestras se crean Classic. O sea que quien la compraba pagaba por una
+     * mejora de venta que no llegaba nunca (18-10-2026). Se suma aqui lo mismo
+     * que sumaria el motor, y solo cuando no lo ha sumado el.
+     */
+    static double sellMultiplier() {
+        double multi = QuestSpellShop.updateMultiplier();
+        if (NeoQuest.engine().getMode() != forge.gamemodes.quest.QuestMode.Fantasy) {
+            multi += estatesBonus(NeoQuest.engine().getAssets()
+                    .getItemLevel(forge.gamemodes.quest.bazaar.QuestItemType.ESTATES));
+        }
+        return multi;
+    }
+
+    /** Lo que suma Estates al vender, por nivel: lo de {@code QuestUtilCards}. */
+    static double estatesBonus(final int level) {
+        switch (level) {
+            case 1:
+                return 0.01;
+            case 2:
+                return 0.0175;
+            case 3:
+                return 0.025;
+            default:
+                return 0;
+        }
+    }
+
+    /**
      * Lo que te dan por una copia de esa carta.
      *
      * <p>Sube con tus victorias — {@code getSellMultiplier()} suma una milesima
@@ -201,7 +235,7 @@ public final class NeoQuestSell {
         if (card == null || !NeoQuest.isActive()) {
             return 1;
         }
-        final double multiplier = QuestSpellShop.updateMultiplier();
+        final double multiplier = sellMultiplier();
         final int limit = NeoQuest.engine().getCards().getSellPriceLimit();
         return Math.max(Math.min((int) (multiplier * value(card)), limit), 1);
     }
@@ -498,7 +532,7 @@ public final class NeoQuestSell {
         if (plan == null || plan.isEmpty() || !NeoQuest.isActive()) {
             return sold;
         }
-        final double multiplier = QuestSpellShop.updateMultiplier();
+        final double multiplier = sellMultiplier();
         final int limit = NeoQuest.engine().getCards().getSellPriceLimit();
         // Copia: vender cambia la coleccion y el plan puede venir de ella.
         for (final Map.Entry<PaperCard, Integer> e : new ArrayList<>(plan.entrySet())) {

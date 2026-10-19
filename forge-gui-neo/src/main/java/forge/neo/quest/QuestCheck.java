@@ -56,6 +56,7 @@ public final class QuestCheck {
         ok &= checkCommanderStarter();
         System.out.println();
         ok &= checkColourStarter();
+        ok &= checkWorldColourStarter();
         System.out.println();
         ok &= checkRewardText();
         System.out.println();
@@ -75,6 +76,7 @@ public final class QuestCheck {
         ok &= checkSaveAsCopy();
         ok &= checkNewestFirst();
         ok &= checkDuelAfterTravel();
+        ok &= checkLowLife();
         System.out.println();
         ok &= checkEveryRivalHasAFace();
         System.out.println();
@@ -224,6 +226,45 @@ public final class QuestCheck {
      * Commander: el comandante sorteado es exactamente de esos colores. Y la
      * Quest de Estandar arranca con ese mazo, elegido y legal.
      */
+    /**
+     * Con un mundo elegido, el mazo «por colores» sale de SUS expansiones
+     * (Discord, 18-10-2026: Shandalar y un mazo de salida de todo Magic). Antes
+     * salia del pozo, que con un mundo es «todas». Cada carta tiene que valer
+     * en el mundo, con la misma regla con la que el motor lo dice de un mazo.
+     */
+    private static boolean checkWorldColourStarter() {
+        System.out.println("  --- Quest por colores en un mundo (Shandalar) ---");
+        final var world = NeoQuestWorlds.byName("Shandalar");
+        if (world == null) {
+            System.out.println("  no esta el mundo Shandalar: FALLO");
+            return false;
+        }
+        final var pool = NeoQuestWorlds.starterPool(world.getName(), forge.neo.ascent.AscentPool.ALL);
+        final byte ug = (byte) (forge.card.MagicColor.BLUE | forge.card.MagicColor.GREEN);
+        final Deck d = NeoQuest.colourStarter("neo-check-mundo", ug, pool);
+        if (d == null) {
+            System.out.println("  sin mazo: FALLO");
+            return false;
+        }
+        final var legal = NeoQuestWorlds.deckFilter(world);
+        int out = 0;
+        for (final PaperCard c : d.getMain().toFlatList()) {
+            if (!legal.test(c)) {
+                if (out < 5) {
+                    System.out.println("    fuera del mundo: " + c.getName() + " (" + c.getEdition() + ")");
+                }
+                out++;
+            }
+        }
+        // Y el mundo principal sigue con todas: el pozo no se toca.
+        final boolean mainAll = NeoQuestWorlds.starterPool(
+                forge.gamemodes.quest.QuestWorld.MAINWORLDNAME, forge.neo.ascent.AscentPool.ALL).isAll();
+        final boolean ok = out == 0 && d.getMain().countAll() >= 60 && mainAll;
+        System.out.printf(Locale.ROOT, "  %d cartas, %d fuera de Shandalar, principal con todas: %s -> %s%n",
+                d.getMain().countAll(), out, mainAll, ok ? "OK" : "FALLO");
+        return ok;
+    }
+
     private static boolean checkColourStarter() {
         System.out.println("  --- Quest empezando por colores ---");
         boolean ok = true;
@@ -2725,6 +2766,25 @@ public final class QuestCheck {
             ok &= sold && NeoQuest.credits() == creditsBefore + gain
                     && NeoQuest.life() == lifeBeforeFlesh - 1;
         }
+        // Estates: ademas de los creditos por victoria, vender mas caro. El
+        // motor solo lo suma en el modo Fantasy y las nuestras son Classic: lo
+        // suma NeoQuestSell (18-10-2026). Si deja de sumarse, esto lo dice.
+        final forge.gamemodes.quest.bazaar.IQuestBazaarItem estates =
+                findItem(forge.neo.quest.NeoQuestBazaar.stalls(), "Estates");
+        if (estates == null) {
+            System.out.println("  FALLA: no esta Estates en ningun puesto");
+            ok = false;
+        } else {
+            final double multBefore = NeoQuestSell.sellMultiplier();
+            NeoQuest.engine().getAssets().addCredits(
+                    forge.neo.quest.NeoQuestBazaar.priceOf(estates) + 1000L);
+            final boolean boughtEstates = forge.neo.quest.NeoQuestBazaar.buy(estates);
+            final double multAfter = NeoQuestSell.sellMultiplier();
+            final boolean better = boughtEstates && Math.abs(multAfter - multBefore - 0.01) < 1e-9;
+            System.out.printf(Locale.ROOT, "  [%s] Estates: comprado %s | vender x%.4f -> x%.4f (se espera +0,01)%n",
+                    better ? "OK " : "MAL", boughtEstates, multBefore, multAfter);
+            ok &= better;
+        }
         int payers = 0;
         for (final forge.neo.quest.NeoQuestBazaar.Stall s : forge.neo.quest.NeoQuestBazaar.stalls()) {
             for (final forge.gamemodes.quest.bazaar.IQuestBazaarItem it : s.getItems()) {
@@ -3159,6 +3219,50 @@ public final class QuestCheck {
      * y se juega, ganando y perdiendo, y se VUELVE A CARGAR la Quest del disco:
      * apuntarlo en memoria y no guardarlo se veria igual en la pantalla.
      */
+    /**
+     * La vida baja (Discord, 18-10-2026): 15 en Estandar, 30 en Commander, y
+     * que llegue de verdad a la partida, no solo al numero del cuartel.
+     */
+    private static boolean checkLowLife() {
+        System.out.println("  --- Empezar con menos vida ---");
+        boolean ok = true;
+        for (final NeoQuest.Modalidad mode : NeoQuest.Modalidad.values()) {
+            final String name = "neo-questcheck-vidabaja-" + mode.name().toLowerCase(Locale.ROOT);
+            NeoQuest.delete(name);
+            final List<Deck> starters = NeoQuest.starterDecks(mode);
+            NeoQuest.start(name, mode, NeoQuest.Dificultad.NORMAL, starters.isEmpty() ? null : starters.get(0));
+            try {
+                final int normal = NeoQuest.life();
+                QuestLowLife.set(name, true);
+                final int low = NeoQuest.life();
+                final int want = mode == NeoQuest.Modalidad.COMMANDER ? 30 : 15;
+                System.out.printf(Locale.ROOT, "  [%s] %s: vida %d -> %d (se espera %d)%n",
+                        low == want && normal == want + (want == 30 ? 10 : 5) ? "OK " : "MAL",
+                        mode.getLabel(), normal, low, want);
+                ok &= low == want && normal == want + (want == 30 ? 10 : 5);
+                if (mode != NeoQuest.Modalidad.COMMANDER) {
+                    // Que llegue a la mesa: un duelo de verdad.
+                    QuestLowLife.lastApplied = -1;
+                    ok &= playOneDuel(true);
+                    System.out.printf(Locale.ROOT, "  [%s] en la partida empiezas con %d%n",
+                            QuestLowLife.lastApplied == want ? "OK " : "MAL", QuestLowLife.lastApplied);
+                    ok &= QuestLowLife.lastApplied == want;
+                }
+                NeoQuest.load(name);
+                final boolean kept = QuestLowLife.isOn() && NeoQuest.life() == want;
+                // Otra Quest con el mismo nombre no la hereda.
+                NeoQuest.start(name, mode, NeoQuest.Dificultad.NORMAL, starters.isEmpty() ? null : starters.get(0));
+                final boolean fresh = !QuestLowLife.isOn() && NeoQuest.life() == normal;
+                System.out.printf(Locale.ROOT, "  [%s] se guarda al reabrir: %s; una Quest nueva con su nombre no la hereda: %s%n",
+                        kept && fresh ? "OK " : "MAL", kept, fresh);
+                ok &= kept && fresh;
+            } finally {
+                NeoQuest.delete(name);
+            }
+        }
+        return ok;
+    }
+
     private static boolean checkDuelAfterTravel() {
         final String name = "neo-questcheck-viaje";
         NeoQuest.delete(name);
@@ -3260,6 +3364,8 @@ public final class QuestCheck {
         final int winsBefore = NeoQuest.wins();
         final int lossesBefore = NeoQuest.losses();
         final long creditsBefore = NeoQuest.credits();
+        // Lo que la casilla del duelo dice que da ganarlo (NeoQuest.duelCredits).
+        final int promised = NeoQuest.duelCredits(duel);
         final long t0 = System.currentTimeMillis();
 
         System.out.printf(Locale.ROOT, "  Jugando un duelo contra %s (%s)...%n",
@@ -3284,6 +3390,16 @@ public final class QuestCheck {
         final boolean moved = rigWin ? winsAfter > winsBefore : lossesAfter > lossesBefore;
         if (!moved) {
             System.out.println("  FALLO: el marcador no ha registrado el resultado");
+        }
+        // Ganando, el motor paga AL MENOS lo que dice la casilla: lo demas son
+        // extras por como se gana (Discord, 19-10-2026). Si paga menos, la
+        // cuenta de duelCredits ya no es la del motor.
+        if (rigWin && moved) {
+            final long gained = NeoQuest.credits() - creditsBefore;
+            final boolean fair = promised > 0 && gained >= promised;
+            System.out.printf(Locale.ROOT, "  [%s] la casilla decia ~%d cr. y ha pagado %d%n",
+                    fair ? "OK " : "MAL", promised, gained);
+            return fair;
         }
         return moved;
     }

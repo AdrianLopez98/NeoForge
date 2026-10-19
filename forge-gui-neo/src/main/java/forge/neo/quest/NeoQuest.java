@@ -247,6 +247,7 @@ public final class NeoQuest {
         NeoColosseum.deleteSaved(name);
         NeoDailyPack.deleteSaved(name);
         QuestAcquired.deleteSaved(name);
+        QuestLowLife.deleteSaved(name);
         final boolean limited = pool != null && !pool.isAll();
         final forge.game.GameFormat format = limited ? formatOf(pool) : null;
         Deck deck = startingDeck;
@@ -631,6 +632,7 @@ public final class NeoQuest {
         NeoColosseum.deleteSaved(name);
         NeoDailyPack.deleteSaved(name);
         QuestAcquired.deleteSaved(name);
+        QuestLowLife.deleteSaved(name);
         final String current = FModel.getQuestPreferences()
                 .getPref(QuestPreferences.QPref.CURRENT_QUEST);
         if (current != null && current.equals(name + ".dat")) {
@@ -859,6 +861,51 @@ public final class NeoQuest {
                 || "Random Opponent".equalsIgnoreCase(duel.getTitle());
     }
 
+    /**
+     * Cuantos creditos da GANAR este duelo, sin los extras que dependen de como
+     * se gane (ganar pronto, por veneno, con mucha vida...): la cuenta de
+     * {@code QuestWinLoseController.awardEventCredits}, tal cual, para
+     * ensenyarla en la casilla del duelo.
+     *
+     * <p>Discord, 19-10-2026: <i>"easier AI you'll gain less credit from winning
+     * ... if you choose to fight expert AI, if you win you gain even more"</i>.
+     * El motor ya lo hace — cada dificultad multiplica la base (x1, x1,5, x2,
+     * x3), el sorpresa la dobla, cada victoria anterior suma 0,3 (hasta 300) y
+     * las fincas del bazar un 10-20 % —, pero no se veia en ningun sitio, asi
+     * que elegir rival no era una decision. Lleva el extra de ganar sin perder
+     * ninguna partida, que en un duelo a una partida es siempre.
+     *
+     * @return los creditos, o -1 si no hay Quest o no se puede calcular
+     */
+    public static int duelCredits(final QuestEventDuel duel) {
+        if (duel == null || !isActive()) {
+            return -1;
+        }
+        try {
+            final QuestController q = FModel.getQuest();
+            final QuestPreferences prefs = FModel.getQuestPreferences();
+            int credits = (int) (prefs.getPrefInt(QuestPreferences.QPref.REWARDS_BASE)
+                    * duel.getDifficulty().getMultiplier());
+            if (duel.getIsRandomMatch()) {
+                credits += credits;
+            }
+            final int wins = Math.min(q.getAchievements().getWin(),
+                    prefs.getPrefInt(QuestPreferences.QPref.REWARDS_WINS_MULTIPLIER_MAX));
+            credits += (int) (Double.parseDouble(prefs.getPref(QuestPreferences.QPref.REWARDS_WINS_MULTIPLIER)) * wins);
+            credits += prefs.getPrefInt(QuestPreferences.QPref.REWARDS_UNDEFEATED);
+            final double estates = switch (q.getAssets().getItemLevel(
+                    forge.gamemodes.quest.bazaar.QuestItemType.ESTATES)) {
+                case 1 -> .1;
+                case 2 -> .15;
+                case 3 -> .2;
+                default -> 0;
+            };
+            return credits + (int) (estates * credits);
+        } catch (final RuntimeException e) {
+            return -1;
+        }
+    }
+
     /** El titulo de un rival para ensenyarlo: el sorpresa, traducido. */
     public static String titleOf(final forge.gamemodes.quest.QuestEvent event) {
         if (event == null) {
@@ -895,9 +942,13 @@ public final class NeoQuest {
         return FModel.getQuest().getAchievements().getLost();
     }
 
-    /** Con cuantas vidas empiezas los duelos, con las mejoras del bazar ya sumadas. */
+    /**
+     * Con cuantas vidas empiezas los duelos, con las mejoras del bazar ya
+     * sumadas, y la vida baja si se marco al crearla ({@link QuestLowLife}).
+     */
     public static int life() {
-        return FModel.getQuest().getAssets().getLife(FModel.getQuest().getMode());
+        return Math.max(1, FModel.getQuest().getAssets().getLife(FModel.getQuest().getMode())
+                - QuestLowLife.drop());
     }
 
     /** Tu coleccion entera. */

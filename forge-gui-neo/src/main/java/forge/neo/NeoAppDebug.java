@@ -900,6 +900,45 @@ final class NeoAppDebug {
      * los clics — el que se devuelve al motor — y no la posicion.
      */
     void mockOrder() {
+        // -Dneo.mock.orderCount=N: N disparos iguales, como los 1266 conejos de
+        // Discord (18-10-2026): sale con buscador y solo pinta los 120 primeros.
+        final int many = Integer.getInteger("neo.mock.orderCount", 0);
+        if (many > 0) {
+            final List<String> lots = new java.util.ArrayList<>();
+            for (int i = 0; i < many; i++) {
+                lots.add("Whenever another creature you control enters, you gain 1 life. "
+                        + "[Zone Changer: Rabbit Token (" + (2538 + i) + ")]");
+            }
+            final forge.neo.ui.ChoiceDialog<String> dialog = new forge.neo.ui.ChoiceDialog<>(
+                    "Select order for simultaneous abilities — Resolve first", lots, many, many,
+                    s -> s, app.table.zoomCardWidth() * 0.62, null, true,
+                    picked -> {
+                        app.table.getOverlay().hide();
+                        System.out.println("[maqueta] orden elegido: " + picked.size());
+                    });
+            dialog.offerRemember(true);
+            app.table.getOverlay().show(dialog);
+            // -Dneo.mock.orderClicks=K: marca K a mano, siempre la primera sin
+            // marcar que se vea (pasadas las 120 tienen que subir las siguientes).
+            final int clicks = Integer.getInteger("neo.mock.orderClicks", 0);
+            javafx.application.Platform.runLater(() -> {
+                System.out.println("[maqueta] Auto: " + (dialog.lookup("#choice-auto") != null
+                        && dialog.lookup("#choice-auto").isVisible() ? "a la vista" : "no esta"));
+                int done = 0;
+                for (int k = 0; k < clicks; k++) {
+                    final javafx.scene.Node next = dialog.lookupAll(".choice-item").stream()
+                            .filter(n -> !n.getStyleClass().contains("chosen"))
+                            .findFirst().orElse(null);
+                    if (!(next instanceof javafx.scene.control.Button b)) {
+                        break;
+                    }
+                    b.fire();
+                    done++;
+                }
+                System.out.println("[maqueta] marcadas a mano: " + done + " de " + clicks);
+            });
+            return;
+        }
         final List<String> triggers = List.of(
                 "Landfall — Whenever a land you control enters, create a 1/1 green Insect "
                         + "creature token. [Zone Changer: Hedge Maze (37)]",
@@ -2460,6 +2499,28 @@ final class NeoAppDebug {
 
     /** Espera a que bajen las imagenes y guarda una captura de la escena. */
     void scheduleSnapshot(final Scene scene, final String path, final int waitSecs) {
+        // Una serie de capturas mientras se espera: "-Dneo.snap.every=S" deja
+        // una cada S segundos (ruta-001.png, -002...). Para lo que pasa A MITAD
+        // de partida y se va solo, que la captura final no ve (Discord,
+        // 19-10-2026: "the UI would move and rescale for a moment then go back").
+        final int every = Integer.getInteger("neo.snap.every", 0);
+        if (every > 0) {
+            final int[] n = {0};
+            final javafx.animation.Timeline series = new javafx.animation.Timeline(
+                    new javafx.animation.KeyFrame(Duration.seconds(every), e -> {
+                        n[0]++;
+                        final String stem = path.endsWith(".png")
+                                ? path.substring(0, path.length() - 4) : path;
+                        final String p = stem + String.format(java.util.Locale.ROOT, "-%03d.png", n[0]);
+                        try {
+                            Snapshots.writePng(scene.snapshot(null), new File(p));
+                        } catch (final Exception ex) {
+                            System.err.println("No se pudo guardar la captura " + p + ": " + ex);
+                        }
+                    }));
+            series.setCycleCount(javafx.animation.Animation.INDEFINITE);
+            series.play();
+        }
         final PauseTransition wait = new PauseTransition(Duration.seconds(waitSecs));
         wait.setOnFinished(e -> {
             if (app.table != null && app.table.getScene() != null) {

@@ -98,10 +98,57 @@ public final class ImpactLayer extends Pane {
             }
             return;
         }
-        entrance = new CommanderEntrance(this, card, CommanderEntrance.colorsFor(colors), subtitle, signature,
-                this::nextEntrance);
-        entrance.start();
+        entranceOnTop(true);
+        final CommanderEntrance started = new CommanderEntrance(this, card, CommanderEntrance.colorsFor(colors),
+                subtitle, signature, this::nextEntrance);
+        entrance = started;
+        started.start();
+        // EL TOPE: lo normal es soltar en cuanto acaba (onDone), pero con esta
+        // capa delante y comiendose los clics, una entrada que no acabara (un
+        // fallo dentro de su temporizador) dejaria la mesa sin respuesta. Asi
+        // que, pase lo que pase, a los MAX_ENTRANCE_SECONDS se para y suelta
+        // (idea del autor, 19-10-2026). La mas larga dura 2,2 s (1,8 + 0,4 de las
+        // firmas). Salvo con la bandera que la congela a proposito.
+        if (System.getProperty("neo.entrance.freezeAt") == null) {
+            final javafx.animation.PauseTransition guard =
+                    new javafx.animation.PauseTransition(javafx.util.Duration.seconds(MAX_ENTRANCE_SECONDS));
+            guard.setOnFinished(e -> {
+                if (entrance == started) {
+                    System.err.println("[entrada] tope de " + MAX_ENTRANCE_SECONDS + " s: se para y suelta la mesa");
+                    started.stop();
+                    nextEntrance();
+                }
+            });
+            guard.play();
+        }
     }
+
+    /**
+     * Mientras dura una entrada de comandante (o la cola de ellas), NADA por
+     * encima: Ana, 19-10-2026, <i>"al entrar mi comandante se disparaba un
+     * encantamiento en la mesa rival y salia el pop up de ese encantamiento
+     * encima de la animacion"</i>. Esta capa va de normal DEBAJO de carteles,
+     * avisos y dialogos (que es lo correcto para los efectos de hechizo); durante
+     * la entrada se pone delante de todos sus hermanos de la mesa y al acabar
+     * vuelve a su sitio. Lo que el motor pregunte mientras tanto no se pierde:
+     * sigue debajo y aparece en cuanto acaba (dura menos de dos segundos).
+     *
+     * <p>Y se queda con los clics mientras tanto: delante y transparente al raton,
+     * un clic podria contestar sin querer a una pregunta que no se ve.
+     */
+    private void entranceOnTop(final boolean on) {
+        setViewOrder(on ? ENTRANCE_VIEW_ORDER : 0);
+        setMouseTransparent(!on);
+        setPickOnBounds(on);        if (LOG) {
+            System.out.println(on ? "[entrada] delante de todo" : "[entrada] vuelve a su sitio (deja pasar el raton)");
+        }
+    }
+
+    /** Lo que una entrada puede tener la mesa para ella como mucho. Ver {@link #commander}. */
+    static final double MAX_ENTRANCE_SECONDS = 3;
+
+    /** Por delante de todo lo de la mesa (lo mas adelantado ahi va a -1). */
+    private static final double ENTRANCE_VIEW_ORDER = -1000;
 
     @SuppressWarnings("unchecked")
     private void nextEntrance() {
@@ -110,6 +157,9 @@ public final class ImpactLayer extends Pane {
         if (next != null) {
             commander((forge.game.card.CardView) next[0], (List<Color>) next[1], (String) next[2],
                     (forge.neo.match.CommanderSignature) next[3]);
+        }
+        if (entrance == null) {
+            entranceOnTop(false);
         }
     }
 
@@ -161,6 +211,9 @@ public final class ImpactLayer extends Pane {
     public ImpactLayer() {
         setMouseTransparent(true);
         setPickOnBounds(false);
+        // Solo recibe raton durante una entrada (entranceOnTop): ahi se lo come.
+        addEventHandler(javafx.scene.input.MouseEvent.ANY, javafx.event.Event::consume);
+        addEventHandler(javafx.scene.input.ScrollEvent.ANY, javafx.event.Event::consume);
         getStyleClass().add("impact-layer");
         sceneProperty().addListener((o, was, is) -> {
             if (is == null) {
@@ -253,6 +306,7 @@ public final class ImpactLayer extends Pane {
             entrance = null;
             e.stop();
         }
+        entranceOnTop(false);
         for (final Effect e : live) {
             getChildren().remove(e.group);
         }

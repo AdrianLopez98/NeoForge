@@ -480,6 +480,12 @@ public final class NeoMain {
                 banner("La IA amable");
                 forge.neo.match.FriendlyCheck.run();
                 break;
+            case "bo3check":
+                // Al mejor de 3 fuera del draft: Estandar con banquillo y
+                // Commander, enteros y sin ventana. Ver Bo3Check.
+                banner("Al mejor de 3");
+                forge.neo.match.Bo3Check.run();
+                break;
             case "replaycheck":
                 // Las repeticiones (Forge #12255): se graban segun el ajuste,
                 // la lista las lee y sus botones se traducen. Ver ReplayCheck.

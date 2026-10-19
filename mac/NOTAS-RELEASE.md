@@ -1,12 +1,13 @@
-**NeoForge para macOS 1.0.27 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.28 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Efectos de los hechizos:** al resolverse, el hechizo vuela de quien lo lanza hasta su objetivo y estalla con su color: fuego, humo morado, agua, hojas, luz o chispas. La criatura que lo recibe espera al golpe antes de irse, y lo que entra lanzado se materializa en la mesa.
-- **El combate, como en Arena:** la criatura que golpea se lanza hacia su víctima, salta el número del daño sobre criaturas y jugadores, y al jugador que recibe daño se le sacude el retrato.
-- **La entrada de los comandantes:** el tuyo y los de tus rivales entran con un momento de cine. Algunos famosos traen la suya: el ala negra y las plumas de Sephiroth, el Omnislash de Cloud y el viento de Tsushima de Jin Sakai.
-- Las dos cosas se apagan en Ajustes («Efectos de los hechizos y del combate» y «Entrada de los comandantes»).
-- **Tocar un permanente cuya habilidad no se puede usar dice por qué:** girado, recién llegado o la condición de la propia carta.
-- **Quest:** «Exportar lo que falta» de un mazo, y el sobre de premio ya no enseña números que no hacían nada.
+- **Al mejor de 1 o de 3**, en todos los formatos y con banquillo entre partidas.
+- **El panel «Turno»:** lo que lleva cada jugador este turno (vida ganada y perdida, robadas, hechizos, cartas al cementerio…), y los hechizos de este turno en la barra de cada jugador, para la tormenta.
+- **El impuesto de comandante se ve** sobre la carta del comandante en la zona de mando.
+- **Bloquear con criaturas que tienen habilidades:** tocarla cuando te atacan pregunta «¿Bloquear?», y arrastrarla sobre el atacante bloquea.
+- **Quest:** cada duelo dice cuántos créditos paga ganarlo, empezar con menos vida, el mazo por colores sale de las expansiones del mundo elegido y Estates también mejora lo que te pagan al vender.
+- **La mesa ya no se recoloca sola a mitad de partida**, la entrada de los comandantes ya no tiene nada encima y Bitter Feud enseña los dos jugadores elegidos.
+- Pantallas pequeñas con escala grande: la pantalla de mazos y los Ajustes ya no se salen por los lados.
 - **Forge al día.**
 
 Descarga el `.dmg` de tu Mac:

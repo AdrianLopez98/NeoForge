@@ -534,6 +534,11 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 }
                 // Y las TUYAS, por nombre: para ver sus disparos dejarse pasar.
                 NeoGame.setDevMyRelics(optionOf(args, "--rig-my-relics"));
+                // El impuesto de comandante sin tener que relanzarlo N veces.
+                final String casts = optionOf(args, "--commander-casts");
+                if (casts != null) {
+                    NeoGame.setDevCommanderCasts(Integer.parseInt(casts.trim()));
+                }
                 final String rigSpeed = optionOf(args, "--speed");
                 if (rigSpeed != null) {
                     NeoGame.setDevSpeed(Integer.parseInt(rigSpeed));
@@ -1931,6 +1936,23 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 if (table == null || step.isEmpty()) {
                     return;
                 }
+                // "dr:Origen>Destino": arrastra una carta de la mesa sobre otra,
+                // como soltarla con el raton (bloquear arrastrando, Discord 19-10-2026).
+                if (step.startsWith("dr:") && step.contains(">")) {
+                    final forge.neo.match.NeoMatchUI ui = binder == null ? null : binder.getMatchUi();
+                    final String[] st = step.substring(3).split(">", 2);
+                    System.out.println("[mesa] arrastro " + st[0] + " sobre " + st[1]
+                            + (ui != null && ui.dropForTest(st[0], st[1]) ? "" : ": NO ESTAN"));
+                    return;
+                }
+                // "pl:Nombre": elige a ese jugador, como clicar su retrato
+                // (Bitter Feud y cualquier "elige un jugador").
+                if (step.startsWith("pl:")) {
+                    final forge.neo.match.NeoMatchUI ui = binder == null ? null : binder.getMatchUi();
+                    System.out.println("[mesa] elijo al jugador " + step.substring(3)
+                            + (ui != null && ui.clickPlayerNamed(step.substring(3)) ? "" : ": NO ESTA"));
+                    return;
+                }
                 if (step.equals("@ok")) {
                     System.out.println("[mesa] pulso el boton grande");
                     table.getActionBar().pressPrimary();
@@ -2065,6 +2087,13 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                         }
                     }
                     System.out.println("[mesa] no hay " + want + " en tu mesa");
+                    return;
+                }
+                // "@turn": el boton del panel «Turno», como si se pulsara.
+                if (step.equals("@turn")) {
+                    System.out.println("[mesa] abro el panel del turno"
+                            + (table.getTurnButton().isVisible() ? "" : ": EL BOTON NO ESTA"));
+                    table.getTurnButton().fire();
                     return;
                 }
                 if (step.equals("@close")) {
@@ -3784,9 +3813,20 @@ public class NeoApp extends Application implements SettingsPanel.Host {
     @Override
     public void applyScale() {
         if (scene != null && scene.getRoot() != null) {
-            scene.getRoot().setStyle(UiScale.rootStyle(scene.getHeight()));
+            final String style = UiScale.rootStyle(scene.getHeight());
+            // En el registro cada vez que la letra CAMBIA (no en cada llamada):
+            // "la interfaz se reescala un momento a mitad de partida" (Discord,
+            // 19-10-2026) solo se puede seguir sabiendo cuando y con que alto.
+            if (!style.equals(lastScaleStyle)) {
+                System.out.printf(java.util.Locale.ROOT, "[escala] %s alto de la ventana %.0f%n",
+                        style, scene.getHeight());
+                lastScaleStyle = style;
+            }
+            scene.getRoot().setStyle(style);
         }
     }
+
+    private String lastScaleStyle;
 
     /**
      * El menu inicial: en que formato quieres jugar.
@@ -4582,7 +4622,11 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 // Y lastTeams, los equipos: con cada uno en el suyo NeoTeams devuelve null
                 // y los asientos los monta el formato, como siempre.
                 final NeoGame.Result r = NeoGame.play(deck, opponents, mode, timeout, verbose,
-                        liveBinder, aiProfile, autoMana, format, lastOpponentDecks, 1,
+                        // Al mejor de 3 si se eligio en la pantalla de mazos, y
+                        // solo jugando tu: mirando a la IA nadie contesta entre
+                        // partida y partida.
+                        liveBinder, aiProfile, autoMana, format, lastOpponentDecks,
+                        mode == NeoMatchUI.Mode.HUMAN ? NeoSettings.bestOf(format) : 1,
                         // Planechase (08-10-2026), ENCIMA de los equipos: envuelve.
                         // Y Archenemy (11-10-2026) entre los dos: decide los
                         // equipos, y Planechase pone los planos encima.

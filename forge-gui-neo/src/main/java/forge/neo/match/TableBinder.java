@@ -833,6 +833,9 @@ public class TableBinder {
         // Y cuantas ha robado este turno, si mas de una (Orcish Bowmasters y
         // compania: ver PlayerBar.setDrawnThisTurn).
         bar.setDrawnThisTurn(drawnThisTurn(p));
+        // Y los hechizos que ha lanzado este turno, para la tormenta
+        // (Discord, 18-10-2026). Ver SpellsThisTurn.
+        bar.setSpellsThisTurn(SpellsThisTurn.of(matchUi, p));
         // Y las maldiciones que le encantan y las batallas que protege: estan
         // en la mesa de quien las controla (Discord, 03-10-2026). Ver
         // AttachedToPlayer.

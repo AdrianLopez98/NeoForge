@@ -84,8 +84,13 @@ final class NeoAppQuest {
                               final forge.deck.Deck starter,
                               final forge.item.PaperCard commander, final byte colours,
                               final String world, final forge.neo.ascent.AscentPool pool) {
+                // La vida baja se marca en la pantalla y se guarda junto a la
+                // Quest, despues de crearla (start borra lo de una anterior
+                // con el mismo nombre).
+                final boolean lowLife = setup.isLowLife();
                 if (commander == null && starter != null) {
                     forge.neo.quest.NeoQuest.start(name, modalidad, dificultad, starter, world, pool);
+                    forge.neo.quest.QuestLowLife.set(name, lowLife);
                     showQuestHome();
                     return;
                 }
@@ -100,7 +105,9 @@ final class NeoAppQuest {
                     final forge.deck.Deck deck = commander != null
                             ? forge.neo.quest.NeoCommanderDuels.starter(commander)
                             : forge.neo.quest.NeoQuest.colourStarter(
-                                    forge.neo.NeoText.get("questNew.colourDeckName"), colours, pool);
+                                    forge.neo.NeoText.get("questNew.colourDeckName"), colours,
+                                    // Con un mundo, de SUS expansiones (Discord, 18-10-2026).
+                                    forge.neo.quest.NeoQuestWorlds.starterPool(world, pool));
                     Platform.runLater(() -> {
                         if (app.scene.getRoot() != from) {
                             return; // se ha salido de la pantalla mientras tanto
@@ -110,6 +117,7 @@ final class NeoAppQuest {
                             return;
                         }
                         forge.neo.quest.NeoQuest.start(name, modalidad, dificultad, deck, world, pool);
+                        forge.neo.quest.QuestLowLife.set(name, lowLife);
                         showQuestHome();
                     });
                 }, "neo-quest-starter");

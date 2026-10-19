@@ -1259,13 +1259,31 @@
 
 /* ---------- zona de mando ---------- */
 
-.commander-tax {
+/* Lo que da ganar un duelo de la Quest (QuestScreen.duelTile). */
+.duel-reward { -fx-text-fill: -neo-warn; -fx-font-weight: bold; -fx-font-size: 0.95em; }
+
+/* El panel «Turno» (TurnStatsView): lo que lleva cada jugador este turno. */
+.turn-stats-player { -fx-text-fill: -neo-text; -fx-font-weight: bold; -fx-padding: 0 0 4 0; }
+.turn-stats-active { -fx-text-fill: -neo-accent; }
+.turn-stats-label { -fx-text-fill: -neo-text-dim; }
+.turn-stats-value { -fx-text-fill: -neo-text; -fx-font-weight: bold; -fx-font-size: 1.05em; }
+.turn-stats-zero { -fx-text-fill: derive(-neo-text-dim, -35%); -fx-font-weight: normal; }
+.turn-stats-gain { -fx-text-fill: -neo-valid; }
+.turn-stats-loss { -fx-text-fill: -neo-danger; }
+.turn-stats-hint { -fx-text-fill: -neo-text-dim; -fx-font-size: 0.85em; }
+
+/* El impuesto de comandante, sobre la carta de la zona de mando (CardNode).
+   El tamano de letra lo pone CardNode segun el ancho de la carta. */
+.card-commander-tax {
     -fx-background-color: -neo-warn;
     -fx-text-fill: #10141A;
     -fx-font-weight: bold;
-    -fx-font-size: 0.8em;
-    -fx-padding: 1 5 1 5;
-    -fx-background-radius: 3;
+    -fx-padding: 1 6 1 6;
+    -fx-background-radius: 5;
+    -fx-border-color: rgba(0,0,0,0.55);
+    -fx-border-radius: 5;
+    -fx-border-width: 1;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.6), 4, 0.2, 0, 1);
 }
 
 /* ---------- pestanyas de rival (partidas a 3 o 4) ---------- */

@@ -59,6 +59,11 @@ public final class NeoGame {
          * tu nombre (revision del torneo de draft de la Quest, 13-10-2026).
          */
         public final String matchWinner;
+        /**
+         * Cuantas partidas se han jugado en el partido: 1 en una suelta, 2 o 3
+         * al mejor de 3. Para {@code bo3check}.
+         */
+        public final int games;
 
         Result(final boolean completed, final int turns, final int decisions, final String winner,
                final NeoMatchUI.Exit exit, final int yourLife) {
@@ -67,6 +72,12 @@ public final class NeoGame {
 
         Result(final boolean completed, final int turns, final int decisions, final String winner,
                final NeoMatchUI.Exit exit, final int yourLife, final String matchWinner) {
+            this(completed, turns, decisions, winner, exit, yourLife, matchWinner, 1);
+        }
+
+        Result(final boolean completed, final int turns, final int decisions, final String winner,
+               final NeoMatchUI.Exit exit, final int yourLife, final String matchWinner, final int games) {
+            this.games = games;
             this.completed = completed;
             this.turns = turns;
             this.decisions = decisions;
@@ -406,6 +417,7 @@ public final class NeoGame {
         // ese fue el fallo de la primera version, que blindaba las partidas del
         // lobby y de la aventura y dejaba fuera las normales. Ver SafeAi.
         final Runnable rig = devExileCommander ? () -> exileCommander(match.getGame())
+                : devCommanderCasts > 0 ? () -> commanderCasts(match.getGame())
                 : devPlayFromGraveyard != null ? () -> putInGraveyard(match.getGame())
                 : devSpeed > 0 ? () -> riggedSpeed(match.getGame())
                 : devFilterLand ? () -> riggedFilterLand(match.getGame())
@@ -499,8 +511,10 @@ public final class NeoGame {
         final forge.game.player.PlayerView me = gui.localPlayerView();
         final int yourLife = me == null ? -1 : me.getLife();
         String matchWinner = null;
+        int games = 1;
         try {
             final forge.game.Match m = match.getMatch();
+            games = m == null ? 1 : Math.max(1, com.google.common.collect.Iterables.size(m.getOutcomes()));
             final RegisteredPlayer champ = m == null ? null : m.getWinner();
             matchWinner = champ == null || champ.getPlayer() == null ? null : champ.getPlayer().getName();
         } catch (final RuntimeException e) {
@@ -510,7 +524,7 @@ public final class NeoGame {
         // Se acabo el mazo en juego: si se dejara puesto, el siguiente puzzle o
         // el siguiente duelo de la aventura heredarian su funda.
         forge.neo.look.NeoLook.setDeckInPlay(null);
-        return new Result(completed, turns, gui.getDecisionCount(), winner, exit, yourLife, matchWinner);
+        return new Result(completed, turns, gui.getDecisionCount(), winner, exit, yourLife, matchWinner, games);
     }
 
     /**
@@ -705,6 +719,36 @@ public final class NeoGame {
 
     public static void setDevExileCommander(final boolean on) {
         devExileCommander = on;
+    }
+
+    /**
+     * Solo para PROBAR: empieza con tu comandante ya lanzado N veces, o sea con
+     * su impuesto puesto ({@code --commander-casts=N}). En una partida de verdad
+     * hace falta lanzarlo y que vuelva a la zona de mando N veces. Lo cuenta el
+     * motor por el camino de siempre ({@code Player.incCommanderCast}, el mismo
+     * que usa la pila), asi que la mesa lo ve igual.
+     */
+    private static volatile int devCommanderCasts;
+
+    public static void setDevCommanderCasts(final int n) {
+        devCommanderCasts = n;
+    }
+
+    private static void commanderCasts(final forge.game.Game game) {
+        if (game == null) {
+            return;
+        }
+        for (final forge.game.player.Player p : game.getPlayers()) {
+            if (p.isAI()) {
+                continue;
+            }
+            for (final forge.game.card.Card c : p.getCommanders()) {
+                System.out.println("  [dev] " + c + " ya lanzado " + devCommanderCasts + " veces");
+                for (int i = 0; i < devCommanderCasts; i++) {
+                    p.incCommanderCast(c);
+                }
+            }
+        }
     }
 
     /**

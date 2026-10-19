@@ -73,7 +73,7 @@ public final class ChosenValues {
             }
             final PlayerView player = card.getChosenPlayer();
             if (player != null) {
-                add(out, Kind.PLAYER, player.getName());
+                add(out, Kind.PLAYER, players(card, player));
             }
             add(out, Kind.NUMBER, card.getChosenNumber());
             if (card.getChosenDirection() != null) {
@@ -108,6 +108,51 @@ public final class ChosenValues {
             sb.append(e.value);
         }
         return sb.toString();
+    }
+
+    /**
+     * El jugador elegido y, si la carta eligio MAS de uno, los demas.
+     *
+     * <p>Bitter Feud elige dos (Discord, 19-10-2026: <i>"I'm not seeing a way
+     * to see both players effected by Bitter Feud ... it only showed my name"</i>).
+     * Su guion elige el primero y lo RECUERDA ({@code RememberChosen}), y luego
+     * elige el segundo, que pisa al primero como "elegido": la vista solo
+     * publica ese. Los recordados no tienen propiedad publica en el
+     * {@code CardView}, pero el motor los escribe al final de su texto
+     * ({@code getText}: "Remembered:" y uno por linea, un jugador por su
+     * nombre). Se cogen de ahi los que son el nombre de un jugador de la
+     * partida, y solo si la carta ya tiene un jugador elegido: los recordados
+     * sirven para muchas otras cosas.
+     */
+    private static String players(final CardView card, final PlayerView chosen) {
+        final java.util.LinkedHashSet<String> names = new java.util.LinkedHashSet<>();
+        try {
+            final java.util.Set<String> inGame = new java.util.HashSet<>();
+            for (final PlayerView p : new PlayerView[] {card.getController(), card.getOwner()}) {
+                if (p != null) {
+                    inGame.add(p.getName());
+                    if (p.getOpponents() != null) {
+                        for (final PlayerView o : p.getOpponents()) {
+                            inGame.add(o.getName());
+                        }
+                    }
+                }
+            }
+            final String text = card.getText();
+            final int at = text == null ? -1 : text.indexOf("Remembered:");
+            if (at >= 0) {
+                for (final String line : text.substring(at + "Remembered:".length()).split("[\r\n]+")) {
+                    final String n = line.trim();
+                    if (!n.isEmpty() && inGame.contains(n)) {
+                        names.add(n);
+                    }
+                }
+            }
+        } catch (final RuntimeException e) {
+            // Sin los recordados, al menos el elegido.
+        }
+        names.add(chosen.getName());
+        return String.join(", ", names);
     }
 
     private static void add(final List<Entry> out, final Kind kind, final String value) {

@@ -761,6 +761,51 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         return null;
     }
 
+    /** Solo para pruebas ({@code --field-click dr:Origen>Destino}): suelta una carta de la mesa sobre otra. */
+    public boolean dropForTest(final String sourceName, final String targetName) {
+        final GameView gv = getGameView();
+        if (gv == null) {
+            return false;
+        }
+        CardView source = null;
+        CardView target = null;
+        for (final PlayerView p : gv.getPlayers()) {
+            final Iterable<CardView> field = p.getCards(ZoneType.Battlefield);
+            if (field == null) {
+                continue;
+            }
+            for (final CardView c : field) {
+                if (source == null && c.getName().equalsIgnoreCase(sourceName)) {
+                    source = c;
+                } else if (target == null && c.getName().equalsIgnoreCase(targetName)) {
+                    target = c;
+                }
+            }
+        }
+        if (source == null || target == null) {
+            return false;
+        }
+        onCardDropped(source, false, target);
+        return true;
+    }
+
+    /** Solo para pruebas ({@code --field-click pl:Nombre}): clica el retrato de ese jugador. */
+    public boolean clickPlayerNamed(final String name) {
+        final GameView gv = getGameView();
+        if (gv == null) {
+            return false;
+        }
+        final PlayerView me = localPlayer();
+        for (final PlayerView p : gv.getPlayers()) {
+            // "@rival": el primero que no seas tu (los nombres de la IA salen al azar).
+            if ("@rival".equals(name) ? !p.equals(me) : p.getName().equalsIgnoreCase(name)) {
+                onPlayerClicked(p);
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void onPlayerClicked(final PlayerView player) {
         if (!interactive() || player == null || finished.get()) {
             return;
@@ -952,6 +997,13 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             return;
         }
 
+        // Te atacan y aun no se declaran bloqueadores: tocar tu criatura
+        // activaria su habilidad, y casi seguro querias bloquear (BlockIntent).
+        if (askBlockOrUse(card)) {
+            clickTrace(card, "preguntar bloquear o usar");
+            return;
+        }
+
         // El toque que activaria la habilidad de un permanente, con el ajuste
         // puesto: se pregunta antes de mandarlo (ActivateGuard).
         if (askBeforeActivate(card)) {
@@ -1035,6 +1087,66 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
      *
      * @return true si nos hemos quedado el toque para preguntar
      */
+    /**
+     * "¿Bloquear con Devoted Druid?" (Discord, 19-10-2026). Te atacan, tienes
+     * prioridad en el paso de ATACANTES y tocas tu criatura: eso activaria su
+     * habilidad, y casi seguro querias bloquear. "Bloquear" (la marcada) pasa la
+     * prioridad y la toca por ti en cuanto se abre la declaracion
+     * ({@link #pendingBlocker}); "Usar sus habilidades" hace lo de siempre.
+     * Cuando preguntar lo decide {@link forge.neo.match.BlockIntent}, que
+     * comparte Android.
+     *
+     * @return true si nos hemos quedado el toque para preguntar
+     */
+    private boolean askBlockOrUse(final CardView card) {
+        if (table == null || !interactive() || finished.get()
+                || table.getOverlay().isShowing()
+                || !forge.neo.match.BlockIntent.wouldMeanBlock(getGameController(), card)) {
+            return false;
+        }
+        final String name = forge.neo.card.CardText.nameOf(card);
+        final AtomicBoolean answered = new AtomicBoolean();
+        final ConfirmDialog dialog = new ConfirmDialog(
+                NeoText.get("blockIntent.title", name),
+                NeoText.get("blockIntent.text"),
+                List.of(NeoText.get("blockIntent.block"), NeoText.get("blockIntent.use")),
+                0,
+                index -> {
+                    if (!answered.compareAndSet(false, true)) {
+                        return;
+                    }
+                    table.getOverlay().hide();
+                    if (index == null) {
+                        return;
+                    }
+                    lastClicked = card;
+                    if (index == 0) {
+                        pendingBlocker = card;
+                        pendingBlockAttacker = null;
+                        respondLater(() -> getGameController().selectButtonOk());
+                    } else {
+                        respondLater(() -> getGameController().selectCard(card, null, null));
+                    }
+                });
+        dialog.getStyleClass().add("phase-ask");
+        if (dialog.option(0) != null) {
+            dialog.option(0).getStyleClass().add("phase-ask-go");
+        }
+        table.getOverlay().show(dialog);
+        table.requestLayout();
+        return true;
+    }
+
+    /**
+     * La criatura con la que el jugador dijo "Bloquear" en el paso de atacantes
+     * ({@link #askBlockOrUse}): se toca por el en cuanto el motor abre la
+     * declaracion de bloqueadores (ver updateButtons). Hilo de JavaFX.
+     */
+    private CardView pendingBlocker;
+
+    /** El atacante al que bloquear, si se arrastro sobre uno; si no, el que marque el motor. */
+    private CardView pendingBlockAttacker;
+
     private boolean askBeforeActivate(final CardView card) {
         if (table == null || !interactive() || finished.get()
                 || table.getOverlay().isShowing()
@@ -1863,6 +1975,18 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                 && isMe(source.getController()) && source.getCurrentState() != null
                 && source.getCurrentState().isCreature();
         final boolean attacking = ownCreature && isDeclaringAttackers();
+        // Arrastrarla sobre un atacante ANTES de la declaracion (paso de
+        // atacantes del rival, con prioridad): pasar y, al abrirse la
+        // declaracion, bloquear a ese atacante. Es lo que se le dice al jugador
+        // (Discord, 19-10-2026) y lo que hace "Bloquear" (askBlockOrUse).
+        if (ownCreature && target instanceof CardView attacker && gv != null && gv.getCombat() != null
+                && contains(gv.getCombat().getAttackers(), attacker)
+                && forge.neo.match.BlockIntent.wouldMeanBlock(getGameController(), source)) {
+            pendingBlocker = source;
+            pendingBlockAttacker = attacker;
+            respondLater(() -> getGameController().selectButtonOk());
+            return;
+        }
         final boolean blocking = ownCreature && gv != null
                 && gv.getPhase() == PhaseType.COMBAT_DECLARE_BLOCKERS
                 && !payingMana && !isSelecting() && getSelectionMax() <= 0;
@@ -3224,6 +3348,11 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                 table.showGameLog(gv.getGameLog(), localPlayer(), LogCardLinks.lookupIn(gv));
             }
         });
+        // Lo que lleva cada jugador este turno (Discord, 18-10-2026). Lee la
+        // partida de este ordenador; en una repeticion no hay ninguna.
+        if (!isReplay()) {
+            table.enableTurnStats(() -> TurnStats.read(this, localPlayer()));
+        }
         // Las macros, tambien con el raton. Mismo camino que su tecla.
         table.getMacroRecordButton().setOnAction(e -> pressMacroRecord());
         // En una repeticion no hay nada que grabar: no hay motor que la repita.
@@ -4192,7 +4321,10 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             // sin manos (-Dneo.adventure.auto), que es como se reproduce lo que
             // pasa al acabar un evento. Fuera de esa bandera, QUIT como siempre.
             final GameView now = getGameView();
-            if (Boolean.getBoolean("neo.adventure.auto") && ending == Ending.QUEST
+            // Y -Dneo.bo3.auto: lo mismo para bo3check (un Bo3 de Estandar o
+            // de Commander jugado entero sin ventana).
+            if ((Boolean.getBoolean("neo.adventure.auto") && ending == Ending.QUEST
+                    || Boolean.getBoolean("neo.bo3.auto"))
                     && now != null && !now.isMatchOver()) {
                 respondLater(() -> getGameController().nextGameDecision(NextGameDecision.CONTINUE));
                 return;
@@ -4295,6 +4427,8 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
      * {@link GameOverScreen#addLookButtons}.
      */
     private GameOverScreen lookButtons(final GameView gv, final GameOverScreen screen) {
+        // Al mejor de 3, el marcador del partido (null en una partida suelta).
+        screen.withScore(BestOf.score(gv));
         screen.addLookButtons(
                 gv == null || gv.getGameLog() == null ? null
                         : () -> table.showGameLog(gv.getGameLog(), localPlayer(), LogCardLinks.lookupIn(gv)),
@@ -5306,6 +5440,29 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         final GameView pruneView = getGameView();
         if (pruneView != null) {
             LkiPruner.maybePrune(pruneView.getGame(), this);
+        }
+        // "Bloquear" en el paso de atacantes (askBlockOrUse): abierta ya la
+        // declaracion, se toca la criatura. Fuera del combate se olvida.
+        final CardView blockWith = pendingBlocker;
+        if (blockWith != null) {
+            if (forge.neo.match.BlockIntent.isDeclaringBlocks(getGameController())) {
+                final CardView against = pendingBlockAttacker;
+                pendingBlocker = null;
+                pendingBlockAttacker = null;
+                lastClicked = blockWith;
+                respondLater(() -> {
+                    // Primero el atacante (InputBlock lo hace "el actual"),
+                    // luego el bloqueador: el mismo orden que el arrastre.
+                    if (against != null) {
+                        getGameController().selectCard(against, null, null);
+                    }
+                    getGameController().selectCard(blockWith, null, null);
+                });
+            } else if (pruneView != null && pruneView.getPhase() != PhaseType.COMBAT_DECLARE_ATTACKERS
+                    && pruneView.getPhase() != PhaseType.COMBAT_DECLARE_BLOCKERS) {
+                pendingBlocker = null;
+                pendingBlockAttacker = null;
+            }
         }
         // Mientras se REPRODUCE una macro, los botones como en el Forge de
         // escritorio (CMatchUI.updateButtons): OK apagado y sin texto, y
@@ -7931,7 +8088,12 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         final int pickMin = max < 0 ? 0 : Math.max(0, n - max);
         final int pickMax = min < 0 ? n : Math.min(n, n - min);
 
-        final String heading = top == null || top.isBlank() ? title
+        // Adjuntar varias Auras o Equipos (Ardenn): el motor pide el ORDEN de
+        // todas con el titulo generico de "poner en el campo de batalla", y
+        // parece que estas eligiendo cuales. Se dice lo que es (AttachOrder).
+        final boolean attach = forge.neo.match.AttachOrder.applies(source);
+        final String heading = attach ? NeoText.get("order.attach.title")
+                : top == null || top.isBlank() ? title
                 : (title == null || title.isBlank() ? top : title + " — " + top);
 
         // Separar en dos pilas tambien llega por aqui, y "Select cards for a
@@ -7939,7 +8101,8 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         // orden que numerar. Ver pileHint.
         final String pile = pileHint(title);
         final List<T> picked = askChoice(heading, source, pickMin, Math.max(pickMin, pickMax), null,
-                List.of(), pile == null, pile != null ? pile : orderHint(top, Math.max(pickMin, pickMax)));
+                List.of(), pile == null, attach ? NeoText.get("order.attach.hint")
+                        : pile != null ? pile : orderHint(top, Math.max(pickMin, pickMax)));
         final List<T> ordered = new ArrayList<>(already);
         if (picked != null) {
             ordered.addAll(picked);
@@ -8119,23 +8282,16 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             return null; // sin jugador: se queda el mazo de antes
         }
         final List<PaperCard> current = main.toFlatList();
-        final List<PaperCard> pool = new ArrayList<>();
-        if (sideboardIsSuperset(sideboard, main)) {
-            // Draft: la banda YA es el pool entero (el principal es una copia
-            // de una parte). Sumar los dos duplicaria cada carta del mazo.
-            pool.addAll(sideboard.toFlatList());
-        } else {
-            // Sellado: montones disjuntos. El pool de verdad es la suma.
-            pool.addAll(current);
-            pool.addAll(sideboard.toFlatList());
-        }
+        // El pool entero (draft: la banda ya lo es; el resto: la suma). BestOf.
+        final List<PaperCard> pool = BestOf.sideboardPool(sideboard, main);
         final int size = current.size();
         // Cualquier tamanyo LEGAL del formato, como Forge, no exactamente el de
         // antes. Con el mismo numero fijo, una carta de ante ganada que el
         // motor ya habia metido en el mazo (Match.executeOwnershipChanges) no
         // se podia volver a sacar: habia que elegir las 41 para seguir. Lo
         // reportaron jugando eventos de la Aventura (Jumpstart), 29-09-2026.
-        final int[] range = legalMainRange(size, pool.size());
+        final GameView now = getGameView();
+        final int[] range = BestOf.legalMainRange(now == null ? null : now.getGameType(), size, pool.size());
         final List<PaperCard> picked = askUser(reply -> {
             final ChoiceDialog<PaperCard> dialog = new ChoiceDialog<>(
                     NeoText.get("sideboard.title"), pool, range[0], range[1],
@@ -8143,53 +8299,6 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             table.getOverlay().show(dialog);
         }, null);
         return picked;
-    }
-
-    /**
-     * Cuantas cartas puede llevar el mazo al volver del banquillo: lo que el
-     * formato de ESTA partida da por legal ({@code DeckFormat.getMainRange}:
-     * 40 o mas en limitado), sin pasar del pool. Si el mazo de ahora ya estaba
-     * fuera de ese margen, se admite tambien su tamanyo, para no dejar al
-     * jugador sin forma de seguir.
-     */
-    private int[] legalMainRange(final int current, final int pool) {
-        int lo = current;
-        int hi = current;
-        try {
-            final GameView gv = getGameView();
-            final forge.deck.DeckFormat format = gv == null || gv.getGameType() == null
-                    ? null : gv.getGameType().getDeckFormat();
-            final org.apache.commons.lang3.Range<Integer> r = format == null ? null : format.getMainRange();
-            if (r != null) {
-                lo = Math.min(current, r.getMinimum());
-                hi = Math.max(current, Math.min(pool, r.getMaximum()));
-            }
-        } catch (final RuntimeException e) {
-            // Sin formato que consultar: el tamanyo de antes, como siempre.
-        }
-        return new int[] {Math.max(0, lo), Math.max(lo, Math.min(pool, hi))};
-    }
-
-    /**
-     * Si la banda ya contiene lo que hay en el mazo, o son montones aparte.
-     *
-     * <p>El draft deja el pool ENTERO en la banda (el principal es una copia
-     * de una parte de ese pool), asi que ahi el principal es siempre
-     * subconjunto de la banda. El sellado los deja disjuntos: nada del mazo
-     * esta tambien en la banda ({@code NeoSealed.buildMainDeck} lo retira a
-     * proposito). No hace falta que nadie nos diga cual es cual: se ve
-     * mirando si la banda cubre, carta a carta, lo que hay en el mazo.
-     */
-    private static boolean sideboardIsSuperset(final CardPool sideboard, final CardPool main) {
-        if (main.isEmpty()) {
-            return false; // nada que comprobar: tratarlos como aparte no pierde ninguna carta
-        }
-        for (final Map.Entry<PaperCard, Integer> e : main) {
-            if (sideboard.countAll(c -> c.equals(e.getKey())) < e.getValue()) {
-                return false;
-            }
-        }
-        return true;
     }
 
     // ===============================================================

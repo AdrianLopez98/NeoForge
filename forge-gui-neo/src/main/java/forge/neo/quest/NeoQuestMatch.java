@@ -112,7 +112,14 @@ public final class NeoQuestMatch {
 
         final CountDownLatch over = new CountDownLatch(1);
         NeoGuiBase.setGuiGameFactory(() -> gui);
-        NeoGuiBase.setOnMatchCreated(match -> {
+        NeoGuiBase.setOnMatchCreated(created -> {
+            // Con la vida baja marcada, otro match que la baja al arrancar; y
+            // como es otro objeto, con su IA blindada (NeoGuiBase.hostMatch se
+            // la puso al de antes).
+            final forge.gamemodes.match.HostedMatch match = QuestLowLife.replace(created, duel);
+            if (match != created) {
+                match.setStartGameHook(forge.neo.match.SafeAi.hook(match, null));
+            }
             match.setOnMatchOver(over::countDown);
             return match;
         });

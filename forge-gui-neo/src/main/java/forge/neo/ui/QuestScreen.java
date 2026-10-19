@@ -591,6 +591,19 @@ public class QuestScreen extends StackPane {
         }
         box.getChildren().add(name);
 
+        // Lo que da ganarlo, para que elegir rival sea elegir (Discord,
+        // 19-10-2026): el seguro paga menos y el dificil mas. Al sorpresa no se
+        // le pone cifra (diria su dificultad), solo que paga el doble.
+        final int credits = NeoQuest.duelCredits(duel);
+        if (credits > 0) {
+            final Label reward = new Label(NeoQuest.isSurprise(duel)
+                    ? NeoText.get("quest.duelReward.surprise")
+                    : NeoText.get("quest.duelReward", credits));
+            reward.getStyleClass().add("duel-reward");
+            reward.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("quest.duelReward.tip")));
+            box.getChildren().add(reward);
+        }
+
         final Button play = new Button(NeoText.get("home.play"));
         play.getStyleClass().add("btn-primary");
         play.setMaxWidth(Double.MAX_VALUE);

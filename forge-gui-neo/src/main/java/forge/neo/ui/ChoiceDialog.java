@@ -126,6 +126,14 @@ public class ChoiceDialog<T> extends VBox implements NumberedChoice {
     static final int SHOWN = 120;
 
     private final boolean searchMode;
+    /**
+     * Con buscador, esconder lo ya marcado. Solo se pintan {@link #SHOWN}, y al
+     * ordenar 1266 disparos iguales, marcadas esas no quedaba nada que clicar
+     * (Discord, 18-10-2026: <i>"even if I wanted to manually click 1k+ times, I
+     * can't scroll down to click any further"</i>). Se enciende cuando lo que
+     * se ve esta todo marcado: entonces suben las siguientes.
+     */
+    private boolean hideChosen;
     private javafx.scene.control.TextField search;
     private final Label searchNote = new Label();
     private List<T> allOptions;
@@ -604,6 +612,11 @@ public class ChoiceDialog<T> extends VBox implements NumberedChoice {
             cn.setSelectable(on);
         }
         updateState();
+        if (searchMode && on && selected.size() < allOptions.size()
+                && items.getChildren().stream().allMatch(selected::containsKey)) {
+            hideChosen = true;
+            refilter();
+        }
     }
 
     /**
@@ -770,6 +783,9 @@ public class ChoiceDialog<T> extends VBox implements NumberedChoice {
                 final boolean hit = q.isEmpty() ? pass == 0
                         : pass == 0 ? searchKeys[i].startsWith(q)
                         : !searchKeys[i].startsWith(q) && searchKeys[i].contains(q);
+                if (hit && hideChosen && nodeCache[i] != null && selected.containsKey(nodeCache[i])) {
+                    continue;
+                }
                 if (hit) {
                     if (shown.size() < SHOWN) {
                         shown.add(searchNode(i));

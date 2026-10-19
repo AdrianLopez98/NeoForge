@@ -1135,6 +1135,23 @@ public final class NeoSettings {
     }
 
     /**
+     * Al mejor de cuantas partidas se juega en este formato: 1 (lo de siempre)
+     * o 3 (Discord, 19-10-2026: <i>"there is no bo3 option, correct?"</i>). Lo
+     * elige el boton PARTIDO de la pantalla de mazos y se recuerda por formato.
+     * Con 3, el motor juega el partido entero y pide el banquillo entre
+     * partidas donde el formato lo permite (no en Commander).
+     */
+    public static int bestOf(final forge.neo.match.NeoFormat format) {
+        return getInt(BEST_OF + "." + format.name(), 1) == 3 ? 3 : 1;
+    }
+
+    public static void setBestOf(final forge.neo.match.NeoFormat format, final int games) {
+        setInt(BEST_OF + "." + format.name(), games == 3 ? 3 : 1);
+    }
+
+    private static final String BEST_OF = "bestOf";
+
+    /**
      * Con que mazo juega el rival {@code seat} (0, 1, 2) de este formato: el
      * nombre de un mazo, o la clave de un sorteo ("Al azar de <coleccion>"), o
      * vacio = al azar entre todos. Cada pantalla guarda su propia clave; aqui

@@ -146,6 +146,7 @@ public class SettingsPanel extends VBox {
 
     public SettingsPanel(final Host host, final Runnable onClose) {
         this.inMatch = host.isInMatch();
+        LayoutAudit.installIfAsked(this, "ajustes");
         getStyleClass().addAll("dialog", "settings");
         setSpacing(6);
         setPadding(new Insets(22, 26, 18, 26));
@@ -1622,8 +1623,13 @@ public class SettingsPanel extends VBox {
             // sitio bajo el raton. Y lo mismo a lo ancho.
             tallest = Math.max(tallest, wanted);
             final double h = Math.max(160, Math.min(tallest + 2, room));
-            final double w = content.prefWidth(-1);
-            if (w > widest + 1) {
+            // Y nunca mas ancho que la ventana (Discord, 19-10-2026: Steam Deck a
+            // 1280x800 y escala 130%, el panel salia cortado por los dos lados y
+            // sin el carril de pestanyas). Lo que no quepa se parte en lineas.
+            final double roomW = sc.getWidth() * 0.94 - rail.prefWidth(-1) - UiScale.px(18)
+                    - getPadding().getLeft() - getPadding().getRight() - 24;
+            final double w = Math.max(UiScale.px(320), Math.min(content.prefWidth(-1), roomW));
+            if (w > widest + 1 || w < widest - 1 && w < content.prefWidth(-1)) {
                 widest = w;
                 scroll.setMinViewportWidth(w);
             }
@@ -2063,6 +2069,9 @@ public class SettingsPanel extends VBox {
         final Label label = new Label(caption);
         label.getStyleClass().add("settings-label");
         label.setMinWidth(UiScale.px(190));
+        // Con la ventana estrecha y la letra grande, en dos lineas en vez de
+        // empujar el panel fuera de la pantalla. Con sitio no cambia nada.
+        label.setWrapText(true);
         final HBox box = new HBox(14, label, control);
         box.setAlignment(Pos.CENTER_LEFT);
         box.setPadding(new Insets(4, 0, 4, 0));

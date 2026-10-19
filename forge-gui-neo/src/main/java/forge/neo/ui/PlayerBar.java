@@ -48,6 +48,21 @@ public class PlayerBar extends HBox {
     private final HBox playerCounters = new HBox(5);
 
     /**
+     * Las pastillas que van y vienen CADA TURNO (robadas, hechizos), en la fila
+     * del nombre y no en la de {@link #playerCounters}.
+     *
+     * <p>En su propia fila, aparecer y desaparecer cambiaba el alto de la barra,
+     * y con el la mesa entera se recolocaba y las cartas cambiaban de tamanyo un
+     * momento: Discord, 19-10-2026, <i>"as a commander game progressed the UI
+     * would move and seemingly rescale for a moment then go back ... It looks
+     * very much like when you change the scale in the menu"</i>. Pasaba con
+     * cualquier escala; la de "2 robadas" salia y se iba en cada turno. La fila
+     * del nombre ya lleva pastillas del mismo alto (turno, dano de comandante),
+     * asi que aqui no mueven nada.
+     */
+    private final HBox turnChips = new HBox(5);
+
+    /**
      * Las reliquias de Ascenso de este jugador. Ver {@link #setRelics}.
      *
      * <p>Vacia en cualquier otro modo, y entonces no ocupa ni un pixel
@@ -204,7 +219,8 @@ public class PlayerBar extends HBox {
         allyMark.setVisible(false);
         allyMark.setManaged(false);
 
-        final HBox nameRow = new HBox(8, name, allyMark, turnMark, commanderDamage);
+        turnChips.setAlignment(Pos.CENTER_LEFT);
+        final HBox nameRow = new HBox(8, name, allyMark, turnMark, commanderDamage, turnChips);
         nameRow.setAlignment(Pos.CENTER_LEFT);
 
 
@@ -993,21 +1009,39 @@ public class PlayerBar extends HBox {
      * Con una (la del paso de robar) no sale: seria ruido todos los turnos.
      *
      * <p>Lo da el motor ({@code PlayerView.getNumDrawnThisTurn}); antes solo
-     * estaba en el texto del detalle, al pasar el raton. Se llama despues de
-     * {@link #setCounters}: quita la suya y la vuelve a poner al final.
+     * estaba en el texto del detalle, al pasar el raton. Va en la fila del
+     * nombre ({@link #turnChips}): en la de abajo movia la mesa cada turno.
      */
     public void setDrawnThisTurn(final int drawn) {
-        playerCounters.getChildren().removeIf(n -> n.getStyleClass().contains("player-counter-drawn"));
+        turnChips.getChildren().removeIf(n -> n.getStyleClass().contains("player-counter-drawn"));
         if (drawn > 1) {
             final Label pill = new Label(drawn + " " + NeoText.get("bar.drawn"));
             pill.getStyleClass().addAll("player-counter", "player-counter-drawn");
             javafx.scene.control.Tooltip.install(pill,
                     new javafx.scene.control.Tooltip(NeoText.get("bar.drawn.tip", drawn)));
-            playerCounters.getChildren().add(pill);
+            turnChips.getChildren().add(0, pill);
         }
-        final boolean any = !playerCounters.getChildren().isEmpty();
-        playerCounters.setVisible(any);
-        playerCounters.setManaged(any);
+    }
+
+    /**
+     * Cuantos hechizos ha lanzado este jugador este turno, desde el primero
+     * (Discord, 18-10-2026: <i>"Spells played this turn. Helpful for Storm
+     * cards in hand"</i>). Al pasar el raton, tambien los de todos: es lo que
+     * cuenta la tormenta. Sale desde uno, no como las robadas: aqui uno ya es
+     * dato, y la pastilla se va sola al cambiar de turno. Ver
+     * {@link forge.neo.match.SpellsThisTurn}; se llama despues de
+     * {@link #setCounters}, como {@link #setDrawnThisTurn}.
+     */
+    public void setSpellsThisTurn(final forge.neo.match.SpellsThisTurn.Count count) {
+        turnChips.getChildren().removeIf(n -> n.getStyleClass().contains("player-counter-spells"));
+        if (count != null && count.mine() > 0) {
+            final Label pill = new Label(NeoText.get(count.mine() == 1 ? "bar.spells.one" : "bar.spells",
+                    count.mine()));
+            pill.getStyleClass().addAll("player-counter", "player-counter-spells");
+            javafx.scene.control.Tooltip.install(pill, new javafx.scene.control.Tooltip(
+                    NeoText.get("bar.spells.tip", count.mine(), count.all())));
+            turnChips.getChildren().add(pill);
+        }
     }
 
     /**

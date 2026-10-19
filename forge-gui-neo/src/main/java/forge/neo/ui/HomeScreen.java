@@ -356,6 +356,7 @@ et}) y no se tocan.
                       final EditHandler onEdit, final Runnable onDownload) {
         this.format = format;
         this.decks = decks;
+        LayoutAudit.installIfAsked(this, "mazos");
         this.tileWidth = tileWidth;
         this.onBack = onBack;
         this.onEdit = onEdit;
@@ -705,6 +706,12 @@ et}) y no se tocan.
         BorderPane.setAlignment(right, Pos.TOP_RIGHT);
         BorderPane.setMargin(right, new Insets(0, 0, 0, 12));
         bar.setPadding(new Insets(0, 30, 8, 30));
+        // Si las pestanyas y los filtros no caben en una linea, los filtros
+        // bajan a la de debajo (Discord, 19-10-2026: Steam Deck a 1280x800 y
+        // escala 130%). Antes los filtros se quedaban enteros, las pestanyas se
+        // aplastaban a cero de ancho —se veian montadas y no respondian— y la
+        // pantalla entera se salia por los dos lados.
+        bar.widthProperty().addListener((o, was, now) -> stackBarIfNeeded(bar, right));
 
         final ScrollPane scroll = new ScrollPane(grid);
         scroll.getStyleClass().add("dialog-scroll");
@@ -716,6 +723,34 @@ et}) y no se tocan.
 
         final VBox box = new VBox(6, bar, scroll);
         return box;
+    }
+
+    /** Pestanyas arriba y filtros debajo cuando no caben en la misma linea. */
+    private void stackBarIfNeeded(final BorderPane bar, final HBox right) {
+        if (bar.getWidth() <= 0) {
+            return;
+        }
+        double widestTab = 0;
+        for (final javafx.scene.Node n : tabRow.getChildren()) {
+            widestTab = Math.max(widestTab, n.prefWidth(-1));
+        }
+        final double room = bar.getWidth() - bar.getPadding().getLeft() - bar.getPadding().getRight();
+        // Las pestanyas necesitan al menos dos de ancho para ser una fila.
+        final boolean stack = right.prefWidth(-1) + 12 + Math.max(widestTab * 2, UiScale.px(260)) > room;
+        if (stack && bar.getRight() == right) {
+            bar.setRight(null);
+            bar.setBottom(right);
+            BorderPane.setMargin(right, new Insets(8, 0, 0, 0));
+            right.setAlignment(Pos.CENTER_LEFT);
+            // Debajo, si tampoco cabe entera, que encoja (el buscador primero).
+            right.setMinWidth(Region.USE_COMPUTED_SIZE);
+        } else if (!stack && bar.getBottom() == right) {
+            bar.setBottom(null);
+            bar.setRight(right);
+            BorderPane.setMargin(right, new Insets(0, 0, 0, 12));
+            right.setAlignment(Pos.CENTER_RIGHT);
+            right.setMinWidth(Region.USE_PREF_SIZE);
+        }
     }
 
     /**
@@ -738,6 +773,10 @@ et}) y no se tocan.
         });
 
         eraFilter.getStyleClass().add("team-combo");
+        // Un ComboBox pide el ancho de su opcion mas larga ("Commander Legends:
+        // Battle for Baldur's Gate · 3"): 628 px a escala 130%. Cerrado basta
+        // con esto; la lista se abre igual de ancha que antes.
+        eraFilter.setPrefWidth(UiScale.px(230));
         eraFilter.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("home.filter.era.tip")));
         eraFilter.setVisibleRowCount(16);
         eraFilter.getItems().add(NeoText.get("home.filter.anyEra"));
@@ -1430,6 +1469,15 @@ et}) y no se tocan.
                         v -> {
                             aiProfile = v;
                             NeoSettings.set(NeoSettings.AI_PROFILE, v);
+                            updateSummary();
+                        }),
+                // Al mejor de 1 o de 3, como el "Games per match" del lobby de
+                // Forge (Discord, 19-10-2026). Se recuerda por formato.
+                choice(NeoText.get("home.match"),
+                        new String[] {NeoText.get("home.bo1"), NeoText.get("home.bo3")},
+                        NeoText.get(NeoSettings.bestOf(format) == 3 ? "home.bo3" : "home.bo1"),
+                        v -> {
+                            NeoSettings.setBestOf(format, NeoText.get("home.bo3").equals(v) ? 3 : 1);
                             updateSummary();
                         }),
                 variantChoice(),
@@ -2371,6 +2419,9 @@ et}) y no se tocan.
             }
             if (people > 1) {
                 summary.setText(summary.getText() + "  ·  " + NeoText.get("home.seat.summary", people));
+            }
+            if (NeoSettings.bestOf(format) == 3) {
+                summary.setText(summary.getText() + "  ·  " + NeoText.get("home.bo3.summary"));
             }
         }
         summary.pseudoClassStateChanged(INVALID, problem != null);

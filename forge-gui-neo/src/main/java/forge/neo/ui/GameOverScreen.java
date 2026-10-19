@@ -42,6 +42,23 @@ public class GameOverScreen extends VBox {
      *                (principio 1 de las notas de diseño), asi que no salen.
      * @param onDecision que contestarle al motor
      */
+    /** La linea de debajo del titulo: el marcador va justo detras ({@link #withScore}). */
+    private Label subtitle;
+
+    /**
+     * El marcador del partido al mejor de 3 ("Marcador: Ana 1 · IA-1 0"), debajo
+     * de la linea de la partida. Como el "Won: 1, Lost: 0" de Forge: entre
+     * partida y partida hay que saber como va. Sin texto no anyade nada.
+     */
+    public GameOverScreen withScore(final String score) {
+        if (score != null && !score.isBlank() && subtitle != null) {
+            final Label l = new Label(score);
+            l.getStyleClass().addAll("home-subtitle", "match-score");
+            getChildren().add(getChildren().indexOf(subtitle) + 1, l);
+        }
+        return this;
+    }
+
     public GameOverScreen(final boolean won, final String winner, final int turns,
                           final NeoMatchUI.Ending ending,
                           final Consumer<NextGameDecision> onDecision) {
@@ -112,6 +129,7 @@ public class GameOverScreen extends VBox {
         }
         final Label sub = new Label(detail.toString());
         sub.getStyleClass().add("home-subtitle");
+        subtitle = sub;
 
         buttons.setAlignment(Pos.CENTER);
 

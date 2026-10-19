@@ -113,6 +113,11 @@ public class QuestSetupScreen extends BorderPane {
     private final Label chosen = new Label();
     private final HBox modeRow = new HBox(12);
     private final HBox diffRow = new HBox(8);
+    /**
+     * Empezar con menos vida, aparte de la dificultad (Discord, 18-10-2026):
+     * 15 en Estandar y 30 en Commander. Ver {@code QuestLowLife}.
+     */
+    private final javafx.scene.control.CheckBox lowLife = new javafx.scene.control.CheckBox();
     private final Pager pager;
     private List<Deck> filtered = new ArrayList<>();
 
@@ -160,7 +165,7 @@ public class QuestSetupScreen extends BorderPane {
         content.getChildren().addAll(
                 section(NeoText.get("questNew.step1"), modeRow),
                 section(NeoText.get("questNew.step2"), deckStep),
-                section(NeoText.get("questNew.step3"), diffRow),
+                section(NeoText.get("questNew.step3"), new javafx.scene.layout.VBox(10, diffRow, lowLifeRow())),
                 // Las expansiones, opcional como el mundo y por lo mismo: de
                 // fabrica se juega con todo.
                 section(NeoText.get("questNew.stepCards"),
@@ -499,6 +504,26 @@ public class QuestSetupScreen extends BorderPane {
             });
             modeRow.getChildren().add(tile);
         }
+    }
+
+    /** La casilla de la vida baja, debajo de las dificultades. */
+    private Region lowLifeRow() {
+        lowLife.setText(NeoText.get("questNew.lowLife"));
+        lowLife.getStyleClass().add("shop-filter");
+        lowLife.setMinWidth(Region.USE_PREF_SIZE);
+        // -Dneo.questNew.lowLife=true: marcada, para la captura.
+        lowLife.setSelected(Boolean.getBoolean("neo.questNew.lowLife"));
+        final Label hint = new Label(NeoText.get("questNew.lowLife.hint"));
+        hint.getStyleClass().add("home-subtitle");
+        hint.setWrapText(true);
+        final HBox row = new HBox(12, lowLife, hint);
+        row.setAlignment(Pos.CENTER_LEFT);
+        return row;
+    }
+
+    /** Si se empieza con menos vida (15, o 30 en Commander). */
+    public boolean isLowLife() {
+        return lowLife.isSelected();
     }
 
     private void buildDifficulties() {

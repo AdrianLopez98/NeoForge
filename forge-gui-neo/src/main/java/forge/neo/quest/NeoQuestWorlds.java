@@ -66,6 +66,38 @@ public final class NeoQuestWorlds {
         }
     }
 
+    /**
+     * De que cartas sale el mazo de salida «por colores» al empezar en ese mundo.
+     *
+     * <p>Hasta la 1.0.27 salia siempre del pozo de expansiones, y con un mundo
+     * elegido ese pozo es «todas» (o se elige mundo o se eligen expansiones):
+     * los sobres y los rivales eran de Shandalar y el mazo de salida de toda la
+     * historia de Magic (Discord, 18-10-2026: <i>"if I select some colours,
+     * within the campaign generated I have cards from all sets"</i>). Ahora, con
+     * un mundo que restringe, el mazo sale de sus expansiones.
+     *
+     * <p>Se queda el pozo tal cual si ya restringe, en el mundo principal, en
+     * los que no restringen ("Random Commander": lista vacia = todas) y en los
+     * de rotacion, que no saben sus expansiones hasta tener partida cargada
+     * (ver {@link #describe}).
+     */
+    public static forge.neo.ascent.AscentPool starterPool(final String worldName,
+                                                          final forge.neo.ascent.AscentPool pool) {
+        if (pool != null && !pool.isAll()) {
+            return pool;
+        }
+        final QuestWorld world = byName(worldName);
+        if (world == null || QuestWorld.MAINWORLDNAME.equals(world.getName()) || world.getFormat() == null) {
+            return pool;
+        }
+        try {
+            final List<String> sets = world.getFormat().getAllowedSetCodes();
+            return sets == null || sets.isEmpty() ? pool : forge.neo.ascent.AscentPool.sets(sets);
+        } catch (final RuntimeException e) {
+            return pool;
+        }
+    }
+
     /** En que mundo estas. */
     public static QuestWorld current() {
         return NeoQuest.isActive() ? NeoQuest.engine().getWorld() : null;

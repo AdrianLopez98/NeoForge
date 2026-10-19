@@ -130,6 +130,14 @@ public class TableScreen extends Pane {
     private final Button logButton = new Button(NeoText.get("table.log"));
 
     /**
+     * El panel «Turno» (lo que lleva cada jugador este turno), justo encima
+     * del registro: la misma esquina muerta y la misma clase de consulta.
+     * Apagado hasta que NeoMatchUI lo conecta, que es quien tiene la partida.
+     * Ver {@link TurnStatsView}.
+     */
+    private final Button turnButton = new Button(NeoText.get("turnStats.button"));
+
+    /**
      * El boton de la pausa, <b>apagado de fabrica</b>.
      *
      * <p>En una partida normal no sale: Escape abre la pausa y eso lo ensenya
@@ -417,6 +425,9 @@ public class TableScreen extends Pane {
         macroPlayButton.setVisible(false);
         // El chat, solo en red: lo enciende enableChat.
         chatButton.getStyleClass().add("log-button");
+        turnButton.getStyleClass().add("log-button");
+        turnButton.setFocusTraversable(false);
+        turnButton.setVisible(false);
         chatButton.setFocusTraversable(false);
         chatButton.setVisible(false);
         chatButton.setOnAction(e -> openChat());
@@ -436,6 +447,23 @@ public class TableScreen extends Pane {
         playerDetails.setMinHeight(Region.USE_PREF_SIZE);
         hoverDetails(opponentBar, true);
         hoverDetails(selfBar, false);
+        // -Dneo.playerDetails.hover=N: a los 10 s el raton "entra" en la barra
+        // del rival N (0 = el primero), para capturar su estado con las mesas
+        // en fila sin raton.
+        final Integer hoverAt = Integer.getInteger("neo.playerDetails.hover");
+        if (hoverAt != null) {
+            final javafx.animation.PauseTransition later =
+                    new javafx.animation.PauseTransition(javafx.util.Duration.seconds(10));
+            later.setOnFinished(e -> {
+                if (hoverAt >= 0 && hoverAt < oppBars.size()
+                        && oppBars.get(hoverAt).getOnMouseEntered() != null) {
+                    oppBars.get(hoverAt).getOnMouseEntered().handle(null);
+                    System.out.println("[detalles] raton sobre el rival " + hoverAt + ": "
+                            + (playerDetails.isVisible() ? "sale" : "NO sale"));
+                }
+            });
+            later.play();
+        }
 
         playmat.setPreserveRatio(false);
         playmat.setMouseTransparent(true);
@@ -464,7 +492,7 @@ public class TableScreen extends Pane {
         spotlight.setFill(javafx.scene.paint.Color.TRANSPARENT);
 
         getChildren().addAll(opponentTabs, opponentBar, viewport,
-                selfBar, hand, commandZone, phaseRail, side, combatOverlay, impactLayer, logButton, menuButton, chatButton, macroRecordButton, macroPlayButton, cooldownBadge,
+                selfBar, hand, commandZone, phaseRail, side, combatOverlay, impactLayer, logButton, turnButton, menuButton, chatButton, macroRecordButton, macroPlayButton, cooldownBadge,
                 stackChip, promptBanner, notices, turnBanner, coinFlip, diceRoll, playerDetails, zoomBadge, macroBadge, spotlight,
                 handPeek, overlay, menuOverlay, zoomOverlay, curtain);
         curtain.getStyleClass().add("hotseat-curtain");
@@ -508,7 +536,7 @@ public class TableScreen extends Pane {
             }
             final Object t = e.getTarget();
             if (isInside(t, overlay) || isInside(t, menuOverlay) || isInside(t, zoomOverlay)
-                    || isInside(t, logButton) || isInside(t, menuButton)
+                    || isInside(t, logButton) || isInside(t, turnButton) || isInside(t, menuButton)
                     || isInside(t, chatButton) || isInside(t, opponentTabs)
                     || isZoneOpener(t)) {
                 return;
@@ -675,10 +703,14 @@ public class TableScreen extends Pane {
         if (playerDetails.isVisible()) {
             final double pw = Math.min(420, contentW - 2 * PAD);
             final double ph = playerDetails.prefHeight(pw);
-            final double py = detailsBelow
-                    ? opponentBar.getBoundsInParent().getMaxY() + 6
-                    : selfBar.getBoundsInParent().getMinY() - ph - 6;
-            playerDetails.resizeRelocate(PAD, Math.max(PAD, py), pw, ph);
+            // Debajo de la barra que tiene el raton: con las mesas en fila, la
+            // del segundo o el tercer rival no esta a la izquierda.
+            final PlayerBar anchor = detailsAnchor != null && detailsAnchor.getParent() == this
+                    ? detailsAnchor : (detailsBelow ? opponentBar : selfBar);
+            final javafx.geometry.Bounds ab = anchor.getBoundsInParent();
+            final double py = detailsBelow ? ab.getMaxY() + 6 : ab.getMinY() - ph - 6;
+            final double px = Math.max(PAD, Math.min(ab.getMinX() + PAD, contentW - pw - PAD));
+            playerDetails.resizeRelocate(px, Math.max(PAD, py), pw, ph);
         }
 
         // El tapete cubre la mesa entera, incluida la columna: un fondo que se
@@ -698,12 +730,15 @@ public class TableScreen extends Pane {
         double cornerTop = h - lbH - PAD;
         double mbW = Math.max(Math.max(lbW, chatButton.prefWidth(-1)),
                 Math.max(macroRecordButton.prefWidth(-1), macroPlayButton.prefWidth(-1)));
+        if (turnButton.isVisible()) {
+            mbW = Math.max(mbW, turnButton.prefWidth(-1));
+        }
         // El de la pausa solo cuenta si esta puesto: si no, su texto ensancharia
         // la columna en los modos donde ni siquiera sale.
         if (menuButton.isVisible()) {
             mbW = Math.max(mbW, menuButton.prefWidth(-1));
         }
-        for (final Button b : List.of(menuButton, chatButton, macroRecordButton, macroPlayButton)) {
+        for (final Button b : List.of(turnButton, menuButton, chatButton, macroRecordButton, macroPlayButton)) {
             if (b.isVisible()) {
                 final double bh = b.prefHeight(mbW);
                 cornerTop -= bh + 4;
@@ -1584,6 +1619,9 @@ public class TableScreen extends Pane {
             b.setOnCommanderHover(this::hovered);
             b.setOnPlayerClicked(onPlayerClicked);
             b.setSelectable(playersSelectable);
+            // Su estado al pasar el raton, como la primera (Discord,
+            // 19-10-2026: con las mesas en fila solo salia el de la primera).
+            hoverDetails(b, true);
             oppBars.add(b);
 
             // El campo va DENTRO del visor (se acerca y se arrastra con el
@@ -2719,6 +2757,7 @@ public class TableScreen extends Pane {
             playerDetails.setText(text);
             playerDetails.setVisible(true);
             detailsBelow = opponent;
+            detailsAnchor = bar;
             requestLayout();
         });
         bar.setOnMouseExited(e -> {
@@ -2729,6 +2768,8 @@ public class TableScreen extends Pane {
 
     /** Debajo de la barra del rival, encima de la tuya: siempre hacia la mesa. */
     private boolean detailsBelow;
+    /** La barra sobre la que esta el raton: el estado sale pegado a ella. */
+    private PlayerBar detailsAnchor;
 
     /**
      * Relee el tapete elegido.
@@ -2778,6 +2819,33 @@ public class TableScreen extends Pane {
     /** Solo para pruebas: el boton de la pausa, este puesto o no. */
     public Button getMenuButton() {
         return menuButton;
+    }
+
+    /**
+     * Enciende el boton del panel «Turno». {@code source} lee la partida cada
+     * vez (el panel se refresca solo mientras esta abierto); si devuelve null
+     * — un invitado en red — se dice en un aviso en vez de abrir nada.
+     */
+    public void enableTurnStats(final java.util.function.Supplier<forge.neo.match.TurnStats.Snapshot> source) {
+        turnButton.setOnAction(e -> showTurnStats(source));
+        turnButton.setVisible(true);
+        requestLayout();
+    }
+
+    /** Abre el panel «Turno» en la capa de consulta (principio 10). */
+    public void showTurnStats(final java.util.function.Supplier<forge.neo.match.TurnStats.Snapshot> source) {
+        if (source == null || source.get() == null) {
+            showNotice(NeoText.get("turnStats.localOnly"));
+            return;
+        }
+        final TurnStatsView view = new TurnStatsView(source, menuOverlay::hide);
+        menuOverlay.setOnBackgroundClick(menuOverlay::hide);
+        menuOverlay.show(view);
+    }
+
+    /** Solo para pruebas: el boton del panel «Turno». */
+    public Button getTurnButton() {
+        return turnButton;
     }
 
     /** Levanta el registro de partida. */

@@ -251,6 +251,9 @@ public class CardNode extends StackPane {
     private final Label ptBadge = new Label();
     private final Label damageBadge = new Label();
     private final Label rankBadge = new Label();
+    /** El impuesto de comandante, en la zona de mando. Ver {@link #setCommanderTax}. */
+    private final Label taxBadge = new Label();
+    private int commanderTax;
 
     /**
      * Los contadores de la carta, en fila por la esquina de arriba.
@@ -384,6 +387,15 @@ public class CardNode extends StackPane {
         rankBadge.setMouseTransparent(true);
         StackPane.setAlignment(rankBadge, Pos.BOTTOM_LEFT);
 
+        // El impuesto de comandante, arriba a la derecha: encima del coste,
+        // que es lo que sube. Comparte esquina con los marcadores, pero solo
+        // sale en la zona de mando, donde un comandante no los lleva (Clase,
+        // Anillo y habitaciones son de la mesa).
+        taxBadge.getStyleClass().add("card-commander-tax");
+        taxBadge.setVisible(false);
+        taxBadge.setMouseTransparent(true);
+        StackPane.setAlignment(taxBadge, Pos.TOP_RIGHT);
+
         // Danyo y fuerza/resistencia JUNTOS, y en la esquina donde van
         // impresos. Separados (el danyo en la otra punta) hay que mirar dos
         // sitios y hacer la resta de cabeza para saber si una criatura muere.
@@ -422,7 +434,7 @@ public class CardNode extends StackPane {
         relicFace.setVisible(false);
 
         getChildren().addAll(fallback, relicFace, art, foilTint, foilShine, border,
-                counters, markers, keywords, ptRow, rankBadge);
+                counters, markers, keywords, ptRow, rankBadge, taxBadge);
         setClip(clip);
 
         setCardWidth(width);
@@ -684,6 +696,8 @@ public class CardNode extends StackPane {
         ptBadge.setStyle("-fx-font-size:" + (fs * 1.2) + "px;");
         damageBadge.setStyle("-fx-font-size:" + (fs * 1.05) + "px;");
         rankBadge.setStyle("-fx-font-size:" + (fs * 1.05) + "px;");
+        taxBadge.setStyle("-fx-font-size:" + (fs * 1.15) + "px;");
+        StackPane.setMargin(taxBadge, new javafx.geometry.Insets(w * 0.035, w * 0.035, 0, 0));
         counterFontPx = fs * 0.95;
         for (final javafx.scene.Node n : counters.getChildren()) {
             applyCounterFont((Label) n);
@@ -1898,6 +1912,27 @@ public class CardNode extends StackPane {
      * vistazo y no haya que comparar dos numeros parecidos (principio 3 de
      * las notas de diseño, "el estado se ve, no se lee").
      */
+    /**
+     * El impuesto de comandante ({2} por cada vez que se ha lanzado desde la
+     * zona de mando), como pastilla arriba a la derecha; 0 la quita.
+     *
+     * <p>Va DENTRO de la carta y no encima de la zona: hasta la 1.0.27 lo
+     * pintaba {@code CommandZone} en una etiqueta suya, creada antes que las
+     * cartas, y la carta la tapaba entera — asomaban dos pixeles naranjas
+     * (Discord, 18-10-2026: <i>"Add additional commander tax costs ... somewhere
+     * here"</i>, con +8 puesto y sin verse). Aqui crece con el hover como el
+     * resto de la carta.
+     */
+    public void setCommanderTax(final int tax) {
+        final int t = Math.max(0, tax);
+        if (t == commanderTax) {
+            return;
+        }
+        commanderTax = t;
+        taxBadge.setText("+" + t);
+        taxBadge.setVisible(t > 0);
+    }
+
     public void setDraftRank(final Integer rank) {
         this.draftRank = rank == null ? null : Math.max(0, Math.min(99, rank));
         refresh();
