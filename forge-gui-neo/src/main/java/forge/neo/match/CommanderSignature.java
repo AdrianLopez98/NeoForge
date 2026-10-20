@@ -42,7 +42,31 @@ public enum CommanderSignature {
     CLOUD_SLASHES,
 
     /** Jin Sakai: hojas de arce en el viento y un tajo de katana ({@link JinLeaves}). */
-    JIN_LEAVES;
+    JIN_LEAVES,
+
+    // Los diez comandantes mas jugados de EDH (EDHREC, 20-10-2026), con capas
+    // (LayeredSignature). Por el nombre de verdad: valen para todas sus impresiones.
+
+    /** Y'shtola, Night's Blessed: la luna y las estrellas. */
+    YSHTOLA_MOON,
+    /** Edgar Markov: murcielagos y sangre. */
+    EDGAR_BATS,
+    /** The Ur-Dragon: fuego y ascuas de los cinco colores. */
+    URDRAGON_FIRE,
+    /** Atraxa, Praetors' Voice: resplandor dorado y plumas blancas. */
+    ATRAXA_LIGHT,
+    /** Krenko, Mob Boss: chispas que se multiplican. */
+    KRENKO_SWARM,
+    /** Vivi Ornitier: bolas de fuego que orbitan y estrellas magicas. */
+    VIVI_FIRE,
+    /** Sauron, the Dark Lord: el Ojo en llamas y ceniza. */
+    SAURON_EYE,
+    /** Kaalia of the Vast: angeles, demonios y dragones en espiral. */
+    KAALIA_HOSTS,
+    /** Teval, the Balanced Scale: hojas que caen y almas que suben. */
+    TEVAL_BALANCE,
+    /** Fire Lord Azula: fuego azul y rayos. */
+    AZULA_LIGHTNING;
 
     /**
      * Su coreografia, para una pantalla de ese tamanyo; null en {@link #NONE}.
@@ -56,6 +80,26 @@ public enum CommanderSignature {
                 return new CloudSlashes(width, height);
             case JIN_LEAVES:
                 return new JinLeaves(width, height);
+            case YSHTOLA_MOON:
+                return LayeredSignature.yshtola(width, height);
+            case EDGAR_BATS:
+                return LayeredSignature.edgar(width, height);
+            case URDRAGON_FIRE:
+                return LayeredSignature.urDragon(width, height);
+            case ATRAXA_LIGHT:
+                return LayeredSignature.atraxa(width, height);
+            case KRENKO_SWARM:
+                return LayeredSignature.krenko(width, height);
+            case VIVI_FIRE:
+                return LayeredSignature.vivi(width, height);
+            case SAURON_EYE:
+                return LayeredSignature.sauron(width, height);
+            case KAALIA_HOSTS:
+                return LayeredSignature.kaalia(width, height);
+            case TEVAL_BALANCE:
+                return LayeredSignature.teval(width, height);
+            case AZULA_LIGHTNING:
+                return LayeredSignature.azula(width, height);
             default:
                 return null;
         }
@@ -77,6 +121,17 @@ public enum CommanderSignature {
         // Los otros dos del autor (18-10-2026: "solo haz para jin sakai y cloud").
         put(CLOUD_SLASHES, "Cloud, Ex-SOLDIER", "Cloud, Midgar Mercenary", "Cloud, Planet's Champion");
         put(JIN_LEAVES, "Jin Sakai, Ghost of Tsushima");
+        // Los diez mas jugados de EDH (EDHREC, 20-10-2026).
+        put(YSHTOLA_MOON, "Y'shtola, Night's Blessed");
+        put(EDGAR_BATS, "Edgar Markov");
+        put(URDRAGON_FIRE, "The Ur-Dragon");
+        put(ATRAXA_LIGHT, "Atraxa, Praetors' Voice");
+        put(KRENKO_SWARM, "Krenko, Mob Boss");
+        put(VIVI_FIRE, "Vivi Ornitier");
+        put(SAURON_EYE, "Sauron, the Dark Lord");
+        put(KAALIA_HOSTS, "Kaalia of the Vast");
+        put(TEVAL_BALANCE, "Teval, the Balanced Scale");
+        put(AZULA_LIGHTNING, "Fire Lord Azula");
     }
 
     private static void put(final CommanderSignature signature, final String... names) {

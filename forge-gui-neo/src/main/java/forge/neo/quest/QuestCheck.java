@@ -771,6 +771,55 @@ public final class QuestCheck {
             }
         }
 
+        // ---- los Jumpstart (Discord, 20-10-2026: Hei Bai no salia en ningun
+        // sobre). Todos los temas de Forge, y el de Hei Bai se compra entero.
+        final java.util.List<NeoJumpstart.Theme> themes = NeoJumpstart.available();
+        NeoJumpstart.Theme heiBai = null;
+        for (final NeoJumpstart.Theme t : themes) {
+            if (heiBai == null && t.highlights().contains("Hei Bai, Forest Guardian")) {
+                heiBai = t;
+            }
+        }
+        System.out.printf(Locale.ROOT, "  Jumpstart: %d temas; Hei Bai en %s%n", themes.size(),
+                heiBai == null ? "NINGUNO (mal)" : heiBai.name());
+        ok &= themes.size() >= 100 && heiBai != null;
+        if (heiBai != null) {
+            final int jp = NeoQuestShop.jumpstartPrice(heiBai);
+            NeoQuest.engine().getAssets().addCredits(jp);
+            final long jBefore = NeoQuest.credits();
+            final int jCards = NeoQuest.collectionSize();
+            final NeoQuestShop.Opened j = NeoQuestShop.buyJumpstart(heiBai);
+            final boolean jOk = j != null && j.getPaid() == jp && NeoQuest.credits() == jBefore - jp
+                    && j.getCards().size() >= 18
+                    && NeoQuest.collectionSize() == jCards + j.getCards().size()
+                    && j.getCards().stream().anyMatch(c -> "Hei Bai, Forest Guardian".equals(c.getName()));
+            System.out.printf(Locale.ROOT, "  Tema comprado: %s por %d cr. -> %d cartas, con Hei Bai%s%n",
+                    heiBai.label, jp, j == null ? 0 : j.getCards().size(), jOk ? " (bien)" : " (MAL)");
+            ok &= jOk;
+        }
+        // Y como se vende: un sobre por Jumpstart, con un tema al azar dentro.
+        final java.util.List<NeoJumpstart.Product> jProducts = NeoJumpstart.products();
+        NeoJumpstart.Product avatar = null;
+        for (final NeoJumpstart.Product p : jProducts) {
+            if (p.name.contains("Avatar")) {
+                avatar = p;
+            }
+        }
+        System.out.printf(Locale.ROOT, "  Sobres Jumpstart: %d; el de Avatar con %d temas%n",
+                jProducts.size(), avatar == null ? 0 : avatar.themes.size());
+        ok &= jProducts.size() >= 8 && avatar != null && avatar.themes.size() >= 50;
+        if (avatar != null) {
+            final int ap = NeoQuestShop.jumpstartPrice(avatar);
+            NeoQuest.engine().getAssets().addCredits(ap);
+            final long aBefore = NeoQuest.credits();
+            final NeoQuestShop.Opened jPack = NeoQuestShop.buyJumpstart(avatar);
+            final boolean packOk = jPack != null && jPack.getPaid() == ap && NeoQuest.credits() == aBefore - ap
+                    && jPack.getCards().size() >= 18;
+            System.out.printf(Locale.ROOT, "  Sobre Jumpstart de Avatar: %d cartas por %d cr.%s%n",
+                    jPack == null ? 0 : jPack.getCards().size(), ap, packOk ? " (bien)" : " (MAL)");
+            ok &= packOk;
+        }
+
         // ---- los sobres de tierras basicas (Discord, 11-10-2026) ----
         //
         // Cinco, uno por tipo, en cualquier mundo: en uno de expansiones viejas

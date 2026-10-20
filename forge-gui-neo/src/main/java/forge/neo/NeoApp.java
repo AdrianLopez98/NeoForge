@@ -1054,6 +1054,9 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                     // Los mismos que en una partida (NeoMatchUI.lookButtons); en
                     // la maqueta no hay registro que abrir.
                     over.addLookButtons(() -> { }, () -> table.getOverlay().setPeeking(true));
+                    // Y el porque (EndReason), con dos frases de ejemplo.
+                    over.withReason(forge.neo.NeoText.get("over.reason.commanderFrom", "Parker", "Giada, Font of Hope")
+                            + "\n" + forge.neo.NeoText.get("over.reason.life", "IA-2"));
                     table.getOverlay().show(over);
                 }
                 if (args.contains("--mock-foil") || optionOf(args, "--mock-foil") != null) {

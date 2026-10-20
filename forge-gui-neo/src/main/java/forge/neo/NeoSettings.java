@@ -731,6 +731,23 @@ public final class NeoSettings {
         return getBool(STACK_BANNER_EDIT, false);
     }
 
+    /**
+     * La carta grande del stack solo UN MOMENTO, y luego vuela a la columna del
+     * stack. Visto en XMage Nexus (20-10-2026), y es lo que pedian en Discord
+     * ese mismo dia: <i>"the popup you get is great but does block the board
+     * behind it"</i>. Apagado de fabrica: el cartel de siempre.
+     * {@code -Dneo.stackBannerBrief=true} lo fuerza.
+     */
+    public static final String STACK_BANNER_BRIEF = "stackBannerBrief";
+
+    public static boolean stackBannerBrief() {
+        final String forced = System.getProperty("neo.stackBannerBrief");
+        if (forced != null && !forced.isBlank()) {
+            return Boolean.parseBoolean(forced);
+        }
+        return getBool(STACK_BANNER_BRIEF, false);
+    }
+
     public static boolean stackBanner() {
         final String forced = System.getProperty("neo.stackBanner");
         if (forced != null && !forced.isBlank()) {
@@ -941,6 +958,24 @@ public final class NeoSettings {
      * {@code NeoGame.applyEnginePrefs}.
      */
     public static final String SMART_PASS_LEVEL = "smartPassLevel";
+
+    /**
+     * Si "Fin de turno" (y el pase automatico) se corta cuando un rival te
+     * ataca o lanza algo: las dos interrupciones que Forge trae encendidas
+     * ({@code YIELD_INTERRUPT_ON_ATTACKERS} y {@code _ON_OPPONENT_SPELL}).
+     *
+     * <p>Encendido de fabrica, como Forge. Discord pidio las dos cosas: el
+     * 15-10-2026 que nada cortaba el "Fin de turno" (ni un Cyclonic Rift), y el
+     * 20-10-2026, ya arreglado, <i>"the app keeps giving me prio ... in declare
+     * blockers (with no creatures on board because turbofog)"</i>. Apagado, el
+     * boton te lleva al final del turno como antes de la 1.0.27. Lo vuelcan al
+     * motor {@code NeoGame.applySmartPass} y Android ({@code pasoInteligente}).
+     */
+    public static final String END_TURN_INTERRUPTS = "endTurnInterrupts";
+
+    public static boolean endTurnInterrupts() {
+        return getBool(END_TURN_INTERRUPTS, true);
+    }
 
     /** Cuanto para el pase automatico. 0 poco · 1 normal · 2 todo. */
     public static int smartPassLevel() {

@@ -3225,7 +3225,35 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         banner.setOnDismiss(() -> dismissedStackKey = key);
         banner.showInfo(top.getSourceCard(), stackText(top));
         table.requestLayout();
+
+        // SOLO UN MOMENTO (NeoSettings.stackBannerBrief): se ve, y al rato se
+        // va volando al stack y no vuelve con lo mismo. Con lo siguiente que
+        // entre, otra vez. El reloj se arma UNA vez por entrada: este metodo se
+        // llama con cada evento y no puede alargarlo.
+        if (forge.neo.NeoSettings.stackBannerBrief() && !key.equals(briefKey)) {
+            briefKey = key;
+            if (briefTimer != null) {
+                briefTimer.stop();
+            }
+            final javafx.animation.PauseTransition wait =
+                    new javafx.animation.PauseTransition(javafx.util.Duration.millis(BRIEF_MS));
+            wait.setOnFinished(e -> {
+                final StackItemView now = topOfStack();
+                if (now != null && key.equals(String.valueOf(now.getKey())) && !banner.isAlerting()
+                        && banner.isVisible()) {
+                    dismissedStackKey = key;
+                    table.flyBannerToStack();
+                }
+            });
+            briefTimer = wait;
+            wait.play();
+        }
     }
+
+    /** Cuanto se queda el cartel en el modo "un momento": lo justo para leer de que carta es. */
+    private static final double BRIEF_MS = Double.parseDouble(System.getProperty("neo.stackBannerBriefMs", "1300"));
+    private String briefKey;
+    private javafx.animation.PauseTransition briefTimer;
 
     /** Lo que el jugador ha apartado del centro, para no repetirselo. */
     private volatile String dismissedStackKey;
@@ -3861,6 +3889,20 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
     }
 
     /**
+     * Cada revelacion, ademas de lo que ya hace Forge (el monton de
+     * {@code GameView.getRevealedCollection}), al registro: {@link RevealLog}
+     * (Discord, 20-10-2026: "show the reveal card in the log").
+     */
+    @Override
+    public void updateRevealedCards(final forge.trackable.TrackableCollection<CardView> collection) {
+        final GameView gv = getGameView();
+        if (gv != null && collection != null) {
+            RevealLog.note(gv.getGameLog(), new java.util.ArrayList<>(collection));
+        }
+        super.updateRevealedCards(collection);
+    }
+
+    /**
      * Cartas reveladas para la pregunta en curso (la mano de otro), hasta
      * {@link #hideRevealedCards}. Ver {@code TableScreen.showRevealed}: sin
      * esto, en red salia el OK de "has visto las cartas" sin ninguna carta.
@@ -4429,6 +4471,9 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
     private GameOverScreen lookButtons(final GameView gv, final GameOverScreen screen) {
         // Al mejor de 3, el marcador del partido (null en una partida suelta).
         screen.withScore(BestOf.score(gv));
+        // Y por que ha acabado: el dano de comandante, el veneno o una carta
+        // no dejan rastro en el registro (EndReason).
+        screen.withReason(gv == null ? null : EndReason.text(gv.getGame()));
         screen.addLookButtons(
                 gv == null || gv.getGameLog() == null ? null
                         : () -> table.showGameLog(gv.getGameLog(), localPlayer(), LogCardLinks.lookupIn(gv)),

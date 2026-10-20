@@ -119,7 +119,7 @@ public class QuestShopScreen extends StackPane {
     private static final int MAX_QUANTITY = 24;
 
     // --- pestanyas ---
-    private enum Tab { PACKS, COLLECTOR, SINGLES, PRECONS, COMMANDER, BOXES, LAIR, SELL }
+    private enum Tab { PACKS, COLLECTOR, JUMPSTART, SINGLES, PRECONS, COMMANDER, BOXES, LAIR, SELL }
 
     private Tab tab = Tab.PACKS;
     private final HBox tabBar = new HBox(6);
@@ -164,6 +164,7 @@ public class QuestShopScreen extends StackPane {
     // ({@link ProductPage}) porque duplicarla es duplicar tambien el cuidado de
     // "elegir no compra", que es lo que de verdad hay que no equivocarse.
     private ProductPage<CardEdition> collectorPane;
+    private ProductPage<forge.neo.quest.NeoJumpstart.Product> jumpstartPane;
     private ProductPage<forge.item.PreconDeck> preconsPane;
     /** Los mazos de Commander de Forge, enteros (09-10-2026). Ver NeoQuestShop.commanderDecks. */
     private ProductPage<forge.item.PreconDeck> commanderPane;
@@ -485,6 +486,7 @@ public class QuestShopScreen extends StackPane {
         tabBar.getChildren().addAll(
                 tabButton(NeoText.get("shop.tab.packs"), Tab.PACKS),
                 tabButton(NeoText.get("shop.tab.collector"), Tab.COLLECTOR),
+                tabButton(NeoText.get("shop.tab.jumpstart"), Tab.JUMPSTART),
                 tabButton(NeoText.get("shop.tab.singles"), Tab.SINGLES),
                 tabButton(NeoText.get("shop.tab.precons"), Tab.PRECONS),
                 tabButton(NeoText.get("shop.tab.commander"), Tab.COMMANDER),
@@ -563,6 +565,29 @@ public class QuestShopScreen extends StackPane {
                 }
                 page.getChildren().setAll(collectorPane);
                 collectorPane.reload();
+                break;
+            case JUMPSTART:
+                // Los Jumpstart de Forge, un tema por casilla (Discord,
+                // 20-10-2026: Hei Bai no estaba en ningun sobre). Ver NeoJumpstart.
+                if (jumpstartPane == null) {
+                    jumpstartPane = new ProductPage<forge.neo.quest.NeoJumpstart.Product>(
+                            NeoText.get("shop.jumpstart.caption"),
+                            NeoText.get("shop.jumpstart.empty"),
+                            NeoText.get("shop.pickJumpstart"),
+                            forge.neo.quest.NeoJumpstart::products,
+                            p -> p.name,
+                            NeoQuestShop::buyJumpstart,
+                            NeoQuestShop::jumpstartPrice,
+                            NeoText.get("shop.jumpstart.opened"))
+                            // Un sobre de verdad: trae UN tema al azar, que se
+                            // descubre al abrirlo. Aqui solo se dice cuales puede ser.
+                            .showFace(forge.neo.quest.NeoJumpstart.Product::face)
+                            .showCode(p -> p.setCode)
+                            .showNote(p -> NeoText.get("shop.jumpstart.themes", p.themes.size()))
+                            .showDetail(forge.neo.quest.NeoJumpstart.Product::themeList);
+                }
+                page.getChildren().setAll(jumpstartPane);
+                jumpstartPane.reload();
                 break;
             case PRECONS:
                 if (preconsPane == null) {

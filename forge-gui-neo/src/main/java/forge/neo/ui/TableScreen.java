@@ -2003,6 +2003,7 @@ public class TableScreen extends Pane {
      */
     public void setStack(final Iterable<StackItemView> items, final PlayerView me) {
         stackBox.getChildren().clear();
+        stackRows.clear();
 
         final List<StackItemView> list = new ArrayList<>();
         if (items != null) {
@@ -2014,6 +2015,7 @@ public class TableScreen extends Pane {
         lastStack = list;
         lastStackMe = me;
         refreshStackChip();
+        applyStackTargets();
 
         // Lo que ya se ha resuelto se olvida. Los ids del motor se reciclan, y
         // uno guardado como "abierto" de hace tres turnos abriria por su cuenta
@@ -2083,6 +2085,8 @@ public class TableScreen extends Pane {
         scroll.setMaxHeight(Double.MAX_VALUE);
         VBox.setVgrow(scroll, Priority.ALWAYS);
         stackBox.getChildren().add(scroll);
+        // Otra vez, ya con las filas: un contrahechizo marca la suya.
+        applyStackTargets();
     }
 
     /**
@@ -2546,11 +2550,20 @@ public class TableScreen extends Pane {
         // Aqui el objetivo va SIEMPRE en su linea, aunque el efecto ya lo
         // nombre ("hace 3 de dano a Grizzly Bears"): es justo lo que se pidio
         // poder ver de un vistazo, sin leer la frase.
-        final String targets = targetsOf(item, "");
+        // Y de QUIEN es cada uno (Discord, 20-10-2026: "ideally grouped by
+        // their controller/owner"): "Grizzly Bears, Llanowar Elves (Parker)".
+        final String targets = targetsByController(item, me);
         if (!targets.isEmpty()) {
             lines.add(NeoText.get("stack.targets", targets));
         }
         return lines.isEmpty() ? NeoText.get("alert.aSpell") : String.join("\n", lines);
+    }
+
+    /** Los objetivos agrupados por quien los controla ({@code StackTargets}). */
+    static String targetsByController(final StackItemView item, final PlayerView me) {
+        return forge.neo.match.StackTargets.byController(item, me,
+                c -> c.getCurrentState() == null ? null : CardText.nameOf(c.getCurrentState()),
+                forge.neo.match.PlayerName::of);
     }
 
     private static String targetsOf(final StackItemView item, final String what) {
@@ -2610,6 +2623,18 @@ public class TableScreen extends Pane {
     private void wireRow(final Region row, final StackItemView item,
                          final boolean top, final boolean expandable) {
         row.setCursor(javafx.scene.Cursor.HAND);
+        stackRows.put(item.getId(), row);
+        // Con el raton encima, los objetivos de ESTA entrada (applyStackTargets).
+        row.setOnMouseEntered(e -> {
+            hoveredStackId = item.getId();
+            applyStackTargets();
+        });
+        row.setOnMouseExited(e -> {
+            if (hoveredStackId == item.getId()) {
+                hoveredStackId = -1;
+                applyStackTargets();
+            }
+        });
         row.setOnMouseClicked(e -> {
             if (e.getButton() == javafx.scene.input.MouseButton.SECONDARY) {
                 final CardView source = item.getSourceCard();
@@ -2934,6 +2959,69 @@ public class TableScreen extends Pane {
             javafx.css.PseudoClass.getPseudoClass("unread");
 
     /** El aviso grande del centro de la mesa. */
+    /**
+     * El cartel central se va VOLANDO a la columna del stack (ajuste
+     * {@code stackBannerBrief}): una foto suya que encoge hasta la primera
+     * entrada, y el cartel de verdad escondido ya. Con la columna plegada va a
+     * la chapa del stack; con las animaciones apagadas, solo se esconde.
+     */
+    public void flyBannerToStack() {
+        final PromptBanner banner = getPromptBanner();
+        if (banner == null || !banner.isVisible() || banner.isAlerting()) {
+            return;
+        }
+        final Node target = stackBox.getScene() != null && stackBox.isVisible() ? stackBox
+                : stackChip.getScene() != null && stackChip.isVisible() ? stackChip : null;
+        if (target == null || !ImpactLayer.isEnabled() || banner.getScene() == null) {
+            banner.hide();
+            return;
+        }
+        final javafx.geometry.Bounds from = banner.localToScene(banner.getBoundsInLocal());
+        final javafx.geometry.Bounds to = target.localToScene(target.getBoundsInLocal());
+        final javafx.scene.SnapshotParameters params = new javafx.scene.SnapshotParameters();
+        params.setFill(javafx.scene.paint.Color.TRANSPARENT);
+        final javafx.scene.image.WritableImage img;
+        try {
+            img = banner.snapshot(params, null);
+        } catch (final RuntimeException e) {
+            banner.hide();
+            return;
+        }
+        banner.hide();
+        final javafx.geometry.Bounds fromL = impactLayer.sceneToLocal(from);
+        final javafx.geometry.Bounds toL = impactLayer.sceneToLocal(to);
+        if (fromL == null || toL == null || fromL.getWidth() <= 0) {
+            return;
+        }
+        final javafx.scene.image.ImageView ghost = new javafx.scene.image.ImageView(img);
+        ghost.setMouseTransparent(true);
+        ghost.setManaged(false);
+        ghost.setFitWidth(fromL.getWidth());
+        ghost.setFitHeight(fromL.getHeight());
+        ghost.relocate(fromL.getMinX(), fromL.getMinY());
+        impactLayer.getChildren().add(ghost);
+        // Hasta lo alto del stack, del ancho de la columna: ahi es donde aparece
+        // la entrada que lo cuenta.
+        final double s = Math.min(1, Math.max(0.12, toL.getWidth() / fromL.getWidth()));
+        final double cx = toL.getCenterX();
+        final double cy = toL.getMinY() + Math.min(toL.getHeight() / 2, fromL.getHeight() * s / 2 + UiScale.px(24));
+        final double dx = cx - fromL.getCenterX();
+        final double dy = cy - fromL.getCenterY();
+        final javafx.util.Duration d = javafx.util.Duration.millis(Integer.getInteger("neo.bannerFlyMs", 320));
+        final javafx.animation.Timeline t = new javafx.animation.Timeline(
+                new javafx.animation.KeyFrame(d,
+                        new javafx.animation.KeyValue(ghost.translateXProperty(), dx, javafx.animation.Interpolator.EASE_IN),
+                        new javafx.animation.KeyValue(ghost.translateYProperty(), dy, javafx.animation.Interpolator.EASE_IN),
+                        new javafx.animation.KeyValue(ghost.scaleXProperty(), s, javafx.animation.Interpolator.EASE_IN),
+                        new javafx.animation.KeyValue(ghost.scaleYProperty(), s, javafx.animation.Interpolator.EASE_IN),
+                        new javafx.animation.KeyValue(ghost.opacityProperty(), 0.35, javafx.animation.Interpolator.EASE_IN)));
+        t.setOnFinished(e -> impactLayer.getChildren().remove(ghost));
+        if (Boolean.getBoolean("neo.impact.log")) {
+            System.out.println("[cartel] vuela al stack");
+        }
+        t.play();
+    }
+
     public PromptBanner getPromptBanner() {
         return promptBanner;
     }
@@ -3738,6 +3826,231 @@ public class TableScreen extends Pane {
      * 2 ademas es una de las que taparia el boton "Auto". Ver
      * {@code CardNode.setActionable}.
      */
+    /**
+     * LOS OBJETIVOS SE VEN EN LA MESA. Discord, 20-10-2026: <i>"I quite often
+     * make misplays because it's not clear enough to me which permanents or
+     * players are being targeted by a spell or ability ... highlight its
+     * targets with a red outline"</i>. Las flechas ya existian, pero salen de
+     * la carta de origen: un hechizo lanzado desde la mano no tiene carta en
+     * la mesa y no habia flecha; y con un stack grande se cruzan todas.
+     *
+     * <p>Borde rojo en las cartas y barras que son objetivo de lo de ARRIBA del
+     * stack (lo que va a resolverse, lo mismo que el cartel), o de la entrada
+     * del panel del stack que esta bajo el raton. Se reparte por NODO, asi que
+     * hay que reponerlo cuando cambian los nodos: lo llama {@link #setStack},
+     * que el binder llama despues de colocar las mesas.
+     */
+    private void applyStackTargets() {
+        final java.util.Set<Integer> cards = new java.util.HashSet<>();
+        // Las cartas sin partida (maquetas, getCardForUi) tienen todas id 0:
+        // esas se comparan por objeto.
+        final java.util.Set<CardView> loose = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        final java.util.Set<Integer> players = new java.util.HashSet<>();
+        final java.util.Set<Integer> spells = new java.util.HashSet<>();
+        StackItemView item = null;
+        for (final StackItemView s : lastStack) {
+            if (s.getId() == hoveredStackId) {
+                item = s;
+                break;
+            }
+        }
+        if (item == null && !lastStack.isEmpty()) {
+            item = lastStack.get(0);
+        }
+        if (item != null) {
+            try {
+                if (item.getTargetCards() != null) {
+                    for (final CardView c : item.getTargetCards()) {
+                        if (c != null && c.getId() > 0) {
+                            cards.add(c.getId());
+                        } else if (c != null) {
+                            loose.add(c);
+                        }
+                    }
+                }
+                if (item.getTargetPlayers() != null) {
+                    for (final PlayerView p : item.getTargetPlayers()) {
+                        if (p != null) {
+                            players.add(p.getId());
+                        }
+                    }
+                }
+                // Un contrahechizo apunta a otro hechizo del STACK: su fila.
+                if (item.getTargetStackItems() != null) {
+                    for (final StackItemView s : item.getTargetStackItems()) {
+                        if (s != null) {
+                            spells.add(s.getId());
+                        }
+                    }
+                }
+            } catch (final RuntimeException e) {
+                // Un objetivo que ya no esta: se marca lo que se haya leido.
+            }
+        }
+        for (final CardNode n : everyNode()) {
+            final CardView cv = n.getCard();
+            n.setStackTarget(cv != null && (cv.getId() > 0 ? cards.contains(cv.getId()) : loose.contains(cv)));
+        }
+        for (final PlayerBar b : allBars()) {
+            b.setStackTarget(b.getPlayer() != null && players.contains(b.getPlayer().getId()));
+        }
+        for (final java.util.Map.Entry<Integer, Region> r : stackRows.entrySet()) {
+            r.getValue().pseudoClassStateChanged(STACK_TARGET_ROW, spells.contains(r.getKey()));
+        }
+    }
+
+    /**
+     * EL EQUIPO VUELA A SU NUEVA CRIATURA. Visto en XMage Nexus (20-10-2026):
+     * al cambiar un equipo o un aura de anfitrion, aparecia de golpe debajo de
+     * otra carta y habia que buscar que habia pasado (seccion 6: la animacion
+     * cuenta QUE acaba de pasar).
+     *
+     * <p>Como el motor actualiza las vistas EN SITIO, el anfitrion de antes no
+     * se puede preguntar despues: se apunta en cada repintado ({@link #lastHosts})
+     * y, justo antes de recolocar, donde estaba cada carta enganchada
+     * ({@link #noteAttachmentsBefore}). Despues se compara
+     * ({@link #attachmentsMoved}) y la que ha cambiado de anfitrion vuela: una
+     * foto de la carta de su sitio viejo al nuevo, con la de verdad escondida
+     * mientras tanto. Con las animaciones apagadas, nada.
+     */
+    public void noteAttachmentsBefore() {
+        attachedBefore.clear();
+        if (lastHosts.isEmpty()) {
+            return;
+        }
+        for (final CardNode n : everyNode()) {
+            final CardView cv = n.getCard();
+            if (cv != null && cv.getId() > 0 && lastHosts.containsKey(cv.getId())
+                    && n.getScene() != null && n.isVisible()) {
+                attachedBefore.put(cv.getId(), n.localToScene(n.getBoundsInLocal()));
+            }
+        }
+    }
+
+    /** Ver {@link #noteAttachmentsBefore}. */
+    public void attachmentsMoved() {
+        final java.util.Map<Integer, Integer> now = new java.util.HashMap<>();
+        final java.util.Map<Integer, javafx.geometry.Bounds> moved = new java.util.HashMap<>();
+        for (final CardNode n : everyNode()) {
+            final CardView cv = n.getCard();
+            if (cv == null || cv.getId() <= 0) {
+                continue;
+            }
+            final CardView host;
+            try {
+                host = cv.getAttachedTo();
+            } catch (final RuntimeException e) {
+                continue;
+            }
+            if (host == null) {
+                continue;
+            }
+            now.put(cv.getId(), host.getId());
+            final Integer was = lastHosts.get(cv.getId());
+            final javafx.geometry.Bounds from = attachedBefore.get(cv.getId());
+            if (was != null && was != host.getId() && from != null) {
+                moved.put(cv.getId(), from);
+            }
+        }
+        lastHosts = now;
+        attachedBefore.clear();
+        if (moved.isEmpty() || !ImpactLayer.isEnabled()) {
+            return;
+        }
+        // Despues del layout: la carta tiene que estar ya en su sitio nuevo.
+        javafx.application.Platform.runLater(() -> {
+            applyCss();
+            layout();
+            for (final CardNode n : everyNode()) {
+                final CardView cv = n.getCard();
+                final javafx.geometry.Bounds from = cv == null ? null : moved.get(cv.getId());
+                if (from != null && n.getScene() != null) {
+                    flyCard(n, from);
+                }
+            }
+        });
+    }
+
+    /** Una foto de {@code n} que va de {@code fromScene} a donde esta {@code n} ahora. */
+    private void flyCard(final CardNode n, final javafx.geometry.Bounds fromScene) {
+        final javafx.geometry.Bounds toScene = n.localToScene(n.getBoundsInLocal());
+        if (toScene.getWidth() <= 0 || fromScene.getWidth() <= 0
+                || Math.hypot(toScene.getMinX() - fromScene.getMinX(),
+                        toScene.getMinY() - fromScene.getMinY()) < 4) {
+            return;
+        }
+        final javafx.scene.SnapshotParameters params = new javafx.scene.SnapshotParameters();
+        params.setFill(javafx.scene.paint.Color.TRANSPARENT);
+        final javafx.scene.image.WritableImage img;
+        try {
+            img = n.snapshot(params, null);
+        } catch (final RuntimeException e) {
+            return;
+        }
+        // En las coordenadas de la capa de efectos, tamanyo incluido: la capa
+        // puede ir escalada respecto a la escena (la mesa acercada, la escala).
+        final javafx.geometry.Bounds fromL = impactLayer.sceneToLocal(fromScene);
+        final javafx.geometry.Bounds toL = impactLayer.sceneToLocal(toScene);
+        if (fromL == null || toL == null) {
+            return;
+        }
+        final javafx.scene.image.ImageView ghost = new javafx.scene.image.ImageView(img);
+        ghost.setMouseTransparent(true);
+        ghost.setManaged(false);
+        // La foto mide lo que mide la carta ahora; al salir, lo que media antes.
+        ghost.setFitWidth(toL.getWidth());
+        ghost.setFitHeight(toL.getHeight());
+        ghost.relocate(toL.getMinX(), toL.getMinY());
+        final double s0 = fromL.getWidth() / toL.getWidth();
+        final double dx = fromL.getCenterX() - toL.getCenterX();
+        final double dy = fromL.getCenterY() - toL.getCenterY();
+        ghost.setTranslateX(dx);
+        ghost.setTranslateY(dy);
+        ghost.setScaleX(s0);
+        ghost.setScaleY(s0);
+        ghost.setEffect(new javafx.scene.effect.DropShadow(18, javafx.scene.paint.Color.rgb(224, 166, 60, 0.85)));
+        impactLayer.getChildren().add(ghost);
+        n.setOpacity(0);
+        // -Dneo.attachFlyMs: mas lento, para capturarlo a medias (la guía de pruebas).
+        final javafx.util.Duration d = javafx.util.Duration.millis(Integer.getInteger("neo.attachFlyMs", 340));
+        final double lift = Math.max(s0, 1) * 1.12;
+        final javafx.animation.Timeline t = new javafx.animation.Timeline(
+                new javafx.animation.KeyFrame(javafx.util.Duration.ZERO,
+                        new javafx.animation.KeyValue(ghost.translateXProperty(), dx),
+                        new javafx.animation.KeyValue(ghost.translateYProperty(), dy)),
+                // A medio camino se levanta un poco: "se despega" de la de antes.
+                new javafx.animation.KeyFrame(d.multiply(0.5),
+                        new javafx.animation.KeyValue(ghost.scaleXProperty(), lift, javafx.animation.Interpolator.EASE_OUT),
+                        new javafx.animation.KeyValue(ghost.scaleYProperty(), lift, javafx.animation.Interpolator.EASE_OUT)),
+                new javafx.animation.KeyFrame(d,
+                        new javafx.animation.KeyValue(ghost.translateXProperty(), 0, javafx.animation.Interpolator.EASE_BOTH),
+                        new javafx.animation.KeyValue(ghost.translateYProperty(), 0, javafx.animation.Interpolator.EASE_BOTH),
+                        new javafx.animation.KeyValue(ghost.scaleXProperty(), 1, javafx.animation.Interpolator.EASE_IN),
+                        new javafx.animation.KeyValue(ghost.scaleYProperty(), 1, javafx.animation.Interpolator.EASE_IN)));
+        t.setOnFinished(e -> {
+            impactLayer.getChildren().remove(ghost);
+            n.setOpacity(1);
+        });
+        if (Boolean.getBoolean("neo.impact.log")) {
+            System.out.println("[equipo] vuela " + n.getCard().getName());
+        }
+        t.play();
+    }
+
+    /** El anfitrion de cada carta enganchada en el ultimo repintado, por id. */
+    private java.util.Map<Integer, Integer> lastHosts = new java.util.HashMap<>();
+    /** Donde estaban, en la escena, justo antes de recolocar. */
+    private final java.util.Map<Integer, javafx.geometry.Bounds> attachedBefore = new java.util.HashMap<>();
+
+    /** La entrada del panel del stack bajo el raton, o -1. */
+    private int hoveredStackId = -1;
+
+    /** Las filas del panel del stack por id de entrada (las pone {@link #wireRow}). */
+    private final java.util.Map<Integer, Region> stackRows = new java.util.HashMap<>();
+
+    private static final javafx.css.PseudoClass STACK_TARGET_ROW =
+            javafx.css.PseudoClass.getPseudoClass("stack-target");
+
     public void setActionable(final java.util.function.ToIntFunction<CardView> strength) {
         this.actionable = strength;
         for (final CardNode n : everyNode()) {

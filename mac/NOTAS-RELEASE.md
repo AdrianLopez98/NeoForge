@@ -1,13 +1,13 @@
-**NeoForge para macOS 1.0.28 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.29 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Al mejor de 1 o de 3**, en todos los formatos y con banquillo entre partidas.
-- **El panel «Turno»:** lo que lleva cada jugador este turno (vida ganada y perdida, robadas, hechizos, cartas al cementerio…), y los hechizos de este turno en la barra de cada jugador, para la tormenta.
-- **El impuesto de comandante se ve** sobre la carta del comandante en la zona de mando.
-- **Bloquear con criaturas que tienen habilidades:** tocarla cuando te atacan pregunta «¿Bloquear?», y arrastrarla sobre el atacante bloquea.
-- **Quest:** cada duelo dice cuántos créditos paga ganarlo, empezar con menos vida, el mazo por colores sale de las expansiones del mundo elegido y Estates también mejora lo que te pagan al vender.
-- **La mesa ya no se recoloca sola a mitad de partida**, la entrada de los comandantes ya no tiene nada encima y Bitter Feud enseña los dos jugadores elegidos.
-- Pantallas pequeñas con escala grande: la pantalla de mazos y los Ajustes ya no se salen por los lados.
+- **Se ve a qué apunta lo que hay en el stack:** borde rojo en sus objetivos (cartas y jugadores), y el cartel dice de quién es cada uno.
+- **El registro dice qué se ha revelado,** tuyo y del rival, con la carta.
+- **La pantalla de fin dice por qué ha perdido cada jugador** (daño de comandante, veneno, biblioteca vacía…).
+- **Quest: sobres Jumpstart** en su pestaña de la tienda, con un tema al azar por sobre.
+- **Entradas especiales para los diez comandantes más jugados de EDH,** en todas sus impresiones.
+- **El equipo vuela a su nueva criatura** al cambiar de anfitrión.
+- **Ajustes nuevos:** el cartel del stack solo un momento (y vuela al stack), y que «Fin de turno» no se pare si un rival te ataca o lanza algo.
 - **Forge al día.**
 
 Descarga el `.dmg` de tu Mac:

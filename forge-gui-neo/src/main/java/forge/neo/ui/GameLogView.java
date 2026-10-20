@@ -165,7 +165,8 @@ public class GameLogView extends VBox {
             lines.getChildren().clear();
             return;
         }
-        update(log.getAllEntries(), me, lookup);
+        // Con lo que se ha revelado en su sitio (RevealLog).
+        update(forge.neo.match.RevealLog.merged(log), me, lookup);
     }
 
     /** Lo mismo, con las entradas ya sacadas (tambien lo usa la maqueta {@code --mock-log}). */

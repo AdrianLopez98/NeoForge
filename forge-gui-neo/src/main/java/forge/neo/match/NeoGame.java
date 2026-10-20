@@ -1168,9 +1168,12 @@ public final class NeoGame {
         prefs.setPref(FPref.YIELD_AUTO_PASS_RESPECTS_INTERRUPTS, on);
 
         // Lo de siempre: te atacan, o el rival lanza algo. Son las dos que
-        // Forge trae encendidas, asi que apagado se quedan como estaban.
-        prefs.setPref(FPref.YIELD_INTERRUPT_ON_ATTACKERS, true);
-        prefs.setPref(FPref.YIELD_INTERRUPT_ON_OPPONENT_SPELL, true);
+        // Forge trae encendidas, asi que apagado se quedan como estaban. Y
+        // son las que cortan "Fin de turno": su propio ajuste
+        // (NeoSettings.endTurnInterrupts, encendido de fabrica).
+        final boolean cut = NeoSettings.endTurnInterrupts();
+        prefs.setPref(FPref.YIELD_INTERRUPT_ON_ATTACKERS, cut);
+        prefs.setPref(FPref.YIELD_INTERRUPT_ON_OPPONENT_SPELL, cut);
         // Nivel 1: y ademas lo que te apunta a ti o a lo tuyo, y los barridos.
         prefs.setPref(FPref.YIELD_INTERRUPT_ON_TARGETING, on && level >= 1);
         prefs.setPref(FPref.YIELD_INTERRUPT_ON_MASS_REMOVAL, on && level >= 1);

@@ -637,6 +637,14 @@ public class PlayerBar extends HBox {
         pseudoClassStateChanged(HIGHLIGHTED, on);
     }
 
+    /** Objetivo de lo de arriba del stack: borde rojo (ver {@code CardNode.setStackTarget}). */
+    public void setStackTarget(final boolean on) {
+        pseudoClassStateChanged(STACK_TARGET, on);
+    }
+
+    private static final javafx.css.PseudoClass STACK_TARGET =
+            javafx.css.PseudoClass.getPseudoClass("stack-target");
+
     /**
      * Un contador de zona, clicable para ver lo que hay dentro.
      *

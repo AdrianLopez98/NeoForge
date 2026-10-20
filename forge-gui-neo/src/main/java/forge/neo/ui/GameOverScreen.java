@@ -59,6 +59,28 @@ public class GameOverScreen extends VBox {
         return this;
     }
 
+    /**
+     * POR QUE se ha acabado ({@code forge.neo.match.EndReason}): "Parker ha
+     * perdido: 21 de dano de comandante de Giada", una linea por jugador, debajo
+     * del marcador. Discord, 20-10-2026: ganar sin saber por que, con el rival
+     * a 22 vidas. Sin texto no anyade nada.
+     */
+    public GameOverScreen withReason(final String reason) {
+        if (reason != null && !reason.isBlank() && subtitle != null) {
+            final Label l = new Label(reason);
+            l.getStyleClass().addAll("home-subtitle", "match-reason");
+            l.setWrapText(true);
+            l.setMaxWidth(640);
+            l.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
+            int at = getChildren().indexOf(subtitle) + 1;
+            while (at < getChildren().size() && getChildren().get(at).getStyleClass().contains("match-score")) {
+                at++;
+            }
+            getChildren().add(at, l);
+        }
+        return this;
+    }
+
     public GameOverScreen(final boolean won, final String winner, final int turns,
                           final NeoMatchUI.Ending ending,
                           final Consumer<NextGameDecision> onDecision) {

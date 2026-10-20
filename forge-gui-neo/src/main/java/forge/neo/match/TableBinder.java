@@ -317,6 +317,8 @@ public class TableBinder {
         }
 
         table.setOpponents(opponents, top, gv.getPlayerTurn(), bottom);
+        // Donde estaba cada equipo o aura ANTES de recolocar (attachmentsMoved).
+        table.noteAttachmentsBefore();
 
         if (seats > 1) {
             // Viendolos a todos no hay "rival a la vista" que pueda cambiar, y
@@ -345,6 +347,7 @@ public class TableBinder {
         table.getPhaseRail().setPlanes(activePlanes(gv));
         table.setStack(gv.getStack(), self);
         table.setCombatLinks(links(gv));
+        table.attachmentsMoved();
 
         // El resaltado debil se reparte por NODO, y aqui acaban de aparecer
         // nodos nuevos. Sin reponerlo, lo que el motor dijo que podias usar se

@@ -1064,6 +1064,69 @@ public final class NeoQuestShop {
     }
 
     // ===============================================================
+    // Jumpstart
+    // ===============================================================
+
+    /**
+     * Lo que cuesta un sobre Jumpstart: vez y media el normal de su expansion
+     * (veinte cartas, con tierras, una rara o mitica asegurada). Las que no
+     * tienen sobre normal (JMP, J22, J25) van con el precio de siempre.
+     */
+    public static int jumpstartPrice(final NeoJumpstart.Product product) {
+        return jumpstartPrice(product.setCode);
+    }
+
+    public static int jumpstartPrice(final NeoJumpstart.Theme theme) {
+        return jumpstartPrice(theme.setCode);
+    }
+
+    private static int jumpstartPrice(final String setCode) {
+        int base = DEFAULT_PRICE;
+        try {
+            final CardEdition e = FModel.getMagicDb().getEditions().get(setCode);
+            final BoosterPack normal = e == null ? null : boosterOf(e);
+            if (normal != null) {
+                base = priceOf(normal);
+            }
+        } catch (final RuntimeException ignored) {
+            // Sin sobre normal que mirar: el de siempre.
+        }
+        return base * 3 / 2;
+    }
+
+    public static boolean canAffordJumpstart(final NeoJumpstart.Product product) {
+        return NeoQuest.isActive() && NeoQuest.credits() >= jumpstartPrice(product);
+    }
+
+    /** Compra un sobre Jumpstart: trae UN tema al azar de los suyos, como el de verdad. */
+    public static Opened buyJumpstart(final NeoJumpstart.Product product) {
+        return product == null || product.themes.isEmpty() ? null : buyJumpstart(product.draw());
+    }
+
+    /**
+     * Compra un tema Jumpstart: sus veinte cartas a la coleccion. No pasa por
+     * {@code buyPack} (no es un sobre de expansion), como Secret Lair: se cobra
+     * y se meten las cartas, y lo que trae se saca ANTES de cobrar.
+     */
+    public static Opened buyJumpstart(final NeoJumpstart.Theme theme) {
+        if (theme == null || !NeoQuest.isActive()) {
+            return null;
+        }
+        final int price = jumpstartPrice(theme);
+        if (NeoQuest.credits() < price) {
+            return null;
+        }
+        final List<PaperCard> cards = theme.contents();
+        if (cards.isEmpty()) {
+            return null;
+        }
+        final Set<String> before = ownedNames();
+        NeoQuest.engine().getAssets().subtractCredits(price);
+        NeoQuest.engine().getCards().addAllCards(cards);
+        return finish(theme.name(), new ArrayList<>(cards), before, price);
+    }
+
+    // ===============================================================
     // Los drops con nombre
     // ===============================================================
 

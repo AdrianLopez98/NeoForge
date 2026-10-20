@@ -1587,6 +1587,23 @@
     -fx-border-width: 2;
 }
 
+/* Una entrada del stack que es objetivo de lo de arriba (un contrahechizo). */
+.stack-top:stack-target,
+.stack-strip:stack-target {
+    -fx-border-color: -neo-danger;
+    -fx-border-width: 2;
+    -fx-border-radius: 4;
+    -fx-background-color: rgba(217,83,79,0.18);
+    -fx-background-radius: 4;
+}
+
+/* Un jugador objetivo de lo de arriba del stack (ver .card:stack-target). */
+.player-bar:stack-target {
+    -fx-background-color: linear-gradient(to right, rgba(217,83,79,0.32) 0%, rgba(11,14,19,0.6) 60%);
+    -fx-border-color: -neo-danger;
+    -fx-border-width: 2;
+}
+
 /* Atacar se ve mejor con la carta un poco encendida, no solo con el borde. */
 .card:attacking .card-border {
     -fx-stroke: -neo-danger;
@@ -3292,6 +3309,18 @@
     -fx-stroke: #8D9AAB;
     -fx-stroke-width: 2;
     -fx-stroke-dash-array: 4 4;
+}
+
+/* ---------- OBJETIVO de lo de arriba del stack ----------
+   Discord, 20-10-2026: "highlight its targets with a red outline". Rojo
+   discontinuo y con halo, para no confundirse con el rojo liso del atacante.
+   Va ANTES del selectable fuerte y del ya-elegido: si el motor te pide elegir,
+   eso manda (TableScreen.applyStackTargets). */
+.card:stack-target .card-border {
+    -fx-stroke: -neo-danger;
+    -fx-stroke-width: 4;
+    -fx-stroke-dash-array: 10 5;
+    -fx-effect: dropshadow(gaussian, rgba(217,83,79,0.9), 18, 0.55, 0, 0);
 }
 
 /* El fuerte manda: va DESPUES para ganar a igual especificidad */

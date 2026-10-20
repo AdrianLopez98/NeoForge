@@ -675,6 +675,20 @@ public class SettingsPanel extends VBox {
         getChildren().add(smartRow);
         getChildren().add(smartLevelRow);
 
+        // --- "Fin de turno" se para si te atacan o te lanzan algo ---
+        // Va siempre a la vista: vale tambien con el pase automatico apagado,
+        // que es justo cuando "Fin de turno" es lo unico que pasa solo.
+        getChildren().add(toggleRow(NeoText.get("settings.endTurnInterrupts"),
+                NeoSettings.endTurnInterrupts(), on -> {
+                    NeoSettings.setBool(NeoSettings.END_TURN_INTERRUPTS, on);
+                    NeoSettings.save();
+                    forge.neo.match.NeoGame.refreshSmartPass();
+                }));
+        final Label endTurnNote = new Label(NeoText.get("settings.endTurnInterrupts.note"));
+        endTurnNote.getStyleClass().add("settings-note");
+        endTurnNote.setWrapText(true);
+        getChildren().add(endTurnNote);
+
         // --- los disparos de tus reliquias (Ascenso) ---
         //
         // Discord: con veinte reliquias, veinte OK por turno sin nada que
@@ -938,6 +952,14 @@ public class SettingsPanel extends VBox {
                     NeoSettings.setBool(NeoSettings.STACK_BANNER, on);
                     NeoSettings.save();
                     PromptBanner.refreshLive();
+                    host.refreshTable();
+                }));
+        // Solo un momento y luego al stack (XMage Nexus, 20-10-2026).
+        getChildren().add(toggleRow(NeoText.get("settings.stackBanner.brief"),
+                NeoSettings.stackBannerBrief(),
+                on -> {
+                    NeoSettings.setBool(NeoSettings.STACK_BANNER_BRIEF, on);
+                    NeoSettings.save();
                     host.refreshTable();
                 }));
         getChildren().add(toggleRow(NeoText.get("settings.stackBanner.edit"),

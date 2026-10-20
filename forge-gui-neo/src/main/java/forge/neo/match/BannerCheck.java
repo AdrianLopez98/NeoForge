@@ -108,6 +108,12 @@ public final class BannerCheck {
                         || lines.length > 0 && lines[lines.length - 1].contains(PlayerName.of(human(gui[0]).getView())),
                 "el objetivo va en su propia linea, la ultima",
                 "el objetivo no esta en la ultima linea");
+        // Y de quien es (Discord, 20-10-2026: "grouped by their controller"):
+        // el Bolt va a TUS Grizzly Bears, asi que "Grizzly Bears (Tu)".
+        final String you = forge.neo.NeoText.get("stats.you");
+        check(lines.length > 0 && lines[lines.length - 1].contains("Grizzly Bears (" + you + ")"),
+                "el objetivo dice de quien es (\"Grizzly Bears (" + you + ")\")",
+                "el objetivo no dice de quien es: " + (lines.length > 0 ? lines[lines.length - 1] : "-"));
 
         System.out.printf(Locale.ROOT, "%n  %d bien, %d mal%n", passed, failed);
         if (failed > 0) {

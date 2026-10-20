@@ -1,3 +1,4 @@
+2026-10-20	Captain Jean-Luc Picard
 2026-10-16	Doctor Strange, Master of Magic
 2026-10-16	Beta Ray Bill
 2026-10-12	Hela, Mistress of Darkness
@@ -11,6 +12,7 @@
 2026-10-09	Tricorder
 2026-10-09	Starfleet Communicator
 2026-10-09	Join the Collective
+2026-10-09	Fluros of Myra's Marvels
 2026-10-09	Borg Queen, One Who Is Many
 2026-10-02	Goblin Blastronauts
 2026-10-01	_____-o-saurus

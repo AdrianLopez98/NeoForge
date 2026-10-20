@@ -159,6 +159,23 @@ public final class YieldCheck {
                 "otra pulsacion lo vuelve a encender",
                 "la segunda pulsacion no volvio a encender el pase");
 
+        // Y el ajuste de que "Fin de turno" se corte (Discord, 20-10-2026):
+        // apagado, las dos interrupciones de fabrica dejan de valer; encendido
+        // vuelven. Se mira lo que lee el motor, no lo que dice la interfaz.
+        final forge.localinstance.properties.ForgePreferences prefs = forge.model.FModel.getPreferences();
+        forge.neo.NeoSettings.setBool(forge.neo.NeoSettings.END_TURN_INTERRUPTS, false);
+        NeoGame.refreshSmartPass();
+        final boolean offOk = !prefs.getPrefBoolean(FPref.YIELD_INTERRUPT_ON_ATTACKERS)
+                && !prefs.getPrefBoolean(FPref.YIELD_INTERRUPT_ON_OPPONENT_SPELL);
+        forge.neo.NeoSettings.setBool(forge.neo.NeoSettings.END_TURN_INTERRUPTS, true);
+        NeoGame.refreshSmartPass();
+        final boolean onOk = prefs.getPrefBoolean(FPref.YIELD_INTERRUPT_ON_ATTACKERS)
+                && prefs.getPrefBoolean(FPref.YIELD_INTERRUPT_ON_OPPONENT_SPELL);
+        check(offOk, "con el ajuste apagado, ni el ataque ni el hechizo del rival cortan \"Fin de turno\"",
+                "el ajuste apagado no quita los cortes del motor");
+        check(onOk, "y encendido (de fabrica) vuelven los dos cortes",
+                "al encender el ajuste no vuelven los cortes");
+
         System.out.printf(Locale.ROOT, "%n  %d bien, %d mal%n", passed, failed);
         if (failed > 0) {
             throw new IllegalStateException(failed + " comprobacion(es) del pase han fallado");

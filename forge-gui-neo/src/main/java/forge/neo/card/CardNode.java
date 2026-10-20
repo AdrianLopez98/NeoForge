@@ -1190,6 +1190,19 @@ public class CardNode extends StackPane {
         pseudoClassStateChanged(HIGHLIGHTED, on);
     }
 
+    /**
+     * Objetivo de lo que hay arriba del stack (o de la entrada del stack bajo
+     * el raton): borde rojo. Discord, 20-10-2026: <i>"it's not clear enough to
+     * me which permanents or players are being targeted ... highlight its
+     * targets with a red outline"</i>. Lo pone {@code TableScreen.applyStackTargets}.
+     */
+    public void setStackTarget(final boolean on) {
+        pseudoClassStateChanged(STACK_TARGET, on);
+    }
+
+    private static final javafx.css.PseudoClass STACK_TARGET =
+            javafx.css.PseudoClass.getPseudoClass("stack-target");
+
     /** La carta que se esta arrastrando ahora mismo. */
     public void setDragging(final boolean on) {
         pseudoClassStateChanged(DRAGGING, on);

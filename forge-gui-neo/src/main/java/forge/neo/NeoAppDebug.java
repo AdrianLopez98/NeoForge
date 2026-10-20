@@ -343,6 +343,22 @@ final class NeoAppDebug {
             item.set(forge.trackable.TrackableProperty.OptionalTrigger, trigger && i % 6 == 0);
             items.add(item);
         }
+        // -Dneo.stack.targets=true: el de arriba apunta a dos cartas de la mesa
+        // y a la segunda entrada del stack (el borde rojo de los objetivos,
+        // TableScreen.applyStackTargets).
+        if (Boolean.getBoolean("neo.stack.targets") && !items.isEmpty()) {
+            final List<forge.neo.card.CardNode> theirs = app.table.oppFieldNodes();
+            final forge.trackable.TrackableCollection<CardView> targets = new forge.trackable.TrackableCollection<>();
+            targets.add(nodes.get(Math.min(1, nodes.size() - 1)).getCard());
+            if (!theirs.isEmpty()) {
+                targets.add(theirs.get(0).getCard());
+            }
+            items.get(0).set(forge.trackable.TrackableProperty.TargetCards, targets);
+            if (items.size() > 1) {
+                items.get(0).set(forge.trackable.TrackableProperty.TargetStackItems,
+                        new forge.trackable.TrackableCollection<>(items.get(1)));
+            }
+        }
         if (Boolean.getBoolean("neo.stack.drain")) {
             drainStack(items, me);
             return;
