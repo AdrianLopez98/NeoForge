@@ -992,7 +992,7 @@ public final class CardImages {
             final java.net.HttpURLConnection http =
                     (java.net.HttpURLConnection) new java.net.URL(jsonUrl).openConnection();
             http.setRequestProperty("Accept", "application/json");
-            http.setRequestProperty("User-Agent", forge.util.BuildInfo.getUserAgent());
+            http.setRequestProperty("User-Agent", forge.neo.platform.NeoUserAgent.get());
             http.setConnectTimeout(5_000);
             http.setReadTimeout(8_000);
             final int code = http.getResponseCode();

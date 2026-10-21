@@ -140,9 +140,13 @@ public final class NeoQuestRewards implements IWinLoseView<IButton> {
         // La foto de lo que tenias, ANTES de que el motor reparta nada.
         Set<String> before = java.util.Collections.emptySet();
         boolean prizeDue = false;
+        // El duelo que se acaba de jugar, para el trofeo: se coge ANTES de que
+        // actionOnQuit lo de por cerrado.
+        forge.gamemodes.quest.QuestEvent event = null;
         try {
             before = NeoQuestShop.ownedNames();
             prizeDue = NeoQuestPrize.isDue(won);
+            event = NeoQuest.engine().getCurrentEvent();
         } catch (final RuntimeException | LinkageError e) {
             fail(view, "before", e);
         }
@@ -195,6 +199,19 @@ public final class NeoQuestRewards implements IWinLoseView<IButton> {
                 if (!sold.isEmpty()) {
                     view.messages.add(forge.neo.NeoText.get("quest.sold",
                             sold.getCopies(), sold.getCredits()));
+                }
+            }
+
+            // EL TROFEO (NeoQuestTrophy): una carta del mazo del rival al ganar.
+            // Despues de la venta de repetidas, para que no se venda sola antes
+            // de verla: en el botin se puede vender a mano.
+            if (won && forge.neo.NeoSettings.getBool(NeoQuestTrophy.ENABLED, true)) {
+                final PaperCard trophy = NeoQuestTrophy.award(event);
+                if (trophy != null) {
+                    view.messages.add(forge.neo.NeoText.get("quest.trophy",
+                            forge.neo.card.CardText.nameOf(trophy), NeoQuest.titleOf(event)));
+                    view.cards.add(trophy);
+                    view.bonus.add(trophy);
                 }
             }
 

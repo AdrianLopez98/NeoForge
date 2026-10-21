@@ -345,6 +345,7 @@ public class TableBinder {
 
         table.setPhase(gv.getPhase());
         table.getPhaseRail().setPlanes(activePlanes(gv));
+        table.setStackGame(gv.getGame());
         table.setStack(gv.getStack(), self);
         table.setCombatLinks(links(gv));
         table.attachmentsMoved();

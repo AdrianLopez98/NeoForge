@@ -425,6 +425,25 @@ public final class MacroCheck {
         check(List.of("{1}{G}, {T}: Draw a card.").equals(m.replay("ability", "Elvish Archivist",
                 List.of("{1}{G}, {T}: Draw a card.", "{T}: Add {G}."))),
                 "elecciones: el orden de las opciones da igual", "elecciones: depende del orden de las opciones");
+        // Necrotic Ooze (Discord, 21-10-2026): en un combo la lista de
+        // habilidades cambia a cada paso; se sigue el orden de la grabacion.
+        m.clear();
+        final String put = "Put a -1/-1 counter on Necrotic Ooze: Untap Necrotic Ooze.";
+        final String remove = "Remove a -1/-1 counter from Necrotic Ooze: Add one mana of any color.";
+        final String tap = "{T}: Add {G}.";
+        m.record("ability", "Necrotic Ooze", List.of(put, tap), List.of(put));
+        m.record("ability", "Necrotic Ooze", List.of(put, remove), List.of(remove));
+        m.rewind();
+        final List<String> o1 = m.replayInOrder("ability", "Necrotic Ooze", List.of(put, remove, tap));
+        final List<String> o2 = m.replayInOrder("ability", "Necrotic Ooze", List.of(put, remove, tap));
+        final List<String> o3 = m.replayInOrder("ability", "Necrotic Ooze", List.of(put, tap));
+        check(List.of(put).equals(o1) && List.of(remove).equals(o2) && List.of(put).equals(o3),
+                "elecciones: Necrotic Ooze alterna sus habilidades aunque cambie la lista",
+                "elecciones: Necrotic Ooze no alterna (" + o1 + ", " + o2 + ", " + o3 + ")");
+        check(m.replayInOrder("ability", "Necrotic Ooze", List.of(put, tap)) == null
+                        && m.replayInOrder("ability", "Devoted Druid", List.of(put, remove)) == null,
+                "elecciones: la que toca y no esta, u otra carta, se pregunta",
+                "elecciones: contesta una habilidad que no esta o de otra carta");
         final List<String> modes = List.of("Destroy target artifact", "Draw a card");
         m.clear();
         m.record("choice", "Choose one", modes, List.of("Draw a card"));

@@ -1093,6 +1093,17 @@ public class SettingsPanel extends VBox {
                     NeoSettings.save();
                 }));
 
+        // --- el trofeo: una carta del mazo del rival al ganar (Quest) ---
+        //
+        // Encendido de fabrica (Ana, 21-10-2026); quien prefiera los premios
+        // de Forge de siempre lo apaga. Ver NeoQuestTrophy.
+        getChildren().add(toggleRow(NeoText.get("settings.questTrophy"),
+                NeoSettings.getBool(forge.neo.quest.NeoQuestTrophy.ENABLED, true),
+                on -> {
+                    NeoSettings.setBool(forge.neo.quest.NeoQuestTrophy.ENABLED, on);
+                    NeoSettings.save();
+                }));
+
         // --- sobres solo del mundo en que estas (Quest) ---
         //
         // Encendido de fabrica (ver NeoQuest.WORLD_SHOP).

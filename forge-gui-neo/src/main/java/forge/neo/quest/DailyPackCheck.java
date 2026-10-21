@@ -88,6 +88,31 @@ public final class DailyPackCheck {
         ok &= check(today == NeoDailyPack.todaysEdition(day1.plus(Duration.ofHours(5))),
                 "preguntar otra vez el mismo dia da la misma");
 
+        // 1b. TODAS las expansiones de la tienda dan sobre (Discord, 21-10-2026:
+        // "it said it wasn't available"): una que no se monta es un dia sin sobre
+        // si le toca, y doce seguidas, el aviso de que no se ha podido abrir.
+        final java.util.List<String> broken = new java.util.ArrayList<>();
+        int tried = 0;
+        for (final CardEdition e : NeoQuestShop.editions()) {
+            tried++;
+            String why = null;
+            try {
+                final forge.item.BoosterPack pack = NeoQuestShop.boosterOf(e);
+                if (pack == null) {
+                    why = "sin sobre";
+                } else if (pack.getCards().isEmpty()) {
+                    why = "vacio";
+                }
+            } catch (final RuntimeException ex) {
+                why = ex.toString();
+            }
+            if (why != null) {
+                broken.add(e.getCode() + " (" + why + ")");
+            }
+        }
+        System.out.println("        expansiones sin sobre: " + broken);
+        ok &= check(broken.isEmpty(), "las " + tried + " expansiones de la tienda montan su sobre");
+
         // 2. Abrirlo
         final long credits = NeoQuest.credits();
         final long before = NeoQuest.collection().countAll();
@@ -106,6 +131,8 @@ public final class DailyPackCheck {
         final long after = NeoQuest.collection().countAll();
         ok &= check(NeoDailyPack.claim(day1.plus(Duration.ofHours(8))) == null
                 && NeoQuest.collection().countAll() == after, "ni se abre otro el mismo dia (UTC)");
+        ok &= check(NeoDailyPack.lastFailure() != null && NeoDailyPack.lastFailure().startsWith("last="),
+                "y dice por que no, para el aviso: " + NeoDailyPack.lastFailure());
 
         // 3. Sobrevive a reiniciar: no hay nada en memoria, todo sale del fichero
         ok &= check(NeoDailyPack.lastDay(NAME) == NeoDailyPack.day(day1),

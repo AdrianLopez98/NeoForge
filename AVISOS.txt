@@ -43,3 +43,10 @@ Copyright (c) 2016 The Inter Project Authors, bajo la SIL Open Font License 1.1.
 Solo se usa cuando el sistema no tiene Segoe UI (Linux, Steam Deck con Proton).
 El texto de la licencia va junto a la letra, en forge/neo/fonts/Inter-OFL.txt
 dentro de app\neo.jar.
+
+Los dos kanji del nombre de Musashi que salen en la entrada de Isshin, Two
+Heavens as One, son el contorno de la letra Yuji Boku
+(https://github.com/Kinutafontfactory/Yuji), Copyright 2021 The Yuji Project
+Authors, bajo la SIL Open Font License 1.1. La letra no viene dentro: solo esos
+dos contornos. El texto de la licencia esta en forge/neo/fonts/YujiBoku-OFL.txt
+dentro de app\neo.jar.

@@ -66,7 +66,34 @@ public enum CommanderSignature {
     /** Teval, the Balanced Scale: hojas que caen y almas que suben. */
     TEVAL_BALANCE,
     /** Fire Lord Azula: fuego azul y rayos. */
-    AZULA_LIGHTNING;
+    AZULA_LIGHTNING,
+
+    /** Isshin, Two Heavens as One: papel de arroz, las dos pinceladas y la firma de Musashi (Vagabond). */
+    ISSHIN_INK,
+
+    // Los diez siguientes de EDHREC (21-10-2026) y Lightning.
+    /** Giada, Font of Hope: motas doradas y plumas. */
+    GIADA_ANGELS,
+    /** Pantlaza, Sun-Favored: el sol y llamas doradas. */
+    PANTLAZA_SUN,
+    /** Ms. Bumbleflower: petalos y estrellas. */
+    BUMBLEFLOWER_PETALS,
+    /** Lathril, Blade of the Elves: hojas y tajos verdes. */
+    LATHRIL_BLADES,
+    /** Toph, the First Metalbender: rocas y metal. */
+    TOPH_EARTH,
+    /** The Wise Mothman: polillas y radiacion. */
+    MOTHMAN_MOTHS,
+    /** Jodah, the Unifier: los cinco colores. */
+    JODAH_PRISM,
+    /** Hearthhull, the Worldseed: estrellas y un planeta. */
+    HEARTHHULL_COSMOS,
+    /** Nekusar, the Mindrazer: la rueda de cartas y llamas moradas. */
+    NEKUSAR_WHEEL,
+    /** Kefka, Court Mage: el Juicio de Luz. */
+    KEFKA_JUDGMENT,
+    /** Lightning, Army of One: rayos rosas y su pluma. */
+    LIGHTNING_BOLTS;
 
     /**
      * Su coreografia, para una pantalla de ese tamanyo; null en {@link #NONE}.
@@ -100,6 +127,30 @@ public enum CommanderSignature {
                 return LayeredSignature.teval(width, height);
             case AZULA_LIGHTNING:
                 return LayeredSignature.azula(width, height);
+            case ISSHIN_INK:
+                return LayeredSignature.isshin(width, height);
+            case GIADA_ANGELS:
+                return LayeredSignature.giada(width, height);
+            case PANTLAZA_SUN:
+                return LayeredSignature.pantlaza(width, height);
+            case BUMBLEFLOWER_PETALS:
+                return LayeredSignature.bumbleflower(width, height);
+            case LATHRIL_BLADES:
+                return LayeredSignature.lathril(width, height);
+            case TOPH_EARTH:
+                return LayeredSignature.toph(width, height);
+            case MOTHMAN_MOTHS:
+                return LayeredSignature.mothman(width, height);
+            case JODAH_PRISM:
+                return LayeredSignature.jodah(width, height);
+            case HEARTHHULL_COSMOS:
+                return LayeredSignature.hearthhull(width, height);
+            case NEKUSAR_WHEEL:
+                return LayeredSignature.nekusar(width, height);
+            case KEFKA_JUDGMENT:
+                return LayeredSignature.kefka(width, height);
+            case LIGHTNING_BOLTS:
+                return LayeredSignature.lightning(width, height);
             default:
                 return null;
         }
@@ -107,6 +158,16 @@ public enum CommanderSignature {
 
     /** Lo que dura de mas una entrada con firma, para que se vea su final. */
     public static final double EXTRA_SECONDS = 0.4;
+
+    /**
+     * Cuanto mas despacio va la entrada ENTERA (carta, rayos y firma): 1 en
+     * todas menos Isshin, que va un 30% mas lenta para que se lea la tinta
+     * (Ana, 21-10-2026: "un 30% mas larga ... pero solo esta"). Los dos
+     * pintores dividen el tiempo por esto.
+     */
+    public double slowdown() {
+        return this == ISSHIN_INK ? 1.3 : 1;
+    }
 
     private static final Map<String, CommanderSignature> BY_NAME = new HashMap<>();
     /** Las que solo llevan firma si el comandante es tuyo. */
@@ -132,6 +193,20 @@ public enum CommanderSignature {
         put(KAALIA_HOSTS, "Kaalia of the Vast");
         put(TEVAL_BALANCE, "Teval, the Balanced Scale");
         put(AZULA_LIGHTNING, "Fire Lord Azula");
+        // Pedida por Ana (20-10-2026): Musashi, el de Vagabond, sin el personaje.
+        put(ISSHIN_INK, "Isshin, Two Heavens as One");
+        // Los diez siguientes de EDHREC (21-10-2026) y Lightning (Final Fantasy XIII).
+        put(GIADA_ANGELS, "Giada, Font of Hope");
+        put(PANTLAZA_SUN, "Pantlaza, Sun-Favored");
+        put(BUMBLEFLOWER_PETALS, "Ms. Bumbleflower");
+        put(LATHRIL_BLADES, "Lathril, Blade of the Elves");
+        put(TOPH_EARTH, "Toph, the First Metalbender");
+        put(MOTHMAN_MOTHS, "The Wise Mothman");
+        put(JODAH_PRISM, "Jodah, the Unifier");
+        put(HEARTHHULL_COSMOS, "Hearthhull, the Worldseed");
+        put(NEKUSAR_WHEEL, "Nekusar, the Mindrazer");
+        put(KEFKA_JUDGMENT, "Kefka, Court Mage", "Kefka, Ruler of Ruin");
+        put(LIGHTNING_BOLTS, "Lightning, Army of One");
     }
 
     private static void put(final CommanderSignature signature, final String... names) {

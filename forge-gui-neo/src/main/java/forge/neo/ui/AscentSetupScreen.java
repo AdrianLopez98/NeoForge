@@ -75,6 +75,12 @@ public class AscentSetupScreen extends StackPane {
         void start(AscentRun.Mode mode, PaperCard commander, int ascension, byte colours,
                    forge.neo.ascent.AscentPool pool);
 
+        /** Igual, con companero de mando (Partner, Background...); null = sin el. */
+        default void start(final AscentRun.Mode mode, final PaperCard commander, final PaperCard partner,
+                           final int ascension, final byte colours, final forge.neo.ascent.AscentPool pool) {
+            start(mode, commander, ascension, colours, pool);
+        }
+
         /** Empezar la run de un codigo o del reto de la semana ({@link AscentSeed}). */
         default void startRecipe(final AscentSeed.Recipe recipe) {
         }
@@ -104,6 +110,15 @@ public class AscentSetupScreen extends StackPane {
             new javafx.scene.control.ScrollPane(content);
     private AscentRun.Mode mode = AscentRun.Mode.STANDARD;
     private PaperCard commander;
+    /**
+     * Su companero de mando (Discord, 21-10-2026: <i>"is there a way to select a
+     * partner/background on ascent?"</i>), o null. Se elige en la MISMA rejilla:
+     * "Anadir companero" la cambia por los que valen con ese comandante
+     * ({@link #pickingPartner}), y elegir uno vuelve a la de siempre.
+     */
+    private PaperCard partner;
+    /** La rejilla ensenya los companeros posibles del comandante, no los comandantes. */
+    private boolean pickingPartner;
     /**
      * Los colores pedidos para el mazo de Estandar, o 0 = al azar.
      *
@@ -341,7 +356,8 @@ public class AscentSetupScreen extends StackPane {
                     : NeoText.get("ascent.seed.err.ascension", r.ascension, AscentUnlocks.maxAscension());
         } else if (r.pool.problem(r.mode) != null) {
             problem = NeoText.get(r.pool.problem(r.mode), forge.neo.ascent.AscentPool.MIN_CARDS);
-        } else if (!own && r.hasCommander() && AscentSeedDeck.commanderFor(r) == null) {
+        } else if (!own && r.hasCommander() && (AscentSeedDeck.commanderFor(r) == null
+                || r.hasPartner() && AscentSeedDeck.partnerFor(r) == null)) {
             problem = NeoText.get("ascent.seed.err.commander");
         }
         checkedFor = key;
@@ -352,13 +368,15 @@ public class AscentSetupScreen extends StackPane {
     /** Empezar con lo que haya puesto: la semilla, o lo elegido en la pantalla. */
     private void startNow() {
         if (seedSource == SeedSource.RANDOM) {
-            actions.start(mode, commander, ascension, colours, pool());
+            actions.start(mode, commander, commander == null ? null : partner, ascension, colours, pool());
         } else {
             final AscentSeed.Recipe r = recipe();
             if (r != null && seedProblem() == null) {
                 actions.startRecipe(seedSource == SeedSource.CODE && ownDeck
                         ? r.withDeck(r.mode == AscentRun.Mode.STANDARD ? colours : AscentSeedDeck.NO_COLOURS,
-                                r.mode == AscentRun.Mode.COMMANDER && commander != null ? commander.getName() : null)
+                                r.mode == AscentRun.Mode.COMMANDER && commander != null ? commander.getName() : null,
+                                r.mode == AscentRun.Mode.COMMANDER && commander != null && partner != null
+                                        ? partner.getName() : null)
                         : r);
             }
         }
@@ -489,9 +507,13 @@ public class AscentSetupScreen extends StackPane {
             // El mazo lo eliges debajo: aqui no se dice el del codigo.
         } else if (r.mode == AscentRun.Mode.COMMANDER) {
             final PaperCard cmd = r.hasCommander() ? AscentSeedDeck.commanderFor(r) : null;
+            final PaperCard mate = r.hasPartner() ? AscentSeedDeck.partnerFor(r) : null;
             box.getChildren().add(line(r.hasCommander()
-                    ? (cmd == null ? NeoText.get("ascent.seed.err.commander")
-                            : NeoText.get("ascent.setup.chosen", forge.neo.card.CardText.nameOf(cmd)))
+                    ? (cmd == null || r.hasPartner() && mate == null ? NeoText.get("ascent.seed.err.commander")
+                            : mate == null
+                            ? NeoText.get("ascent.setup.chosen", forge.neo.card.CardText.nameOf(cmd))
+                            : NeoText.get("ascent.setup.chosenPair", forge.neo.card.CardText.nameOf(cmd),
+                                    forge.neo.card.CardText.nameOf(mate)))
                     : NeoText.get("ascent.seed.sum.commanderRandom")));
         } else {
             box.getChildren().add(line(r.colours == AscentSeedDeck.NO_COLOURS
@@ -632,6 +654,25 @@ public class AscentSetupScreen extends StackPane {
             final List<PaperCard> pool = commanders();
             if (preset >= 0 && preset < pool.size()) {
                 commander = pool.get(preset);
+            }
+            // -Dneo.ascent.setupCommanderName=X lo deja elegido por su nombre, y
+            // -Dneo.ascent.setupPartner=Y le pone ese companero (o "pick" para
+            // dejar abierta la rejilla de companeros): para capturarlo.
+            final String byName = System.getProperty("neo.ascent.setupCommanderName", "");
+            for (final PaperCard c : pool) {
+                if (c.getName().equalsIgnoreCase(byName)) {
+                    commander = c;
+                }
+            }
+            final String mate = System.getProperty("neo.ascent.setupPartner", "");
+            if ("pick".equalsIgnoreCase(mate)) {
+                pickingPartner = commander != null;
+            } else if (!mate.isEmpty() && commander != null) {
+                for (final PaperCard c : AscentSeedDeck.partnersFor(commander, pool())) {
+                    if (c.getName().equalsIgnoreCase(mate)) {
+                        partner = c;
+                    }
+                }
             }
         }
         rebuild();
@@ -774,6 +815,8 @@ public class AscentSetupScreen extends StackPane {
             b.setOnAction(e -> {
                 mode = m;
                 commander = null;
+                partner = null;
+                pickingPartner = false;
                 page = 0;
                 seedSource = SeedSource.RANDOM;
                 rebuild();
@@ -836,6 +879,8 @@ public class AscentSetupScreen extends StackPane {
                 commander == null);
         random.setOnAction(e -> {
             commander = null;
+            partner = null;
+            pickingPartner = false;
             rebuild();
         });
 
@@ -850,7 +895,9 @@ public class AscentSetupScreen extends StackPane {
             rebuild();
         });
 
-        final HBox tools = new HBox(12, field, random, favorites);
+        // Eligiendo companero, "al azar" y "favoritos" son de los comandantes:
+        // fuera, que no se mezclen las dos preguntas.
+        final HBox tools = pickingPartner ? new HBox(12, field) : new HBox(12, field, random, favorites);
         tools.setAlignment(Pos.CENTER);
 
         grid.getChildren().clear();
@@ -861,12 +908,73 @@ public class AscentSetupScreen extends StackPane {
         // pagina o buscas otra cosa, y esto si.
         final Label chosen = new Label(commander == null
                 ? NeoText.get("ascent.setup.chosenRandom")
-                : NeoText.get("ascent.setup.chosen", forge.neo.card.CardText.nameOf(commander)));
+                : partner == null
+                ? NeoText.get("ascent.setup.chosen", forge.neo.card.CardText.nameOf(commander))
+                : NeoText.get("ascent.setup.chosenPair", forge.neo.card.CardText.nameOf(commander),
+                        forge.neo.card.CardText.nameOf(partner)));
         chosen.getStyleClass().add("ascent-info-title");
 
-        final VBox box = new VBox(10, tools, chosen, grid, pager());
+        final VBox box = new VBox(10, tools, chosen);
+        final Region partnerRow = partnerRow();
+        if (partnerRow != null) {
+            box.getChildren().add(partnerRow);
+        }
+        box.getChildren().addAll(grid, pager());
         box.setAlignment(Pos.CENTER);
         return box;
+    }
+
+    /**
+     * El companero: con un comandante que lo admite (Partner, "Choose a
+     * Background", Doctor...), un boton para anadirlo o quitarlo; eligiendolo,
+     * que se esta eligiendo y como volver. Null si el comandante no admite.
+     */
+    private Region partnerRow() {
+        if (commander == null || !commander.getRules().canBePartnerCommander()) {
+            return null;
+        }
+        final HBox row = new HBox(12);
+        row.setAlignment(Pos.CENTER);
+        if (pickingPartner) {
+            final Label what = new Label(NeoText.get("ascent.setup.partner.picking",
+                    forge.neo.card.CardText.nameOf(commander)));
+            what.getStyleClass().add("ascent-info-text");
+            final Button back = choice(NeoText.get("ascent.setup.partner.cancel"), false);
+            back.setOnAction(e -> {
+                pickingPartner = false;
+                page = 0;
+                rebuild();
+            });
+            row.getChildren().addAll(what, back);
+            return row;
+        }
+        if (partner == null) {
+            final Button add = choice(NeoText.get("ascent.setup.partner.add"), false);
+            add.setId("ascent-partner-add");
+            add.setOnAction(e -> {
+                pickingPartner = true;
+                search = "";
+                page = 0;
+                rebuild();
+            });
+            row.getChildren().add(add);
+        } else {
+            final Button change = choice(NeoText.get("ascent.setup.partner.change"), false);
+            change.setOnAction(e -> {
+                pickingPartner = true;
+                search = "";
+                page = 0;
+                rebuild();
+            });
+            final Button remove = choice(NeoText.get("ascent.setup.partner.remove",
+                    forge.neo.card.CardText.nameOf(partner)), false);
+            remove.setOnAction(e -> {
+                partner = null;
+                rebuild();
+            });
+            row.getChildren().addAll(change, remove);
+        }
+        return row;
     }
 
     private final FlowPane grid = new FlowPane(10, 10);
@@ -890,15 +998,25 @@ public class AscentSetupScreen extends StackPane {
             // la mesa; y con uno elegido, los demas se apagan para que salte a
             // la vista. Antes solo cambiaba la opacidad de 0,82 a 1 y clicar
             // parecia no hacer nada (reportado jugando el 24-09-2026).
-            final boolean chosen = commander != null && commander.getName().equals(c.getName());
+            final PaperCard marked = pickingPartner ? partner : commander;
+            final boolean chosen = marked != null && marked.getName().equals(c.getName());
             node.setHighlighted(chosen);
-            node.setOpacity(commander == null || chosen ? 1 : 0.55);
+            node.setOpacity(marked == null || chosen ? 1 : 0.55);
             node.setOnMouseClicked(e -> {
                 if (e.getButton() != javafx.scene.input.MouseButton.PRIMARY) {
                     return;
                 }
+                if (pickingPartner) {
+                    // El companero, y de vuelta a la rejilla de comandantes.
+                    partner = chosen ? null : c;
+                    pickingPartner = false;
+                    page = 0;
+                    rebuild();
+                    return;
+                }
                 // Un segundo clic sobre el elegido lo suelta y vuelve al azar.
                 commander = chosen ? null : c;
+                partner = null;
                 rebuild();
             });
             grid.getChildren().add(withStar(node, c));
@@ -946,7 +1064,9 @@ public class AscentSetupScreen extends StackPane {
     }
 
     private List<PaperCard> matches() {
-        final List<PaperCard> all = onlyFavorites
+        final List<PaperCard> all = pickingPartner
+                ? forge.neo.ascent.AscentFavorites.favoritesFirst(AscentSeedDeck.partnersFor(commander, pool()))
+                : onlyFavorites
                 ? forge.neo.ascent.AscentFavorites.only(commanders())
                 : forge.neo.ascent.AscentFavorites.favoritesFirst(commanders());
         if (search == null || search.isBlank()) {
@@ -1276,6 +1396,36 @@ public class AscentSetupScreen extends StackPane {
         }
         final VBox box = new VBox(8, row);
         box.setAlignment(Pos.CENTER);
+        // LAS COMBINACIONES GUARDADAS (Discord, 21-10-2026: "instead of having
+        // to build the same 7 pack gothic run each time"): un clic las deja
+        // puestas; la x las olvida. Ver AscentPoolPresets.
+        final List<forge.neo.ascent.AscentPool> saved = forge.neo.ascent.AscentPoolPresets.all();
+        if (!saved.isEmpty()) {
+            final Label caption = new Label(NeoText.get("ascent.pool.saved"));
+            caption.getStyleClass().add("ascent-info-text");
+            final javafx.scene.layout.FlowPane presets = new javafx.scene.layout.FlowPane(6, 6, caption);
+            presets.setAlignment(Pos.CENTER);
+            presets.setMaxWidth(UiScale.px(820));
+            final forge.neo.ascent.AscentPool now = pool();
+            int i = 0;
+            for (final forge.neo.ascent.AscentPool p : saved) {
+                final Button use = choice(forge.neo.ascent.AscentPoolPresets.label(p), p.equals(now));
+                use.setId("ascent-pool-preset-" + i++);
+                use.setTooltip(new javafx.scene.control.Tooltip(presetTip(p)));
+                use.setOnAction(e -> applyPool(p));
+                final Button forget = new Button("\u00d7");
+                forget.getStyleClass().add("ascent-set-chip");
+                forget.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("ascent.pool.forget")));
+                forget.setOnAction(e -> {
+                    forge.neo.ascent.AscentPoolPresets.remove(p);
+                    poolChanged();
+                });
+                final HBox pair = new HBox(2, use, forget);
+                pair.setAlignment(Pos.CENTER);
+                presets.getChildren().add(pair);
+            }
+            box.getChildren().add(presets);
+        }
         if (poolKind == forge.neo.ascent.AscentPool.Kind.RANGE) {
             final Label fromLabel = new Label(NeoText.get("ascent.pool.from"));
             final Label toLabel = new Label(NeoText.get("ascent.pool.to"));
@@ -1333,8 +1483,43 @@ public class AscentSetupScreen extends StackPane {
             info.setWrapText(true);
             info.setMaxWidth(UiScale.px(620));
             box.getChildren().add(info);
+            // Guardarla, si vale para una run y no esta ya.
+            if (problem == null && forge.neo.ascent.AscentPoolPresets.canSave(p)) {
+                final Button save = choice(NeoText.get("ascent.pool.save"), false);
+                save.setId("ascent-pool-save");
+                save.setOnAction(e -> {
+                    forge.neo.ascent.AscentPoolPresets.save(pool());
+                    poolChanged();
+                });
+                box.getChildren().add(save);
+            }
         }
         return box;
+    }
+
+    /** Deja puesta una combinacion guardada. */
+    private void applyPool(final forge.neo.ascent.AscentPool p) {
+        poolKind = p.kind;
+        poolSets.clear();
+        if (p.kind == forge.neo.ascent.AscentPool.Kind.RANGE) {
+            poolFrom = p.from;
+            poolTo = p.to;
+        } else if (p.kind == forge.neo.ascent.AscentPool.Kind.SET) {
+            poolSets.addAll(p.sets);
+        }
+        poolChanged();
+    }
+
+    /** Los nombres enteros, para el globo de la pastilla (que solo lleva codigos). */
+    private String presetTip(final forge.neo.ascent.AscentPool p) {
+        if (p.kind == forge.neo.ascent.AscentPool.Kind.RANGE) {
+            return editionName(p.from) + " \u2013 " + editionName(p.to);
+        }
+        final List<String> names = new java.util.ArrayList<>();
+        for (final String c : p.sets) {
+            names.add(editionName(c));
+        }
+        return String.join("\n", names);
     }
 
     /** "Zendikar (ZEN)", o el codigo si el motor no la conoce. */
@@ -1389,6 +1574,10 @@ public class AscentSetupScreen extends StackPane {
     private void poolChanged() {
         if (commander != null && !pool().allows(commander)) {
             commander = null;
+        }
+        if (commander == null || partner != null && !pool().allows(partner)) {
+            partner = null;
+            pickingPartner = false;
         }
         page = 0;
         rebuild();

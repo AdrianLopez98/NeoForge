@@ -536,12 +536,23 @@ public final class AscentPool {
         if (section == null || section.isEmpty()) {
             return null;
         }
-        final PaperCard current = section.toFlatList().get(0);
-        if (allows(current)) {
-            final PaperCard shown = printing(current);
+        final List<PaperCard> commanders = section.toFlatList();
+        final PaperCard current = commanders.get(0);
+        // Con companero (Partner, Background...) entran los DOS o ninguno: se
+        // quedaban solo el primero, y el companero desaparecia de la run.
+        boolean allAllowed = true;
+        for (final PaperCard c : commanders) {
+            allAllowed &= allows(c);
+        }
+        if (allAllowed) {
             section.clear();
-            section.add(shown);
-            return shown.getRules().getColorIdentity();
+            byte mask = 0;
+            for (final PaperCard c : commanders) {
+                final PaperCard shown = printing(c);
+                section.add(shown);
+                mask |= shown.getRules().getColorIdentity().getColor();
+            }
+            return ColorSet.fromMask(mask);
         }
         final ColorSet want = current.getRules().getColorIdentity();
         final List<PaperCard> same = new ArrayList<>();

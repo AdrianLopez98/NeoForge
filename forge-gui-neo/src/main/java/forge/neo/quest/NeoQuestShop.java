@@ -224,7 +224,7 @@ public final class NeoQuestShop {
         if (NeoQuest.credits() < price) {
             return null;
         }
-        final Set<String> before = ownedNames();
+        final Before before = Before.now();
         // Una copia: el motor guarda el mazo tal cual, y el de la lista tiene
         // que seguir intacto para el siguiente que lo compre. Con el nombre
         // limpio ("Ahoy Mateys", no "Ahoy Mateys [LCC] [2023]") y sin pisar
@@ -378,11 +378,26 @@ public final class NeoQuestShop {
         private final List<PaperCard> cards;
         private final Set<String> fresh;
         private final int paid;
+        /** Las que te faltaban en algun mazo: nombre en minusculas -> esos mazos. */
+        private final java.util.Map<String, List<String>> wanted;
 
-        Opened(final List<PaperCard> cards, final Set<String> fresh, final int paid) {
+        Opened(final List<PaperCard> cards, final Set<String> fresh, final int paid,
+               final java.util.Map<String, List<String>> wanted) {
             this.cards = cards;
             this.fresh = fresh;
             this.paid = paid;
+            this.wanted = wanted;
+        }
+
+        /**
+         * Los mazos a los que les faltaba esta carta ANTES de abrir, o una
+         * lista vacia. Ver {@link NeoQuest#wantedDecksByName}.
+         */
+        public List<String> wantedIn(final PaperCard card) {
+            if (card == null) {
+                return List.of();
+            }
+            return wanted.getOrDefault(card.getName().toLowerCase(java.util.Locale.ROOT), List.of());
         }
 
         public List<PaperCard> getCards() {
@@ -479,7 +494,7 @@ public final class NeoQuestShop {
                     + ", no se cobra: " + e);
             return null;
         }
-        final Set<String> before = ownedNames();
+        final Before before = Before.now();
         final List<PaperCard> cards = new ArrayList<>();
         for (final BoosterPack pack : packs) {
             NeoQuest.engine().getCards().buyPack(pack, pricing.applyAsInt(pack));
@@ -501,7 +516,7 @@ public final class NeoQuestShop {
     }
 
     private static Opened open(final BoosterPack pack, final int price) {
-        final Set<String> before = ownedNames();
+        final Before before = Before.now();
 
         // El sobre se abre ANTES de cobrar. Forge cobra y despues abre
         // (QuestUtilCards.buyPack), asi que un sobre que revienta al montarse
@@ -532,6 +547,24 @@ public final class NeoQuestShop {
      * quien reparte alli es el motor, no la tienda, pero "nueva" significa
      * exactamente igual. Ver {@code NeoQuestRewards}.
      */
+    /**
+     * Lo de ANTES de comprar: que tenias (para "nueva") y que te faltaba en tus
+     * mazos (para "te faltaba en X"). Despues de comprar ya no se puede saber.
+     */
+    private static final class Before {
+        final Set<String> owned;
+        final java.util.Map<String, List<String>> wanted;
+
+        private Before(final Set<String> owned, final java.util.Map<String, List<String>> wanted) {
+            this.owned = owned;
+            this.wanted = wanted;
+        }
+
+        static Before now() {
+            return new Before(ownedNames(), NeoQuest.wantedDecksByName());
+        }
+    }
+
     static Set<String> ownedNames() {
         final Set<String> before = new HashSet<>();
         for (final java.util.Map.Entry<PaperCard, Integer> e : NeoQuest.collection()) {
@@ -542,19 +575,25 @@ public final class NeoQuestShop {
 
     /** Guarda, traza y dice cuales eran nuevas. Comun a todo lo que se compra. */
     private static Opened finish(final String what, final List<PaperCard> cards,
-                                 final Set<String> before, final int price) {
+                                 final Before before, final int price) {
         final Set<String> fresh = new HashSet<>();
+        final java.util.Map<String, List<String>> wanted = new java.util.HashMap<>();
         for (final PaperCard card : cards) {
-            if (!before.contains(key(card))) {
+            if (!before.owned.contains(key(card))) {
                 fresh.add(key(card));
+            }
+            final String k = card.getName().toLowerCase(java.util.Locale.ROOT);
+            final List<String> decks = before.wanted.get(k);
+            if (decks != null) {
+                wanted.put(k, decks);
             }
         }
         NeoQuest.save();
         System.out.printf(java.util.Locale.ROOT,
-                "[tienda] %s por %s -> %d cartas (%d nuevas), quedan %d cr.%n",
+                "[tienda] %s por %s -> %d cartas (%d nuevas, %d que te faltaban en un mazo: %s), quedan %d cr.%n",
                 what, price > 0 ? price + " cr." : "PREMIO",
-                cards.size(), fresh.size(), NeoQuest.credits());
-        return new Opened(cards, fresh, price);
+                cards.size(), fresh.size(), wanted.size(), wanted, NeoQuest.credits());
+        return new Opened(cards, fresh, price, wanted);
     }
 
     // ===============================================================
@@ -631,7 +670,7 @@ public final class NeoQuestShop {
         if (NeoQuest.credits() < price) {
             return null;
         }
-        final Set<String> before = ownedNames();
+        final Before before = Before.now();
         NeoQuest.engine().getCards().buyCard(card, 1, price);
         NeoQuest.engine().getAssets().getShopList().remove(card);
         return finish(card.getName(), List.of(card), before, price);
@@ -712,7 +751,7 @@ public final class NeoQuestShop {
         if (NeoQuest.credits() < price) {
             return null;
         }
-        final Set<String> before = ownedNames();
+        final Before before = Before.now();
         final List<PaperCard> cards = precon.getDeck() == null ? List.<PaperCard>of()
                 : precon.getDeck().getAllCardsInASinglePool().toFlatList();
         NeoQuest.engine().getCards().buyPreconDeck(precon, price);
@@ -740,7 +779,7 @@ public final class NeoQuestShop {
         if (NeoQuest.credits() < price) {
             return null;
         }
-        final Set<String> before = ownedNames();
+        final Before before = Before.now();
         NeoQuest.engine().getCards().buyPack(product, price);
         // Los de tierras no estan en el mostrador del motor: no hay que retirarlos.
         if (!(product instanceof LandPack)) {
@@ -1057,7 +1096,7 @@ public final class NeoQuestShop {
         if (NeoQuest.credits() < SECRET_LAIR_PRICE) {
             return null;
         }
-        final Set<String> before = ownedNames();
+        final Before before = Before.now();
         NeoQuest.engine().getAssets().subtractCredits(SECRET_LAIR_PRICE);
         NeoQuest.engine().getCards().addAllCards(cards);
         return finish("Secret Lair", new ArrayList<>(cards), before, SECRET_LAIR_PRICE);
@@ -1120,7 +1159,7 @@ public final class NeoQuestShop {
         if (cards.isEmpty()) {
             return null;
         }
-        final Set<String> before = ownedNames();
+        final Before before = Before.now();
         NeoQuest.engine().getAssets().subtractCredits(price);
         NeoQuest.engine().getCards().addAllCards(cards);
         return finish(theme.name(), new ArrayList<>(cards), before, price);
@@ -1165,7 +1204,7 @@ public final class NeoQuestShop {
         if (NeoQuest.credits() < price) {
             return null;
         }
-        final Set<String> before = ownedNames();
+        final Before before = Before.now();
         NeoQuest.engine().getAssets().subtractCredits(price);
         NeoQuest.engine().getCards().addAllCards(drop.getCards());
         return finish("Secret Lair: " + drop.getName(),

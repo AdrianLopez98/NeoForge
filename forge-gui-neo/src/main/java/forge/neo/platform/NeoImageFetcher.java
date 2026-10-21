@@ -17,7 +17,6 @@ import forge.localinstance.properties.ForgeConstants;
 import forge.localinstance.properties.ForgePreferences;
 import forge.model.FModel;
 import forge.neo.card.CardArt;
-import forge.util.BuildInfo;
 import forge.util.ImageFetcher;
 import forge.util.ImageUtil;
 import forge.util.ScryfallRateLimiter;
@@ -295,7 +294,7 @@ public class NeoImageFetcher extends ImageFetcher {
 
         final URLConnection connection = url.openConnection();
         connection.setRequestProperty("Accept", "*/*");
-        connection.setRequestProperty("User-Agent", BuildInfo.getUserAgent());
+        connection.setRequestProperty("User-Agent", forge.neo.platform.NeoUserAgent.get());
         connection.setConnectTimeout(10_000);
         connection.setReadTimeout(20_000);
 

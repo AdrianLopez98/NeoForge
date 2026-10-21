@@ -161,7 +161,8 @@ final class CommanderEntrance {
             startNs = now;
         }
         // -Dneo.entrance.freezeAt=S: se queda quieta en ese instante, para capturarla.
-        final double t = Math.min((now - startNs) / 1e9, FREEZE_AT);
+        // Mas despacio si la firma lo pide (Isshin): todo se estira a la vez.
+        final double t = Math.min((now - startNs) / 1e9 / signature.slowdown(), FREEZE_AT);
         final Bounds b = layer.locate(card);
         if (b != null && b.getWidth() > 1 && b.getHeight() > 1) {
             slot = b;
@@ -319,7 +320,7 @@ final class CommanderEntrance {
      * encogerlo. Se hacen la primera vez que hacen falta y se quedan: unos
      * pocos cientos de KB en total.
      */
-    private static final class SpriteImage {
+    static final class SpriteImage {
         final Image image;
         /** Pixeles de la imagen por cada unidad del dibujo. */
         final double pxPerUnit;
@@ -372,7 +373,7 @@ final class CommanderEntrance {
     /** Las imagenes de los dibujos, por nombre y tamanyo. Solo en el hilo de interfaz. */
     private static final java.util.Map<String, SpriteImage> SPRITES = new java.util.HashMap<>();
 
-    private static SpriteImage imageOf(final SignatureSprite sprite, final boolean bigOne) {
+    static SpriteImage imageOf(final SignatureSprite sprite, final boolean bigOne) {
         return SPRITES.computeIfAbsent(sprite.name + (bigOne ? "@big" : "@small"),
                 k -> bigOne ? new SpriteImage(sprite, 4.4, 2.8) : new SpriteImage(sprite, 1.3, 1.5));
     }

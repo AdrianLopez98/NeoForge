@@ -24,22 +24,37 @@ import java.util.Map;
  * activa la misma carta dos veces de dos formas), las respuestas se dan en ese
  * orden y vuelven a empezar en cada repeticion ({@link #rewind}).
  *
+ * <p><b>Las habilidades de una carta van aparte</b> ({@link #replayInOrder}):
+ * su lista cambia a cada paso de un combo —Necrotic Ooze con Devoted Druid y
+ * Morselhoarder en el cementerio ofrece "quitar un contador" solo si lo hay, y
+ * su mana solo si esta enderezada—, asi que con la llave entera la pregunta no
+ * volvia a coincidir nunca y la macro preguntaba en cada clic (Discord,
+ * 21-10-2026). Ahi se sigue el ORDEN en que se eligieron para esa carta, y la
+ * que toca solo se contesta sola si esta entre las de ahora (y, lo mira quien
+ * llama, si se puede pagar).
+ *
  * <p>Clase pura: solo cadenas.
  */
 public final class MacroChoices {
 
     private final Map<String, List<List<String>>> answers = new HashMap<>();
     private final Map<String, Integer> cursor = new HashMap<>();
+    /** Lo mismo, pero por pregunta sin las opciones: en el orden de grabacion. */
+    private final Map<String, List<List<String>>> inOrder = new HashMap<>();
+    private final Map<String, Integer> orderCursor = new HashMap<>();
 
     /** Empieza una grabacion: lo de la anterior ya no vale. */
     public synchronized void clear() {
         answers.clear();
         cursor.clear();
+        inOrder.clear();
+        orderCursor.clear();
     }
 
     /** Empieza una reproduccion: cada pregunta vuelve a su primera respuesta. */
     public synchronized void rewind() {
         cursor.clear();
+        orderCursor.clear();
     }
 
     public synchronized boolean isEmpty() {
@@ -54,6 +69,31 @@ public final class MacroChoices {
         }
         answers.computeIfAbsent(keyOf(kind, question, options), k -> new ArrayList<>())
                 .add(new ArrayList<>(chosen));
+        inOrder.computeIfAbsent(questionKey(kind, question), k -> new ArrayList<>())
+                .add(new ArrayList<>(chosen));
+    }
+
+    /**
+     * La siguiente respuesta que se dio a ESTA pregunta al grabar, en su orden y
+     * en bucle, sea cual sea la lista de ahora; null si no se grabo ninguna o si
+     * la que toca no esta entre {@code options} (entonces pregunta el jugador).
+     * Avanza igual: si el jugador contesta ese paso a mano, el siguiente sigue
+     * donde iba.
+     */
+    public synchronized List<String> replayInOrder(final String kind, final String question,
+                                                   final List<String> options) {
+        if (options == null) {
+            return null;
+        }
+        final String key = questionKey(kind, question);
+        final List<List<String>> seen = inOrder.get(key);
+        if (seen == null || seen.isEmpty()) {
+            return null;
+        }
+        final int at = orderCursor.getOrDefault(key, 0);
+        orderCursor.put(key, at + 1);
+        final List<String> want = seen.get(at % seen.size());
+        return indicesOf(options, want) == null ? null : new ArrayList<>(want);
     }
 
     /**
@@ -97,6 +137,10 @@ public final class MacroChoices {
             out.add(found);
         }
         return out;
+    }
+
+    static String questionKey(final String kind, final String question) {
+        return kind + '\u0001' + (question == null ? "" : question);
     }
 
     static String keyOf(final String kind, final String question, final List<String> options) {

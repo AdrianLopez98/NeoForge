@@ -41,6 +41,55 @@ public final class NeoQuestCollection {
         return out;
     }
 
+    /**
+     * Tu coleccion en texto, para llevarla a otro programa (itch.io,
+     * 21-10-2026: <i>"export our collection in quest mode to import into
+     * another deck building tool? Its a handy feature we already have in
+     * adventure mode"</i>).
+     *
+     * <p>Una linea por <b>impresion</b>: {@code 2 Sol Ring (C21) 263}, y
+     * {@code *F*} detras si es foil. Es lo que leen al importar una coleccion
+     * Moxfield, Archidekt o ManaBox, y con la edicion se conserva lo que has
+     * abierto de verdad (el Adventure de Forge solo da el nombre). El codigo es
+     * el de Scryfall, que es el que usan ellos; si no lo hay, el de Forge.
+     * Ordenada por nombre y, dentro, por edicion. Vacia sin Quest.
+     */
+    public static String exportText() {
+        final java.util.TreeMap<String, Integer> lines = new java.util.TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        try {
+            for (final Map.Entry<PaperCard, Integer> e : NeoQuest.collection()) {
+                final PaperCard c = e.getKey();
+                if (c == null || e.getValue() <= 0) {
+                    continue;
+                }
+                final StringBuilder line = new StringBuilder(c.getName());
+                String set = c.getEdition();
+                final forge.card.CardEdition ed = FModel.getMagicDb().getEditions().get(set);
+                if (ed != null && ed.getScryfallCode() != null && !ed.getScryfallCode().isEmpty()) {
+                    set = ed.getScryfallCode();
+                }
+                if (set != null && !set.isEmpty() && !"???".equals(set)) {
+                    line.append(" (").append(set.toUpperCase(java.util.Locale.ROOT)).append(')');
+                    final String cn = c.getCollectorNumber();
+                    if (cn != null && !cn.isEmpty() && !PaperCard.NO_COLLECTOR_NUMBER.equals(cn)) {
+                        line.append(' ').append(cn);
+                    }
+                }
+                if (c.isFoil()) {
+                    line.append(" *F*");
+                }
+                lines.merge(line.toString(), e.getValue(), Integer::sum);
+            }
+        } catch (final RuntimeException ex) {
+            // sin Quest cargada: nada que exportar
+        }
+        final StringBuilder sb = new StringBuilder();
+        for (final Map.Entry<String, Integer> e : lines.entrySet()) {
+            sb.append(e.getValue()).append(' ').append(e.getKey()).append('\n');
+        }
+        return sb.toString();
+    }
+
     /** Si esa carta es NUEVA para ti: no tienes ninguna con su nombre. */
     public static boolean isNew(final PaperCard card, final Set<String> owned) {
         return card != null && owned != null && !owned.contains(card.getName());

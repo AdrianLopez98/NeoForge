@@ -74,6 +74,7 @@ public final class AscentSeedCheck {
         AscentRun.demo(AscentRun.Mode.STANDARD, 20);
 
         codes();
+        partners();
         weeklyThemes();
         challenges();
         ascensionOnlyFromRandom();
@@ -212,6 +213,64 @@ public final class AscentSeedCheck {
     }
 
     // ------------------------------------------------------------------
+
+    /**
+     * El companero de mando (Discord, 21-10-2026: <i>"is there a way to select a
+     * partner/background on ascent?"</i>): quien vale con quien, que viaja en el
+     * codigo, y que el mazo de salida lleva a los dos y nada fuera de su
+     * identidad.
+     */
+    private static void partners() {
+        final forge.card.CardDb db = forge.model.FModel.getMagicDb().getCommonCards();
+        final forge.item.PaperCard thrasios = db.getUniqueByName("Thrasios, Triton Hero");
+        final forge.item.PaperCard tymna = db.getUniqueByName("Tymna the Weaver");
+        final forge.item.PaperCard karlach = db.getUniqueByName("Karlach, Fury of Avernus");
+        final forge.item.PaperCard giants = db.getUniqueByName("Raised by Giants");
+        final forge.item.PaperCard krenko = db.getUniqueByName("Krenko, Mob Boss");
+        check(nameList(AscentSeedDeck.partnersFor(thrasios, AscentPool.ALL)).contains("Tymna the Weaver")
+                        && nameList(AscentSeedDeck.partnersFor(karlach, AscentPool.ALL)).contains("Raised by Giants")
+                        && !nameList(AscentSeedDeck.partnersFor(karlach, AscentPool.ALL)).contains("Tymna the Weaver")
+                        && AscentSeedDeck.partnersFor(krenko, AscentPool.ALL).isEmpty(),
+                "companero: Thrasios con Tymna, Karlach con un trasfondo, Krenko con nadie");
+
+        final AscentSeed.Recipe r = new AscentSeed.Recipe(AscentRun.Mode.COMMANDER, 0, AscentSeedDeck.NO_COLOURS,
+                "Thrasios, Triton Hero", "Tymna the Weaver", AscentPool.ALL, 0x0012345678L, AscentSeed.currentVersion());
+        final AscentSeed.Parsed back = AscentSeed.parse(r.code());
+        final forge.item.PaperCard mate = back.ok() ? AscentSeedDeck.partnerFor(back.recipe) : null;
+        check(r.code().contains("+") && back.ok() && back.recipe.code().equals(r.code())
+                        && mate != null && "Tymna the Weaver".equals(mate.getName()),
+                "companero: va en el codigo y vuelve (" + r.code() + ")");
+        final AscentSeed.Recipe alone = AscentSeed.parse(new AscentSeed.Recipe(AscentRun.Mode.COMMANDER, 0,
+                AscentSeedDeck.NO_COLOURS, "Krenko, Mob Boss", AscentPool.ALL, 1L, AscentSeed.currentVersion()).code()).recipe;
+        check(alone != null && !alone.hasPartner(), "companero: un codigo sin el sigue sin el");
+
+        for (final forge.item.PaperCard[] pair : new forge.item.PaperCard[][] {{thrasios, tymna}, {karlach, giants}}) {
+            final forge.deck.Deck d = AscentSeedDeck.generate(AscentRun.Mode.COMMANDER, pair[0], pair[1],
+                    "companero", 0, AscentSeedDeck.NO_COLOURS, AscentPool.ALL);
+            final List<String> zone = nameList(d.getCommanders());
+            final byte id = (byte) (pair[0].getRules().getColorIdentity().getColor()
+                    | pair[1].getRules().getColorIdentity().getColor());
+            int outside = 0;
+            for (final Map.Entry<forge.item.PaperCard, Integer> e : d.getMain()) {
+                if (!e.getKey().getRules().getColorIdentity().hasNoColorsExcept(id)) {
+                    outside += e.getValue();
+                }
+            }
+            check(zone.size() == 2 && zone.contains(pair[0].getName()) && zone.contains(pair[1].getName())
+                            && outside == 0 && d.getMain().countAll() == AscentSeedDeck.COMMANDER_SIZE,
+                    "companero: el mazo de " + pair[0].getName() + " + " + pair[1].getName()
+                            + " lleva a los dos, " + d.getMain().countAll() + " cartas, " + outside
+                            + " fuera de su identidad");
+        }
+    }
+
+    private static List<String> nameList(final List<forge.item.PaperCard> cards) {
+        final List<String> out = new ArrayList<>();
+        for (final forge.item.PaperCard c : cards) {
+            out.add(c.getName());
+        }
+        return out;
+    }
 
     private static void codes() {
         for (final AscentSeed.Recipe r : recipes()) {

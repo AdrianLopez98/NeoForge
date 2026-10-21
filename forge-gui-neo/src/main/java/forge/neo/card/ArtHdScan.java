@@ -21,7 +21,6 @@ import com.google.gson.JsonParser;
 import forge.StaticData;
 import forge.card.CardEdition;
 import forge.item.PaperCard;
-import forge.util.BuildInfo;
 import forge.util.ScryfallRateLimiter;
 
 /**
@@ -329,7 +328,7 @@ public final class ArtHdScan {
                 ScryfallRateLimiter.acquire(next);
                 final HttpURLConnection http = (HttpURLConnection) new URL(next).openConnection();
                 http.setRequestProperty("Accept", "application/json");
-                http.setRequestProperty("User-Agent", BuildInfo.getUserAgent());
+                http.setRequestProperty("User-Agent", forge.neo.platform.NeoUserAgent.get());
                 http.setConnectTimeout(8_000);
                 http.setReadTimeout(20_000);
                 final int code = http.getResponseCode();

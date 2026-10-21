@@ -4316,6 +4316,7 @@ public final class AscentCheck {
      * es eso, una carta de 2025 colada por un sitio que nadie mira.
      */
     private static void expansiones() {
+        combinacionesGuardadas();
         final AscentPool old = AscentPool.range("LEA", "4ED");
         final java.util.Set<String> codes = old.codes();
         final forge.card.CardDb db = FModel.getMagicDb().getCommonCards();
@@ -4773,6 +4774,34 @@ public final class AscentCheck {
             }
         }
         return out;
+    }
+
+    /**
+     * Las combinaciones guardadas (Discord, 21-10-2026: "save multiple set
+     * combinations"). Con los ajustes del jugador apartados y devueltos.
+     */
+    private static void combinacionesGuardadas() {
+        final String before = forge.neo.NeoSettings.get(AscentPoolPresets.KEY, null);
+        try {
+            forge.neo.NeoSettings.set(AscentPoolPresets.KEY, null);
+            final AscentPool gothic = AscentPool.sets(java.util.Arrays.asList("SOI", "EMN", "ISD"));
+            final AscentPool old = AscentPool.range("LEA", "4ED");
+            final boolean saved = AscentPoolPresets.save(gothic) && AscentPoolPresets.save(old);
+            final boolean twice = AscentPoolPresets.save(AscentPool.sets(java.util.Arrays.asList("ISD", "SOI", "EMN")));
+            final boolean all = AscentPoolPresets.save(AscentPool.ALL);
+            final java.util.List<AscentPool> list = AscentPoolPresets.all();
+            AscentPoolPresets.remove(old);
+            final java.util.List<AscentPool> after = AscentPoolPresets.all();
+            if (saved && !twice && !all && list.size() == 2 && list.get(0).equals(old)
+                    && list.get(1).equals(gothic) && after.size() == 1 && after.get(0).equals(gothic)) {
+                ok("combinaciones guardadas: la ultima delante, sin repetir (en otro orden es la misma), sin \"todas\", y se olvidan: "
+                        + AscentPoolPresets.label(gothic));
+            } else {
+                fail("combinaciones guardadas: " + list + " -> " + after + " (saved=" + saved + " twice=" + twice + " all=" + all + ")");
+            }
+        } finally {
+            forge.neo.NeoSettings.set(AscentPoolPresets.KEY, before);
+        }
     }
 
     private static void ok(final String msg) {

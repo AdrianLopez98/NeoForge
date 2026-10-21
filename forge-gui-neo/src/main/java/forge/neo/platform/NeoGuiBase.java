@@ -109,6 +109,11 @@ public class NeoGuiBase implements IGuiBase {
         return "neo-dev-git";
     }
 
+    @Override
+    public String getUserAgent() {
+        return NeoUserAgent.get();
+    }
+
     // --- Hilos ------------------------------------------------------
     // EL PUNTO CRITICO DEL PROYECTO (ver las notas de diseño seccion 5).
     //

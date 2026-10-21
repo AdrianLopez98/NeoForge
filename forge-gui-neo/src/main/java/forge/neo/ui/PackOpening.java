@@ -24,6 +24,10 @@ public final class PackOpening extends StackPane {
     private final StackPane stage = new StackPane();
     private final Pane sparks = new Pane();
     private final Label progress = new Label();
+    /** "Te faltaba en tus mazos: ...", con las ya reveladas. Ver {@link #setWanted}. */
+    private final Label wantedNote = new Label();
+    /** A que mazos les faltaba cada carta; null si quien abre no lo sabe. */
+    private java.util.function.Function<PaperCard, List<String>> wantedIn;
     private final Button reveal = new Button(NeoText.get("opening.revealAll"));
     /** "Otro sobre": solo sale si quien abre lo pide. Ver {@link #setAgain}. */
     private final Button again = new Button();
@@ -71,7 +75,9 @@ public final class PackOpening extends StackPane {
         again.setId("opening-again"); again.getStyleClass().add("btn-primary");
         again.setVisible(false); again.setManaged(false);
         HBox buttons = new HBox(12, pager, reveal, again, done); buttons.setAlignment(Pos.CENTER);
-        VBox footer = new VBox(8, progress, buttons); footer.setAlignment(Pos.CENTER);
+        wantedNote.getStyleClass().add("opening-wanted-note"); UiScale.fixedFont(wantedNote, 13);
+        wantedNote.setWrapText(true); wantedNote.setVisible(false); wantedNote.setManaged(false);
+        VBox footer = new VBox(8, wantedNote, progress, buttons); footer.setAlignment(Pos.CENTER);
         footer.setPadding(new Insets(8, 16, 16, 16));
         BorderPane content = new BorderPane(stage, head, null, footer, null);
         sparks.setMouseTransparent(true);
@@ -170,13 +176,44 @@ public final class PackOpening extends StackPane {
             badge.setMouseTransparent(true); StackPane.setAlignment(badge, Pos.TOP_CENTER);
             tile.getChildren().add(badge);
         }
+        final List<String> decks = wanted(card);
+        if (!decks.isEmpty()) {
+            // Abajo, para no pisar "NUEVA" (arriba): las dos cosas pueden ser verdad.
+            tile.getStyleClass().add("opening-wanted");
+            Label badge = new Label(NeoText.get("opening.wanted.badge")); badge.getStyleClass().add("wanted-badge");
+            badge.setMouseTransparent(true); StackPane.setAlignment(badge, Pos.BOTTOM_CENTER);
+            StackPane.setMargin(badge, new Insets(0, 0, 6, 0));
+            tile.getChildren().add(badge);
+            Tooltip.install(tile, new Tooltip(NeoText.get("opening.wanted.tip", String.join(", ", decks))));
+        }
         tile.setAccessibleText(forge.neo.card.CardText.nameOf(card));
+    }
+
+    private List<String> wanted(final PaperCard card) {
+        if (wantedIn == null || card == null) return List.of();
+        final List<String> decks = wantedIn.apply(card);
+        return decks == null ? List.of() : decks;
+    }
+
+    /**
+     * <b>Lo que te faltaba en tus mazos de la Quest</b> (Discord, 21-10-2026:
+     * <i>"a booster pack can tell you if it give a card missing from one of your
+     * decks ... you got this card missing from this deck"</i>): esas cartas
+     * salen con "PARA TU MAZO" y, segun se revelan, una linea encima de los
+     * botones dice cual y para que mazo. No es una ventana que haya que cerrar:
+     * abrir sobres es muy repetitivo y un aviso por carta seria un clic de mas.
+     * La lista se calcula ANTES de comprar ({@code NeoQuestShop.Opened#wantedIn}).
+     */
+    public void setWanted(final java.util.function.Function<PaperCard, List<String>> wantedIn) {
+        this.wantedIn = wantedIn;
+        updateProgress();
     }
 
     private void revealOne(StackPane tile, int index, double delay) {
         if (revealed[index] || closed) return;
         revealed[index] = true; updateProgress();
-        if (delay == 0) sound(weight(cards.get(index)) >= 5 ? forge.sound.SoundEffectType.Planeswalker : forge.sound.SoundEffectType.Draw);
+        if (delay == 0) sound(weight(cards.get(index)) >= 5 || !wanted(cards.get(index)).isEmpty()
+                ? forge.sound.SoundEffectType.Planeswalker : forge.sound.SoundEffectType.Draw);
         if (!CardNode.areAnimationsEnabled()) { paint(tile, index); return; }
         ScaleTransition out = new ScaleTransition(Duration.millis(130), tile);
         out.setToX(0.03); out.setDelay(Duration.millis(delay));
@@ -184,9 +221,11 @@ public final class PackOpening extends StackPane {
         in.setToX(1); in.setInterpolator(Interpolator.EASE_OUT);
         out.setOnFinished(e -> {
             paint(tile, index);
-            if (weight(cards.get(index)) >= 3 || cards.get(index).isFoil()) {
+            final boolean wantedCard = !wanted(cards.get(index)).isEmpty();
+            if (weight(cards.get(index)) >= 3 || cards.get(index).isFoil() || wantedCard) {
                 Bounds b = sceneToLocal(tile.localToScene(tile.getBoundsInLocal()));
-                burst(b.getCenterX(), b.getCenterY(), weight(cards.get(index)) >= 5 ? Color.CORAL : Color.GOLD, 18);
+                burst(b.getCenterX(), b.getCenterY(), wantedCard ? Color.web("#E0A63C")
+                        : weight(cards.get(index)) >= 5 ? Color.CORAL : Color.GOLD, 18);
             }
         });
         play(new SequentialTransition(out, in));
@@ -205,6 +244,24 @@ public final class PackOpening extends StackPane {
         int count = 0; for (boolean value : revealed) if (value) count++;
         progress.setText(NeoText.get("opening.progress", count, cards.size()));
         reveal.setDisable(count == cards.size());
+        // Una vez por nombre, en el orden en que salen, y solo lo ya revelado:
+        // no se destripa el sobre antes de abrirlo.
+        final Map<String, List<String>> shown = new LinkedHashMap<>();
+        for (int i = 0; i < cards.size(); i++) {
+            if (!revealed[i]) continue;
+            final List<String> decks = wanted(cards.get(i));
+            if (!decks.isEmpty()) shown.putIfAbsent(forge.neo.card.CardText.nameOf(cards.get(i)), decks);
+        }
+        final List<String> parts = new ArrayList<>();
+        for (Map.Entry<String, List<String>> e : shown.entrySet()) {
+            if (parts.size() == 4) {
+                parts.add(NeoText.get("opening.wanted.more", shown.size() - 4));
+                break;
+            }
+            parts.add(e.getKey() + " (" + String.join(", ", e.getValue()) + ")");
+        }
+        wantedNote.setText(parts.isEmpty() ? "" : NeoText.get("opening.wanted.note", String.join(" \u00b7 ", parts)));
+        wantedNote.setVisible(!parts.isEmpty()); wantedNote.setManaged(!parts.isEmpty());
     }
 
     private void burst(double x, double y, Color color, int count) {

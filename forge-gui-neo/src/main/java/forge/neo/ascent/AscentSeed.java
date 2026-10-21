@@ -85,6 +85,14 @@ public final class AscentSeed {
         public final String commander;
         /** La huella del comandante cuando se ha leido de un codigo y aun no se ha buscado. */
         final String commanderHash;
+        /**
+         * Su companero de mando (Partner, Background, Doctor...), o {@code null}
+         * (Discord, 21-10-2026: <i>"is there a way to select a partner/background
+         * on ascent?"</i>). Va en el codigo detras del comandante: {@code @H1+H2}.
+         */
+        public final String partner;
+        /** La huella del companero leida de un codigo, como {@link #commanderHash}. */
+        final String partnerHash;
         public final AscentPool pool;
         public final long seed;
         /** La version de Neo Forge con la que se hizo el codigo. */
@@ -93,17 +101,27 @@ public final class AscentSeed {
         public Recipe(final AscentRun.Mode mode, final int ascension, final byte colours,
                       final String commander, final AscentPool pool, final long seed,
                       final String version) {
-            this(mode, ascension, colours, commander, null, pool, seed, version);
+            this(mode, ascension, colours, commander, null, null, null, pool, seed, version);
+        }
+
+        public Recipe(final AscentRun.Mode mode, final int ascension, final byte colours,
+                      final String commander, final String partner, final AscentPool pool,
+                      final long seed, final String version) {
+            this(mode, ascension, colours, commander, null, partner, null, pool, seed, version);
         }
 
         Recipe(final AscentRun.Mode mode, final int ascension, final byte colours,
-               final String commander, final String commanderHash, final AscentPool pool,
-               final long seed, final String version) {
+               final String commander, final String commanderHash, final String partner,
+               final String partnerHash, final AscentPool pool, final long seed, final String version) {
             this.mode = mode == null ? AscentRun.Mode.STANDARD : mode;
             this.ascension = Math.max(0, ascension);
             this.colours = this.mode == AscentRun.Mode.STANDARD ? colours : AscentSeedDeck.NO_COLOURS;
             this.commander = this.mode == AscentRun.Mode.COMMANDER ? commander : null;
             this.commanderHash = this.mode == AscentRun.Mode.COMMANDER ? commanderHash : null;
+            // Sin comandante no hay companero: lo decide la semilla, solo.
+            final boolean cmd = this.commander != null || this.commanderHash != null;
+            this.partner = cmd ? partner : null;
+            this.partnerHash = cmd ? partnerHash : null;
             this.pool = pool == null ? AscentPool.ALL : pool;
             this.seed = seed & MASK;
             this.version = version == null || version.isEmpty() ? currentVersion() : version;
@@ -112,6 +130,11 @@ public final class AscentSeed {
         /** El comandante va en el codigo (el jugador lo eligio, no lo sorteo la semilla). */
         public boolean hasCommander() {
             return commander != null || commanderHash != null;
+        }
+
+        /** Con companero de mando. */
+        public boolean hasPartner() {
+            return partner != null || partnerHash != null;
         }
 
         /**
@@ -127,7 +150,12 @@ public final class AscentSeed {
          * semana no lo ofrece: ahi todos con el mismo mazo.
          */
         public Recipe withDeck(final byte ownColours, final String ownCommander) {
-            return new Recipe(mode, ascension, ownColours, ownCommander, null, pool, seed, version);
+            return withDeck(ownColours, ownCommander, null);
+        }
+
+        /** Igual, con companero de mando. */
+        public Recipe withDeck(final byte ownColours, final String ownCommander, final String ownPartner) {
+            return new Recipe(mode, ascension, ownColours, ownCommander, null, ownPartner, null, pool, seed, version);
         }
 
         /** Hecho con la misma version que esta jugando. */
@@ -158,7 +186,13 @@ public final class AscentSeed {
     /** Una receta nueva con lo que se ha elegido en la pantalla de montar. */
     public static Recipe fresh(final AscentRun.Mode mode, final int ascension, final byte colours,
                                final String commander, final AscentPool pool) {
-        return new Recipe(mode, ascension, colours, commander, pool, newSeed(), currentVersion());
+        return fresh(mode, ascension, colours, commander, null, pool);
+    }
+
+    /** Igual, con companero de mando. */
+    public static Recipe fresh(final AscentRun.Mode mode, final int ascension, final byte colours,
+                               final String commander, final String partner, final AscentPool pool) {
+        return new Recipe(mode, ascension, colours, commander, partner, pool, newSeed(), currentVersion());
     }
 
     /**
@@ -312,7 +346,8 @@ public final class AscentSeed {
             parts.add(colourLetters(r.colours));
         }
         if (r.mode == AscentRun.Mode.COMMANDER && r.hasCommander()) {
-            parts.add("@" + (r.commander != null ? commanderHash(r.commander) : r.commanderHash));
+            parts.add("@" + (r.commander != null ? commanderHash(r.commander) : r.commanderHash)
+                    + (r.hasPartner() ? "+" + (r.partner != null ? commanderHash(r.partner) : r.partnerHash) : ""));
         }
         switch (r.pool.kind) {
             case RANGE:
@@ -364,6 +399,7 @@ public final class AscentSeed {
         int ascension = -1;
         byte colours = AscentSeedDeck.NO_COLOURS;
         String hash = null;
+        String partnerHash = null;
         AscentPool pool = AscentPool.ALL;
         String version = null;
         Long seed = null;
@@ -380,7 +416,10 @@ public final class AscentSeed {
             } else if (up.matches("A\\d{1,2}")) {
                 ascension = Integer.parseInt(up.substring(1));
             } else if (up.startsWith("@") && up.length() > 1) {
-                hash = up.substring(1);
+                // "@H1" o, con companero, "@H1+H2".
+                final int plus = up.indexOf('+');
+                hash = plus < 0 ? up.substring(1) : up.substring(1, plus);
+                partnerHash = plus < 0 || plus == up.length() - 1 ? null : up.substring(plus + 1);
             } else if (up.startsWith("R.")) {
                 final String[] p = token.substring(2).split("\\.");
                 if (p.length != 2) {
@@ -419,7 +458,8 @@ public final class AscentSeed {
         if (mode == null || ascension < 0) {
             return new Parsed(null, "ascent.seed.err.bad");
         }
-        return new Parsed(new Recipe(mode, ascension, colours, null, hash, pool, seed, version), null);
+        return new Parsed(new Recipe(mode, ascension, colours, null, hash, null, partnerHash, pool, seed, version),
+                null);
     }
 
     /** Ocho letras de base 32. */

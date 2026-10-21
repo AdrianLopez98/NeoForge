@@ -303,9 +303,17 @@ public final class AscentRun {
     public static AscentRun begin(final Mode mode, final int ascension, final int maxLife,
                                   final forge.item.PaperCard commander, final byte colours,
                                   final AscentPool pool) {
+        return begin(mode, ascension, maxLife, commander, null, colours, pool);
+    }
+
+    /** Igual, con companero de mando (Partner, Background...); null = sin el. */
+    public static AscentRun begin(final Mode mode, final int ascension, final int maxLife,
+                                  final forge.item.PaperCard commander, final forge.item.PaperCard partner,
+                                  final byte colours, final AscentPool pool) {
         // La unica entrada AL AZAR: todas las demas son de una receta dada.
         return begin(AscentSeed.fresh(mode, ascension, colours,
-                commander == null ? null : commander.getName(), pool), maxLife, false);
+                commander == null ? null : commander.getName(),
+                commander == null || partner == null ? null : partner.getName(), pool), maxLife, false);
     }
 
     /** Una run desde su receta, con la vida de su modo (40 en Commander, 20 en Estandar). */
@@ -337,12 +345,16 @@ public final class AscentRun {
         if (recipe.hasCommander() && commander == null) {
             throw new IllegalStateException("el comandante del codigo no esta: " + recipe.code());
         }
+        final forge.item.PaperCard partner = AscentSeedDeck.partnerFor(recipe);
+        if (recipe.hasPartner() && partner == null) {
+            throw new IllegalStateException("el companero del codigo no esta: " + recipe.code());
+        }
         final String name = deckNameFor(recipe.mode);
         final java.util.Random previous = forge.util.MyRandom.getRandom();
         final forge.deck.Deck deck;
         forge.util.MyRandom.setRandom(AscentSeed.deckRandom(recipe.seed));
         try {
-            deck = AscentSeedDeck.generate(recipe.mode, commander, name, recipe.ascension,
+            deck = AscentSeedDeck.generate(recipe.mode, commander, partner, name, recipe.ascension,
                     recipe.colours, recipe.pool);
         } finally {
             forge.util.MyRandom.setRandom(previous);

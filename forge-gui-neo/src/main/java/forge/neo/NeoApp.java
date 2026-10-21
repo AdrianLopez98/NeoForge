@@ -2273,6 +2273,21 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             t.play();
         }
 
+        // El efecto de un hechizo famoso (SpellBlast): -Dneo.spell.test=NOMBRE,
+        // uno cada 2,2 s desde -Dneo.spell.testAt=N (ms).
+        if (args.contains("--spell-test")) {
+            final javafx.animation.Timeline t = new javafx.animation.Timeline(
+                    new javafx.animation.KeyFrame(Duration.millis(2200), e -> {
+                        if (table != null) {
+                            table.spellTest();
+                            System.out.println("[hechizo] prueba: " + System.getProperty("neo.spell.test", "BLASPHEMOUS_ACT"));
+                        }
+                    }));
+            t.setCycleCount(javafx.animation.Animation.INDEFINITE);
+            t.setDelay(Duration.millis(Long.getLong("neo.spell.testAt", 1500L)));
+            t.play();
+        }
+
         // La entrada de comandante (CommanderEntrance) con tu primera carta de
         // la mesa, una cada 2,5 s desde -Dneo.entrance.testAt=N (ms).
         if (args.contains("--entrance-test")) {

@@ -2001,6 +2001,17 @@ public class TableScreen extends Pane {
      * panel <b>ya no esta en la mesa</b> desde que se le devolvio la columna al
      * stack: o sea que clicar una entrada no hacia nada visible.
      */
+    /**
+     * La partida de la pila que se pinta, para la X de cada objeto
+     * ({@link forge.neo.match.StackX}): la vista no la lleva. La pone
+     * {@code TableBinder} antes de cada {@link #setStack}; null en las maquetas.
+     */
+    private forge.game.Game stackGame;
+
+    public void setStackGame(final forge.game.Game game) {
+        stackGame = game;
+    }
+
     public void setStack(final Iterable<StackItemView> items, final PlayerView me) {
         stackBox.getChildren().clear();
         stackRows.clear();
@@ -2331,7 +2342,7 @@ public class TableScreen extends Pane {
         header.getStyleClass().add("stack-now");
         header.pseudoClassStateChanged(MINE, isMine(item, me));
 
-        final Label name = new Label(headlineOf(item, me));
+        final Label name = new Label(headlineOf(item, me, stackGame));
         name.getStyleClass().add("stack-top-name");
         name.setWrapText(true);
         name.setMaxWidth(Double.MAX_VALUE);
@@ -2388,7 +2399,7 @@ public class TableScreen extends Pane {
         who.pseudoClassStateChanged(MINE, isMine(item, me));
         who.setMinWidth(Region.USE_PREF_SIZE);
 
-        final Label name = new Label(headlineOf(item, me));
+        final Label name = new Label(headlineOf(item, me, stackGame));
         name.getStyleClass().add(item.isTrigger() ? "stack-trigger" : "stack-spell");
         name.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(name, Priority.ALWAYS);
@@ -2526,6 +2537,12 @@ public class TableScreen extends Pane {
      *              el nombre lleva su "×6", como la fila del stack
      */
     public static String bannerText(final StackItemView item, final PlayerView me, final int count) {
+        return bannerText(item, me, count, null);
+    }
+
+    /** @param game la partida, para la X ({@link forge.neo.match.StackX}); null si no se sabe */
+    public static String bannerText(final StackItemView item, final PlayerView me, final int count,
+                                    final forge.game.Game game) {
         if (item == null) {
             return "";
         }
@@ -2534,7 +2551,7 @@ public class TableScreen extends Pane {
         if (!who.isBlank()) {
             lines.add(who);
         }
-        final String head = headlineOf(item, me);
+        final String head = headlineOf(item, me, game);
         if (!head.isBlank()) {
             lines.add(count > 1 ? head + "  ×" + count : head);
         }
@@ -2702,6 +2719,10 @@ public class TableScreen extends Pane {
 
     /** El titulo de una entrada: el nombre de la carta, y si es disparo, dicho. */
     private static String headlineOf(final StackItemView item, final PlayerView me) {
+        return headlineOf(item, me, null);
+    }
+
+    private static String headlineOf(final StackItemView item, final PlayerView me, final forge.game.Game game) {
         final CardView src = item.getSourceCard();
         final String name = src == null || src.getCurrentState() == null
                 ? "" : CardText.nameOf(src.getCurrentState());
@@ -2717,7 +2738,13 @@ public class TableScreen extends Pane {
         // Cambian lo que va a hacer el hechizo y decidian si merece la pena
         // responder; el motor los publica aparte (`getOptionalCostString`) y no
         // estan en el texto, asi que sin esto no habia forma de saberlo.
-        final String extra = optionalCostOf(item);
+        String extra = optionalCostOf(item);
+        // Y cuanto vale la X (Discord, 21-10-2026): "deals X damage to each
+        // creature" no dice si va a por tus 2/2 o por todo.
+        final Integer x = forge.neo.match.StackX.of(game, item);
+        if (x != null) {
+            extra = extra.isEmpty() ? "(X = " + x + ")" : "(X = " + x + ") " + extra;
+        }
         return extra.isEmpty() ? head : head + "  " + extra;
     }
 
@@ -4352,6 +4379,47 @@ public class TableScreen extends Pane {
             }
         }
         impactLayer.hit(entity, colors, source);
+    }
+
+    /**
+     * El efecto de un hechizo famoso que acaba de resolverse ({@link SpellBlast}):
+     * en la mesa entera, o sobre {@code target} si es una quitada. Al golpe, los
+     * gordos hacen temblar el area de juego (solo ella: las barras y los botones
+     * se quedan quietos). Solo en el hilo de interfaz.
+     */
+    public void spellBlast(final forge.neo.match.SpellSignature signature, final Object target) {
+        final Bounds b = signature.atTarget && target != null ? impactBoundsOf(target) : null;
+        if (signature.atTarget && b == null) {
+            return;
+        }
+        impactLayer.spell(signature, b, () -> Anim.shake(viewport));
+    }
+
+    /**
+     * {@code --spell-test}: el efecto de {@code -Dneo.spell.test=NOMBRE} (de
+     * fabrica BLASPHEMOUS_ACT), sobre la primera carta del rival si es una quitada.
+     */
+    public void spellTest() {
+        // Congelado (-Dneo.spell.freezeAt), uno solo: dos encima falsean la captura.
+        if (System.getProperty("neo.spell.freezeAt") != null && impactLayer.blastShowing()) {
+            return;
+        }
+        forge.neo.match.SpellSignature sig;
+        try {
+            sig = forge.neo.match.SpellSignature.valueOf(
+                    System.getProperty("neo.spell.test", "BLASPHEMOUS_ACT").trim().toUpperCase(java.util.Locale.ROOT));
+        } catch (final IllegalArgumentException e) {
+            sig = forge.neo.match.SpellSignature.BLASPHEMOUS_ACT;
+        }
+        CardView target = null;
+        for (final PlayerField f : oppFields) {
+            for (final CardNode n : f.nodes()) {
+                if (target == null && n.getCard() != null) {
+                    target = n.getCard();
+                }
+            }
+        }
+        spellBlast(sig, target);
     }
 
     /** La entrada de tu comandante ({@link CommanderEntrance}). Solo en el hilo de interfaz. */

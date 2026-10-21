@@ -2807,6 +2807,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         } else if (event instanceof forge.game.event.GameEventSpellResolved e && !e.hasFizzled()
                 && forge.neo.ui.ImpactLayer.isEnabled()) {
             noteImpacts(t, e);
+            noteSpellBlast(t, e);
         } else if (event instanceof forge.game.event.GameEventCardChangeZone e
                 && forge.neo.ui.ImpactLayer.isEntranceEnabled()) {
             noteCommanderEntrance(t, e);
@@ -2872,6 +2873,45 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         }
         if (impactsScheduled.compareAndSet(false, true)) {
             runOnUi(this::flushImpacts);
+        }
+    }
+
+    /**
+     * <b>Un hechizo famoso acaba de resolverse</b> ({@link SpellSignature}):
+     * el meteorito de Blasphemous Act, el fogonazo de Wrath of God... Solo los
+     * hechizos (no las habilidades) y solo si resuelven: este aviso no llega si
+     * se contrarrestan, y {@code hasFizzled} lo quita si se quedo sin objetivo.
+     * Las quitadas necesitan su objetivo, que solo se puede leer aqui y ahora
+     * ({@link SpellImpact}).
+     */
+    private void noteSpellBlast(final forge.neo.ui.TableScreen t,
+            final forge.game.event.GameEventSpellResolved e) {
+        try {
+            final GameView view = getGameView();
+            final forge.game.Game game = view == null ? null : view.getGame();
+            final String resolving = SpellImpact.resolvingSpellName(game, e);
+            if (Boolean.getBoolean("neo.impact.log")) {
+                System.out.println("[hechizo] resuelve: " + resolving);
+            }
+            final SpellSignature sig = SpellSignature.of(resolving);
+            if (sig == SpellSignature.NONE) {
+                return;
+            }
+            Object target = null;
+            if (sig.atTarget) {
+                final SpellImpact impact = SpellImpact.read(game, e);
+                if (impact == null || impact.targets.isEmpty()) {
+                    return;
+                }
+                target = impact.targets.get(0);
+            }
+            if (Boolean.getBoolean("neo.impact.log")) {
+                System.out.println("[hechizo] " + sig + (target == null ? "" : " sobre " + target));
+            }
+            final Object on = target;
+            runOnUi(() -> t.spellBlast(sig, on));
+        } catch (final RuntimeException ex) {
+            // Un efecto que falla no puede tocar la partida.
         }
     }
 
@@ -3315,7 +3355,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                 && forge.neo.NeoSettings.groupStack()) {
             count = StackGroups.topRun(gv.getStack());
         }
-        return TableScreen.bannerText(item, localPlayerView(), count);
+        return TableScreen.bannerText(item, localPlayerView(), count, gv == null ? null : gv.getGame());
     }
 
     /**
@@ -7800,8 +7840,10 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                 return choices.get(grouped[0]);
             }
             // LA MACRO (MacroChoices): Forge graba el clic en la carta, pero no
-            // cual de sus habilidades; repitiendo, se elige la misma si sigue
-            // estando y se puede pagar.
+            // cual de sus habilidades; repitiendo, se elige la que toca EN ORDEN
+            // si sigue estando y se puede pagar. En orden y no por la lista
+            // entera: en un combo la lista cambia a cada paso (Necrotic Ooze,
+            // Discord 21-10-2026) y no volvia a coincidir nunca.
             final int macro = macroMode();
             final String hostName = hostCard == null || hostCard.getCurrentState() == null
                     ? "" : hostCard.getCurrentState().getName();
@@ -7810,7 +7852,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                 abilityLabels.add(sa == null ? "" : String.valueOf(sa.getDescription()));
             }
             if (macro == 2) {
-                final List<String> want = macroChoices.replay("ability", hostName, abilityLabels);
+                final List<String> want = macroChoices.replayInOrder("ability", hostName, abilityLabels);
                 final List<Integer> at = want == null ? null : MacroChoices.indicesOf(abilityLabels, want);
                 if (at != null && at.size() == 1 && choices.get(at.get(0)).canPlay()) {
                     trace("macro: habilidad de %s -> %s", hostName, want);

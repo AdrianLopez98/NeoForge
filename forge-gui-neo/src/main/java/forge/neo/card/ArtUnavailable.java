@@ -353,7 +353,7 @@ public final class ArtUnavailable {
                 Thread.sleep(500);
             }
             conn = (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
-            conn.setRequestProperty("User-Agent", forge.util.BuildInfo.getUserAgent());
+            conn.setRequestProperty("User-Agent", forge.neo.platform.NeoUserAgent.get());
             // Como el descargador: fuera de la API, una redireccion es "no esta".
             conn.setInstanceFollowRedirects(api);
             conn.setConnectTimeout(10_000);

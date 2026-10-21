@@ -163,6 +163,31 @@ public final class ImpactLayer extends Pane {
         }
     }
 
+    /** Los efectos de hechizo famoso en marcha ({@link SpellBlast}); como mucho dos a la vez. */
+    private final java.util.List<SpellBlast> blasts = new java.util.ArrayList<>();
+
+    /**
+     * Un hechizo famoso acaba de resolverse ({@link forge.neo.match.SpellSignature}).
+     * {@code target} en coordenadas de la mesa (la carta objetivo), o null para
+     * la mesa entera. {@code onImpact} es el temblor, al golpe.
+     */
+    public void spell(final forge.neo.match.SpellSignature signature, final Bounds target,
+            final Runnable onImpact) {
+        if (signature == null || signature == forge.neo.match.SpellSignature.NONE || !isEnabled()
+                || getScene() == null || blasts.size() >= 2) {
+            return;
+        }
+        final SpellBlast[] b = new SpellBlast[1];
+        b[0] = new SpellBlast(this, signature, target, onImpact, () -> blasts.remove(b[0]));
+        blasts.add(b[0]);
+        b[0].start();
+    }
+
+    /** Si hay un efecto de hechizo en marcha. Para las pruebas. */
+    public boolean blastShowing() {
+        return !blasts.isEmpty();
+    }
+
     /** Si hay una entrada en marcha. Para las pruebas. */
     public boolean entranceShowing() {
         return entrance != null;
@@ -301,6 +326,10 @@ public final class ImpactLayer extends Pane {
         timer.stop();
         running = false;
         entrancesWaiting.clear();
+        for (final SpellBlast b : new java.util.ArrayList<>(blasts)) {
+            b.stop();
+        }
+        blasts.clear();
         if (entrance != null) {
             final CommanderEntrance e = entrance;
             entrance = null;

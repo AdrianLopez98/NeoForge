@@ -60,6 +60,8 @@ public final class QuestCheck {
         System.out.println();
         ok &= checkRewardText();
         System.out.println();
+        ok &= checkTrophyPick();
+        System.out.println();
         ok &= checkOne(NeoQuest.Modalidad.ESTANDAR);
         System.out.println();
         ok &= checkShop();
@@ -1579,6 +1581,11 @@ public final class QuestCheck {
             final Integer wantedCopies = NeoQuest.wantedByName().get(wantName.toLowerCase(Locale.ROOT));
             ck.accept("la tienda sabe que te faltan 2 (" + wantedCopies + ")",
                     wantedCopies != null && wantedCopies == 2);
+            // Y el sobre dice para QUE mazo (Discord, 21-10-2026): la apertura lo
+            // lee de aqui ANTES de comprar.
+            final List<String> wantedIn = NeoQuest.wantedDecksByName().get(wantName.toLowerCase(Locale.ROOT));
+            ck.accept("al abrir un sobre se sabe que mazo la echa de menos (" + wantedIn + ")",
+                    wantedIn != null && wantedIn.contains("NeoCheck deseos"));
             // Mejor de otra edicion; si no hay, otro arte de la misma. Y si la
             // carta solo tiene una impresion, se busca una que tenga varias.
             PaperCard otherArt = null;
@@ -3228,6 +3235,36 @@ public final class QuestCheck {
                     pr == null ? -1 : pr.owned, pr == null ? -1 : pr.total, pr == null ? -1 : pr.missing(),
                     sample == null ? "?" : sample.getName());
             ok &= progressOk;
+
+            // Exportar la coleccion (itch.io, 21-10-2026): una linea por impresion,
+            // "N Nombre (SET) num", y las copias suman lo que tienes.
+            final String exported = NeoQuestCollection.exportText();
+            int copies = 0;
+            int lines = 0;
+            int bad = 0;
+            String badLine = null;
+            for (final String line : exported.split("\n")) {
+                if (line.isEmpty()) {
+                    continue;
+                }
+                lines++;
+                if (!line.matches("\\d+ .+ \\([A-Z0-9]+\\)( \\S+)?( \\*F\\*)?")) {
+                    bad++;
+                    if (badLine == null) {
+                        badLine = line;
+                    }
+                    continue;
+                }
+                copies += Integer.parseInt(line.substring(0, line.indexOf(' ')));
+            }
+            int owns = 0;
+            for (final java.util.Map.Entry<PaperCard, Integer> e : NeoQuest.collection()) {
+                owns += e.getValue();
+            }
+            final boolean exportOk = lines > 0 && bad == 0 && copies == owns;
+            System.out.printf(Locale.ROOT, "  exportar: %d lineas, %d copias de %d%s%n", lines, copies, owns,
+                    badLine == null ? "" : " - mal: " + badLine);
+            ok &= exportOk;
             System.out.println(ok ? "  OK" : "  FALLO");
             return ok;
         } finally {
@@ -3448,9 +3485,114 @@ public final class QuestCheck {
             final boolean fair = promised > 0 && gained >= promised;
             System.out.printf(Locale.ROOT, "  [%s] la casilla decia ~%d cr. y ha pagado %d%n",
                     fair ? "OK " : "MAL", promised, gained);
-            return fair;
+            return fair & checkTrophyAfter(duel, rewards);
         }
         return moved;
+    }
+
+    /**
+     * El trofeo de un duelo ganado (NeoQuestTrophy, Discord 21-10-2026): si el
+     * mazo del rival tiene algo que no sea una basica, en el botin hay UNA carta
+     * de ese mazo, aparte del sobre, con su linea; y esta en tu coleccion.
+     */
+    private static boolean checkTrophyAfter(final forge.gamemodes.quest.QuestEventDuel duel,
+            final NeoQuestRewards rewards) {
+        if (!forge.neo.NeoSettings.getBool(NeoQuestTrophy.ENABLED, true)) {
+            System.out.println("  [-- ] trofeo: apagado en Ajustes, no se mira");
+            return true;
+        }
+        final java.util.Set<String> inDeck = new java.util.HashSet<>();
+        for (final forge.deck.DeckSection sec : new forge.deck.DeckSection[] {
+                forge.deck.DeckSection.Commander, forge.deck.DeckSection.Main}) {
+            if (duel.getEventDeck() != null && duel.getEventDeck().has(sec)) {
+                for (final java.util.Map.Entry<PaperCard, Integer> e : duel.getEventDeck().get(sec)) {
+                    if (!e.getKey().getRules().getType().isBasicLand()) {
+                        inDeck.add(e.getKey().getName());
+                    }
+                }
+            }
+        }
+        PaperCard trophy = null;
+        for (final PaperCard c : rewards.getCards()) {
+            if (rewards.isBonus(c) && inDeck.contains(c.getName())) {
+                trophy = c;
+            }
+        }
+        if (inDeck.isEmpty()) {
+            System.out.println("  [OK ] trofeo: el mazo del rival es solo de basicas, no hay");
+            return true;
+        }
+        final String line = trophy == null ? null : forge.neo.NeoText.get("quest.trophy",
+                forge.neo.card.CardText.nameOf(trophy), NeoQuest.titleOf(duel));
+        final boolean ok = trophy != null && rewards.getMessages().contains(line)
+                && NeoQuestCollection.ownedNames().contains(trophy.getName());
+        System.out.printf(Locale.ROOT, "  [%s] trofeo: %s%n", ok ? "OK " : "MAL",
+                trophy == null ? "no ha salido ninguna carta del mazo del rival" : line);
+        return ok;
+    }
+
+    /**
+     * Como se elige el trofeo: nunca una basica, primero lo que no tienes, y
+     * cuanto mas rara menos probable (Ana, 21-10-2026).
+     */
+    private static boolean checkTrophyPick() {
+        System.out.println("  --- El trofeo: que carta del mazo del rival te llevas ---");
+        final forge.card.CardDb db = FModel.getMagicDb().getCommonCards();
+        PaperCard common = null;
+        PaperCard mythic = null;
+        PaperCard owned = null;
+        for (final PaperCard c : db.getUniqueCards()) {
+            if (c.getRules().getType().isBasicLand() || c.getRules().getType().isLand()) {
+                continue;
+            }
+            if (common == null && c.getRarity() == forge.card.CardRarity.Common) {
+                common = c;
+            } else if (mythic == null && c.getRarity() == forge.card.CardRarity.MythicRare) {
+                mythic = c;
+            } else if (owned == null && c.getRarity() == forge.card.CardRarity.Common) {
+                owned = c;
+            }
+            if (common != null && mythic != null && owned != null) {
+                break;
+            }
+        }
+        final PaperCard forest = db.getCard("Forest");
+        final forge.deck.Deck deck = new forge.deck.Deck("trofeo");
+        deck.getMain().add(common, 1);
+        deck.getMain().add(mythic, 1);
+        deck.getMain().add(owned, 1);
+        deck.getMain().add(forest, 30);
+        final java.util.Set<String> mine = java.util.Set.of(owned.getName());
+        final java.util.Random rnd = new java.util.Random(0x7409L);
+        int nCommon = 0;
+        int nMythic = 0;
+        int bad = 0;
+        for (int i = 0; i < 9000; i++) {
+            final PaperCard c = NeoQuestTrophy.pick(deck, mine, rnd);
+            if (c == common) {
+                nCommon++;
+            } else if (c == mythic) {
+                nMythic++;
+            } else {
+                bad++;
+            }
+        }
+        // Comun 8, mitica 1: unas 8000 contra 1000.
+        final boolean weights = bad == 0 && nMythic > 600 && nMythic < 1400 && nCommon > 6 * nMythic;
+        System.out.printf(Locale.ROOT, "  [%s] 9000 sorteos: %d comunes, %d miticas, %d basicas o ya tuyas%n",
+                weights ? "OK " : "MAL", nCommon, nMythic, bad);
+        // Con todo ya tuyo, sale igual (cualquiera menos una basica).
+        final PaperCard any = NeoQuestTrophy.pick(deck,
+                java.util.Set.of(common.getName(), mythic.getName(), owned.getName()), rnd);
+        final boolean fallback = any != null && !any.getRules().getType().isBasicLand();
+        System.out.printf(Locale.ROOT, "  [%s] con todo el mazo ya tuyo sale igual: %s%n",
+                fallback ? "OK " : "MAL", any);
+        // Solo basicas: nada.
+        final forge.deck.Deck basics = new forge.deck.Deck("basicas");
+        basics.getMain().add(forest, 40);
+        final boolean none = NeoQuestTrophy.pick(basics, java.util.Set.of(), rnd) == null;
+        System.out.printf(Locale.ROOT, "  [%s] un mazo de solo basicas no da trofeo%n", none ? "OK " : "MAL");
+        return weights && fallback && none;
     }
 
     private static boolean checkOne(final NeoQuest.Modalidad modalidad) {

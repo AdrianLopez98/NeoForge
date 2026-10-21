@@ -184,6 +184,13 @@ final class NeoAppAscent {
                     public void start(final AscentRun.Mode mode, final PaperCard commander,
                                       final int ascension, final byte colours,
                                       final forge.neo.ascent.AscentPool pool) {
+                        start(mode, commander, null, ascension, colours, pool);
+                    }
+
+                    @Override
+                    public void start(final AscentRun.Mode mode, final PaperCard commander,
+                                      final PaperCard partner, final int ascension, final byte colours,
+                                      final forge.neo.ascent.AscentPool pool) {
                         final AscentRun previous = AscentRun.current();
                         if (previous != null) {
                             // Su mazo se va con ella: si no, la carpeta de
@@ -191,7 +198,7 @@ final class NeoAppAscent {
                             previous.discard();
                         }
                         showMap(AscentRun.begin(mode, ascension,
-                                mode == AscentRun.Mode.COMMANDER ? 40 : 20, commander, colours, pool));
+                                mode == AscentRun.Mode.COMMANDER ? 40 : 20, commander, partner, colours, pool));
                     }
 
                     @Override

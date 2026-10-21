@@ -241,10 +241,14 @@ final class NeoAppQuest {
      */
     void openDailyPack() {
         forge.neo.quest.NeoDailyPack.Claimed claimed = null;
+        String why = null;
         try {
             claimed = forge.neo.quest.NeoDailyPack.claim();
+            why = forge.neo.quest.NeoDailyPack.lastFailure();
         } catch (final RuntimeException e) {
             System.out.println("[sobre del dia] no se ha podido abrir: " + e);
+            why = forge.neo.quest.NeoDailyPack.lastFailure() != null
+                    ? forge.neo.quest.NeoDailyPack.lastFailure() : e.toString();
         }
         showQuestHome();
         if (quest == null) {
@@ -254,7 +258,7 @@ final class NeoAppQuest {
             quest.showDailyPack(claimed);
         } else {
             // Un boton que no hace nada es peor que un aviso (principio 1).
-            quest.showDailyPackFailed();
+            quest.showDailyPackFailed(why);
         }
     }
 
@@ -770,6 +774,11 @@ final class NeoAppQuest {
                 p.play();
                 return;
             }
+            // Con wantedFromPack se revela todo, que es lo que hay que ver.
+            if (Integer.getInteger("neo.shop.wantedFromPack", 0) > 0 && screen.getScene() != null
+                    && screen.getScene().lookup("#opening-reveal-all") instanceof javafx.scene.control.Button b) {
+                b.fire();
+            }
             final PauseTransition t = new PauseTransition(Duration.millis(snapAt));
             t.setOnFinished(x -> capture.run());
             t.play();
@@ -777,7 +786,30 @@ final class NeoAppQuest {
         // Un respiro antes de comprar: la pantalla tiene que estar pintada y
         // con una expansion ya elegida.
         final PauseTransition open = new PauseTransition(Duration.millis(openAt));
-        open.setOnFinished(x -> screen.autoOpen());
+        open.setOnFinished(x -> {
+            // -Dneo.shop.wantedFromPack=N: N cartas de ESE sobre que no tienes,
+            // metidas en tu mazo antes de comprarlo: la apertura las marca
+            // "PARA TU MAZO" (PackOpening.setWanted).
+            final int fromPack = Integer.getInteger("neo.shop.wantedFromPack", 0);
+            final forge.deck.Deck deck = forge.neo.quest.NeoQuest.currentDeck();
+            if (fromPack > 0 && deck != null) {
+                int added = 0;
+                final java.util.Set<String> seen = new java.util.HashSet<>();
+                for (final forge.item.PaperCard c : screen.packPreview()) {
+                    if (added >= fromPack) {
+                        break;
+                    }
+                    if (c.getRules() != null && !c.getRules().getType().isLand()
+                            && forge.neo.quest.NeoQuestSell.owned(c) == 0 && seen.add(c.getName())) {
+                        deck.getMain().add(c, 1);
+                        added++;
+                        System.out.println("[shop] en el mazo sin tenerla: " + c.getName());
+                    }
+                }
+                forge.neo.quest.NeoQuest.save();
+            }
+            screen.autoOpen();
+        });
         open.play();
 
         // Red de seguridad: si la compra no llega a hacerse (boton apagado

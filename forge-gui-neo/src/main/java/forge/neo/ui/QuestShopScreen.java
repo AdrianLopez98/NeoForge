@@ -2526,13 +2526,15 @@ public class QuestShopScreen extends StackPane {
      * nada.
      */
     private PackOpening openedPanel(final NeoQuestShop.Opened opened, final int count) {
-        return new PackOpening(
+        final PackOpening panel = new PackOpening(
                 NeoText.get("shop.opened", count == 1 ? pack.getName() : count + " \u00d7 " + pack.getName()),
                 NeoText.get("shop.openedDetail", opened.getCards().size(),
                         opened.getNewCount(), opened.getPaid()),
                 opened.getCards(), opened::isNew,
                 getWidth(), getHeight(),
                 this::closeOpened);
+        panel.setWanted(opened::wantedIn);
+        return panel;
     }
 
     private void closeOpened() {
@@ -2594,6 +2596,11 @@ public class QuestShopScreen extends StackPane {
      *
      * @return false si no esta, o esta apagado
      */
+    /** Lo que trae el sobre que se compraria ahora (para las pruebas: --shop-auto). */
+    public List<PaperCard> packPreview() {
+        return pack == null ? List.of() : pack.getCards();
+    }
+
     public boolean autoAgain() {
         final javafx.scene.Node n = getScene() == null ? null : getScene().lookup("#opening-again");
         if (n instanceof Button b && b.isVisible() && !b.isDisabled()) {
@@ -3084,6 +3091,7 @@ public class QuestShopScreen extends StackPane {
                         NeoText.get("shop.openedDetail", bought.getCards().size(), bought.getNewCount(), bought.getPaid()),
                         bought.getCards(), bought::isNew, QuestShopScreen.this.getWidth(), QuestShopScreen.this.getHeight(),
                         QuestShopScreen.this::closeOpened);
+                panel.setWanted(bought::wantedIn);
                 if (purchaseMany != null) {
                     // Otro igual sin salir de aqui, como en los sobres normales.
                     final int next = pricing.applyAsInt(item) * n;

@@ -114,6 +114,30 @@ public final class SpellImpact {
         }
     }
 
+    /**
+     * El nombre (en ingles) de la carta del HECHIZO que acaba de resolverse, o
+     * null si es una habilidad o no se puede saber. Para {@link SpellSignature}.
+     * Las mismas condiciones que {@link #read}: hilo del motor y en el momento
+     * del aviso, con lo de arriba de la pila siendo el mismo (por id).
+     */
+    public static String resolvingSpellName(final Game game, final GameEventSpellResolved e) {
+        if (game == null || e == null || e.hasFizzled() || e.spell() == null) {
+            return null;
+        }
+        try {
+            if (game.getStack().isEmpty()) {
+                return null;
+            }
+            final SpellAbility sa = game.getStack().peekAbility();
+            if (sa == null || sa.getId() != e.spell().getId() || !sa.isSpell() || sa.getHostCard() == null) {
+                return null;
+            }
+            return sa.getHostCard().getName();
+        } catch (final RuntimeException ex) {
+            return null;
+        }
+    }
+
     @Override
     public String toString() {
         return targets.size() + " objetivo(s)" + (arrived != null ? ", entra " + arrived : "");

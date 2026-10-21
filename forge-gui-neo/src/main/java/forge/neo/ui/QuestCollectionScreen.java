@@ -41,7 +41,7 @@ import javafx.scene.layout.VBox;
  * el texto, y lo que se viene a hacer aqui es justamente leer lo que te ha
  * tocado.
  */
-public class QuestCollectionScreen extends BorderPane {
+public class QuestCollectionScreen extends StackPane {
 
     /** Cuantas cartas se pintan por pagina. */
     private static final int PAGE = 40;
@@ -56,6 +56,9 @@ public class QuestCollectionScreen extends BorderPane {
     private final Label resultCount = new Label();
     /** La ayuda del pie: va a la izquierda de Volver, en la misma barra. */
     private final Label hint = new Label(NeoText.get("haul.hint"));
+    /** La pantalla en si; encima, la capa del dialogo de exportar. */
+    private final BorderPane layout = new BorderPane();
+    private final Overlay overlay = new Overlay();
 
     /** Todas tus cartas, una entrada por carta, con cuantas tienes. */
     private final List<Entry> all = new ArrayList<>();
@@ -111,12 +114,17 @@ public class QuestCollectionScreen extends BorderPane {
         });
 
         load();
-        setTop(header(onBack));
-        setCenter(body());
+        layout.setTop(header(onBack));
+        layout.setCenter(body());
         // Volver, abajo a la derecha: el mismo sitio en todas las pantallas
         // (las notas de diseño, principio 12). Antes iba en la cabecera.
-        setBottom(BackBar.of(onBack, hint));
+        layout.setBottom(BackBar.of(onBack, hint));
+        getChildren().addAll(layout, overlay);
         reload();
+        // -Dneo.collection.export=true abre el dialogo de exportar (capturas).
+        if (Boolean.getBoolean("neo.collection.export")) {
+            javafx.application.Platform.runLater(this::export);
+        }
 
         CardZoom.install(this);
     }
@@ -150,9 +158,16 @@ public class QuestCollectionScreen extends BorderPane {
 
         summary.getStyleClass().add("home-subtitle");
 
+        // Exportar: la coleccion en texto para otro programa (itch.io, 21-10-2026).
+        final javafx.scene.control.Button export = new javafx.scene.control.Button(NeoText.get("collection.export"));
+        export.getStyleClass().add("btn-secondary");
+        export.setId("collection-export");
+        export.setDisable(all.isEmpty());
+        export.setOnAction(e -> export());
+
         final Region gap = new Region();
         HBox.setHgrow(gap, Priority.ALWAYS);
-        final HBox row = new HBox(14, new VBox(2, title, summary), gap);
+        final HBox row = new HBox(14, new VBox(2, title, summary), gap, export);
         row.setAlignment(Pos.CENTER_LEFT);
         row.setPadding(new Insets(18, 28, 8, 30));
         return row;
@@ -285,6 +300,26 @@ public class QuestCollectionScreen extends BorderPane {
             StackPane.setMargin(count, new Insets(4));
         }
         return box;
+    }
+
+    /**
+     * La coleccion entera en texto, una linea por impresion
+     * ({@link forge.neo.quest.NeoQuestCollection#exportText}), para copiarla e
+     * importarla en Moxfield, Archidekt o ManaBox. Mismo dialogo que exportar
+     * un mazo.
+     */
+    private void export() {
+        overlay.show(TextDialog.block(NeoText.get("collection.export.title"),
+                NeoText.get("collection.export.hint"),
+                forge.neo.quest.NeoQuestCollection.exportText(), NeoText.get("deck.export.copy"),
+                text -> {
+                    final javafx.scene.input.ClipboardContent content =
+                            new javafx.scene.input.ClipboardContent();
+                    content.putString(text);
+                    javafx.scene.input.Clipboard.getSystemClipboard().setContent(content);
+                    overlay.hide();
+                },
+                overlay::hide));
     }
 
     /** Las imagenes llegan de Scryfall en segundo plano: hay que repedirlas. */

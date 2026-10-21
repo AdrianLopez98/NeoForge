@@ -729,9 +729,11 @@ public class QuestScreen extends StackPane {
     }
 
     /** El sobre del dia no ha salido (todas las expansiones probadas revientan). */
-    public void showDailyPackFailed() {
+    public void showDailyPackFailed(final String why) {
         overlay.setOnBackgroundClick(overlay::hide);
-        overlay.show(new ConfirmDialog(NeoText.get("daily.caption"), NeoText.get("daily.failed"),
+        // El motivo, en pequenyo y sin traducir: es para mandarmelo en una captura.
+        final String text = NeoText.get("daily.failed") + (why == null ? "" : "\n\n(" + why + ")");
+        overlay.show(new ConfirmDialog(NeoText.get("daily.caption"), text,
                 List.of(NeoText.get("common.accept")), 0, i -> overlay.hide()));
     }
 
@@ -759,10 +761,12 @@ public class QuestScreen extends StackPane {
         }
         final forge.neo.quest.NeoQuestShop.Opened opened = claimed.opened;
         overlay.setOnBackgroundClick(overlay::hide);
-        overlay.show(new PackOpening(
+        final PackOpening panel = new PackOpening(
                 NeoText.get("daily.openedTitle", claimed.edition.getName()),
                 NeoText.get("daily.openedDetail", opened.getCards().size(), opened.getNewCount()),
-                opened.getCards(), opened::isNew, getWidth(), getHeight(), overlay::hide));
+                opened.getCards(), opened::isNew, getWidth(), getHeight(), overlay::hide);
+        panel.setWanted(opened::wantedIn);
+        overlay.show(panel);
     }
 
     private Region challenges(final Actions actions) {

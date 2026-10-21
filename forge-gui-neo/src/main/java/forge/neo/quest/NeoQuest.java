@@ -1284,6 +1284,38 @@ public final class NeoQuest {
         return out;
     }
 
+    /**
+     * Como {@link #wantedByName}, pero con <b>que mazos</b> la echan de menos
+     * (nombre en minusculas -> nombres de mazo, en el orden de la lista). Lo usa
+     * la apertura de sobres (Discord, 21-10-2026: <i>"a booster pack can tell
+     * you if it give a card missing from one of your decks"</i>). Se mira ANTES
+     * de comprar: despues la carta ya esta en la coleccion y no falta en ninguno.
+     */
+    public static java.util.Map<String, List<String>> wantedDecksByName() {
+        final java.util.Map<String, List<String>> out = new java.util.HashMap<>();
+        if (!isActive()) {
+            return out;
+        }
+        final java.util.Map<String, Integer> byName = new java.util.HashMap<>();
+        if (collection() != null) {
+            for (final java.util.Map.Entry<PaperCard, Integer> e : collection()) {
+                if (e.getKey() != null) {
+                    byName.merge(e.getKey().getName().toLowerCase(java.util.Locale.ROOT), e.getValue(), Integer::sum);
+                }
+            }
+        }
+        final java.util.function.ToIntFunction<PaperCard> exact = exactCounts();
+        for (final Deck d : decks()) {
+            for (final PaperCard c : missingCards(d).keySet()) {
+                final String k = c.getName().toLowerCase(java.util.Locale.ROOT);
+                if (forge.neo.deck.ArtWishes.missing(d, c.getName(), byName.getOrDefault(k, 0), exact)[0] > 0) {
+                    out.computeIfAbsent(k, x -> new ArrayList<>()).add(d.getName());
+                }
+            }
+        }
+        return out;
+    }
+
     public static java.util.LinkedHashMap<PaperCard, Integer> missingCards(final Deck deck) {
         final java.util.LinkedHashMap<PaperCard, Integer> out = new java.util.LinkedHashMap<>();
         if (deck == null || !isActive() || collection() == null) {

@@ -1,14 +1,14 @@
-**NeoForge para macOS 1.0.29 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.30 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Se ve a qué apunta lo que hay en el stack:** borde rojo en sus objetivos (cartas y jugadores), y el cartel dice de quién es cada uno.
-- **El registro dice qué se ha revelado,** tuyo y del rival, con la carta.
-- **La pantalla de fin dice por qué ha perdido cada jugador** (daño de comandante, veneno, biblioteca vacía…).
-- **Quest: sobres Jumpstart** en su pestaña de la tienda, con un tema al azar por sobre.
-- **Entradas especiales para los diez comandantes más jugados de EDH,** en todas sus impresiones.
-- **El equipo vuela a su nueva criatura** al cambiar de anfitrión.
-- **Ajustes nuevos:** el cartel del stack solo un momento (y vuela al stack), y que «Fin de turno» no se pare si un rival te ataca o lanza algo.
-- **Forge al día.**
+- **Efectos para los hechizos más famosos** al resolverse: el meteorito de Blasphemous Act, la luz de Wrath of God, el remolino de Cyclonic Rift… (contrarrestados, nada).
+- **La pila dice cuánto vale la X** de lo que se ha lanzado.
+- **Quest:** exportar la colección, la carta trofeo del mazo rival al ganar, y los sobres marcan las cartas que te faltaban en un mazo.
+- **Ascenso:** elegir compañero o trasfondo, y guardar combinaciones de expansiones para no montarlas cada vez.
+- **Entradas especiales para doce comandantes más** (Isshin, Two Heavens as One, con la suya propia), y las de Sauron e Y'shtola mejor vistas.
+- **Macros:** una carta con varias habilidades ya no pregunta en cada repetición.
+- **Los Ajustes en inglés, reescritos** para que se entiendan.
+- **Forge al día:** Star Trek.
 
 Descarga el `.dmg` de tu Mac:
 

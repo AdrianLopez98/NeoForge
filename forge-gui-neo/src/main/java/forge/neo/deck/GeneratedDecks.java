@@ -164,6 +164,17 @@ public final class GeneratedDecks {
      */
     public static Deck forCommandZone(final PaperCard commander, final PaperCard partner,
                                       final DeckFormat format, final CardPool outsideMain) {
+        return forCommandZone(commander, partner, format, outsideMain,
+                FModel.getPreferences().getPrefInt(FPref.DECKGEN_MAXIMUM_COMMANDER_BRACKET));
+    }
+
+    /**
+     * Igual, con el techo de potencia que se diga y no el de las preferencias:
+     * Ascenso monta su mazo de salida con el suyo ({@code AscentSeedDeck}).
+     */
+    public static Deck forCommandZone(final PaperCard commander, final PaperCard partner,
+                                      final DeckFormat format, final CardPool outsideMain,
+                                      final int maxBracket) {
         final Map<String, Map.Entry<PaperCard, Integer>> together = new LinkedHashMap<>();
         for (final PaperCard cmd : partner == null ? List.of(commander) : List.of(commander, partner)) {
             for (final Map.Entry<PaperCard, Integer> e : AscentSynergy.poolOf(cmd)) {
@@ -186,8 +197,7 @@ public final class GeneratedDecks {
                 candidates.add(c);
             }
         }
-        final List<PaperCard> pool = limitToBracket(candidates, commander, partner,
-                FModel.getPreferences().getPrefInt(FPref.DECKGEN_MAXIMUM_COMMANDER_BRACKET));
+        final List<PaperCard> pool = limitToBracket(candidates, commander, partner, maxBracket);
 
         final CardThemedCommanderDeckBuilder gen =
                 new CardThemedCommanderDeckBuilder(commander, partner, pool, false, format);

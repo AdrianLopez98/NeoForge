@@ -128,10 +128,26 @@ public final class NeoDailyPack {
         return claim(Instant.now());
     }
 
+    /**
+     * Por que no salio el ultimo {@link #claim}, en una linea tecnica, o null.
+     * Va debajo del aviso de "no se ha podido abrir" (Discord, 21-10-2026: en
+     * Android no hay registro que mandar, y sin esto no hay forma de saberlo).
+     */
+    private static volatile String lastFailure;
+
+    public static String lastFailure() {
+        return lastFailure;
+    }
+
     public static synchronized Claimed claim(final Instant now) {
+        lastFailure = null;
         if (!available(now)) {
+            lastFailure = !NeoQuest.isActive() ? "no quest" : !isEnabled() ? "off"
+                    : "last=" + lastDay(NeoQuest.name()) + " today=" + day(now)
+                    + " sets=" + NeoQuestShop.editions().size();
             return null;
         }
+        final StringBuilder failed = new StringBuilder();
         final String quest = NeoQuest.name();
         final long today = day(now);
         int tries = 0;
@@ -142,8 +158,15 @@ public final class NeoDailyPack {
             final BoosterPack pack = NeoQuestShop.boosterOf(e);
             // grantFree abre ANTES de meter nada (NeoQuestShop.open): si este
             // revienta, no se ha dado nada y se prueba el siguiente.
-            final NeoQuestShop.Opened opened = pack == null ? null : NeoQuestShop.grantFree(pack);
+            final NeoQuestShop.Opened opened;
+            try {
+                opened = pack == null ? null : NeoQuestShop.grantFree(pack);
+            } catch (final RuntimeException ex) {
+                lastFailure = e.getCode() + ": " + ex;
+                throw ex;
+            }
             if (opened == null) {
+                failed.append(failed.length() == 0 ? "" : ",").append(e.getCode()).append(pack == null ? "?" : "!");
                 System.out.println("[sobre del dia] el de " + e.getCode() + " no sale, pruebo otro");
                 continue;
             }
@@ -153,6 +176,7 @@ public final class NeoDailyPack {
             System.out.println("[sobre del dia] " + quest + ": " + e.getCode() + " (" + e.getName() + ")");
             return new Claimed(e, opened);
         }
+        lastFailure = "tried " + failed;
         return null;
     }
 

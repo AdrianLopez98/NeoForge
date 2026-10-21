@@ -247,9 +247,16 @@ public final class AscentSeedDeck {
     public static Deck generate(final AscentRun.Mode mode, final PaperCard commander,
                                 final String name, final int ascension, final byte colours,
                                 final AscentPool pool) {
+        return generate(mode, commander, null, name, ascension, colours, pool);
+    }
+
+    /** Igual, con companero de mando ({@link #partnersFor}); null = sin el. */
+    public static Deck generate(final AscentRun.Mode mode, final PaperCard commander, final PaperCard partner,
+                                final String name, final int ascension, final byte colours,
+                                final AscentPool pool) {
         final AscentPool p = pool == null ? AscentPool.ALL : pool;
         Deck deck = mode == AscentRun.Mode.COMMANDER
-                ? commander(commander, name, p)
+                ? commander(commander, partner, name, p)
                 : standard(name, colours, p);
         if (!p.isAll()) {
             deck = p.restrict(deck, mode, MyRandom.getRandom());
@@ -357,7 +364,7 @@ public final class AscentSeedDeck {
         final Predicate<PaperCard> filter = (pool.isAll() ? BEGINNER : BEGINNER.and(pool::allows)).and(inColours);
         final Deck full = DeckgenUtil.buildColorDeck(namesOf(colours, QUEST_MAX_COLOURS), filter, false);
         topUpColours(full, colours, filter, size);
-        return trim(full, null, size, name, colours);
+        return trim(full, null, null, size, name, colours);
     }
 
     /**
@@ -410,7 +417,7 @@ public final class AscentSeedDeck {
         } else {
             wanted = NO_COLOURS; // uno o al azar: el recorte de siempre
         }
-        return trim(full, null, size, name, wanted);
+        return trim(full, null, null, size, name, wanted);
     }
 
     /**
@@ -570,12 +577,32 @@ public final class AscentSeedDeck {
     //  Commander: el que elijas, y con techo de potencia
     // ------------------------------------------------------------------
 
-    private static Deck commander(final PaperCard chosen, final String name, final AscentPool pool) {
+    private static Deck commander(final PaperCard chosen, final PaperCard partner, final String name,
+                                  final AscentPool pool) {
         final PaperCard cmd = chosen != null ? chosen : randomCommander(pool);
         if (cmd == null) {
             // Sin comandante no hay mazo de Commander. Falla ruidoso: montar
             // uno sin comandante daria una run rarisima sin decir por que.
             throw new IllegalStateException("no se ha podido elegir comandante para la run");
+        }
+        // CON COMPANERO (Discord, 21-10-2026): el generador de Forge solo
+        // recibe un comandante y, si admite companero, le busca uno suyo al
+        // azar. Se monta como "Generar mazo" del constructor
+        // (GeneratedDecks.forCommandZone): para los dos, con su identidad
+        // juntos y con el mismo techo de potencia de la run.
+        if (chosen != null && partner != null) {
+            Deck both = null;
+            try {
+                both = GeneratedDecks.forCommandZone(cmd, partner, DeckFormat.Commander,
+                        new forge.deck.CardPool(), MAX_BRACKET);
+            } catch (final RuntimeException e) {
+                System.out.println("[ascenso] el mazo para " + cmd.getName() + " y " + partner.getName()
+                        + " ha fallado: " + e);
+            }
+            if (both != null && both.getMain().countAll() > 0) {
+                GeneratedDecks.fixCopyLimits(both, DeckFormat.Commander);
+                return trim(both, cmd, partner, COMMANDER_SIZE, name, NO_COLOURS);
+            }
         }
         // El cuarto parametro es isCardGen, y es la diferencia entre un mazo
         // QUE PEGA con el comandante y noventa y nueve cartas legales de su
@@ -601,7 +628,7 @@ public final class AscentSeedDeck {
         // Antes de recortar: Gleemox cuesta 0, y el recorte se queda primero
         // con lo barato. Ver GeneratedDecks.
         GeneratedDecks.fixCopyLimits(full, DeckFormat.Commander);
-        return trim(full, cmd, COMMANDER_SIZE, name, NO_COLOURS);
+        return trim(full, cmd, null, COMMANDER_SIZE, name, NO_COLOURS);
     }
 
     /**
@@ -677,6 +704,41 @@ public final class AscentSeedDeck {
         for (final PaperCard c : commanderPool(r.pool)) {
             if (r.commander != null ? c.getName().equals(r.commander)
                     : AscentSeed.commanderHash(c.getName()).equals(r.commanderHash)) {
+                return c;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Los que pueden ir con ese comandante en la zona de mando: Partner con
+     * Partner, "Partner with", los Friends forever y demas tipos, Background con
+     * "Choose a Background" y Doctor con su companion. Lo dice el motor
+     * ({@code CardRules.canBePartnerCommanders}); del mismo pozo que el
+     * comandante. Vacio si no admite companero.
+     */
+    public static List<PaperCard> partnersFor(final PaperCard commander, final AscentPool pool) {
+        final List<PaperCard> out = new ArrayList<>();
+        if (commander == null || !commander.getRules().canBePartnerCommander()) {
+            return out;
+        }
+        for (final PaperCard c : commanderPool(pool)) {
+            if (!c.getName().equals(commander.getName())
+                    && commander.getRules().canBePartnerCommanders(c.getRules())) {
+                out.add(c);
+            }
+        }
+        return out;
+    }
+
+    /** El companero que pide una receta, o {@code null} (como {@link #commanderFor}). */
+    public static PaperCard partnerFor(final AscentSeed.Recipe r) {
+        if (r == null || !r.hasPartner()) {
+            return null;
+        }
+        for (final PaperCard c : partnersFor(commanderFor(r), r.pool)) {
+            if (r.partner != null ? c.getName().equals(r.partner)
+                    : AscentSeed.commanderHash(c.getName()).equals(r.partnerHash)) {
                 return c;
             }
         }
@@ -1150,7 +1212,7 @@ public final class AscentSeedDeck {
         return out;
     }
 
-    private static Deck trim(final Deck full, final PaperCard commander,
+    private static Deck trim(final Deck full, final PaperCard commander, final PaperCard partner,
                              final int size, final String name, final byte wanted) {
         final List<PaperCard> lands = new ArrayList<>();
         final List<PaperCard> spells = new ArrayList<>();
@@ -1207,6 +1269,9 @@ public final class AscentSeedDeck {
 
         if (commander != null) {
             out.getOrCreate(DeckSection.Commander).add(commander);
+            if (partner != null) {
+                out.get(DeckSection.Commander).add(partner);
+            }
         }
         return out;
     }

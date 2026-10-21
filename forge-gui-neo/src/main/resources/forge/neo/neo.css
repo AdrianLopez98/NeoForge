@@ -4072,6 +4072,11 @@
 .pack-opening .opening-rare { -fx-effect: dropshadow(gaussian, #eec466, 22, 0.45, 0, 0); }
 .pack-opening .opening-mythic { -fx-effect: dropshadow(gaussian, #ff763c, 28, 0.5, 0, 0); }
 .pack-opening .opening-foil { -fx-border-color: #a2e9e5; -fx-border-radius: 8; }
+/* Te faltaba en un mazo de la Quest (21-10-2026): el ambar de "aviso" de la seccion 6,
+   el mismo de la lista de deseos del constructor. Despues de .opening-foil para ganarle el borde. */
+.pack-opening .opening-wanted { -fx-border-color: #E0A63C; -fx-border-width: 2; -fx-border-radius: 8; }
+.pack-opening .wanted-badge { -fx-font-size: 0.72em; -fx-font-weight: bold; -fx-text-fill: #0B0E13; -fx-background-color: #E0A63C; -fx-background-radius: 8; -fx-padding: 1 8 1 8; }
+.pack-opening .opening-wanted-note { -fx-text-fill: #E0A63C; -fx-font-weight: bold; -fx-text-alignment: center; }
 .pack-opening .btn-primary { -fx-background-color: linear-gradient(to bottom, #ecc986, #a77c40); -fx-text-fill: #17120b; -fx-font-weight: bold; -fx-padding: 10 24; }
 
 /* ---------- atajos de teclado ---------- */
