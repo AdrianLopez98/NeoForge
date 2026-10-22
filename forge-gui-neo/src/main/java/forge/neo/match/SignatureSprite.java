@@ -520,4 +520,55 @@ public final class SignatureSprite {
     public static final SignatureSprite LIGHTNING_GLOW_PINK = of("lightningGlowPink", BOLT, null,
             new float[] {0f, 0.5f, 1f}, new int[] {0x00FF6EB4, 0x80FF9AD0, 0x00FF6EB4}, false, 0, 0);
     public static final SignatureSprite SPARK_PINK = spark("sparkPink", 0xFFFF8AD0);
+
+    // ------------------------------------------------------------------
+    // La tercera tanda de comandantes (22-10-2026).
+
+    /** Yuriko: el shuriken, de acero y con su agujero. */
+    public static final SignatureSprite SHURIKEN = of("shuriken",
+            "M0,0 L9,-41 L50,-50 L9,-59 L0,-100 L-9,-59 L-50,-50 L-9,-41 Z",
+            "M-8,-50 C-8,-61 8,-61 8,-50 C8,-39 -8,-39 -8,-50",
+            new float[] {0f, 0.5f, 1f}, new int[] {0xFF5A6470, 0xFFE6EEF6, 0xFF5A6470}, false, 0xFF1A1E24, 0xFF14181E);
+    /** Korvold y Prosper: una moneda de oro (los tesoros). */
+    public static final SignatureSprite COIN = of("coin", DISC,
+            "M-34,-50 C-34,-90 34,-90 34,-50 C34,-10 -34,-10 -34,-50",
+            new float[] {0f, 0.6f, 1f}, new int[] {0xFFFFF0B0, 0xFFE8B23A, 0xFF9A6A12}, true, 0xFF7A5210, 0x66FFF4C8);
+    /** Meren: un alma que sube, verde palido y medio transparente. */
+    public static final SignatureSprite SOUL = of("soul", FLAME_PATH, null,
+            new float[] {0f, 0.4f, 0.75f, 1f}, new int[] {0xFFF0FFF8, 0xCC8CF5C8, 0x9930B488, 0x00106040},
+            true, 0, 0);
+    /** Yawgmoth: una gota de aceite de Pirexia, negra con su brillo. */
+    public static final SignatureSprite OIL_DROP = of("oilDrop",
+            "M0,0 C-30,0 -30,-40 0,-100 C30,-40 30,0 0,0 Z", "M-12,-30 C-14,-44 -8,-56 -4,-62",
+            new float[] {0f, 0.5f, 1f}, new int[] {0xFF4A4458, 0xFF14121A, 0xFF050408}, true, 0, 0x99C8C0FF);
+
+    // ------------------------------------------------------------------
+    // La cuarta tanda de comandantes (22-10-2026).
+
+    /** Breya y Kinnan: un engranaje de laton, con su agujero. */
+    public static final SignatureSprite GEAR = of("gear",
+            "M-8,-87 L-6,-100 L6,-100 L8,-87 L21,-82 L30,-90 L40,-80 L32,-71 L37,-58 L50,-56 L50,-44 L37,-42 L32,-29 L40,-20 L30,-10 L21,-18"
+                    + " L8,-13 L6,0 L-6,0 L-8,-13 L-21,-18 L-30,-10 L-40,-20 L-32,-29 L-37,-42 L-50,-44 L-50,-56 L-37,-58 L-32,-71 L-40,-80 L-30,-90 L-21,-82 Z",
+            "M-14,-50 C-14,-69 14,-69 14,-50 C14,-31 -14,-31 -14,-50",
+            new float[] {0f, 0.6f, 1f}, new int[] {0xFFFFE6A8, 0xFFC8963C, 0xFF7A5414}, true, 0xFF5A3C0C, 0xFF3A2808);
+    /** Kenrith: una corona de oro con sus tres puntas. */
+    public static final SignatureSprite CROWN = of("crown",
+            "M-46,-8 L-50,-78 L-24,-46 L0,-96 L24,-46 L50,-78 L46,-8 Z", "M-44,-20 L44,-20",
+            new float[] {0f, 0.5f, 1f}, new int[] {0xFFFFF4C0, 0xFFF0C040, 0xFFA87814}, false, 0xFF7A5210, 0xFFE83A3A);
+    /** Arcades: un escudo de muro, de acero con su nervio. */
+    public static final SignatureSprite SHIELD = of("shield",
+            "M0,0 C-30,-10 -44,-36 -44,-78 L-44,-96 L44,-96 L44,-78 C44,-36 30,-10 0,0 Z", "M0,-10 L0,-88",
+            new float[] {0f, 0.5f, 1f}, new int[] {0xFFB8D8E8, 0xFF6C90A8, 0xFF34505E}, false, 0xFF1E3038, 0x99FFFFFF);
+
+    // ------------------------------------------------------------------
+    // La quinta tanda de comandantes (22-10-2026).
+
+    /** Feather, the Redeemed: su pluma roja, la misma forma que las de Sephiroth. */
+    public static final SignatureSprite FEATHER_RED = of("featherRed", BlackFeathers.VANE, BlackFeathers.QUILL,
+            new float[] {0f, 0.55f, 0.85f, 1f}, new int[] {0xFFFFE0C0, 0xFFF06A3A, 0xFFC0281C, 0xFF7A1010},
+            false, 0x66FFC8A0, 0x99FFE8D0);
+    /** Aesi: una gota de agua de mar, azul con su brillo. */
+    public static final SignatureSprite WATER_DROP = of("waterDrop",
+            "M0,0 C-30,0 -30,-40 0,-100 C30,-40 30,0 0,0 Z", "M-12,-30 C-14,-44 -8,-56 -4,-62",
+            new float[] {0f, 0.5f, 1f}, new int[] {0xFFD8F4FF, 0xFF4AA8E8, 0xFF14508C}, true, 0, 0xCCFFFFFF);
 }

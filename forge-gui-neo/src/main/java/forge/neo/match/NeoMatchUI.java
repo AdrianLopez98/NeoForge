@@ -887,6 +887,10 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         if (cards == null || cards.isEmpty()) {
             return;
         }
+        if (isSelecting() && interactive() && !finished.get()) {
+            pickFromStack(cards);
+            return;
+        }
         if (!isDeclaringAttackers()) {
             onCardClicked(cards.get(0));
             return;
@@ -896,6 +900,47 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                 onCardClicked(card);
             }
         }
+    }
+
+    /**
+     * El "xN" de una pila mientras el motor pide elegir cartas: cuantas
+     * (Discord, 22-10-2026). Ver {@link forge.neo.ui.BattlefieldPane#setSelectableTest}.
+     *
+     * <p>La pila ya viene partida: o todas elegidas o todas libres, y todas
+     * elegibles o ninguna. Sobre la de elegidas las suelta todas; sobre una
+     * libre pregunta cuantas coger, sin pasar de lo que aun deja el motor
+     * ({@code getSelectionMax} menos lo ya elegido). Cada una es un clic de
+     * los de siempre, en orden, como al atacar con la pila entera.
+     */
+    private void pickFromStack(final List<CardView> cards) {
+        final List<CardView> picked = new ArrayList<>();
+        final List<CardView> free = new ArrayList<>();
+        for (final CardView c : cards) {
+            if (!isSelectable(c)) {
+                continue;
+            }
+            (isHighlighted(c) ? picked : free).add(c);
+        }
+        if (free.isEmpty()) {
+            if (picked.isEmpty()) {
+                onCardClicked(cards.get(0));
+            } else {
+                picked.forEach(this::onCardClicked);
+            }
+            return;
+        }
+        final int max = getSelectionMax();
+        final int room = max > 0 ? Math.max(0, max - countPickedSelectables()) : free.size();
+        final int most = Math.min(free.size(), room);
+        if (most <= 1 || table == null) {
+            onCardClicked(free.get(0));
+            return;
+        }
+        table.askPileCount(free.get(0), most, n -> {
+            for (final CardView c : free.subList(0, Math.min(n, free.size()))) {
+                onCardClicked(c);
+            }
+        });
     }
 
     private void onCardClicked(final CardView card) {
@@ -3506,6 +3551,48 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
     }
 
     /**
+     * Si de verdad hay VARIAS PERSONAS, y no solo varios asientos tuyos.
+     *
+     * <p>{@link #hotSeat} tambien es cierto mientras controlas el turno de otro
+     * (Worst Fears, Mindslaver): Forge lo registra como jugador local
+     * ({@code setGameController}) y la mesa gira hacia el, que es lo util —
+     * juegas con su mano. Pero la cortina de "pasa el ordenador a Abby" ahi
+     * sobra: Abby eres tu (Discord, 22-10-2026). Esto mira los asientos de
+     * INICIO ({@code setOriginalGameController}), que el control no cambia.
+     */
+    private boolean manyPeople() {
+        return mode == Mode.HUMAN && getOriginalGameControllers().size() > 1;
+    }
+
+    /**
+     * Cuando se acaba el control de otro jugador, la mesa VUELVE a ti en el
+     * acto (Discord, 22-10-2026, Worst Fears: <i>"when its supposed to be my
+     * turn nothing happens im still looking at the bots hand and board"</i>).
+     * El giro normal va con 300 ms de retraso y solo en hot seat; al quitar
+     * Forge al controlado, ya no hay hot seat y la mesa se quedaba mirandole.
+     */
+    @Override
+    public void setGameController(final PlayerView player, final IGameController gameController) {
+        super.setGameController(player, gameController);
+        final PlayerView f = front;
+        if (gameController == null && f != null && !isLocalPlayer(f)) {
+            PlayerView back = getCurrentPlayer();
+            if (back == null || !isLocalPlayer(back)) {
+                back = null;
+                for (final PlayerView p : getLocalPlayers()) {
+                    back = p;
+                    break;
+                }
+            }
+            if (back != null) {
+                trace("control de %s acabado: la mesa vuelve a %s", nameOf(f), nameOf(back));
+                frontAsk.incrementAndGet();
+                switchFront(back);
+            }
+        }
+    }
+
+    /**
      * Si este jugador es "el que juega ahora". Fuera de un hot seat es
      * exactamente {@code isLocalPlayer}; dentro, solo el de delante. Es la
      * pregunta que hacen atacar, bloquear, lanzar desde el cementerio, equipar
@@ -3549,7 +3636,9 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         if (b != null) {
             b.setSelf(who);
         }
-        if (interactive()) {
+        // La cortina solo con varias personas: controlando el turno de otro
+        // (Worst Fears) eres tu el que sigue delante. Ver manyPeople.
+        if (interactive() && manyPeople()) {
             final String name = nameOf(who);
             uiRunLater(() -> table.showCurtain(name));
         }

@@ -92,8 +92,33 @@ public class CardStackNode extends Pane {
         count.setVisible(size > 1);
         count.setMouseTransparent(true);
         getChildren().add(count);
+        // Con el raton encima la carta se pone delante de todo (viewOrder -1)
+        // y crece, y el "xN" se quedaba DEBAJO, tapado: justo cuando vas a
+        // clicarlo (22-10-2026, eligiendo cuantas fichas). Siempre por encima
+        // de la carta, y siguiendola al crecer y al subir.
+        count.setViewOrder(-2);
+        front.scaleXProperty().addListener((o, a, b) -> followFront());
+        front.translateXProperty().addListener((o, a, b) -> followFront());
+        front.translateYProperty().addListener((o, a, b) -> followFront());
 
         setCardWidth(cardWidth);
+    }
+
+    /**
+     * Lleva el "xN" a donde queda su esquina en la carta ampliada: la carta
+     * crece desde su centro, asi que un punto p acaba en c + zoom·(p − c), mas
+     * lo que haya subido.
+     */
+    private void followFront() {
+        final double zoom = front.getScaleX();
+        final double cx = front.getLayoutX() + front.getWidth() / 2;
+        final double cy = front.getLayoutY() + front.getHeight() / 2;
+        final double bx = count.getLayoutX() + count.getWidth() / 2;
+        final double by = count.getLayoutY() + count.getHeight() / 2;
+        count.setScaleX(zoom);
+        count.setScaleY(zoom);
+        count.setTranslateX((zoom - 1) * (bx - cx) + front.getTranslateX());
+        count.setTranslateY((zoom - 1) * (by - cy) + front.getTranslateY());
     }
 
     /**

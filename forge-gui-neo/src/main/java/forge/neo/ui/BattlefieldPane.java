@@ -652,9 +652,11 @@ public class BattlefieldPane extends Pane {
      * salida: fallo real con dos fichas atacando iguales, donde solo se podia
      * bloquear a una porque las dos eran el mismo nodo.
      *
-     * <p>Por eso NO se agrupan las fichas que estan en combate ni cuando hay una
-     * seleccion en curso. El resto del tiempo se apilan, que es para lo que
-     * sirve: once Zombis no pueden ocupar once huecos.
+     * <p>Por eso NO se agrupan las fichas que estan en combate. Con una
+     * seleccion en curso SI, desde el 22-10-2026: la pila se parte en elegidas,
+     * libres y no elegibles (ver {@link #setSelectableTest}), asi que clicar
+     * cualquier pila es clicar una que vale. El resto del tiempo se apilan, que
+     * es para lo que sirve: once Zombis no pueden ocupar once huecos.
      */
     private boolean canGroup(final CardView token) {
         return grouping && !token.isAttacking() && !token.isBlocking();
@@ -723,6 +725,31 @@ public class BattlefieldPane extends Pane {
     }
 
     /**
+     * Si esta carta es de las que el motor deja elegir AHORA.
+     *
+     * <p><b>Las pilas ya no se deshacen al elegir</b> (Discord, 22-10-2026:
+     * <i>"a way to have tokens not fan out when selecting them as having a lot
+     * of them make the game crash"</i>). Antes, cualquier eleccion desapilaba
+     * la mesa entera: con trescientas fichas eran trescientas cartas con su
+     * arte de golpe, y la partida se quedaba sin memoria. Ahora la pila se
+     * queda, y para que clicarla sea siempre clicar UNA que vale se parte en
+     * elegibles y no elegibles (la propia ficha que pide "sacrifica OTRA" es
+     * gemela de las demas), igual que ya se partia en elegidas y libres. El
+     * "xN" pregunta cuantas: {@code NeoMatchUI.pickFromStack}.
+     */
+    public void setSelectableTest(final java.util.function.Predicate<CardView> test) {
+        this.selectableTest = test;
+        regroupIfNeeded();
+    }
+
+    private java.util.function.Predicate<CardView> selectableTest;
+
+    private boolean selectableNow(final CardView cv) {
+        final java.util.function.Predicate<CardView> test = selectableTest;
+        return test != null && test.test(cv);
+    }
+
+    /**
      * Vuelve a repartir SOLO si la agrupacion cambia.
      *
      * <p>El motor marca y desmarca constantemente durante el combate; rehacer
@@ -786,7 +813,9 @@ public class BattlefieldPane extends Pane {
                         + "|" + cv.isBlocking()
                         + "|" + cv.getDamage()
                         // Y si ya esta elegida: ver setPickedTest.
-                        + "|" + picked(cv);
+                        + "|" + picked(cv)
+                        // Y si se puede elegir: ver setSelectableTest.
+                        + "|" + selectableNow(cv);
             } else if (cv != null && cv.getId() >= 0) {
                 // El id de la vista es estable mientras la carta siga ahi, y es
                 // lo que permite reutilizar su nodo entre refrescos.

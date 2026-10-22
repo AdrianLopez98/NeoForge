@@ -297,7 +297,7 @@ public class QuestCollectionScreen extends StackPane {
             count.getStyleClass().add("catalogue-count");
             box.getChildren().add(count);
             StackPane.setAlignment(count, Pos.TOP_RIGHT);
-            StackPane.setMargin(count, new Insets(4));
+            StackPane.setMargin(count, DeckBuilderScreen.countMargin(cardWidth));
         }
         return box;
     }

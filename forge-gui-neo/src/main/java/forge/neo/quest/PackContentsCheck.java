@@ -114,6 +114,31 @@ public final class PackContentsCheck {
         check(collectorMisses.isEmpty(), collectorPacks + " sobres de colector abiertos: todo en su lista",
                 "cartas de colector fuera de la lista: " + collectorMisses);
 
+        // 1b2. Las que Forge trae sin sobre y se les monta uno (22-10-2026):
+        // Assassin's Creed de 7, Mystery Booster 2 y sus cartas de prueba de 12.
+        final java.util.List<String> built = new java.util.ArrayList<>();
+        for (final String code : new String[] {"ACR", "MB2", "CMB1"}) {
+            final CardEdition e = forge.model.FModel.getMagicDb().getEditions().get(code);
+            final BoosterPack pack = e == null ? null : NeoQuestShop.boosterOf(e);
+            final int want = "ACR".equals(code) ? 7 : 12;
+            boolean inList = pack != null;
+            if (pack != null) {
+                final java.util.Set<PaperCard> listed = new java.util.HashSet<>();
+                for (final PackContents.Pull p : PackContents.of(e)) {
+                    listed.add(p.getCard());
+                }
+                for (final PaperCard c : pack.getCards()) {
+                    inList &= listed.contains(c.isFoil() ? c.getUnFoiled() : c);
+                }
+            }
+            if (e == null || !editions.contains(e) || pack == null || pack.getCards().size() != want || !inList) {
+                built.add(code + (e == null ? " (no existe)" : !editions.contains(e) ? " (no esta en la tienda)"
+                        : pack == null ? " (sin sobre)" : " (" + pack.getCards().size() + " cartas, en lista: " + inList + ")"));
+            }
+        }
+        check(built.isEmpty(), "Assassin's Creed (7), Mystery Booster 2 y sus cartas de prueba (12) en la tienda, con su sobre",
+                "sobres montados que fallan: " + built);
+
         // 1c. Los sets de Commander (09-10-2026): en la tienda, con su sobre,
         // y una carta que solo esta en uno se encuentra.
         int commanderSets = 0;

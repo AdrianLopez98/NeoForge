@@ -2146,6 +2146,17 @@ public class QuestShopScreen extends StackPane {
                 findName == null ? null : forge.neo.card.CardText.nameOf(cardNamed(findName)), overlay::hide));
     }
 
+    /**
+     * Lo que puede salir en el sobre de una expansion, fuera de la tienda: el
+     * elegidor del sobre de premio (ver {@code ChoiceDialog.setEditionPeek}).
+     */
+    public static PackPreview previewOf(final CardEdition edition, final double w, final double h,
+                                        final Runnable onClose) {
+        final forge.item.BoosterPack sample = NeoQuestShop.boosterOf(edition);
+        return new PackPreview(edition.getName(), forge.neo.quest.PackContents.of(edition), ownedCounts(),
+                sample == null ? 0 : sample.getTotalCards(), w, h, null, onClose);
+    }
+
     /** Cuantas tienes de cada carta, por nombre (como cuenta la tienda lo que es nuevo). */
     private static java.util.Map<String, Integer> ownedCounts() {
         final java.util.Map<String, Integer> out = new java.util.HashMap<>();

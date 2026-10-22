@@ -189,6 +189,19 @@ public class ChoiceDialog<T> extends VBox implements NumberedChoice {
      * which one we choose to be first and so on"</i>. Con dos opciones
      * marcadas se ven igual, y no hay forma de saber cual resuelve antes.
      */
+    /**
+     * Mirar que trae una expansion sin elegirla (Discord, 22-10-2026: <i>"add the
+     * feature that shows us what cards come in packs to the Quest post match
+     * rewards screen"</i>): con esto puesto, una opcion que es una expansion
+     * lleva al lado "Que puede salir". Lo pone la app (abre el {@code PackPreview}
+     * de la tienda por encima); sin el, la fila es la de siempre.
+     */
+    private static volatile Consumer<forge.card.CardEdition> editionPeek;
+
+    public static void setEditionPeek(final Consumer<forge.card.CardEdition> peek) {
+        editionPeek = peek;
+    }
+
     public ChoiceDialog(final String title, final List<T> options, final int min, final int max,
                         final Function<T, String> display, final double cardWidth,
                         final List<T> preselected, final boolean ordered,
@@ -250,7 +263,16 @@ public class ChoiceDialog<T> extends VBox implements NumberedChoice {
                 }
                 node.setOpacity(0.95);
             }
-            final Region box = this.ordered ? withBadge(node) : node;
+            Region box = this.ordered ? withBadge(node) : node;
+            final Consumer<forge.card.CardEdition> peek = editionPeek;
+            if (peek != null && option instanceof forge.card.CardEdition edition) {
+                final Button look = new Button(NeoText.get("shop.preview"));
+                look.getStyleClass().add("choice-peek");
+                look.setOnAction(e -> peek.accept(edition));
+                final javafx.scene.layout.HBox row = new javafx.scene.layout.HBox(6, box, look);
+                row.setAlignment(Pos.CENTER);
+                box = row;
+            }
             items.getChildren().add(box);
             nodesInOrder.add(node);
             optionsInOrder.add(option);

@@ -3154,7 +3154,7 @@ public final class QuestCheck {
             for (final CardEdition ed : FModel.getMagicDb().getEditions()) {
                 // Los sets de Commander tambien tienen sobre en la tienda
                 // desde el 09-10-2026 (NeoQuestShop.isCommanderSet).
-                if (ed != null && (ed.hasBoosterTemplate() || forge.neo.quest.NeoQuestShop.isCommanderSet(ed))) {
+                if (ed != null && (ed.hasBoosterTemplate() || forge.neo.quest.NeoQuestShop.hasBuiltPack(ed))) {
                     all++;
                 }
             }

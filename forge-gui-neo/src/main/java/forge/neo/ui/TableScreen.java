@@ -3789,16 +3789,15 @@ public class TableScreen extends Pane {
     }
 
     /**
-     * Apila o desapila las fichas identicas.
+     * Apila o desapila lo identico de la zona de mando mientras el motor
+     * espera que el jugador senyale cartas concretas.
      *
-     * <p>Se desapilan mientras el motor espera que el jugador senyale cartas
-     * concretas: una pila es un solo nodo y siempre elegiria la misma ficha.
+     * <p>La MESA ya no se desapila (22-10-2026): con cientos de fichas eran
+     * cientos de cartas de golpe. Alli las pilas se parten en elegidas,
+     * libres y no elegibles, y el "xN" pregunta cuantas. Ver
+     * {@link BattlefieldPane#setSelectableTest}.
      */
     public void setGroupingEnabled(final boolean on) {
-        for (final PlayerField f : oppFields) {
-            f.setGroupingEnabled(on);
-        }
-        selfField.setGroupingEnabled(on);
         commandZone.setGroupingEnabled(on);
     }
 
@@ -3813,6 +3812,13 @@ public class TableScreen extends Pane {
         // pintadas en la mesa (cementerio, exilio, mando) tambien tienen que
         // poder marcarse cuando se abre su visor.
         this.selectable = test == null ? c -> false : test;
+        // PRIMERO se parten las pilas (ver BattlefieldPane.setSelectableTest):
+        // reagrupar fabrica nodos nuevos, y marcar antes seria marcar los que
+        // se van a tirar.
+        selfField.setSelectableTest(this.selectable);
+        for (final PlayerField f : oppFields) {
+            f.setSelectableTest(this.selectable);
+        }
         for (final CardNode n : everyNode()) {
             final CardView cv = n.getCard();
             n.setSelectable(cv != null && test != null && test.test(cv));
@@ -4149,6 +4155,81 @@ public class TableScreen extends Pane {
         } else {
             cardClickedDirect(cards.get(0));
         }
+    }
+
+    /**
+     * "Cuantas?" al clicar el "xN" de una pila mientras se elige (Discord,
+     * 22-10-2026: <i>"have a selection like X"</i>). Sacrificar veinte Tesoros
+     * de una pila de cuarenta son veinte clics; aqui es uno y un numero.
+     *
+     * <p>En la capa del menu, no en la de los dialogos del motor (principio
+     * 10): es una ayuda nuestra para contestar, y cerrarla no puede llevarse
+     * por delante nada que el motor este esperando. Sale con todas marcadas,
+     * que es lo que se quiere casi siempre al ir a la pila entera.
+     *
+     * @param most cuantas se pueden coger como mucho (las libres de la pila, sin
+     *             pasar de lo que aun deja elegir el motor); al menos 2
+     */
+    public void askPileCount(final CardView card, final int most,
+            final java.util.function.IntConsumer onPick) {
+        final String name = card == null || card.getCurrentState() == null ? ""
+                : forge.neo.card.CardText.nameOf(card.getCurrentState());
+        final Label heading = new Label(NeoText.get("pile.count.title"));
+        heading.getStyleClass().add("dialog-title");
+        final Label body = new Label(NeoText.get("pile.count.body", name, most));
+        body.getStyleClass().add("dialog-text");
+        body.setWrapText(true);
+        body.setMaxWidth(UiScale.px(460));
+        body.setMinHeight(Region.USE_PREF_SIZE);
+
+        final javafx.scene.control.Slider slider = new javafx.scene.control.Slider(1, most, most);
+        slider.setBlockIncrement(1);
+        slider.setMajorTickUnit(1);
+        slider.setMinorTickCount(0);
+        slider.setSnapToTicks(true);
+        slider.setPrefWidth(UiScale.px(320));
+        final Button less = new Button("−");
+        final Button more = new Button("+");
+        less.getStyleClass().add("btn-secondary");
+        more.getStyleClass().add("btn-secondary");
+        less.setOnAction(e -> slider.setValue(Math.max(1, Math.round(slider.getValue()) - 1)));
+        more.setOnAction(e -> slider.setValue(Math.min(most, Math.round(slider.getValue()) + 1)));
+        final Label value = new Label();
+        value.getStyleClass().add("dialog-title");
+        value.setMinWidth(UiScale.px(48));
+        value.setAlignment(javafx.geometry.Pos.CENTER);
+        final HBox picker = new HBox(10, less, slider, more, value);
+        picker.setAlignment(javafx.geometry.Pos.CENTER);
+
+        final Button cancel = new Button(NeoText.get("common.cancel"));
+        cancel.getStyleClass().add("btn-secondary");
+        cancel.setCancelButton(true);
+        cancel.setOnAction(e -> menuOverlay.hide());
+        final Button ok = new Button();
+        ok.getStyleClass().add("btn-primary");
+        ok.setDefaultButton(true);
+        final Runnable sync = () -> {
+            final int n = (int) Math.round(slider.getValue());
+            value.setText(Integer.toString(n));
+            ok.setText(NeoText.get("pile.count.pick", n));
+        };
+        slider.valueProperty().addListener((o, a, b) -> sync.run());
+        sync.run();
+        ok.setOnAction(e -> {
+            menuOverlay.hide();
+            onPick.accept((int) Math.round(slider.getValue()));
+        });
+
+        final HBox footer = new HBox(10, cancel, ok);
+        footer.setAlignment(javafx.geometry.Pos.CENTER_RIGHT);
+        final VBox box = new VBox(14, heading, body, picker, footer);
+        box.getStyleClass().add("dialog");
+        box.setPadding(new Insets(22, 26, 20, 26));
+        box.setMaxWidth(Region.USE_PREF_SIZE);
+        box.setMaxHeight(Region.USE_PREF_SIZE);
+        menuOverlay.setOnBackgroundClick(menuOverlay::hide);
+        menuOverlay.show(box);
+        javafx.application.Platform.runLater(ok::requestFocus);
     }
 
     /** Como un click en la mesa, pero sobre una carta que no esta pintada ahi. */

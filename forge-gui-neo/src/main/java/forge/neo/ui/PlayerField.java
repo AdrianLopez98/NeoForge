@@ -141,6 +141,13 @@ public class PlayerField extends Pane {
     }
 
     /** Que fichas estan ya elegidas: parte las pilas. Ver BattlefieldPane. */
+    /** Ver {@link BattlefieldPane#setSelectableTest}. */
+    public void setSelectableTest(final java.util.function.Predicate<CardView> test) {
+        creatureRow.setSelectableTest(test);
+        permanentRow.setSelectableTest(test);
+        landRow.setSelectableTest(test);
+    }
+
     public void setPickedTest(final java.util.function.Predicate<CardView> test) {
         creatureRow.setPickedTest(test);
         permanentRow.setPickedTest(test);

@@ -1504,6 +1504,19 @@
     -fx-background-color: transparent;
 }
 
+/* "Que puede salir" junto a una expansion del sobre de premio (22-10-2026): secundario, que no compita con la opcion. */
+.choice-peek {
+    -fx-background-color: transparent;
+    -fx-border-color: -neo-line;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-text-fill: -neo-text-dim;
+    -fx-font-size: 0.8em;
+    -fx-padding: 6 10;
+    -fx-cursor: hand;
+}
+.choice-peek:hover { -fx-text-fill: -neo-text; -fx-border-color: -neo-accent; }
+
 .choice-item {
     -fx-background-color: -neo-panel-hi;
     -fx-text-fill: -neo-text;

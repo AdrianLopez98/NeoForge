@@ -112,6 +112,15 @@ public final class DailyPackCheck {
         }
         System.out.println("        expansiones sin sobre: " + broken);
         ok &= check(broken.isEmpty(), "las " + tried + " expansiones de la tienda montan su sobre");
+        // Sin Alchemy (Discord, 22-10-2026): ni una en la lista, y el resto sigue.
+        final String alchemyWas = forge.neo.NeoSettings.get(NeoQuestShop.ALCHEMY, null);
+        final long alchemyOn = NeoQuestShop.editions().stream().filter(NeoQuestShop::isAlchemy).count();
+        forge.neo.NeoSettings.setBool(NeoQuestShop.ALCHEMY, false);
+        final java.util.List<CardEdition> noAlchemy = NeoQuestShop.editions();
+        forge.neo.NeoSettings.set(NeoQuestShop.ALCHEMY, alchemyWas);
+        ok &= check(alchemyOn > 0 && noAlchemy.stream().noneMatch(NeoQuestShop::isAlchemy)
+                        && noAlchemy.size() == tried - alchemyOn,
+                "sin Alchemy: fuera las " + alchemyOn + " de Alchemy y quedan " + noAlchemy.size());
 
         // 2. Abrirlo
         final long credits = NeoQuest.credits();

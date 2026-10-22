@@ -1,14 +1,12 @@
-**NeoForge para macOS 1.0.30 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.31 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Efectos para los hechizos más famosos** al resolverse: el meteorito de Blasphemous Act, la luz de Wrath of God, el remolino de Cyclonic Rift… (contrarrestados, nada).
-- **La pila dice cuánto vale la X** de lo que se ha lanzado.
-- **Quest:** exportar la colección, la carta trofeo del mazo rival al ganar, y los sobres marcan las cartas que te faltaban en un mazo.
-- **Ascenso:** elegir compañero o trasfondo, y guardar combinaciones de expansiones para no montarlas cada vez.
-- **Entradas especiales para doce comandantes más** (Isshin, Two Heavens as One, con la suya propia), y las de Sauron e Y'shtola mejor vistas.
-- **Macros:** una carta con varias habilidades ya no pregunta en cada repetición.
-- **Los Ajustes en inglés, reescritos** para que se entiendan.
-- **Forge al día:** Star Trek.
+- **Las pilas de fichas ya no se deshacen al elegir cartas**, y su «xN» pregunta **cuántas**: sacrificar 20 Tesoros de 40 es un clic y un número. Las mesas enormes ya no se atascan.
+- **Entradas especiales para treinta comandantes más** (Yuriko, Korvold, Gishath, Niv-Mizzet, Urza, Najeela…).
+- **Quest:** sobres de Assassin's Creed y Mystery Booster 2, «Qué puede salir» en el sobre de premio y un interruptor para quitar los sobres de Alchemy.
+- **Controlar el turno de otro** (Worst Fears, Mindslaver) ya no deja la mesa mirando la suya.
+- **El número de copias ya no tapa el coste** en el constructor.
+- **Forge al día:** más cartas de Star Trek.
 
 Descarga el `.dmg` de tu Mac:
 

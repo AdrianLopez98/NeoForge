@@ -302,6 +302,9 @@ public class NeoApp extends Application implements SettingsPanel.Host {
         // de que expansion quieres el sobre de premio al ganar un duelo). Sin
         // esto se resuelven solas con la primera opcion, que funciona pero no
         // te deja elegir.
+        // Y si lo que se elige son expansiones (el sobre de premio de la Quest),
+        // cada una con su "Que puede salir", encima del dialogo y sin cerrarlo.
+        forge.neo.ui.ChoiceDialog.setEditionPeek(this::peekEdition);
         forge.neo.platform.NeoGuiBase.setChooser(new forge.neo.platform.NeoGuiBase.Chooser() {
             @Override
             public <T> java.util.List<T> choose(final String message, final int min, final int max,
@@ -1680,6 +1683,20 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 }
             });
             answer.play();
+            // -Dneo.choice.peekAt=MS: pulsa el primer "Que puede salir" (el sobre
+            // de premio de la Quest) a esa hora, para capturar la vista previa.
+            final long peekAt = Long.getLong("neo.choice.peekAt", -1L);
+            if (peekAt >= 0) {
+                final PauseTransition peek = new PauseTransition(Duration.millis(peekAt));
+                peek.setOnFinished(e -> {
+                    final javafx.scene.Node look = scene.getRoot().lookup(".choice-peek");
+                    System.out.println("[choice] que puede salir: " + (look != null ? "pulsado" : "NO HAY BOTON"));
+                    if (look instanceof javafx.scene.control.Button b) {
+                        b.fire();
+                    }
+                });
+                peek.play();
+            }
         }
 
         // Click sintetico sobre una criatura PREPARADA: es lo unico que prueba
@@ -1963,13 +1980,21 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 }
                 // "x:Nombre": un clic de raton DE VERDAD sobre el "xN" de la pila
                 // de ese nombre (al atacar, atacan todas: Discord, 17-10-2026).
+                // La MAS GRANDE de ese nombre: eligiendo, la pila se parte en
+                // elegidas y libres, y "x:" va a por las libres.
                 if (step.startsWith("x:")) {
                     final String want = step.substring(2);
+                    final List<CardNode> named = new ArrayList<>();
                     for (final CardNode n : table.selfFieldNodes()) {
-                        if (n.getCard() == null || !want.equalsIgnoreCase(n.getCard().getName())
-                                || !(n.getParent() instanceof forge.neo.ui.CardStackNode stack)) {
-                            continue;
+                        if (n.getCard() != null && want.equalsIgnoreCase(n.getCard().getName())
+                                && n.getParent() instanceof forge.neo.ui.CardStackNode) {
+                            named.add(n);
                         }
+                    }
+                    named.sort((p, q) -> ((forge.neo.ui.CardStackNode) q.getParent()).getStackSize()
+                            - ((forge.neo.ui.CardStackNode) p.getParent()).getStackSize());
+                    for (final CardNode n : named) {
+                        final forge.neo.ui.CardStackNode stack = (forge.neo.ui.CardStackNode) n.getParent();
                         final javafx.geometry.Point2D at = stack.countCenterInScene();
                         if (at == null) {
                             continue;
@@ -1982,6 +2007,33 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                         return;
                     }
                     System.out.println("[mesa] no hay pila de " + want);
+                    return;
+                }
+                // "@pn:N": contesta el "Cuantas?" de una pila (TableScreen.askPileCount)
+                // con N. "@picked": cuantas lleva elegidas el motor.
+                if (step.startsWith("@pn:")) {
+                    final int want = Integer.parseInt(step.substring(4));
+                    final javafx.scene.Node sl = table.getMenuOverlay().lookup(".slider");
+                    if (!(sl instanceof javafx.scene.control.Slider slider)) {
+                        System.out.println("[mesa] no hay ningun Cuantas? abierto");
+                        return;
+                    }
+                    System.out.println("[mesa] Cuantas? de 1 a " + (int) slider.getMax() + ": elijo " + want);
+                    slider.setValue(want);
+                    for (final javafx.scene.Node bn : table.getMenuOverlay().lookupAll(".button")) {
+                        if (bn instanceof javafx.scene.control.Button bt && bt.isDefaultButton()) {
+                            bt.fire();
+                            return;
+                        }
+                    }
+                    return;
+                }
+                if (step.equals("@picked")) {
+                    final TableBinder pb = binder;
+                    final forge.neo.match.NeoMatchUI pui = pb == null ? null : pb.getMatchUi();
+                    System.out.println("[mesa] elegidas: " + (pui == null ? -1 : pui.countPickedSelectables())
+                            + " (piden " + (pui == null ? -1 : pui.getSelectionMin()) + "-"
+                            + (pui == null ? -1 : pui.getSelectionMax()) + ")");
                     return;
                 }
                 // "@attacking": cuantas cartas tuyas estan atacando.
@@ -4196,6 +4248,28 @@ public class NeoApp extends Application implements SettingsPanel.Host {
      * esperar sin colgar la ventana: se devuelve null y quien llama resuelve
      * con su valor por defecto.
      */
+    /**
+     * "Que puede salir" de una expansion, en una capa encima de lo que haya (el
+     * dialogo del sobre de premio sigue debajo, esperando). Se cierra con su
+     * boton o clicando fuera.
+     */
+    private void peekEdition(final forge.card.CardEdition edition) {
+        if (scene == null || !(scene.getRoot() instanceof javafx.scene.layout.StackPane root)) {
+            return;
+        }
+        final javafx.scene.layout.StackPane layer = new javafx.scene.layout.StackPane();
+        layer.getStyleClass().add("overlay");
+        final Runnable close = () -> root.getChildren().remove(layer);
+        layer.setOnMouseClicked(e -> {
+            if (e.getTarget() == layer) {
+                close.run();
+            }
+        });
+        layer.getChildren().add(forge.neo.ui.QuestShopScreen.previewOf(
+                edition, scene.getWidth(), scene.getHeight(), close));
+        root.getChildren().add(layer);
+    }
+
     private <T> java.util.List<T> askChoice(final String message, final int min, final int max,
                                             final java.util.List<T> options,
                                             final java.util.List<T> preselected,

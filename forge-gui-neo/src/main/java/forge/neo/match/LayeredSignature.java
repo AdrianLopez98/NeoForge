@@ -1301,6 +1301,291 @@ public final class LayeredSignature implements SignatureMotion {
                 new Burst(16, 360, 0.3, 0.2, false, 0x6EFEL, SignatureSprite.SPARK_GOLD, SignatureSprite.SPARK_PURPLE));
     }
 
+    // ------------------------------------------------------------------
+    // La tercera tanda (22-10-2026): diez mas de los mas jugados de EDHREC.
+
+    /** Yuriko, the Tiger's Shadow: shurikens girando, un tajo rojo y un estallido de humo. */
+    static LayeredSignature yuriko(final double w, final double h) {
+        return new LayeredSignature(w, h,
+                new Orbit(6, 0.12, 0.8, 0.85, 1.4, 0.13, false, SignatureSprite.SHURIKEN),
+                new Sweep(SignatureSprite.SLASH_GLOW_FIRE, SignatureSprite.SLASH_FIRE, 1.4,
+                        new double[] {0.55}, new double[] {-40}),
+                new Burst(12, 360, 0.42, 0, false, 0x7A21L, SignatureSprite.SMOKE, SignatureSprite.SPARK_RED));
+    }
+
+    /** Miirym, Sentinel Wyrm: llamas azules y rojas que suben, ascuas de sus tres colores girando y un estallido. */
+    static LayeredSignature miirym(final double w, final double h) {
+        return new LayeredSignature(w, h,
+                new Rise(18, 0.27, 0.9, 0.35, 0x3172L, SignatureSprite.FLAME_BLUE, SignatureSprite.FLAME),
+                new Orbit(6, 0.15, 0.85, 0.9, 1.3, 0.12, false,
+                        SignatureSprite.EMBER_G, SignatureSprite.EMBER_U, SignatureSprite.EMBER_R),
+                new Burst(15, 360, 0.28, 0.2, false, 0x3173L,
+                        SignatureSprite.EMBER_G, SignatureSprite.EMBER_U, SignatureSprite.EMBER_R));
+    }
+
+    /** Muldrotha, the Gravetide: rocas y hojas que suben de la tierra, ceniza que cae y un estallido. */
+    static LayeredSignature muldrotha(final double w, final double h) {
+        return new LayeredSignature(w, h,
+                new Rise(14, 0.2, 0.8, 0.3, 0x3D71L, SignatureSprite.ROCK, SignatureSprite.LEAF_GREEN),
+                new Drift(12, Flow.FALL, 0.06, 0.4, true, false, 0x3D72L, SignatureSprite.ASH),
+                new Burst(14, 360, 0.3, 0.5, true, 0x3D73L,
+                        SignatureSprite.ROCK, SignatureSprite.LEAF_GREEN, SignatureSprite.MOTE_GREEN));
+    }
+
+    /** Meren of Clan Nel Toth: almas que suben del cementerio, motas verdes y un estallido. */
+    static LayeredSignature meren(final double w, final double h) {
+        return new LayeredSignature(w, h,
+                new Rise(20, 0.26, 0.95, 0.35, 0x3E21L, SignatureSprite.SOUL),
+                new Twinkle(14, false, 0.05, 0.35, 0x3E22L, SignatureSprite.MOTE_GREEN),
+                new Burst(14, 360, 0.26, 0.1, false, 0x3E23L, SignatureSprite.SPARK_GREEN, SignatureSprite.ASH));
+    }
+
+    /** Korvold, Fae-Cursed King: monedas de oro que llueven, llamas y un estallido de oro. */
+    static LayeredSignature korvold(final double w, final double h) {
+        return new LayeredSignature(w, h,
+                new Drift(18, Flow.FALL, 0.065, 0.4, true, false, 0xC0F1L, SignatureSprite.COIN),
+                new Rise(12, 0.2, 0.8, 0.3, 0xC0F2L, SignatureSprite.FLAME, SignatureSprite.FLAME_GOLD),
+                new Burst(16, 360, 0.26, 0.6, true, 0xC0F3L,
+                        SignatureSprite.COIN, SignatureSprite.EMBER_R, SignatureSprite.SPARK_GOLD));
+    }
+
+    /** Prosper, Tome-Bound: llamas moradas que suben, monedas que caen y un estallido morado y oro. */
+    static LayeredSignature prosper(final double w, final double h) {
+        return new LayeredSignature(w, h,
+                new Rise(16, 0.18, 0.85, 0.3, 0x9A05L, SignatureSprite.FLAME_PURPLE, SignatureSprite.FLAME),
+                new Drift(10, Flow.FALL, 0.06, 0.4, true, false, 0x9A06L, SignatureSprite.COIN),
+                new Burst(15, 360, 0.28, 0.2, false, 0x9A07L, SignatureSprite.SPARK_PURPLE, SignatureSprite.COIN));
+    }
+
+    /** Yawgmoth, Thran Physician: gotas de aceite negro que caen, llamas moradas y un estallido de humo. */
+    static LayeredSignature yawgmoth(final double w, final double h) {
+        return new LayeredSignature(w, h,
+                new Drift(16, Flow.FALL, 0.055, 0.4, false, false, 0x7A60L, SignatureSprite.OIL_DROP),
+                new Rise(12, 0.18, 0.8, 0.3, 0x7A61L, SignatureSprite.FLAME_PURPLE),
+                new Burst(14, 360, 0.4, 0, false, 0x7A62L, SignatureSprite.SMOKE, SignatureSprite.SPARK_PURPLE));
+    }
+
+    /** Chulane, Teller of Tales: el halo de luz detras, hojas y motas que caen, estrellas y un estallido. */
+    static LayeredSignature chulane(final double w, final double h) {
+        return new LayeredSignature(w, h,
+                new Halo(SignatureSprite.GLORY, false, 0.1, 1.6, 15, 0, 0, 0),
+                new Drift(18, Flow.FALL, 0.06, 0.45, true, false, 0xC4A1L,
+                        SignatureSprite.LEAF_GREEN, SignatureSprite.MOTE_TEAL),
+                new Burst(14, 360, 0.26, 0.2, false, 0xC4A2L, SignatureSprite.STAR_SILVER, SignatureSprite.STAR_GOLD));
+    }
+
+    /** Wilhelt, the Rotcleaver: ceniza que cae, motas verdes de podredumbre que suben y un estallido de sangre. */
+    static LayeredSignature wilhelt(final double w, final double h) {
+        return new LayeredSignature(w, h,
+                new Drift(16, Flow.FALL, 0.06, 0.4, true, false, 0x3171L, SignatureSprite.ASH),
+                new Rise(14, 0.14, 0.85, 0.3, 0x3172L, SignatureSprite.MOTE_GREEN),
+                new Burst(14, 170, 0.3, 0.5, true, 0x3173L, SignatureSprite.BLOOD_DROP, SignatureSprite.MOTE_GREEN));
+    }
+
+    /** Tiamat: llamas de sus cinco cabezas girando alrededor, ascuas que suben y un estallido de los cinco. */
+    static LayeredSignature tiamat(final double w, final double h) {
+        return new LayeredSignature(w, h,
+                new Orbit(10, 0.15, 0.85, 0.9, 1.4, 0.15, false,
+                        SignatureSprite.FLAME_GOLD, SignatureSprite.FLAME_BLUE, SignatureSprite.FLAME_PURPLE,
+                        SignatureSprite.FLAME, SignatureSprite.EMBER_G),
+                new Rise(12, 0.14, 0.8, 0.3, 0x71A7L, SignatureSprite.EMBER_W, SignatureSprite.EMBER_R),
+                new Burst(15, 360, 0.28, 0.2, false, 0x71A8L,
+                        SignatureSprite.EMBER_W, SignatureSprite.EMBER_U, SignatureSprite.EMBER_B,
+                        SignatureSprite.EMBER_R, SignatureSprite.EMBER_G));
+    }
+
+    // ------------------------------------------------------------------
+    // La cuarta tanda (22-10-2026): diez mas de los mas jugados de EDHREC.
+
+    /** Gishath, Sun's Avatar: el sol de Ixalan detras, rocas y hojas que saltan y llamas que suben. */
+    static LayeredSignature gishath(final double w, final double h) {
+        return new LayeredSignature(w, h,
+                new Halo(SignatureSprite.SUN, false, 0.1, 1.3, 20, 0, 0, 0),
+                new Rise(12, 0.18, 0.8, 0.3, 0x6154L, SignatureSprite.FLAME, SignatureSprite.FLAME_GOLD),
+                new Burst(16, 360, 0.3, 0.6, true, 0x6155L,
+                        SignatureSprite.ROCK, SignatureSprite.LEAF_GREEN, SignatureSprite.SPARK_GOLD));
+    }
+
+    /** Breya, Etherium Shaper: engranajes girando, chispas de acero y un estallido de sus cuatro colores. */
+    static LayeredSignature breya(final double w, final double h) {
+        return new LayeredSignature(w, h,
+                new Orbit(6, 0.12, 0.8, 0.85, 1.2, 0.18, false, SignatureSprite.GEAR),
+                new Twinkle(12, true, 0.05, 0.4, 0xB4E1L, SignatureSprite.SPARK_STEEL),
+                new Burst(15, 360, 0.28, 0.2, false, 0xB4E2L,
+                        SignatureSprite.EMBER_W, SignatureSprite.EMBER_U, SignatureSprite.EMBER_B,
+                        SignatureSprite.EMBER_R, SignatureSprite.GEAR));
+    }
+
+    /** Sliver Overlord: chispas que se multiplican como la colmena y ascuas de los cinco colores girando. */
+    static LayeredSignature sliverOverlord(final double w, final double h) {
+        return new LayeredSignature(w, h,
+                new Doubling(5, 0.24, 0.12, 0x511EL, SignatureSprite.SPARK_PURPLE, SignatureSprite.SPARK_GOLD),
+                new Orbit(10, 0.15, 0.85, 0.9, 1.3, 0.12, false,
+                        SignatureSprite.EMBER_W, SignatureSprite.EMBER_U, SignatureSprite.EMBER_B,
+                        SignatureSprite.EMBER_R, SignatureSprite.EMBER_G),
+                new Burst(16, 360, 0.3, 0.2, false, 0x511FL, SignatureSprite.SPARK_PURPLE, SignatureSprite.SPARK_GOLD,
+                        SignatureSprite.EMBER_B));
+    }
+
+    /** Kenrith, the Returned King: la corona encima, ascuas de los cinco colores y un estallido de oro. */
+    static LayeredSignature kenrith(final double w, final double h) {
+        return new LayeredSignature(w, h,
+                new Halo(SignatureSprite.CROWN, true, 0.12, 0.8, 0, 0, -0.6, 0, 0.5, 0.46, Anchor.ABOVE, 1.2),
+                new Rise(15, 0.13, 0.85, 0.35, 0x6E71L,
+                        SignatureSprite.EMBER_W, SignatureSprite.EMBER_U, SignatureSprite.EMBER_B,
+                        SignatureSprite.EMBER_R, SignatureSprite.EMBER_G),
+                new Burst(14, 360, 0.26, 0.2, false, 0x6E72L, SignatureSprite.STAR_GOLD, SignatureSprite.SPARK_GOLD));
+    }
+
+    /** Omnath, Locus of Creation: rocas que suben de la tierra y ascuas de sus cuatro colores girando. */
+    static LayeredSignature omnath(final double w, final double h) {
+        return new LayeredSignature(w, h,
+                new Rise(16, 0.26, 0.85, 0.35, 0x0A71L, SignatureSprite.ROCK, SignatureSprite.LEAF_GREEN),
+                new Orbit(8, 0.15, 0.85, 0.9, 1.3, 0.13, false,
+                        SignatureSprite.EMBER_W, SignatureSprite.EMBER_U, SignatureSprite.EMBER_R,
+                        SignatureSprite.EMBER_G),
+                new Burst(15, 360, 0.3, 0.5, true, 0x0A72L,
+                        SignatureSprite.ROCK, SignatureSprite.EMBER_R, SignatureSprite.EMBER_G));
+    }
+
+    /** Niv-Mizzet, Parun: cartas que vuelan alrededor, dos rayos azules y un estallido de chispas. */
+    static LayeredSignature nivMizzet(final double w, final double h) {
+        return new LayeredSignature(w, h,
+                new Orbit(6, 0.12, 0.8, 0.9, 1.2, 0.16, false, SignatureSprite.CARD_BACK),
+                new Sweep(SignatureSprite.LIGHTNING_GLOW, SignatureSprite.LIGHTNING, 1.4,
+                        new double[] {0.42, 0.58}, new double[] {-20, 16}),
+                new Burst(16, 360, 0.3, 0.2, false, 0x9112L, SignatureSprite.SPARK_BLUE, SignatureSprite.SPARK_RED));
+    }
+
+    /** Arcades, the Strategist: escudos girando como un muro, plumas que caen y un estallido de sus tres colores. */
+    static LayeredSignature arcades(final double w, final double h) {
+        return new LayeredSignature(w, h,
+                new Orbit(6, 0.12, 0.8, 0.85, 1.1, 0.15, false, SignatureSprite.SHIELD),
+                new Drift(10, Flow.FALL, 0.07, 0.4, true, false, 0xA2C1L, SignatureSprite.FEATHER_WHITE),
+                new Burst(15, 360, 0.28, 0.2, false, 0xA2C2L,
+                        SignatureSprite.EMBER_W, SignatureSprite.EMBER_U, SignatureSprite.EMBER_G));
+    }
+
+    /** The Gitrog Monster: tierra y rocas que caen al cementerio, motas de pantano y un estallido de barro. */
+    static LayeredSignature gitrog(final double w, final double h) {
+        return new LayeredSignature(w, h,
+                new Drift(16, Flow.FALL, 0.09, 0.4, true, false, 0x6170L, SignatureSprite.ROCK, SignatureSprite.ASH),
+                new Rise(16, 0.22, 0.85, 0.35, 0x6171L, SignatureSprite.SMOKE, SignatureSprite.MOTE_GREEN),
+                new Burst(14, 170, 0.3, 0.5, true, 0x6172L,
+                        SignatureSprite.ROCK, SignatureSprite.LEAF_GREEN, SignatureSprite.SMOKE));
+    }
+
+    /** Light-Paws, Emperor's Voice: el halo de luz detras, petalos que caen y estrellas que giran. */
+    static LayeredSignature lightPaws(final double w, final double h) {
+        return new LayeredSignature(w, h,
+                new Halo(SignatureSprite.GLORY, false, 0.1, 1.7, 15, 0, 0, 0),
+                new Drift(16, Flow.FALL, 0.06, 0.45, true, false, 0x11A1L,
+                        SignatureSprite.PETAL_PINK, SignatureSprite.FEATHER_WHITE),
+                new Orbit(6, 0.15, 0.85, 0.9, 1.3, 0.12, false, SignatureSprite.STAR_GOLD, SignatureSprite.STAR_SILVER));
+    }
+
+    /** Kinnan, Bonder Prodigy: motas de mana que brillan, engranajes girando y un estallido verde y azul. */
+    static LayeredSignature kinnan(final double w, final double h) {
+        return new LayeredSignature(w, h,
+                new Twinkle(16, true, 0.05, 0.4, 0x6111L, SignatureSprite.MOTE_TEAL),
+                new Orbit(5, 0.12, 0.8, 0.85, 1.2, 0.18, false, SignatureSprite.GEAR),
+                new Burst(15, 360, 0.28, 0.2, false, 0x6112L, SignatureSprite.EMBER_U, SignatureSprite.EMBER_G));
+    }
+
+    // ------------------------------------------------------------------
+    // La quinta tanda (22-10-2026): diez mas de los mas jugados de EDHREC.
+
+    /** Lord Windgrace: rocas y hojas que suben de la tierra, ceniza que cae y un estallido de sus tres colores. */
+    static LayeredSignature windgrace(final double w, final double h) {
+        return new LayeredSignature(w, h,
+                new Rise(16, 0.24, 0.85, 0.35, 0x3A11L, SignatureSprite.ROCK, SignatureSprite.LEAF_GREEN),
+                new Drift(12, Flow.FALL, 0.06, 0.4, true, false, 0x3A12L, SignatureSprite.ASH),
+                new Burst(15, 360, 0.3, 0.4, true, 0x3A13L,
+                        SignatureSprite.EMBER_B, SignatureSprite.EMBER_R, SignatureSprite.EMBER_G));
+    }
+
+    /** Zur the Enchanter: estrellas que brillan, ascuas de sus tres colores girando y un estallido azul. */
+    static LayeredSignature zur(final double w, final double h) {
+        return new LayeredSignature(w, h,
+                new Twinkle(16, true, 0.06, 0.4, 0x2A21L, SignatureSprite.STAR_SILVER),
+                new Orbit(9, 0.15, 0.85, 0.9, 1.3, 0.13, false,
+                        SignatureSprite.EMBER_W, SignatureSprite.EMBER_U, SignatureSprite.EMBER_B),
+                new Burst(15, 360, 0.28, 0.2, false, 0x2A22L, SignatureSprite.SPARK_BLUE, SignatureSprite.STAR_SILVER));
+    }
+
+    /** Sythis, Harvest's Hand: el halo detras, petalos y hojas que caen y un estallido verde y oro. */
+    static LayeredSignature sythis(final double w, final double h) {
+        return new LayeredSignature(w, h,
+                new Halo(SignatureSprite.GLORY, false, 0.1, 1.6, 15, 0, 0, 0),
+                new Drift(18, Flow.FALL, 0.065, 0.45, true, false, 0x5711L,
+                        SignatureSprite.PETAL_PINK, SignatureSprite.LEAF_GREEN),
+                new Burst(14, 360, 0.26, 0.2, false, 0x5712L, SignatureSprite.MOTE_GREEN, SignatureSprite.STAR_GOLD));
+    }
+
+    /** Teysa Karlov: almas que suben, chispas que se duplican (sus disparos dobles) y un estallido blanco y negro. */
+    static LayeredSignature teysa(final double w, final double h) {
+        return new LayeredSignature(w, h,
+                new Rise(16, 0.24, 0.9, 0.35, 0x7E51L, SignatureSprite.SOUL),
+                new Doubling(4, 0.26, 0.12, 0x7E52L, SignatureSprite.SPARK_GOLD, SignatureSprite.SPARK_PURPLE),
+                new Burst(14, 360, 0.26, 0.2, false, 0x7E53L, SignatureSprite.EMBER_W, SignatureSprite.EMBER_B));
+    }
+
+    /** Aesi, Tyrant of Gyre Strait: gotas de agua que saltan, hojas que suben y un estallido verde y azul. */
+    static LayeredSignature aesi(final double w, final double h) {
+        return new LayeredSignature(w, h,
+                new Burst(18, 170, 0.3, 0.7, false, 0xAE51L, SignatureSprite.WATER_DROP),
+                new Rise(12, 0.2, 0.8, 0.3, 0xAE52L, SignatureSprite.LEAF_GREEN, SignatureSprite.MOTE_TEAL),
+                new Orbit(6, 0.18, 0.85, 0.9, 1.2, 0.14, false, SignatureSprite.WATER_DROP));
+    }
+
+    /** Animar, Soul of Elements: ascuas de sus tres colores girando, llamas que suben y un estallido de roca. */
+    static LayeredSignature animar(final double w, final double h) {
+        return new LayeredSignature(w, h,
+                new Orbit(9, 0.12, 0.85, 0.9, 1.4, 0.14, false,
+                        SignatureSprite.EMBER_U, SignatureSprite.EMBER_R, SignatureSprite.EMBER_G),
+                new Rise(12, 0.2, 0.8, 0.3, 0xA1A1L, SignatureSprite.FLAME, SignatureSprite.FLAME_BLUE),
+                new Burst(15, 360, 0.3, 0.5, true, 0xA1A2L,
+                        SignatureSprite.ROCK, SignatureSprite.EMBER_U, SignatureSprite.EMBER_G));
+    }
+
+    /** Urza, Lord High Artificer: engranajes girando, motas de mana y un estallido de chispas azules y de acero. */
+    static LayeredSignature urza(final double w, final double h) {
+        return new LayeredSignature(w, h,
+                new Orbit(6, 0.12, 0.8, 0.85, 1.2, 0.18, false, SignatureSprite.GEAR),
+                new Twinkle(16, true, 0.05, 0.4, 0x0A2AL, SignatureSprite.MOTE_TEAL),
+                new Burst(16, 360, 0.3, 0.2, false, 0x0A2BL, SignatureSprite.SPARK_BLUE, SignatureSprite.SPARK_STEEL));
+    }
+
+    /** Derevi, Empyrial Tactician: plumas blancas que caen, un tajo de viento y un estallido de sus tres colores. */
+    static LayeredSignature derevi(final double w, final double h) {
+        return new LayeredSignature(w, h,
+                new Drift(16, Flow.FALL, 0.08, 0.45, true, false, 0xDE71L, SignatureSprite.FEATHER_WHITE),
+                new Sweep(SignatureSprite.SLASH_GLOW_GREEN, SignatureSprite.SLASH_GREEN, 1.4,
+                        new double[] {0.5}, new double[] {30}),
+                new Burst(15, 360, 0.28, 0.2, false, 0xDE72L,
+                        SignatureSprite.EMBER_G, SignatureSprite.EMBER_W, SignatureSprite.EMBER_U));
+    }
+
+    /** Feather, the Redeemed: plumas rojas que caen, dos tajos de fuego y un estallido rojo y blanco. */
+    static LayeredSignature feather(final double w, final double h) {
+        return new LayeredSignature(w, h,
+                new Drift(18, Flow.FALL, 0.085, 0.45, true, false, 0xFEA1L, SignatureSprite.FEATHER_RED),
+                new Sweep(SignatureSprite.SLASH_GLOW_FIRE, SignatureSprite.SLASH_FIRE, 1.4,
+                        new double[] {0.42, 0.6}, new double[] {-30, 24}),
+                new Burst(15, 360, 0.28, 0.2, false, 0xFEA2L, SignatureSprite.EMBER_R, SignatureSprite.EMBER_W));
+    }
+
+    /** Najeela, the Blade-Blossom: tres tajos, petalos que caen y un estallido de los cinco colores. */
+    static LayeredSignature najeela(final double w, final double h) {
+        return new LayeredSignature(w, h,
+                new Sweep(SignatureSprite.SLASH_GLOW_WHITE, SignatureSprite.SLASH_WHITE, 1.4,
+                        new double[] {0.36, 0.5, 0.64}, new double[] {-35, 20, -8}),
+                new Drift(14, Flow.FALL, 0.065, 0.45, true, false, 0x7A1AL, SignatureSprite.PETAL_PINK),
+                new Burst(16, 360, 0.28, 0.2, false, 0x7A1BL,
+                        SignatureSprite.EMBER_W, SignatureSprite.EMBER_U, SignatureSprite.EMBER_B,
+                        SignatureSprite.EMBER_R, SignatureSprite.EMBER_G));
+    }
+
     /** Lightning, Army of One: tres rayos rosas y blancos, su pluma blanca y un estallido rosa. */
     static LayeredSignature lightning(final double w, final double h) {
         return new LayeredSignature(w, h,

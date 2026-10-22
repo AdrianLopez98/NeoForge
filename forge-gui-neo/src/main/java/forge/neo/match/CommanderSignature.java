@@ -93,7 +93,73 @@ public enum CommanderSignature {
     /** Kefka, Court Mage: el Juicio de Luz. */
     KEFKA_JUDGMENT,
     /** Lightning, Army of One: rayos rosas y su pluma. */
-    LIGHTNING_BOLTS;
+    LIGHTNING_BOLTS,
+
+    // La tercera tanda de EDHREC (22-10-2026).
+    /** Yuriko, the Tiger's Shadow: shurikens, un tajo rojo y humo. */
+    YURIKO_SHURIKEN,
+    /** Miirym, Sentinel Wyrm: llamas azules y rojas. */
+    MIIRYM_FLAMES,
+    /** Muldrotha, the Gravetide: roca y hojas de la tierra. */
+    MULDROTHA_EARTH,
+    /** Meren of Clan Nel Toth: almas que suben. */
+    MEREN_SOULS,
+    /** Korvold, Fae-Cursed King: monedas de oro y llamas. */
+    KORVOLD_GOLD,
+    /** Prosper, Tome-Bound: llamas moradas y monedas. */
+    PROSPER_FLAMES,
+    /** Yawgmoth, Thran Physician: aceite negro y humo. */
+    YAWGMOTH_OIL,
+    /** Chulane, Teller of Tales: el halo y las hojas. */
+    CHULANE_TALES,
+    /** Wilhelt, the Rotcleaver: ceniza y podredumbre. */
+    WILHELT_ROT,
+    /** Tiamat: las llamas de sus cinco cabezas. */
+    TIAMAT_HEADS,
+
+    // La cuarta tanda de EDHREC (22-10-2026).
+    /** Gishath, Sun's Avatar: el sol, rocas y llamas. */
+    GISHATH_SUN,
+    /** Breya, Etherium Shaper: engranajes y chispas. */
+    BREYA_GEARS,
+    /** Sliver Overlord: la colmena que se multiplica. */
+    SLIVER_HIVE,
+    /** Kenrith, the Returned King: la corona y los cinco colores. */
+    KENRITH_CROWN,
+    /** Omnath, Locus of Creation: roca y sus cuatro colores. */
+    OMNATH_LANDS,
+    /** Niv-Mizzet, Parun: cartas y rayos. */
+    NIV_MIZZET_BOLTS,
+    /** Arcades, the Strategist: escudos y plumas. */
+    ARCADES_WALLS,
+    /** The Gitrog Monster: tierra que cae al cementerio. */
+    GITROG_MUD,
+    /** Light-Paws, Emperor's Voice: el halo y los petalos. */
+    LIGHT_PAWS_GRACE,
+    /** Kinnan, Bonder Prodigy: mana y engranajes. */
+    KINNAN_MANA,
+
+    // La quinta tanda de EDHREC (22-10-2026).
+    /** Lord Windgrace: roca, hojas y ceniza. */
+    WINDGRACE_LANDS,
+    /** Zur the Enchanter: estrellas y sus tres colores. */
+    ZUR_STARS,
+    /** Sythis, Harvest's Hand: el halo, petalos y hojas. */
+    SYTHIS_PETALS,
+    /** Teysa Karlov: almas y chispas que se duplican. */
+    TEYSA_SOULS,
+    /** Aesi, Tyrant of Gyre Strait: gotas de agua y hojas. */
+    AESI_TIDE,
+    /** Animar, Soul of Elements: sus tres colores, llamas y roca. */
+    ANIMAR_ELEMENTS,
+    /** Urza, Lord High Artificer: engranajes y mana. */
+    URZA_GEARS,
+    /** Derevi, Empyrial Tactician: plumas y viento. */
+    DEREVI_WIND,
+    /** Feather, the Redeemed: plumas rojas y fuego. */
+    FEATHER_RED,
+    /** Najeela, the Blade-Blossom: tres tajos y petalos. */
+    NAJEELA_BLADES;
 
     /**
      * Su coreografia, para una pantalla de ese tamanyo; null en {@link #NONE}.
@@ -151,6 +217,66 @@ public enum CommanderSignature {
                 return LayeredSignature.kefka(width, height);
             case LIGHTNING_BOLTS:
                 return LayeredSignature.lightning(width, height);
+            case YURIKO_SHURIKEN:
+                return LayeredSignature.yuriko(width, height);
+            case MIIRYM_FLAMES:
+                return LayeredSignature.miirym(width, height);
+            case MULDROTHA_EARTH:
+                return LayeredSignature.muldrotha(width, height);
+            case MEREN_SOULS:
+                return LayeredSignature.meren(width, height);
+            case KORVOLD_GOLD:
+                return LayeredSignature.korvold(width, height);
+            case PROSPER_FLAMES:
+                return LayeredSignature.prosper(width, height);
+            case YAWGMOTH_OIL:
+                return LayeredSignature.yawgmoth(width, height);
+            case CHULANE_TALES:
+                return LayeredSignature.chulane(width, height);
+            case WILHELT_ROT:
+                return LayeredSignature.wilhelt(width, height);
+            case TIAMAT_HEADS:
+                return LayeredSignature.tiamat(width, height);
+            case GISHATH_SUN:
+                return LayeredSignature.gishath(width, height);
+            case BREYA_GEARS:
+                return LayeredSignature.breya(width, height);
+            case SLIVER_HIVE:
+                return LayeredSignature.sliverOverlord(width, height);
+            case KENRITH_CROWN:
+                return LayeredSignature.kenrith(width, height);
+            case OMNATH_LANDS:
+                return LayeredSignature.omnath(width, height);
+            case NIV_MIZZET_BOLTS:
+                return LayeredSignature.nivMizzet(width, height);
+            case ARCADES_WALLS:
+                return LayeredSignature.arcades(width, height);
+            case GITROG_MUD:
+                return LayeredSignature.gitrog(width, height);
+            case LIGHT_PAWS_GRACE:
+                return LayeredSignature.lightPaws(width, height);
+            case KINNAN_MANA:
+                return LayeredSignature.kinnan(width, height);
+            case WINDGRACE_LANDS:
+                return LayeredSignature.windgrace(width, height);
+            case ZUR_STARS:
+                return LayeredSignature.zur(width, height);
+            case SYTHIS_PETALS:
+                return LayeredSignature.sythis(width, height);
+            case TEYSA_SOULS:
+                return LayeredSignature.teysa(width, height);
+            case AESI_TIDE:
+                return LayeredSignature.aesi(width, height);
+            case ANIMAR_ELEMENTS:
+                return LayeredSignature.animar(width, height);
+            case URZA_GEARS:
+                return LayeredSignature.urza(width, height);
+            case DEREVI_WIND:
+                return LayeredSignature.derevi(width, height);
+            case FEATHER_RED:
+                return LayeredSignature.feather(width, height);
+            case NAJEELA_BLADES:
+                return LayeredSignature.najeela(width, height);
             default:
                 return null;
         }
@@ -207,6 +333,40 @@ public enum CommanderSignature {
         put(NEKUSAR_WHEEL, "Nekusar, the Mindrazer");
         put(KEFKA_JUDGMENT, "Kefka, Court Mage", "Kefka, Ruler of Ruin");
         put(LIGHTNING_BOLTS, "Lightning, Army of One");
+        // La tercera tanda de EDHREC (22-10-2026: "sigue anyadiendo animaciones a
+        // comandantes famosos").
+        put(YURIKO_SHURIKEN, "Yuriko, the Tiger's Shadow");
+        put(MIIRYM_FLAMES, "Miirym, Sentinel Wyrm");
+        put(MULDROTHA_EARTH, "Muldrotha, the Gravetide");
+        put(MEREN_SOULS, "Meren of Clan Nel Toth");
+        put(KORVOLD_GOLD, "Korvold, Fae-Cursed King");
+        put(PROSPER_FLAMES, "Prosper, Tome-Bound");
+        put(YAWGMOTH_OIL, "Yawgmoth, Thran Physician");
+        put(CHULANE_TALES, "Chulane, Teller of Tales");
+        put(WILHELT_ROT, "Wilhelt, the Rotcleaver");
+        put(TIAMAT_HEADS, "Tiamat");
+        // La cuarta tanda de EDHREC (22-10-2026).
+        put(GISHATH_SUN, "Gishath, Sun's Avatar");
+        put(BREYA_GEARS, "Breya, Etherium Shaper");
+        put(SLIVER_HIVE, "Sliver Overlord");
+        put(KENRITH_CROWN, "Kenrith, the Returned King");
+        put(OMNATH_LANDS, "Omnath, Locus of Creation");
+        put(NIV_MIZZET_BOLTS, "Niv-Mizzet, Parun");
+        put(ARCADES_WALLS, "Arcades, the Strategist");
+        put(GITROG_MUD, "The Gitrog Monster");
+        put(LIGHT_PAWS_GRACE, "Light-Paws, Emperor's Voice");
+        put(KINNAN_MANA, "Kinnan, Bonder Prodigy");
+        // La quinta tanda de EDHREC (22-10-2026).
+        put(WINDGRACE_LANDS, "Lord Windgrace");
+        put(ZUR_STARS, "Zur the Enchanter");
+        put(SYTHIS_PETALS, "Sythis, Harvest's Hand");
+        put(TEYSA_SOULS, "Teysa Karlov");
+        put(AESI_TIDE, "Aesi, Tyrant of Gyre Strait");
+        put(ANIMAR_ELEMENTS, "Animar, Soul of Elements");
+        put(URZA_GEARS, "Urza, Lord High Artificer");
+        put(DEREVI_WIND, "Derevi, Empyrial Tactician");
+        put(FEATHER_RED, "Feather, the Redeemed");
+        put(NAJEELA_BLADES, "Najeela, the Blade-Blossom");
     }
 
     private static void put(final CommanderSignature signature, final String... names) {

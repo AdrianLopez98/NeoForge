@@ -564,7 +564,20 @@ public final class NeoGame {
         match.setOnMatchOver(over::countDown);
 
         // La posicion del puzzle se aplica cuando la partida ya existe.
-        match.setStartGameHook(SafeAi.hook(match, () -> puzzle.applyToGame(match.getGame())));
+        match.setStartGameHook(SafeAi.hook(match, () -> {
+            puzzle.applyToGame(match.getGame());
+            // Solo para grabar videos (-Dneo.puzzle.noGoal=true): sin la carta
+            // "Puzzle Goal" en la zona de mando, que delata que es un puzzle.
+            if (Boolean.getBoolean("neo.puzzle.noGoal")) {
+                for (final forge.game.player.Player p : match.getGame().getPlayers()) {
+                    for (final forge.game.card.Card c : new ArrayList<>(p.getCardsIn(forge.game.zone.ZoneType.Command))) {
+                        if ("Puzzle Goal".equals(c.getName())) {
+                            p.getZone(forge.game.zone.ZoneType.Command).remove(c);
+                        }
+                    }
+                }
+            }
+        }));
         match.setEndGameHook(() -> puzzle.savePuzzleSolve(
                 match.getGame() != null && match.getGame().getOutcome() != null
                         && match.getGame().getOutcome().isWinner(GamePlayerUtil.getGuiPlayer())));

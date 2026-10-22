@@ -1936,6 +1936,16 @@ public class DeckBuilderScreen extends StackPane {
         return catalogueTile(card, cardWidth);
     }
 
+    /**
+     * Donde va el "1/1" de una carta: arriba a la derecha pero sobre el ARTE,
+     * debajo de la franja del nombre. Encima de la franja tapaba el coste de
+     * mana (itch.io, 22-10-2026: <i>"the card quantity covers up the mana
+     * cost"</i>). La franja es ~11% del alto en todos los marcos.
+     */
+    static Insets countMargin(final double cardWidth) {
+        return new Insets(cardWidth * CardNode.ASPECT * 0.115, 4, 0, 0);
+    }
+
     private Region catalogueTile(final PaperCard card, final double displayWidth) {
         final CardNode node = new CardNode(displayWidth);
         node.setHoverEnabled(false);
@@ -1968,7 +1978,7 @@ public class DeckBuilderScreen extends StackPane {
 
         final StackPane box = new StackPane(node, count);
         StackPane.setAlignment(count, Pos.TOP_RIGHT);
-        StackPane.setMargin(count, new Insets(4));
+        StackPane.setMargin(count, countMargin(displayWidth));
         box.getStyleClass().add("catalogue-tile");
         box.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
 

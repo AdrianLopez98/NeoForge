@@ -1126,6 +1126,17 @@ public class SettingsPanel extends VBox {
                     NeoSettings.save();
                 }));
 
+        // --- los sobres de Alchemy (Quest) ---
+        //
+        // Encendido de fabrica; apagado no salen en la tienda ni en los
+        // premios (Discord, 22-10-2026). Ver NeoQuestShop.ALCHEMY.
+        getChildren().add(toggleRow(NeoText.get("settings.questAlchemy"),
+                NeoSettings.getBool(forge.neo.quest.NeoQuestShop.ALCHEMY, true),
+                on -> {
+                    NeoSettings.setBool(forge.neo.quest.NeoQuestShop.ALCHEMY, on);
+                    NeoSettings.save();
+                }));
+
         // --- rating de pick en el draft ---
         //
         // Apagado de fabrica: para quien ya sabe draftear es la respuesta

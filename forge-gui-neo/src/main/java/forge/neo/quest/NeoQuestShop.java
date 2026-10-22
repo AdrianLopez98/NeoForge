@@ -73,10 +73,33 @@ public final class NeoQuestShop {
      * <p>En una Quest limitada a unas expansiones ({@link NeoQuest#allowsSet}),
      * solo esas. De aqui salen tambien el sobre de premio y los de colector.
      */
+    /**
+     * Ajustes -> Modos: los sobres de Alchemy en la Quest (Discord, 22-10-2026:
+     * <i>"Can we have a way to disable the alchemy packs?"</i>). Encendido de
+     * fabrica, que es como estaba; apagado, no salen en la tienda, ni en el
+     * sobre de premio, ni en el del dia (todos leen de {@link #editions}).
+     */
+    public static final String ALCHEMY = "quest.alchemyPacks";
+
+    /**
+     * Si es una expansion de Alchemy: las de Arena, con cartas rebalanceadas y
+     * mecanicas digitales. Forge las marca como {@code Online}, pero ahi tambien
+     * van las de MTGO de siempre (Vintage Masters...), asi que se mira el nombre:
+     * todas se llaman "Alchemy: ..." (YTDM, YSOS, HBG...).
+     */
+    public static boolean isAlchemy(final CardEdition e) {
+        return e != null && e.getType() == CardEdition.Type.ONLINE
+                && e.getName() != null && e.getName().startsWith("Alchemy");
+    }
+
     public static List<CardEdition> editions() {
         final List<CardEdition> out = new ArrayList<>();
+        final boolean alchemy = forge.neo.NeoSettings.getBool(ALCHEMY, true);
         for (final CardEdition e : FModel.getMagicDb().getEditions()) {
-            if (e != null && (e.hasBoosterTemplate() || isCommanderSet(e)) && NeoQuest.allowsSet(e.getCode())) {
+            if (!alchemy && isAlchemy(e)) {
+                continue;
+            }
+            if (e != null && (e.hasBoosterTemplate() || hasBuiltPack(e)) && NeoQuest.allowsSet(e.getCode())) {
                 out.add(e);
             }
         }
@@ -103,7 +126,7 @@ public final class NeoQuestShop {
     /** Un sobre de esa expansion, o null si no se puede montar. */
     public static BoosterPack boosterOf(final CardEdition edition) {
         try {
-            if (isCommanderSet(edition)) {
+            if (hasBuiltPack(edition)) {
                 final forge.item.SealedTemplate t = commanderTemplate(edition);
                 // Sin " Booster": getName() ya le anyade " Booster Pack" (salia
                 // "Star Trek Commander Booster Booster Pack").
@@ -299,15 +322,34 @@ public final class NeoQuestShop {
     }
 
     /**
+     * Otras expansiones que Forge trae SIN sobre y a las que se les monta uno,
+     * como a las de Commander, con su tamanyo (Discord, 22-10-2026: <i>"Add the
+     * Assassin's Creed ... and Mystery box cards to Quest"</i>). Assassin's Creed
+     * se vendia en "Beyond Boosters" de 7 cartas; Mystery Booster 2 y sus cartas
+     * de prueba no tienen plantilla en Forge. Una lista y no una regla: "sin
+     * sobre" tambien son los avatares de MTGO o sets de tres cartas.
+     */
+    private static final java.util.Map<String, Integer> BUILT_PACKS = java.util.Map.of(
+            "ACR", 7, "MB2", 12, "CMB1", 12);
+
+    /** Si la tienda le monta un sobre propio: un set de Commander o uno de {@link #BUILT_PACKS}. */
+    public static boolean hasBuiltPack(final CardEdition e) {
+        return isCommanderSet(e)
+                || e != null && !e.hasBoosterTemplate() && BUILT_PACKS.containsKey(e.getCode());
+    }
+
+    /**
      * El sobre de un set de Commander: {@value #COMMANDER_PACK_SIZE} cartas,
      * dos de ellas raras o miticas, y el resto comunes e infrecuentes si el set
      * tiene bastantes (los hay casi sin comunes: entonces cualquiera del set).
      * En el mismo dialecto que el colector, y la lee el generador de Forge.
      */
     public static synchronized forge.item.SealedTemplate commanderTemplate(final CardEdition edition) {
-        if (!isCommanderSet(edition)) {
+        if (!hasBuiltPack(edition)) {
             return null;
         }
+        final int size = isCommanderSet(edition) ? COMMANDER_PACK_SIZE
+                : BUILT_PACKS.getOrDefault(edition.getCode(), COMMANDER_PACK_SIZE);
         final String code = edition.getCode();
         if (COMMANDER_TEMPLATES.containsKey(code)) {
             return COMMANDER_TEMPLATES.get(code);
@@ -324,10 +366,13 @@ public final class NeoQuestShop {
                 rares++;
             }
         }
-        final int rm = rares >= 3 ? 2 : 0;
-        final int c = commons >= 10 ? 5 : 0;
-        final int u = uncommons >= 6 ? Math.min(COMMANDER_PACK_SIZE - rm - c, c > 0 ? 4 : 7) : 0;
-        final int any = COMMANDER_PACK_SIZE - rm - c - u;
+        // Con 12 cartas: 2 raras, 5 comunes, 4 infrecuentes (o 7 si no hay
+        // comunes) y el resto de cualquiera; con 7, la mitad de cada cosa.
+        final boolean big = size >= 10;
+        final int rm = rares >= 3 ? (big ? 2 : 1) : 0;
+        final int c = commons >= 10 ? (big ? 5 : 3) : 0;
+        final int u = uncommons >= 6 ? Math.min(size - rm - c, c > 0 ? size / 3 : size * 7 / 12) : 0;
+        final int any = size - rm - c - u;
         final List<String> parts = new ArrayList<>();
         if (c > 0) {
             parts.add(c + " Common");
@@ -847,8 +892,9 @@ public final class NeoQuestShop {
         final List<CardEdition> out = new ArrayList<>();
         for (final CardEdition e : editions()) {
             // Los de Commander no: su sobre ya es nuestro, y un colector montado
-            // encima con comunes que el set casi no tiene saldria cojo.
-            if (isCommanderSet(e) || artSheetsOf(e).isEmpty()) {
+            // encima con comunes que el set casi no tiene saldria cojo. Ni los
+            // demas que se montan aqui (hasBuiltPack), por lo mismo.
+            if (hasBuiltPack(e) || artSheetsOf(e).isEmpty()) {
                 continue;
             }
             out.add(e);
