@@ -32,6 +32,8 @@ public final class DeckRulesCheck {
         failed = 0;
 
         commanderIsSingleton();
+        deckCoverIsChosenAndSaved();
+        houseRulesArePerDeck();
         commanderColourIdentity();
         wildColourCompanion();
         basicLandsAreUnlimited();
@@ -2518,6 +2520,86 @@ public final class DeckRulesCheck {
             throw new IllegalStateException("No existe la carta de prueba: " + name);
         }
         return c;
+    }
+
+    /**
+     * La portada de un mazo sin comandante (Discord, 23-10-2026): sin elegir es
+     * la primera carta; elegida, sale ella, sobrevive a guardar y leer el .dck
+     * (va en las cartas clave de Forge) y quitarla devuelve a la primera.
+     */
+    private static void deckCoverIsChosenAndSaved() {
+        final forge.card.CardDb db = FModel.getMagicDb().getCommonCards();
+        final PaperCard first = db.getCard("Grizzly Bears");
+        final PaperCard chosen = db.getCard("Serra Angel");
+        final forge.deck.Deck deck = new forge.deck.Deck("Portada");
+        deck.getMain().add(first, 4);
+        deck.getMain().add(chosen, 2);
+        deck.addKeyCard("Llanowar Elves");
+        check("Portada: sin elegir es la primera carta (una clave que no esta en el mazo no cuenta)",
+                DeckCover.of(deck) == first);
+        DeckCover.set(deck, chosen);
+        boolean saved = false;
+        try {
+            final java.io.File f = java.io.File.createTempFile("neo-portada", ".dck");
+            forge.deck.io.DeckSerializer.writeDeck(deck, f);
+            final forge.deck.Deck back = forge.deck.io.DeckSerializer.fromFile(f);
+            saved = back != null && DeckCover.of(back) != null
+                    && "Serra Angel".equals(DeckCover.of(back).getName())
+                    && back.getKeyCards().contains("Llanowar Elves");
+            f.delete();
+        } catch (final java.io.IOException e) {
+            System.out.println("    " + e);
+        }
+        check("Portada: elegida, sale ella y sigue tras guardar y leer el .dck (sin perder las otras claves)",
+                DeckCover.of(deck) == chosen && saved);
+        DeckCover.clear(deck, chosen);
+        check("Portada: al quitarla vuelve a la primera", DeckCover.of(deck) == first);
+    }
+
+    /**
+     * Reglas de la casa (Discord, 23-10-2026, el reto "todos tienen Partner"):
+     * se importa tal cual con dos comandantes que no son companeros, el mazo es
+     * ilegal y no se juega SIN la marca; con ella si, la marca sobrevive al
+     * .dck, y solo la ofrecen las partidas libres.
+     */
+    private static void houseRulesArePerDeck() {
+        final String list = String.join(System.lineSeparator(),
+                "Commander", "1 Krenko, Mob Boss", "1 Teysa Karlov", "Deck", "98 Plains");
+        final DeckImporter.Result r = DeckImporter.importCommander(list, "reto partner");
+        final forge.deck.Deck deck = r.deck;
+        check("Reglas de la casa: importar dos comandantes que no son companeros los deja a los dos",
+                deck != null && deck.getCommanders().size() == 2);
+        if (deck == null) {
+            return;
+        }
+        final String problem = forge.game.GameType.Commander.getDeckFormat().getDeckConformanceProblem(deck);
+        check("Reglas de la casa: sin la marca, el mazo es ilegal y no se juega (" + problem + ")",
+                problem != null && !HouseRules.letsPlay(deck, problem));
+        HouseRules.set(deck, true);
+        boolean kept = false;
+        try {
+            final java.io.File f = java.io.File.createTempFile("neo-casa", ".dck");
+            forge.deck.io.DeckSerializer.writeDeck(deck, f);
+            final forge.deck.Deck back = forge.deck.io.DeckSerializer.fromFile(f);
+            kept = back != null && HouseRules.isOn(back) && back.getCommanders().size() == 2;
+            f.delete();
+        } catch (final java.io.IOException e) {
+            System.out.println("    " + e);
+        }
+        check("Reglas de la casa: con la marca se juega, y la marca sigue tras guardar el .dck",
+                HouseRules.letsPlay(deck, problem) && kept);
+        final DeckEditor ed = DeckEditor.createNew(NeoFormat.COMMANDER, "casa");
+        final PaperCard krenko = FModel.getMagicDb().getCommonCards().getCard("Krenko, Mob Boss");
+        final PaperCard teysa = FModel.getMagicDb().getCommonCards().getCard("Teysa Karlov");
+        ed.setCommander(krenko);
+        final boolean before = ed.canAddSecondCommander(teysa);
+        ed.setHouseRules(true);
+        final boolean added = ed.canAddSecondCommander(teysa) && ed.addSecondCommander(teysa);
+        check("Reglas de la casa: el segundo comandante solo se ofrece con la marca, y entra",
+                !before && added && ed.commanders().size() == 2);
+        check("Reglas de la casa: solo en las partidas libres (Commander y Estandar si; draft no)",
+                NeoFormat.COMMANDER.allowsHouseRules() && NeoFormat.ESTANDAR.allowsHouseRules()
+                        && !NeoFormat.DRAFT.allowsHouseRules());
     }
 
     private static void check(final String what, final boolean ok) {

@@ -2,7 +2,6 @@ package forge.neo.ui;
 
 import forge.neo.NeoText;
 import forge.neo.card.CardText;
-import java.util.Map;
 
 import forge.deck.Deck;
 import forge.deck.DeckSection;
@@ -73,7 +72,19 @@ public final class DeckTile extends VBox {
         sub.setAlignment(Pos.CENTER);
         sub.setTextAlignment(TextAlignment.CENTER);
 
-        getChildren().addAll(new StackPane(cover), name, sub);
+        final StackPane art = new StackPane(cover);
+        // Reglas de la casa (forge.neo.deck.HouseRules): una tira ENCIMA de la
+        // carta, que se vea siempre (el nombre de debajo lo tapa a veces el pie
+        // de la pantalla de mazos) y que no se confunda con un mazo normal.
+        if (forge.neo.deck.HouseRules.isOn(deck)) {
+            final Label house = new Label(NeoText.get("deck.houseRules.badge"));
+            house.getStyleClass().add("deck-tile-house");
+            house.setMouseTransparent(true);
+            StackPane.setAlignment(house, Pos.BOTTOM_CENTER);
+            StackPane.setMargin(house, new Insets(0, 0, width * 0.2, 0));
+            art.getChildren().add(house);
+        }
+        getChildren().addAll(art, name, sub);
     }
 
     /**
@@ -182,18 +193,8 @@ public final class DeckTile extends VBox {
 
     /** El comandante del mazo, o la primera carta si no lo tiene. */
     public static PaperCard commanderOf(final Deck deck) {
-        if (deck == null) {
-            return null;
-        }
-        if (deck.has(DeckSection.Commander)) {
-            for (final Map.Entry<PaperCard, Integer> e : deck.get(DeckSection.Commander)) {
-                return e.getKey();
-            }
-        }
-        for (final Map.Entry<PaperCard, Integer> e : deck.getMain()) {
-            return e.getKey();
-        }
-        return null;
+        // El comandante, o la portada elegida (23-10-2026), o la primera.
+        return forge.neo.deck.DeckCover.of(deck);
     }
 
     public Deck getDeck() {

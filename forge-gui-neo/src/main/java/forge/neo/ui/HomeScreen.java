@@ -2378,6 +2378,11 @@ et}) y no se tocan.
         String problem =
                 forge.neo.deck.DeckProblem.translate(format.getGameType()
                         .getDeckFormat().getDeckConformanceProblem(effectiveDeck()));
+        // Reglas de la casa (forge.neo.deck.HouseRules): un mazo ilegal A
+        // PROPOSITO, marcado en el constructor, se juega con aviso. Sin la marca
+        // se bloquea como siempre: nadie juega uno ilegal sin darse cuenta.
+        final boolean houseRules = problem != null && format.allowsHouseRules()
+                && forge.neo.deck.HouseRules.isOn(effectiveDeck());
         // Todos en el mismo equipo no se puede jugar, y se dice aqui con el
         // mismo texto con el que lo dice Forge al darle a empezar.
         if (problem == null && notEnoughTeams()) {
@@ -2405,12 +2410,16 @@ et}) y no se tocan.
             summary.setText(NeoText.get("home.summary",
                     format.getLabel(), selected.getName(), DeckTile.totalCards(selected),
                     opponents + 1, LookScreen.aiSummary(aiProfile, opponents)));
+        } else if (houseRules) {
+            summary.setText(NeoText.get("home.summary.houseRules",
+                    format.getLabel(), selected.getName(), problem));
         } else {
             summary.setText(NeoText.get("home.summary.invalid",
-                    format.getLabel(), selected.getName(), problem));
+                    format.getLabel(), selected.getName(), problem)
+                    + (format.allowsHouseRules() ? "  ·  " + NeoText.get("home.houseRules.hint") : ""));
         }
         // Hot seat: que se vea que esta partida la juegan varias personas.
-        if (problem == null) {
+        if (problem == null || houseRules) {
             int people = 1;
             for (int i = 0; i < opponents; i++) {
                 if (forge.neo.look.RivalSetup.isHuman(i)) {
@@ -2425,7 +2434,7 @@ et}) y no se tocan.
             }
         }
         summary.pseudoClassStateChanged(INVALID, problem != null);
-        play.setDisable(problem != null);
+        play.setDisable(problem != null && !houseRules);
     }
 
     private static final javafx.css.PseudoClass INVALID =

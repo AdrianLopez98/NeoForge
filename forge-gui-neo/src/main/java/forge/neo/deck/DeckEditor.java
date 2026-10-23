@@ -364,6 +364,21 @@ public final class DeckEditor {
         return deck;
     }
 
+    /** Si esta carta es la portada elegida del mazo. Ver {@link DeckCover}. */
+    public boolean isCover(final PaperCard card) {
+        return DeckCover.isCover(deck, card);
+    }
+
+    /** La pone de portada, o la quita si ya lo era. Solo sin comandante. */
+    public void toggleCover(final PaperCard card) {
+        if (isCover(card)) {
+            DeckCover.clear(deck, card);
+        } else {
+            DeckCover.set(deck, card);
+        }
+        dirty = true;
+    }
+
     public DeckContext getFormat() {
         return format;
     }
@@ -1501,6 +1516,44 @@ public final class DeckEditor {
         }
         final PaperCard plain = FModel.getMagicDb().getCommonCards().getCard(card.getName());
         return plain == null ? card : plain;
+    }
+
+    /** Si el mazo lleva reglas de la casa ({@link HouseRules}). */
+    public boolean isHouseRules() {
+        return format.allowsHouseRules() && HouseRules.isOn(deck);
+    }
+
+    public void setHouseRules(final boolean on) {
+        if (format.allowsHouseRules() && on != HouseRules.isOn(deck)) {
+            HouseRules.set(deck, on);
+            dirty = true;
+        }
+    }
+
+    /**
+     * "Anyadir como segundo comandante": con reglas de la casa, una segunda
+     * carta en la zona de mando aunque no sean companeros (el reto "todos tienen
+     * Partner", Discord 23-10-2026). Solo si ya hay UNO y esta no podria entrar
+     * de pareja por las buenas (entonces lo hace {@link #setCommander}).
+     */
+    public boolean canAddSecondCommander(final PaperCard card) {
+        if (card == null || !isHouseRules() || !usesCommander() || usesSignatureSpell()) {
+            return false;
+        }
+        final List<PaperCard> now = commanders();
+        return now.size() == 1 && !now.get(0).getName().equals(card.getName())
+                && deckFormat().isLegalCommander(card.getRules()) && !acceptsPartner(card);
+    }
+
+    public boolean addSecondCommander(final PaperCard picked) {
+        final PaperCard card = ownedArt(picked);
+        if (!canAddSecondCommander(card) || (!format.allowsMissing() && ownedCap(card) <= 0)) {
+            return false;
+        }
+        deck.getMain().remove(card, deck.getMain().count(card));
+        deck.getOrCreate(DeckSection.Commander).add(card, 1);
+        dirty = true;
+        return true;
     }
 
     public boolean setCommander(final PaperCard picked) {

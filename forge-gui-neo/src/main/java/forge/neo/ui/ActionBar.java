@@ -70,6 +70,14 @@ public class ActionBar extends VBox {
      * {@code NeoMatchUI.resolveStack}.
      */
     private final Button resolveAll = new Button();
+    /**
+     * "Si a todo (N)": la pregunta de un disparo opcional tuyo que se repite
+     * (Discord, 23-10-2026: cincuenta disparos de Flourishing Defenses, uno a
+     * uno). Va ENCIMA de Si / No, que siguen ahi para quien quiera decidir cada
+     * uno.
+     */
+    private final Button yesToAll = new Button();
+    private Runnable onYesToAll;
     private Runnable onResolveAll;
 
     /** Un jugador elegible: su nombre, si ya esta elegido y que hacer al clicarlo. */
@@ -95,7 +103,7 @@ public class ActionBar extends VBox {
         inline = on;
         pseudoClassStateChanged(INLINE, on);
         if (on) {
-            textColumn.getChildren().setAll(prompt, warning, players, resolveAll);
+            textColumn.getChildren().setAll(prompt, warning, players, resolveAll, yesToAll);
             textColumn.setAlignment(Pos.CENTER_LEFT);
             HBox.setHgrow(textColumn, Priority.ALWAYS);
             textColumn.setMinWidth(0);
@@ -109,7 +117,7 @@ public class ActionBar extends VBox {
             inlineRow.getChildren().clear();
             textColumn.getChildren().clear();
             buttons.setMinWidth(Region.USE_COMPUTED_SIZE);
-            getChildren().setAll(prompt, warning, players, resolveAll, buttons);
+            getChildren().setAll(prompt, warning, players, resolveAll, yesToAll, buttons);
         }
         requestLayout();
     }
@@ -161,7 +169,18 @@ public class ActionBar extends VBox {
             fire(action);
         });
 
-        getChildren().addAll(prompt, warning, players, resolveAll, buttons);
+        yesToAll.getStyleClass().addAll("btn-secondary", "resolve-all", "yes-to-all");
+        yesToAll.setId("action-yes-to-all");
+        yesToAll.setMaxWidth(Double.MAX_VALUE);
+        yesToAll.setVisible(false);
+        yesToAll.setManaged(false);
+        yesToAll.setOnAction(e -> {
+            final Runnable action = onYesToAll;
+            setYesToAll(null, null, null);
+            fire(action);
+        });
+
+        getChildren().addAll(prompt, warning, players, resolveAll, yesToAll, buttons);
         setButtons(NeoText.get("action.ok"), NeoText.get("common.cancel"), false, false);
     }
 
@@ -271,6 +290,30 @@ public class ActionBar extends VBox {
         onResolveAll = show ? onClick : null;
         resolveAll.setVisible(show);
         resolveAll.setManaged(show);
+    }
+
+    /** "Si a todo (N)", o null para quitarlo. Ver {@link #yesToAll}. */
+    public void setYesToAll(final String label, final String tip, final Runnable onClick) {
+        final boolean show = label != null && !label.isEmpty();
+        yesToAll.setText(show ? label : "");
+        yesToAll.setTooltip(show && tip != null ? new javafx.scene.control.Tooltip(tip) : null);
+        onYesToAll = show ? onClick : null;
+        yesToAll.setVisible(show);
+        yesToAll.setManaged(show);
+    }
+
+    /** Solo pruebas: el texto de "Si a todo", o null si no esta. */
+    public String yesToAllText() {
+        return yesToAll.isVisible() ? yesToAll.getText() : null;
+    }
+
+    /** Solo pruebas: pulsarlo, como el raton. */
+    public boolean clickYesToAll() {
+        if (!yesToAll.isVisible()) {
+            return false;
+        }
+        yesToAll.fire();
+        return true;
     }
 
     /** Solo pruebas: el texto del boton de "Resolverlo todo", o null si no esta. */

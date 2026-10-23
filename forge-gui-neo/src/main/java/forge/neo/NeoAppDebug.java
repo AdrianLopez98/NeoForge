@@ -2236,7 +2236,7 @@ final class NeoAppDebug {
                     // quedaba en el mismo paso hasta que se acababa el tiempo.
                     for (final javafx.scene.Node n : scene.getRoot().lookupAll(".coach-next")) {
                         if (n instanceof javafx.scene.control.Button b
-                                && !b.isDisabled() && b.isVisible()) {
+                                && !b.isDisabled() && shown(b)) {
                             System.out.println("[autopilot] siguiente paso del tutorial");
                             b.fire();
                             return;
@@ -2244,7 +2244,7 @@ final class NeoAppDebug {
                     }
                     for (final javafx.scene.Node n : scene.getRoot().lookupAll(".btn-primary")) {
                         if (n instanceof javafx.scene.control.Button b
-                                && !b.isDisabled() && b.isVisible()) {
+                                && !b.isDisabled() && shown(b)) {
                             // Se dice CUAL se pulsa: sin esto, cuando el piloto
                             // recorre varias pantallas seguidas no hay forma de
                             // saber por donde ha pasado ni donde acabo.
@@ -2550,6 +2550,24 @@ final class NeoAppDebug {
             settle.play();
         });
         wait.play();
+    }
+
+    /**
+     * Si el nodo se ve DE VERDAD: el y todos sus padres.
+     *
+     * <p>{@code isVisible()} solo mira el propio nodo. El cartel de avisos se
+     * esconde con {@code setVisible(false)} en el contenedor, asi que su "Got it"
+     * seguia diciendo que se veia: el piloto lo pulsaba para siempre (no hace
+     * nada, ya no hay aviso) en vez de clicar las cartas para descartar. Se vio
+     * en la copa de la Quest, parada una hora en el turno 25.
+     */
+    static boolean shown(javafx.scene.Node node) {
+        for (; node != null; node = node.getParent()) {
+            if (!node.isVisible()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

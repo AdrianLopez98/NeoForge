@@ -222,9 +222,10 @@ public final class NeoQuest {
      *   <li><b>El formato de la Quest</b> ({@code newGame(..., formatPrizes,
      *       ...)}): es lo que hace el "formato a medida" del Forge de
      *       siempre. Con el, el motor ya limita las sueltas de la tienda, los
-     *       preconstruidos, las cajas, los premios en cartas y los drafts. Sin
-     *       desbloquear otras expansiones: quien elige un bloque quiere ESE
-     *       bloque.</li>
+     *       preconstruidos, las cajas, los premios en cartas y los drafts. Y se
+     *       pueden DESBLOQUEAR mas con victorias ({@link NeoQuestUnlock},
+     *       desde el 23-10-2026): opcional, quien quiere ese bloque no las
+     *       gasta.</li>
      *   <li><b>Lo nuestro</b>: los sobres, el de colector, el sobre de premio
      *       y Secret Lair preguntan a {@link #allowsSet}.</li>
      *   <li><b>El mazo de salida</b>, convertido como los rivales de Ascenso
@@ -245,6 +246,7 @@ public final class NeoQuest {
         // Una Quest nueva con el nombre de otra: lo que aquella dejo junto a la
         // partida (los rivales del Coliseo, el sobre del dia) no es de esta.
         NeoColosseum.deleteSaved(name);
+        NeoQuestCup.deleteSaved(name);
         NeoDailyPack.deleteSaved(name);
         QuestAcquired.deleteSaved(name);
         QuestLowLife.deleteSaved(name);
@@ -285,8 +287,12 @@ public final class NeoQuest {
                 startFormat = w.getFormat();
             }
         }
+        // Con expansiones elegidas, se pueden DESBLOQUEAR mas con victorias
+        // (Discord, 23-10-2026, como el Forge de siempre: NeoQuestUnlock). Es
+        // opcional: quien quiere ESE bloque, no gasta los desbloqueos. El
+        // formato lo guarda al crearse: las Quest de antes se quedan sin.
         FModel.getQuest().newGame(name, dificultad.getIndex(), QuestMode.Classic,
-                format, !limited, deck, startFormat, world, prefs,
+                format, true, deck, startFormat, world, prefs,
                 modalidad.getRules());
         if (deck != null) {
             // newGame lo mete en la coleccion y en tus mazos, pero no lo deja
@@ -630,6 +636,7 @@ public final class NeoQuest {
             bak.delete();
         }
         NeoColosseum.deleteSaved(name);
+        NeoQuestCup.deleteSaved(name);
         NeoDailyPack.deleteSaved(name);
         QuestAcquired.deleteSaved(name);
         QuestLowLife.deleteSaved(name);
@@ -638,6 +645,81 @@ public final class NeoQuest {
         if (current != null && current.equals(name + ".dat")) {
             remember("");
         }
+    }
+
+    /** Lo que se le cuelga al nombre de una Quest, aparte de su .dat y su .dat.bak. */
+    private static final String[] SIDE_FILES = {".coliseo", ".sobre", ".neo-adquiridas", ".neo-vida-baja", ".torneo"};
+
+    /** Lo que no puede llevar un nombre de fichero en Windows (y una Quest es un fichero). */
+    private static final java.util.regex.Pattern BAD_NAME = java.util.regex.Pattern.compile("[\\\\/:*?\"<>|]");
+
+    /**
+     * Cambia el nombre de una Quest (Discord, 23-10-2026: <i>"The ability to
+     * rename a campaign"</i>).
+     *
+     * <p>No deja ponerle el de otra que ya exista, sin mirar mayusculas: en
+     * Windows "Mi campanya" y "mi campanya" son el MISMO fichero, y la segunda
+     * se comeria a la primera. Lo de Forge lo mueve {@code QuestData.rename}
+     * (el .dat y el .dat.bak, y guarda con el nombre nuevo); lo nuestro se
+     * mueve aqui ({@link #SIDE_FILES}: el Coliseo, el sobre del dia, lo ultimo
+     * conseguido, la vida baja y la Copa), y la marca de "la Quest en curso". Si era la
+     * que estaba cargada, se vuelve a cargar con su nombre nuevo: la de memoria
+     * guardaria en el fichero viejo.
+     *
+     * @return null si se ha cambiado, o la clave del texto que dice por que no
+     *         ({@code questPick.rename.empty}, {@code .invalid}, {@code .taken},
+     *         {@code .failed})
+     */
+    public static String rename(final String oldName, final String requested) {
+        final String name = requested == null ? "" : requested.trim();
+        if (name.isEmpty()) {
+            return "questPick.rename.empty";
+        }
+        if (BAD_NAME.matcher(name).find() || name.endsWith(".") || name.length() > 80) {
+            return "questPick.rename.invalid";
+        }
+        if (name.equals(oldName)) {
+            return null;
+        }
+        for (final String other : saves()) {
+            if (!other.equals(oldName) && other.equalsIgnoreCase(name)) {
+                return "questPick.rename.taken";
+            }
+        }
+        final forge.gamemodes.quest.data.QuestData data = peek(oldName);
+        if (data == null) {
+            return "questPick.rename.failed";
+        }
+        final boolean wasLoaded = oldName.equals(name());
+        final String current = FModel.getQuestPreferences().getPref(QuestPreferences.QPref.CURRENT_QUEST);
+        try {
+            // El nombre de dentro tiene que ser el del fichero, o rename moveria otro.
+            alignName(data, oldName);
+            data.rename(name);
+        } catch (final RuntimeException e) {
+            System.err.println("[quest] no se ha podido renombrar " + oldName + ": " + e);
+            return "questPick.rename.failed";
+        }
+        if (!fileOf(name).isFile()) {
+            return "questPick.rename.failed";
+        }
+        for (final String suffix : SIDE_FILES) {
+            final File from = new File(ForgeConstants.QUEST_SAVE_DIR, oldName + suffix);
+            if (from.isFile()) {
+                final File to = new File(ForgeConstants.QUEST_SAVE_DIR, name + suffix);
+                if (!from.renameTo(to)) {
+                    System.err.println("[quest] no se ha podido mover " + from.getName());
+                }
+            }
+        }
+        if (current != null && current.equals(oldName + ".dat")) {
+            remember(name);
+        }
+        if (wasLoaded) {
+            load(name);
+        }
+        System.out.println("[quest] renombrada \"" + oldName + "\" -> \"" + name + "\"");
+        return null;
     }
 
     /** Las aventuras guardadas, por nombre. */
@@ -1164,18 +1246,46 @@ public final class NeoQuest {
      * @return el mazo, o null si el pool no da para uno legal
      */
     public static Deck buildStarterDeck(final String deckName) {
+        return buildStarterDeck(deckName, null);
+    }
+
+    /**
+     * Igual, con el comandante elegido (Android: "Montar uno con lo que tengo"
+     * pregunta cual; itch.io, 23-10-2026). {@code null} = uno al azar de
+     * {@link #commanderCandidates()}: antes era siempre el PRIMERO de la
+     * coleccion, y con la misma coleccion salia siempre el mismo (Smaug).
+     *
+     * <p><b>Una carta por nombre.</b> El montador de Forge va en singleton,
+     * pero cuenta cada IMPRESION como una carta distinta: con cuatro Sol Ring
+     * de cuatro expansiones metia los cuatro. Asi que el pool entra con una
+     * impresion por nombre, y a la salida se recorta igual por si acaso (al
+     * maximo de copias del formato: 1 en Commander, 4 en la Quest normal). Lo
+     * que falte para el minimo se completa con basicas de sus colores, que en
+     * la Quest no hace falta tener ({@link #missingCards}).
+     */
+    public static Deck buildStarterDeck(final String deckName, final PaperCard chosen) {
         final List<PaperCard> pool = collection().toFlatList();
         if (pool.isEmpty()) {
             return null;
         }
         Deck deck;
+        final forge.deck.DeckFormat format;
         if (modalidad() == Modalidad.COMMANDER) {
-            final PaperCard commander = pickCommander(pool);
+            format = forge.deck.DeckFormat.Commander;
+            final PaperCard commander = chosen != null ? chosen : pickCommander(pool);
             if (commander == null) {
                 return null;
             }
-            final List<PaperCard> rest = new ArrayList<>(pool);
-            rest.removeAll(FModel.getMagicDb().getCommonCards().getAllCards(commander));
+            final List<PaperCard> rest = new ArrayList<>();
+            final java.util.Set<String> seen = new java.util.HashSet<>();
+            seen.add(commander.getName());
+            for (final PaperCard pc : pool) {
+                if (pc.isVeryBasicLand() || seen.add(pc.getName())) {
+                    if (!pc.getName().equals(commander.getName())) {
+                        rest.add(pc);
+                    }
+                }
+            }
             final forge.deck.generation.DeckGeneratorBase gen =
                     new forge.gamemodes.limited.CardThemedCommanderDeckBuilder(
                             commander, null, rest, false, forge.deck.DeckFormat.Commander);
@@ -1186,6 +1296,7 @@ public final class NeoQuest {
             deck.getMain().addAll(cards);
             deck.getOrCreate(forge.deck.DeckSection.Commander).add(commander);
         } else {
+            format = forge.game.GameType.Quest.getDeckFormat();
             deck = (Deck) new forge.gamemodes.limited.SealedDeckBuilder(pool)
                     .buildDeck().copyTo(deckName);
         }
@@ -1196,20 +1307,98 @@ public final class NeoQuest {
         if (side != null) {
             side.clear();
         }
+        trimCopies(deck.getMain(), format);
+        fillWithBasics(deck, format.getMainRange().getMinimum());
         FModel.getQuest().getMyDecks().add(deck);
         setCurrentDeck(deckName);
         return deck;
     }
 
-    /** El mejor candidato a comandante que tengas. Legal lo decide el motor. */
-    private static PaperCard pickCommander(final List<PaperCard> pool) {
-        for (final PaperCard pc : pool) {
-            if (pc.getRules() != null
+    /** Los comandantes legales de tu coleccion, uno por nombre y por orden alfabetico. */
+    public static List<PaperCard> commanderCandidates() {
+        final java.util.Map<String, PaperCard> out = new java.util.TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        if (!isActive()) {
+            return new ArrayList<>();
+        }
+        for (final PaperCard pc : collection().toFlatList()) {
+            if (pc != null && pc.getRules() != null
                     && forge.deck.DeckFormat.Commander.isLegalCommander(pc.getRules())) {
-                return pc;
+                out.putIfAbsent(forge.neo.card.CardText.nameOf(pc), pc);
             }
         }
-        return null;
+        return new ArrayList<>(out.values());
+    }
+
+    /** Cada nombre al maximo de copias del formato (las basicas, sin tope). */
+    private static void trimCopies(final forge.deck.CardPool main, final forge.deck.DeckFormat format) {
+        final java.util.Map<String, Integer> kept = new java.util.HashMap<>();
+        final List<java.util.Map.Entry<PaperCard, Integer>> entries = new ArrayList<>();
+        for (final java.util.Map.Entry<PaperCard, Integer> e : main) {
+            entries.add(new java.util.AbstractMap.SimpleEntry<>(e.getKey(), e.getValue()));
+        }
+        for (final java.util.Map.Entry<PaperCard, Integer> e : entries) {
+            final PaperCard pc = e.getKey();
+            final int max = format.getMaxCardCopies(pc);
+            if (pc.isVeryBasicLand() || max <= 0 || max == Integer.MAX_VALUE) {
+                continue;
+            }
+            final int already = kept.getOrDefault(pc.getName(), 0);
+            final int keep = Math.max(0, Math.min(e.getValue(), max - already));
+            if (keep < e.getValue()) {
+                main.remove(pc, e.getValue() - keep);
+            }
+            kept.put(pc.getName(), already + keep);
+        }
+    }
+
+    /**
+     * Hasta el minimo del formato con basicas de los colores del mazo (los del
+     * comandante si lo hay), repartidas a partes iguales.
+     */
+    private static void fillWithBasics(final Deck deck, final int minimum) {
+        int missing = minimum - deck.getMain().countAll();
+        if (missing <= 0) {
+            return;
+        }
+        final forge.deck.CardPool cmd = deck.get(forge.deck.DeckSection.Commander);
+        final forge.card.ColorSet colors = cmd != null && !cmd.isEmpty()
+                ? forge.card.ColorSet.fromMask(cmd.toFlatList().stream()
+                        .mapToInt(c -> c.getRules().getColorIdentity().getColor()).reduce(0, (a, b) -> a | b))
+                : forge.card.ColorSet.fromMask(deck.getMain().toFlatList().stream()
+                        .filter(c -> !c.getRules().getType().isLand())
+                        .mapToInt(c -> c.getRules().getColor().getColor()).reduce(0, (a, b) -> a | b));
+        final List<String> names = new ArrayList<>();
+        final String[] basics = {"Plains", "Island", "Swamp", "Mountain", "Forest"};
+        final byte[] masks = {forge.card.MagicColor.WHITE, forge.card.MagicColor.BLUE,
+                forge.card.MagicColor.BLACK, forge.card.MagicColor.RED, forge.card.MagicColor.GREEN};
+        for (int i = 0; i < basics.length; i++) {
+            if (colors.hasAnyColor(masks[i])) {
+                names.add(basics[i]);
+            }
+        }
+        if (names.isEmpty()) {
+            names.add("Wastes");
+        }
+        for (int i = 0; missing > 0; i++, missing--) {
+            final PaperCard land = FModel.getMagicDb().getCommonCards().getCard(names.get(i % names.size()));
+            if (land == null) {
+                return;
+            }
+            deck.getMain().add(land);
+        }
+    }
+
+    /** Un candidato a comandante al azar. Legal lo decide el motor. */
+    private static PaperCard pickCommander(final List<PaperCard> pool) {
+        final List<PaperCard> legal = new ArrayList<>();
+        final java.util.Set<String> seen = new java.util.HashSet<>();
+        for (final PaperCard pc : pool) {
+            if (pc.getRules() != null && seen.add(pc.getName())
+                    && forge.deck.DeckFormat.Commander.isLegalCommander(pc.getRules())) {
+                legal.add(pc);
+            }
+        }
+        return legal.isEmpty() ? null : legal.get(forge.util.MyRandom.getRandom().nextInt(legal.size()));
     }
 
     /**

@@ -4089,6 +4089,8 @@
    el mismo de la lista de deseos del constructor. Despues de .opening-foil para ganarle el borde. */
 .pack-opening .opening-wanted { -fx-border-color: #E0A63C; -fx-border-width: 2; -fx-border-radius: 8; }
 .pack-opening .wanted-badge { -fx-font-size: 0.72em; -fx-font-weight: bold; -fx-text-fill: #0B0E13; -fx-background-color: #E0A63C; -fx-background-radius: 8; -fx-padding: 1 8 1 8; }
+/* Lo que vale una carta en la tienda de la Quest (sobres, coleccion). */
+.value-badge { -fx-font-size: 0.72em; -fx-font-weight: bold; -fx-text-fill: #F5CE88; -fx-background-color: rgba(11,14,19,0.86); -fx-background-radius: 8; -fx-border-color: #a77c40; -fx-border-radius: 8; -fx-padding: 1 7 1 7; }
 .pack-opening .opening-wanted-note { -fx-text-fill: #E0A63C; -fx-font-weight: bold; -fx-text-alignment: center; }
 .pack-opening .btn-primary { -fx-background-color: linear-gradient(to bottom, #ecc986, #a77c40); -fx-text-fill: #17120b; -fx-font-weight: bold; -fx-padding: 10 24; }
 
@@ -4341,3 +4343,10 @@
     -fx-text-fill: #4FB477;
     -fx-font-weight: bold;
 }
+
+/* Reglas de la casa: la marca del mazo en la lista (23-10-2026). */
+.deck-tile-house { -fx-text-fill: #12161C; -fx-background-color: -neo-warn; -fx-background-radius: 4;
+    -fx-padding: 2 8 2 8; -fx-font-size: 12px; -fx-font-weight: bold; }
+
+/* Si a todo: mas visible que Resolverlo todo, sin quitarle el sitio a Si / No (23-10-2026). */
+.yes-to-all { -fx-border-color: -neo-valid; -fx-text-fill: -neo-valid; -fx-font-weight: bold; }

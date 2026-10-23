@@ -1414,6 +1414,56 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                 && !isSelecting() && getSelectionMax() <= 0 && isRoutinePriorityPrompt(lastPrompt));
     }
 
+    /**
+     * Cuantos disparos IGUALES quedan por contestar si lo que pregunta el motor
+     * es "Usar la habilidad disparada de X?" de un disparo opcional TUYO; 0 si
+     * no es eso (Discord, 23-10-2026: cincuenta Flourishing Defenses, uno a
+     * uno). La pregunta llega como un {@code InputConfirm} con Si / No en los
+     * botones, asi que se reconoce por el disparo de arriba del stack y por el
+     * texto de Forge ({@code lblUseTriggeredAbilityOf}).
+     */
+    private int yesToAllCount(final boolean okEnabled) {
+        if (!okEnabled || payingMana || isSelecting() || lastPrompt == null) {
+            return 0;
+        }
+        final StackItemView top = topOfStack();
+        if (top == null || !top.isOptionalTrigger() || !isMe(top.getActivatingPlayer())
+                || top.getKey() == null) {
+            return 0;
+        }
+        final String ask = forge.util.Localizer.getInstance().getMessage("lblUseTriggeredAbilityOf").trim();
+        if (ask.isEmpty() || !lastPrompt.contains(ask)) {
+            return 0;
+        }
+        int same = 0;
+        final GameView gv = getGameView();
+        if (gv != null && gv.getStack() != null) {
+            for (final StackItemView si : gv.getStack()) {
+                if (si != null && top.getKey().equals(si.getKey())) {
+                    same++;
+                }
+            }
+        }
+        return Math.max(1, same);
+    }
+
+    /**
+     * "Si a todo": lo mismo que la Y o "Siempre si" del menu del stack
+     * ({@link #autoYieldTop}, con su alcance y donde se deshace) y contesta Si a
+     * esta. Los que vienen detras ya no preguntan.
+     */
+    private void yesToAll() {
+        if (!interactive() || finished.get()) {
+            return;
+        }
+        didDetail("pressed yes to all");
+        final String said = autoYieldTop(true);
+        if (said != null && table != null) {
+            table.getActionBar().setWarning(said, false);
+        }
+        respondLater(() -> getGameController().selectButtonOk());
+    }
+
     // ---- lo que piden los atajos de teclado (ver forge.neo.NeoShortcuts) ----
 
     /**
@@ -5743,6 +5793,8 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             final List<forge.neo.ui.ActionBar.PlayerChoice> playerChoices = playerChoices();
             // Y con dos o mas cosas en el stack, "Resolverlo todo".
             final int resolveAll = resolveAllCount(okEnabled);
+            // Y "Si a todo" si lo que se pregunta es un disparo opcional tuyo.
+            final int yesToAll = yesToAllCount(okEnabled);
 
             final UiDispatcher ui = uiDispatcher();
             if (ui != null) {
@@ -5752,6 +5804,9 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                     table.getActionBar().setResolveAll(resolveAll > 0
                                     ? NeoText.get("stack.resolveAll", resolveAll) : null,
                             NeoText.get("stack.resolveAll.tip"), this::resolveStack);
+                    table.getActionBar().setYesToAll(yesToAll > 0
+                                    ? NeoText.get("trigger.yesToAll", yesToAll) : null,
+                            NeoText.get("trigger.yesToAll.tip"), this::yesToAll);
                     table.getActionBar().setOnOk(() -> {
                         // Un OK por pregunta del motor. Lo demas, fuera: ver
                         // okAwaitingEngine.

@@ -169,6 +169,12 @@ public enum NeoFormat implements forge.neo.deck.DeckContext {
      * catalogo es todo Magic y el cajon es la carpeta del formato, que son los
      * valores por defecto.
      */
+    /** Reglas de la casa: las partidas libres con mazo propio, no el draft ni los sin mazo. */
+    @Override
+    public boolean allowsHouseRules() {
+        return this != DRAFT && this != SELLADO && this != MOMIR && this != MOJHOSTO;
+    }
+
     @Override
     public forge.deck.DeckFormat deckFormat() {
         return gameType.getDeckFormat();

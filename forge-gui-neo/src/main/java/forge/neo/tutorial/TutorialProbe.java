@@ -69,6 +69,7 @@ public final class TutorialProbe {
     private boolean creatureSpell;
     private boolean instantSpell;
     private boolean sorcerySpell;
+    private boolean auraSpell;
     private boolean ability;
     private boolean attacked;
 
@@ -99,6 +100,7 @@ public final class TutorialProbe {
         p.creatureSpell = true;
         p.instantSpell = true;
         p.sorcerySpell = true;
+        p.auraSpell = true;
         p.ability = true;
         p.attacked = true;
         p.myPhases.addAll(EnumSet.allOf(PhaseType.class));
@@ -247,6 +249,9 @@ public final class TutorialProbe {
         if (type.isSorcery()) {
             sorcerySpell = true;
         }
+        if (type.isAura()) {
+            auraSpell = true;
+        }
     }
 
     // ---------------------------------------------------------------
@@ -349,6 +354,7 @@ public final class TutorialProbe {
             case "creature" -> creatureSpell;
             case "instant" -> instantSpell;
             case "sorcery" -> sorcerySpell;
+            case "aura" -> auraSpell;
             default -> anySpell;
         };
     }

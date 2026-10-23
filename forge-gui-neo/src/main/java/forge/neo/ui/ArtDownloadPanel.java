@@ -59,7 +59,8 @@ public final class ArtDownloadPanel extends VBox {
         setSpacing(12);
         setAlignment(Pos.CENTER_LEFT);
 
-        final String which = scope == ArtDownload.Scope.ALL ? "all"
+        final String which = scope == ArtDownload.Scope.TOKENS ? "tokens"
+                : scope == ArtDownload.Scope.ALL ? "all"
                 : scope == ArtDownload.Scope.EVERY_PRINTING ? "every"
                 : scope == ArtDownload.Scope.SET ? "set"
                 : scope == ArtDownload.Scope.FORMAT ? "format" : "decks";
@@ -116,7 +117,10 @@ public final class ArtDownloadPanel extends VBox {
         // Todas las impresiones las baja el descargador de Forge tal cual; las
         // otras dos, el nuestro (una foto por nombre). Ver ArtDownload.
         final forge.gui.download.GuiDownloadService service;
-        if (scope == ArtDownload.Scope.EVERY_PRINTING) {
+        if (scope == ArtDownload.Scope.TOKENS) {
+            // Las fichas, una por nombre (forge.neo.card.TokenArtDownload).
+            service = new forge.neo.card.TokenArtDownload();
+        } else if (scope == ArtDownload.Scope.EVERY_PRINTING) {
             service = ArtDownload.everyPrinting();
         } else if (scope == ArtDownload.Scope.SET) {
             // Las impresiones de esa expansion: el descargador de Forge con un
@@ -147,7 +151,8 @@ public final class ArtDownloadPanel extends VBox {
                     }
                     // Si son pocas, cuales: un numero que no baja nunca sin
                     // decir de que cartas habla no deja hacer nada con el.
-                    final java.util.List<String> names = ArtDownload.missingNames(10);
+                    final java.util.List<String> names = scope == ArtDownload.Scope.TOKENS
+                            ? java.util.List.of() : ArtDownload.missingNames(10);
                     status.setText(NeoText.get("artdl.missing", group(pending),
                             group(ArtDownload.megabytes(pending)))
                             + (names.isEmpty() ? "" : "\n" + String.join(", ", names)));
@@ -167,6 +172,20 @@ public final class ArtDownloadPanel extends VBox {
 
             @Override
             public void finished(final int skipped) {
+                // Las fichas: "listo" sin mas, falte la que falte (Ana,
+                // 23-10-2026: una ficha que Scryfall no tiene no es algo que
+                // haya que contar).
+                if (scope == ArtDownload.Scope.TOKENS) {
+                    forge.neo.card.TokenArtDownload.afterDownload();
+                    onUi(() -> {
+                        bar.setProgress(1);
+                        status.setText(NeoText.get("artdl.done.tokens"));
+                        startButton.setDisable(true);
+                        stopButton.setVisible(false);
+                        stopButton.setManaged(false);
+                    });
+                    return;
+                }
                 // Lo primero: sin esto, lo recien bajado no se ve hasta
                 // reiniciar. Ver ArtDownload.afterDownload.
                 ArtDownload.afterDownload();

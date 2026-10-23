@@ -58,6 +58,7 @@ public final class CollectionContext implements DeckContext {
     @Override public GameFormat poolFormat() { return format.poolFormat(); }
     @Override public List<PaperCard> pool() { return format.pool(); }
     @Override public boolean isLimited() { return format.isLimited(); }
+    @Override public boolean allowsHouseRules() { return format.allowsHouseRules(); }
     @Override public String catalogueLabel() { return format.catalogueLabel(); }
     @Override public boolean canRename() { return format.canRename(); }
     @Override public boolean canCopy() { return format.canCopy(); }

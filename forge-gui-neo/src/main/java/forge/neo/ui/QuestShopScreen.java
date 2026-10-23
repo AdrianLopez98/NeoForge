@@ -127,6 +127,11 @@ public class QuestShopScreen extends StackPane {
 
     // --- cartas sueltas ---
     private final TextField singleSearch = new TextField();
+    /**
+     * Como se ordenan las sueltas (itch.io, 23-10-2026: "a way to sort cards in
+     * the Singles shop"). Se recuerda; la clave es la misma en Android.
+     */
+    private final javafx.scene.control.ComboBox<String> singleSort = new javafx.scene.control.ComboBox<>();
     private final FlowPane singleGrid = new FlowPane(10, 10);
     private final Pager singlePager;
     private final Label singleName = new Label();
@@ -196,6 +201,8 @@ public class QuestShopScreen extends StackPane {
     // cambia es de donde sale la lista (tu coleccion, no el mostrador) y que
     // hay un segundo camino, el de golpe, para lo que sobra.
     private final TextField sellSearch = new TextField();
+    /** Nombre o lo que te dan (itch.io, 23-10-2026: "sort by cost/value"). */
+    private final javafx.scene.control.ComboBox<String> sellSort = new javafx.scene.control.ComboBox<>();
     private final CheckBox sellSpareOnly = new CheckBox();
     private final FlowPane sellGrid = new FlowPane(10, 10);
     private final Pager sellPager;
@@ -701,7 +708,20 @@ public class QuestShopScreen extends StackPane {
         // salirse por la derecha.
         final FlowPane tools = new FlowPane(12, 8);
         tools.setAlignment(Pos.CENTER_LEFT);
-        tools.getChildren().addAll(singleSearch, singleColourRow(), singleTypeRow(), singleOwnedRow());
+        singleSort.getItems().setAll(NeoText.get("sort.wantedFirst"), NeoText.get("sort.priceLow"),
+                NeoText.get("sort.priceHigh"), NeoText.get("sort.manaValue"), NeoText.get("sort.rarity"));
+        singleSort.getSelectionModel().select(Math.max(0, Math.min(4,
+                forge.neo.NeoSettings.getInt(SINGLES_SORT, 0))));
+        singleSort.setId("shop-singles-sort");
+        singleSort.setOnAction(e -> {
+            forge.neo.NeoSettings.set(SINGLES_SORT,
+                    Integer.toString(singleSort.getSelectionModel().getSelectedIndex()));
+            singlePager.reset();
+            reloadSingles();
+        });
+        final HBox singleSortBox = new HBox(6, new Label(NeoText.get("sort.caption")), singleSort);
+        singleSortBox.setAlignment(Pos.CENTER_LEFT);
+        tools.getChildren().addAll(singleSearch, singleColourRow(), singleTypeRow(), singleOwnedRow(), singleSortBox);
 
         singleGrid.setAlignment(Pos.TOP_LEFT);
         final ScrollPane scroll = singleScroll;
@@ -800,11 +820,7 @@ public class QuestShopScreen extends StackPane {
                 singlesShown.add(c);
             }
         }
-        // Lo que te falta en tus mazos, lo primero: con varias paginas, no
-        // tener que pasarlas buscandolo era justo lo que se pedia.
-        if (!wanted.isEmpty()) {
-            singlesShown.sort(java.util.Comparator.comparingInt(c -> isWanted(c) ? 0 : 1));
-        }
+        singlesShown.sort(singlesOrder(singleSort.getSelectionModel().getSelectedIndex()));
         singlePager.setTotal(singlesShown.size());
         if (chosenSingle != null && !singlesShown.contains(chosenSingle)) {
             chosenSingle = null;
@@ -856,6 +872,57 @@ public class QuestShopScreen extends StackPane {
         for (int i = singlePager.from();
                 i < Math.min(singlesShown.size(), singlePager.to()); i++) {
             singleGrid.getChildren().add(singleTile(singlesShown.get(i)));
+        }
+    }
+
+    /** La clave del orden de las sueltas (la misma en Android). */
+    public static final String SINGLES_SORT = "quest.singlesSort";
+
+    /**
+     * El orden de las sueltas: 0, lo que te falta en tus mazos primero (con
+     * varias paginas, no tener que pasarlas buscandolo era justo lo que se
+     * pedia) y luego por precio; 1 y 2, por precio; 3, por coste de mana; 4,
+     * por rareza (las miticas primero). A igualdad, por nombre.
+     */
+    private java.util.Comparator<PaperCard> singlesOrder(final int choice) {
+        final java.util.Comparator<PaperCard> byName = java.util.Comparator.comparing(
+                c -> forge.neo.card.CardText.nameOf(c), String.CASE_INSENSITIVE_ORDER);
+        final java.util.Comparator<PaperCard> byPrice = java.util.Comparator.comparingInt(NeoQuestShop::priceOfCard);
+        switch (choice) {
+            case 1:
+                return byPrice.thenComparing(byName);
+            case 2:
+                return byPrice.reversed().thenComparing(byName);
+            case 3:
+                return java.util.Comparator.comparingInt((PaperCard c) -> c.getRules().getManaCost().getCMC())
+                        .thenComparing(byName);
+            case 4:
+                return java.util.Comparator.comparingInt((PaperCard c) -> -rarityRank(c.getRarity()))
+                        .thenComparing(byName);
+            default:
+                return java.util.Comparator.comparingInt((PaperCard c) -> isWanted(c) ? 0 : 1)
+                        .thenComparing(byPrice).thenComparing(byName);
+        }
+    }
+
+    /** Mitica arriba, comun abajo; lo raro (especial, basica) en medio-bajo. */
+    public static int rarityRank(final forge.card.CardRarity r) {
+        if (r == null) {
+            return 0;
+        }
+        switch (r) {
+            case MythicRare:
+                return 5;
+            case Rare:
+                return 4;
+            case Special:
+                return 3;
+            case Uncommon:
+                return 2;
+            case Common:
+                return 1;
+            default:
+                return 0;
         }
     }
 
@@ -1454,7 +1521,16 @@ public class QuestShopScreen extends StackPane {
 
         // Un FlowPane y no un HBox: con los colores y las dos casillas, a 1280
         // de ancho no cabe en una fila, y recortar un filtro es esconderlo.
-        final FlowPane tools = new FlowPane(12, 8, sellSearch, sellFilters.bar(),
+        sellSort.getItems().setAll(NeoText.get("sort.name"), NeoText.get("sort.value"));
+        sellSort.getSelectionModel().select(Integer.getInteger("neo.shop.sellSort", 0)); // pruebas: 1 = valor
+        sellSort.setId("shop-sell-sort");
+        sellSort.setOnAction(e -> {
+            sellPager.reset();
+            reloadSell();
+        });
+        final HBox sortBox = new HBox(6, new Label(NeoText.get("sort.caption")), sellSort);
+        sortBox.setAlignment(Pos.CENTER_LEFT);
+        final FlowPane tools = new FlowPane(12, 8, sellSearch, sellFilters.bar(), sortBox,
                 sellSpareOnly, sellFreeOnly);
         tools.setAlignment(Pos.CENTER_LEFT);
         sellTools = tools;
@@ -1589,6 +1665,10 @@ public class QuestShopScreen extends StackPane {
         }
         sellAllCards.sort(java.util.Comparator.comparing(
                 c -> forge.neo.card.CardText.nameOf(c), String.CASE_INSENSITIVE_ORDER));
+        if (sellSort.getSelectionModel().getSelectedIndex() == 1) {
+            // La mas cara primero; a igual precio sigue el orden por nombre (sort estable).
+            sellAllCards.sort(java.util.Comparator.comparingInt((PaperCard c) -> -NeoQuestSell.priceOf(c)));
+        }
 
         final String q = sellSearch.getText() == null ? ""
                 : sellSearch.getText().trim().toLowerCase(Locale.ROOT);
@@ -1664,7 +1744,12 @@ public class QuestShopScreen extends StackPane {
         // que se viene a hacer a esta pantalla.
         final Label cost = new Label(NeoText.get("shop.sell.tile", price, have));
         cost.getStyleClass().add(spare > 0 ? "set-price-ok" : "set-price-no");
-        final VBox tile = new VBox(2, node, cost);
+        // La estrella: marcada, las ventas automaticas se la saltan
+        // (NeoQuestSell.isKept). Cambiarla cambia lo que dan los botones.
+        final VBox tile = new VBox(2, FavoriteStar.wrapKept(node, card, () -> {
+            paintSell();
+            refreshSell();
+        }), cost);
         // Y si la usa un mazo, tambien: venderla la saca de ahi.
         if (inDecks > 0) {
             final Label used = new Label(NeoText.get("shop.sell.inDecks", inDecks));
@@ -2545,6 +2630,7 @@ public class QuestShopScreen extends StackPane {
                 getWidth(), getHeight(),
                 this::closeOpened);
         panel.setWanted(opened::wantedIn);
+        panel.setValue(NeoQuestSell::priceOf);
         return panel;
     }
 
@@ -3103,6 +3189,7 @@ public class QuestShopScreen extends StackPane {
                         bought.getCards(), bought::isNew, QuestShopScreen.this.getWidth(), QuestShopScreen.this.getHeight(),
                         QuestShopScreen.this::closeOpened);
                 panel.setWanted(bought::wantedIn);
+                panel.setValue(NeoQuestSell::priceOf);
                 if (purchaseMany != null) {
                     // Otro igual sin salir de aqui, como en los sobres normales.
                     final int next = pricing.applyAsInt(item) * n;

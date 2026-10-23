@@ -143,7 +143,16 @@ public class QuestPickScreen extends BorderPane {
         bin.setMinWidth(Region.USE_PREF_SIZE);
         bin.setOnAction(e -> confirmDelete(save.getName()));
 
-        final HBox row = new HBox(14, text, play, bin);
+        // Cambiarle el nombre (Discord, 23-10-2026: "rename a campaign").
+        final Button rename = new Button(NeoText.get("questPick.rename"));
+        rename.getStyleClass().add("btn-secondary");
+        rename.setMinWidth(Region.USE_PREF_SIZE);
+        rename.setDisable(!save.isReadable());
+        rename.setOnAction(e -> askRename(save.getName(), save.getName(), null));
+        rename.addEventHandler(javafx.scene.input.MouseEvent.MOUSE_CLICKED,
+                javafx.event.Event::consume);
+
+        final HBox row = new HBox(14, text, play, rename, bin);
         row.setAlignment(Pos.CENTER_LEFT);
         row.getStyleClass().add("quest-save-row");
         row.setMaxWidth(UiScale.px(720));
@@ -179,6 +188,29 @@ public class QuestPickScreen extends BorderPane {
                         refresh();
                     }
                 }));
+    }
+
+    /**
+     * Pide el nombre nuevo. Si no vale (vacio, con caracteres que un fichero no
+     * admite, o el de OTRA Quest), vuelve a preguntar con el motivo y con lo
+     * escrito: {@link NeoQuest#rename} es quien decide.
+     */
+    private void askRename(final String name, final String typed, final String problem) {
+        overlay.setOnBackgroundClick(overlay::hide);
+        overlay.show(TextDialog.line(
+                NeoText.get("questPick.rename.title", name),
+                problem == null ? NeoText.get("questPick.rename.prompt") : NeoText.get(problem),
+                typed,
+                text -> {
+                    final String why = NeoQuest.rename(name, text);
+                    if (why != null) {
+                        askRename(name, text, why);
+                        return;
+                    }
+                    overlay.hide();
+                    refresh();
+                },
+                overlay::hide));
     }
 
     /** Para que la pantalla se pueda montar desde fuera sin partida. */

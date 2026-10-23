@@ -283,6 +283,9 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             if (questApp.colosseum != null && questApp.colosseum.getScene() != null) {
                 questApp.colosseum.refreshArt();
             }
+            if (questApp.cup != null && questApp.cup.getScene() != null) {
+                questApp.cup.refreshArt();
+            }
             if (questApp.bazaar != null && questApp.bazaar.getScene() != null) {
                 questApp.bazaar.refreshArt();
             }
@@ -1259,6 +1262,11 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 forge.neo.quest.NeoDailyPack.claim();
                 questApp.showQuestHome();
             }
+        } else if (args.contains("--quest-cup")) {
+            // El torneo de la Quest, sin jugar: -Dneo.cup.demo=screen|paid|won|lost|champion
+            // (Estandar con --estandar).
+            questApp.questDemo(args.contains("--estandar"), false);
+            questApp.questCupDemo(System.getProperty("neo.cup.demo", "screen"));
         } else if (args.contains("--quest-colosseum")) {
             // El Coliseo en una Quest de Commander, sin jugar:
             // -Dneo.colosseum.demo=screen|won|lost
@@ -1971,6 +1979,12 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                     final forge.neo.match.NeoMatchUI ui = binder == null ? null : binder.getMatchUi();
                     System.out.println("[mesa] elijo al jugador " + step.substring(3)
                             + (ui != null && ui.clickPlayerNamed(step.substring(3)) ? "" : ": NO ESTA"));
+                    return;
+                }
+                // "@yesall": el boton "Si a todo" de la pregunta de un disparo opcional.
+                if (step.equals("@yesall")) {
+                    System.out.println("[mesa] si a todo: " + table.getActionBar().yesToAllText()
+                            + " -> " + table.getActionBar().clickYesToAll());
                     return;
                 }
                 if (step.equals("@ok")) {

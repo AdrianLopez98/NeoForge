@@ -1028,39 +1028,13 @@ public class AscentSetupScreen extends StackPane {
      * clic: marcar un favorito no es elegirlo para esta run.
      */
     private Region withStar(final CardNode node, final PaperCard c) {
-        final boolean fav = forge.neo.ascent.AscentFavorites.isFavorite(c.getName());
-        final Label star = new Label(fav ? "★" : "☆");
-        star.getStyleClass().add("ascent-fav-star");
-        if (fav) {
-            star.getStyleClass().add("on");
-        }
-        star.setCursor(javafx.scene.Cursor.HAND);
-        star.setTooltip(new javafx.scene.control.Tooltip(NeoText.get(
-                fav ? "ascent.setup.favorite.remove" : "ascent.setup.favorite.add")));
-        star.setOnMouseClicked(e -> {
-            e.consume();
-            if (e.getButton() != javafx.scene.input.MouseButton.PRIMARY) {
-                return;
-            }
-            forge.neo.ascent.AscentFavorites.toggle(c.getName());
+        // La estrella es la de todos los selectores de comandante: FavoriteStar.
+        return FavoriteStar.wrap(node, c.getName(), () -> {
             if (onlyFavorites && forge.neo.ascent.AscentFavorites.only(commanders()).isEmpty()) {
                 onlyFavorites = false;
             }
             rebuild();
         });
-        final StackPane box = new StackPane(node, star);
-        // Al pasar el raton, CardNode baja su viewOrder para ponerse delante
-        // (entering -> -1): dentro de esta caja eso la ponia ENCIMA de la
-        // estrella, que desaparecia (Ana, 06-10-2026). La estrella va siempre
-        // por delante, y la caja sigue a la carta para que la ampliada no
-        // quede debajo de la vecina de la derecha.
-        star.setViewOrder(-10);
-        box.viewOrderProperty().bind(node.viewOrderProperty());
-        // Abajo a la izquierda: arriba tapaba el coste, que es justo lo que se
-        // mira al elegir comandante; abajo solo tapa la firma del ilustrador.
-        StackPane.setAlignment(star, Pos.BOTTOM_LEFT);
-        StackPane.setMargin(star, new Insets(UiScale.px(4)));
-        return box;
     }
 
     private List<PaperCard> matches() {

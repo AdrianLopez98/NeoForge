@@ -149,6 +149,7 @@ final class NeoAppQuest {
         bazaar = null;
         tournament = null;
         colosseum = null;
+        cup = null;
         quest = new QuestScreen(app.cardWidth, new QuestScreen.Actions() {
             @Override
             public void duel(final forge.gamemodes.quest.QuestEventDuel duel) {
@@ -209,6 +210,16 @@ final class NeoAppQuest {
             @Override
             public void colosseum() {
                 showColosseum();
+            }
+
+            @Override
+            public void cup() {
+                showQuestCup();
+            }
+
+            @Override
+            public void refresh() {
+                showQuestHome();
             }
 
             @Override
@@ -506,6 +517,125 @@ final class NeoAppQuest {
                 }
             });
             later.play();
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // El torneo de la Quest (23-10-2026). La logica: NeoQuestCup.
+
+    forge.neo.ui.QuestCupScreen cup;
+
+    forge.neo.ui.QuestCupScreen showQuestCup() {
+        quest = null;
+        cup = new forge.neo.ui.QuestCupScreen(app.cardWidth, new forge.neo.ui.QuestCupScreen.Actions() {
+            @Override
+            public void play() {
+                playQuestCup();
+            }
+
+            @Override
+            public void refresh() {
+                showQuestCup();
+            }
+
+            @Override
+            public void back() {
+                cup = null;
+                showQuestHome();
+            }
+        });
+        app.scene.setRoot(cup);
+        app.applyScale();
+        return cup;
+    }
+
+    /**
+     * Tu partida del torneo, en una mesa nueva. Salir a media partida es
+     * rendirse (cuenta como perderla); si la mesa no llega a empezar, el
+     * torneo sigue como estaba: la entrada ya va con el torneo, no con la
+     * partida.
+     */
+    void playQuestCup() {
+        cup = null;
+        app.table = new TableScreen(app.cardWidth, app.sideWidth);
+        app.table.getDetailPanel().setTextZoom(NeoSettings.getDouble(NeoSettings.TEXT_ZOOM, 1.15));
+        app.showTable();
+        final TableBinder liveBinder = new TableBinder(app.table);
+        app.binder = liveBinder;
+        app.noRestartFor = liveBinder;
+        liveBinder.setOnAbandoned(why -> {
+            if (why == TableBinder.Abandon.QUIT) {
+                forge.neo.quest.NeoQuestCup.record(false);
+            }
+        });
+        app.table.setPrompt(forge.neo.NeoText.get("cup.preparing"));
+        final Thread engine = new Thread(() -> {
+            forge.neo.quest.NeoQuestCupMatch.Outcome out = null;
+            try {
+                out = forge.neo.quest.NeoQuestCupMatch.play(liveBinder, NeoMatchUI.Mode.HUMAN,
+                        NeoSettings.autoPayMana(),
+                        forge.neo.look.AiProfiles.orDefault(NeoSettings.get(NeoSettings.AI_PROFILE, null)));
+            } catch (final Exception e) {
+                System.err.println("[neo] la partida del torneo ha fallado: " + e);
+                e.printStackTrace();
+            } finally {
+                final forge.neo.quest.NeoQuestCupMatch.Outcome got = out;
+                Platform.runLater(() -> {
+                    if (app.noRestartFor == liveBinder) {
+                        app.noRestartFor = null;
+                    }
+                    if (liveBinder.isAbandoned()) {
+                        if (app.abandonedBinder == liveBinder) {
+                            app.abandonedBinder = null;
+                        }
+                        if (app.binder == liveBinder) {
+                            app.binder = null;
+                        }
+                        return;
+                    }
+                    app.binder = null;
+                    if (got == null) {
+                        showQuestCup();
+                    } else {
+                        final forge.neo.quest.NeoQuestCup.Result r = forge.neo.quest.NeoQuestCup.record(got.won);
+                        showQuestCup().showResult(r);
+                    }
+                });
+            }
+        }, "Game-neo-cup");
+        engine.setDaemon(true);
+        engine.start();
+    }
+
+    /**
+     * Solo pruebas ({@code --quest-cup}): la pantalla del torneo con creditos
+     * de sobra. {@code -Dneo.cup.demo=screen|paid|won|lost|final|champion} y
+     * {@code -Dneo.cup.standard=true} para el de Estandar.
+     */
+    void questCupDemo(final String demo) {
+        forge.model.FModel.getQuest().getAssets().addCredits(20_000);
+        forge.neo.quest.NeoQuestCup.Result r = null;
+        // -Dneo.cup.picks=true: las tres cartas de cada premio, al registro.
+        if (Boolean.getBoolean("neo.cup.picks")) {
+            for (final forge.neo.quest.NeoQuestCup.PrizeCard k : forge.neo.quest.NeoQuestCup.PrizeCard.values()) {
+                System.out.println("[torneo-demo] " + k + ": " + forge.neo.quest.NeoQuestCup.drawChoices(k));
+            }
+        }
+        if (!"screen".equals(demo)) {
+            forge.neo.quest.NeoQuestCup.pay();
+            if ("won".equals(demo) || "final".equals(demo) || "champion".equals(demo)) {
+                r = forge.neo.quest.NeoQuestCup.record(true);
+            } else if ("lost".equals(demo)) {
+                r = forge.neo.quest.NeoQuestCup.record(false);
+            }
+            while ("champion".equals(demo) && forge.neo.quest.NeoQuestCup.stage()
+                    == forge.neo.quest.NeoQuestCup.Stage.PLAYING) {
+                r = forge.neo.quest.NeoQuestCup.record(true);
+            }
+        }
+        final forge.neo.ui.QuestCupScreen screen = showQuestCup();
+        if (r != null) {
+            screen.showResult(r);
         }
     }
 
@@ -1068,10 +1198,14 @@ final class NeoAppQuest {
         forge.neo.quest.NeoQuest.delete("neo-demo");
         // -Dneo.quest.demoWorld=Shandalar: la de prueba, en ese mundo (para ver
         // lo que llevas de el en el cuartel y "Nueva" en la tienda).
+        // -Dneo.quest.demoSets=9ED,RAV: con solo esas expansiones (para ver el
+        // desbloqueo de expansiones, NeoQuestUnlock).
+        final String demoSets = System.getProperty("neo.quest.demoSets");
         forge.neo.quest.NeoQuest.start("neo-demo", modalidad,
                 forge.neo.quest.NeoQuest.Dificultad.NORMAL,
                 starters.isEmpty() ? null : starters.get(0),
-                System.getProperty("neo.quest.demoWorld"));
+                System.getProperty("neo.quest.demoWorld"),
+                demoSets == null ? null : forge.neo.ascent.AscentPool.sets(java.util.Arrays.asList(demoSets.split(","))));
         for (int i = 0; i < Integer.getInteger("neo.quest.demoWins", 0); i++) {
             forge.model.FModel.getQuest().getAchievements().addWin();
         }

@@ -79,6 +79,31 @@ public final class NeoQuestSell {
     }
 
     /**
+     * Si la carta esta marcada con la estrella de Forge ({@code CardPreferences},
+     * por nombre, la misma del constructor de Android): entonces <b>las ventas
+     * automaticas no la tocan</b> — vender las repetidas, vender lo que no esta
+     * en un mazo y la venta sola de despues de cada duelo (Discord,
+     * 23-10-2026: <i>"favorite/mark cards in quest so that they don't get sold
+     * when doing a mass sell"</i>). Elegirla a mano y venderla, si: eso lo has
+     * decidido tu.
+     */
+    public static boolean isKept(final PaperCard card) {
+        try {
+            return card != null && forge.gui.card.CardPreferences.getPrefs(card).getStarCount() > 0;
+        } catch (final RuntimeException e) {
+            return false;
+        }
+    }
+
+    /** Pone o quita la estrella (y la guarda). Devuelve como queda. */
+    public static boolean toggleKept(final PaperCard card) {
+        final forge.gui.card.CardPreferences prefs = forge.gui.card.CardPreferences.getPrefs(card);
+        prefs.setStarCount(prefs.getStarCount() > 0 ? 0 : 1);
+        forge.gui.card.CardPreferences.save();
+        return prefs.getStarCount() > 0;
+    }
+
+    /**
      * Que sobra hoy, y cuanto darian por ello. <b>No vende nada.</b>
      *
      * <p>Se puede llamar para ensenyar el resumen antes de tocar la coleccion.
@@ -118,7 +143,7 @@ public final class NeoQuestSell {
 
         for (final Map.Entry<PaperCard, Integer> item : pool) {
             final PaperCard card = item.getKey();
-            if (card == null) {
+            if (card == null || isKept(card)) {
                 continue;
             }
             final int keep = howManyToKeep(card);
@@ -501,7 +526,7 @@ public final class NeoQuestSell {
         }
         final Map<PaperCard, Integer> used = usedByDecks();
         for (final Map.Entry<PaperCard, Integer> e : NeoQuest.collection()) {
-            if (e.getKey() == null) {
+            if (e.getKey() == null || isKept(e.getKey())) {
                 continue;
             }
             final int n = e.getValue() - used.getOrDefault(e.getKey(), 0);

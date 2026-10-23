@@ -89,7 +89,13 @@ public final class ArtDownload extends GuiDownloadService {
          * Modern, Pauper...): {@link #forFormat}. El mismo camino que
          * {@link #ALL}, recortado con {@code GameFormat.getFilterRules()}.
          */
-        FORMAT
+        FORMAT,
+        /**
+         * El arte de las FICHAS, una por nombre (Discord, 23-10-2026). No lo
+         * baja esta clase: lo baja {@link TokenArtDownload}. Va aparte de
+         * {@link #ALL} a proposito.
+         */
+        TOKENS
     }
 
     /** Todas las impresiones de la expansion con ese codigo de Forge. */

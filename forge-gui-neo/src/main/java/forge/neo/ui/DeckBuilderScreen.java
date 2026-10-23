@@ -118,6 +118,8 @@ public class DeckBuilderScreen extends StackPane {
     private final Button sleeveButton = new Button(NeoText.get("deck.sleeve"));
     /** Todo el mazo foil, o quitarselo (Discord, 03-10-2026). Ver DeckEditor.setAllFoil. */
     private final Button foilAllButton = new Button(NeoText.get("deck.foilAll"));
+    /** Reglas de la casa (forge.neo.deck.HouseRules): solo en las partidas libres. */
+    private final Button houseRulesButton = new Button();
 
     private final Button cleanup = new Button(NeoText.get("deck.cleanup"));
     /** "Quitar las que no tengo": la lista de deseos de la Quest, de vuelta a lo tuyo. */
@@ -280,6 +282,7 @@ public class DeckBuilderScreen extends StackPane {
         layout.setBottom(footer());
 
         getChildren().addAll(layout, overlay, cooldownBadge);
+        initBigCard();
         StackPane.setAlignment(cooldownBadge, Pos.BOTTOM_LEFT);
         StackPane.setMargin(cooldownBadge, new Insets(0, 0, 16, 26));
 
@@ -359,7 +362,20 @@ public class DeckBuilderScreen extends StackPane {
         foilAllButton.setMinWidth(Region.USE_PREF_SIZE);
         foilAllButton.setOnAction(e -> foilAll());
         refreshFoilAllButton();
+        houseRulesButton.getStyleClass().add("btn-secondary");
+        houseRulesButton.setMinWidth(Region.USE_PREF_SIZE);
+        houseRulesButton.setId("builder-house-rules");
+        houseRulesButton.setOnAction(e -> {
+            editor.setHouseRules(!editor.isHouseRules());
+            refreshHouseRulesButton();
+            refreshDeck();
+            refreshCatalogue();
+        });
+        refreshHouseRulesButton();
         final HBox row = new HBox(14, identity, rename, copy, foilAllButton, sleeveButton, views);
+        if (editor.getFormat().allowsHouseRules()) {
+            row.getChildren().add(row.getChildren().indexOf(sleeveButton) + 1, houseRulesButton);
+        }
         row.setAlignment(Pos.CENTER_LEFT);
 
         final VBox box = new VBox(4, row, status);
@@ -537,31 +553,15 @@ public class DeckBuilderScreen extends StackPane {
             powerRow.getChildren().add(statFilter(i, powers));
             toughRow.getChildren().add(statFilter(i, toughnesses));
         }
-        // Con techo: hay expansiones de nombre muy largo y el desplegable se
-        // estiraria hasta comerse la fila entera.
-        setBox.setPrefWidth(UiScale.px(230));
-        setBox.setMaxWidth(UiScale.px(230));
-        setBox.setId("builder-set");
-        setBox.getStyleClass().add("builder-sort");
-        setBox.setConverter(new javafx.util.StringConverter<>() {
-            @Override
-            public String toString(final forge.card.CardEdition ed) {
-                if (ed == null) {
-                    return NeoText.get("library.set.all");
-                }
-                final String year = ed.getDate() == null ? ""
-                        : " (" + new java.text.SimpleDateFormat("yyyy").format(ed.getDate()) + ")";
-                return ed.getName() + year;
-            }
-
-            @Override
-            public forge.card.CardEdition fromString(final String s) {
-                return null;
-            }
-        });
-        setBox.getItems().add(null);
-        setBox.getSelectionModel().select(0);
-        setBox.setOnAction(e -> refreshCatalogue());
+        // VARIAS EXPANSIONES, con buscador (itch.io, 23-10-2026: "select
+        // multiple sets ... a search field for finding sets"). Era un
+        // desplegable de una sola, con cientos de expansiones que bajar a mano.
+        // Con techo: hay expansiones de nombre muy largo.
+        setButton.setMaxWidth(UiScale.px(260));
+        setButton.setId("builder-set");
+        setButton.getStyleClass().add("segment");
+        setButton.setOnAction(e -> openSetPicker());
+        updateSetButton();
         loadEditions();
         formatBox.setId("builder-format");
         formatBox.getStyleClass().add("builder-sort");
@@ -587,7 +587,7 @@ public class DeckBuilderScreen extends StackPane {
                 new HBox(6, label(NeoText.get("deck.cmc")), cmcRow),
                 new HBox(6, label(caps("deck.power")), powerRow),
                 new HBox(6, label(caps("deck.toughness")), toughRow),
-                new HBox(6, label(caps("deck.set")), setBox),
+                new HBox(6, label(caps("deck.set")), setButton),
                 new HBox(6, label(caps("library.format")), formatBox),
                 rules, hideUsedButton, clear);
         fine.setAlignment(Pos.CENTER_LEFT);
@@ -1000,8 +1000,11 @@ public class DeckBuilderScreen extends StackPane {
 
     private final java.util.Set<Integer> powers = new java.util.HashSet<>();
     private final java.util.Set<Integer> toughnesses = new java.util.HashSet<>();
-    private final javafx.scene.control.ComboBox<forge.card.CardEdition> setBox =
-            new javafx.scene.control.ComboBox<>();
+    /** Las expansiones elegidas (vacio = todas). Una carta pasa si esta en ALGUNA. */
+    private final java.util.Set<forge.card.CardEdition> chosenSets = new java.util.LinkedHashSet<>();
+    private final Button setButton = new Button();
+    /** Todas las expansiones, para el buscador (las carga {@link #loadEditions}). */
+    private List<forge.card.CardEdition> allEditions = List.of();
     private final javafx.scene.control.ComboBox<forge.game.GameFormat> formatBox =
             new javafx.scene.control.ComboBox<>();
     /** Las cartas que tienen alguna impresion en cada expansion (CardLibrary). */
@@ -1032,11 +1035,178 @@ public class DeckBuilderScreen extends StackPane {
             final forge.neo.deck.CardLibrary lib = forge.neo.deck.CardLibrary.get();
             javafx.application.Platform.runLater(() -> {
                 library = lib;
-                setBox.getItems().addAll(lib.editions());
+                allEditions = new ArrayList<>(lib.editions());
             });
         }, "neo-builder-sets");
         t.setDaemon(true);
         t.start();
+    }
+
+    private static String setName(final forge.card.CardEdition ed) {
+        final String year = ed.getDate() == null ? ""
+                : " (" + new java.text.SimpleDateFormat("yyyy").format(ed.getDate()) + ")";
+        return ed.getName() + year;
+    }
+
+    /** "Todas las expansiones", la elegida, o "3 expansiones". */
+    private void updateSetButton() {
+        setButton.setText(chosenSets.isEmpty() ? NeoText.get("library.set.all")
+                : chosenSets.size() == 1 ? setName(chosenSets.iterator().next())
+                : NeoText.get("deck.sets.count", chosenSets.size()));
+        setButton.pseudoClassStateChanged(SELECTED, !chosenSets.isEmpty());
+    }
+
+    /**
+     * Elegir expansiones: un buscador (por nombre o codigo) y una casilla por
+     * expansion. Se aplica al marcar, sin esperar a cerrar: se ve el catalogo
+     * cambiar detras.
+     */
+    private void openSetPicker() {
+        openSetPicker("");
+    }
+
+    private void openSetPicker(final String initialQuery) {
+        final Label title = new Label(NeoText.get("deck.sets.title"));
+        title.getStyleClass().add("dialog-title");
+        final TextField find = new TextField();
+        find.setPromptText(NeoText.get("deck.sets.search"));
+        find.getStyleClass().add("text-input");
+        find.setId("builder-set-search");
+        final VBox list = new VBox(4);
+        list.setPadding(new Insets(4, 8, 4, 4));
+        final Runnable fill = () -> {
+            final String q = find.getText() == null ? "" : find.getText().trim().toLowerCase(java.util.Locale.ROOT);
+            list.getChildren().clear();
+            for (final forge.card.CardEdition ed : allEditions) {
+                final String name = setName(ed);
+                if (!q.isEmpty() && !name.toLowerCase(java.util.Locale.ROOT).contains(q)
+                        && !ed.getCode().toLowerCase(java.util.Locale.ROOT).contains(q)) {
+                    continue;
+                }
+                final javafx.scene.control.CheckBox box = new javafx.scene.control.CheckBox(name + "  ·  " + ed.getCode());
+                box.getStyleClass().add("neo-check");
+                box.setSelected(chosenSets.contains(ed));
+                box.setOnAction(e -> {
+                    if (box.isSelected()) {
+                        chosenSets.add(ed);
+                    } else {
+                        chosenSets.remove(ed);
+                    }
+                    updateSetButton();
+                    updateFilterToggle();
+                    refreshCatalogue();
+                });
+                list.getChildren().add(box);
+            }
+        };
+        find.setText(initialQuery);
+        find.textProperty().addListener((o, a, b) -> fill.run());
+        fill.run();
+        final ScrollPane scroll = new ScrollPane(list);
+        scroll.getStyleClass().add("dialog-scroll");
+        scroll.setFitToWidth(true);
+        scroll.setPrefViewportHeight(Math.max(240, getHeight() * 0.55));
+        final Button all = new Button(NeoText.get("library.set.all"));
+        all.getStyleClass().add("btn-secondary");
+        all.setOnAction(e -> {
+            chosenSets.clear();
+            updateSetButton();
+            updateFilterToggle();
+            refreshCatalogue();
+            fill.run();
+        });
+        final Button ok = new Button(NeoText.get("common.accept"));
+        ok.getStyleClass().add("btn-primary");
+        ok.setOnAction(e -> overlay.hide());
+        final Region gap = new Region();
+        HBox.setHgrow(gap, Priority.ALWAYS);
+        final HBox buttons = new HBox(10, all, gap, ok);
+        buttons.setAlignment(Pos.CENTER_LEFT);
+        final VBox dialog = new VBox(10, title, find, scroll, buttons);
+        dialog.getStyleClass().add("dialog");
+        dialog.setPadding(new Insets(18));
+        dialog.setMaxWidth(Math.min(UiScale.px(620), Math.max(360, getWidth() * 0.8)));
+        dialog.setMaxHeight(Region.USE_PREF_SIZE);
+        overlay.setOnBackgroundClick(overlay::hide);
+        overlay.show(dialog);
+        javafx.application.Platform.runLater(find::requestFocus);
+    }
+
+    // ---------------------------------------------------------------
+    // La carta grande al pasar el raton (itch.io, 23-10-2026: "the option to
+    // enlarge a card when hovering over it ... for players with impaired vision
+    // or those playing on a monitor viewed from a distance"). Como la de la
+    // mesa (TableScreen.showBigCard): en el lado CONTRARIO al de la carta, para
+    // no tapar lo que se mira, y el raton la atraviesa.
+    // ---------------------------------------------------------------
+
+    private final CardNode bigCard = new CardNode(300);
+    private final javafx.animation.PauseTransition bigCardHide =
+            new javafx.animation.PauseTransition(javafx.util.Duration.millis(120));
+
+    private void initBigCard() {
+        bigCard.setMouseTransparent(true);
+        bigCard.setManaged(false);
+        bigCard.setVisible(false);
+        bigCard.setRotationEnabled(false);
+        bigCard.setHoverEnabled(false);
+        bigCard.setBadgesVisible(false);
+        bigCard.setBlankWhileLoading(true);
+        bigCard.getStyleClass().add("big-hover-card");
+        bigCardHide.setOnFinished(e -> bigCard.setVisible(false));
+        // Un clic rehace a menudo la fila bajo el raton (anyadir, quitar), y
+        // entonces no llega el "salir": se esconde al pulsar, y vuelve al
+        // mover el raton sobre otra carta.
+        addEventFilter(javafx.scene.input.MouseEvent.MOUSE_PRESSED, e -> {
+            bigCardHide.stop();
+            bigCard.setVisible(false);
+        });
+        // Solo pruebas: -Dneo.builder.setPicker=texto abre el buscador de
+        // expansiones con ese texto (las expansiones cargan en otro hilo).
+        final String picker = System.getProperty("neo.builder.setPicker");
+        if (picker != null) {
+            final javafx.animation.PauseTransition later =
+                    new javafx.animation.PauseTransition(javafx.util.Duration.millis(2500));
+            later.setOnFinished(e -> openSetPicker(picker));
+            later.play();
+        }
+    }
+
+    /** Solo pruebas: -Dneo.builder.hoverFirst=true, la carta grande de la primera. */
+    private boolean hoverTestDone;
+
+    private void hoverCard(final Region anchor, final PaperCard card) {
+        if (!hoverTestDone && Boolean.getBoolean("neo.builder.hoverFirst")) {
+            hoverTestDone = true;
+            final javafx.animation.PauseTransition later =
+                    new javafx.animation.PauseTransition(javafx.util.Duration.millis(2500));
+            later.setOnFinished(e -> showBigCard(anchor, card));
+            later.play();
+        }
+        anchor.addEventHandler(javafx.scene.input.MouseEvent.MOUSE_ENTERED, e -> showBigCard(anchor, card));
+        anchor.addEventHandler(javafx.scene.input.MouseEvent.MOUSE_EXITED, e -> bigCardHide.playFromStart());
+    }
+
+    private void showBigCard(final Region anchor, final PaperCard card) {
+        if (!NeoSettings.getBool(NeoSettings.BUILDER_HOVER_CARD, true) || overlay.isShowing()
+                || card == null || getHeight() <= 0) {
+            return;
+        }
+        bigCardHide.stop();
+        final double h = Math.min(getHeight() * 0.62, UiScale.px(720));
+        final double w = h / CardNode.ASPECT;
+        bigCard.setCardWidth(w);
+        bigCard.setCard(CardView.getCardForUi(card));
+        final javafx.geometry.Bounds b = sceneToLocal(anchor.localToScene(anchor.getBoundsInLocal()));
+        final double margin = UiScale.px(24);
+        final boolean onLeft = b != null && b.getCenterX() < getWidth() / 2;
+        bigCard.resizeRelocate(onLeft ? getWidth() - w - margin : margin,
+                Math.max(margin, (getHeight() - h) / 2), w, h);
+        if (!getChildren().contains(bigCard)) {
+            final int at = getChildren().indexOf(overlay);
+            getChildren().add(at < 0 ? getChildren().size() : at, bigCard);
+        }
+        bigCard.setVisible(true);
     }
 
     /**
@@ -1207,7 +1377,8 @@ public class DeckBuilderScreen extends StackPane {
         multicolourOn = false;
         powers.clear();
         toughnesses.clear();
-        setBox.getSelectionModel().select(0);
+        chosenSets.clear();
+        updateSetButton();
         formatBox.getSelectionModel().select(0);
         rarities.clear();
         cmcs.clear();
@@ -1716,7 +1887,7 @@ public class DeckBuilderScreen extends StackPane {
         final int active = colours.size() + (colourlessOn ? 1 : 0) + (multicolourOn ? 1 : 0)
                 + rarities.size() + cmcs.size() + types.size() + (searchRules ? 0 : 1)
                 + powers.size() + toughnesses.size() + (hideUsed ? 1 : 0)
-                + (setBox.getValue() != null ? 1 : 0) + (formatBox.getValue() != null ? 1 : 0);
+                + (chosenSets.isEmpty() ? 0 : 1) + (formatBox.getValue() != null ? 1 : 0);
         filterToggle.setText(NeoText.get("deck.filters") + (active == 0 ? "" : " · " + active)
                 + (filterRow != null && filterRow.isVisible() ? "  −" : "  +"));
         filterToggle.pseudoClassStateChanged(SELECTED, active > 0 || (filterRow != null && filterRow.isVisible()));
@@ -1781,8 +1952,7 @@ public class DeckBuilderScreen extends StackPane {
                     return false;
                 }
             }
-            final forge.card.CardEdition ed = setBox.getValue();
-            if (ed != null && !inChosenSet(card, ed)) {
+            if (!chosenSets.isEmpty() && chosenSets.stream().noneMatch(ed -> inChosenSet(card, ed))) {
                 return false;
             }
             final forge.game.GameFormat gf = formatBox.getValue();
@@ -2043,6 +2213,7 @@ public class DeckBuilderScreen extends StackPane {
             }
             refreshDeck();
         });
+        hoverCard(box, card);
         return box;
     }
 
@@ -2363,6 +2534,7 @@ public class DeckBuilderScreen extends StackPane {
                 zoom(card);
             }
         });
+        hoverCard(row, card);
         return row;
     }
 
@@ -2402,6 +2574,7 @@ public class DeckBuilderScreen extends StackPane {
                 zoom(card);
             }
         });
+        hoverCard(row, card);
         return row;
     }
 
@@ -2484,7 +2657,9 @@ public class DeckBuilderScreen extends StackPane {
                 printingAction(card),
                 foilAction(card),
                 commander,
+                secondCommanderAction(card),
                 companionAction(card),
+                coverAction(card),
                 new CardActionMenu.Action(NeoText.get("deck.removeOne"),
                         have > 1 ? NeoText.get("deck.willKeep", have - 1) : null, have > 0,
                         () -> {
@@ -2507,6 +2682,24 @@ public class DeckBuilderScreen extends StackPane {
                                     refreshDeck();
                                     refreshCatalogue();
                                 }) : null));
+    }
+
+    /**
+     * "Usar como portada del mazo": la carta que se ve al elegirlo (Discord,
+     * 23-10-2026). Solo sin comandante: con el, la portada es el comandante.
+     * Ver {@link forge.neo.deck.DeckCover}.
+     */
+    private CardActionMenu.Action coverAction(final PaperCard card) {
+        if (editor.usesCommander()) {
+            return null;
+        }
+        final boolean is = editor.isCover(card);
+        return new CardActionMenu.Action(NeoText.get(is ? "deck.cover.unset" : "deck.cover.set"),
+                is ? null : NeoText.get("deck.cover.set.detail"), true,
+                () -> {
+                    editor.toggleCover(card);
+                    refreshDeck();
+                });
     }
 
     /**
@@ -2651,6 +2844,32 @@ public class DeckBuilderScreen extends StackPane {
             refreshCatalogue();
         }
         refreshFoilAllButton();
+    }
+
+    private void refreshHouseRulesButton() {
+        final boolean on = editor.isHouseRules();
+        houseRulesButton.setText(NeoText.get(on ? "deck.houseRules.on" : "deck.houseRules"));
+        houseRulesButton.getStyleClass().remove("ascent-button-on");
+        if (on) {
+            houseRulesButton.getStyleClass().add("ascent-button-on");
+        }
+        houseRulesButton.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("deck.houseRules.tip")));
+    }
+
+    /**
+     * "Anyadir como segundo comandante (reglas de la casa)". Ver
+     * {@code DeckEditor.canAddSecondCommander}.
+     */
+    private CardActionMenu.Action secondCommanderAction(final PaperCard card) {
+        if (!editor.canAddSecondCommander(card)) {
+            return null;
+        }
+        return new CardActionMenu.Action(NeoText.get("deck.houseRules.secondCommander"),
+                NeoText.get("deck.houseRules.secondCommander.detail"), true, () -> {
+                    editor.addSecondCommander(card);
+                    refreshDeck();
+                    refreshCatalogue();
+                });
     }
 
     private void refreshFoilAllButton() {
@@ -3486,6 +3705,10 @@ public class DeckBuilderScreen extends StackPane {
                             refreshCatalogue();
                         }
                     }));
+        }
+        final CardActionMenu.Action second = secondCommanderAction(card);
+        if (second != null) {
+            actions.add(second);
         }
         final CardActionMenu.Action companion = companionAction(card);
         if (companion != null) {

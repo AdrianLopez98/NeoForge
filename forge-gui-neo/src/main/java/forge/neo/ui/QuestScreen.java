@@ -80,6 +80,14 @@ public class QuestScreen extends StackPane {
         /** El Coliseo (solo en una Quest de Commander). */
         void colosseum();
 
+        /** El torneo de la Quest ({@link forge.neo.quest.NeoQuestCup}), al lado de los de draft. */
+        default void cup() {
+        }
+
+        /** Volver a pintar el cuartel (tras desbloquear una expansion). */
+        default void refresh() {
+        }
+
         /** Las preferencias de la Quest (las de Forge): premios, tienda, dificultad. */
         void preferences();
 
@@ -147,6 +155,13 @@ public class QuestScreen extends StackPane {
         // Es su propio alto, asi que no ata la pantalla a nada que viva mas.
         shownWidth = cardWidth;
         heightProperty().addListener((o, was, h) -> fitToHeight(h.doubleValue()));
+        // Solo pruebas: -Dneo.quest.openUnlock=true abre la lista de desbloqueos.
+        if (Boolean.getBoolean("neo.quest.openUnlock") && forge.neo.quest.NeoQuestUnlock.available()) {
+            final javafx.animation.PauseTransition later =
+                    new javafx.animation.PauseTransition(javafx.util.Duration.millis(1500));
+            later.setOnFinished(e -> showUnlockOffers(actions));
+            later.play();
+        }
     }
 
     private void fitToHeight(final double height) {
@@ -216,6 +231,12 @@ public class QuestScreen extends StackPane {
                 duels(actions));
         if (forge.neo.quest.NeoColosseum.available()) {
             content.getChildren().add(colosseum(actions));
+        }
+        if (forge.neo.quest.NeoQuestCup.available()) {
+            content.getChildren().add(cup(actions));
+        }
+        if (forge.neo.quest.NeoQuestUnlock.available()) {
+            content.getChildren().add(unlock(actions));
         }
         content.getChildren().addAll(
                 challenges(actions),
@@ -669,6 +690,36 @@ public class QuestScreen extends StackPane {
     }
 
     /**
+     * El torneo de la Quest (23-10-2026): lo que cuesta y lo que da con tu
+     * nivel, o que tienes uno a medias. Lo demas, en {@link QuestCupScreen}.
+     */
+    private Region cup(final Actions actions) {
+        final Label caption = new Label(NeoText.get("cup.caption"));
+        caption.getStyleClass().add("caption");
+        final forge.neo.quest.NeoQuestCup.Terms t = forge.neo.quest.NeoQuestCup.terms();
+        final forge.neo.quest.NeoQuestCup.Stage stage = forge.neo.quest.NeoQuestCup.stage();
+        final String line = stage == forge.neo.quest.NeoQuestCup.Stage.OFFER
+                ? NeoText.get(t.commander ? "cup.line.commander" : "cup.line.standard", t.fee,
+                        QuestCupScreen.prizeText(t))
+                : NeoText.get("cup.line.playing");
+        final Label text = new Label(line);
+        text.getStyleClass().add("home-subtitle");
+        text.setWrapText(true);
+        final Button go = new Button(NeoText.get("cup.see"));
+        go.setId("quest-cup-see");
+        go.getStyleClass().add(stage == forge.neo.quest.NeoQuestCup.Stage.OFFER ? "btn-secondary" : "btn-primary");
+        go.setMinWidth(Region.USE_PREF_SIZE);
+        go.setOnAction(e -> actions.cup());
+        final Region gap = new Region();
+        HBox.setHgrow(gap, Priority.ALWAYS);
+        final HBox row = new HBox(14, text, gap, go);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.getStyleClass().add("stat-tile");
+        row.setPadding(new Insets(12, 18, 12, 18));
+        return new VBox(6, caption, row);
+    }
+
+    /**
      * El Coliseo (13-10-2026), solo en una Quest de Commander: una linea con
      * lo que cuesta y lo que da, y un boton. Lo que es y contra quien se
      * explica en su pantalla ({@link ColosseumScreen}), antes de pagar.
@@ -766,7 +817,127 @@ public class QuestScreen extends StackPane {
                 NeoText.get("daily.openedDetail", opened.getCards().size(), opened.getNewCount()),
                 opened.getCards(), opened::isNew, getWidth(), getHeight(), overlay::hide);
         panel.setWanted(opened::wantedIn);
+        panel.setValue(forge.neo.quest.NeoQuestSell::priceOf);
         overlay.show(panel);
+    }
+
+    /**
+     * DESBLOQUEAR EXPANSIONES (Discord, 23-10-2026, como el Forge de siempre):
+     * solo en una Quest con expansiones elegidas. Cuantos desbloqueos tienes, o
+     * cuantas victorias faltan, y el boton. Ver {@link forge.neo.quest.NeoQuestUnlock}.
+     */
+    private Region unlock(final Actions actions) {
+        final Label caption = new Label(NeoText.get("quest.unlock.caption"));
+        caption.getStyleClass().add("caption");
+        final int tokens = forge.neo.quest.NeoQuestUnlock.tokens();
+        final String line = tokens > 0
+                ? NeoText.get(tokens == 1 ? "quest.unlock.has.one" : "quest.unlock.has.many", tokens,
+                        forge.neo.quest.NeoQuestUnlock.used())
+                : NeoText.get("quest.unlock.wait", forge.neo.quest.NeoQuestUnlock.winsPerUnlock(),
+                        forge.neo.quest.NeoQuestUnlock.winsToNext());
+        final Label text = new Label(line);
+        text.getStyleClass().add("home-subtitle");
+        text.setWrapText(true);
+        final Button go = new Button(NeoText.get("quest.unlock.see"));
+        go.setId("quest-unlock-see");
+        go.getStyleClass().add(tokens > 0 ? "btn-primary" : "btn-secondary");
+        go.setMinWidth(Region.USE_PREF_SIZE);
+        go.setDisable(tokens < 1);
+        go.setOnAction(e -> showUnlockOffers(actions));
+        final Region gap = new Region();
+        HBox.setHgrow(gap, Priority.ALWAYS);
+        final HBox row = new HBox(14, text, gap, go);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.getStyleClass().add("stat-tile");
+        row.setPadding(new Insets(12, 18, 12, 18));
+        return new VBox(6, caption, row);
+    }
+
+    /** La lista: las mas cercanas en fecha primero, con su precio. */
+    void showUnlockOffers(final Actions actions) {
+        final Label title = new Label(NeoText.get("quest.unlock.title"));
+        title.getStyleClass().add("dialog-title");
+        final Label sub = new Label(NeoText.get("quest.unlock.sub", forge.neo.quest.NeoQuest.credits()));
+        sub.getStyleClass().add("home-subtitle");
+        sub.setWrapText(true);
+        final VBox list = new VBox(6);
+        for (final forge.neo.quest.NeoQuestUnlock.Offer o : forge.neo.quest.NeoQuestUnlock.offers()) {
+            final String year = o.edition.getDate() == null ? ""
+                    : " (" + new java.text.SimpleDateFormat("yyyy").format(o.edition.getDate()) + ")";
+            final Label name = new Label(o.edition.getName() + year + "  ·  " + o.edition.getCode());
+            name.getStyleClass().add("quest-deck-name");
+            final Label price = new Label(NeoText.get("quest.unlock.price", o.price));
+            price.getStyleClass().add("home-subtitle");
+            final boolean afford = forge.neo.quest.NeoQuest.credits() >= o.price;
+            final Button pick = new Button(afford ? NeoText.get("quest.unlock.pick")
+                    : NeoText.get("quest.unlock.cantAfford", o.price - forge.neo.quest.NeoQuest.credits()));
+            pick.getStyleClass().add(afford ? "btn-primary" : "btn-secondary");
+            pick.setDisable(!afford);
+            pick.setMinWidth(Region.USE_PREF_SIZE);
+            pick.setOnAction(e -> confirmUnlock(o, actions));
+            final Region gap = new Region();
+            HBox.setHgrow(gap, Priority.ALWAYS);
+            final HBox row = new HBox(12, new VBox(2, name, price), gap, pick);
+            row.setAlignment(Pos.CENTER_LEFT);
+            row.getStyleClass().add("stat-tile");
+            row.setPadding(new Insets(8, 14, 8, 14));
+            list.getChildren().add(row);
+        }
+        final javafx.scene.control.ScrollPane sp = new javafx.scene.control.ScrollPane(list);
+        sp.getStyleClass().add("dialog-scroll");
+        sp.setFitToWidth(true);
+        sp.setPrefViewportHeight(Math.max(240, getHeight() * 0.6));
+        final Button close = new Button(NeoText.get("common.back"));
+        close.getStyleClass().add("btn-secondary");
+        close.setOnAction(e -> overlay.hide());
+        final HBox bottom = new HBox(close);
+        bottom.setAlignment(Pos.CENTER_RIGHT);
+        final VBox box = new VBox(10, title, sub, sp, bottom);
+        box.getStyleClass().add("dialog");
+        box.setPadding(new Insets(18));
+        box.setMaxWidth(Math.min(UiScale.px(760), Math.max(400, getWidth() * 0.86)));
+        box.setMaxHeight(Region.USE_PREF_SIZE);
+        overlay.setOnBackgroundClick(overlay::hide);
+        overlay.show(box);
+    }
+
+    private void confirmUnlock(final forge.neo.quest.NeoQuestUnlock.Offer o, final Actions actions) {
+        overlay.show(new ConfirmDialog(NeoText.get("quest.unlock.confirmTitle", o.edition.getName()),
+                NeoText.get("quest.unlock.confirmBody", o.price, forge.neo.quest.NeoQuest.credits() - o.price,
+                        o.edition.getName()),
+                java.util.List.of(NeoText.get("quest.unlock.pick"), NeoText.get("common.cancel")), 1, i -> {
+                    if (i != 0) {
+                        showUnlockOffers(actions);
+                        return;
+                    }
+                    final forge.neo.quest.NeoQuestUnlock.Result r = forge.neo.quest.NeoQuestUnlock.unlock(o);
+                    if (r == null) {
+                        overlay.hide();
+                        actions.refresh();
+                        return;
+                    }
+                    final java.util.List<forge.item.PaperCard> cards = new java.util.ArrayList<>();
+                    final java.util.Set<forge.item.PaperCard> fresh = new java.util.HashSet<>();
+                    for (final forge.neo.quest.NeoQuestShop.Opened p : r.packs) {
+                        for (final forge.item.PaperCard c : p.getCards()) {
+                            cards.add(c);
+                            if (p.isNew(c)) {
+                                fresh.add(c);
+                            }
+                        }
+                    }
+                    final java.util.List<String> notes = new java.util.ArrayList<>();
+                    if (r.packs.isEmpty()) {
+                        notes.add(NeoText.get("quest.unlock.noPacks"));
+                    }
+                    overlay.setOnBackgroundClick(null);
+                    overlay.show(CardHaul.panel(NeoText.get("quest.unlock.doneTitle", r.edition.getName()),
+                            NeoText.get("quest.unlock.doneSub"), cards, fresh::contains, notes, cardWidth,
+                            getWidth(), getHeight(), () -> {
+                                overlay.hide();
+                                actions.refresh();
+                            }));
+                }));
     }
 
     private Region challenges(final Actions actions) {

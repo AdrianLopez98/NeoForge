@@ -510,6 +510,17 @@ public class CardLibraryScreen extends StackPane {
                 });
             }
         }
+        // -Dneo.library.zoom=true: la primera carta ampliada, como un clic (para
+        // capturar la ficha de la carta: las fichas que crea, la imagen propia).
+        if (Boolean.getBoolean("neo.library.zoom")) {
+            Platform.runLater(() -> Platform.runLater(() -> {
+                final List<PaperCard> list = results;
+                if (!grid.getChildren().isEmpty() && list != null && !list.isEmpty()) {
+                    CardZoom.show(grid.getChildren().get(0), list.size(), 0,
+                            i -> CardView.getCardForUi(shown(list, i)));
+                }
+            }));
+        }
         final String f = System.getProperty("neo.library.format");
         if (f != null) {
             format.getSelectionModel().select(FModel.getFormats().getFormat(f));

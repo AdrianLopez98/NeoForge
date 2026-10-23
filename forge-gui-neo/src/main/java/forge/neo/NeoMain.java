@@ -618,6 +618,17 @@ public final class NeoMain {
                 banner("Quest: el Coliseo");
                 forge.neo.quest.ColosseumCheck.run();
                 break;
+            case "questunlockcheck":
+                // Desbloquear expansiones en una Quest con expansiones elegidas.
+                banner("Quest: desbloquear expansiones");
+                forge.neo.quest.QuestUnlockCheck.run();
+                break;
+            case "questcupcheck":
+                // El torneo de la Quest: niveles, cuadro, guardado a medias,
+                // premio, final perdida y una partida de cada formato.
+                banner("Quest: el torneo");
+                forge.neo.quest.QuestCupCheck.run();
+                break;
             case "tournamentcheck":
                 // El torneo entero sin ventana: generar rivales, jugar ronda
                 // a ronda hasta perder o completarlo, y que se guarde, se
@@ -972,6 +983,42 @@ public final class NeoMain {
             checkArtDownloadRuns();
             checkEveryPrintingRuns();
         }
+        if (Integer.getInteger("neo.tokens.testLimit", 0) > 0) {
+            checkTokenArtRuns();
+        }
+    }
+
+    /**
+     * El arte de las fichas, bajado de verdad y en pequenyo
+     * ({@code run.cmd artecheck -Dneo.tokens.testLimit=3}): que la direccion
+     * de Scryfall sirva y que el juego encuentre la ficha por el camino del
+     * jugador ({@code ImageKeys.getImageFile} con una impresion cualquiera).
+     */
+    private static void checkTokenArtRuns() {
+        final java.util.Map<String, String[]> all = forge.neo.card.TokenArtDownload.newestPrintingsForTest();
+        System.out.println("  fichas distintas: " + all.size() + " (Gingerbrute: "
+                + java.util.Arrays.toString(all.get("gingerbrute")) + ")");
+        final boolean ok = forge.neo.platform.NeoDownloads.runAndWait(
+                new forge.neo.card.TokenArtDownload(), 120);
+        forge.neo.card.TokenArtDownload.afterDownload();
+        int found = 0;
+        int tried = 0;
+        for (final String name : all.keySet()) {
+            final java.io.File f = new java.io.File(
+                    forge.localinstance.properties.ForgeConstants.CACHE_TOKEN_PICS_DIR, name + ".jpg");
+            if (!f.exists()) {
+                continue;
+            }
+            tried++;
+            // Por una impresion que NO es la bajada: el ultimo recurso de ImageKeys.
+            if (forge.ImageKeys.getImageFile("t:" + name + "|ZZZ|999") != null) {
+                found++;
+            }
+            if (tried >= 10) {
+                break;
+            }
+        }
+        System.out.println("  descarga de fichas terminada: " + ok + " | el juego encuentra " + found + " de " + tried);
     }
 
     /**

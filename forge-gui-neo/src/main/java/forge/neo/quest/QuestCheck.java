@@ -55,6 +55,8 @@ public final class QuestCheck {
         System.out.println();
         ok &= checkCommanderStarter();
         System.out.println();
+        ok &= checkBuildFromCollection();
+        System.out.println();
         ok &= checkColourStarter();
         ok &= checkWorldColourStarter();
         System.out.println();
@@ -79,6 +81,8 @@ public final class QuestCheck {
         ok &= checkNewestFirst();
         ok &= checkDuelAfterTravel();
         ok &= checkLowLife();
+        ok &= checkRename();
+        ok &= checkKept();
         System.out.println();
         ok &= checkEveryRivalHasAFace();
         System.out.println();
@@ -2073,6 +2077,58 @@ public final class QuestCheck {
     }
 
     /**
+     * "Montar uno con lo que tengo" (itch.io, 23-10-2026): con cuatro Sol Ring
+     * de cuatro expansiones en la coleccion metia los cuatro, se quedaba en 98
+     * y el comandante era siempre el primero. Ahora: una carta por nombre, al
+     * minimo del formato, y con el comandante que se pide.
+     */
+    private static boolean checkBuildFromCollection() {
+        final String name = "neo-questcheck-montar";
+        NeoQuest.delete(name);
+        System.out.println("  --- Montar uno con lo que tengo (Commander) ---");
+        final List<Deck> starters = NeoQuest.starterDecks(NeoQuest.Modalidad.COMMANDER);
+        if (starters.isEmpty()) {
+            System.out.println("  (sin mazos de inicio de Commander: no se prueba)");
+            return true;
+        }
+        boolean ok = true;
+        NeoQuest.start(name, NeoQuest.Modalidad.COMMANDER, NeoQuest.Dificultad.NORMAL, starters.get(0));
+        try {
+            int printings = 0;
+            for (final PaperCard c : FModel.getMagicDb().getCommonCards().getAllCards("Sol Ring")) {
+                NeoQuest.engine().getCards().getCardpool().add(c);
+                if (++printings >= 4) {
+                    break;
+                }
+            }
+            final List<PaperCard> candidates = NeoQuest.commanderCandidates();
+            ok &= !candidates.isEmpty();
+            final PaperCard chosen = candidates.get(candidates.size() - 1);
+            final Deck deck = NeoQuest.buildStarterDeck("NeoCheck montado", chosen);
+            final java.util.Map<String, Integer> byName = new java.util.HashMap<>();
+            for (final java.util.Map.Entry<PaperCard, Integer> e : deck.getMain()) {
+                if (!e.getKey().isVeryBasicLand()) {
+                    byName.merge(e.getKey().getName(), e.getValue(), Integer::sum);
+                }
+            }
+            final long repeated = byName.values().stream().filter(v -> v > 1).count();
+            final int size = deck.getMain().countAll();
+            final PaperCard cmd = deck.get(forge.deck.DeckSection.Commander).get(0);
+            System.out.printf(Locale.ROOT, "  [%s] %d candidatos; el pedido es el comandante (%s)%n",
+                    cmd.getName().equals(chosen.getName()) ? "OK " : "MAL", candidates.size(), cmd.getName());
+            ok &= cmd.getName().equals(chosen.getName());
+            System.out.printf(Locale.ROOT, "  [%s] ninguna carta repetida (%d nombres de mas; Sol Ring x%d en la coleccion)%n",
+                    repeated == 0 ? "OK " : "MAL", repeated, printings + 1);
+            ok &= repeated == 0;
+            System.out.printf(Locale.ROOT, "  [%s] 99 cartas mas el comandante (%d)%n", size == 99 ? "OK " : "MAL", size);
+            ok &= size == 99;
+        } finally {
+            NeoQuest.delete(name);
+        }
+        return ok;
+    }
+
+    /**
      * Un COMANDANTE que no tienes (revisor, 15-10-2026): al importar una lista
      * con "Mis cartas" se perdia, porque setCommander exigia tenerlo. En la
      * Quest entra como cualquier otra carta que falta, y lo que impide jugar es
@@ -3305,6 +3361,98 @@ public final class QuestCheck {
      * y se juega, ganando y perdiendo, y se VUELVE A CARGAR la Quest del disco:
      * apuntarlo en memoria y no guardarlo se veria igual en la pantalla.
      */
+    /**
+     * Las cartas con estrella (Discord, 23-10-2026): las ventas automaticas
+     * —repetidas y lo que no esta en un mazo— se las saltan; sin estrella,
+     * vuelven a entrar. La estrella es de Forge y del jugador: se deja como
+     * estaba.
+     */
+    private static boolean checkKept() {
+        System.out.println("  --- Cartas con estrella: no se venden solas ---");
+        final String name = "neo-questcheck-estrella";
+        NeoQuest.delete(name);
+        boolean ok = true;
+        final PaperCard card = FModel.getMagicDb().getCommonCards().getCard("Grizzly Bears");
+        final boolean before = NeoQuestSell.isKept(card);
+        try {
+            final List<Deck> starters = NeoQuest.starterDecks(NeoQuest.Modalidad.ESTANDAR);
+            NeoQuest.start(name, NeoQuest.Modalidad.ESTANDAR, NeoQuest.Dificultad.NORMAL,
+                    starters.isEmpty() ? null : starters.get(0));
+            NeoQuest.engine().getCards().addSingleCard(card, 9);
+            if (NeoQuestSell.isKept(card)) {
+                NeoQuestSell.toggleKept(card);
+            }
+            final boolean soldBefore = NeoQuestSell.preview().getCards().contains(card)
+                    && NeoQuestSell.notInDecksPlan().containsKey(card);
+            NeoQuestSell.toggleKept(card);
+            final boolean keptNow = NeoQuestSell.isKept(card);
+            final boolean skipped = !NeoQuestSell.preview().getCards().contains(card)
+                    && !NeoQuestSell.notInDecksPlan().containsKey(card);
+            final int owned = NeoQuestSell.owned(card);
+            NeoQuestSell.sell();
+            final boolean stayed = NeoQuestSell.owned(card) == owned;
+            System.out.printf(Locale.ROOT, "  [%s] sin estrella entra en las dos ventas: %s | con estrella no: %s | vender repetidas la deja (%d): %s%n",
+                    soldBefore && keptNow && skipped && stayed ? "OK " : "MAL", soldBefore, skipped, owned, stayed);
+            ok &= soldBefore && keptNow && skipped && stayed;
+        } finally {
+            if (NeoQuestSell.isKept(card) != before) {
+                NeoQuestSell.toggleKept(card);
+            }
+            NeoQuest.delete(name);
+        }
+        return ok;
+    }
+
+    /**
+     * Renombrar una Quest (Discord, 23-10-2026): no se puede pisar otra (ni
+     * cambiando solo mayusculas), ni usar lo que un fichero no admite; y al
+     * renombrar se va todo con ella, lo nuestro incluido.
+     */
+    private static boolean checkRename() {
+        System.out.println("  --- Renombrar una Quest ---");
+        final String a = "neo-questcheck-renombrar-a";
+        final String b = "neo-questcheck-renombrar-b";
+        final String c = "neo-questcheck-renombrar-c";
+        for (final String n : new String[] {a, b, c}) {
+            NeoQuest.delete(n);
+        }
+        boolean ok = true;
+        try {
+            final List<Deck> starters = NeoQuest.starterDecks(NeoQuest.Modalidad.ESTANDAR);
+            final Deck starter = starters.isEmpty() ? null : starters.get(0);
+            NeoQuest.start(b, NeoQuest.Modalidad.ESTANDAR, NeoQuest.Dificultad.NORMAL, starter);
+            NeoQuest.start(a, NeoQuest.Modalidad.ESTANDAR, NeoQuest.Dificultad.NORMAL, starter);
+            QuestLowLife.set(a, true);
+            final long credits = NeoQuest.credits();
+
+            final String taken = NeoQuest.rename(a, b.toUpperCase(Locale.ROOT));
+            final String bad = NeoQuest.rename(a, "mal/nombre");
+            final String empty = NeoQuest.rename(a, "   ");
+            System.out.printf(Locale.ROOT, "  [%s] el de otra (en mayusculas): %s | con /: %s | vacio: %s%n",
+                    "questPick.rename.taken".equals(taken) && "questPick.rename.invalid".equals(bad)
+                            && "questPick.rename.empty".equals(empty) ? "OK " : "MAL", taken, bad, empty);
+            ok &= "questPick.rename.taken".equals(taken) && "questPick.rename.invalid".equals(bad)
+                    && "questPick.rename.empty".equals(empty);
+
+            final String done = NeoQuest.rename(a, "  " + c + "  ");
+            final java.io.File dir = new java.io.File(forge.localinstance.properties.ForgeConstants.QUEST_SAVE_DIR);
+            final boolean moved = done == null && new java.io.File(dir, c + ".dat").isFile()
+                    && !new java.io.File(dir, a + ".dat").isFile()
+                    && new java.io.File(dir, c + ".neo-vida-baja").isFile()
+                    && !new java.io.File(dir, a + ".neo-vida-baja").isFile();
+            final boolean loaded = c.equals(NeoQuest.name()) && NeoQuest.credits() == credits
+                    && QuestLowLife.isOn() && NeoQuest.saves().contains(b);
+            System.out.printf(Locale.ROOT, "  [%s] renombrada: %s | ficheros movidos: %s | sigue cargada con lo suyo: %s%n",
+                    moved && loaded ? "OK " : "MAL", done, moved, loaded);
+            ok &= moved && loaded;
+        } finally {
+            for (final String n : new String[] {a, b, c}) {
+                NeoQuest.delete(n);
+            }
+        }
+        return ok;
+    }
+
     /**
      * La vida baja (Discord, 18-10-2026): 15 en Estandar, 30 en Commander, y
      * que llegue de verdad a la partida, no solo al numero del cuartel.

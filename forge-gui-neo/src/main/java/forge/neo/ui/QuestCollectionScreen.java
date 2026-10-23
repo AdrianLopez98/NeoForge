@@ -183,8 +183,8 @@ public class QuestCollectionScreen extends StackPane {
         });
 
         sort.getItems().addAll(NeoText.get("sort.name"), NeoText.get("sort.cost"),
-                NeoText.get("sort.owned"), NeoText.get("sort.type"));
-        sort.getSelectionModel().select(0);
+                NeoText.get("sort.owned"), NeoText.get("sort.type"), NeoText.get("sort.value"));
+        sort.getSelectionModel().select(Integer.getInteger("neo.collection.sort", 0)); // pruebas: 4 = valor
         sort.setOnAction(e -> reload());
 
         resultCount.getStyleClass().add("caption");
@@ -261,6 +261,11 @@ public class QuestCollectionScreen extends StackPane {
             return Comparator.comparingInt((Entry e) -> -e.count)
                     .thenComparing(e -> forge.neo.card.CardText.nameOf(e.card));
         }
+        if (NeoText.get("sort.value").equals(choice)) {
+            // Lo que te dan en la tienda, la mas cara primero (itch.io, 23-10-2026).
+            return Comparator.comparingInt((Entry e) -> -forge.neo.quest.NeoQuestSell.priceOf(e.card))
+                    .thenComparing(e -> forge.neo.card.CardText.nameOf(e.card));
+        }
         if (NeoText.get("sort.type").equals(choice)) {
             return Comparator
                     .comparing((Entry e) -> forge.neo.deck.DeckEditor.groupOf(e.card))
@@ -298,6 +303,16 @@ public class QuestCollectionScreen extends StackPane {
             box.getChildren().add(count);
             StackPane.setAlignment(count, Pos.TOP_RIGHT);
             StackPane.setMargin(count, DeckBuilderScreen.countMargin(cardWidth));
+        }
+        // Lo que vale en la tienda, siempre a la vista (itch.io, 23-10-2026).
+        if (forge.neo.quest.NeoQuest.isActive()) {
+            final Label value = new Label(NeoText.get("shop.credits.short",
+                    forge.neo.quest.NeoQuestSell.priceOf(entry.card)));
+            value.getStyleClass().add("value-badge");
+            value.setMouseTransparent(true);
+            box.getChildren().add(value);
+            StackPane.setAlignment(value, Pos.BOTTOM_LEFT);
+            StackPane.setMargin(value, new javafx.geometry.Insets(0, 0, 6, 6));
         }
         return box;
     }

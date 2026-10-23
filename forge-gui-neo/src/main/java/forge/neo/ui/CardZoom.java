@@ -194,7 +194,8 @@ public final class CardZoom {
         final boolean side = hasState(card) || otherFace(card) != null
                 || !forge.neo.card.ChosenValues.of(card).isEmpty()
                 || related(card) != null || canReadLiveText(card)
-                || !keywordsOf(card).isEmpty() || hasPlainText(card);
+                || !keywordsOf(card).isEmpty() || hasPlainText(card)
+                || !tokensOf(card).isEmpty();
         double w = bigWidth;
         if (side) {
             w = Math.min(w, sceneWidth * 0.9 / (1 + SIDE_RATIO));
@@ -222,7 +223,7 @@ public final class CardZoom {
         final javafx.scene.Group shown = new javafx.scene.Group(big);
         big.setRotate(big.readRotationProperty().get());
         big.readRotationProperty().addListener((o, was, now) -> big.setRotate(now.doubleValue()));
-        final Node refresh = refreshButton(card);
+        final Node refresh = underCard(card);
         if (!side) {
             // Sin ficha (una criatura sin texto, una basica), la edicion va
             // debajo de la carta: es lo unico que habria al lado.
@@ -466,6 +467,140 @@ public final class CardZoom {
         if (plain != null) {
             box.getChildren().add(plain);
         }
+
+        final Region tokens = tokensBlock(card, width);
+        if (tokens != null) {
+            box.getChildren().add(tokens);
+        }
+        return box;
+    }
+
+    /**
+     * Las fichas que crea la carta, FUERA de una partida (la enciclopedia, el
+     * constructor): Discord, 23-10-2026, para ver si su imagen esta sin jugarla.
+     * Ver {@link forge.neo.card.CardTokens}. En la mesa no: alli las fichas ya
+     * estan en la mesa cuando importan, y esta capa es la de leer la carta.
+     */
+    private static java.util.List<CardView> tokensOf(final CardView card) {
+        if (card == null || card.getZone() != null || card.isToken() || card.getCurrentState() == null) {
+            return java.util.List.of();
+        }
+        final forge.item.PaperCard pc = TOKENS_PAPER.apply(card);
+        return pc == null ? java.util.List.of() : TOKENS.computeIfAbsent(pc, forge.neo.card.CardTokens::of);
+    }
+
+    /** Las fichas ya calculadas por carta: se pregunta en cada carta que pasa por la rueda. */
+    private static final java.util.Map<forge.item.PaperCard, java.util.List<CardView>> TOKENS =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static final java.util.function.Function<CardView, forge.item.PaperCard> TOKENS_PAPER = cv -> {
+        try {
+            return forge.util.ImageUtil.getPaperCardFromImageKey(cv.getCurrentState().getImageKey(null));
+        } catch (final RuntimeException e) {
+            return null;
+        }
+    };
+
+    private static Region tokensBlock(final CardView card, final double width) {
+        final java.util.List<CardView> tokens = tokensOf(card);
+        if (tokens.isEmpty()) {
+            return null;
+        }
+        final Label title = new Label(NeoText.get("zoom.tokens"));
+        title.getStyleClass().add("zoom-head");
+        UiScale.fixedFont(title, 12);
+        final javafx.scene.layout.FlowPane row = new javafx.scene.layout.FlowPane(8, 8);
+        row.setPrefWrapLength(width);
+        final double each = Math.min(width * 0.46, width / Math.min(tokens.size(), 3) - 8);
+        for (final CardView t : tokens) {
+            final CardNode node = new CardNode(each);
+            node.setRotationEnabled(false);
+            node.setHoverEnabled(false);
+            node.setCard(t);
+            // Un boton y no la carta pelada: en esta capa solo los controles
+            // reciben el clic (isInteractiveTarget); lo demas la cierra.
+            final javafx.scene.control.Button b = new javafx.scene.control.Button(null, node);
+            b.getStyleClass().add("zoom-token");
+            b.setStyle("-fx-background-color: transparent; -fx-padding: 0;");
+            b.setTooltip(new javafx.scene.control.Tooltip(t.getCurrentState() == null ? t.getName()
+                    : CardText.nameOf(t.getCurrentState())));
+            b.setOnAction(e -> {
+                e.consume();
+                show(b, tokens.size(), tokens.indexOf(t), tokens::get);
+            });
+            row.getChildren().add(b);
+        }
+        final VBox box = new VBox(6, title, row);
+        box.setAlignment(Pos.TOP_LEFT);
+        return box;
+    }
+
+    /**
+     * Lo de debajo de la carta: "Usar mi propia imagen" si no tiene (Discord,
+     * 23-10-2026), con DONDE se guardaria, y "Volver a bajar la imagen".
+     */
+    private static Node underCard(final CardView card) {
+        final Node own = ownImageButton(card);
+        final Node refresh = refreshButton(card);
+        if (own == null) {
+            return refresh;
+        }
+        final VBox box = new VBox(4);
+        box.setAlignment(Pos.CENTER);
+        box.getChildren().add(own);
+        if (refresh != null) {
+            box.getChildren().add(refresh);
+        }
+        return box;
+    }
+
+    /**
+     * "Usar mi propia imagen…": solo si la carta o ficha NO tiene imagen en el
+     * disco. Elige un JPG o PNG y lo deja donde la buscaria el juego
+     * ({@link forge.neo.card.OwnImage}); la ruta va escrita debajo, para quien
+     * prefiera ponerla a mano.
+     */
+    private static Node ownImageButton(final CardView card) {
+        final String key = card == null || card.getCurrentState() == null ? null
+                : card.getCurrentState().getImageKey(null);
+        final String where = forge.neo.card.OwnImage.shownPath(key);
+        if (where == null || forge.neo.card.CardImages.hasImageOnDisk(key)) {
+            return null;
+        }
+        final javafx.scene.control.Button b = new javafx.scene.control.Button(NeoText.get("zoom.ownImage"));
+        b.getStyleClass().addAll("segment", "zoom-refresh-art");
+        b.setId("zoom-own-image");
+        final Label path = new Label(NeoText.get("zoom.ownImage.path", where));
+        path.getStyleClass().addAll("zoom-line", "zoom-dim");
+        UiScale.fixedFont(path, 11);
+        path.setWrapText(true);
+        path.setMaxWidth(UiScale.px(420));
+        final java.io.File full = forge.neo.card.OwnImage.target(key, ".jpg");
+        if (full != null) {
+            path.setTooltip(new javafx.scene.control.Tooltip(full.getAbsolutePath()));
+        }
+        b.setOnAction(e -> {
+            e.consume();
+            final javafx.stage.FileChooser fc = new javafx.stage.FileChooser();
+            fc.setTitle(NeoText.get("zoom.ownImage"));
+            fc.getExtensionFilters().add(new javafx.stage.FileChooser.ExtensionFilter(
+                    "JPG / PNG", "*.jpg", "*.jpeg", "*.png"));
+            final java.io.File chosen = fc.showOpenDialog(b.getScene() == null ? null : b.getScene().getWindow());
+            if (chosen == null) {
+                return;
+            }
+            try {
+                final java.io.File done = forge.neo.card.CardImages.useOwnImage(key, chosen);
+                b.setText(NeoText.get(done == null ? "zoom.ownImage.failed" : "zoom.ownImage.done"));
+                b.setDisable(done != null);
+            } catch (final java.io.IOException ex) {
+                System.err.println("[neo-img] no se pudo copiar " + chosen + ": " + ex);
+                b.setText(NeoText.get("zoom.ownImage.failed"));
+            }
+        });
+        b.addEventHandler(javafx.scene.input.MouseEvent.MOUSE_CLICKED, javafx.scene.input.MouseEvent::consume);
+        final VBox box = new VBox(2, b, path);
+        box.setAlignment(Pos.CENTER);
         return box;
     }
 

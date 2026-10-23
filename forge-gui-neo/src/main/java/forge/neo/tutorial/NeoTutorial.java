@@ -211,6 +211,11 @@ public final class NeoTutorial {
     private static final String PYROMANCER = "Prodigal Pyromancer|Set:M11";
     private static final String DRAKE = "Wind Drake|Set:KLD";
     private static final String RADHA = "Radha, Heir to Keld|Set:DMR";
+    /**
+     * Un aura que va en un JUGADOR, no en una criatura (Discord, 23-10-2026:
+     * no sabia como ponersela al rival; el objetivo es su retrato, no una carta).
+     */
+    private static final String CURSE = "Curse of the Pierced Heart|Set:ISD";
 
     /** Una linea de zona: {@code humanhand=Forest|Set:M21;...}. */
     private static String zone(final String key, final String... cards) {
@@ -357,9 +362,9 @@ public final class NeoTutorial {
                 "activephase=MAIN1",
                 "humanlife=20",
                 "ailife=18",
-                zone("humanbattlefield", FOREST, FOREST, MOUNTAIN, MOUNTAIN,
+                zone("humanbattlefield", FOREST, FOREST, MOUNTAIN, MOUNTAIN, MOUNTAIN,
                         PYROMANCER, ELVES),
-                zone("humanhand", BOLT, GROWTH, BEAR),
+                zone("humanhand", BOLT, GROWTH, BEAR, CURSE),
                 "humanlibrary=" + library(10, FOREST, MOUNTAIN),
                 "humangraveyard=",
                 "humanexile=",
@@ -377,6 +382,10 @@ public final class NeoTutorial {
                 TutorialStep.watch(k + "activate", Spot.BOARD_SELF,
                         TutorialProbe::activatedAbility),
                 TutorialStep.read(k + "targets", Spot.BOARD_OPP),
+                // Un aura en el RIVAL, no en una criatura (Discord, 23-10-2026:
+                // no sabia como ponersela). Se lanza como cualquier hechizo y
+                // el objetivo es su retrato: eso es lo que no se adivina.
+                TutorialStep.watch(k + "aura", Spot.BOARD_OPP, p -> p.castSpell("aura")),
                 TutorialStep.watch(k + "instant", Spot.HAND, p -> p.castSpell("instant")),
                 TutorialStep.gesture(k + "stops", Spot.PHASES, Gesture.PHASE_STOP),
                 TutorialStep.read(k + "commander", Spot.COMMAND),

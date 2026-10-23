@@ -544,6 +544,9 @@ public final class NeoSettings {
      */
     public static final String BIG_HOVER_CARD = "bigHoverCard";
 
+    /** La carta grande al pasar el raton EN EL CONSTRUCTOR (itch.io, 23-10-2026). Encendido de fabrica. */
+    public static final String BUILDER_HOVER_CARD = "builderHoverCard";
+
     public static boolean bigHoverCard() {
         return Boolean.getBoolean("neo.bigHoverCard") || getBool(BIG_HOVER_CARD, false);
     }

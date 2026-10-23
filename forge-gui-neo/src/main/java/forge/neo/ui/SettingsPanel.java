@@ -1025,6 +1025,14 @@ public class SettingsPanel extends VBox {
                     NeoSettings.save();
                 }));
 
+        // --- y en el constructor de mazos (itch.io, 23-10-2026), encendido de fabrica ---
+        getChildren().add(toggleRow(NeoText.get("settings.builderHoverCard"),
+                NeoSettings.getBool(NeoSettings.BUILDER_HOVER_CARD, true),
+                on -> {
+                    NeoSettings.setBool(NeoSettings.BUILDER_HOVER_CARD, on);
+                    NeoSettings.save();
+                }));
+
         // --- la carta GRANDE al pasar el raton, como en Forge ---
         //
         // Discord, 07-10-2026: "i really want the large card on hover ... like
@@ -1362,6 +1370,14 @@ public class SettingsPanel extends VBox {
         artAll.setMinWidth(Region.USE_PREF_SIZE);
         artAll.setOnAction(e -> showArtDownload(forge.neo.card.ArtDownload.Scope.ALL));
         getChildren().add(row(NeoText.get("settings.art.allRow"), artAll));
+
+        // El arte de las fichas, aparte (Discord, 23-10-2026). Ver TokenArtDownload.
+        final Button artTokens = new Button(NeoText.get("settings.art.tokens"));
+        artTokens.setId("settings-art-tokens");
+        artTokens.getStyleClass().add("segment");
+        artTokens.setMinWidth(Region.USE_PREF_SIZE);
+        artTokens.setOnAction(e -> showArtDownload(forge.neo.card.ArtDownload.Scope.TOKENS));
+        getChildren().add(row(NeoText.get("settings.art.tokensRow"), artTokens));
 
         final Button artDecks = new Button(NeoText.get("settings.art.decks"));
         artDecks.getStyleClass().add("segment");

@@ -130,7 +130,8 @@ public final class CardImages {
      */
     private static String toFilename(final String imageKey) {
         if (imageKey == null || !imageKey.startsWith(ImageKeys.CARD_PREFIX)) {
-            return imageKey;
+            // Una ficha sin expansion se busca con la suya: ver TokenKeys.
+            return TokenKeys.complete(imageKey);
         }
         try {
             final PaperCard pc = ImageUtil.getPaperCardFromImageKey(imageKey);
@@ -645,7 +646,8 @@ public final class CardImages {
         }
         GuiBase.getInterface().invokeInEdtLater(() -> {
             try {
-                GuiBase.getInterface().getImageFetcher().fetchImage(imageKey, () -> resolveAfterDownload(imageKey));
+                GuiBase.getInterface().getImageFetcher().fetchImage(TokenKeys.complete(imageKey),
+                        () -> resolveAfterDownload(imageKey));
             } catch (final Exception e) {
                 System.err.println("[neo] no se pudo pedir la imagen " + imageKey + ": " + e);
                 PENDING.remove(imageKey);
@@ -1011,6 +1013,40 @@ public final class CardImages {
         } catch (final java.io.IOException | RuntimeException e) {
             return null;
         }
+    }
+
+    /** Si la impresion exacta (o la ficha) tiene ya su imagen en el disco. */
+    public static boolean hasImageOnDisk(final String imageKey) {
+        try {
+            return imageKey != null && !imageKey.isEmpty() && findOnDisk(imageKey) != null;
+        } catch (final RuntimeException e) {
+            return true;
+        }
+    }
+
+    /**
+     * Pone una imagen PROPIA donde iria la de Scryfall ({@link OwnImage}) y la
+     * carga como si se acabara de bajar: la mesa, la enciclopedia y la carta
+     * ampliada la ven en el acto (Discord, 23-10-2026). Devuelve el fichero
+     * escrito, o {@code null} si esa clave no tiene sitio (no es carta ni ficha)
+     * o el fichero elegido no es JPG ni PNG.
+     */
+    public static File useOwnImage(final String imageKey, final File source) throws java.io.IOException {
+        final String ext = OwnImage.extensionOf(source == null ? null : source.getName());
+        final File target = ext == null ? null : OwnImage.target(imageKey, ext);
+        if (target == null) {
+            return null;
+        }
+        target.getParentFile().mkdirs();
+        java.nio.file.Files.copy(source.toPath(), target.toPath(),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        // Lo que recordaba que NO habia imagen, fuera: la del motor y las nuestras.
+        ImageKeys.clearMissingCards();
+        FAILED.remove(imageKey);
+        NO_IMAGE.remove(imageKey);
+        SCALED.asMap().keySet().removeIf(k -> k.startsWith(imageKey));
+        LOADERS.submit(() -> decode(imageKey, target));
+        return target;
     }
 
     private static void decode(final String imageKey, final File file) {

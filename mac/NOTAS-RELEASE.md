@@ -1,12 +1,14 @@
-**NeoForge para macOS 1.0.31 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.32 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Las pilas de fichas ya no se deshacen al elegir cartas**, y su «xN» pregunta **cuántas**: sacrificar 20 Tesoros de 40 es un clic y un número. Las mesas enormes ya no se atascan.
-- **Entradas especiales para treinta comandantes más** (Yuriko, Korvold, Gishath, Niv-Mizzet, Urza, Najeela…).
-- **Quest:** sobres de Assassin's Creed y Mystery Booster 2, «Qué puede salir» en el sobre de premio y un interruptor para quitar los sobres de Alchemy.
-- **Controlar el turno de otro** (Worst Fears, Mindslaver) ya no deja la mesa mirando la suya.
-- **El número de copias ya no tapa el coste** en el constructor.
-- **Forge al día:** más cartas de Star Trek.
+- **El torneo de la Quest**: en Commander, mesas de cuatro y una final; en Estándar, cuadro de 8. La entrada, los rivales y el premio crecen con tu campaña.
+- **Quest:** desbloquear expansiones con victorias, el valor de cada carta (en la colección, al vender y al abrir sobres), ordenar las sueltas de la tienda, marcar cartas para que no se vendan solas, renombrar una campaña y «Montar uno con lo que tengo» arreglado.
+- **Reglas de la casa:** un mazo que se salta las reglas a propósito se puede jugar en las partidas libres.
+- **«Sí a todo»** cuando un disparo opcional se repite muchas veces.
+- **Constructor:** la carta en grande al pasar el ratón, varias expansiones a la vez con buscador y elegir la carta de portada del mazo.
+- **Fichas:** las que crea una carta salen al ampliarla, se puede usar una imagen propia si falta, y se descarga su arte para jugar sin internet.
+- **Tutorial:** un paso nuevo para poner un aura en el rival.
+- **Forge al día:** arreglos de reglas y de cartas.
 
 Descarga el `.dmg` de tu Mac:
 

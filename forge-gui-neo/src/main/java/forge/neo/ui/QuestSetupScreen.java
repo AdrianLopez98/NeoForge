@@ -843,7 +843,16 @@ public class QuestSetupScreen extends BorderPane {
             syncChosen();
         });
 
-        final HBox tools = new HBox(10, cmdSearch, random);
+        // Los favoritos, los MISMOS que en Ascenso (Discord, 23-10-2026): salen
+        // los primeros, y este boton deja ver solo esos. Ver FavoriteStar.
+        cmdFavorites.getStyleClass().add("btn-secondary");
+        cmdFavorites.setMinWidth(Region.USE_PREF_SIZE);
+        cmdFavorites.setOnAction(e -> {
+            onlyFavorites = !onlyFavorites;
+            reloadCommanders();
+        });
+
+        final HBox tools = new HBox(10, cmdSearch, random, cmdFavorites);
         tools.setAlignment(Pos.CENTER_LEFT);
 
         final Label hint = new Label(NeoText.get("questNew.cmdHint"));
@@ -863,14 +872,30 @@ public class QuestSetupScreen extends BorderPane {
         return new VBox(8, tools, hint, sp, cmdPager);
     }
 
+    /** "Solo favoritos" en el selector de comandante. */
+    private boolean onlyFavorites;
+    private final Button cmdFavorites = new Button();
+
     private void reloadCommanders() {
         if (allCommanders == null) {
             allCommanders = AscentSeedDeck.commanderPool(pool);
         }
+        final int favCount = forge.neo.ascent.AscentFavorites.only(allCommanders).size();
+        if (favCount == 0) {
+            onlyFavorites = false;
+        }
+        cmdFavorites.setText(NeoText.get("ascent.setup.favorites", favCount));
+        cmdFavorites.setDisable(favCount == 0);
+        cmdFavorites.getStyleClass().remove("ascent-button-on");
+        if (onlyFavorites) {
+            cmdFavorites.getStyleClass().add("ascent-button-on");
+        }
         final String q = cmdSearch.getText() == null ? ""
                 : cmdSearch.getText().trim().toLowerCase(Locale.ROOT);
         cmdFiltered = new ArrayList<>();
-        for (final PaperCard c : allCommanders) {
+        final List<PaperCard> base = onlyFavorites ? forge.neo.ascent.AscentFavorites.only(allCommanders)
+                : forge.neo.ascent.AscentFavorites.favoritesFirst(allCommanders);
+        for (final PaperCard c : base) {
             // Por el nombre en ingles y por el traducido.
             if (q.isEmpty() || c.getName().toLowerCase(Locale.ROOT).contains(q)
                     || forge.neo.card.CardText.nameOf(c).toLowerCase(Locale.ROOT).contains(q)) {
@@ -906,7 +931,18 @@ public class QuestSetupScreen extends BorderPane {
                 paintCommanders();
                 syncChosen();
             });
-            cmdGrid.getChildren().add(node);
+            // Marcar no reordena la pagina (la carta se iria de debajo del
+            // raton): sale la primera la proxima vez. Con "solo favoritos", si.
+            cmdGrid.getChildren().add(FavoriteStar.wrap(node, c.getName(), () -> {
+                final int favCount = forge.neo.ascent.AscentFavorites.only(allCommanders).size();
+                if (onlyFavorites) {
+                    reloadCommanders();
+                } else {
+                    cmdFavorites.setText(NeoText.get("ascent.setup.favorites", favCount));
+                    cmdFavorites.setDisable(favCount == 0);
+                    paintCommanders();
+                }
+            }));
         }
     }
 

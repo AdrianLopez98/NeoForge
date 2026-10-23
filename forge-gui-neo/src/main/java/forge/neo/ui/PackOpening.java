@@ -28,6 +28,8 @@ public final class PackOpening extends StackPane {
     private final Label wantedNote = new Label();
     /** A que mazos les faltaba cada carta; null si quien abre no lo sabe. */
     private java.util.function.Function<PaperCard, List<String>> wantedIn;
+    /** Lo que te dan por cada carta al venderla; null si no hay tienda (fuera de la Quest). */
+    private java.util.function.ToIntFunction<PaperCard> valueOf;
     private final Button reveal = new Button(NeoText.get("opening.revealAll"));
     /** "Otro sobre": solo sale si quien abre lo pide. Ver {@link #setAgain}. */
     private final Button again = new Button();
@@ -186,6 +188,14 @@ public final class PackOpening extends StackPane {
             tile.getChildren().add(badge);
             Tooltip.install(tile, new Tooltip(NeoText.get("opening.wanted.tip", String.join(", ", decks))));
         }
+        if (valueOf != null) {
+            // Abajo a la izquierda; si esta "PARA TU MAZO", por encima de el.
+            Label value = new Label(NeoText.get("shop.credits.short", valueOf.applyAsInt(card)));
+            value.getStyleClass().add("value-badge"); value.setMouseTransparent(true);
+            StackPane.setAlignment(value, Pos.BOTTOM_LEFT);
+            StackPane.setMargin(value, new Insets(0, 0, decks.isEmpty() ? 6 : 30, 6));
+            tile.getChildren().add(value);
+        }
         tile.setAccessibleText(forge.neo.card.CardText.nameOf(card));
     }
 
@@ -207,6 +217,15 @@ public final class PackOpening extends StackPane {
     public void setWanted(final java.util.function.Function<PaperCard, List<String>> wantedIn) {
         this.wantedIn = wantedIn;
         updateProgress();
+    }
+
+    /**
+     * <b>Lo que vale cada carta</b> (itch.io, 23-10-2026: <i>"always shows the
+     * value of a card ... when you open the pack itself"</i>): una pastilla
+     * "N cr." en cada carta revelada. Solo la Quest, que es donde se vende.
+     */
+    public void setValue(final java.util.function.ToIntFunction<PaperCard> valueOf) {
+        this.valueOf = valueOf;
     }
 
     private void revealOne(StackPane tile, int index, double delay) {

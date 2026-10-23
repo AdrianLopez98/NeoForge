@@ -171,6 +171,15 @@ public interface DeckContext {
     }
 
     /**
+     * Si un mazo de aqui puede llevar <b>reglas de la casa</b> ({@link HouseRules}):
+     * solo los de las partidas libres contra la IA. Quest, Ascenso, la Aventura,
+     * el draft y el sellado, no.
+     */
+    default boolean allowsHouseRules() {
+        return false;
+    }
+
+    /**
      * Como se llama la columna de la izquierda.
      *
      * <p>No siempre es "el catalogo". Con pool cerrado esa columna deja de ser
