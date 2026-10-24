@@ -121,6 +121,33 @@ public final class TableKeys {
             }
         });
         scene.addEventFilter(KeyEvent.KEY_RELEASED, ev -> held.remove(ev.getCode()));
+        // ESPACIO Y ENTER CIERRAN LO QUE SOLO SE ENSENYA (Discord, 24-10-2026:
+        // "make spacebar/pass work on this screen", con una carta revelada).
+        // Con el dialogo delante, la tecla de pasar no hacia nada: el "Entendido"
+        // no tiene el foco. Mantenida no: cerraria tambien el siguiente aviso
+        // sin que se llegue a ver.
+        scene.addEventFilter(KeyEvent.KEY_PRESSED, ev -> {
+            if (ev.getCode() != KeyCode.SPACE && ev.getCode() != KeyCode.ENTER
+                    || ev.isShiftDown() || ev.isControlDown() || ev.isAltDown() || ev.isShortcutDown()) {
+                return;
+            }
+            final boolean repeat = !held.add(ev.getCode());
+            final TableScreen now = table.get();
+            if (repeat || now == null || now.getScene() != scene || now.isConsultShowing()) {
+                return;
+            }
+            if (scene.getFocusOwner() instanceof javafx.scene.control.TextInputControl) {
+                return;
+            }
+            final Overlay overlay = now.getOverlay();
+            if (!overlay.isShowing() || overlay.isPeeking()) {
+                return;
+            }
+            final NumberedChoice choice = find(overlay.getContent(), 4);
+            if (choice != null && choice.acknowledge()) {
+                ev.consume();
+            }
+        });
     }
 
     /** 1 a 9 (fila de arriba o teclado numerico) sin modificadores; si no, 0. */

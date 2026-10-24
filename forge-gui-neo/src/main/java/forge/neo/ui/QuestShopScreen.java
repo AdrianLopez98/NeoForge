@@ -137,6 +137,7 @@ public class QuestShopScreen extends StackPane {
     private final Label singleName = new Label();
     private final Label singlePrice = new Label();
     private final Button buySingle = new Button();
+    private final Button buyAllSingles = new Button();
     private List<PaperCard> singles = new ArrayList<>();
     private List<PaperCard> singlesShown = new ArrayList<>();
     /**
@@ -259,6 +260,19 @@ public class QuestShopScreen extends StackPane {
         frame.setBottom(BackBar.of(actions::back));
         getChildren().addAll(frame, overlay);
         reload();
+
+        // Intro compra la carta suelta elegida (Discord, 24-10-2026). No si se
+        // esta escribiendo en un buscador ni con un dialogo abierto encima: ahi
+        // Intro ya es de otro.
+        addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, ev -> {
+            if (ev.getCode() != javafx.scene.input.KeyCode.ENTER || tab != Tab.SINGLES
+                    || overlay.isShowing() || buySingle.isDisabled() || getScene() == null
+                    || getScene().getFocusOwner() instanceof javafx.scene.control.TextInputControl) {
+                return;
+            }
+            ev.consume();
+            takeSingle();
+        });
 
         // Para poder capturar una pestanya concreta sin tocar el raton.
         final int forced = Integer.getInteger("neo.shop.tab", -1);
@@ -750,7 +764,14 @@ public class QuestShopScreen extends StackPane {
         // El paginador va en la barra de comprar y sin el rotulo de arriba: a
         // 1080p el hueco de las cartas era de 300 px y solo cabia una fila de
         // las grandes (15-10-2026). Cada linea que no esta es casi una fila.
-        final HBox row = new HBox(16, singlePager, new VBox(2, singleName, singlePrice), gap, buySingle);
+        // COMPRAR TODO LO QUE SE VE (Discord, 24-10-2026: "a buy all button
+        // ... I'm going to get a RSI clicking on everything"): una copia de
+        // cada carta que deja el filtro, preguntando antes cuantas y cuanto.
+        buyAllSingles.getStyleClass().add("btn-secondary");
+        buyAllSingles.setMinWidth(Region.USE_PREF_SIZE);
+        buyAllSingles.setText(NeoText.get("shop.buyAll"));
+        buyAllSingles.setOnAction(e -> askBuyAllSingles());
+        final HBox row = new HBox(16, singlePager, new VBox(2, singleName, singlePrice), gap, buyAllSingles, buySingle);
         row.setAlignment(Pos.CENTER_LEFT);
         row.getStyleClass().add("stat-tile");
         row.setPadding(new Insets(10, 18, 10, 18));
@@ -1196,6 +1217,11 @@ public class QuestShopScreen extends StackPane {
                 chosenSingle = card;
                 paintSingles();
                 refreshSingle();
+                // Doble clic = comprarla (Discord, 24-10-2026): elegir y pulsar
+                // COMPRAR carta a carta era el clic de mas.
+                if (ev.getClickCount() == 2 && !buySingle.isDisabled()) {
+                    takeSingle();
+                }
             }
         });
         return tile;
@@ -1214,6 +1240,66 @@ public class QuestShopScreen extends StackPane {
         singlePrice.setText(afford ? NeoText.get("shop.cardPrice", price)
                 : NeoText.get("shop.cannotAfford", price));
         buySingle.setDisable(opening || !afford);
+    }
+
+    /**
+     * "Comprar todo lo que se ve": una copia de cada carta que deja el filtro,
+     * en el orden en que se ven, hasta donde lleguen los creditos. Se pregunta
+     * antes (principio 6) con cuantas y cuanto, y si no llega para todas, lo
+     * dice. La respuesta marcada es cancelar.
+     */
+    private void askBuyAllSingles() {
+        if (opening || singlesShown.isEmpty()) {
+            return;
+        }
+        final List<PaperCard> plan = new ArrayList<>();
+        final java.util.Set<PaperCard> seen = new java.util.HashSet<>();
+        long total = 0;
+        long left = NeoQuest.credits();
+        int notAfford = 0;
+        for (final PaperCard c : singlesShown) {
+            if (!seen.add(c)) {
+                continue;
+            }
+            final int price = NeoQuestShop.priceOfCard(c);
+            if (price <= left) {
+                plan.add(c);
+                total += price;
+                left -= price;
+            } else {
+                notAfford++;
+            }
+        }
+        if (plan.isEmpty()) {
+            singleName.setText(NeoText.get("shop.buyAll.none"));
+            return;
+        }
+        final String body = NeoText.get("shop.buyAll.body", plan.size(), total, NeoQuest.credits() - total)
+                + (notAfford > 0 ? "\n" + NeoText.get("shop.buyAll.short", notAfford) : "");
+        overlay.setOnBackgroundClick(overlay::hide);
+        overlay.show(new ConfirmDialog(NeoText.get("shop.buyAll.title", plan.size()), body,
+                List.of(NeoText.get("shop.buyAll.go"), NeoText.get("common.cancel")), 1,
+                choice -> {
+                    overlay.hide();
+                    if (choice != null && choice == 0) {
+                        int bought = 0;
+                        long paid = 0;
+                        for (final PaperCard c : plan) {
+                            final NeoQuestShop.Opened got = NeoQuestShop.buySingle(c);
+                            if (got == null) {
+                                break;
+                            }
+                            bought++;
+                            paid += got.getPaid();
+                        }
+                        chosenSingle = null;
+                        reloadSingles();
+                        singleName.setText(NeoText.get("shop.buyAll.done", bought, paid));
+                        if (onOpened != null) {
+                            onOpened.run();
+                        }
+                    }
+                }));
     }
 
     /** Comprar la carta elegida. Va a tu coleccion y sale del mostrador. */

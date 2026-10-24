@@ -1,6 +1,7 @@
 package forge.neo.ui;
 
 
+import forge.neo.MenuLayout;
 import forge.neo.NeoText;
 import forge.neo.match.NeoFormat;
 import javafx.geometry.Insets;
@@ -147,7 +148,7 @@ public class MainMenu extends BorderPane {
         javafx.scene.layout.GridPane.setValignment(language, javafx.geometry.VPos.CENTER);
         top.setPadding(new Insets(12, 30, 8, 30));
 
-        final FlowPane modes = new FlowPane(16, 16);
+        modes = new FlowPane(16, 16);
         modes.setAlignment(Pos.CENTER);
         modes.setPadding(new Insets(10, 40, 10, 40));
         // Las tarjetas se reparten el ancho: cuatro columnas en una pantalla
@@ -162,14 +163,14 @@ public class MainMenu extends BorderPane {
         // leer una carta, Ctrl+rueda para acercar la mesa, clicar el rail de
         // fases para pararte en el turno del rival) y quien no los conozca
         // juega peor sin saber por que. La letra pequenya lo dice sin rodeos.
-        modes.getChildren().add(modeCard(ModeArt.Mode.TUTORIAL, NeoText.get("menu.tutorial"),
+        tile("tutorial", modeCard(ModeArt.Mode.TUTORIAL, NeoText.get("menu.tutorial"),
                 NeoText.get("menu.tutorial.desc"),
                 tutorialNote(), true, actions::tutorial));
 
         // Commander y Estandar primero: son la base, el resto de casillas se
         // ordena a partir de aqui.
-        modes.getChildren().add(formatTile(NeoFormat.COMMANDER, actions));
-        modes.getChildren().add(formatTile(NeoFormat.ESTANDAR, actions));
+        tile("commander", formatTile(NeoFormat.COMMANDER, actions));
+        tile("standard", formatTile(NeoFormat.ESTANDAR, actions));
 
         // Aventura y torneo, PROMOVIDOS por delante de Brawl y Oathbreaker
         // (decision del autor, 31-08-2026): en la practica son los modos que
@@ -178,7 +179,7 @@ public class MainMenu extends BorderPane {
         // construyeron.
         //
         // La aventura: coleccion, creditos, sobres y progreso guardado.
-        modes.getChildren().add(modeCard(ModeArt.Mode.QUEST, NeoText.get("menu.quest"),
+        tile("quest", modeCard(ModeArt.Mode.QUEST, NeoText.get("menu.quest"),
                 NeoText.get("menu.quest.desc"),
                 questNote(), true, actions::quest));
 
@@ -186,7 +187,7 @@ public class MainMenu extends BorderPane {
         // demas — "quiero un cuadro de eliminacion directa con MI mazo,
         // contra rivales que el motor se inventa" — y no una opcion de otra
         // casilla.
-        modes.getChildren().add(modeCard(ModeArt.Mode.TOURNAMENT, NeoText.get("menu.tournament"),
+        tile("tournament", modeCard(ModeArt.Mode.TOURNAMENT, NeoText.get("menu.tournament"),
                 NeoText.get("menu.tournament.desc"),
                 tournamentNote(), true, actions::tournament));
 
@@ -197,7 +198,7 @@ public class MainMenu extends BorderPane {
         // Leaders baja a "Otros formatos", que es donde encaja: es un formato
         // de construido mas, y responde la MISMA pregunta que las casillas de
         // su alrededor (elige un mazo y juega).
-        modes.getChildren().add(modeCard(ModeArt.Mode.ASCENT, NeoText.get("menu.ascent"),
+        tile("ascent", modeCard(ModeArt.Mode.ASCENT, NeoText.get("menu.ascent"),
                 NeoText.get("menu.ascent.desc"),
                 ascentNote(), true, actions::ascent));
 
@@ -210,7 +211,7 @@ public class MainMenu extends BorderPane {
         // principal, y eso en macOS no se ha probado. Mejor sin casilla que con
         // una que no abre.
         if (!forge.neo.platform.NeoOs.MAC) {
-            modes.getChildren().add(modeCard(ModeArt.Mode.ADVENTURE, NeoText.get("menu.adventure"),
+            tile("adventure", modeCard(ModeArt.Mode.ADVENTURE, NeoText.get("menu.adventure"),
                     NeoText.get("menu.adventure.desc"),
                     NeoText.get(forge.neo.adventure.AdventureLauncher.isRunning()
                             ? "menu.adventure.open" : "menu.adventure.note"),
@@ -226,45 +227,45 @@ public class MainMenu extends BorderPane {
         // que no se meten una por una — quince casillas mas y el menu deja de
         // ser un menu (la auditoría del motor). Una casilla agrupa, y de ahi a la
         // pantalla de mazos de siempre.
-        modes.getChildren().add(modeCard(ModeArt.Mode.OTHER_FORMATS, NeoText.get("menu.otherFormats"),
+        tile("otherFormats", modeCard(ModeArt.Mode.OTHER_FORMATS, NeoText.get("menu.otherFormats"),
                 NeoText.get("menu.otherFormats.desc"),
                 NeoText.get("menu.otherFormats.note"), true, actions::otherFormats));
 
         // El draft tampoco se entra eligiendo mazo: el mazo lo montas tu
         // abriendo sobres, y despues lo llevas hasta que se rompe.
-        modes.getChildren().add(modeCard(ModeArt.Mode.DRAFT, NeoText.get("menu.draft"),
+        tile("draft", modeCard(ModeArt.Mode.DRAFT, NeoText.get("menu.draft"),
                 NeoText.get("menu.draft.desc"),
                 draftNote(), true, actions::draft));
 
         // El sellado: el mismo evento que el draft, pero sin pasar sobres.
         // Va justo al lado porque es la misma decision — "quiero jugar con lo
         // que me toque" — y quien conoce uno reconoce el otro.
-        modes.getChildren().add(modeCard(ModeArt.Mode.SEALED, NeoText.get("menu.sealed"),
+        tile("sealed", modeCard(ModeArt.Mode.SEALED, NeoText.get("menu.sealed"),
                 NeoText.get("menu.sealed.desc"),
                 sealedNote(), true, actions::sealed));
 
         // Brawl y Oathbreaker, DESPUES de aventura y torneo: se juegan menos
         // (decision del autor, misma fecha).
-        modes.getChildren().add(formatTile(NeoFormat.BRAWL, actions));
-        modes.getChildren().add(formatTile(NeoFormat.OATHBREAKER, actions));
+        tile("brawl", formatTile(NeoFormat.BRAWL, actions));
+        tile("oathbreaker", formatTile(NeoFormat.OATHBREAKER, actions));
 
         // La partida privada. Va con los modos y no escondida en Ajustes: es
         // una forma de jugar, no una opcion. Y dice de cuantos a cuantos, que
         // es lo primero que se pregunta quien va a llamar a sus amigos.
-        modes.getChildren().add(modeCard(ModeArt.Mode.ONLINE, NeoText.get("menu.online"),
+        tile("online", modeCard(ModeArt.Mode.ONLINE, NeoText.get("menu.online"),
                 NeoText.get("menu.online.desc"),
                 NeoText.get("menu.online.note"), true, actions::online));
 
         // Los puzzles son un modo propio: no hay mazo que elegir, son
         // situaciones preparadas con un objetivo. Forge trae cientos.
-        modes.getChildren().add(modeCard(ModeArt.Mode.PUZZLES, NeoText.get("menu.puzzles"), NeoText.get("menu.puzzles.desc"),
+        tile("puzzles", modeCard(ModeArt.Mode.PUZZLES, NeoText.get("menu.puzzles"), NeoText.get("menu.puzzles.desc"),
                 NeoText.get("menu.puzzles.note"), true, actions::puzzles));
 
         // La enciclopedia (pedida en itch.io, 27-09-2026). Tampoco es un modo
         // de juego, pero es una pregunta que no hacia ninguna pantalla — "que
         // cartas existen" — y el constructor solo la contesta a traves de un
         // mazo. Va con Personalizar y Logros: las casillas de mirar, no de jugar.
-        modes.getChildren().add(modeCard(ModeArt.Mode.LIBRARY, NeoText.get("menu.library"),
+        tile("library", modeCard(ModeArt.Mode.LIBRARY, NeoText.get("menu.library"),
                 NeoText.get("menu.library.desc"),
                 NeoText.get("menu.library.note",
                         forge.model.FModel.getMagicDb().getCommonCards().getUniqueCards().size()),
@@ -273,15 +274,34 @@ public class MainMenu extends BorderPane {
         // Personalizar no es un modo de juego, pero va aqui y no escondido en
         // Ajustes: lo que se toca ahi se VE, y lo que se ve se busca en la
         // primera pantalla.
-        modes.getChildren().add(modeCard(ModeArt.Mode.LOOK, NeoText.get("menu.look"),
+        tile("look", modeCard(ModeArt.Mode.LOOK, NeoText.get("menu.look"),
                 NeoText.get("menu.look.desc"),
                 lookNote(), true, actions::look));
 
         // Los logros tampoco son un modo: son el registro de lo que ya has
         // hecho. Van aqui porque es donde se vuelve al terminar de jugar.
-        modes.getChildren().add(modeCard(ModeArt.Mode.ACHIEVEMENTS, NeoText.get("menu.achievements"),
+        tile("achievements", modeCard(ModeArt.Mode.ACHIEVEMENTS, NeoText.get("menu.achievements"),
                 NeoText.get("menu.achievements.desc"),
                 achievementNote(), true, actions::achievements));
+
+        // EL ORDEN Y LAS QUE SE ESCONDEN, DEL JUGADOR (Discord, 24-10-2026:
+        // "I will also never use the Tutorial so it'd be great to be able to
+        // customize the main screen"). Lo de arriba es el orden de FABRICA; el
+        // de verdad lo pone relayout() con MenuLayout, que comparte Android.
+        // Clic derecho en una casilla: esconderla, o entrar a ordenar.
+        for (final java.util.Map.Entry<String, Region> t : tiles.entrySet()) {
+            t.getValue().setOnContextMenuRequested(e -> {
+                tileMenu(t.getKey(), t.getValue(), e.getScreenX(), e.getScreenY());
+                e.consume();
+            });
+        }
+
+        // Lo que dice que hacer mientras se ordena, encima de la rejilla.
+        editHint.getStyleClass().add("menu-edit-hint");
+        editHint.setWrapText(true);
+        editHint.setMaxWidth(Double.MAX_VALUE);
+        editHint.setAlignment(Pos.CENTER);
+        VBox.setMargin(editHint, new Insets(4, 40, 0, 40));
         // Todo lo de arriba va DENTRO de un visor con desplazamiento.
         //
         // El menu cabia justo, y al anyadir el logo dejo de caber: la fila de
@@ -290,7 +310,7 @@ public class MainMenu extends BorderPane {
         // los principios de interfaz), asi que en vez de apretar los margenes
         // — que volveria a romperse con la siguiente casilla o al subir la
         // escala — se deja bajar con la rueda.
-        final VBox centre = new VBox(top, modes);
+        final VBox centre = new VBox(top, editHint, modes);
         centre.setAlignment(Pos.CENTER);
 
         final ScrollPane scroll = new ScrollPane(centre);
@@ -354,11 +374,245 @@ public class MainMenu extends BorderPane {
         showUpdate(update, itchButton, itchDot);
         forge.neo.update.NeoUpdate.whenKnown(() -> showUpdate(update, itchButton, itchDot));
         footer.getChildren().add(update);
-        footer.getChildren().addAll(gap, replays, settings, quit);
+        // Ordenar el menu, en el pie con lo demas que no es jugar. Mientras se
+        // ordena, el mismo boton dice "Listo" (y se marca), y a su izquierda
+        // sale "Restaurar": lo que deshace todo va lejos de la inercia del Listo.
+        editButton.setOnAction(e -> {
+            editing = !editing;
+            relayout();
+        });
+        resetButton.getStyleClass().add("btn-secondary");
+        resetButton.setOnAction(e -> {
+            MenuLayout.reset();
+            relayout();
+        });
+        footer.getChildren().addAll(gap, resetButton, editButton, replays, settings, quit);
         footer.getStyleClass().add("home-footer");
         footer.setPadding(new Insets(12, 30, 16, 30));
         footer.setAlignment(Pos.CENTER_RIGHT);
         setBottom(footer);
+
+        // Solo pruebas: -Dneo.menu.edit=true abre el menu ordenando.
+        editing = Boolean.getBoolean("neo.menu.edit");
+        relayout();
+    }
+
+    /** La rejilla de modos: las casillas en el orden del jugador. */
+    private final FlowPane modes;
+
+    /** Todas las casillas, por su identificador y en el orden de FABRICA. */
+    private final java.util.LinkedHashMap<String, Region> tiles = new java.util.LinkedHashMap<>();
+
+    /** Lo de encima de cada casilla mientras se ordena (se hace una vez). */
+    private final java.util.Map<String, Region> editLayers = new java.util.HashMap<>();
+
+    private final Label editHint = new Label(NeoText.get("menu.edit.hint"));
+    private final Button editButton = new Button();
+    private final Button resetButton = new Button(NeoText.get("menu.edit.reset"));
+
+    /** Si se esta ordenando el menu. */
+    private boolean editing;
+
+    /** La casilla que se esta arrastrando, mientras dura el arrastre. */
+    private String dragging;
+
+    private void tile(final String id, final Region tile) {
+        tiles.put(id, tile);
+        // Ordenando, la casilla NO entra en su modo, venga el clic de donde venga.
+        // La capa de encima se comia los clics, pero las flechas y Ocultar
+        // reordenan la rejilla al soltar, y el clic que llega justo despues caia
+        // en la casilla de debajo y abria el modo (Ana, probandolo). Un filtro
+        // en la casilla lo para antes de que llegue a nadie; los botones no lo
+        // necesitan, disparan al soltar.
+        tile.addEventFilter(javafx.scene.input.MouseEvent.MOUSE_CLICKED, e -> {
+            if (editing) {
+                e.consume();
+            }
+        });
+    }
+
+    private java.util.List<String> factoryOrder() {
+        return new java.util.ArrayList<>(tiles.keySet());
+    }
+
+    /**
+     * Pone las casillas en el orden del jugador. Ordenando salen TODAS, las
+     * ocultas apagadas, para poder volver a ensenyarlas; si no, solo las
+     * visibles. Las casillas son las mismas de siempre: solo cambia el orden de
+     * los hijos y la capa de encima.
+     */
+    private void relayout() {
+        final java.util.List<String> defaults = factoryOrder();
+        final java.util.List<String> ids = editing
+                ? MenuLayout.order(defaults) : MenuLayout.visible(defaults);
+        final java.util.List<javafx.scene.Node> kids = new java.util.ArrayList<>();
+        // Todas, tambien las que no salen: una que se esconde ordenando y luego
+        // se da a Listo no puede volver otro dia con la capa puesta.
+        for (final java.util.Map.Entry<String, Region> t : tiles.entrySet()) {
+            decorate(t.getKey(), t.getValue());
+        }
+        for (final String id : ids) {
+            kids.add(tiles.get(id));
+        }
+        modes.getChildren().setAll(kids);
+
+        editHint.setVisible(editing);
+        editHint.setManaged(editing);
+        editButton.setText(NeoText.get(editing ? "menu.edit.done" : "menu.edit"));
+        editButton.getStyleClass().removeAll("btn-primary", "btn-secondary");
+        editButton.getStyleClass().add(editing ? "btn-primary" : "btn-secondary");
+        resetButton.setVisible(editing);
+        resetButton.setManaged(editing);
+        resetButton.setDisable(!MenuLayout.customized(defaults));
+    }
+
+    /** Pone o quita la capa de ordenar, y apaga la casilla si esta oculta. */
+    private void decorate(final String id, final Region tile) {
+        if (!(tile instanceof javafx.scene.layout.StackPane box)) {
+            return;
+        }
+        final Region layer = editLayers.computeIfAbsent(id, this::editLayer);
+        final boolean dim = editing && MenuLayout.isHidden(id);
+        box.getChildren().remove(layer);
+        for (final javafx.scene.Node n : box.getChildren()) {
+            n.setOpacity(dim ? 0.35 : 1);
+        }
+        if (editing) {
+            box.getChildren().add(layer);
+            refreshLayer(id, layer);
+        }
+    }
+
+    /**
+     * La capa de encima de una casilla mientras se ordena: tapa la casilla
+     * entera (asi un clic no entra en el modo), se arrastra, y abajo lleva las
+     * flechas y el boton de ocultar.
+     */
+    private Region editLayer(final String id) {
+        final boolean rtl = Rtl.on();
+        // En arabe la rejilla va de derecha a izquierda: "antes" esta a la derecha.
+        final Button earlier = layerButton(rtl ? "\u2192" : "\u2190", NeoText.get("menu.edit.earlier"));
+        final Button later = layerButton(rtl ? "\u2190" : "\u2192", NeoText.get("menu.edit.later"));
+        final Button hide = new Button();
+        hide.getStyleClass().add("menu-edit-button");
+        earlier.setOnAction(e -> {
+            MenuLayout.move(factoryOrder(), id, -1);
+            relayout();
+        });
+        later.setOnAction(e -> {
+            MenuLayout.move(factoryOrder(), id, 1);
+            relayout();
+        });
+        hide.setOnAction(e -> {
+            MenuLayout.setHidden(factoryOrder(), id, !MenuLayout.isHidden(id));
+            relayout();
+        });
+        final Label hiddenMark = new Label(NeoText.get("menu.edit.hidden"));
+        hiddenMark.getStyleClass().add("menu-edit-hidden");
+        // Arriba a la derecha, encima del dibujo: el titulo y la linea de abajo
+        // se siguen leyendo, y el dibujo es adorno.
+        final HBox bar = new HBox(UiScale.px(6), hiddenMark, earlier, later, hide);
+        bar.setAlignment(Pos.CENTER_RIGHT);
+        bar.setPadding(new Insets(UiScale.px(10)));
+        bar.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+
+        final javafx.scene.layout.StackPane layer = new javafx.scene.layout.StackPane(bar);
+        javafx.scene.layout.StackPane.setAlignment(bar, Pos.TOP_RIGHT);
+        layer.getStyleClass().add("menu-edit-layer");
+        layer.setUserData(new Object[] {hide, hiddenMark, earlier, later});
+        layer.setCursor(javafx.scene.Cursor.MOVE);
+        // La capa se come los clics: ordenando, una casilla no abre su modo.
+        layer.setOnMouseClicked(javafx.event.Event::consume);
+
+        // Arrastrar y soltar: la casilla va al sitio de aquella sobre la que se suelta.
+        layer.setOnDragDetected(e -> {
+            final javafx.scene.input.Dragboard db =
+                    layer.startDragAndDrop(javafx.scene.input.TransferMode.MOVE);
+            final javafx.scene.input.ClipboardContent content =
+                    new javafx.scene.input.ClipboardContent();
+            content.putString(id);
+            db.setContent(content);
+            final javafx.scene.SnapshotParameters sp = new javafx.scene.SnapshotParameters();
+            sp.setFill(javafx.scene.paint.Color.TRANSPARENT);
+            sp.setTransform(javafx.scene.transform.Transform.scale(0.5, 0.5));
+            db.setDragView(tiles.get(id).snapshot(sp, null), e.getX() / 2, e.getY() / 2);
+            dragging = id;
+            e.consume();
+        });
+        layer.setOnDragOver(e -> {
+            if (dragging != null && !dragging.equals(id)) {
+                e.acceptTransferModes(javafx.scene.input.TransferMode.MOVE);
+            }
+            e.consume();
+        });
+        layer.setOnDragEntered(e -> {
+            if (dragging != null && !dragging.equals(id)) {
+                layer.getStyleClass().add("menu-edit-drop");
+            }
+        });
+        layer.setOnDragExited(e -> layer.getStyleClass().remove("menu-edit-drop"));
+        layer.setOnDragDropped(e -> {
+            final boolean ok = dragging != null && !dragging.equals(id);
+            if (ok) {
+                MenuLayout.moveTo(factoryOrder(), dragging, id);
+            }
+            e.setDropCompleted(ok);
+            e.consume();
+            // Despues del evento: relayout cambia los hijos de la rejilla, y
+            // este nodo esta dentro.
+            if (ok) {
+                javafx.application.Platform.runLater(this::relayout);
+            }
+        });
+        layer.setOnDragDone(e -> dragging = null);
+        return layer;
+    }
+
+    /** Lo que cambia en la capa: ocultar o mostrar, y que flechas valen. */
+    private void refreshLayer(final String id, final Region layer) {
+        final Object[] parts = (Object[]) layer.getUserData();
+        final Button hide = (Button) parts[0];
+        final Label hiddenMark = (Label) parts[1];
+        final boolean hidden = MenuLayout.isHidden(id);
+        final java.util.List<String> all = MenuLayout.order(factoryOrder());
+        hide.setText(NeoText.get(hidden ? "menu.edit.show" : "menu.edit.hide"));
+        hide.setDisable(!MenuLayout.canHide(factoryOrder(), id));
+        hiddenMark.setVisible(hidden);
+        hiddenMark.setManaged(hidden);
+        ((Button) parts[2]).setDisable(all.indexOf(id) <= 0);
+        ((Button) parts[3]).setDisable(all.indexOf(id) >= all.size() - 1);
+    }
+
+    private static Button layerButton(final String glyph, final String tip) {
+        final Button b = new Button(glyph);
+        b.getStyleClass().add("menu-edit-button");
+        b.setTooltip(new javafx.scene.control.Tooltip(tip));
+        b.setAccessibleText(tip);
+        return b;
+    }
+
+    /** El clic derecho en una casilla: esconderla, o ponerse a ordenar. */
+    private void tileMenu(final String id, final Region tile, final double x, final double y) {
+        if (editing) {
+            return;
+        }
+        final javafx.scene.control.ContextMenu menu = new javafx.scene.control.ContextMenu();
+        menu.getStyleClass().add("card-menu");
+        final javafx.scene.control.MenuItem hide =
+                new javafx.scene.control.MenuItem(NeoText.get("menu.edit.hideThis"));
+        hide.setDisable(!MenuLayout.canHide(factoryOrder(), id));
+        hide.setOnAction(e -> {
+            MenuLayout.setHidden(factoryOrder(), id, true);
+            relayout();
+        });
+        final javafx.scene.control.MenuItem order =
+                new javafx.scene.control.MenuItem(NeoText.get("menu.edit") + "\u2026");
+        order.setOnAction(e -> {
+            editing = true;
+            relayout();
+        });
+        menu.getItems().addAll(hide, order);
+        menu.show(tile, x, y);
     }
 
     /**
@@ -884,7 +1138,12 @@ public class MainMenu extends BorderPane {
         box.hoverProperty().addListener((o, a, b) -> paint.run());
 
         if (enabled) {
-            box.setOnMouseClicked(e -> action.run());
+            // Solo el boton principal: el derecho abre el menu de la casilla.
+            box.setOnMouseClicked(e -> {
+                if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY) {
+                    action.run();
+                }
+            });
         } else {
             box.setDisable(true);
         }

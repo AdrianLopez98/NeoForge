@@ -53,6 +53,8 @@ public class CardDetailPanel extends ScrollPane {
      */
     private final Label countersText = new Label();
     private final Label hint = new Label(NeoText.get("detail.hint"));
+    /** "Le afecta": lo que otras cartas le hacen (ver forge.neo.card.AffectedBy). */
+    private final Label affected = new Label();
     private final VBox content = new VBox(10);
 
     private CardView current;
@@ -133,7 +135,13 @@ public class CardDetailPanel extends ScrollPane {
         imageBox.setAlignment(Pos.CENTER);
         imageBox.setMinHeight(Region.USE_PREF_SIZE);
 
-        content.getChildren().addAll(imageBox, name, type, countersText, rules, hint);
+        affected.getStyleClass().add("detail-affected");
+        affected.setWrapText(true);
+        affected.setMinHeight(Region.USE_PREF_SIZE);
+        affected.setMaxWidth(Double.MAX_VALUE);
+        affected.setVisible(false);
+        affected.setManaged(false);
+        content.getChildren().addAll(imageBox, name, type, countersText, affected, rules, hint);
         setContent(content);
 
         // Ctrl + rueda = tamano del texto. Un planeswalker tiene parrafos y
@@ -202,6 +210,20 @@ public class CardDetailPanel extends ScrollPane {
             text = (text == null ? "" : text + "\n\n") + pt;
         }
         rules.setText(text == null ? "" : text.replace("\\n", "\n"));
+
+        // Lo que OTRAS cartas le hacen (Discord, 23-10-2026), encima del texto
+        // y en color de aviso: es justo lo que la carta no dice.
+        final List<forge.neo.card.AffectedBy.Line> hits = forge.neo.card.AffectedBy.of(current);
+        final StringBuilder sb = new StringBuilder();
+        for (final forge.neo.card.AffectedBy.Line l : hits) {
+            if (sb.length() > 0) {
+                sb.append('\n');
+            }
+            sb.append("⚠ ").append(l.text().contains(l.source()) ? l.text() : l.source() + ": " + l.text());
+        }
+        affected.setText(sb.toString());
+        affected.setVisible(!hits.isEmpty());
+        affected.setManaged(!hits.isEmpty());
 
         final Image img = CardImages.get(st.getImageKey());
         big.setImage(img);

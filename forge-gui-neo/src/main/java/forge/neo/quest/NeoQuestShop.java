@@ -326,11 +326,20 @@ public final class NeoQuestShop {
      * como a las de Commander, con su tamanyo (Discord, 22-10-2026: <i>"Add the
      * Assassin's Creed ... and Mystery box cards to Quest"</i>). Assassin's Creed
      * se vendia en "Beyond Boosters" de 7 cartas; Mystery Booster 2 y sus cartas
-     * de prueba no tienen plantilla en Forge. Una lista y no una regla: "sin
-     * sobre" tambien son los avatares de MTGO o sets de tres cartas.
+     * de prueba no tienen plantilla en Forge, ni el Mystery Booster Commander.
+     * Una lista y no una regla: "sin sobre" tambien son los avatares de MTGO o
+     * sets de tres cartas.
+     *
+     * <p><b>Si Forge les pone sobre propio, el nuestro se apaga solo</b>
+     * ({@link #hasBuiltPack} exige que no tenga plantilla): no salen dos. Y
+     * {@code packcheck} se pone en rojo, que es el aviso para borrar su linea.
      */
     private static final java.util.Map<String, Integer> BUILT_PACKS = java.util.Map.of(
-            "ACR", 7, "MB2", 12, "CMB1", 12);
+            "ACR", 7, "MB2", 12, "CMB1", 12,
+            // Mystery Booster Commander Edition (Forge, 19-10-2026): sus comandantes
+            // nuevos (Worzel, Thomil...).  Discord, 24-10-2026: "Are the last
+            // mystery box commanders on quest?"
+            "MBC", 20);
 
     /** Si la tienda le monta un sobre propio: un set de Commander o uno de {@link #BUILT_PACKS}. */
     public static boolean hasBuiltPack(final CardEdition e) {
@@ -353,6 +362,16 @@ public final class NeoQuestShop {
         final String code = edition.getCode();
         if (COMMANDER_TEMPLATES.containsKey(code)) {
             return COMMANDER_TEMPLATES.get(code);
+        }
+        if ("MBC".equals(code)) {
+            forge.item.SealedTemplate mbc = null;
+            try {
+                mbc = mysteryCommanderTemplate(edition);
+            } catch (final RuntimeException e) {
+                System.err.println("[tienda] no se ha podido montar el sobre de MBC: " + e);
+            }
+            COMMANDER_TEMPLATES.put(code, mbc);
+            return mbc;
         }
         int commons = 0;
         int uncommons = 0;
@@ -386,14 +405,132 @@ public final class NeoQuestShop {
         if (any > 0) {
             parts.add(any + " Any");
         }
+        // Con huecos con nombre (ver mysteryCommanderTemplate): con la plantilla
+        // de siempre, un set con el foil "al final del sobre" y sin hueco de
+        // comunes - CMB1 - sacaba a veces una carta de mas (13 de 12).
         forge.item.SealedTemplate t = null;
         try {
-            t = new forge.item.SealedTemplate(code, String.join(", ", parts));
+            final List<org.apache.commons.lang3.tuple.Pair<String, Integer>> slots = new ArrayList<>();
+            final List<forge.item.BoosterSlot> defs = new ArrayList<>();
+            for (final String part : parts) {
+                final String[] kv = part.split(" ", 2);
+                slot(slots, defs, kv[1], Integer.parseInt(kv[0]), kv[1]);
+            }
+            t = new forge.item.SealedTemplateWithSlots(code, slots, defs);
         } catch (final RuntimeException e) {
             System.err.println("[tienda] no se ha podido montar el sobre de " + code + ": " + e);
         }
         COMMANDER_TEMPLATES.put(code, t);
         return t;
+    }
+
+    /**
+     * EL SOBRE DEL MYSTERY BOOSTER COMMANDER, COMO EL DE VERDAD (Ana,
+     * 24-10-2026: "que traiga lo mismo que trae los de verdad respecto a
+     * reparto de rareza").  20 cartas, hueco a hueco como lo cuenta Wizards
+     * ("What's Inside Mystery Booster Commander Edition"):
+     * <ul>
+     * <li>15 comunes o infrecuentes, 3 de cada color;</li>
+     * <li>1 comodin de reimpresion, de cualquier rareza;</li>
+     * <li>1 comandante reimpreso, raro o mitico;</li>
+     * <li>1 comandante nuevo (los 60);</li>
+     * <li>1 carta con marco de Future Sight;</li>
+     * <li>1 carta de prueba (las 121).</li>
+     * </ul>
+     * Forge solo trae de MBC sus 60 comandantes y 20 cartas mas, no las listas
+     * de reimpresiones ni las de marco de Future Sight, asi que donde falta la
+     * de verdad va la mas parecida que si esta: las listas por color del
+     * Mystery Booster original (MB1, tambien reimpresiones con el sello del
+     * planeswalker), sus cartas de marco antiguo para el hueco de Future Sight,
+     * los comandantes raros y miticos de los mazos de Commander, y las 121 de
+     * prueba de CMB1, que son justo las mismas.  Cuando Forge traiga el sobre
+     * de verdad, este se apaga solo ({@link #hasBuiltPack}).
+     *
+     * <p>⚠️ <b>Con huecos con nombre</b> ({@code SealedTemplateWithSlots}), no
+     * con la plantilla de siempre: esa aplica las reglas de foil del set, y con
+     * MBC el foil "al final del sobre" se sumaba una vez por cada hueco que
+     * empezara igual - salian sobres de 26.  Esta ignora el set y cada hueco
+     * lleva su probabilidad: el comandante nuevo sale foil un 4,75 % de las
+     * veces, como en el de verdad.
+     */
+    private static forge.item.SealedTemplateWithSlots mysteryCommanderTemplate(final CardEdition mbc) {
+        final List<String> news = new ArrayList<>();
+        final List<String> extras = new ArrayList<>();
+        for (final CardEdition.EditionEntry e : mbc.getAllCardsInSet()) {
+            int n;
+            try {
+                n = Integer.parseInt(e.collectorNumber());
+            } catch (final RuntimeException ex) {
+                n = Integer.MAX_VALUE;
+            }
+            (n <= 60 ? news : extras).add(e.name());
+        }
+        final java.util.Set<String> reprinted = new java.util.TreeSet<>();
+        for (final CardEdition ed : FModel.getMagicDb().getEditions()) {
+            if (ed.getType() != CardEdition.Type.COMMANDER) {
+                continue;
+            }
+            for (final CardEdition.EditionEntry e : ed.getAllCardsInSet()) {
+                if (e.rarity() != forge.card.CardRarity.Rare && e.rarity() != forge.card.CardRarity.MythicRare) {
+                    continue;
+                }
+                final forge.card.CardRules rules = FModel.getMagicDb().getCommonCards().getRules(e.name(), false);
+                if (rules != null && rules.canBeCommander() && !news.contains(e.name())) {
+                    reprinted.add(e.name());
+                }
+            }
+        }
+        final List<String> playtest = new ArrayList<>();
+        final CardEdition cmb1 = FModel.getMagicDb().getEditions().get("CMB1");
+        if (cmb1 != null) {
+            for (final CardEdition.EditionEntry e : cmb1.getAllCardsInSet()) {
+                playtest.add(e.name());
+            }
+        }
+        final List<org.apache.commons.lang3.tuple.Pair<String, Integer>> slots = new ArrayList<>();
+        final List<forge.item.BoosterSlot> defs = new ArrayList<>();
+        for (final String color : new String[] {"White", "Blue", "Black", "Red", "Green"}) {
+            slot(slots, defs, color, 3, "fromSheet(\"MB1 " + color + " CommonUncommon\")");
+        }
+        slot(slots, defs, "Wildcard", 1, names("name", extras));
+        slot(slots, defs, "ReprintedCommander", 1, names("promo", new ArrayList<>(reprinted)));
+        final String newOnes = names("name", news);
+        slot(slots, defs, "NewCommander", 1, newOnes, "Replace=.0475 " + newOnes + "+");
+        slot(slots, defs, "FutureSight", 1, "fromSheet(\"MB1 Pre M15\")");
+        slot(slots, defs, "Playtest", 1, names("promo", playtest));
+        return new forge.item.SealedTemplateWithSlots(mbc.getCode(), slots, defs);
+    }
+
+    /** Un hueco con nombre: cuantas cartas, de donde, y los reemplazos con su probabilidad. */
+    private static void slot(final List<org.apache.commons.lang3.tuple.Pair<String, Integer>> slots,
+                             final List<forge.item.BoosterSlot> defs, final String name, final int count,
+                             final String base, final String... replace) {
+        slots.add(org.apache.commons.lang3.tuple.Pair.of(name, count));
+        final List<String> contents = new ArrayList<>();
+        contents.add("Base=" + base);
+        contents.addAll(java.util.Arrays.asList(replace));
+        defs.add(new forge.item.BoosterSlot(name, contents));
+    }
+
+    /**
+     * Una lista de cartas en el dialecto de los sobres de Forge:
+     * {@code name("A, la primera","B")}.  OJO, no hacen lo mismo: {@code name}
+     * FILTRA las impresiones del set del sobre (MBC) y {@code promo} es la
+     * lista tal cual, de cualquier set - con {@code name} los comandantes
+     * reimpresos y las cartas de prueba salian vacios.  Fuera lo que ese dialecto no sabe
+     * leer dentro de la lista (comillas, parentesis, punto y coma) y lo que la
+     * base de datos no tiene, que dejaria un hueco nulo en el sobre.
+     */
+    private static String names(final String op, final List<String> list) {
+        final List<String> ok = new ArrayList<>();
+        for (final String n : list) {
+            if (n == null || n.indexOf('"') >= 0 || n.indexOf('(') >= 0 || n.indexOf(')') >= 0
+                    || n.indexOf(';') >= 0 || FModel.getMagicDb().getCommonCards().getCard(n) == null) {
+                continue;
+            }
+            ok.add("\"" + n + "\"");
+        }
+        return op + "(" + String.join(",", ok) + ")";
     }
 
     /**

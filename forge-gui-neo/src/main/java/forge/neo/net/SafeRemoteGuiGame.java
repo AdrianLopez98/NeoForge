@@ -37,6 +37,16 @@ public class SafeRemoteGuiGame extends RemoteClientGuiGame {
         super(client);
     }
 
+    /** Y el "Esperando acciones" que Forge no llega a mandar: ver {@link WaitingPrompt}. */
+    @Override
+    public void setOriginalGameController(final forge.game.player.PlayerView player,
+                                          final forge.interfaces.IGameController gameController) {
+        super.setOriginalGameController(player, gameController);
+        if (gameController instanceof forge.player.PlayerControllerHuman human) {
+            WaitingPrompt.watch(human, this, player);
+        }
+    }
+
     @Override
     public GameEventForwarder getForwarder() {
         final GameEventForwarder real = super.getForwarder();

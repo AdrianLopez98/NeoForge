@@ -24,8 +24,12 @@ public final class HandOrder {
     private HandOrder() {
     }
 
+    // Las tierras PRIMERO, y luego por coste (Discord, 23-10-2026: "organize
+    // your hand by land -> mana value"). Antes iban delante solo por tener
+    // coste 0, mezcladas con los hechizos de coste 0.
     private static final Comparator<CardView> ORDER = Comparator
-            .comparingInt((CardView cv) -> cv.getCurrentState() == null ? 0
+            .comparingInt((CardView cv) -> cv.getCurrentState() != null && cv.getCurrentState().isLand() ? 0 : 1)
+            .thenComparingInt((CardView cv) -> cv.getCurrentState() == null ? 0
                     : cv.getCurrentState().getManaCost().getCMC())
             .thenComparingDouble(cv -> cv.getCurrentState() == null ? 0
                     : cv.getCurrentState().getColors().getOrderWeight())

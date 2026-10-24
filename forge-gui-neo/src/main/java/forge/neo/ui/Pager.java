@@ -178,19 +178,35 @@ public class Pager extends HBox {
             if (b.getWidth() <= 0 || b.getHeight() <= 0) {
                 return;
             }
+            // EL TAMANYO TIPICO DE UNA CASILLA (la mediana), no el de la mayor.
+            // Con la mayor, la carta que crece bajo el raton contaba: bastaba
+            // pasar por encima de una para que la pagina perdiera una columna
+            // para siempre y quedaran huecos al final (itch.io, 24-10-2026:
+            // "the bottom 2 cards seems to be not shown").  Si TODAS miden mas
+            // de lo calculado, la mediana tambien lo dice.
+            final java.util.List<Double> ws = new java.util.ArrayList<>();
+            final java.util.List<Double> hs = new java.util.ArrayList<>();
             for (final javafx.scene.Node n : grid.getChildren()) {
-                if (n instanceof Region r && r.getHeight() > fitTileH) {
-                    fitTileH = r.getHeight();
+                if (n instanceof Region r && r.getWidth() > 0) {
+                    ws.add(r.getWidth());
+                    hs.add(r.getHeight());
                 }
-                if (n instanceof Region r && r.getWidth() > fitTileW) {
-                    fitTileW = r.getWidth();
-                }
+            }
+            if (!ws.isEmpty()) {
+                java.util.Collections.sort(ws);
+                java.util.Collections.sort(hs);
+                fitTileW = Math.max(fitTileW, ws.get(ws.size() / 2));
+                fitTileH = Math.max(fitTileH, hs.get(hs.size() / 2));
             }
             // Solo un cambio de tamanyo DE VERDAD reinicia el tope de filas. La
             // barra de desplazamiento que aparece al desbordar estrecha el
             // visor unos px; si eso contara, desbordar quitaria la barra,
             // quitarla devolveria la fila, y la rejilla no pararia nunca.
-            if (Math.abs(b.getHeight() - fitViewH) > 1 || Math.abs(b.getWidth() - fitViewW) > 40) {
+            // El ancho, con la holgura de la barra y nada mas: con 40 px fijos, en
+            // una rejilla SIN barra (la enciclopedia) ensanchar la ventana 30 px
+            // no daba la columna que ya cabia.
+            if (Math.abs(b.getHeight() - fitViewH) > 1
+                    || Math.abs(b.getWidth() - fitViewW) > Math.max(1, scrollbarReserve + 4)) {
                 fitViewW = b.getWidth();
                 fitViewH = b.getHeight();
                 fitRowCap = Integer.MAX_VALUE;

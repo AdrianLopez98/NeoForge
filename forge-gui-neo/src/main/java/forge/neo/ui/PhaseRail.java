@@ -123,6 +123,17 @@ public class PhaseRail extends VBox {
         getChildren().add(header);
         setEditingMine(true);
 
+        // El orden de turnos (ver setTurnOrder): solo con tres o mas.
+        turnOrder.getStyleClass().add("turn-order");
+        turnOrder.setHgap(4);
+        turnOrder.setVgap(1);
+        turnOrder.setAlignment(Pos.CENTER_LEFT);
+        javafx.scene.control.Tooltip.install(turnOrder,
+                new javafx.scene.control.Tooltip(NeoText.get("phase.order.tip")));
+        turnOrder.setVisible(false);
+        turnOrder.setManaged(false);
+        getChildren().add(turnOrder);
+
         dayNight.getStyleClass().add("day-night");
         dayNight.setMaxWidth(Double.MAX_VALUE);
         dayNight.setVisible(false);
@@ -182,6 +193,96 @@ public class PhaseRail extends VBox {
             setEditingMine(yours);
         }
     }
+
+    /**
+     * <b>El orden de turnos</b>, debajo de "TURNO DE ...": el que juega ahora
+     * el primero, encendido, y detras los que vienen (Discord, 24-10-2026:
+     * <i>"somewhere on the UI that shows the turn order"</i>). En una mesa de
+     * cuatro, saber cuando te toca no se deduce de donde se sienta cada uno.
+     *
+     * <p>Y <b>quien tiene la prioridad</b>, con un punto delante (Discord,
+     * 24-10-2026: <i>"maybe just highlight the name of whoever has priority in
+     * the turn order?"</i>; el "Waiting for X" de Forge sale solo a ratos). Por
+     * eso sale tambien a dos, que el orden no dice nada pero la prioridad si.
+     *
+     * <p>Lo que el motor no publica es si el sentido se ha invertido (Aeon
+     * Engine y compania), asi que en esas partidas sale el orden de los
+     * asientos.
+     *
+     * @param names    los que siguen en juego, empezando por el del turno
+     * @param you      cual de ellos eres tu, o -1
+     * @param priority cual de ellos tiene la prioridad, o -1
+     */
+    public void setTurnOrder(final java.util.List<String> names, final int you, final int priority) {
+        final boolean on = names != null && names.size() >= 2;
+        turnOrder.setVisible(on);
+        turnOrder.setManaged(on);
+        if (!on) {
+            return;
+        }
+        if (!names.equals(orderShown) || you != orderYou) {
+            orderShown = java.util.List.copyOf(names);
+            orderYou = you;
+            orderPlayers.clear();
+            final Label caption = new Label(NeoText.get("phase.order"));
+            caption.getStyleClass().add("turn-order-caption");
+            turnOrder.getChildren().setAll(caption);
+            for (int i = 0; i < names.size(); i++) {
+                if (i > 0) {
+                    final Label arrow = new Label("›");
+                    arrow.getStyleClass().add("turn-order-arrow");
+                    turnOrder.getChildren().add(arrow);
+                }
+                final Label who = new Label(i == you ? NeoText.get("phase.stops.mine") : names.get(i));
+                who.getStyleClass().add("turn-order-player");
+                who.pseudoClassStateChanged(CURRENT, i == 0);
+                who.pseudoClassStateChanged(YOURS, i == you);
+                orderPlayers.add(who);
+                turnOrder.getChildren().add(who);
+            }
+            priorityShown = -1;
+            paintPriority(priority);
+            return;
+        }
+        // LA IA PASA LA PRIORIDAD EN MILISEGUNDOS: el punto saltaria de nombre en
+        // nombre sin que se pudiera leer. Solo se mueve si se queda quieto un
+        // momento, que es justo cuando alguien esta pensando de verdad.
+        priorityWanted = priority;
+        prioritySettle.playFromStart();
+    }
+
+    private void paintPriority(final int priority) {
+        if (priority == priorityShown) {
+            return;
+        }
+        priorityShown = priority;
+        for (int i = 0; i < orderPlayers.size(); i++) {
+            final Label who = orderPlayers.get(i);
+            final boolean has = i == priority;
+            who.pseudoClassStateChanged(PRIORITY, has);
+            if (has) {
+                final Label dot = new Label("●");
+                dot.getStyleClass().add("turn-order-priority");
+                who.setGraphic(dot);
+            } else {
+                who.setGraphic(null);
+            }
+        }
+    }
+
+    private final javafx.scene.layout.FlowPane turnOrder = new javafx.scene.layout.FlowPane();
+    private final java.util.List<Label> orderPlayers = new java.util.ArrayList<>();
+    private java.util.List<String> orderShown = java.util.List.of();
+    private int orderYou = -2;
+    private int priorityShown = -1;
+    private int priorityWanted = -1;
+    private final javafx.animation.PauseTransition prioritySettle =
+            new javafx.animation.PauseTransition(javafx.util.Duration.millis(300));
+    {
+        prioritySettle.setOnFinished(e -> paintPriority(priorityWanted));
+    }
+    private static final javafx.css.PseudoClass PRIORITY =
+            javafx.css.PseudoClass.getPseudoClass("priority");
 
     /** Elige de quien son las paradas que se ven y se conmutan. */
     public void setEditingMine(final boolean mine) {
@@ -356,7 +457,9 @@ public class PhaseRail extends VBox {
         // El dia/noche y el plano activo (Planechase) son filas enteras: si no
         // se cuentan, las fases se salen del hueco y pisan la barra del rival
         // (Discord, 08-10-2026, en 4K con Planechase).
-        return 14 + header.prefHeight(width) + rowHeight(dayNight, width) + rowHeight(plane, width)
+        // Y el orden de turnos, que es otra fila (y puede partirse en dos).
+        final double orderRow = turnOrder.isManaged() ? turnOrder.prefHeight(available) + 2 : 0;
+        return 14 + header.prefHeight(width) + orderRow + rowHeight(dayNight, width) + rowHeight(plane, width)
                 + Math.ceil(STOPS.length / (double) columns) * (tallest + 3);
     }
 

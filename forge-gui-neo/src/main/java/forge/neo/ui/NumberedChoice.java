@@ -26,6 +26,16 @@ public interface NumberedChoice {
     boolean pickNumber(int n, boolean repeat);
 
     /**
+     * Espacio o Enter con un dialogo que solo ENSENYA (lo que se revela, con
+     * su "Entendido"): lo cierra, como pasar la prioridad en la mesa.
+     *
+     * @return si habia algo que cerrar
+     */
+    default boolean acknowledge() {
+        return false;
+    }
+
+    /**
      * El "1", "2"... que va delante de una opcion.
      *
      * <p>Solo se ve dentro de la capa de dialogos de una mesa, que es lo unico

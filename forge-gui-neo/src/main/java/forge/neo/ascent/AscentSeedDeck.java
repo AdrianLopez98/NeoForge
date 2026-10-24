@@ -628,7 +628,27 @@ public final class AscentSeedDeck {
         // Antes de recortar: Gleemox cuesta 0, y el recorte se queda primero
         // con lo barato. Ver GeneratedDecks.
         GeneratedDecks.fixCopyLimits(full, DeckFormat.Commander);
-        return trim(full, cmd, null, COMMANDER_SIZE, name, NO_COLOURS);
+        // EL COMPANERO QUE ELIGIO EL GENERADOR SE QUEDA (Discord, 24-10-2026:
+        // "Since when is Wyll Red/blue?!"). Con un comandante que admite
+        // companero (Wyll: "Choose a Background"), Forge le busca uno al azar y
+        // monta el mazo con la identidad DE LOS DOS. El recorte solo ponia el
+        // comandante en la zona de mando: se perdia el Background y quedaba un
+        // mazo rojo y azul con un comandante rojo.
+        return trim(full, cmd, generatedPartner(full, cmd), COMMANDER_SIZE, name, NO_COLOURS);
+    }
+
+    /** El otro de la zona de mando que trae un mazo generado, o {@code null}. */
+    static PaperCard generatedPartner(final Deck generated, final PaperCard cmd) {
+        final forge.deck.CardPool zone = generated.get(DeckSection.Commander);
+        if (zone == null) {
+            return null;
+        }
+        for (final Map.Entry<PaperCard, Integer> e : zone) {
+            if (!e.getKey().getName().equals(cmd.getName())) {
+                return e.getKey();
+            }
+        }
+        return null;
     }
 
     /**

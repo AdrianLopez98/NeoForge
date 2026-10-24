@@ -143,6 +143,8 @@ final class CommanderEntrance {
 
     void start() {
         layer.getChildren().add(root);
+        // Con su sonido (los de Neo Forge, 24-10-2026): Forge no tiene ninguno para esto.
+        forge.neo.platform.NeoSfx.play(forge.neo.sound.NeoSounds.COMMANDER_ENTRANCE);
         timer.start();
     }
 

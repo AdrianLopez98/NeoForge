@@ -1077,7 +1077,27 @@ final class NeoAppDebug {
         if (asChoice > 0) {
             app.table.getOverlay().show(new forge.neo.ui.ChoiceDialog<CardView>(
                     "Looking at cards in Paige's library", views(pickCards(deck, asChoice)), -1, -1,
-                    CardView::getName, 132, picked -> { }));
+                    CardView::getName, 132, picked -> {
+                        System.out.println("[reveal-space] cerrado con la tecla");
+                        app.table.getOverlay().hide();
+                    }));
+            // -Dneo.revealed.space=true: pulsa Espacio sobre la escena, como el
+            // jugador, y dice si el aviso se ha cerrado (TableKeys).
+            if (Boolean.getBoolean("neo.revealed.space")) {
+                final javafx.animation.PauseTransition wait =
+                        new javafx.animation.PauseTransition(javafx.util.Duration.millis(1500));
+                wait.setOnFinished(e -> javafx.application.Platform.runLater(() -> {
+                    final javafx.scene.Scene scene = app.table.getScene();
+                    for (final javafx.event.EventType<javafx.scene.input.KeyEvent> type : List.of(
+                            javafx.scene.input.KeyEvent.KEY_PRESSED, javafx.scene.input.KeyEvent.KEY_RELEASED)) {
+                        javafx.event.Event.fireEvent(scene.getFocusOwner() != null ? scene.getFocusOwner() : scene.getRoot(),
+                                new javafx.scene.input.KeyEvent(type, " ", " ", javafx.scene.input.KeyCode.SPACE,
+                                        false, false, false, false));
+                    }
+                    System.out.println("[reveal-space] tras Espacio, el aviso sigue: " + app.table.getOverlay().isShowing());
+                }));
+                wait.play();
+            }
             // -Dneo.zoom.ringTest=N: clic derecho a la carta N del dialogo y
             // -Dneo.zoom.step pasos de rueda; dice que serie y que carta se ven.
             final int ringAt = Integer.getInteger("neo.zoom.ringTest", -1);

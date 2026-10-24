@@ -94,6 +94,7 @@ public final class AscentCheck {
             tierrasEnElPremio();
             elDobleEnCommander();
             comandanteMulticolor();
+            companeroDelGenerador();
             premioSoloCartasJugables();
             reliquiasPorColor();
             siluetasDistinguibles();
@@ -3272,6 +3273,52 @@ public final class AscentCheck {
      * <p>Se prueba con un comandante de <b>tres colores</b> a proposito: con dos
      * bastaria una carta hibrida para pasar por casualidad.
      */
+    /**
+     * Un comandante que admite companero (Wyll: "Choose a Background") sin
+     * companero elegido: el generador de Forge le busca uno y monta el mazo
+     * con la identidad de los dos. Ese companero tiene que llegar a la zona de
+     * mando, o el mazo lleva colores que su comandante no tiene (Discord,
+     * 24-10-2026: Wyll con cartas azules).
+     */
+    private static void companeroDelGenerador() {
+        PaperCard wyll = null;
+        for (final PaperCard c : AscentSeedDeck.commanderPool()) {
+            if (c.getName().equals("Wyll, Blade of Frontiers")) {
+                wyll = c;
+                break;
+            }
+        }
+        if (wyll == null) {
+            fail("companero del generador: Wyll, Blade of Frontiers no esta en el pozo de comandantes");
+            return;
+        }
+        int conCompanero = 0;
+        final int muestra = 6;
+        for (int i = 0; i < muestra; i++) {
+            final Deck d = AscentSeedDeck.generate(AscentRun.Mode.COMMANDER, wyll, null,
+                    "sonda-companero-" + i, 0, (byte) 0, null);
+            byte id = 0;
+            final forge.deck.CardPool mando = d.get(forge.deck.DeckSection.Commander);
+            for (final java.util.Map.Entry<PaperCard, Integer> e : mando) {
+                id |= e.getKey().getRules().getColorIdentity().getColor();
+            }
+            if (mando.countAll() > 1) {
+                conCompanero++;
+            }
+            for (final java.util.Map.Entry<PaperCard, Integer> e : d.getMain()) {
+                final byte c = e.getKey().getRules().getColorIdentity().getColor();
+                if ((c & ~id) != 0) {
+                    fail("companero del generador: el mazo de Wyll lleva " + e.getKey().getName()
+                            + " y su zona de mando es " + mando.toFlatList().stream().map(PaperCard::getName).collect(java.util.stream.Collectors.joining(" + "))
+                            + " (colores que no son de su identidad)");
+                    return;
+                }
+            }
+        }
+        ok("companero del generador: " + muestra + " mazos de Wyll, ninguna carta fuera de su identidad ("
+                + conCompanero + " con Background en la zona de mando)");
+    }
+
     private static void comandanteMulticolor() {
         // Un comandante de tres colores del pozo de verdad.
         PaperCard tricolor = null;

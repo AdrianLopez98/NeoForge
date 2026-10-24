@@ -1,14 +1,15 @@
-**NeoForge para macOS 1.0.32 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.33 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **El torneo de la Quest**: en Commander, mesas de cuatro y una final; en Estándar, cuadro de 8. La entrada, los rivales y el premio crecen con tu campaña.
-- **Quest:** desbloquear expansiones con victorias, el valor de cada carta (en la colección, al vender y al abrir sobres), ordenar las sueltas de la tienda, marcar cartas para que no se vendan solas, renombrar una campaña y «Montar uno con lo que tengo» arreglado.
-- **Reglas de la casa:** un mazo que se salta las reglas a propósito se puede jugar en las partidas libres.
-- **«Sí a todo»** cuando un disparo opcional se repite muchas veces.
-- **Constructor:** la carta en grande al pasar el ratón, varias expansiones a la vez con buscador y elegir la carta de portada del mazo.
-- **Fichas:** las que crea una carta salen al ampliarla, se puede usar una imagen propia si falta, y se descarga su arte para jugar sin internet.
-- **Tutorial:** un paso nuevo para poner un aura en el rival.
-- **Forge al día:** arreglos de reglas y de cartas.
+- **Sonidos nuevos** (opcionales, en Ajustes → Sonido): lanzar, girar, bloquear, exiliar, ganar y perder vida, la entrada de tu comandante, abrir sobres, ganar y perder… con varias versiones que se alternan.
+- **Ordenar el menú y esconder casillas** (el Tutorial, por ejemplo).
+- **La mesa:** el orden de turnos y quién tiene la prioridad; ver qué le hacen otras cartas a una carta (Collector Ouphe, Arrest, provocar); «Ver el texto» trae la otra cara; Espacio cierra el aviso de cartas reveladas; tu comandante que va a la mano o a la biblioteca pregunta en grande.
+- **En red y por equipos:** ves la mano de tu aliado, el invitado ya puede elegir qué hechizo contrarrestar, y no se le queda puesta una pregunta ya contestada.
+- **Quest:** sobres del Mystery Booster Commander, comprar todas las sueltas de golpe (o con doble clic e Intro), y el torneo pasa a llamarse «Campeonato».
+- **Enciclopedia:** las fichas, y se desplaza en vez de ir por páginas.
+- **Ajustes:** un buscador; ordenar la mano con las tierras primero.
+- **Ascenso:** los comandantes con Background ya no salen con cartas de otros colores.
+- **Forge al día:** Star Trek (TRK) y arreglos de reglas.
 
 Descarga el `.dmg` de tu Mac:
 

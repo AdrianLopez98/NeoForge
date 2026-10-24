@@ -474,6 +474,21 @@ public final class NeoMain {
                 banner("Las cartas del registro");
                 forge.neo.match.LogLinksCheck.run();
                 break;
+            case "menucheck":
+                // El orden del menu: mover, esconder y casillas nuevas.
+                banner("El orden del menu");
+                forge.neo.MenuLayoutCheck.run();
+                break;
+            case "soundcheck":
+                // Los sonidos de Neo Forge: que salen del jar, el azar y el ajuste.
+                banner("Los sonidos de Neo Forge");
+                forge.neo.sound.SoundCheck.run();
+                break;
+            case "affectedcheck":
+                // Lo que otras cartas le hacen a esta (Collector Ouphe, Arrest, provocar).
+                banner("Lo que afecta a una carta");
+                forge.neo.card.AffectedCheck.run();
+                break;
             case "friendlycheck":
                 // "Agresividad de la IA contigo": en Commander, con el ajuste,
                 // la IA ataca a otra IA si no eres claramente la mayor amenaza.

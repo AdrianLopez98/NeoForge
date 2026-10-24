@@ -22,7 +22,7 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
-import javafx.scene.control.ScrollPane;
+import javafx.scene.control.ListView;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.FlowPane;
@@ -87,10 +87,21 @@ public class CardLibraryScreen extends StackPane {
     private final Label summary = new Label();
     private final Label resultCount = new Label();
     private final VBox gridHolder = new VBox();
-    private final HBox pagerSlot = new HBox();
 
-    private FlowPane grid;
-    private Pager pager;
+    /**
+     * LA REJILLA, COMO UNA LISTA DE FILAS VIRTUAL.  La enciclopedia se desplaza
+     * en vez de ir por paginas (itch.io, 24-10-2026: "let us scroll through the
+     * encyclopaedia instead of pressing next page next page", como Android).
+     *
+     * <p>⚠️ Una {@code ListView} y no un FlowPane que va creciendo: asi se hizo
+     * primero, y cada carta que pasaba se quedaba pintada con su imagen - cuanto
+     * mas bajabas, mas lento (Ana: "se ralentiza mucho cuanto mas bajas").  La
+     * lista solo crea las filas que se ven y las reutiliza al desplazarse, como
+     * la rejilla perezosa de Android.  Cada fila es un renglon de casillas.
+     */
+    private ListView<Integer> rows;
+    /** Cuantas casillas caben en una fila con el ancho de ahora. */
+    private int cols = 1;
 
     private CardLibrary library;
 
@@ -107,6 +118,18 @@ public class CardLibraryScreen extends StackPane {
     private static final java.util.Map<String, PaperCard> chosenArt =
             new java.util.concurrent.ConcurrentHashMap<>();
     private List<PaperCard> results = Collections.emptyList();
+
+    /**
+     * LAS FICHAS (Discord, 24-10-2026: "a separate tab where we can view all
+     * the Token images"): con el boton encendido la rejilla ensenya
+     * {@link forge.neo.card.TokenLibrary} y solo vale el buscador; lo demas
+     * (color, expansion, formato, coleccion, orden) es de cartas y se apaga.
+     */
+    private final Button tokensButton = new Button(NeoText.get("library.tokens"));
+    private boolean tokensMode;
+    private List<forge.item.PaperToken> tokenResults = Collections.emptyList();
+    /** Lo que solo vale para cartas: se apaga con las fichas. */
+    private final List<javafx.scene.Node> cardOnly = new ArrayList<>();
     /** Los nombres de la coleccion elegida, o null si aun no se ha leido. */
     private Set<String> owned;
     private int ownedFor = -1;
@@ -209,7 +232,17 @@ public class CardLibraryScreen extends StackPane {
 
         final Region gap = new Region();
         HBox.setHgrow(gap, Priority.ALWAYS);
-        final HBox row1 = new HBox(10, search, rulesButton, filters.bar(), colourMode, gap, sizes);
+        tokensButton.getStyleClass().add("segment");
+        tokensButton.setMinWidth(Region.USE_PREF_SIZE);
+        tokensButton.setOnAction(e -> {
+            tokensMode = !tokensMode;
+            tokensButton.pseudoClassStateChanged(SELECTED, tokensMode);
+            for (final javafx.scene.Node n : cardOnly) {
+                n.setDisable(tokensMode);
+            }
+            refilter();
+        });
+        final HBox row1 = new HBox(10, search, rulesButton, filters.bar(), colourMode, tokensButton, gap, sizes);
         row1.setAlignment(Pos.CENTER_LEFT);
 
         // Segunda fila: lo que no tiene el constructor.
@@ -331,15 +364,14 @@ public class CardLibraryScreen extends StackPane {
         row2b.setAlignment(Pos.CENTER_LEFT);
         resultCount.getStyleClass().add("caption");
 
+        cardOnly.addAll(List.of(rulesButton, filters.bar(), filters.advanced(), colourMode, row2, ownRow, sort));
         final FlowPane rows = new FlowPane(24, 8, row2, row2b);
         rows.setAlignment(Pos.CENTER_LEFT);
 
         VBox.setVgrow(gridHolder, Priority.ALWAYS);
 
-        pagerSlot.setAlignment(Pos.CENTER_LEFT);
-        pagerSlot.setMinWidth(Region.USE_PREF_SIZE);
 
-        final VBox content = new VBox(10, row1, filters.advanced(), rows, gridHolder, pagerSlot);
+        final VBox content = new VBox(10, row1, filters.advanced(), rows, gridHolder);
         content.getStyleClass().add("builder-catalogue");
         content.setPadding(new Insets(12, 16, 10, 16));
         final StackPane frame = new StackPane(content);
@@ -359,58 +391,100 @@ public class CardLibraryScreen extends StackPane {
     }
 
     /**
-     * La rejilla y su paginador, otra vez.
-     *
-     * <p>Cambiar el tamanyo de carta cambia cuantas caben, y {@code Pager.fitTo}
-     * se queda con el ancho de casilla que se le dio: lo limpio es montarla
-     * de nuevo, conservando la carta que estaba primera a la vista.
+     * La rejilla, otra vez (al cambiar el tamanyo de carta), en la fila que se
+     * estaba mirando.  Ver {@link #rows}.
      */
     private void rebuildGrid() {
-        final int first = pager == null ? 0 : pager.from();
-        grid = new FlowPane(10, 10);
-        grid.setAlignment(Pos.TOP_LEFT);
-        final ScrollPane scroll = new ScrollPane(grid);
-        scroll.getStyleClass().add("dialog-scroll");
-        scroll.setFitToWidth(true);
-        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        // Sin barra vertical: la pagina es lo que cabe (Pager.fitTo), y si una
-        // fila no entra entera el Pager la quita. Con barra, el Pager tiene que
-        // reservarle sitio y cuenta una columna menos de las que se pintan.
-        scroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        VBox.setVgrow(scroll, Priority.ALWAYS);
-
-        pager = new Pager(40, this::paint);
-        pager.setScrollbarReserve(0);
-        pager.getStyleClass().add("builder-pagebar");
+        final int firstCard = rows == null ? 0 : firstVisibleRow() * cols;
+        rows = new ListView<>();
+        rows.getStyleClass().add("library-rows");
+        rows.setFocusTraversable(false);
+        VBox.setVgrow(rows, Priority.ALWAYS);
         final double w = cardWidth();
-        // El ancho con el padding de la casilla (medido: carta + 6, y dos de
-        // holgura). No puede quedarse corto: contaria una columna de mas, la
-        // pagina desbordaria y el Pager le quitaria una fila para siempre. Si
-        // aun asi mide mas, el Pager se queda con lo medido.
+        // La casilla: carta + 6 de relleno y 2 de holgura (lo medido), y 10 de
+        // separacion entre casillas y entre filas.
+        final double tileW = w + 8;
         final double tileH = w * 7 / 5 + 8;
-        pager.fitTo(scroll, grid, w + 8, tileH, 6);
+        rows.setFixedCellSize(tileH + 10);
+        rows.setCellFactory(v -> new ListCell<>() {
+            @Override
+            protected void updateItem(final Integer row, final boolean empty) {
+                super.updateItem(row, empty);
+                setText(null);
+                if (empty || row == null) {
+                    setGraphic(null);
+                    return;
+                }
+                final HBox line = new HBox(10);
+                final int total = currentTotal();
+                for (int i = row * cols; i < Math.min(total, (row + 1) * cols); i++) {
+                    line.getChildren().add(tokensMode ? tokenTile(i) : tile(i));
+                }
+                setGraphic(line);
+            }
+        });
+        // Las columnas salen del ancho de la lista (menos la barra).
+        rows.widthProperty().addListener((o, was, is) -> {
+            final int c = Math.max(1, (int) ((is.doubleValue() - 24 + 10) / (tileW + 10)));
+            if (c != cols) {
+                final int first = firstVisibleRow() * cols;
+                cols = c;
+                fillRows();
+                rows.scrollTo(first / cols);
+            }
+        });
         if (!sizeChosen && sizeStep > 0) {
-            scroll.viewportBoundsProperty().addListener(new javafx.beans.value.ChangeListener<>() {
+            rows.heightProperty().addListener(new javafx.beans.value.ChangeListener<>() {
                 @Override
-                public void changed(final javafx.beans.value.ObservableValue<? extends javafx.geometry.Bounds> o,
-                                    final javafx.geometry.Bounds was, final javafx.geometry.Bounds is) {
-                    if (is.getHeight() <= 0) {
+                public void changed(final javafx.beans.value.ObservableValue<? extends Number> o,
+                                    final Number was, final Number is) {
+                    if (is.doubleValue() <= 0) {
                         return;
                     }
                     o.removeListener(this);
-                    if (!sizeChosen && sizeStep > 0 && is.getHeight() < 2 * tileH + 10) {
+                    if (!sizeChosen && sizeStep > 0 && is.doubleValue() < 2 * tileH + 20) {
                         sizeStep--;
                         Platform.runLater(CardLibraryScreen.this::rebuildGrid);
                     }
                 }
             });
         }
-        gridHolder.getChildren().setAll(scroll);
-        pagerSlot.getChildren().setAll(pager);
-        pager.setTotal(results.size());
-        // Volver a la pagina donde estaba esa carta (goToItem ya repinta).
-        pager.goToItem(first);
-        paint();
+        gridHolder.getChildren().setAll(rows);
+        fillRows();
+        rows.scrollTo(firstCard / Math.max(1, cols));
+    }
+
+    private int currentTotal() {
+        return tokensMode ? tokenResults.size() : results.size();
+    }
+
+    /** Una fila por cada {@link #cols} cartas. */
+    private void fillRows() {
+        final int n = (currentTotal() + cols - 1) / cols;
+        final List<Integer> idx = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            idx.add(i);
+        }
+        rows.getItems().setAll(idx);
+    }
+
+    /** La primera fila a la vista (para volver a ella al recolocar). */
+    private int firstVisibleRow() {
+        if (rows == null) {
+            return 0;
+        }
+        final javafx.scene.control.skin.VirtualFlow<?> flow =
+                (javafx.scene.control.skin.VirtualFlow<?>) rows.lookup(".virtual-flow");
+        if (flow == null || flow.getFirstVisibleCell() == null) {
+            return 0;
+        }
+        return Math.max(0, flow.getFirstVisibleCell().getIndex());
+    }
+
+    /** Una busqueda nueva: arriba del todo. */
+    private void restart() {
+        fillRows();
+        rows.scrollTo(0);
     }
 
     private double cardWidth() {
@@ -489,6 +563,17 @@ public class CardLibraryScreen extends StackPane {
         if (Boolean.getBoolean("neo.library.latest")) {
             showLatest();
         }
+        // -Dneo.library.scroll=0.95: baja a ese punto de la lista (para ver
+        // que se pinta lo de alli, y deprisa).
+        final String down = System.getProperty("neo.library.scroll");
+        if (down != null && rows != null) {
+            final double v = Double.parseDouble(down);
+            Platform.runLater(() -> rows.scrollTo((int) (rows.getItems().size() * v)));
+        }
+        // -Dneo.library.tokens=true: con las fichas a la vista.
+        if (Boolean.getBoolean("neo.library.tokens")) {
+            tokensButton.fire();
+        }
         // -Dneo.library.arts=Sol Ring abre "Ver sus artes"; con
         // -Dneo.library.menu=true, el menu del clic derecho en su lugar.
         final String arts = System.getProperty("neo.library.arts");
@@ -515,8 +600,8 @@ public class CardLibraryScreen extends StackPane {
         if (Boolean.getBoolean("neo.library.zoom")) {
             Platform.runLater(() -> Platform.runLater(() -> {
                 final List<PaperCard> list = results;
-                if (!grid.getChildren().isEmpty() && list != null && !list.isEmpty()) {
-                    CardZoom.show(grid.getChildren().get(0), list.size(), 0,
+                if (rows != null && list != null && !list.isEmpty()) {
+                    CardZoom.show(rows, list.size(), 0,
                             i -> CardView.getCardForUi(shown(list, i)));
                 }
             }));
@@ -544,6 +629,12 @@ public class CardLibraryScreen extends StackPane {
     }
 
     private void refilter() {
+        if (tokensMode) {
+            tokenResults = forge.neo.card.TokenLibrary.find(search.getText());
+            restart();
+            resultCount.setText(NeoText.get("library.tokens.count", tokenResults.size()));
+            return;
+        }
         if (library == null) {
             return;
         }
@@ -566,9 +657,7 @@ public class CardLibraryScreen extends StackPane {
         q.owned = owned;
         results = library.find(q);
 
-        pager.reset();
-        pager.setTotal(results.size());
-        paint();
+        restart();
         resultCount.setText(results.size() == library.size()
                 ? NeoText.get("count.cards", results.size())
                 : NeoText.get("collection.someOf", results.size(), library.size()));
@@ -617,13 +706,14 @@ public class CardLibraryScreen extends StackPane {
     // Pintar
     // ---------------------------------------------------------------
 
-    /** Solo la pagina actual: pintar 33.000 cartas dejaria la app pegada. */
+    /**
+     * Vuelve a pintar las que ya estaban (un arte elegido, otro tamanyo), sin
+     * moverse de donde se estaba mirando.
+     */
     private void paint() {
-        final List<Region> tiles = new ArrayList<>();
-        for (int i = pager.from(); i < Math.min(results.size(), pager.to()); i++) {
-            tiles.add(tile(i));
+        if (rows != null) {
+            rows.refresh();
         }
-        grid.getChildren().setAll(tiles);
     }
 
     private Region tile(final int index) {
@@ -646,6 +736,21 @@ public class CardLibraryScreen extends StackPane {
                 showCardMenu(shown(index));
             }
         });
+        return box;
+    }
+
+    /** Una ficha: se mira y se amplia, nada mas (no tiene artes que elegir). */
+    private Region tokenTile(final int index) {
+        final List<forge.item.PaperToken> list = tokenResults;
+        final CardNode node = new CardNode(cardWidth());
+        node.setRotationEnabled(false);
+        node.setBadgesVisible(false);
+        node.setCard(CardView.getCardForUi(list.get(index)));
+        final StackPane box = new StackPane(node);
+        box.getStyleClass().add("catalogue-tile");
+        box.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+        box.setOnMouseClicked(e -> CardZoom.show(node, list.size(), index,
+                i -> CardView.getCardForUi(list.get(i))));
         return box;
     }
 

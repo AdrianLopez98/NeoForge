@@ -3750,6 +3750,20 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
     @Override
     public boolean mayView(final CardView c) {
         final PlayerView f = front;
+        // LA MANO DE TU ALIADO, a la vista (Discord, 24-10-2026, en red: "The
+        // ability to view your ally's hand"). Por equipos se juega asi en la
+        // mesa: el companyero te ensenya lo que lleva. El motor solo se la deja
+        // ver a su duenyo (CardView.canBeShownTo), pero la vista ya llega entera
+        // -tambien al invitado en red, que la recibe sin filtrar y la tapa la
+        // interfaz-, asi que es solo no taparla. Solo la mano, solo aliados de
+        // verdad (NeoTeams.isAlly pregunta al motor): en todos contra todos no
+        // cambia nada.
+        if (c != null && c.getZone() == forge.game.zone.ZoneType.Hand) {
+            final PlayerView me = f != null && hotSeat() ? live(f) : localPlayerView();
+            if (NeoTeams.isAlly(me, c.getController())) {
+                return true;
+            }
+        }
         if (f == null || !hotSeat() || c == null) {
             return super.mayView(c);
         }
@@ -4160,6 +4174,9 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         if (ending != Ending.REPLAY && getGameView() != null) {
             GameStats.attach(getGameView().getGame());
         }
+        // "Le afecta" en la ampliacion y al pasar el raton (Discord,
+        // 23-10-2026): se lee de ESTA partida (null en el invitado en red).
+        forge.neo.card.AffectedBy.setGame(getGameView() == null ? null : getGameView().getGame());
         if (mode == Mode.HUMAN) {
             // Una repeticion no es una partida: ni preferencias del motor ni
             // registro detallado (abrirlo rota detailed-game.log y se llevaba
@@ -4501,6 +4518,19 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         } else {
             log("GAME OVER");
         }
+        // Quien es "tu" y si ha perdido, al lado de quien dice el motor que
+        // gana: "gane y me dijo HAS PERDIDO" al mejor de tres (Discord,
+        // 12-10 y 23-10-2026) no se podia mirar en ningun registro.
+        if (gv != null && hasLocalPlayers()) {
+            final StringBuilder seats = new StringBuilder();
+            for (final PlayerView p : getLocalPlayers()) {
+                final PlayerView now = live(p);
+                seats.append(' ').append(p.getId()).append('=').append(nameOf(now))
+                        .append(now.getHasLost() ? " (lost)" : "").append(now == p ? "" : " [live]");
+            }
+            log("local seats:%s | local won: %s (by the game: %s) | game %d", seats, localPlayerWon(),
+                    localWonFromGame(), gv.getNumPlayedGamesInMatch() + 1);
+        }
 
         // Al acabar la partida, Forge espera a que el jugador decida que hacer
         // (revancha o salir). Mientras no conteste, el match NO se cierra y
@@ -4682,6 +4712,28 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
      * asientos se llaman igual.
      */
     /** Hot seat: si ha ganado alguna de las personas (y no una IA). */
+    /**
+     * Si un asiento de esta pantalla ha ganado, segun la partida misma; null si
+     * no se puede saber (invitado en red: la partida no esta aqui).
+     */
+    private Boolean localWonFromGame() {
+        final GameView gv = getGameView();
+        final forge.game.Game game = gv == null ? null : gv.getGame();
+        if (game == null) {
+            return null;
+        }
+        boolean any = false;
+        for (final forge.game.player.Player p : game.getRegisteredPlayers()) {
+            if (p.getController() instanceof forge.player.PlayerControllerHuman h && h.getGui() == this) {
+                any = true;
+                if (!p.hasLost()) {
+                    return Boolean.TRUE;
+                }
+            }
+        }
+        return any ? Boolean.FALSE : null;
+    }
+
     private boolean anyLocalPlayerWon() {
         final GameView gv = getGameView();
         final String winner = gv == null ? null : gv.getWinningPlayerName();
@@ -4697,6 +4749,16 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
     }
 
     private boolean localPlayerWon() {
+        // Con la partida en esta maquina, se le pregunta a ELLA: los asientos
+        // cuyo controlador humano pinta en esta pantalla, y si alguno sigue en
+        // pie. Al mejor de tres de la Aventura salia "HAS PERDIDO" habiendo
+        // ganado (Discord, 12-10 y 23-10-2026: "Grace wins" debajo de "YOU
+        // LOST"), y lo de abajo depende de la lista de asientos de la GUI.
+        // Por equipos sigue mandando lo de abajo (gana tu aliado).
+        final Boolean fromGame = localWonFromGame();
+        if (fromGame != null && (fromGame || NeoTeams.winningTeam(getGameView()) < 0)) {
+            return fromGame;
+        }
         if (!hasLocalPlayers()) {
             return false;
         }
@@ -4783,6 +4845,10 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             if (cb != null) {
                 cb.setPrompt(NeoText.get("commander.leftGame"));
             }
+            return;
+        }
+        // CR 903.9b: el que va a tu mano o a tu biblioteca. Ver offerCommanderReturn.
+        if (interactive() && offerCommanderReturn(message)) {
             return;
         }
         // Adivinar y vigilar de UNA carta. Tambien llegan como un si/no
@@ -4981,6 +5047,111 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             table.requestLayout();
         });
         return true;
+    }
+
+    /**
+     * La marca de la pregunta de CR 903.9b, la descripcion del reemplazo que
+     * monta {@code Player.createCommanderEffect}. Literal y sin traducir, como
+     * la de arriba; la frase de alrededor ("Apply replacement effect of...")
+     * si va en el idioma del motor, y por eso no se mira.
+     */
+    private static final String COMMANDER_RETURN_MARK = "would be put into its owner's hand or library";
+
+    /** Ya hay un dialogo de 903.9b puesto: el motor repite el aviso mientras espera. */
+    private final AtomicBoolean commanderReturnUp = new AtomicBoolean();
+
+    /**
+     * "Tu comandante va a ir a tu mano (o a tu biblioteca): o a la zona de mando?"
+     *
+     * <p>Regla 903.9b, la hermana de {@link #offerCommanderZone}: si un
+     * comandante va a ir a la mano o a la biblioteca de su duenyo, puede ir a
+     * la zona de mando en su lugar. El motor lo pregunta con el si/no generico
+     * de un reemplazo — <i>"Apply replacement effect of ... to ...?"</i> — en
+     * los mismos botones de pasar, y SI es la zona de mando. Reportado en
+     * Discord el 24-10-2026: un Sink into Stupor del rival sobre su comandante,
+     * y el comandante acabo en la zona de mando en vez de en la mano. Lo casi
+     * seguro es un OK por inercia (principio 6b), y no tiene vuelta atras.
+     *
+     * <p>No sabemos si iba a la mano o a la biblioteca (el motor no lo dice en
+     * la pregunta), asi que el texto nombra las dos. El boton marcado es la
+     * zona de mando, que es lo que contestaba el SI de antes: el piloto de las
+     * pruebas sigue diciendo lo mismo.
+     *
+     * @return true si nos hemos hecho cargo de la pregunta
+     */
+    private boolean offerCommanderReturn(final String message) {
+        if (message == null || table == null || !message.contains(COMMANDER_RETURN_MARK)) {
+            return false;
+        }
+        if (!commanderReturnUp.compareAndSet(false, true)) {
+            return true;
+        }
+        final CardView commander = commanderNamedIn(message);
+        final UiDispatcher ui = uiDispatcher();
+        if (ui == null) {
+            commanderReturnUp.set(false);
+            return false;
+        }
+        final TableBinder b = binder;
+        if (b != null) {
+            b.setPrompt(NeoText.get("commander.returnPrompt"));
+        }
+        final AtomicBoolean answered = new AtomicBoolean();
+        ui.runLater(() -> {
+            final CardPromptDialog dialog = new CardPromptDialog(
+                    commander,
+                    commander == null ? NeoText.get("commander.yours") : null,
+                    NeoText.get("commander.returnAsk"),
+                    List.of(NeoText.get("commander.toZone"), NeoText.get("commander.letItGo")),
+                    0,
+                    table.zoomCardWidth() * 0.62,
+                    index -> {
+                        if (!answered.compareAndSet(false, true)) {
+                            return;
+                        }
+                        table.getOverlay().hide();
+                        commanderReturnUp.set(false);
+                        final boolean toCommand = index != null && index == 0;
+                        respondLater(() -> {
+                            if (toCommand) {
+                                getGameController().selectButtonOk();
+                            } else {
+                                getGameController().selectButtonCancel();
+                            }
+                        });
+                    });
+            table.getPromptBanner().hide();
+            table.getOverlay().show(dialog);
+            table.requestLayout();
+        });
+        return true;
+    }
+
+    /**
+     * El comandante cuyo nombre sale en la pregunta ({@code Card.toString} es
+     * "Nombre (id)", en ingles). Si no se encuentra, el primero que no este en
+     * la zona de mando; y si tampoco, ninguno: el dialogo sale sin carta.
+     */
+    private CardView commanderNamedIn(final String message) {
+        final GameView gv = getGameView();
+        if (gv == null || gv.getPlayers() == null) {
+            return null;
+        }
+        CardView away = null;
+        for (final PlayerView p : gv.getPlayers()) {
+            if (p.getCommanders() == null) {
+                continue;
+            }
+            for (final CardView c : p.getCommanders()) {
+                if (c.getName() != null && !c.getName().isEmpty() && message.contains(c.getName())) {
+                    return c;
+                }
+                if (away == null && isMe(p) && c.getZone() != ZoneType.Command) {
+                    away = c;
+                }
+            }
+        }
+        return away;
     }
 
     /** El ultimo mensaje que mando el motor, tal cual. */
@@ -6613,6 +6784,15 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         if (!prev.equals(selection)) {
             refreshHighlights();
         }
+        // ...salvo de INVITADO EN RED: ahi el anfitrion pregunta por su
+        // ProtocolGuiGame, cuyo canPickStackTargets es true SIEMPRE, y espera
+        // que se toque la entrada en el stack (InputSelectStackItems). Nuestro
+        // stack no se toca para eso, asi que el invitado no podia elegir que
+        // contrarrestar (Discord, 23-10-2026). Se le pregunta con el dialogo de
+        // siempre y la respuesta va como el toque: pickStackItem.
+        if (interactive() && selection.offersStackItems() && !prev.offersStackItems()) {
+            askStackTargets(selection);
+        }
         // Y los botones de esta pregunta, si llegaron antes (ver earlyButtons).
         final Object asked = pendingInput(getGameController());
         selectionFor = asked;
@@ -6624,6 +6804,59 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                 flushEarlyButtons(parked[0]);
             }
         }
+    }
+
+    /**
+     * Elegir en el dialogo las entradas del stack que ofrece la pregunta, y
+     * mandarlas como si se hubieran tocado. Ver {@link #setSelection}.
+     *
+     * <p>En su propio hilo: el dialogo espera al jugador, y {@code setSelection}
+     * llega del hilo de la red. Los botones de la barra siguen valiendo (el motor
+     * los manda con la pregunta), pero aqui el dialogo ya contesta: elegir el
+     * maximo cierra la pregunta solo, y con menos se pulsa OK; vacio, Cancelar.
+     */
+    private void askStackTargets(final forge.gamemodes.match.Selection sel) {
+        final List<StackItemView> offered = new ArrayList<>();
+        for (final forge.trackable.TrackableObject t : sel.targets()) {
+            if (t instanceof StackItemView si && !sel.chosen().contains(si)) {
+                offered.add(si);
+            }
+        }
+        if (offered.isEmpty()) {
+            return;
+        }
+        final int max = Math.max(1, Math.min(sel.max() > 0 ? sel.max() : 1, offered.size()));
+        final String title = lastPrompt == null || lastPrompt.isBlank() ? NeoText.get("pick.ask.title") : lastPrompt;
+        final Thread t = new Thread(() -> {
+            final List<StackItemView> picked = askChoice(title, offered, 0, max, null);
+            if (picked.isEmpty()) {
+                // Si tambien vale una carta de la mesa (Chaoslace: un hechizo O
+                // un permanente), cerrar el dialogo es "elijo en la mesa", no
+                // cancelar el hechizo.
+                if (!sel.cards().isEmpty()) {
+                    return;
+                }
+                respondLater(() -> getGameController().selectButtonCancel());
+                // Si el objetivo es obligatorio, Cancelar no hace nada y la
+                // pregunta sigue ahi: se vuelve a ofrecer, o no habria forma
+                // de contestarla.
+                forge.util.ThreadUtil.delay(600, () -> {
+                    final forge.gamemodes.match.Selection now = getSelection();
+                    if (now.offersStackItems() && now.targets().equals(sel.targets())) {
+                        askStackTargets(now);
+                    }
+                });
+                return;
+            }
+            for (final StackItemView si : picked) {
+                respondLater(() -> pickStackItem(si));
+            }
+            if (picked.size() < max) {
+                respondLater(() -> getGameController().selectButtonOk());
+            }
+        }, "neo-stack-targets");
+        t.setDaemon(true);
+        t.start();
     }
 
     /** Empieza una eleccion de cartas (lo que antes era {@code setSelectables}). */

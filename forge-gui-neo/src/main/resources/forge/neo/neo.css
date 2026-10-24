@@ -683,6 +683,18 @@
     -fx-font-weight: bold;
 }
 
+/* "Le afecta": lo que otras cartas le hacen (Collector Ouphe, Arrest, provocar). */
+.detail-affected {
+    -fx-text-fill: -neo-warn;
+    -fx-background-color: rgba(224, 166, 60, 0.12);
+    -fx-background-radius: 5;
+    -fx-padding: 5 7 5 7;
+}
+
+.affected-line {
+    -fx-text-fill: -neo-warn;
+}
+
 .card-damage {
     -fx-background-color: -neo-danger;
     -fx-text-fill: white;
@@ -1679,6 +1691,41 @@
     -fx-background-color: rgba(74,155,224,0.18);
 }
 
+/* El orden de turnos, debajo de "TURNO DE ...": el que juega, encendido. */
+.turn-order-caption,
+.turn-order-arrow,
+.turn-order-player {
+    -fx-font-size: 0.75em;
+    -fx-text-fill: -neo-text-dim;
+}
+
+.turn-order-caption {
+    -fx-padding: 0 3 0 0;
+}
+
+.turn-order-player:yours {
+    -fx-text-fill: -neo-text;
+}
+
+/* Quien tiene la prioridad: un punto ambar delante, el color de "decision
+   pendiente" de los tokens. */
+.turn-order-priority {
+    -fx-text-fill: -neo-warn;
+    -fx-font-size: 0.85em;
+}
+
+.turn-order-player:priority {
+    -fx-text-fill: -neo-text;
+}
+
+.turn-order-player:current {
+    -fx-text-fill: -neo-text;
+    -fx-font-weight: bold;
+    -fx-padding: 0 5;
+    -fx-background-color: rgba(74,155,224,0.18);
+    -fx-background-radius: 3;
+}
+
 /* ---------- pips de mana clicables ---------- */
 
 /* La reserva de mana solo se destaca mientras hay un pago en curso. */
@@ -2180,6 +2227,56 @@
 .mode-card-note {
     -fx-font-size: 0.9em;
     -fx-font-weight: bold;
+}
+
+/* Ordenar el menu (Discord, 24-10-2026): una capa encima de cada casilla, con
+   el borde discontinuo de "esto se mueve", y abajo las flechas y Ocultar. */
+.menu-edit-layer {
+    -fx-background-color: rgba(11, 14, 19, 0.35);
+    -fx-background-radius: 12;
+    -fx-border-color: -neo-accent;
+    -fx-border-style: segments(8, 6);
+    -fx-border-width: 2;
+    -fx-border-radius: 12;
+}
+
+/* Donde caeria la que se esta arrastrando. */
+.menu-edit-layer.menu-edit-drop {
+    -fx-background-color: rgba(74, 155, 224, 0.25);
+    -fx-border-style: solid;
+    -fx-border-width: 3;
+}
+
+.menu-edit-button {
+    -fx-background-color: -neo-panel-hi;
+    -fx-background-radius: 6;
+    -fx-border-color: -neo-line;
+    -fx-border-radius: 6;
+    -fx-text-fill: -neo-text;
+    -fx-font-weight: bold;
+    -fx-padding: 4 12 4 12;
+    -fx-cursor: hand;
+}
+
+.menu-edit-button:hover {
+    -fx-border-color: -neo-accent;
+}
+
+.menu-edit-button:disabled {
+    -fx-opacity: 0.35;
+}
+
+.menu-edit-hidden {
+    -fx-background-color: -neo-panel;
+    -fx-background-radius: 6;
+    -fx-text-fill: -neo-warn;
+    -fx-font-weight: bold;
+    -fx-padding: 4 10 4 10;
+}
+
+.menu-edit-hint {
+    -fx-font-size: 1.05em;
+    -fx-text-fill: -neo-accent;
 }
 
 /* Un formato del que no tienes mazos se ve, pero no se entra. */
@@ -4350,3 +4447,30 @@
 
 /* Si a todo: mas visible que Resolverlo todo, sin quitarle el sitio a Si / No (23-10-2026). */
 .yes-to-all { -fx-border-color: -neo-valid; -fx-text-fill: -neo-valid; -fx-font-weight: bold; }
+
+/* El buscador de Ajustes, arriba del carril de pestanyas. */
+.settings-search {
+    -fx-pref-column-count: 9;
+}
+
+/* La enciclopedia como lista virtual de filas (24-10-2026): sin fondo ni seleccion
+   de ListView, y la barra discreta de los paneles. */
+.library-rows, .library-rows > .virtual-flow > .clipped-container > .sheet {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+.library-rows:focused { -fx-background-color: transparent; }
+.library-rows .list-cell,
+.library-rows .list-cell:filled,
+.library-rows .list-cell:selected,
+.library-rows .list-cell:filled:hover {
+    -fx-background-color: transparent;
+    -fx-padding: 0 0 10 0;
+}
+.library-rows .scroll-bar:vertical { -fx-background-color: transparent; -fx-pref-width: 8; }
+.library-rows .scroll-bar:vertical > .thumb { -fx-background-color: -neo-line; -fx-background-radius: 4; }
+.library-rows .scroll-bar:vertical > .thumb:hover { -fx-background-color: -neo-text-dim; }
+.library-rows .scroll-bar > .increment-button,
+.library-rows .scroll-bar > .decrement-button { -fx-pref-height: 0; -fx-opacity: 0; }
+.library-rows .scroll-bar:horizontal { -fx-pref-height: 0; -fx-opacity: 0; }

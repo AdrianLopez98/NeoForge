@@ -47,6 +47,20 @@ public class ChoiceDialog<T> extends VBox implements NumberedChoice {
      * si se eligen varias, la marca o la desmarca, y mantenida no hace nada.
      * Con el buscador de las listas enormes no: ahi los numeros se escriben.
      */
+    /**
+     * Solo el que no pregunta nada: en uno de verdad, Espacio no puede
+     * contestar por el jugador (Discord, 24-10-2026: <i>"Is there a way to make
+     * spacebar/pass work on this screen?"</i>, con lo que revela una carta).
+     */
+    @Override
+    public boolean acknowledge() {
+        if (!readOnly || done == null) {
+            return false;
+        }
+        accept.fire();
+        return true;
+    }
+
     @Override
     public boolean pickNumber(final int n, final boolean repeat) {
         if (readOnly || searchMode || n < 1 || n > nodesInOrder.size() || done == null) {

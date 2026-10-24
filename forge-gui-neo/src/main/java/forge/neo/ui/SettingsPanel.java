@@ -1293,6 +1293,18 @@ public class SettingsPanel extends VBox {
                 },
                 v -> String.format(java.util.Locale.ROOT, "%.0f", v)));
 
+        // --- los sonidos de Neo Forge (forge.neo.sound.NeoSounds) ---
+        //
+        // 24-10-2026. Encendido de fabrica, como los efectos; apagado, los de
+        // Forge de siempre. Vale al momento: el clip mira el ajuste en cada
+        // reproduccion.
+        getChildren().add(toggleRow(NeoText.get("settings.neoSounds"),
+                NeoSettings.getBool(forge.neo.sound.NeoSounds.SETTING, forge.neo.sound.NeoSounds.DEFAULT),
+                on -> {
+                    NeoSettings.setBool(forge.neo.sound.NeoSounds.SETTING, on);
+                    NeoSettings.save();
+                }));
+
         // --- atajos de teclado ---
         //
         // Una fila con un boton y no trece filas aqui: los atajos son una
@@ -1501,6 +1513,15 @@ public class SettingsPanel extends VBox {
         final javafx.scene.control.ToggleGroup group = new javafx.scene.control.ToggleGroup();
         rail.getStyleClass().add("settings-tabs");
         rail.setMinWidth(Region.USE_PREF_SIZE);
+        // BUSCAR (Discord, 23-10-2026: "Search bar in Settings"): arriba del
+        // carril. Escribiendo, salen TODAS las pestanyas a la vez con solo las
+        // filas que lo nombran (en su texto o en su explicacion), con su
+        // titulo de seccion; borrado, se vuelve a la pestanya de antes.
+        search.setPromptText(NeoText.get("settings.search"));
+        search.getStyleClass().add("settings-search");
+        search.setId("settings-search");
+        search.textProperty().addListener((o, was, now) -> applySearch(now));
+        rail.getChildren().add(search);
         for (final Tab t : Tab.values()) {
             if (!pages.containsKey(t)) {
                 continue;
@@ -1519,7 +1540,7 @@ public class SettingsPanel extends VBox {
         }
         // Siempre hay una puesta: clicar otra vez la que ya esta no la apaga.
         group.selectedToggleProperty().addListener((o, was, now) -> {
-            if (now == null && was != null) {
+            if (now == null && was != null && search.getText().trim().isEmpty()) {
                 was.setSelected(true);
             }
         });
@@ -1572,6 +1593,110 @@ public class SettingsPanel extends VBox {
     private final java.util.Map<Tab, javafx.scene.control.ToggleButton> tabButtons =
             new java.util.EnumMap<>(Tab.class);
     private final VBox rail = new VBox(4);
+
+    private final javafx.scene.control.TextField search = new javafx.scene.control.TextField();
+    /** La pestanya abierta antes de buscar, para volver a ella al borrar. */
+    private Tab beforeSearch;
+    private Tab shown = Tab.GAME;
+
+    /** Escribe en el buscador, como al teclear. Para las maquetas ({@code -Dneo.settings.search}). */
+    public void searchForTest(final String text) {
+        search.setText(text);
+    }
+
+    /** Ver el buscador de arriba del carril. */
+    private void applySearch(final String raw) {
+        final String q = fold(raw == null ? "" : raw.trim());
+        if (q.isEmpty()) {
+            for (final VBox page : pages.values()) {
+                for (final javafx.scene.Node n : page.getChildren()) {
+                    n.setVisible(true);
+                    n.setManaged(true);
+                }
+            }
+            if (beforeSearch != null) {
+                final Tab back = beforeSearch;
+                beforeSearch = null;
+                showTab(back, false);
+            }
+            return;
+        }
+        if (beforeSearch == null) {
+            beforeSearch = shown;
+        }
+        final List<javafx.scene.Node> visiblePages = new ArrayList<>();
+        for (final Tab t : Tab.values()) {
+            final VBox page = pages.get(t);
+            // "Apoyo" no es un ajuste: su texto nombra de todo ("give me a hand").
+            if (page == null || t == Tab.SUPPORT) {
+                continue;
+            }
+            boolean anyInPage = false;
+            Label sectionHead = null;
+            boolean sectionHit = false;
+            for (final javafx.scene.Node n : page.getChildren()) {
+                if (n instanceof Label l && l.getStyleClass().contains("settings-section")) {
+                    if (sectionHead != null) {
+                        sectionHead.setVisible(sectionHit);
+                        sectionHead.setManaged(sectionHit);
+                    }
+                    sectionHead = l;
+                    sectionHit = false;
+                    continue;
+                }
+                final boolean hit = fold(textOf(n)).contains(q);
+                n.setVisible(hit);
+                n.setManaged(hit);
+                sectionHit |= hit;
+                anyInPage |= hit;
+            }
+            if (sectionHead != null) {
+                sectionHead.setVisible(sectionHit);
+                sectionHead.setManaged(sectionHit);
+            }
+            if (anyInPage) {
+                visiblePages.add(page);
+            }
+        }
+        if (visiblePages.isEmpty()) {
+            final Label none = new Label(NeoText.get("settings.searchNone", raw.trim()));
+            none.getStyleClass().add("settings-note");
+            content.getChildren().setAll(none);
+        } else {
+            content.getChildren().setAll(visiblePages);
+        }
+        for (final javafx.scene.control.ToggleButton b : tabButtons.values()) {
+            b.setSelected(false);
+        }
+        scroll.setVvalue(0);
+    }
+
+    /** Todo el texto de una fila: etiquetas, explicaciones y botones. */
+    private static String textOf(final javafx.scene.Node n) {
+        final StringBuilder sb = new StringBuilder();
+        if (n instanceof javafx.scene.control.Labeled l && l.getText() != null) {
+            sb.append(l.getText()).append(' ');
+        }
+        if (n instanceof javafx.scene.Parent p) {
+            for (final javafx.scene.Node c : p.lookupAll(".label")) {
+                if (c instanceof javafx.scene.control.Labeled l && l.getText() != null) {
+                    sb.append(l.getText()).append(' ');
+                }
+            }
+            for (final javafx.scene.Node c : p.lookupAll(".button")) {
+                if (c instanceof javafx.scene.control.Labeled l && l.getText() != null) {
+                    sb.append(l.getText()).append(' ');
+                }
+            }
+        }
+        return sb.toString();
+    }
+
+    /** Minusculas y sin tildes: "musica" encuentra "Música". */
+    private static String fold(final String s) {
+        return java.text.Normalizer.normalize(s.toLowerCase(java.util.Locale.ROOT),
+                java.text.Normalizer.Form.NFD).replaceAll("\\p{M}", "");
+    }
 
     /** Lo que se anyada a partir de aqui va a esa pestanya. No se pinta. */
     private void tab(final Tab t) {
@@ -1640,6 +1765,12 @@ public class SettingsPanel extends VBox {
         if (page == null) {
             return;
         }
+        // Clicar una pestanya mientras se busca deja de buscar.
+        if (!search.getText().isEmpty()) {
+            beforeSearch = null;
+            search.setText("");
+        }
+        shown = t;
         content.getChildren().setAll(page);
         scroll.setVvalue(0);
         final javafx.scene.control.ToggleButton b = tabButtons.get(t);

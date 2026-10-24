@@ -195,7 +195,7 @@ public final class CardZoom {
                 || !forge.neo.card.ChosenValues.of(card).isEmpty()
                 || related(card) != null || canReadLiveText(card)
                 || !keywordsOf(card).isEmpty() || hasPlainText(card)
-                || !tokensOf(card).isEmpty();
+                || !tokensOf(card).isEmpty() || !forge.neo.card.AffectedBy.of(card).isEmpty();
         double w = bigWidth;
         if (side) {
             w = Math.min(w, sceneWidth * 0.9 / (1 + SIDE_RATIO));
@@ -387,6 +387,33 @@ public final class CardZoom {
         return box;
     }
 
+    /**
+     * "Le afecta": cada carta de otro que le prohibe u obliga algo, con lo que
+     * hace, y quien la provoca. Discord, 23-10-2026: *"cannot be activated,
+     * source: Collector Ouphe"*.
+     *
+     * @return null si nada le afecta
+     */
+    static Region affectedBlock(final CardView card, final double width) {
+        final java.util.List<forge.neo.card.AffectedBy.Line> all = forge.neo.card.AffectedBy.of(card);
+        if (all.isEmpty()) {
+            return null;
+        }
+        final Label caption = new Label(NeoText.get("affected.title"));
+        caption.getStyleClass().add("zoom-head");
+        UiScale.fixedFont(caption, 12);
+        final VBox box = new VBox(3, caption);
+        for (final forge.neo.card.AffectedBy.Line l : all) {
+            final Label line = new Label(l.text().contains(l.source()) ? l.text() : l.source() + ": " + l.text());
+            line.getStyleClass().addAll("zoom-line", "affected-line");
+            UiScale.fixedFont(line, 13);
+            line.setWrapText(true);
+            line.setMaxWidth(width);
+            box.getChildren().add(line);
+        }
+        return box;
+    }
+
     /** Lo que de verdad es esta carta ahora mismo, al lado de la ampliada. */
     private static Region statePanel(final CardView card, final double width) {
         final VBox box = new VBox(10);
@@ -423,6 +450,13 @@ public final class CardZoom {
         final Region chosen = chosenBlock(card, width);
         if (chosen != null) {
             box.getChildren().add(chosen);
+        }
+
+        // Lo que OTRAS cartas le hacen (Collector Ouphe, Arrest, provocar):
+        // la carta no lo dice. Ver forge.neo.card.AffectedBy.
+        final Region affected = affectedBlock(card, width);
+        if (affected != null) {
+            box.getChildren().add(affected);
         }
 
         final int dmg = card.getDamage();
@@ -821,16 +855,8 @@ public final class CardZoom {
      * normal es el mismo texto que ya se lee en la imagen, y ensenyarlo
      * siempre seria repetirlo en todas las cartas de la mesa.
      */
-    private static Region plainTextBlock(final CardView card, final double width) {
-        final CardStateView st = card.getCurrentState();
-        if (st == null) {
-            return null;
-        }
-        final String rules = CardText.rulesOf(st);
-        if (rules.isEmpty()) {
-            return null;
-        }
-
+    /** Nombre y coste, tipo, texto y P/T de una cara, como se lee en la carta. */
+    private static String faceText(final CardStateView st) {
         final StringBuilder text = new StringBuilder();
         final String name = CardText.nameOf(st);
         if (!name.isEmpty()) {
@@ -853,9 +879,32 @@ public final class CardZoom {
         if (text.length() > 0) {
             text.append("\n\n");
         }
-        text.append(rules);
+        text.append(CardText.rulesOf(st));
         if (st.isCreature()) {
             text.append("\n\n").append(st.getPower()).append('/').append(st.getToughness());
+        }
+        return text.toString();
+    }
+
+    private static Region plainTextBlock(final CardView card, final double width) {
+        final CardStateView st = card.getCurrentState();
+        if (st == null) {
+            return null;
+        }
+        final String rules = CardText.rulesOf(st);
+        if (rules.isEmpty()) {
+            return null;
+        }
+
+        final StringBuilder text = new StringBuilder(faceText(st));
+        // Y LA OTRA CARA, debajo (Discord, 23-10-2026: "showed the back side
+        // too, just in case the back side image is not loading"): si su imagen
+        // no llega, en "Otra cara" solo salen el nombre, el tipo y la P/T.
+        // otherFace ya guarda lo boca abajo que no te toca ver.
+        final CardStateView back = otherFace(card);
+        if (back != null && !CardText.rulesOf(back).isEmpty()) {
+            text.append("\n\n——  ").append(NeoText.get("zoom.otherFace"))
+                    .append("  ——\n\n").append(faceText(back));
         }
 
         final Label body = new Label(text.toString());

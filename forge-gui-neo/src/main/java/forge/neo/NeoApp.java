@@ -756,6 +756,11 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                     if (settingsTab != null) {
                         mockSettings.showTab(settingsTab);
                     }
+                    // -Dneo.settings.search=texto lo escribe en el buscador.
+                    final String settingsSearch = System.getProperty("neo.settings.search");
+                    if (settingsSearch != null) {
+                        mockSettings.searchForTest(settingsSearch);
+                    }
                     // -Dneo.settings.audit=true lista las filas de cada pestanya;
                     // -Dneo.settings.press="Fila=Boton;Otra=Boton" las pulsa.
                     if (Boolean.getBoolean("neo.settings.audit")) {
@@ -1645,8 +1650,20 @@ public class NeoApp extends Application implements SettingsPanel.Host {
         if (zoneName != null && table != null) {
             final PauseTransition t = new PauseTransition(
                     Duration.seconds(Integer.getInteger("neo.zoneTest.delay", 12)));
-            t.setOnFinished(e -> table.showZone(table.getSelfBar().getPlayer(),
-                    forge.game.zone.ZoneType.smartValueOf(zoneName)));
+            t.setOnFinished(e -> {
+                forge.game.player.PlayerView owner = table.getSelfBar().getPlayer();
+                // -Dneo.zoneTest.ally=true: la de tu aliado (la mano a la vista).
+                final forge.neo.match.NeoMatchUI ui = binder == null ? null : binder.getMatchUi();
+                if (Boolean.getBoolean("neo.zoneTest.ally") && ui != null && ui.getGameView() != null) {
+                    for (final forge.game.player.PlayerView p : ui.getGameView().getPlayers()) {
+                        if (forge.neo.match.NeoTeams.isAlly(owner, p)) {
+                            owner = p;
+                            break;
+                        }
+                    }
+                }
+                table.showZone(owner, forge.game.zone.ZoneType.smartValueOf(zoneName));
+            });
             t.play();
         }
 

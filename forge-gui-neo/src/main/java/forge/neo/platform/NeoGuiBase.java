@@ -700,18 +700,23 @@ public class NeoGuiBase implements IGuiBase {
         // el propio SoundSystem, que mira perfiles de sonido y carpetas de
         // usuario antes que la de serie.
         final File file = forge.sound.SoundSystem.instance.getSoundResource(filename);
-        if (file == null || !file.exists()) {
-            return null;
-        }
-        try {
-            if (AUDIO_DEBUG) {
-                System.out.println("[audio] " + filename + " -> " + file.getAbsolutePath());
+        IAudioClip forgeClip = null;
+        if (file != null && file.exists()) {
+            try {
+                if (AUDIO_DEBUG) {
+                    System.out.println("[audio] " + filename + " -> " + file.getAbsolutePath());
+                }
+                forgeClip = new NeoAudioClip(file);
+            } catch (final RuntimeException e) {
+                System.err.println("[neo] no se ha podido cargar el sonido " + filename);
             }
-            return new NeoAudioClip(file);
-        } catch (final RuntimeException e) {
-            System.err.println("[neo] no se ha podido cargar el sonido " + filename);
-            return null;
         }
+        // LOS SONIDOS DE NEO FORGE (24-10-2026): si el evento los tiene, un clip
+        // que elige variante en cada reproduccion (ver forge.neo.sound.NeoSounds).
+        if (forge.neo.sound.NeoSounds.has(filename)) {
+            return new NeoPooledClip(filename, forgeClip);
+        }
+        return forgeClip;
     }
 
     @Override

@@ -115,12 +115,13 @@ public final class PackContentsCheck {
                 "cartas de colector fuera de la lista: " + collectorMisses);
 
         // 1b2. Las que Forge trae sin sobre y se les monta uno (22-10-2026):
-        // Assassin's Creed de 7, Mystery Booster 2 y sus cartas de prueba de 12.
+        // Assassin's Creed de 7, Mystery Booster 2 y sus cartas de prueba de 12, y
+        // (24-10-2026) el Mystery Booster Commander de 20, como el de verdad.
         final java.util.List<String> built = new java.util.ArrayList<>();
-        for (final String code : new String[] {"ACR", "MB2", "CMB1"}) {
+        for (final String code : new String[] {"ACR", "MB2", "CMB1", "MBC"}) {
             final CardEdition e = forge.model.FModel.getMagicDb().getEditions().get(code);
             final BoosterPack pack = e == null ? null : NeoQuestShop.boosterOf(e);
-            final int want = "ACR".equals(code) ? 7 : 12;
+            final int want = "ACR".equals(code) ? 7 : "MBC".equals(code) ? 20 : 12;
             boolean inList = pack != null;
             if (pack != null) {
                 final java.util.Set<PaperCard> listed = new java.util.HashSet<>();
@@ -138,6 +139,25 @@ public final class PackContentsCheck {
         }
         check(built.isEmpty(), "Assassin's Creed (7), Mystery Booster 2 y sus cartas de prueba (12) en la tienda, con su sobre",
                 "sobres montados que fallan: " + built);
+
+        // 1b3. El Mystery Booster Commander, hueco a hueco como el de verdad:
+        // en cada sobre, UN comandante nuevo (de los 60) y UNA carta de prueba.
+        final CardEdition mbc = forge.model.FModel.getMagicDb().getEditions().get("MBC");
+        final java.util.Set<String> mbcNew = new java.util.HashSet<>();
+        if (mbc != null) {
+            for (final CardEdition.EditionEntry en : mbc.getAllCardsInSet()) {
+                try {
+                    if (Integer.parseInt(en.collectorNumber()) <= 60) {
+                        mbcNew.add(en.name());
+                    }
+                } catch (final RuntimeException ignored) {
+                    // sin numero: no es de los 60
+                }
+            }
+        }
+        final String mbcBad = mbc == null ? "MBC no existe" : mysteryCommanderSlotsBad(mbc, mbcNew);
+        check(mbcBad == null, "Mystery Booster Commander: 20 cartas, 1 comandante nuevo y 1 de prueba en cada sobre",
+                String.valueOf(mbcBad));
 
         // 1c. Los sets de Commander (09-10-2026): en la tienda, con su sobre,
         // y una carta que solo esta en uno se encuentra.
@@ -321,6 +341,42 @@ public final class PackContentsCheck {
             prefs.setPref(forge.gamemodes.quest.data.QuestPreferences.QPref.CURRENT_QUEST, current);
             prefs.save();
         }
+    }
+
+    /** Abre 30 sobres de MBC; null si todos cumplen, y si no, lo que falla. */
+    private static String mysteryCommanderSlotsBad(final CardEdition mbc, final java.util.Set<String> news) {
+        final CardEdition cmb1 = forge.model.FModel.getMagicDb().getEditions().get("CMB1");
+        final java.util.Set<String> playtest = new java.util.HashSet<>();
+        if (cmb1 != null) {
+            for (final CardEdition.EditionEntry en : cmb1.getAllCardsInSet()) {
+                playtest.add(en.name());
+            }
+        }
+        for (int i = 0; i < 30; i++) {
+            final BoosterPack pack = NeoQuestShop.boosterOf(mbc);
+            if (pack == null) {
+                return "sin sobre";
+            }
+            final List<PaperCard> cards = pack.getCards();
+            int n = 0;
+            int p = 0;
+            for (final PaperCard c : cards) {
+                if (news.contains(c.getName())) {
+                    n++;
+                }
+                if (playtest.contains(c.getName())) {
+                    p++;
+                }
+            }
+            if (cards.size() != 20 || n != 1 || p != 1) {
+                final StringBuilder list = new StringBuilder();
+                for (final PaperCard c : cards) {
+                    list.append(c.getName()).append(" [").append(c.getEdition()).append(' ').append(c.getRarity()).append("]; ");
+                }
+                return "sobre con " + cards.size() + " cartas, " + n + " comandantes nuevos y " + p + " de prueba: " + list;
+            }
+        }
+        return null;
     }
 
     private static void check(final boolean ok, final String good, final String bad) {

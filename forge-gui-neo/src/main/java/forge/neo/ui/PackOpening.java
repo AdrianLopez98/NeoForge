@@ -116,7 +116,10 @@ public final class PackOpening extends StackPane {
     private void open() {
         if (opened || closed) return;
         opened = true;
-        sound(forge.sound.SoundEffectType.Shuffle);
+        // El rasgado del sobre (sonidos de Neo Forge); sin ellos, el barajar de siempre.
+        if (!forge.neo.platform.NeoSfx.play(forge.neo.sound.NeoSounds.PACK_OPEN)) {
+            sound(forge.sound.SoundEffectType.Shuffle);
+        }
         showPage();
         Circle wave = new Circle(getWidth() / 2, getHeight() / 2, 28, Color.TRANSPARENT);
         wave.setStroke(Color.web("#f5ce88", .7)); wave.setStrokeWidth(2); sparks.getChildren().add(wave);

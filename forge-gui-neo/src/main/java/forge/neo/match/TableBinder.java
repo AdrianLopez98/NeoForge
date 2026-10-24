@@ -345,6 +345,7 @@ public class TableBinder {
 
         table.setPhase(gv.getPhase());
         table.getPhaseRail().setPlanes(activePlanes(gv));
+        pushTurnOrder(gv);
         table.setStackGame(gv.getGame());
         table.setStack(gv.getStack(), self);
         table.setCombatLinks(links(gv));
@@ -371,6 +372,38 @@ public class TableBinder {
      * Los planos y fenomenos activos (Planechase): los que haya en la zona de
      * mando de cualquiera, que es donde los pone el motor. Vacio sin Planechase.
      */
+    /**
+     * El orden de turnos y quien tiene la prioridad, para el rail (ver
+     * {@code PhaseRail.setTurnOrder}). Aqui y no al cambiar de turno: la
+     * prioridad cambia de manos muchas veces dentro de un turno, y este es el
+     * repintado por el que pasan todos los cambios de la partida. Los asientos
+     * del motor empezando por el del turno, sin los que han perdido (la lista
+     * de la vista los conserva).
+     */
+    private void pushTurnOrder(final GameView gv) {
+        final PlayerView turn = gv.getPlayerTurn();
+        final List<PlayerView> seats = gv.getPlayers() == null ? List.of() : new ArrayList<>(gv.getPlayers());
+        final int start = turn == null ? -1 : seats.indexOf(turn);
+        final PlayerView me = matchUi == null ? null : matchUi.localPlayerView();
+        final List<String> order = new ArrayList<>();
+        int you = -1;
+        int priority = -1;
+        for (int i = 0; start >= 0 && i < seats.size(); i++) {
+            final PlayerView p = seats.get((start + i) % seats.size());
+            if (p.getHasLost()) {
+                continue;
+            }
+            if (you < 0 && p.equals(me)) {
+                you = order.size();
+            }
+            if (priority < 0 && p.getHasPriority()) {
+                priority = order.size();
+            }
+            order.add(PlayerName.of(p));
+        }
+        table.getPhaseRail().setTurnOrder(order, you, priority);
+    }
+
     static List<CardView> activePlanes(final GameView gv) {
         final List<CardView> out = new ArrayList<>();
         if (gv == null || gv.getPlayers() == null) {
