@@ -1145,8 +1145,8 @@ public class CardNode extends StackPane {
      * El resaltado <b>debil</b>: "esto lo puedes usar ahora mismo".
      *
      * <p>No lo calculamos nosotros, lo dice el motor
-     * ({@code PlayerControllerHuman.pushActionableCards} →
-     * {@code IGuiGame.setWeaklySelectable}) y viene con <b>fuerza</b>:
+     * ({@code PlayerControllerHuman.getActionableCards} →
+     * {@code Selection.actionable}) y viene con <b>fuerza</b>:
      *
      * <ul>
      *   <li><b>1</b> — puedes jugarla o activarla ahora. Durante un pago de

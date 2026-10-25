@@ -74,6 +74,7 @@ public final class YieldCheck {
         final AtomicBoolean seatedMayPass = new AtomicBoolean();
         final AtomicBoolean shared = new AtomicBoolean();
         final AtomicBoolean interruptReaches = new AtomicBoolean();
+        final AtomicBoolean keepsPassing = new AtomicBoolean();
         final AtomicBoolean cancelReaches = new AtomicBoolean();
         final AtomicBoolean cancelledNextTurn = new AtomicBoolean();
         final AtomicBoolean oppArmed = new AtomicBoolean();
@@ -137,6 +138,9 @@ public final class YieldCheck {
         check(seen.interruptReaches.get(),
                 "el corte de Forge por un hechizo del rival para el pase que lee el motor",
                 "el corte de Forge no llega al pase que lee el motor");
+        check(seen.keepsPassing.get(),
+                "pero si no puedes responder a nada, se sigue pasando (\"Fin de turno\" pulsado en este turno)",
+                "el corte te para aunque no puedas hacer nada: la mesa te esperaria");
         check(seen.cancelReaches.get(),
                 "y su boton Cancelar tambien",
                 "el Cancelar de Forge no llega al pase que lee el motor");
@@ -242,7 +246,18 @@ public final class YieldCheck {
                         // rival: applyInterrupt sobre el controlador que le dio
                         // HostedMatch, que es el de la interfaz.
                         gc.getYieldController().applyInterrupt();
+                        // Discord, 25-10-2026: el corte solo para si puedes
+                        // RESPONDER. Con el barrido al dia (los resaltados), se
+                        // prueban los dos lados poniendo el dato a mano.
+                        final String highlights = yields.getStringPref(FPref.UI_SHOW_ACTIONABLE_HIGHLIGHTS);
+                        yields.setPref(FPref.UI_SHOW_ACTIONABLE_HIGHLIGHTS, "true");
+                        final boolean had = me.getView().hasAvailableActions();
+                        me.getView().setHasAvailableActions(true);
                         seen.interruptReaches.set(!yields.autoPassUntilEndOfTurn() && !seated.mayAutoPass());
+                        me.getView().setHasAvailableActions(false);
+                        seen.keepsPassing.set(seated.mayAutoPass());
+                        me.getView().setHasAvailableActions(had);
+                        yields.setPref(FPref.UI_SHOW_ACTIONABLE_HIGHLIGHTS, highlights);
                         // Y el Cancelar del aviso "Cediendo hasta el final del
                         // turno" (InputLockUI.selectButtonCancel), igual.
                         ui.armPassTurn(gc, me.getView(), false);

@@ -20,7 +20,7 @@
              build.properties) y el .dmg de Mac (mac/empaquetar.sh). Se sube
              solo al cerrar una version para publicar; entre medias la fecha de
              compilacion distingue una build de otra. -->
-        <neo.version>1.0.33</neo.version>
+        <neo.version>1.0.34</neo.version>
         <!-- La fecha de compilacion, para sellarla en build.properties y poder
              ensenyar en el menu QUE motor se esta jugando. Se pasa por una
              propiedad propia a proposito: ${maven.build.timestamp} no se
@@ -87,6 +87,15 @@
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-media</artifactId>
             <version>${javafx.version}</version>
+        </dependency>
+        <!-- Y en Linux el MP3 lo decodifica esto, no JavaFX (que pide el FFmpeg
+             del sistema y en SteamOS no hay): ver forge.neo.platform.JavaSound.
+             Es el mismo que ya trae libGDX para la Aventura; aqui se dice
+             explicito para no depender de un rebote. -->
+        <dependency>
+            <groupId>com.badlogicgames.jlayer</groupId>
+            <artifactId>jlayer</artifactId>
+            <version>1.0.1-gdx</version>
         </dependency>
     </dependencies>
 

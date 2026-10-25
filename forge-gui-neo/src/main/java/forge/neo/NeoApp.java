@@ -717,6 +717,13 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 }
                 if (args.contains("--mock-piles") || optionOf(args, "--mock-piles") != null) {
                     debug.mockPiles(args);
+                    // Y la carta grande sobre las cartas del dialogo del motor.
+                    if (Boolean.getBoolean("neo.bigcard.popout")) {
+                        final PauseTransition p = new PauseTransition(Duration.millis(1500));
+                        p.setOnFinished(e -> System.out.println("[grande] en el dialogo de las pilas: "
+                                + table.popOutHoverForTest()));
+                        p.play();
+                    }
                 }
                 if (args.contains("--dialog-guard-test")) {
                     debug.dialogGuardTest();
@@ -1172,6 +1179,35 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                         new javafx.animation.PauseTransition(javafx.util.Duration.millis(2500));
                 wait.setOnFinished(e -> screen.pickDeckForTest());
                 wait.play();
+            }
+            // -Dneo.lobby.newDeck=true: y de ahi "Nuevo o importar" entero:
+            // constructor, primer comandante, generar, guardar como "ZZ lobby
+            // test" y de vuelta a la sala con ese mazo en el asiento.
+            if (Boolean.getBoolean("neo.lobby.newDeck") && net.lobbyScreen != null) {
+                final forge.neo.ui.LobbyScreen screen = net.lobbyScreen;
+                final javafx.animation.Timeline steps = new javafx.animation.Timeline(
+                        new javafx.animation.KeyFrame(javafx.util.Duration.millis(2500),
+                                e -> screen.pickDeckForTest()),
+                        new javafx.animation.KeyFrame(javafx.util.Duration.millis(4500), e -> {
+                            final javafx.scene.Node b = scene.lookup("#picker-new-deck");
+                            System.out.println("[sala] nuevo o importar: " + (b != null));
+                            if (b instanceof javafx.scene.control.Button button) {
+                                button.fire();
+                            }
+                        }),
+                        new javafx.animation.KeyFrame(javafx.util.Duration.millis(9000), e -> {
+                            if (builder != null) {
+                                builder.pickFirstCandidateForTest();
+                                builder.generateForTest();
+                            }
+                        }),
+                        new javafx.animation.KeyFrame(javafx.util.Duration.millis(14000), e -> {
+                            if (builder != null) {
+                                builder.saveLeaveForTest("ZZ lobby test");
+                            }
+                            System.out.println("[sala] de vuelta: " + (scene.getRoot() == screen.getRoot()));
+                        }));
+                steps.play();
             }
         } else if (args.contains("--ascent-reward")) {
             // El premio de un jefe: las tres cartas Y las tres reliquias a
@@ -2437,6 +2473,12 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                             n.getCard().getCurrentState().getName()) != null) {
                         relic = n;
                     }
+                }
+                // -Dneo.bigcard.table=true: la carta grande por TODAS las cartas
+                // de la mesa, y que no tape nunca la que se mira (25-10-2026).
+                if (Boolean.getBoolean("neo.bigcard.table")) {
+                    System.out.println("[grande] en la mesa: " + table.tableHoverForTest());
+                    return;
                 }
                 if (commander == null || relic == null) {
                     System.out.println("[grande] falta el comandante o la reliquia");
@@ -4602,7 +4644,7 @@ public class NeoApp extends Application implements SettingsPanel.Host {
     DraftScreen draftScreen;
 
     /** Un nombre libre para un mazo nuevo: "Mazo nuevo", "Mazo nuevo 2"... */
-    private static String nextDeckName(final forge.neo.deck.DeckContext format) {
+    static String nextDeckName(final forge.neo.deck.DeckContext format) {
         final String base = forge.neo.NeoText.get("deck.newDeck");
         if (!format.storage().contains(base)) {
             return base;

@@ -9,6 +9,7 @@ import java.util.function.Supplier;
 import forge.LobbyPlayer;
 import forge.game.card.CardView;
 import forge.game.player.Player;
+import forge.game.player.PlayerView;
 import forge.game.spellability.SpellAbility;
 import forge.gamemodes.match.DeclineScope;
 import forge.gamemodes.match.YieldController;
@@ -82,7 +83,7 @@ import forge.player.PlayerControllerHuman;
  *
  * <p><b>Como se blinda sin tocar el motor.</b> Igual que {@link SafeAi} y que
  * {@link ManaColor}: relevando el controlador. {@code chooseSpellAbilityToPlay},
- * {@code pushActionableCards}, {@code setYieldPref} y {@code applyYieldUpdate}
+ * {@code getActionableCards}, {@code setYieldPref} y {@code applyYieldUpdate}
  * son publicos y sobrescribibles, y el barrido es <b>lo primero</b> que hacen —
  * todavia no se le ha pedido nada al jugador — asi que se puede reintentar
  * entero sin efectos a medias. Al reintentar se apaga el barrido con
@@ -278,6 +279,11 @@ public final class SafeActions {
             super(player, lobby, owner);
             this.owner = owner;
             sharedYields = shareYields(this, owner);
+            try {
+                player.getGame().subscribeToEvents(new EndTurnEars(this));
+            } catch (final RuntimeException e) {
+                System.err.println("[neo] sin memoria de 'Fin de turno': " + e);
+            }
         }
 
         /** Si el campo ya es el del relevado. Ver {@link #getYieldController}. */
@@ -311,6 +317,29 @@ public final class SafeActions {
         @Override
         public forge.gamemodes.match.YieldController getYieldController() {
             return sharedYields ? owner.getYieldController() : super.getYieldController();
+        }
+
+        /**
+         * Elegir X: antes de preguntar, cuanta X puedes pagar, para que la
+         * lista de botones llegue hasta ahi y no siempre hasta 9. Ver
+         * {@link AffordableX}. Con el control total de "empezar a pagar sin
+         * recursos" no hay pista: ahi se elige a proposito por encima.
+         */
+        @Override
+        public Integer announceRequirements(final SpellAbility ability, final int min, final int max,
+                                            final String announce) {
+            final boolean x = "X".equals(announce)
+                    && !isFullControl(forge.game.player.PlayerController.FullControlFlag.AllowPaymentStartWithMissingResources);
+            if (x) {
+                AffordableX.prepare(ability, getPlayer());
+            }
+            try {
+                return super.announceRequirements(ability, min, max, announce);
+            } finally {
+                if (x) {
+                    AffordableX.clear();
+                }
+            }
         }
 
         /**
@@ -408,28 +437,106 @@ public final class SafeActions {
          */
         @Override
         public boolean mayAutoPass() {
+            noteEndTurn();
             if (!super.mayAutoPass()) {
-                return false;
+                return cannotRespond();
             }
             return !hiddenMana || getYieldController().shouldAutoYield();
         }
 
-        /** El mismo barrido, pedido desde el hilo de interfaz para resaltar. */
-        @Override
-        public void pushActionableCards(final boolean paymentMode,
-                                        final Iterable<CardView> emphasized) {
-            try {
-                super.pushActionableCards(paymentMode, emphasized);
-            } catch (final RuntimeException e) {
-                rescue(this, e, "pushActionableCards",
-                        () -> super.pushActionableCards(paymentMode, emphasized));
+        // ---------------------------------------------------------------
+        // Si no puedes responder, la parada no te para (Discord, 25-10-2026:
+        // "the stack will be held up because someone's alt-tabbed even though
+        // they have nothing to interact with")
+        // ---------------------------------------------------------------
+
+        /**
+         * Las paradas de Forge ({@code YieldController.applyInterrupt}: un rival
+         * lanza algo, te ataca, te apunta...) cortan tu "Fin de turno" y ademas
+         * marcan que la siguiente prioridad NO se pase sola — aunque no tengas
+         * nada que hacer. Asi que el que se ha quedado sin mana se quedaba con
+         * la prioridad a cada hechizo de cada rival, y en red la mesa entera le
+         * esperaba hasta el AFK (un minuto como poco).
+         *
+         * <p>La parada existe para que puedas responder. Si no puedes
+         * ({@code hasAvailableActions}, lo mismo que mira Forge para pasar
+         * solo, y sin {@link #hiddenMana}), se sigue pasando cuando: tienes
+         * puesto "pasar sola cuando no puedo hacer nada" (con eso puesto, lo
+         * unico que te para aqui es la parada), o pulsaste "Fin de turno" en
+         * ESTE turno. Quien quiera quedarse la prioridad para un farol apaga
+         * "pasar sola" y no pulsa "Fin de turno": eso no cambia.
+         *
+         * <p>En red vale igual: el anfitrion sienta este controlador tambien en
+         * los asientos de los invitados ({@code NeoMatchUI.installForRemoteSeats}).
+         */
+        private boolean cannotRespond() {
+            if (isMacroActive() || hiddenMana) {
+                return false;
             }
-            // Detras del motor, que acaba de borrar los suyos: la luz de lo que
-            // se paga girando. Pagando no — ahi lo que se ilumina es el mana.
+            final PlayerView me = getLocalPlayerView();
+            if (me == null || me.hasAvailableActions()) {
+                return false;
+            }
+            final YieldController y = getYieldController();
+            final boolean autoPass = y.getBoolPref(FPref.YIELD_AUTO_PASS_NO_ACTIONS);
+            // hasAvailableActions solo esta al dia si el motor ha barrido, y
+            // barre con "pasar sola" o con los resaltados puestos. Si no, el
+            // dato es viejo y no se puede fiar: se para como siempre.
+            if (!autoPass && !y.getBoolPref(FPref.UI_SHOW_ACTIONABLE_HIGHLIGHTS)) {
+                return false;
+            }
+            return autoPass || endTurnArmedOn == turn();
+        }
+
+        /** El turno en el que tenias puesto "Fin de turno", o -1. */
+        private volatile int endTurnArmedOn = -1;
+
+        private int turn() {
+            try {
+                return getPlayer().getGame().getPhaseHandler().getTurn();
+            } catch (final RuntimeException e) {
+                return -2;
+            }
+        }
+
+        /**
+         * Apunta si "Fin de turno" esta puesto. Se mira en cada prioridad y
+         * cambio de fase ({@link EndTurnEars}), no solo aqui: la parada lo
+         * borra al LANZARSE el hechizo, antes de que te vuelva a llegar la
+         * prioridad, y para entonces ya no se veria.
+         */
+        void noteEndTurn() {
+            try {
+                if (getYieldController().autoPassUntilEndOfTurn()) {
+                    endTurnArmedOn = turn();
+                }
+            } catch (final RuntimeException e) {
+                // Solo es memoria: si falla, se para como antes.
+            }
+        }
+
+        /**
+         * El mismo barrido, pedido para resaltar. Desde Forge #12414 (25-10-2026)
+         * el motor ya no lo empuja a la interfaz: lo pide cada prompt y lo manda
+         * dentro de su {@code setSelection}, justo despues de esta llamada.
+         */
+        @Override
+        public List<CardView> getActionableCards(final boolean paymentMode,
+                                                 final Iterable<CardView> emphasized) {
+            List<CardView> out;
+            try {
+                out = super.getActionableCards(paymentMode, emphasized);
+            } catch (final RuntimeException e) {
+                out = rescue(this, e, "getActionableCards",
+                        () -> super.getActionableCards(paymentMode, emphasized));
+            }
+            // Al lado de lo del motor: la luz de lo que se paga girando. Pagando
+            // no — ahi lo que se ilumina es el mana.
             if (getGui() instanceof OverlookedSink ui) {
                 ui.setOverlooked(!paymentMode && getYieldController()
                         .getBoolPref(FPref.UI_SHOW_ACTIONABLE_HIGHLIGHTS) ? overlooked : List.of());
             }
+            return out;
         }
 
         /** Y las dos puertas de {@code tryAutoPassNow}, que barre igual. */
@@ -449,6 +556,29 @@ public final class SafeActions {
             } catch (final RuntimeException e) {
                 rescue(this, e, "applyYieldUpdate", () -> super.applyYieldUpdate(update));
             }
+        }
+    }
+
+    /**
+     * Oye cada prioridad y cada cambio de fase para que {@link Guarded} apunte
+     * si "Fin de turno" estaba puesto antes de que una parada lo borre. En el
+     * hilo del motor y sin hacer nada mas: leer un booleano.
+     */
+    static final class EndTurnEars {
+        private final Guarded seat;
+
+        EndTurnEars(final Guarded seat) {
+            this.seat = seat;
+        }
+
+        @com.google.common.eventbus.Subscribe
+        public void priority(final forge.game.event.GameEventPlayerPriority e) {
+            seat.noteEndTurn();
+        }
+
+        @com.google.common.eventbus.Subscribe
+        public void phase(final forge.game.event.GameEventTurnPhase e) {
+            seat.noteEndTurn();
         }
     }
 

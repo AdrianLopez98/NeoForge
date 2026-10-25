@@ -706,7 +706,8 @@ public class NeoGuiBase implements IGuiBase {
                 if (AUDIO_DEBUG) {
                     System.out.println("[audio] " + filename + " -> " + file.getAbsolutePath());
                 }
-                forgeClip = new NeoAudioClip(file);
+                // En Linux, sin JavaFX Media: ver JavaSound.
+                forgeClip = JavaSound.clip(file);
             } catch (final RuntimeException e) {
                 System.err.println("[neo] no se ha podido cargar el sonido " + filename);
             }
@@ -722,7 +723,7 @@ public class NeoGuiBase implements IGuiBase {
     @Override
     public IAudioMusic createAudioMusic(final String filename) {
         // Aqui si llega la ruta completa: la resuelve MusicPlaylist.
-        return new NeoAudioMusic(filename);
+        return JavaSound.music(filename);
     }
     // El "sistema de sonido alternativo" es una via de Forge para lanzar un
     // reproductor externo. No hace falta: createAudioClip ya suena.

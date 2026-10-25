@@ -782,10 +782,26 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                 }
             }
         }
+        // Y si no esta en la mesa, de tu mano: soltar un aura sobre una
+        // criatura (AuraDrop), "dr:Rancor>Grizzly Bears".
+        boolean fromHand = false;
+        if (source == null) {
+            final PlayerView me = localPlayerView();
+            final Iterable<CardView> hand = me == null ? null : live(me).getCards(ZoneType.Hand);
+            if (hand != null) {
+                for (final CardView c : hand) {
+                    if (c.getName().equalsIgnoreCase(sourceName)) {
+                        source = c;
+                        fromHand = true;
+                        break;
+                    }
+                }
+            }
+        }
         if (source == null || target == null) {
             return false;
         }
-        onCardDropped(source, false, target);
+        onCardDropped(source, fromHand, target);
         return true;
     }
 
@@ -1188,6 +1204,16 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
      * declaracion de bloqueadores (ver updateButtons). Hilo de JavaFX.
      */
     private CardView pendingBlocker;
+
+    /**
+     * La criatura sobre la que se solto un aura de la mano: la respuesta a la
+     * primera eleccion de objetivo que llegue (ver {@link AuraDrop}). Se olvida
+     * al contestarla, si sale el menu de habilidades, al volver a tener
+     * prioridad o pasados unos segundos.
+     */
+    private volatile CardView pendingAuraTarget;
+    private volatile long pendingAuraUntil;
+    private static final long AURA_DROP_WINDOW_MS = 15_000;
 
     /** El atacante al que bloquear, si se arrastro sobre uno; si no, el que marque el motor. */
     private CardView pendingBlockAttacker;
@@ -2045,6 +2071,14 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             return;
         }
         if (fromHand) {
+            // UN AURA SOLTADA SOBRE UNA CRIATURA (Discord, 24-10-2026: "Dragging
+            // auras from your hand onto a creature prompts the mana cost and then
+            // attaches to that chosen creature"). Se lanza igual que siempre, y
+            // cuando el motor pida el objetivo se le contesta con esa criatura
+            // (ver updateButtons). Solo auras, y solo sobre una criatura: soltada
+            // en otro sitio, o si la criatura no vale de objetivo, como siempre.
+            pendingAuraTarget = AuraDrop.creatureTarget(source, target);
+            pendingAuraUntil = System.currentTimeMillis() + AURA_DROP_WINDOW_MS;
             respondLater(() -> getGameController().selectCard(source, null, null));
             return;
         }
@@ -2134,6 +2168,22 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             b.setGameView(getGameView());
             b.requestRefresh();
         }
+    }
+
+    /**
+     * EN RED, EL INVITADO REPINTA CON CADA PAQUETE DE CAMBIOS (Discord,
+     * 25-10-2026: flechas de ataque que no cuadran y cartas que salen vacias, solo
+     * en el invitado). Forge aplica cada paquete ({@code NetworkGuiGame.applyDelta})
+     * y luego llama a este enganche, que su comentario manda sobrescribir para
+     * refrescar. No lo haciamos: la mesa solo se repintaba cuando llegaba otra
+     * llamada (updateCards, showCombat...), y si el cambio llegaba DESPUES de la
+     * ultima — el combate declarado, una ficha nueva — se quedaba pintada la de
+     * antes hasta el siguiente aviso. {@code requestRefresh} agrupa, asi que no
+     * cuesta repintar de mas. Fuera de red no se llama nunca.
+     */
+    @Override
+    protected void afterDeltaApplied() {
+        pushToTable();
     }
 
     // ===============================================================
@@ -5859,6 +5909,25 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                 pendingBlockAttacker = null;
             }
         }
+        // El aura soltada sobre una criatura: si lo que se pregunta ahora es su
+        // objetivo y esa criatura vale, se elige sola (ver AuraDrop).
+        final CardView auraOn = pendingAuraTarget;
+        if (auraOn != null) {
+            final Object in = pendingInput(getGameController());
+            // La prioridad de vuelta = el lanzamiento ya acabo (o se cancelo).
+            // Con un segundo de margen: justo al soltar aun puede llegar un
+            // refresco de la prioridad de ANTES de empezar a lanzarla.
+            if (System.currentTimeMillis() > pendingAuraUntil
+                    || in instanceof forge.gamemodes.match.input.InputPassPriority
+                    && System.currentTimeMillis() > pendingAuraUntil - AURA_DROP_WINDOW_MS + 1000) {
+                pendingAuraTarget = null;
+            } else if (in instanceof forge.gamemodes.match.input.InputSelectTargets
+                    && AuraDrop.contains(selectables, auraOn)) {
+                pendingAuraTarget = null;
+                trace("aura soltada: objetivo %s", auraOn.getName());
+                respondLater(() -> getGameController().selectCard(auraOn, null, null));
+            }
+        }
         // Mientras se REPRODUCE una macro, los botones como en el Forge de
         // escritorio (CMatchUI.updateButtons): OK apagado y sin texto, y
         // Cancelar encendido, que es lo que para la reproduccion
@@ -5928,8 +5997,12 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             if (optionalPayment) {
                 noteOptionalPayment();
             }
+            final Object payInput = payingMana ? pendingInput(getGameController()) : null;
             if (payingMana && okEnabled && autoPayMana && !optionalPayment
+                    && (payInput == null || payInput != autoPayHeldFor)
                     && autoPayPresses.incrementAndGet() <= MAX_AUTO_PAY_PRESSES) {
+                // Por si hay que pararse (autoPressOrHold): los botones de este pago.
+                heldButtons = new Object[] {owner, okLabel, cancelLabel, okEnabled, cancelEnabled, focusOk};
                 // Antes de soltarle el "Auto" al motor: apagar el rastreo de
                 // cartas accionables. Ver setActionableScans().
                 setActionableScans(false);
@@ -6001,6 +6074,10 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                         }
                         // Y antes de no bloquear con nada, si se ha pedido.
                         if (confirmNoBlockers()) {
+                            return;
+                        }
+                        // Y antes de que "Auto" sacrifique una criatura tuya.
+                        if (confirmAutoSacrifice()) {
                             return;
                         }
                         // Solo el OK de PASAR PRIORIDAD: es el que se da en
@@ -6401,7 +6478,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         if (!on) {
             // Lo que hubiera resaltado deja de tener sentido: durante el pago
             // automatico no se toca nada a mano.
-            clearWeaklySelectable();
+            setSelection(getSelection().withActionable(java.util.List.of()));
         } else {
             republishActionables();
         }
@@ -6434,7 +6511,8 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         }
         try {
             if (human.getInputQueue().getInput() instanceof forge.gamemodes.match.input.InputPassPriority) {
-                human.pushActionableCards(false);
+                // Desde Forge #12414 lo resaltado viaja en la seleccion.
+                setSelection(getSelection().withActionable(human.getActionableCards(false, null)));
                 trace("resaltados: vuelven tras el pago");
             }
         } catch (final RuntimeException e) {
@@ -6458,7 +6536,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
      * boton se quedaba gris sin explicar nada</b>, y un boton gris se lee como
      * "esto no se puede hacer" cuando en realidad significa "esto no lo se
      * hacer yo; hazlo tu". Con las fuentes resaltadas (ver
-     * {@link #setWeaklySelectable}) hacerlo a mano es cuestion de clicar.
+     * {@link #actionableChanged}) hacerlo a mano es cuestion de clicar.
      *
      * <p><b>Por que con retardo.</b> La secuencia del motor pasa siempre por un
      * "Auto" apagado antes de encenderlo: {@code InputPayMana.showMessage} llama
@@ -6713,7 +6791,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
     private void pressAutoInAMoment() {
         final int mine = autoPayGen.get();
         if (AUTO_PAY_DELAY_MS <= 0) {
-            respondLater(() -> getGameController().selectButtonOk());
+            respondLater(this::autoPressOrHold);
             return;
         }
         // El reloj es el de Forge (un hilo "Delayed-N") y no un
@@ -6724,9 +6802,82 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             if (autoPayGen.get() != mine || !payingMana || !autoPayMana) {
                 return;
             }
-            respondLater(() -> getGameController().selectButtonOk());
+            respondLater(this::autoPressOrHold);
         });
     }
+
+    /**
+     * El pago automatico pulsa "Auto"... salvo que "Auto" fuera a sacrificar
+     * otra carta tuya (Phyrexian Tower: ver {@link AutoPaySacrifice}). Entonces
+     * NO paga solo: lo dice en la barra y el pago se queda en tus manos — "Auto"
+     * sigue ahi, y si lo pulsas pregunta ({@link #confirmAutoSacrifice}).
+     */
+    private void autoPressOrHold() {
+        final forge.game.card.Card culprit =
+                AutoPaySacrifice.culprit(pendingInput(getGameController()));
+        if (culprit == null) {
+            getGameController().selectButtonOk();
+            return;
+        }
+        trace("pago automatico parado: %s sacrificaria una carta", culprit.getName());
+        // Este pago ya no se intenta solo, y sus botones (Auto / Cancelar) a la
+        // vista: hasta aqui no se habian pintado porque se iba a pagar solo.
+        autoPayHeldFor = pendingInput(getGameController());
+        final Object[] b = heldButtons;
+        if (b != null) {
+            updateButtons((PlayerView) b[0], (String) b[1], (String) b[2],
+                    (Boolean) b[3], (Boolean) b[4], (Boolean) b[5]);
+        }
+        setActionableScans(true);
+        if (table != null) {
+            table.getActionBar().setWarning(NeoText.get("mana.autoSac.held",
+                    forge.neo.card.CardText.nameOf(culprit.getView())), false);
+        }
+    }
+
+    /**
+     * El boton "Auto" cuando el pago automatico de Forge sacrificaria otra carta
+     * tuya (Discord, 25-10-2026). Se pregunta, con "Pagar a mano" marcado: una
+     * criatura sacrificada no vuelve (principio 6).
+     *
+     * @return true si nos hemos quedado el clic para preguntar
+     */
+    private boolean confirmAutoSacrifice() {
+        if (!payingMana || table == null) {
+            return false;
+        }
+        final forge.game.card.Card culprit =
+                AutoPaySacrifice.culprit(pendingInput(getGameController()));
+        if (culprit == null) {
+            return false;
+        }
+        final String name = forge.neo.card.CardText.nameOf(culprit.getView());
+        final AtomicBoolean answered = new AtomicBoolean();
+        final ConfirmDialog dialog = new ConfirmDialog(
+                NeoText.get("mana.autoSac.title"),
+                NeoText.get("mana.autoSac.detail", name),
+                List.of(NeoText.get("mana.autoSac.manual"), NeoText.get("mana.autoSac.go")),
+                0,
+                index -> {
+                    if (!answered.compareAndSet(false, true)) {
+                        return;
+                    }
+                    table.getOverlay().hide();
+                    if (index != null && index == 1) {
+                        didDetail("pressed Auto, may sacrifice with " + name);
+                        respondLater(() -> getGameController().selectButtonOk());
+                    }
+                });
+        dialog.getStyleClass().add("phase-ask");
+        table.getOverlay().show(dialog);
+        table.requestLayout();
+        return true;
+    }
+
+    /** El pago en el que el pago automatico se ha parado (sacrificaria algo): no se reintenta. */
+    private volatile Object autoPayHeldFor;
+    /** Los botones del pago que se iba a pagar solo, por si hay que pararse. */
+    private volatile Object[] heldButtons;
 
     /** Generacion de la pulsacion de "Auto" que esta en el aire. */
     private final AtomicInteger autoPayGen = new AtomicInteger();
@@ -6761,6 +6912,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
     public void setSelection(final forge.gamemodes.match.Selection selection) {
         final forge.gamemodes.match.Selection prev = getSelection();
         super.setSelection(selection);
+        actionableChanged();
         if (!prev.cards().equals(selection.cards())) {
             if (selection.cards().isEmpty()) {
                 selectionEnded();
@@ -7717,6 +7869,16 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
     }
 
     /**
+     * Elegir un numero con lista corta y "Otro...". Si es la X de un hechizo,
+     * la lista llega hasta lo que puedes pagar en vez de hasta 9 (Discord,
+     * 25-10-2026): ver {@link AffordableX}. "Otro..." se queda.
+     */
+    @Override
+    public Integer getInteger(final String message, final int min, final int max, final int cutoff) {
+        return super.getInteger(message, min, max, AffordableX.cutoff(min, max, cutoff));
+    }
+
+    /**
      * Escribir algo: casi siempre <b>un numero</b>.
      *
      * <p><b>Devolver {@code initialInput} sin preguntar colgaba la partida
@@ -7785,31 +7947,31 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
      * El motor nos dice que cartas puedes usar, y hasta cual taparia el "Auto".
      *
      * <p><b>Esto llegaba y se tiraba.</b> {@code PlayerControllerHuman.
-     * pushActionableCards} recorre tus zonas y manda por aqui la lista de lo
-     * que puedes jugar o activar ahora mismo; durante un pago de mana esa lista
-     * es <b>exactamente tus fuentes de mana disponibles</b>. Y viene
-     * <b>pesada</b>: las cartas que el boton "Auto" iba a tapar van dos veces,
-     * asi que {@code getWeakSelectableStrength} vale 2 para ellas. O sea que el
-     * plan del motor se puede ENSENYAR antes de pulsar nada.
+     * getActionableCards} recorre tus zonas y saca la lista de lo que puedes
+     * jugar o activar ahora mismo; durante un pago de mana esa lista es
+     * <b>exactamente tus fuentes de mana disponibles</b>. Y viene <b>pesada</b>:
+     * las cartas que el boton "Auto" iba a tapar van dos veces, asi que
+     * {@code getActionableStrength} vale 2 para ellas. O sea que el plan del
+     * motor se puede ENSENYAR antes de pulsar nada.
      *
-     * <p>Nosotros ya poniamos {@code UI_SHOW_ACTIONABLE_HIGHLIGHTS} en true —
-     * o sea que el motor estaba haciendo el trabajo — y luego no lo pintabamos.
-     *
-     * <p>Es distinto de {@code setSelectables}: aquello es "el motor espera que
-     * elijas una de estas y no sigue hasta que lo hagas"; esto es "podrias".
+     * <p>Desde Forge #12414 (25-10-2026) llega dentro de la seleccion
+     * ({@code Selection.actionable}, ver {@link #setSelection}); antes tenia su
+     * propio par {@code setWeaklySelectable}/{@code clearWeaklySelectable}.
+     * Lo de {@link #setOverlooked} lo pone {@code SafeActions.Guarded} justo
+     * antes, en la misma llamada del prompt; una seleccion que llega SIN esa
+     * llamada (otro prompt, o el que acaba) lo borra, que es lo que hacia el
+     * {@code clearWeaklySelectable} de antes.
      */
-    @Override
-    public void setWeaklySelectable(final Iterable<CardView> cards) {
-        super.setWeaklySelectable(cards);
+    private void actionableChanged() {
+        if (!overlookedFresh) {
+            overlookedIds = java.util.Set.of();
+        }
+        overlookedFresh = false;
         pushActionable();
     }
 
-    @Override
-    public void clearWeaklySelectable() {
-        super.clearWeaklySelectable();
-        overlookedIds = java.util.Set.of();
-        pushActionable();
-    }
+    /** Si {@link #setOverlooked} acaba de llegar para la seleccion que viene. */
+    private volatile boolean overlookedFresh;
 
     /**
      * Lo que se puede lanzar pagando con artefactos o criaturas girados
@@ -7819,6 +7981,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
      */
     @Override
     public void setOverlooked(final Collection<CardView> cards) {
+        overlookedFresh = true;
         final java.util.Set<Integer> ids = new java.util.HashSet<>();
         for (final CardView cv : cards) {
             ids.add(cv.getId());
@@ -7873,7 +8036,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             return 0;
         }
         try {
-            final int engine = getWeakSelectableStrength(card);
+            final int engine = getActionableStrength(card);
             if (engine > 0) {
                 return engine;
             }
@@ -8236,6 +8399,9 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                     return choices.get(at.get(0));
                 }
             }
+            // Un aura con mas de una forma de jugarla: el menu de siempre, y el
+            // objetivo lo elige el jugador (Ana: "mejor eso que cagarla").
+            pendingAuraTarget = null;
             final Integer picked = askUser(reply -> {
                 final AbilityMenu menu = new AbilityMenu(
                         hostCard, choices, table.zoomCardWidth() * 0.62, reply::accept);

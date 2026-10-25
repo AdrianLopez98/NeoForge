@@ -154,6 +154,20 @@ final class NeoAppDraft {
             }
 
             @Override
+            public void createCube(final String name, final forge.gamemodes.limited.CustomLimited cube,
+                                   final int boosters) {
+                final forge.deck.DeckGroup group = forge.neo.draft.NeoSealed.createCube(name, cube, boosters);
+                if (group == null) {
+                    app.showMainMenu();
+                    return;
+                }
+                final forge.neo.draft.DraftRun run = forge.neo.draft.DraftRun.of(
+                        name, forge.neo.draft.DraftRun.Kind.SEALED);
+                run.makeCurrent();
+                showDraftRun(run);
+            }
+
+            @Override
             public void resume(final String name) {
                 final forge.neo.draft.DraftRun run = forge.neo.draft.DraftRun.of(
                         name, forge.neo.draft.DraftRun.Kind.SEALED);

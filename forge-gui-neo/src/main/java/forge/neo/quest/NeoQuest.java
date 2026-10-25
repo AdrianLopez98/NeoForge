@@ -250,6 +250,7 @@ public final class NeoQuest {
         NeoDailyPack.deleteSaved(name);
         QuestAcquired.deleteSaved(name);
         QuestLowLife.deleteSaved(name);
+        NeoQuestTrophies.deleteSaved(name);
         final boolean limited = pool != null && !pool.isAll();
         final forge.game.GameFormat format = limited ? formatOf(pool) : null;
         Deck deck = startingDeck;
@@ -640,6 +641,7 @@ public final class NeoQuest {
         NeoDailyPack.deleteSaved(name);
         QuestAcquired.deleteSaved(name);
         QuestLowLife.deleteSaved(name);
+        NeoQuestTrophies.deleteSaved(name);
         final String current = FModel.getQuestPreferences()
                 .getPref(QuestPreferences.QPref.CURRENT_QUEST);
         if (current != null && current.equals(name + ".dat")) {
@@ -648,7 +650,7 @@ public final class NeoQuest {
     }
 
     /** Lo que se le cuelga al nombre de una Quest, aparte de su .dat y su .dat.bak. */
-    private static final String[] SIDE_FILES = {".coliseo", ".sobre", ".neo-adquiridas", ".neo-vida-baja", ".torneo"};
+    private static final String[] SIDE_FILES = {".coliseo", ".sobre", ".neo-adquiridas", ".neo-vida-baja", ".torneo", ".vitrina"};
 
     /** Lo que no puede llevar un nombre de fichero en Windows (y una Quest es un fichero). */
     private static final java.util.regex.Pattern BAD_NAME = java.util.regex.Pattern.compile("[\\\\/:*?\"<>|]");

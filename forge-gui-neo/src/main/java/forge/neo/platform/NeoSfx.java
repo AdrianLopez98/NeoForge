@@ -13,7 +13,7 @@ import forge.neo.sound.NeoSounds;
  */
 public final class NeoSfx {
 
-    private static final Map<File, NeoAudioClip> CLIPS = new ConcurrentHashMap<>();
+    private static final Map<File, forge.sound.IAudioClip> CLIPS = new ConcurrentHashMap<>();
 
     private NeoSfx() {
     }
@@ -30,7 +30,7 @@ public final class NeoSfx {
         final float volume = NeoSounds.volume();
         if (volume > 0) {
             try {
-                CLIPS.computeIfAbsent(f, NeoAudioClip::new).play(volume);
+                CLIPS.computeIfAbsent(f, JavaSound::clip).play(volume);
             } catch (final RuntimeException e) {
                 System.err.println("[sonido] " + event + ": " + e);
             }

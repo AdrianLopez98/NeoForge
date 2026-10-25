@@ -181,10 +181,7 @@ public final class NeoDraft implements PackSource {
         final List<forge.gamemodes.limited.CustomLimited> out = new ArrayList<>();
         final java.io.File folder = new java.io.File(forge.localinstance.properties.ForgeConstants.DRAFT_DIR);
         final String[] files = folder.list();
-        if (files == null) {
-            return out;
-        }
-        for (final String name : files) {
+        for (final String name : files == null ? new String[0] : files) {
             if (!name.endsWith(BoosterDraft.FILE_EXT)) {
                 continue;
             }
@@ -198,6 +195,16 @@ public final class NeoDraft implements PackSource {
         }
         out.sort(java.util.Comparator.comparing(forge.gamemodes.limited.CustomLimited::getName,
                 String.CASE_INSENSITIVE_ORDER));
+        // Los importados de CubeCobra, delante: son los que ha traido el
+        // jugador (Discord, 25-10-2026). Ver CubeCobra.
+        final java.util.Set<String> taken = new java.util.HashSet<>();
+        for (final forge.gamemodes.limited.CustomLimited c : out) {
+            taken.add(c.getName());
+        }
+        final List<forge.gamemodes.limited.CustomLimited> mine = CubeCobra.imported(taken);
+        mine.sort(java.util.Comparator.comparing(forge.gamemodes.limited.CustomLimited::getName,
+                String.CASE_INSENSITIVE_ORDER));
+        out.addAll(0, mine);
         return out;
     }
 

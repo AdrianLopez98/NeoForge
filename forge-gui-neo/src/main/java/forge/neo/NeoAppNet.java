@@ -119,6 +119,17 @@ final class NeoAppNet {
                     public void poolArrived(final forge.deck.Deck pool, final boolean sealed) {
                         Platform.runLater(() -> showNetPool(pool, sealed));
                     }
+
+                    @Override
+                    public boolean canBuildDeck() {
+                        return true;
+                    }
+
+                    @Override
+                    public void buildDeck(final forge.neo.match.NeoFormat format,
+                                          final java.util.function.Consumer<forge.deck.Deck> saved) {
+                        showLobbyDeckBuilder(format, saved);
+                    }
                 });
         lobbyScreen = screen;
         online = new forge.neo.net.NeoOnline(screen);
@@ -293,6 +304,41 @@ final class NeoAppNet {
      * hay que elegir ese mazo y darle a listo. No se vuelve al menu: la sala
      * sigue viva y los demas estan ahi.
      */
+    /**
+     * El constructor con un mazo nuevo, desde la sala y de vuelta a ella
+     * (Discord, 24-10-2026). La conexion no depende de la pantalla: es la misma
+     * que sigue viva mientras se juega. Al volver, si se guardo, el mazo va al
+     * asiento; si no, la sala como estaba. Sin {@code matchEnded}: aqui no ha
+     * acabado ninguna partida.
+     */
+    private void showLobbyDeckBuilder(final forge.neo.match.NeoFormat format,
+                                      final java.util.function.Consumer<forge.deck.Deck> saved) {
+        final forge.neo.ui.LobbyScreen screen = lobbyScreen;
+        if (screen == null || format == null) {
+            return;
+        }
+        final forge.neo.deck.DeckEditor editor =
+                forge.neo.deck.DeckEditor.createNew(format, NeoApp.nextDeckName(format));
+        app.builder = new forge.neo.ui.DeckBuilderScreen(editor, app.cardWidth, () -> {
+            app.builder = null;
+            if (lobbyScreen != screen || online == null) {
+                // La sala se cerro mientras tanto (se cayo la conexion).
+                return;
+            }
+            app.scene.setRoot(screen.getRoot());
+            app.applyScale();
+            final String name = editor.getSavedName();
+            if (name != null && format.storage().contains(name)) {
+                saved.accept(format.storage().get(name));
+            }
+        });
+        if (format.isCommanderStyle()) {
+            app.builder.startByPickingCommander();
+        }
+        app.scene.setRoot(app.builder);
+        app.applyScale();
+    }
+
     private void showNetPool(final forge.deck.Deck pool, final boolean sealed) {
         stopNetDraft();
         if (pool == null) {

@@ -125,6 +125,28 @@ public final class ArtlessCheck {
         check(CardTokens.of(forge.model.FModel.getMagicDb().getCommonCards().getCard("Grizzly Bears")).isEmpty(),
                 "una carta que no crea fichas no ensenya ninguna", "Grizzly Bears crea fichas?");
 
+        // "Bajar todas las fichas" tambien las de borde antiguo que Scryfall no
+        // tiene y Forge sirve de su lista (Discord, 25-10-2026: OBC, PAST, TDLS).
+        final String djinn = TokenArtDownload.hostedUrlForTest("c_5_5_a_djinn_flying");
+        check(djinn != null && djinn.contains("/PAST/"),
+                "una ficha que solo esta en Astral Cards sale de la lista de Forge (" + djinn + ")",
+                "la ficha de Astral Cards no encuentra su direccion: " + djinn);
+        // Y todas las que SOLO salen en esas expansiones (Scryfall no las tiene).
+        final java.util.Set<String> oldBorder = java.util.Set.of("OBC", "PAST", "TDLS");
+        int only = 0;
+        final java.util.List<String> lost = new java.util.ArrayList<>();
+        for (final java.util.Map.Entry<String, java.util.List<String[]>> e : TokenArtDownload.allPrintings().entrySet()) {
+            if (e.getValue().stream().allMatch(w -> w.length > 2 && oldBorder.contains(w[2]))) {
+                only++;
+                if (TokenArtDownload.hostedUrlForTest(e.getKey()) == null) {
+                    lost.add(e.getKey());
+                }
+            }
+        }
+        check(only > 0 && lost.isEmpty(),
+                "las " + only + " fichas que solo estan en OBC, PAST o TDLS tienen todas su direccion",
+                only + " fichas solo de borde antiguo; sin direccion: " + lost);
+
         // Y de verdad: una imagen propia para una ficha que no tiene, y el juego la encuentra.
         try {
             final String key = "t:zz_ficha_de_prueba";
@@ -138,10 +160,42 @@ public final class ArtlessCheck {
             check(!before && written != null && written.getName().equals("zz_ficha_de_prueba.png") && after,
                     "una imagen propia se copia y el juego la encuentra (" + written + ")",
                     "la imagen propia no se encuentra: antes=" + before + " despues=" + after + " en " + written);
-            if (written != null) {
-                written.delete();
-            }
+            check(OwnImage.isOwn(key), "y queda marcada como tuya", "no queda marcada como propia");
+            OwnImage.restore(key);
+            check(written != null && !written.exists() && !OwnImage.isOwn(key),
+                    "volver a la original la quita (no habia otra)", "la propia sigue ahi tras volver");
+
+            // Sobre una imagen que YA estaba (25-10-2026, constructor): se aparta y vuelve.
+            final java.io.File downloaded = OwnImage.target(key, ".jpg");
+            downloaded.getParentFile().mkdirs();
+            javax.imageio.ImageIO.write(img, "jpg", downloaded);
+            final long size = downloaded.length();
+            final java.io.File mine = CardImages.useOwnImage(key, src);
+            check(mine != null && mine.isFile() && !downloaded.exists()
+                            && new java.io.File(downloaded.getPath() + ".original").isFile(),
+                    "la imagen que habia se aparta, no se borra", "la que habia: " + downloaded.exists()
+                            + ", apartada: " + new java.io.File(downloaded.getPath() + ".original").isFile());
+            CardImages.restoreOriginalImage(key);
+            check(downloaded.isFile() && downloaded.length() == size && !mine.exists() && !OwnImage.isOwn(key),
+                    "y al volver a la original esta igual que antes", "no ha vuelto la original");
+            downloaded.delete();
             src.delete();
+
+            // Un fondo de pantalla (25-10-2026): se queda con forma de carta y
+            // a tamanyo de Scryfall, no aplastado ni con 8 millones de pixeles.
+            final java.io.File wall = java.io.File.createTempFile("neo-fondo", ".jpg");
+            javax.imageio.ImageIO.write(new java.awt.image.BufferedImage(3840, 2160,
+                    java.awt.image.BufferedImage.TYPE_INT_RGB), "jpg", wall);
+            final java.io.File fitted = CardImages.useOwnImage(key, wall);
+            final java.awt.image.BufferedImage got = fitted == null ? null : javax.imageio.ImageIO.read(fitted);
+            final double ratio = got == null ? 0 : (double) got.getWidth() / got.getHeight();
+            check(got != null && got.getWidth() <= OwnImage.MAX_WIDTH && got.getHeight() <= OwnImage.MAX_HEIGHT
+                            && Math.abs(ratio - 5.0 / 7.0) < 0.02,
+                    "un fondo de pantalla de 3840x2160 se recorta a forma de carta y se reduce ("
+                            + (got == null ? "?" : got.getWidth() + "x" + got.getHeight()) + ")",
+                    "el fondo de pantalla se ha guardado como " + (got == null ? "nada" : got.getWidth() + "x" + got.getHeight()));
+            OwnImage.restore(key);
+            wall.delete();
         } catch (final Exception e) {
             check(false, "", "no se pudo probar la imagen propia: " + e);
         }

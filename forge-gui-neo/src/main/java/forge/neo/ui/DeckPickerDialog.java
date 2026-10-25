@@ -123,6 +123,26 @@ public class DeckPickerDialog extends VBox {
         footer.getChildren().add(at < 0 ? footer.getChildren().size() : at + 1, menu);
     }
 
+    /**
+     * Un boton "Nuevo o importar" en el pie (la sala de red, Discord
+     * 24-10-2026: <i>"Create/load/import a deck within the multiplayer
+     * lobby"</i>). Abre el constructor con un mazo nuevo; importar una lista
+     * esta dentro del propio constructor.
+     */
+    public void setOnNewDeck(final Runnable onNew) {
+        if (onNew == null || footer == null) {
+            return;
+        }
+        final Button b = new Button(NeoText.get("picker.newDeck"));
+        b.setId("picker-new-deck");
+        b.getStyleClass().add("btn-secondary");
+        b.setMinWidth(Region.USE_PREF_SIZE);
+        b.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("picker.newDeck.tip")));
+        b.setOnAction(e -> onNew.run());
+        final int at = footer.getChildren().indexOf(randomButton);
+        footer.getChildren().add(at < 0 ? footer.getChildren().size() : at, b);
+    }
+
     /** El pie y su boton de "al azar", para colgar el menu de colecciones al lado. */
     private HBox footer;
     private Button randomButton;

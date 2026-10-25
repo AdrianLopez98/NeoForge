@@ -416,6 +416,7 @@ public final class NeoQuestCup {
         if (!won) {
             if (last) {
                 c.stage = Stage.RUNNER_UP;
+                NeoQuestTrophies.noteCup(NeoQuest.name(), false);
                 refunded = c.terms.fee;
                 q.getAssets().addCredits(refunded);
             } else {
@@ -432,6 +433,7 @@ public final class NeoQuestCup {
             c.settled = true;
         } else if (last) {
             c.stage = Stage.CHAMPION;
+            NeoQuestTrophies.noteCup(NeoQuest.name(), true);
             prize = grantPrize(c);
             q.getAchievements().addWin();
             c.settled = true;

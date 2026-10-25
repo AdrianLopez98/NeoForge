@@ -108,6 +108,18 @@ public class LobbyScreen extends BorderPane
          * <p>Lo que toca es abrir el constructor para que montes el mazo con
          * el. El pool ya esta guardado cuando se llama.
          */
+        /**
+         * Montar un mazo NUEVO sin salir de la sala (el constructor, y al volver
+         * a la sala, el mazo guardado en {@code saved}). Sin implementar, el
+         * selector no ofrece el boton.
+         */
+        default boolean canBuildDeck() {
+            return false;
+        }
+
+        default void buildDeck(NeoFormat format, java.util.function.Consumer<Deck> saved) {
+        }
+
         default void poolArrived(forge.deck.Deck pool, boolean sealed) {
         }
     }
@@ -1626,6 +1638,21 @@ public class LobbyScreen extends BorderPane
                 !forge.neo.net.NeoNetEvent.isLimited(l) && f.isCommanderStyle()
                         ? () -> NeoLobby.generateDeck(f) : null);
         picker.setCollections(collections);
+        // CREAR O IMPORTAR SIN SALIR DE LA SALA (Discord, 24-10-2026). Salir
+        // de la sala te desconecta; esto abre el constructor por encima, y la
+        // conexion sigue (es la misma que sigue viva durante la partida). Al
+        // guardar y volver, ese mazo queda puesto en tu asiento. No en un
+        // evento de limitado: ahi el mazo sale del pool.
+        if (!forge.neo.net.NeoNetEvent.isLimited(l) && actions.canBuildDeck()) {
+            picker.setOnNewDeck(() -> {
+                overlay.hide();
+                actions.buildDeck(f, built -> {
+                    if (built != null && lobby != null && lobby.mayEdit(index)) {
+                        sendDeck(index, built);
+                    }
+                });
+            });
+        }
         overlay.setOnBackgroundClick(overlay::hide);
         overlay.show(picker);
     }

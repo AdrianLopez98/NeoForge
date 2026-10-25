@@ -424,6 +424,11 @@ public final class DeckEditor {
         return dirty;
     }
 
+    /** Con que nombre se guardo por ultima vez, o null si no se ha guardado. */
+    public String getSavedName() {
+        return savedAs;
+    }
+
     // ---------------------------------------------------------------
     // La funda del mazo
 
@@ -552,7 +557,15 @@ public final class DeckEditor {
      * {@link #catalogueGroupLabel}; {@code null} sin grupos.
      */
     public String catalogueGroupOf(final PaperCard c) {
-        switch (group) {
+        return groupKey(group, c);
+    }
+
+    /**
+     * En que grupo cae una carta con el criterio {@code g} (el del catalogo o
+     * el de la vista del mazo); {@code null} con {@link Group#NONE}.
+     */
+    public static String groupKey(final Group g, final PaperCard c) {
+        switch (g == null ? Group.NONE : g) {
             case TYPE:
                 return groupOf(c);
             case COLOR: {
@@ -1107,6 +1120,49 @@ public final class DeckEditor {
             return ENCHANTMENTS;
         }
         return OTHER;
+    }
+
+    /**
+     * EL MAZO PARTIDO CON CUALQUIER CRITERIO (Discord, 24-10-2026: ver el mazo
+     * por coste, color o rareza, no solo por tipo). Por tipo es exactamente lo
+     * de siempre ({@link #typeCounts} + {@link #cardsInGroup}); con los demas,
+     * los grupos van en el orden del catalogo ({@code GROUP_ORDER}, las tierras
+     * al final por coste) y cada uno ordenado como la lista del mazo.
+     */
+    public Map<String, List<Map.Entry<PaperCard, Integer>>> deckGroups(final Group g) {
+        final Map<String, List<Map.Entry<PaperCard, Integer>>> out = new LinkedHashMap<>();
+        if (g == null || g == Group.NONE || g == Group.TYPE) {
+            for (final String type : typeCounts().keySet()) {
+                out.put(type, cardsInGroup(type));
+            }
+            return out;
+        }
+        final List<Map.Entry<PaperCard, Integer>> all = new ArrayList<>();
+        for (final Map.Entry<PaperCard, Integer> e : deck.getMain()) {
+            all.add(e);
+        }
+        final Comparator<PaperCard> order = orderOf(deckSort, deckSortReversed, "");
+        all.sort((a, b) -> order.compare(a.getKey(), b.getKey()));
+        final List<String> keys = new ArrayList<>();
+        final Map<String, List<Map.Entry<PaperCard, Integer>>> buckets = new LinkedHashMap<>();
+        for (final Map.Entry<PaperCard, Integer> e : all) {
+            final String key = groupKey(g, e.getKey());
+            buckets.computeIfAbsent(key, k -> {
+                keys.add(k);
+                return new ArrayList<>();
+            }).add(e);
+        }
+        keys.sort(Comparator.comparingInt(k -> {
+            if (g == Group.COST && LANDS.equals(k)) {
+                return Integer.MAX_VALUE;
+            }
+            final int i = GROUP_ORDER.indexOf(k);
+            return i < 0 ? Integer.MAX_VALUE - 1 : i;
+        }));
+        for (final String k : keys) {
+            out.put(k, buckets.get(k));
+        }
+        return out;
     }
 
     /** Las cartas del mazo de un grupo, ordenadas por coste y nombre. */

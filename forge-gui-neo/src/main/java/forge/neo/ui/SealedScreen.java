@@ -58,6 +58,12 @@ public class SealedScreen extends BorderPane {
         void createJumpstart(String name, forge.neo.draft.Jumpstart.Product product,
                              forge.neo.draft.Jumpstart.Theme first, forge.neo.draft.Jumpstart.Theme second);
 
+        /**
+         * Un sellado de CUBO: los de Forge o uno importado de CubeCobra
+         * (Discord, 25-10-2026). Ver {@link NeoSealed#createCube}.
+         */
+        void createCube(String name, forge.gamemodes.limited.CustomLimited cube, int boosters);
+
         /** Seguir con un sellado ya montado. */
         void resume(String name);
 
@@ -78,7 +84,7 @@ public class SealedScreen extends BorderPane {
      * que rellena la mezcla. Pedido en itch.io el 29-09-2026. En la mezcla, el
      * numero de sobres de abajo (4, 6, 8, 12) es lo que tiene que sumar.
      */
-    private enum Mode { SET, MIX, BLOCK, JUMPSTART }
+    private enum Mode { SET, MIX, BLOCK, JUMPSTART, CUBE }
 
     /**
      * Jumpstart (Discord, 02-10-2026): el producto elegido y sus dos temas
@@ -95,6 +101,10 @@ public class SealedScreen extends BorderPane {
     private final PackMix mix = new PackMix();
     private final VBox mixBox = new VBox();
     private List<CardBlock> shownBlocks = new ArrayList<>();
+    private List<forge.gamemodes.limited.CustomLimited> shownCubes = new ArrayList<>();
+    private forge.gamemodes.limited.CustomLimited chosenCube;
+    /** Importar de CubeCobra: solo con "Un cubo" (Discord, 25-10-2026). */
+    private final Region cubeImport = CubeView.importBar(this::cubeImported);
     private Button[] modeButtons;
     private Button go;
 
@@ -133,7 +143,7 @@ public class SealedScreen extends BorderPane {
 
         countSection = section(NeoText.get("sealed.step2"), countRow);
         final VBox content = new VBox(12,
-                section(NeoText.get("sealed.step1"), new VBox(8, modeRow(), mixBox, search, scroll, pager)),
+                section(NeoText.get("sealed.step1"), new VBox(8, modeRow(), mixBox, cubeImport, search, scroll, pager)),
                 countSection,
                 resumeRow(actions));
         content.setPadding(new Insets(4, 30, 10, 30));
@@ -153,6 +163,10 @@ public class SealedScreen extends BorderPane {
             if (mode == Mode.JUMPSTART) {
                 if (jsProduct != null) {
                     actions.createJumpstart(n, jsProduct, jsFirst, jsSecond);
+                }
+            } else if (mode == Mode.CUBE) {
+                if (chosenCube != null) {
+                    actions.createCube(n, chosenCube, boosters);
                 }
             } else if (mode == Mode.SET) {
                 if (chosen == null) {
@@ -204,6 +218,11 @@ public class SealedScreen extends BorderPane {
             }
             return;
         }
+        if ("cube".equals(t)) {
+            // =cube: "Un cubo", con la barra de CubeCobra.
+            switchMode(Mode.CUBE);
+            return;
+        }
         if ("random".equals(t)) {
             // =random: "Mezclar" y el boton "Al azar" pulsado (PackMix.random).
             toMix.run();
@@ -234,7 +253,8 @@ public class SealedScreen extends BorderPane {
         final Button mixB = new Button(NeoText.get("draftNew.mix"));
         final Button blockB = new Button(NeoText.get("draftNew.block"));
         final Button jumpB = new Button(NeoText.get("sealed.jumpstart"));
-        modeButtons = new Button[] {set, mixB, blockB, jumpB};
+        final Button cubeB = new Button(NeoText.get("draftNew.cube"));
+        modeButtons = new Button[] {set, mixB, blockB, jumpB, cubeB};
         for (final Button b : modeButtons) {
             b.getStyleClass().add("segment");
             b.setMinWidth(Region.USE_PREF_SIZE);
@@ -244,6 +264,9 @@ public class SealedScreen extends BorderPane {
         mixB.setOnAction(e -> switchMode(Mode.MIX));
         blockB.setOnAction(e -> switchMode(Mode.BLOCK));
         jumpB.setOnAction(e -> switchMode(Mode.JUMPSTART));
+        cubeB.setOnAction(e -> switchMode(Mode.CUBE));
+        cubeImport.setVisible(false);
+        cubeImport.setManaged(false);
         row.getChildren().addAll(modeButtons);
         mixBox.setVisible(false);
         mixBox.setManaged(false);
@@ -263,6 +286,8 @@ public class SealedScreen extends BorderPane {
     /** La barra de la mezcla: solo en "Mezclar", y se repinta en cada cambio. */
     private void refreshMix() {
         final boolean jump = mode == Mode.JUMPSTART;
+        cubeImport.setVisible(mode == Mode.CUBE);
+        cubeImport.setManaged(mode == Mode.CUBE);
         if (countSection != null) {
             countSection.setVisible(!jump);
             countSection.setManaged(!jump);
@@ -281,7 +306,8 @@ public class SealedScreen extends BorderPane {
         }
         if (go != null) {
             go.setDisable(mode == Mode.MIX && mix.total() != boosters || mode == Mode.BLOCK
-                    || mode == Mode.JUMPSTART && jsProduct == null);
+                    || mode == Mode.JUMPSTART && jsProduct == null
+                    || mode == Mode.CUBE && chosenCube == null);
         }
     }
 
@@ -352,6 +378,22 @@ public class SealedScreen extends BorderPane {
             refreshChosen();
             return;
         }
+        if (mode == Mode.CUBE) {
+            shownCubes = new ArrayList<>();
+            for (final forge.gamemodes.limited.CustomLimited c : forge.neo.draft.NeoDraft.cubes()) {
+                if (q.isEmpty() || c.getName().toLowerCase(Locale.ROOT).contains(q)) {
+                    shownCubes.add(c);
+                }
+            }
+            pager.setTotal(shownCubes.size());
+            if (chosenCube == null && !shownCubes.isEmpty()) {
+                chosenCube = shownCubes.get(0);
+            }
+            paint();
+            refreshChosen();
+            refreshMix();
+            return;
+        }
         if (mode == Mode.BLOCK) {
             shownBlocks = new ArrayList<>();
             for (final CardBlock b : PackMix.blocks()) {
@@ -385,6 +427,23 @@ public class SealedScreen extends BorderPane {
         if (mode == Mode.JUMPSTART) {
             for (int i = pager.from(); i < Math.min(shownProducts.size(), pager.to()); i++) {
                 grid.getChildren().add(jumpstartTile(shownProducts.get(i)));
+            }
+            return;
+        }
+        if (mode == Mode.CUBE) {
+            for (int i = pager.from(); i < Math.min(shownCubes.size(), pager.to()); i++) {
+                final forge.gamemodes.limited.CustomLimited cube = shownCubes.get(i);
+                grid.getChildren().add(CubeView.tile(cube, cube.equals(chosenCube), () -> {
+                    chosenCube = cube;
+                    paint();
+                    refreshChosen();
+                    refreshMix();
+                }, () -> {
+                    if (cube.equals(chosenCube)) {
+                        chosenCube = null;
+                    }
+                    reload();
+                }));
             }
             return;
         }
@@ -530,6 +589,21 @@ public class SealedScreen extends BorderPane {
         return box;
     }
 
+    /** Recien importado: se elige, y se va a la primera pagina, donde sale. */
+    private void cubeImported(final String name) {
+        search.clear();
+        pager.reset();
+        reload();
+        for (final forge.gamemodes.limited.CustomLimited c : shownCubes) {
+            if (c.getName().equals(name)) {
+                chosenCube = c;
+            }
+        }
+        paint();
+        refreshChosen();
+        refreshMix();
+    }
+
     private void refreshChosen() {
         if (mode == Mode.JUMPSTART) {
             chosenLabel.setText(jsProduct == null ? NeoText.get("sealed.jumpstart.help")
@@ -542,6 +616,11 @@ public class SealedScreen extends BorderPane {
         }
         if (mode == Mode.BLOCK) {
             chosenLabel.setText(NeoText.get("mix.blockHelp"));
+            return;
+        }
+        if (mode == Mode.CUBE) {
+            chosenLabel.setText(chosenCube == null ? ""
+                    : NeoText.get("sealed.chosen", chosenCube.getName(), boosters));
             return;
         }
         chosenLabel.setText(chosen == null ? ""

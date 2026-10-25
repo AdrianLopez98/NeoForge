@@ -110,6 +110,13 @@ public final class NeoMain {
             forge.neo.update.UpdateCheck.run();
             return;
         }
+        // El sonido de Linux (SteamOS): decodificar todos los MP3 sin JavaFX.
+        // Sin motor. Ver forge.neo.sound.AudioCheck.
+        if ("audiocheck".equals(cmd)) {
+            banner("Sonido sin JavaFX: los MP3 de Linux");
+            forge.neo.sound.AudioCheck.run();
+            return;
+        }
         if ("backupcheck".equals(cmd)) {
             banner("Exportar e importar tus datos (carpetas temporales)");
             forge.neo.data.BackupCheck.run();
@@ -336,6 +343,11 @@ public final class NeoMain {
                 // cuenta sus objetivos con X = 0. Ver XTargets.
                 banner("Auto-pass: los objetivos que dependen de X");
                 forge.neo.match.XTargetCheck.run();
+                break;
+            case "affordablexcheck":
+                // Elegir X: los botones, hasta lo que puedes pagar. Ver AffordableX.
+                banner("Elegir X: hasta lo que puedes pagar");
+                forge.neo.match.AffordableXCheck.run();
                 break;
             case "improvisecheck":
                 // Que el auto-pass no pase con un hechizo de improvisar o

@@ -54,6 +54,139 @@ public final class OwnImage {
         return (imageKey.startsWith(ImageKeys.TOKEN_PREFIX) ? "tokens/" : "cards/") + rel + ".jpg";
     }
 
+    // ---------------------------------------------------------------
+    // Poner y quitar la propia (Discord, 25-10-2026: "Use my own image" en
+    // el constructor, para CUALQUIER carta, tenga o no imagen bajada)
+    // ---------------------------------------------------------------
+
+    private static final String[] EXTENSIONS = {".jpg", ".png"};
+
+    /** La copia de la imagen que habia, apartada mientras se usa la propia. */
+    private static File backupOf(final File image) {
+        return new File(image.getPath() + ".original");
+    }
+
+    /** La marca de "esta imagen la ha puesto el jugador". */
+    private static File markerOf(final File image) {
+        return new File(image.getPath() + ".neo-own");
+    }
+
+    /** Si la imagen de esa clave la ha puesto el jugador. */
+    public static boolean isOwn(final String imageKey) {
+        for (final String ext : EXTENSIONS) {
+            final File t = target(imageKey, ext);
+            if (t != null && markerOf(t).isFile()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Pone la imagen propia. Lo que habia (la bajada, en .jpg o .png) se
+     * APARTA, no se borra, para poder volver con {@link #restore} sin internet;
+     * y se aparta la de las dos extensiones, porque si quedara un .jpg al lado
+     * del .png propio Forge seguiria leyendo el .jpg. Devuelve el fichero
+     * escrito, o {@code null} si la clave no tiene sitio.
+     */
+    public static File install(final String imageKey, final java.io.InputStream source,
+                               final String extension) throws java.io.IOException {
+        final File dest = target(imageKey, extension);
+        if (dest == null || source == null) {
+            return null;
+        }
+        for (final String ext : EXTENSIONS) {
+            final File t = target(imageKey, ext);
+            if (t == null || !t.isFile()) {
+                continue;
+            }
+            if (markerOf(t).isFile()) {
+                // Una propia de antes: se sustituye.
+                t.delete();
+                markerOf(t).delete();
+            } else if (!backupOf(t).exists()) {
+                t.renameTo(backupOf(t));
+            } else {
+                t.delete();
+            }
+        }
+        dest.getParentFile().mkdirs();
+        java.nio.file.Files.copy(source, dest.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        markerOf(dest).createNewFile();
+        return dest;
+    }
+
+    /**
+     * Quita la imagen propia y devuelve la que habia. Sin copia apartada (la
+     * carta no tenia imagen bajada), se queda sin imagen y el juego la vuelve a
+     * pedir cuando haga falta. true si habia una propia.
+     */
+    public static boolean restore(final String imageKey) {
+        boolean had = false;
+        for (final String ext : EXTENSIONS) {
+            final File t = target(imageKey, ext);
+            if (t == null) {
+                continue;
+            }
+            if (markerOf(t).isFile()) {
+                had = true;
+                t.delete();
+                markerOf(t).delete();
+            }
+        }
+        if (!had) {
+            return false;
+        }
+        for (final String ext : EXTENSIONS) {
+            final File t = target(imageKey, ext);
+            if (t != null && backupOf(t).isFile() && !t.exists()) {
+                backupOf(t).renameTo(t);
+            }
+        }
+        return true;
+    }
+
+    // ---------------------------------------------------------------
+    // La forma y el tamanyo (Ana, 25-10-2026: "que pasaria si ponen una foto
+    // del tamanyo de un salvapantallas de windows?"). Se pintaria aplastada en
+    // el hueco de una carta y ocuparia en memoria lo que diez. Asi que la
+    // imagen se deja como una de Scryfall ANTES de guardarla: aqui solo las
+    // cuentas, que el escritorio (ImageIO) y Android (Bitmap) dibujan cada uno
+    // con lo suyo.
+    // ---------------------------------------------------------------
+
+    /** El tamanyo "large" de Scryfall: lo mas grande que se guarda. */
+    public static final int MAX_WIDTH = 672;
+    public static final int MAX_HEIGHT = 936;
+
+    /** Cuanto se tolera de diferencia con la forma de una carta (5:7) antes de recortar. */
+    private static final double TOLERANCE = 0.04;
+
+    /**
+     * El trozo de la imagen que se queda: entera si ya tiene forma de carta;
+     * si no, el centro con forma de carta. {@code {x, y, ancho, alto}}.
+     */
+    public static int[] cardCrop(final int width, final int height) {
+        final double card = 5.0 / 7.0;
+        final double ratio = (double) width / height;
+        if (Math.abs(ratio - card) / card <= TOLERANCE) {
+            return new int[] {0, 0, width, height};
+        }
+        if (ratio > card) {
+            // Mas ancha que una carta (un fondo de pantalla): sobra por los lados.
+            final int w = (int) Math.round(height * card);
+            return new int[] {(width - w) / 2, 0, w, height};
+        }
+        final int h = (int) Math.round(width / card);
+        return new int[] {0, (height - h) / 2, width, h};
+    }
+
+    /** El tamanyo final de un trozo: como mucho {@link #MAX_WIDTH}x{@link #MAX_HEIGHT}, nunca agrandado. */
+    public static int[] fittedSize(final int width, final int height) {
+        final double scale = Math.min(1.0, Math.min((double) MAX_WIDTH / width, (double) MAX_HEIGHT / height));
+        return new int[] {Math.max(1, (int) Math.round(width * scale)), Math.max(1, (int) Math.round(height * scale))};
+    }
+
     /** La extension de un fichero elegido, si es una de las que sirven; si no, {@code null}. */
     public static String extensionOf(final String fileName) {
         if (fileName == null) {

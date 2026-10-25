@@ -1033,20 +1033,101 @@ public final class CardImages {
      */
     public static File useOwnImage(final String imageKey, final File source) throws java.io.IOException {
         final String ext = OwnImage.extensionOf(source == null ? null : source.getName());
-        final File target = ext == null ? null : OwnImage.target(imageKey, ext);
+        if (ext == null) {
+            return null;
+        }
+        final byte[] card = asCard(source, ext);
+        if (card == null) {
+            return null;
+        }
+        final File target = OwnImage.install(imageKey, new java.io.ByteArrayInputStream(card), ext);
         if (target == null) {
             return null;
         }
-        target.getParentFile().mkdirs();
-        java.nio.file.Files.copy(source.toPath(), target.toPath(),
-                java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        forgetAndReload(imageKey, target);
+        return target;
+    }
+
+    /**
+     * La imagen elegida, con forma y tamanyo de carta ({@link OwnImage#cardCrop},
+     * {@link OwnImage#fittedSize}): un fondo de pantalla de 3840x2160 se queda
+     * en el centro con forma de carta y a 672x936, como una de Scryfall. Lo que
+     * ya es una carta de ese tamanyo o menor se guarda tal cual. {@code null}
+     * si no se puede leer como imagen.
+     */
+    private static byte[] asCard(final File source, final String ext) throws java.io.IOException {
+        final java.awt.image.BufferedImage in = javax.imageio.ImageIO.read(source);
+        if (in == null) {
+            return null;
+        }
+        final int[] crop = OwnImage.cardCrop(in.getWidth(), in.getHeight());
+        final int[] size = OwnImage.fittedSize(crop[2], crop[3]);
+        if (crop[2] == in.getWidth() && crop[3] == in.getHeight()
+                && size[0] == crop[2] && size[1] == crop[3]) {
+            return java.nio.file.Files.readAllBytes(source.toPath());
+        }
+        final boolean png = ".png".equals(ext);
+        final java.awt.image.BufferedImage out = new java.awt.image.BufferedImage(size[0], size[1],
+                png ? java.awt.image.BufferedImage.TYPE_INT_ARGB : java.awt.image.BufferedImage.TYPE_INT_RGB);
+        final java.awt.Graphics2D g = out.createGraphics();
+        try {
+            g.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
+                    java.awt.RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+            g.setRenderingHint(java.awt.RenderingHints.KEY_RENDERING, java.awt.RenderingHints.VALUE_RENDER_QUALITY);
+            g.drawImage(in, 0, 0, size[0], size[1], crop[0], crop[1], crop[0] + crop[2], crop[1] + crop[3], null);
+        } finally {
+            g.dispose();
+        }
+        final java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+        if (png) {
+            javax.imageio.ImageIO.write(out, "png", bytes);
+        } else {
+            final javax.imageio.ImageWriter writer = javax.imageio.ImageIO.getImageWritersByFormatName("jpg").next();
+            final javax.imageio.ImageWriteParam param = writer.getDefaultWriteParam();
+            param.setCompressionMode(javax.imageio.ImageWriteParam.MODE_EXPLICIT);
+            param.setCompressionQuality(0.92f);
+            try (javax.imageio.stream.ImageOutputStream ios = javax.imageio.ImageIO.createImageOutputStream(bytes)) {
+                writer.setOutput(ios);
+                writer.write(null, new javax.imageio.IIOImage(out, null, null), param);
+            } finally {
+                writer.dispose();
+            }
+        }
+        return bytes.toByteArray();
+    }
+
+    /**
+     * Quita la imagen propia de esa clave y vuelve a la que habia (ver
+     * {@link OwnImage#restore}). false si no habia propia.
+     */
+    public static boolean restoreOriginalImage(final String imageKey) {
+        if (!OwnImage.restore(imageKey)) {
+            return false;
+        }
+        File back = null;
+        for (final String ext : new String[] {".jpg", ".png"}) {
+            final File t = OwnImage.target(imageKey, ext);
+            if (t != null && t.isFile()) {
+                back = t;
+            }
+        }
+        forgetAndReload(imageKey, back);
+        return true;
+    }
+
+    /** Olvida lo que se sabia de esa imagen y, si hay fichero, lo vuelve a leer. */
+    private static void forgetAndReload(final String imageKey, final File file) {
         // Lo que recordaba que NO habia imagen, fuera: la del motor y las nuestras.
         ImageKeys.clearMissingCards();
         FAILED.remove(imageKey);
         NO_IMAGE.remove(imageKey);
+        CACHE.invalidate(imageKey);
         SCALED.asMap().keySet().removeIf(k -> k.startsWith(imageKey));
-        LOADERS.submit(() -> decode(imageKey, target));
-        return target;
+        if (file != null) {
+            LOADERS.submit(() -> decode(imageKey, file));
+        } else {
+            notifyReady(imageKey);
+        }
     }
 
     private static void decode(final String imageKey, final File file) {

@@ -37,10 +37,12 @@ public final class NeoSounds {
     public static final String SETTING = "neoSounds";
 
     /**
-     * APAGADO de fabrica (Ana, 24-10-2026: "que lo active quien quiera"): quien
-     * ya juega se encuentra Forge como siempre, y lo nuestro es una opcion.
+     * ENCENDIDO de fabrica desde el 25-10-2026 (Ana: "pon por defecto mis
+     * sonidos a on"), con las tres tandas ya elegidas. Del 24 al 25-10 estuvo
+     * apagado ("que lo active quien quiera"). Quien lo haya apagado a mano lo
+     * sigue teniendo apagado: solo cambia para quien no lo ha tocado.
      */
-    public static final boolean DEFAULT = false;
+    public static final boolean DEFAULT = true;
 
     /** En un monton: "el de Forge de siempre". */
     public static final String FORGE = "";
@@ -50,7 +52,7 @@ public final class NeoSounds {
     public static final String PACK_OPEN = "pack_open";
 
     /** Subirlo al cambiar un fichero por otro con el mismo nombre (ver {@link #file}). */
-    private static final int VERSION = 1;
+    private static final int VERSION = 3;
 
     /** Evento (el nombre del sonido de Forge, sin extension) -> sus variantes. */
     private static final Map<String, String[]> POOLS = new java.util.HashMap<>();
@@ -90,6 +92,18 @@ public final class NeoSounds {
         put("sacrifice", 1);
         put("regeneration", 1);
         put("start_duel", 1);
+        // La tercera tanda (25-10-2026): las tierras a la medida de las de Forge
+        // (1,7 s), salvo la llanura, que se queda con sus caballos. La montanya
+        // pasa a ser fuego de hoguera (sustituye a la de la tanda 2).
+        put("blue_land", 1);
+        put("black_land", 1);
+        put("green_land", 1);
+        // Las tierras de varios colores, las incoloras y las de "cualquier
+        // color": Forge cae aqui (EventVisualizer) y no trae fichero.
+        put("other_land", 1);
+        put("damage", 1);
+        put("equip", 1);
+        put("phasing", 2);
     }
 
     private NeoSounds() {

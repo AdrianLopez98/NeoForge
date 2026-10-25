@@ -47,4 +47,22 @@ public final class NeoPaymentPeek {
     public static boolean isEffectPayment(final Input input) {
         return input instanceof InputPayMana pay && pay.effect;
     }
+
+    /**
+     * Las fuentes que usaria "Auto" ahora mismo, o {@code null} si no puede
+     * pagar. Es EXACTAMENTE lo que calcula {@code InputPayMana} para su vista
+     * previa ({@code ensureAutoPayManaSources}: la IA en el asiento del
+     * jugador), sobre una copia del coste, asi que no paga nada. Lo usa
+     * {@code forge.neo.match.AutoPaySacrifice}.
+     */
+    public static forge.game.card.CardCollection autoPlan(final Input input) {
+        if (!(input instanceof InputPayMana pay) || pay.manaCost == null || pay.manaCost.isPaid()) {
+            return null;
+        }
+        final ManaCostBeingPaid copy = new ManaCostBeingPaid(pay.manaCost);
+        final forge.game.card.CardCollection[] out = {null};
+        pay.runAsAi(() -> out[0] = forge.ai.ComputerUtilMana.getManaSourcesToPayCost(
+                copy, pay.saPaidFor, pay.player, pay.effect));
+        return out[0];
+    }
 }

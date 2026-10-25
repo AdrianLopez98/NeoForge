@@ -85,6 +85,8 @@ public class DraftSetupScreen extends BorderPane {
 
     private final PackMix mix = new PackMix();
     private final VBox mixBox = new VBox();
+    /** Importar de CubeCobra: solo con "Un cubo" (Discord, 25-10-2026). */
+    private final Region cubeImport = CubeView.importBar(this::cubeImported);
     private List<CardBlock> shownBlocks = new ArrayList<>();
     private Button[] modeButtons;
     private Button go;
@@ -133,9 +135,11 @@ public class DraftSetupScreen extends BorderPane {
         // La pagina es lo que quepa, no 24 fijas: ver Pager.fitTo.
         pager.fitTo(scroll, grid, UiScale.px(210), UiScale.px(50), 8);
 
-        setBox = new VBox(8, mixBox, search, scroll, pager);
+        setBox = new VBox(8, mixBox, cubeImport, search, scroll, pager);
         mixBox.setVisible(false);
         mixBox.setManaged(false);
+        cubeImport.setVisible(false);
+        cubeImport.setManaged(false);
         VBox.setVgrow(setBox, Priority.ALWAYS);
 
         final VBox content = new VBox(12,
@@ -200,6 +204,11 @@ public class DraftSetupScreen extends BorderPane {
      */
     private void mixTestHook(final Runnable toMix, final Runnable toBlock) {
         final String t = System.getProperty("neo.mixTest");
+        if ("cube".equals(t)) {
+            // =cube: "Un cubo", con la barra de CubeCobra.
+            switchMode(Mode.CUBE, modeButtons, modeButtons[4]);
+            return;
+        }
         if ("random".equals(t)) {
             // =random: "Mezclar" y el boton "Al azar" pulsado (PackMix.random).
             toMix.run();
@@ -271,6 +280,8 @@ public class DraftSetupScreen extends BorderPane {
         final boolean showGrid = mode != Mode.ALL;
         setBox.setVisible(showGrid);
         setBox.setManaged(showGrid);
+        cubeImport.setVisible(mode == Mode.CUBE);
+        cubeImport.setManaged(mode == Mode.CUBE);
         refreshMix();
         refreshChosen();
     }
@@ -380,28 +391,30 @@ public class DraftSetupScreen extends BorderPane {
     }
 
     private Region cubeTile(final forge.gamemodes.limited.CustomLimited cube) {
-        final Label name = new Label(cube.getName());
-        name.getStyleClass().add("duel-name");
-        name.setWrapText(true);
-        name.setMaxWidth(UiScale.px(190));
-        name.setMinHeight(Region.USE_PREF_SIZE);
-
-        final Label count = new Label(NeoText.get("draftNew.cubeSize", cube.getCardPool().countAll()));
-        count.getStyleClass().add("set-code");
-
-        final VBox box = new VBox(2, count, name);
-        box.getStyleClass().add("set-tile");
-        box.setPadding(new Insets(8, 10, 8, 10));
-        box.setPrefWidth(UiScale.px(210));
-        box.pseudoClassStateChanged(PICKED, cube.equals(chosenCube));
-        box.setOnMouseClicked(e -> {
-            if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY) {
-                chosenCube = cube;
-                paint();
-                refreshChosen();
+        return CubeView.tile(cube, cube.equals(chosenCube), () -> {
+            chosenCube = cube;
+            paint();
+            refreshChosen();
+        }, () -> {
+            if (cube.equals(chosenCube)) {
+                chosenCube = null;
             }
+            reload();
         });
-        return box;
+    }
+
+    /** Recien importado: se elige, y se va a la primera pagina, donde sale. */
+    private void cubeImported(final String name) {
+        search.clear();
+        pager.reset();
+        reload();
+        for (final forge.gamemodes.limited.CustomLimited c : shownCubes) {
+            if (c.getName().equals(name)) {
+                chosenCube = c;
+            }
+        }
+        paint();
+        refreshChosen();
     }
 
     private Region tile(final CardEdition edition) {

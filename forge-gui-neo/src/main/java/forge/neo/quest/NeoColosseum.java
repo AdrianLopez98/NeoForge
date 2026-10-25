@@ -374,6 +374,7 @@ public final class NeoColosseum {
         // pago, solo los creditos (no hay forma de abrirlo en otra).
         final NeoQuestShop.Opened pack = FModel.getQuest() == e.quest ? giftCollector() : null;
         e.quest.getAchievements().addWin();
+        NeoQuestTrophies.noteColosseumWin(e.questName);
         forgetLineup(e.questName);
         e.quest.save();
         System.out.printf(java.util.Locale.ROOT, "[coliseo] ganado: %d creditos y %s%n", credits,

@@ -3036,6 +3036,18 @@
     -fx-background-color: -neo-accent;
 }
 
+/* La placa de un trofeo en la vitrina de la Quest (QuestTrophyCase): negra
+   y con letra clara, como la placa de la vitrina de logros de Forge. */
+.trophy-plate {
+    -fx-background-color: #0B0E12;
+    -fx-background-radius: 4;
+    -fx-border-color: #6B5A35;
+    -fx-border-radius: 4;
+    -fx-padding: 3 6 3 6;
+    -fx-text-fill: -neo-text;
+    -fx-font-size: 0.85em;
+}
+
 /* Una casilla de numero que ademas es un boton (la coleccion de la aventura). */
 .stat-tile-link {
     -fx-cursor: hand;

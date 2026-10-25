@@ -73,6 +73,10 @@ public class QuestBazaarScreen extends StackPane {
         // Clic derecho sobre una mascota: su carta en grande.
         CardZoom.install(this);
 
+        // Solo pruebas: mejoras compradas en memoria para ver las insignias.
+        if (Boolean.getBoolean("neo.bazaar.demoUpgrades")) {
+            NeoQuestBazaar.demoUpgradesForTest();
+        }
         reload();
 
         // -Dneo.bazaar.ask=Flesh: abre la pregunta del objeto cuyo nombre lo
@@ -159,6 +163,10 @@ public class QuestBazaarScreen extends StackPane {
         content.getChildren().clear();
 
         content.getChildren().add(pets());
+        final Region upgrades = upgrades();
+        if (upgrades != null) {
+            content.getChildren().add(upgrades);
+        }
 
         for (final NeoQuestBazaar.Stall stall : NeoQuestBazaar.stalls()) {
             content.getChildren().add(stallBox(stall));
@@ -510,6 +518,83 @@ public class QuestBazaarScreen extends StackPane {
         final VBox row = new VBox(4, label, choices);
         row.setPadding(new Insets(4, 0, 4, 0));
         return row;
+    }
+
+    /**
+     * Las mejoras que ya tienes, como insignias (Discord, 25-10-2026: <i>"I
+     * bought a zeppelin, I'd like to show it off"</i>). Desaparecen del puesto
+     * al comprarlas y no se veian en ningun sitio. Cada una con el icono de
+     * Forge ({@link NeoQuestBazaar#ownedUpgrades}), su nivel si tiene varios y
+     * lo que hace al pasar el raton. Sin ninguna, el apartado no sale.
+     */
+    private Region upgrades() {
+        final List<NeoQuestBazaar.OwnedUpgrade> owned = NeoQuestBazaar.ownedUpgrades();
+        if (owned.isEmpty()) {
+            return null;
+        }
+        final Label cap = new Label(NeoText.get("bazaar.upgrades"));
+        cap.getStyleClass().add("caption");
+        final javafx.scene.layout.FlowPane badges = new javafx.scene.layout.FlowPane(10, 10);
+        for (final NeoQuestBazaar.OwnedUpgrade u : owned) {
+            badges.getChildren().add(upgradeBadge(u));
+        }
+        final VBox tile = new VBox(8, cap, badges);
+        tile.getStyleClass().add("stat-tile");
+        tile.setPadding(new Insets(14, 18, 14, 18));
+        tile.setId("bazaar-upgrades");
+        return tile;
+    }
+
+    static Region upgradeBadge(final NeoQuestBazaar.OwnedUpgrade u) {
+        final VBox badge = new VBox(4);
+        badge.setAlignment(Pos.CENTER);
+        badge.getStyleClass().add("set-tile");
+        badge.setPadding(new Insets(10, 12, 10, 12));
+        badge.setPrefWidth(UiScale.px(124));
+        final javafx.scene.image.Image sprite = sprite(u.iconFile());
+        if (sprite != null && u.iconRect() != null) {
+            final int[] r = u.iconRect();
+            final javafx.scene.image.ImageView icon = new javafx.scene.image.ImageView(sprite);
+            icon.setViewport(new javafx.geometry.Rectangle2D(r[0], r[1], r[2], r[3]));
+            icon.setFitWidth(UiScale.px(56));
+            icon.setFitHeight(UiScale.px(56));
+            icon.setPreserveRatio(true);
+            icon.setSmooth(true);
+            badge.getChildren().add(icon);
+        }
+        final Label name = new Label(u.name());
+        name.getStyleClass().add("duel-name");
+        name.setWrapText(true);
+        name.setMaxWidth(UiScale.px(110));
+        name.setAlignment(Pos.CENTER);
+        name.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
+        name.setMinHeight(Region.USE_PREF_SIZE);
+        badge.getChildren().add(name);
+        if (u.maxLevel() > 1) {
+            final Label level = new Label(NeoText.get("bazaar.upgradeLevel", u.level(), u.maxLevel()));
+            level.getStyleClass().add("home-subtitle");
+            badge.getChildren().add(level);
+        }
+        if (u.description() != null && !u.description().isBlank()) {
+            final javafx.scene.control.Tooltip tip = new javafx.scene.control.Tooltip(u.description());
+            tip.setWrapText(true);
+            tip.setMaxWidth(UiScale.px(420));
+            javafx.scene.control.Tooltip.install(badge, tip);
+        }
+        return badge;
+    }
+
+    /** Las laminas de iconos, leidas una vez cada una: la de Forge y el zepelin, que va aparte. */
+    private static final java.util.Map<String, javafx.scene.image.Image> SPRITES = new java.util.HashMap<>();
+
+    private static javafx.scene.image.Image sprite(final String file) {
+        if (file == null) {
+            return null;
+        }
+        return SPRITES.computeIfAbsent(file, k -> {
+            final java.io.File f = new java.io.File(k);
+            return f.isFile() ? new javafx.scene.image.Image(f.toURI().toString()) : null;
+        });
     }
 
     private Button petPick(final int slot, final String value, final String label,

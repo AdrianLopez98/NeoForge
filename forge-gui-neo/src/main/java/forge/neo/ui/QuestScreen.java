@@ -155,6 +155,13 @@ public class QuestScreen extends StackPane {
         // Es su propio alto, asi que no ata la pantalla a nada que viva mas.
         shownWidth = cardWidth;
         heightProperty().addListener((o, was, h) -> fitToHeight(h.doubleValue()));
+        // Solo pruebas: -Dneo.quest.openTrophies=true abre la vitrina.
+        if (Boolean.getBoolean("neo.quest.openTrophies")) {
+            final javafx.animation.PauseTransition later =
+                    new javafx.animation.PauseTransition(javafx.util.Duration.millis(1500));
+            later.setOnFinished(e -> showTrophyCase());
+            later.play();
+        }
         // Solo pruebas: -Dneo.quest.openUnlock=true abre la lista de desbloqueos.
         if (Boolean.getBoolean("neo.quest.openUnlock") && forge.neo.quest.NeoQuestUnlock.available()) {
             final javafx.animation.PauseTransition later =
@@ -214,7 +221,14 @@ public class QuestScreen extends StackPane {
                 row.getChildren().add(daily);
             }
         }
-        row.getChildren().addAll(prefs, nueva);
+        // La vitrina (Discord, 25-10-2026): lo ganado, a la vista. En la
+        // cabecera porque no es una accion de la Quest, es mirarla.
+        final Button trophies = new Button(NeoText.get("trophies.button"));
+        trophies.setId("quest-trophies");
+        trophies.getStyleClass().add("btn-secondary");
+        trophies.setMinWidth(Region.USE_PREF_SIZE);
+        trophies.setOnAction(e -> showTrophyCase());
+        row.getChildren().addAll(trophies, prefs, nueva);
         row.setAlignment(Pos.CENTER_LEFT);
         row.setPadding(new Insets(20, 28, 6, 30));
         return row;
@@ -255,7 +269,10 @@ public class QuestScreen extends StackPane {
         row.setAlignment(Pos.CENTER_LEFT);
         row.getChildren().addAll(
                 tile(String.valueOf(NeoQuest.credits()), NeoText.get("quest.credits"), "stat-credits"),
-                tile(NeoQuest.wins() + " - " + NeoQuest.losses(), NeoText.get("quest.record"), null),
+                // El historial abre la vitrina: es donde mira quien quiere
+                // saber que ha ganado.
+                clickable(tile(NeoQuest.wins() + " - " + NeoQuest.losses(), NeoText.get("quest.record"), null),
+                        this::showTrophyCase),
                 // El numero de cartas ES el boton de la coleccion. Si algo
                 // grande dice "146 cartas en tu coleccion", se clica: la misma
                 // regla que ya se aplico a las pilas de la mesa.
@@ -851,6 +868,13 @@ public class QuestScreen extends StackPane {
         row.getStyleClass().add("stat-tile");
         row.setPadding(new Insets(12, 18, 12, 18));
         return new VBox(6, caption, row);
+    }
+
+    /** La vitrina: ver {@link QuestTrophyCase}. */
+    void showTrophyCase() {
+        overlay.setOnBackgroundClick(overlay::hide);
+        overlay.show(new QuestTrophyCase(overlay::hide,
+                Math.min(UiScale.px(900), Math.max(420, getWidth() * 0.9)), getHeight()));
     }
 
     /** La lista: las mas cercanas en fecha primero, con su precio. */

@@ -70,7 +70,9 @@ public final class TokenArtDownload extends GuiDownloadService {
         // esta en ninguna, se da por perdida.  Si alguna busqueda falla por la
         // red, se intenta como antes por la API: puede que si este.
         final Map<String, List<String[]>> printings = allPrintings();
+        final Map<String, String> hosted = hostedTokens();
         int cdn = 0;
+        int forgeHosted = 0;
         int absent = 0;
         for (final Map.Entry<String, String[]> e : missing.entrySet()) {
             final String[] newest = e.getValue();
@@ -78,6 +80,15 @@ public final class TokenArtDownload extends GuiDownloadService {
             String url = null;
             boolean unsure = false;
             for (final String[] where : printings.getOrDefault(name, List.<String[]>of(newest))) {
+                // Las que Forge sirve de su lista (token-images.txt): las de
+                // borde antiguo que Scryfall no tiene (Discord, 25-10-2026:
+                // OBC, PAST y TDLS, que la enciclopedia SI bajaba y el boton no).
+                final String own = where.length > 2 ? hosted.get(hostedName(where[2], where[1], name)) : null;
+                if (own != null) {
+                    url = own;
+                    forgeHosted++;
+                    break;
+                }
                 final String found = cdnUrl(where[0], where[1]);
                 if (found == UNKNOWN) {
                     unsure = true;
@@ -97,8 +108,8 @@ public final class TokenArtDownload extends GuiDownloadService {
             }
             out.put(e.getKey(), url);
         }
-        System.out.println("[fichas] " + out.size() + " por bajar, " + cdn + " de la CDN; "
-                + absent + " que Scryfall no tiene");
+        System.out.println("[fichas] " + out.size() + " por bajar, " + cdn + " de la CDN, " + forgeHosted
+                + " de la lista de Forge; " + absent + " que nadie tiene");
         return out;
     }
 
@@ -170,7 +181,10 @@ public final class TokenArtDownload extends GuiDownloadService {
                 c.setRequestProperty("Accept", "application/json");
                 c.setRequestProperty("User-Agent", forge.gui.GuiBase.getInterface().getUserAgent());
                 final int status = c.getResponseCode();
-                if (status == 404) {
+                // 404: el juego no tiene nada. 400: Scryfall no conoce ese codigo
+                // (OBC, PAST...). Las dos son "no la tiene", no "no se sabe": si
+                // no, se probaba por la API y fallaba en cada pasada.
+                if (status == 404 || status == 400) {
                     c.disconnect();
                     break;
                 }
@@ -223,6 +237,43 @@ public final class TokenArtDownload extends GuiDownloadService {
         return uris.has("normal") ? uris.get("normal").getAsString() : null;
     }
 
+    /**
+     * La lista de Forge de fichas que sirve de otro sitio
+     * ({@code res/lists/token-images.txt}, la misma que lee {@code ImageFetcher}):
+     * nombre de fichero en minusculas -> direccion.
+     */
+    static Map<String, String> hostedTokens() {
+        final Map<String, String> out = new HashMap<>();
+        try {
+            for (final org.apache.commons.lang3.tuple.Pair<String, String> pair
+                    : forge.util.FileUtil.readNameUrlFile(ForgeConstants.IMAGE_LIST_TOKENS_FILE)) {
+                if (pair.getLeft() != null && pair.getRight() != null) {
+                    out.put(pair.getLeft().toLowerCase(java.util.Locale.ROOT), pair.getRight());
+                }
+            }
+        } catch (final RuntimeException e) {
+            System.out.println("[fichas] sin la lista de Forge: " + e);
+        }
+        return out;
+    }
+
+    /** Como la nombra {@code ImageFetcher}: {@code <SET>/<numero>_<nombre>.jpg}, en minusculas. */
+    static String hostedName(final String setCode, final String number, final String name) {
+        return (setCode + "/" + number + "_" + name + ".jpg").toLowerCase(java.util.Locale.ROOT);
+    }
+
+    /** Para el comprobador: la direccion de la lista de Forge de esa ficha, o null. */
+    public static String hostedUrlForTest(final String name) {
+        final Map<String, String> hosted = hostedTokens();
+        for (final String[] where : allPrintings().getOrDefault(name, List.of())) {
+            final String url = where.length > 2 ? hosted.get(hostedName(where[2], where[1], name)) : null;
+            if (url != null) {
+                return url;
+            }
+        }
+        return null;
+    }
+
     /** Despues de bajar: que se vean sin reiniciar. */
     public static void afterDownload() {
         forge.ImageKeys.clearMissingCards();
@@ -255,7 +306,7 @@ public final class TokenArtDownload extends GuiDownloadService {
                 final Date seen = when.get(name);
                 if (seen == null || ed.getDate().after(seen)) {
                     when.put(name, ed.getDate());
-                    best.put(name, new String[] {ed.getTokensCode(), number});
+                    best.put(name, new String[] {ed.getTokensCode(), number, ed.getCode()});
                 }
             }
         }
@@ -281,7 +332,7 @@ public final class TokenArtDownload extends GuiDownloadService {
                         continue;
                     }
                     found.computeIfAbsent(t.getKey(), k -> new ArrayList<>())
-                            .add(new Object[] {ed.getDate(), new String[] {ed.getTokensCode(), number}});
+                            .add(new Object[] {ed.getDate(), new String[] {ed.getTokensCode(), number, ed.getCode()}});
                 }
             }
         }

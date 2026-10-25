@@ -69,7 +69,35 @@ public class DeckStackView extends ScrollPane {
 
         /** Menu de la carta: ver, cambiar edicion, quitar. */
         void menu(PaperCard card, Region anchor, double screenX, double screenY, boolean isCommander);
+
+        /** Una copia mas (el "+" de la carta). Sin implementar, no hay botones. */
+        default void add(PaperCard card) {
+        }
+
+        /** Una copia menos (el "-" de la carta). */
+        default void remove(PaperCard card) {
+        }
+
+        /** Si los botones de copias tienen sentido aqui. */
+        default boolean canEdit() {
+            return false;
+        }
+
+        /** El filtro del mazo de la vista de montar ("Filtrar"): lo que no pasa, no sale. */
+        default boolean accepts(PaperCard card) {
+            return true;
+        }
     }
+
+    /**
+     * COMO SE AGRUPA (Discord, 24-10-2026: ver el mazo por coste, color o
+     * rareza, no solo por tipo). Los mismos criterios y textos que los grupos
+     * del catalogo ({@link DeckEditor#groupKey}). Se recuerda.
+     */
+    private DeckEditor.Group group;
+    private static final String GROUP_KEY = "deck.visual.group";
+    private final javafx.scene.control.TextField search = new javafx.scene.control.TextField();
+    private final List<javafx.scene.control.Button> groupButtons = new ArrayList<>();
 
     private final HBox columns = new HBox(16);
 
@@ -105,8 +133,43 @@ public class DeckStackView extends ScrollPane {
         // haya que adivinar).
         zoomHint.getStyleClass().add("home-subtitle");
         zoomHint.setOnMouseClicked(e -> setZoom(1, Double.NaN));
-        final HBox hintRow = new HBox(zoomHint);
-        hintRow.setAlignment(Pos.CENTER_RIGHT);
+        // Agrupar por y buscar, a la izquierda; el zoom, a la derecha.
+        try {
+            group = DeckEditor.Group.valueOf(NeoSettings.get(GROUP_KEY, DeckEditor.Group.TYPE.name()));
+        } catch (final IllegalArgumentException e) {
+            group = DeckEditor.Group.TYPE;
+        }
+        if (group == DeckEditor.Group.NONE) {
+            group = DeckEditor.Group.TYPE;
+        }
+        final Label groupCaption = new Label(NeoText.get("deck.visual.groupBy"));
+        groupCaption.getStyleClass().add("caption");
+        groupCaption.setMinWidth(Region.USE_PREF_SIZE);
+        final HBox groupBox = new HBox(4, groupCaption);
+        groupBox.setAlignment(Pos.CENTER_LEFT);
+        for (final DeckEditor.Group g : new DeckEditor.Group[] {DeckEditor.Group.TYPE,
+                DeckEditor.Group.COST, DeckEditor.Group.COLOR, DeckEditor.Group.RARITY}) {
+            final javafx.scene.control.Button b = new javafx.scene.control.Button(
+                    NeoText.get("deck.group." + g.name().toLowerCase(java.util.Locale.ROOT)));
+            b.getStyleClass().add("segment");
+            b.setMinWidth(Region.USE_PREF_SIZE);
+            b.setUserData(g);
+            b.setOnAction(e -> {
+                group = g;
+                NeoSettings.set(GROUP_KEY, g.name());
+                NeoSettings.save();
+                refresh();
+            });
+            groupButtons.add(b);
+            groupBox.getChildren().add(b);
+        }
+        search.setPromptText(NeoText.get("deck.filterDeck.search"));
+        search.setPrefWidth(UiScale.px(200));
+        search.textProperty().addListener((o, a, b) -> refresh());
+        final Region hintGap = new Region();
+        HBox.setHgrow(hintGap, javafx.scene.layout.Priority.ALWAYS);
+        final HBox hintRow = new HBox(10, groupBox, search, hintGap, zoomHint);
+        hintRow.setAlignment(Pos.CENTER_LEFT);
         hintRow.setPadding(new Insets(8, 26, 0, 26));
         hintRow.setMinHeight(UiScale.px(HINT_SPACE));
         hintRow.setPrefHeight(UiScale.px(HINT_SPACE));
@@ -183,8 +246,8 @@ public class DeckStackView extends ScrollPane {
     /** Alto que se lleva el titulo de la columna. */
     private static final double HEADING_SPACE = 26;
 
-    /** Alto de la fila del aviso de zoom. */
-    private static final double HINT_SPACE = 26;
+    /** Alto de la fila del aviso de zoom (y de agrupar y buscar). */
+    private static final double HINT_SPACE = 34;
 
     private void sizeCards() {
         cardWidth = baseWidth * zoom;
@@ -260,12 +323,25 @@ public class DeckStackView extends ScrollPane {
             addGroup(NeoText.get("deck.commander"), commanders.size(), cards);
         }
 
-        for (final Map.Entry<String, Integer> group : editor.typeCounts().entrySet()) {
+        for (final javafx.scene.control.Button b : groupButtons) {
+            b.pseudoClassStateChanged(javafx.css.PseudoClass.getPseudoClass("selected"), b.getUserData() == group);
+        }
+        final String text = search.getText() == null ? "" : search.getText().trim();
+        for (final Map.Entry<String, List<Map.Entry<PaperCard, Integer>>> g
+                : editor.deckGroups(group).entrySet()) {
             final List<Region> cards = new ArrayList<>();
-            for (final Map.Entry<PaperCard, Integer> e : editor.cardsInGroup(group.getKey())) {
+            int count = 0;
+            for (final Map.Entry<PaperCard, Integer> e : g.getValue()) {
+                if (!actions.accepts(e.getKey()) || !text.isEmpty()
+                        && !forge.neo.deck.DeckFilter.accepts(e.getKey(), 0, false, text,
+                                java.util.Set.of(), java.util.Set.of(), java.util.Set.of())) {
+                    continue;
+                }
                 cards.add(stackedCard(e.getKey(), e.getValue(), false));
+                count += e.getValue();
             }
-            addGroup(forge.neo.deck.DeckEditor.groupLabel(group.getKey()), group.getValue(), cards);
+            addGroup(group == DeckEditor.Group.TYPE ? DeckEditor.groupLabel(g.getKey())
+                    : DeckEditor.catalogueGroupLabel(g.getKey()), count, cards);
         }
 
         if (columns.getChildren().isEmpty()) {
@@ -392,6 +468,20 @@ public class DeckStackView extends ScrollPane {
             }
         });
 
+        // Quitar o anyadir una copia sin salir de esta vista, como en la lista:
+        // los botones salen al pasar el raton (el comandante va por su menu).
+        if (!isCommander && actions.canEdit()) {
+            final HBox steps = new HBox(3, stepButton("-", () -> actions.remove(card)),
+                    stepButton("+", () -> actions.add(card)));
+            steps.setAlignment(Pos.CENTER);
+            steps.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+            steps.setVisible(false);
+            box.getChildren().add(steps);
+            StackPane.setAlignment(steps, Pos.BOTTOM_CENTER);
+            StackPane.setMargin(steps, new Insets(0, 0, 6, 0));
+            box.hoverProperty().addListener((o, a, b) -> steps.setVisible(b));
+        }
+
         // Al pasar por encima, la pila se abre por debajo de esta carta para
         // leerla entera sin taparle el paso a la de abajo: ver CardPile.
         //
@@ -404,6 +494,15 @@ public class DeckStackView extends ScrollPane {
             }
         });
         return box;
+    }
+
+    private static javafx.scene.control.Button stepButton(final String text, final Runnable action) {
+        final javafx.scene.control.Button b = new javafx.scene.control.Button(text);
+        b.getStyleClass().add("stepper");
+        b.setOnAction(e -> action.run());
+        // Sin esto el clic llega tambien a la carta y ademas la amplia.
+        b.addEventHandler(javafx.scene.input.MouseEvent.MOUSE_CLICKED, javafx.event.Event::consume);
+        return b;
     }
 
 }

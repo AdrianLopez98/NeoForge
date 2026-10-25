@@ -521,6 +521,18 @@ public class TableScreen extends Pane {
                         zoomOverlay.isShowing() || menuOverlay.isShowing();
         zoomOverlay.visibleProperty().addListener(watchPause);
         menuOverlay.visibleProperty().addListener(watchPause);
+        // La carta grande tambien en lo que se abre encima (Discord, 25-10-2026:
+        // "activated also when there are pop outs, e.g. when looking at the
+        // graveyard or when scrying"): las cartas de los dialogos y de las
+        // zonas no pasan por hovered(), asi que se mira aqui, en sus dos capas.
+        final javafx.event.EventHandler<MouseEvent> popOutHover = e -> {
+            final CardNode n = cardNodeAt(e.getTarget(), (Node) e.getSource());
+            if (n != null) {
+                showBigCard(n);
+            }
+        };
+        overlay.addEventFilter(MouseEvent.MOUSE_ENTERED_TARGET, popOutHover);
+        menuOverlay.addEventFilter(MouseEvent.MOUSE_ENTERED_TARGET, popOutHover);
         // Los dialogos de la partida se pueden apartar para mirar la mesa: lo
         // que eliges con un tutor depende de lo que hay en ella. Ver Overlay.
         overlay.setPeekable(forge.neo.NeoText.get("overlay.peek"),
@@ -1799,6 +1811,81 @@ public class TableScreen extends Pane {
         hovered(n);
     }
 
+    /**
+     * Solo pruebas ({@code -Dneo.bigcard.popout}): la carta grande sobre la
+     * primera carta de lo que haya abierto encima. Dice si ha salido.
+     */
+    public String popOutHoverForTest() {
+        final java.util.List<CardNode> nodes = new java.util.ArrayList<>();
+        final Node layer = menuOverlay.isShowing() ? menuOverlay : overlay;
+        CardZoom.collectCardNodes(layer, nodes);
+        return bigCardSweep(nodes, layer);
+    }
+
+    /** Solo pruebas ({@code -Dneo.bigcard.table}): lo mismo con todas las cartas de la mesa. */
+    public String tableHoverForTest() {
+        final java.util.List<CardNode> all = new java.util.ArrayList<>();
+        CardZoom.collectCardNodes(this, all);
+        final java.util.List<CardNode> nodes = new java.util.ArrayList<>();
+        for (final CardNode n : all) {
+            if (!isInside(n, overlay) && !isInside(n, menuOverlay) && !isInside(n, zoomOverlay)
+                    && n.isVisible() && n.getScene() != null) {
+                nodes.add(n);
+            }
+        }
+        return bigCardSweep(nodes, null);
+    }
+
+    /**
+     * Pasa la carta grande por cada carta y cuenta: que salga, que no toque la
+     * carta que se mira (ya crecida), que quepa en la ventana y que vaya en su
+     * capa (encima de la ventana que la contiene; en la mesa, debajo de los
+     * dialogos).
+     */
+    private String bigCardSweep(final java.util.List<CardNode> nodes, final Node layer) {
+        int shown = 0;
+        int hidden = 0;
+        int bad = 0;
+        final double grown = Math.max(1.0, forge.neo.NeoSettings.hoverZoom());
+        for (final CardNode n : nodes) {
+            if (n == bigCard || n.getCard() == null) {
+                continue;
+            }
+            showBigCard(n);
+            if (!bigCard.isVisible()) {
+                hidden++;
+                continue;
+            }
+            shown++;
+            final javafx.geometry.Bounds c = sceneToLocal(n.localToScene(n.getBoundsInLocal()));
+            final double half = c.getWidth() / 2 * grown;
+            final javafx.geometry.Bounds g = bigCard.getBoundsInParent();
+            final boolean touches = g.getMinX() < c.getCenterX() + half && g.getMaxX() > c.getCenterX() - half;
+            final boolean outside = g.getMinX() < 0 || g.getMaxX() > getWidth()
+                    || g.getMinY() < 0 || g.getMaxY() > getHeight();
+            final boolean below = layer != null
+                    ? getChildren().indexOf(bigCard) != getChildren().indexOf(layer) + 1
+                    : getChildren().indexOf(bigCard) > getChildren().indexOf(overlay);
+            if (touches || outside || below) {
+                bad++;
+                System.out.printf(java.util.Locale.ROOT, "[grande] MAL en %s: tapa=%s fuera=%s debajo=%s carta=%.0f-%.0f grande=%.0f-%.0f%n",
+                        n.getCard().getName(), touches, outside, below, c.getCenterX() - half, c.getCenterX() + half,
+                        g.getMinX(), g.getMaxX());
+            }
+        }
+        return shown + " con carta grande, " + hidden + " sin sitio, " + bad + " mal";
+    }
+
+    /** Solo pruebas: cierra lo que haya abierto encima. */
+    public void closePopOutForTest() {
+        menuOverlay.hide();
+    }
+
+    /** Solo pruebas: si la carta grande esta a la vista. */
+    public boolean bigCardShownForTest() {
+        return bigCard.isVisible();
+    }
+
     private void hovered(final CardNode n) {
         applyDetailSetting();
         detail.show(n.getCard());
@@ -1862,27 +1949,114 @@ public class TableScreen extends Pane {
                     }
                 }
             });
+            // Un dialogo que se cierra con el raton encima de su carta: el nodo
+            // se va de la escena sin que su hover pase a false, y la carta
+            // grande se quedaria puesta.
+            n.sceneProperty().addListener(new javafx.beans.value.ChangeListener<javafx.scene.Scene>() {
+                @Override
+                public void changed(final javafx.beans.value.ObservableValue<? extends javafx.scene.Scene> o,
+                                    final javafx.scene.Scene was, final javafx.scene.Scene is) {
+                    if (is == null) {
+                        o.removeListener(this);
+                        if (bigCardOf == n) {
+                            bigCardOf = null;
+                            bigCardHide.playFromStart();
+                        }
+                    }
+                }
+            });
         }
         // Del tamanyo del panel de imagen de Forge: el 62% del alto de la mesa,
         // sin pasar de 720 px (en 4K seria un cartel).
-        final double h = Math.min(getHeight() * 0.62, UiScale.px(720));
-        final double w = h / CardNode.ASPECT;
-        bigCard.setCardWidth(w);
+        final double[] spot = bigCardSpot(n);
+        if (spot == null) {
+            // No cabe a un tamanyo que se lea sin tapar la carta que se mira:
+            // mejor nada que taparla.
+            bigCardOf = null;
+            bigCard.setVisible(false);
+            return;
+        }
+        bigCard.setCardWidth(spot[2]);
         bigCard.setCard(n.getCard());
-        final javafx.geometry.Bounds b = sceneToLocal(n.localToScene(n.getBoundsInLocal()));
-        final double margin = UiScale.px(24);
-        final boolean cardOnLeft = b != null && b.getCenterX() < getWidth() / 2;
         // resizeRelocate y no relocate: va fuera del layout (setManaged false),
         // asi que nadie mas le da su tamanyo y se quedaba con el del arranque.
-        bigCard.resizeRelocate(cardOnLeft ? getWidth() - w - margin - sideWidthNow() : margin,
-                Math.max(margin, (getHeight() - h) / 2), w, h);
-        if (!getChildren().contains(bigCard)) {
-            // Debajo de los dialogos y de la carta ampliada: lo que el motor
-            // pregunta manda sobre cualquier cartel nuestro (principio 4).
-            final int at = getChildren().indexOf(overlay);
+        bigCard.resizeRelocate(spot[0], spot[1], spot[2], spot[3]);
+        // Una carta de la mesa: debajo de los dialogos, porque lo que el motor
+        // pregunta manda sobre cualquier cartel nuestro (principio 4). Una
+        // carta de un dialogo o de una zona abierta: ENCIMA de su capa, o no
+        // se veria. Justo encima de la capa que la contiene, sin suponer el
+        // orden de las demas.
+        final Node layer = isInside(n, menuOverlay) ? menuOverlay : isInside(n, overlay) ? overlay : null;
+        final int now = getChildren().indexOf(bigCard);
+        final boolean placed = layer != null
+                ? now >= 0 && now == getChildren().indexOf(layer) + 1
+                : now >= 0 && now < getChildren().indexOf(overlay);
+        if (!placed) {
+            getChildren().remove(bigCard);
+            final int at = layer != null ? getChildren().indexOf(layer) + 1 : getChildren().indexOf(overlay);
             getChildren().add(at < 0 ? getChildren().size() : at, bigCard);
         }
         bigCard.setVisible(true);
+    }
+
+    /**
+     * Donde va la carta grande para no tapar NUNCA la que se mira:
+     * {@code {x, y, ancho, alto}}, o null si no cabe a un tamanyo legible.
+     *
+     * <p>Del tamanyo del panel de imagen de Forge (el 62 % del alto, sin pasar
+     * de 720 px), en el lado contrario al de la carta. Pero la carta que se
+     * mira puede estar cerca del centro y, en una ventana, ser ancha — y
+     * ademas crece al pasar el raton ({@code NeoSettings.hoverZoom}, hasta el
+     * 150 %), asi que se cuenta YA crecida. Si no cabe en su lado, el otro; si
+     * en ninguno, se encoge al hueco mas grande.
+     */
+    private double[] bigCardSpot(final CardNode n) {
+        final javafx.geometry.Bounds b = sceneToLocal(n.localToScene(n.getBoundsInLocal()));
+        if (b == null) {
+            return null;
+        }
+        final double margin = UiScale.px(24);
+        final double minX = margin;
+        final double maxX = getWidth() - sideWidthNow() - margin;
+        final double grown = Math.max(1.0, forge.neo.NeoSettings.hoverZoom());
+        final double half = b.getWidth() / 2 * grown;
+        final double cardLeft = b.getCenterX() - half;
+        final double cardRight = b.getCenterX() + half;
+        // Lo que cabe a cada lado, dejando el margen tambien junto a la carta.
+        final double leftRoom = cardLeft - margin - minX;
+        final double rightRoom = maxX - (cardRight + margin);
+
+        double h = Math.min(getHeight() * 0.62, UiScale.px(720));
+        double w = h / CardNode.ASPECT;
+        final boolean preferRight = b.getCenterX() < getWidth() / 2;
+        boolean right;
+        if ((preferRight ? rightRoom : leftRoom) >= w) {
+            right = preferRight;
+        } else if ((preferRight ? leftRoom : rightRoom) >= w) {
+            right = !preferRight;
+        } else {
+            right = rightRoom >= leftRoom;
+            w = Math.max(0, right ? rightRoom : leftRoom);
+            h = w * CardNode.ASPECT;
+        }
+        if (w < UiScale.px(150)) {
+            return null;
+        }
+        final double x = right ? maxX - w : minX;
+        final double y = Math.max(margin, (getHeight() - h) / 2);
+        return new double[] {x, y, w, h};
+    }
+
+    /** La carta (CardNode) en la que esta {@code target}, sin salir de {@code layer}. */
+    private CardNode cardNodeAt(final Object target, final Node layer) {
+        Node n = target instanceof Node ? (Node) target : null;
+        while (n != null && n != layer) {
+            if (n instanceof CardNode c && c != bigCard && c.getCard() != null) {
+                return c;
+            }
+            n = n.getParent();
+        }
+        return null;
     }
 
     /** Lo que mide la columna de la derecha, para que la carta grande no la tape. */

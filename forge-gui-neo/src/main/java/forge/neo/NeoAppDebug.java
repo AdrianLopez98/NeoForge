@@ -1155,14 +1155,39 @@ final class NeoAppDebug {
         final CardView other = new CardView(9102, t, "Otra carta");
         final forge.game.player.PlayerView me = new forge.game.player.PlayerView(9100, t);
         me.set(forge.trackable.TrackableProperty.LobbyPlayerName, "Ana");
+        // -Dneo.bigcard.cards=N: un cementerio de N cartas, para probar la carta
+        // grande en todas las posiciones de la ventana.
+        final List<CardView> grave = new ArrayList<>(List.of(pickable, other));
+        for (int i = 3; i <= Integer.getInteger("neo.bigcard.cards", 2); i++) {
+            grave.add(new CardView(9100 + i, t, "Carta " + i));
+        }
         me.set(forge.trackable.TrackableProperty.Graveyard,
-                new forge.trackable.TrackableCollection<>(List.of(pickable, other)));
+                new forge.trackable.TrackableCollection<>(grave));
 
         app.table.setSelectable(c -> c != null && c.getId() == 9101);
         app.table.setOnCardClicked(c ->
                 System.out.println("[zone-pick] clicada: " + (c == null ? "?" : c.getName())));
         app.table.setPrompt("Maqueta: elige una criatura de tu cementerio (--mock-zone-pick)");
         app.table.showZone(me, forge.game.zone.ZoneType.Graveyard);
+        // -Dneo.bigHoverCard=true -Dneo.bigcard.popout=true: la carta grande
+        // sobre una carta del cementerio abierto (Discord, 25-10-2026).
+        if (Boolean.getBoolean("neo.bigcard.popout")) {
+            final javafx.animation.PauseTransition p = new javafx.animation.PauseTransition(
+                    javafx.util.Duration.millis(1500));
+            p.setOnFinished(e -> {
+                System.out.println("[grande] en el cementerio abierto: " + app.table.popOutHoverForTest());
+                // Y cerrar la ventana con el raton encima: se tiene que ir.
+                if (Boolean.getBoolean("neo.bigcard.close")) {
+                    app.table.closePopOutForTest();
+                    final javafx.animation.PauseTransition q = new javafx.animation.PauseTransition(
+                            javafx.util.Duration.millis(400));
+                    q.setOnFinished(f -> System.out.println("[grande] tras cerrar la ventana, sigue a la vista: "
+                            + app.table.bigCardShownForTest()));
+                    q.play();
+                }
+            });
+            p.play();
+        }
     }
 
     /** Tierras (o permanentes que no son ni tierra ni criatura) del mazo. */

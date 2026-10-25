@@ -297,6 +297,141 @@ public final class NeoQuestBazaar {
         NeoQuest.save();
     }
 
+    // ===============================================================
+    // Lo que ya has comprado (Discord, 25-10-2026: "I bought a zeppelin, I'd
+    // like to show it off"). Las mejoras desaparecen del puesto al comprarlas
+    // y no se veian en ningun sitio; las mascotas si tenian su apartado.
+    // ===============================================================
+
+    /**
+     * Una mejora comprada: su nombre, a que nivel la tienes (de cuantos), lo
+     * que hace, y su icono de Forge: el fichero de la lamina y el recorte
+     * {@code {x, y, ancho, alto}}, o null si no se sabe.
+     */
+    public record OwnedUpgrade(IQuestBazaarItem item, String name, int level, int maxLevel,
+                               String description, String iconFile, int[] iconRect) {
+    }
+
+    /**
+     * Las mejoras que tienes (nivel mayor que 0), en el orden del bazar. Sin
+     * las mascotas, que ya tienen su apartado.
+     *
+     * <p>Los objetos son los del motor: la lista entera es privada en
+     * {@code QuestBazaarManager} ({@code items}) y su icono tambien
+     * ({@code QuestItemBasic.icon}, un {@code FSkinProp} que pone XStream al
+     * leer {@code index.xml}), asi que se leen por reflexion. Si un dia
+     * cambian, no se rompe nada: la lista sale vacia o sin iconos.
+     */
+    public static List<OwnedUpgrade> ownedUpgrades() {
+        final List<OwnedUpgrade> out = new ArrayList<>();
+        if (!NeoQuest.isActive()) {
+            return out;
+        }
+        final QuestController q = NeoQuest.engine();
+        try {
+            // La lista se carga con los puestos (QuestBazaarManager.load), y
+            // solo cuando alguien los pide: sin esto, la primera vez salia vacia.
+            final java.util.Set<String> stallNames = q.getBazaar().getStallNames();
+            final java.lang.reflect.Field f = q.getBazaar().getClass().getDeclaredField("items");
+            f.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            final java.util.Map<String, IQuestBazaarItem> all =
+                    (java.util.Map<String, IQuestBazaarItem>) f.get(q.getBazaar());
+            // En el orden de los puestos, como se ven en el bazar.
+            final java.util.LinkedHashSet<IQuestBazaarItem> ordered = new java.util.LinkedHashSet<>();
+            for (final String stall : stallNames) {
+                final QuestStallDefinition def = q.getBazaar().getStall(stall);
+                if (def != null && def.getItems() != null) {
+                    for (final String name : def.getItems()) {
+                        final IQuestBazaarItem item = all.get(name);
+                        if (item != null) {
+                            ordered.add(item);
+                        }
+                    }
+                }
+            }
+            ordered.addAll(all.values());
+            for (final IQuestBazaarItem item : ordered) {
+                if (!(item instanceof forge.gamemodes.quest.bazaar.QuestItemBasic basic)) {
+                    continue;
+                }
+                final int level = q.getAssets().getItemLevel(basic.getItemType());
+                if (level <= 0) {
+                    continue;
+                }
+                out.add(new OwnedUpgrade(item, item.getPurchaseName(), level, basic.getMaxLevel(),
+                        descriptionOf(item), iconFile(basic), iconRect(basic)));
+            }
+        } catch (final ReflectiveOperationException | RuntimeException e) {
+            System.err.println("[bazar] no se han podido leer las mejoras compradas: " + e);
+        }
+        return out;
+    }
+
+    /**
+     * Solo pruebas ({@code -Dneo.bazaar.demoUpgrades=true}): zepelin, Estates
+     * 2 y Elixir 3, EN MEMORIA y sin guardar, para capturar las insignias.
+     */
+    public static void demoUpgradesForTest() {
+        if (!NeoQuest.isActive()) {
+            return;
+        }
+        final forge.gamemodes.quest.data.QuestAssets a = NeoQuest.engine().getAssets();
+        a.setItemLevel(QuestItemType.ZEPPELIN, Math.max(1, a.getItemLevel(QuestItemType.ZEPPELIN)));
+        a.setItemLevel(QuestItemType.ESTATES, Math.max(2, a.getItemLevel(QuestItemType.ESTATES)));
+        a.setItemLevel(QuestItemType.ELIXIR_OF_LIFE, Math.max(3, a.getItemLevel(QuestItemType.ELIXIR_OF_LIFE)));
+    }
+
+    /** La lamina de iconos de Forge, la del skin de serie (el zepelin, el nuestro). */
+    private static String iconFile(final forge.gamemodes.quest.bazaar.QuestItemBasic item) {
+        if (item.getItemType() == QuestItemType.ZEPPELIN) {
+            return zeppelinIcon();
+        }
+        return forge.localinstance.properties.ForgeConstants.DEFAULT_SKINS_DIR
+                + forge.localinstance.properties.ForgeConstants.SPRITE_ICONS_FILE;
+    }
+
+    /**
+     * El zepelin de Forge (ICO_QUEST_ZEP, y el BIG tambien) es una CALAVERA en
+     * la lamina de serie: a quien lo compra para presumir de zepelin no se le
+     * ensenya eso. El nuestro (25-10-2026) va en el jar, pintado con la IA
+     * local al estilo de los demas iconos del bazar (ver su PROCEDENCIA.md), y
+     * se saca a un fichero una vez: {@link OwnedUpgrade} habla de ficheros,
+     * porque Android recorta con {@code BitmapFactory.decodeFile}.
+     */
+    private static String zeppelinIcon() {
+        final java.io.File f = new java.io.File(System.getProperty("java.io.tmpdir"), "neoforge-zeppelin-1.png");
+        if (!f.isFile()) {
+            try (java.io.InputStream in = NeoQuestBazaar.class.getResourceAsStream("zeppelin.png")) {
+                if (in == null) {
+                    return null;
+                }
+                java.nio.file.Files.copy(in, f.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            } catch (final java.io.IOException | RuntimeException e) {
+                return null;
+            }
+        }
+        return f.getAbsolutePath();
+    }
+
+    private static int[] iconRect(final forge.gamemodes.quest.bazaar.QuestItemBasic item) {
+        if (item.getItemType() == QuestItemType.ZEPPELIN) {
+            return new int[] {0, 0, 80, 80};
+        }
+        try {
+            final java.lang.reflect.Field f = forge.gamemodes.quest.bazaar.QuestItemBasic.class.getDeclaredField("icon");
+            f.setAccessible(true);
+            final Object prop = f.get(item);
+            if (prop instanceof forge.localinstance.skin.FSkinProp p && p.getCoords() != null
+                    && p.getCoords().length >= 4) {
+                return p.getCoords().clone();
+            }
+        } catch (final ReflectiveOperationException | RuntimeException e) {
+            // Sin icono: la insignia sale solo con el nombre.
+        }
+        return null;
+    }
+
     /** Si tienes esa mejora. */
     public static boolean has(final QuestItemType type) {
         return NeoQuest.isActive() && NeoQuest.engine().getAssets().hasItem(type);

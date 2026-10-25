@@ -121,6 +121,7 @@ public final class DraftCheck {
             checkGames();
         }
         checkCubeDraft();
+        checkCubeCobra();
         checkRanking();
 
         // No dejar basura en los mazos del usuario: es SU carpeta.
@@ -188,6 +189,117 @@ public final class DraftCheck {
             System.out.println(afterCube != null
                     ? "  OK - un draft normal despues del cubo sigue funcionando"
                     : "  FALLO - el elegidor de usar-y-tirar se quedo puesto");
+        }
+    }
+
+    /**
+     * Un cubo de CubeCobra (Discord, 25-10-2026), SIN red: el {@code .dck}
+     * que devolveria CubeCobra se escribe a mano con cartas de un cubo de
+     * Forge y se guarda con {@link CubeCobra#save} en una carpeta de usar y
+     * tirar ({@code -Dneo.cubes.dir}). Luego, como uno de verdad: sale en
+     * {@link NeoDraft#cubes}, se draftea entero y se monta un sellado.
+     */
+    private static void checkCubeCobra() {
+        final String before = System.getProperty("neo.cubes.dir");
+        final java.io.File dir;
+        try {
+            dir = java.nio.file.Files.createTempDirectory("neo-cubos").toFile();
+        } catch (final java.io.IOException e) {
+            System.out.println("  FALLO - no se ha podido crear la carpeta de prueba: " + e);
+            return;
+        }
+        System.setProperty("neo.cubes.dir", dir.getPath());
+        try {
+            final boolean ids = "abc-123".equals(CubeCobra.parseId("https://cubecobra.com/cube/overview/abc-123?tab=1"))
+                    && "abc-123".equals(CubeCobra.parseId("cubecobra.com/cube/list/abc-123/"))
+                    && "vintage".equals(CubeCobra.parseId("  vintage "))
+                    && CubeCobra.parseId("no vale!") == null && CubeCobra.parseId("") == null;
+            System.out.println(ids ? "  OK - el ID sale del enlace o del ID solo, y lo raro no vale"
+                    : "  FALLO - CubeCobra.parseId no saca bien el ID");
+
+            final List<forge.gamemodes.limited.CustomLimited> forgeCubes = NeoDraft.cubes();
+            final StringBuilder dck = new StringBuilder("[metadata]\nName=Cubo de prueba NeoForge\n[Main]\n");
+            int n = 0;
+            for (final java.util.Map.Entry<PaperCard, Integer> e : forgeCubes.get(0).getCardPool()) {
+                if (n++ >= 360) {
+                    break;
+                }
+                dck.append("1 ").append(e.getKey().getName()).append('\n');
+            }
+            String name = null;
+            try {
+                CubeCobra.save("zz-prueba", "<html>no es un cubo</html>".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                System.out.println("  FALLO - una pagina que no es un cubo se ha guardado");
+            } catch (final CubeCobra.ImportException e) {
+                System.out.println("  OK - una pagina que no es un cubo no se guarda (" + e.reason + ")");
+            }
+            try {
+                name = CubeCobra.save("zz-prueba", dck.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            } catch (final CubeCobra.ImportException e) {
+                System.out.println("  FALLO - el cubo de prueba no se ha guardado: " + e);
+                return;
+            }
+            forge.gamemodes.limited.CustomLimited mine = null;
+            for (final forge.gamemodes.limited.CustomLimited c : NeoDraft.cubes()) {
+                if (c.getName().equals(name)) {
+                    mine = c;
+                }
+            }
+            System.out.println(mine != null && CubeCobra.isImported(mine) && mine.getCardPool().countAll() == 360
+                    ? "  OK - el importado sale en la lista de cubos (" + name + ", 360 cartas)"
+                    : "  FALLO - el importado no sale en la lista: " + name);
+            if (mine == null) {
+                return;
+            }
+            final forge.gamemodes.limited.CustomLimited cube = mine;
+
+            final NeoDraft draft = NeoDraft.startCube(name);
+            int picks = 0;
+            while (draft != null && !draft.isDone() && picks < 60) {
+                final List<PaperCard> pack = draft.currentCards();
+                if (pack.isEmpty()) {
+                    break;
+                }
+                if (draft.pick(pack.get(0)) != null) {
+                    picks++;
+                }
+            }
+            if (draft != null) {
+                final DeckGroup g = draft.save("neo-draftcheck-cubecobra");
+                System.out.println(picks >= 40 && g.getAiDecks().size() == 7
+                        ? "  OK - el cubo importado se draftea entero (" + picks + " picks)"
+                        : "  FALLO - draft del importado: " + picks + " picks, " + g.getAiDecks().size() + " rivales");
+                borrar("neo-draftcheck-cubecobra");
+            } else {
+                System.out.println("  FALLO - no se ha podido empezar el draft del importado");
+            }
+
+            final DeckGroup sealed = NeoSealed.createCube("neo-draftcheck-cubo-sellado", cube, 6);
+            final int pool = sealed == null ? 0 : sealed.getHumanDeck().get(DeckSection.Sideboard).countAll();
+            final boolean single = sealed != null && sealed.getHumanDeck().get(DeckSection.Sideboard).toFlatList().stream()
+                    .map(PaperCard::getName).distinct().count() == pool;
+            System.out.println(sealed != null && pool == 90 && single && sealed.getAiDecks().size() == 7
+                    ? "  OK - sellado de cubo: 6 sobres, 90 cartas sin repetir y 7 rivales"
+                    : "  FALLO - sellado de cubo: pool " + pool + ", sin repetir " + single
+                            + ", rivales " + (sealed == null ? 0 : sealed.getAiDecks().size()));
+            if (sealed != null) {
+                DraftRun.Kind.SEALED.storage().delete("neo-draftcheck-cubo-sellado");
+            }
+
+            System.out.println(CubeCobra.delete(cube) && NeoDraft.cubes().stream().noneMatch(c -> c.getName().equals(cube.getName()))
+                    ? "  OK - quitarlo lo quita de la lista"
+                    : "  FALLO - el cubo quitado sigue en la lista");
+        } finally {
+            if (before == null) {
+                System.clearProperty("neo.cubes.dir");
+            } else {
+                System.setProperty("neo.cubes.dir", before);
+            }
+            final java.io.File[] left = dir.listFiles();
+            for (final java.io.File f : left == null ? new java.io.File[0] : left) {
+                f.delete();
+            }
+            dir.delete();
         }
     }
 

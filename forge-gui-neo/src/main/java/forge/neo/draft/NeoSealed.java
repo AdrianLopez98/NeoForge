@@ -131,7 +131,39 @@ public final class NeoSealed {
         final CardEdition lands = mix.entries().size() == 1 && mix.block() == null
                 ? mix.first() : mix.landSet();
         final String landCode = lands == null ? mix.first().getCode() : lands.getCode();
-        final List<PaperCard> mine = openBoosters(mix);
+        return create(name, () -> openBoosters(mix), landCode, mix.label() + " (" + mix.total() + ")");
+    }
+
+    /**
+     * Un sellado de CUBO (Discord, 25-10-2026, con los de CubeCobra): cada
+     * jugador abre sus sobres del cubo entero. Singleton DENTRO de cada pool,
+     * no entre jugadores: un cubo de 540 no da para ocho pools de seis sobres.
+     * Tierras basicas, las que tenga el cubo puestas o las de siempre.
+     */
+    public static DeckGroup createCube(final String name, final forge.gamemodes.limited.CustomLimited cube,
+                                       final int boosters) {
+        if (cube == null || boosters <= 0) {
+            return null;
+        }
+        return create(name, () -> {
+            final forge.item.generation.UnOpenedProduct product = new forge.item.generation.UnOpenedProduct(
+                    cube.getSealedProductTemplate(), cube.getCardPool());
+            product.setLimitedPool(cube.isSingleton());
+            final List<PaperCard> out = new ArrayList<>();
+            for (int i = 0; i < boosters; i++) {
+                out.addAll(product.get());
+            }
+            return out;
+        }, cube.getLandSetCode(), cube.getName() + " (" + boosters + ")");
+    }
+
+    /** Lo comun: tu pool, los siete rivales con el suyo, y guardado. */
+    private static DeckGroup create(final String name, final java.util.function.Supplier<List<PaperCard>> open,
+                                    final String landCode, final String label) {
+        if (name == null || name.trim().isEmpty()) {
+            return null;
+        }
+        final List<PaperCard> mine = open.get();
         if (mine.isEmpty()) {
             return null;
         }
@@ -145,7 +177,7 @@ public final class NeoSealed {
         final DeckGroup group = new DeckGroup(name);
         group.setHumanDeck(deck);
         for (int i = 0; i < OPPONENTS; i++) {
-            final List<PaperCard> theirs = openBoosters(mix);
+            final List<PaperCard> theirs = open.get();
             if (theirs.isEmpty()) {
                 break;
             }
@@ -172,8 +204,8 @@ public final class NeoSealed {
 
         DraftRun.Kind.SEALED.storage().add(group);
         System.out.printf(Locale.ROOT,
-                "[sellado] %s: %d cartas de %s en %d sobres, %d rivales%n",
-                name, mine.size(), mix.label(), mix.total(), group.getAiDecks().size());
+                "[sellado] %s: %d cartas de %s, %d rivales%n",
+                name, mine.size(), label, group.getAiDecks().size());
         return group;
     }
 

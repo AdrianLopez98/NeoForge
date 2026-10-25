@@ -1456,7 +1456,20 @@ public class DeckBuilderScreen extends StackPane {
         // son la misma pregunta: como quiero ver el mazo.
         final Region gap3 = new Region();
         HBox.setHgrow(gap3, Priority.ALWAYS);
-        final HBox view = new HBox(6, deckSortBox(), deckSortDirection, gap3, deckFilterToggle);
+        // Lista o cuadricula (Discord, 24-10-2026). Se recuerda.
+        deckGridToggle.setId("builder-deck-grid");
+        deckGridToggle.getStyleClass().add("segment");
+        deckGridToggle.setMinWidth(Region.USE_PREF_SIZE);
+        deckGridToggle.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("deck.gridView.tip")));
+        deckGridToggle.setOnAction(e -> {
+            deckGrid = !deckGrid;
+            forge.neo.NeoSettings.setBool(DECK_GRID_KEY, deckGrid);
+            forge.neo.NeoSettings.save();
+            refreshDeckGridToggle();
+            refreshDeck();
+        });
+        refreshDeckGridToggle();
+        final HBox view = new HBox(6, deckSortBox(), deckSortDirection, gap3, deckGridToggle, deckFilterToggle);
         view.setAlignment(Pos.CENTER_LEFT);
         final VBox heading = new VBox(6, title, view);
         deckFilterRow = deckFilterRow();
@@ -1532,6 +1545,16 @@ public class DeckBuilderScreen extends StackPane {
     private boolean deckColourless;
     private final TextField deckSearch = new TextField();
     private final Button deckFilterToggle = new Button();
+
+    /** El mazo en cuadricula y no en lista. Se recuerda; -Dneo.builder.grid=true lo fuerza. */
+    private boolean deckGrid = Boolean.getBoolean("neo.builder.grid")
+            || forge.neo.NeoSettings.getBool(DECK_GRID_KEY, false);
+    private static final String DECK_GRID_KEY = "deck.gridView";
+    private final Button deckGridToggle = new Button();
+
+    private void refreshDeckGridToggle() {
+        deckGridToggle.setText(NeoText.get(deckGrid ? "deck.listView" : "deck.gridView"));
+    }
     private VBox deckFilterRow;
     /**
      * Tipo, coste y rareza, ademas de color y texto (itch.io, 03-10-2026:
@@ -2303,6 +2326,26 @@ public class DeckBuilderScreen extends StackPane {
                             cardMenu(card, anchor, screenX, screenY);
                         }
                     }
+
+                    @Override
+                    public boolean canEdit() {
+                        return true;
+                    }
+
+                    @Override
+                    public void add(final PaperCard card) {
+                        addOne(card);
+                    }
+
+                    @Override
+                    public void remove(final PaperCard card) {
+                        removeOne(card);
+                    }
+
+                    @Override
+                    public boolean accepts(final PaperCard card) {
+                        return !deckFilterActive() || deckFilterAccepts(card);
+                    }
                 });
             } else {
                 stackView.refresh();
@@ -2401,7 +2444,8 @@ public class DeckBuilderScreen extends StackPane {
                 if (filtering && !deckFilterAccepts(e.getKey())) {
                     continue;
                 }
-                final Region row = deckRow(e.getKey(), e.getValue());
+                final Region row = deckGrid ? deckTile(e.getKey(), e.getValue())
+                        : deckRow(e.getKey(), e.getValue());
                 row.pseudoClassStateChanged(INVALID, illegal.contains(e.getKey().getName()));
                 rows.add(row);
                 inGroup += e.getValue();
@@ -2414,7 +2458,14 @@ public class DeckBuilderScreen extends StackPane {
                     + "  (" + (filtering ? inGroup : group.getValue()) + ")");
             heading.getStyleClass().add("deck-group");
             deckList.getChildren().add(heading);
-            deckList.getChildren().addAll(rows);
+            if (deckGrid) {
+                final javafx.scene.layout.FlowPane grid = new javafx.scene.layout.FlowPane(6, 6);
+                grid.getStyleClass().add("deck-grid");
+                grid.getChildren().addAll(rows);
+                deckList.getChildren().add(grid);
+            } else {
+                deckList.getChildren().addAll(rows);
+            }
         }
         // EL BANQUILLO, al final (Ana, 06-10-2026: no se podia consultar). Un
         // mazo importado de Moxfield lo trae con el "maybeboard", y sin verlo
@@ -2493,21 +2544,8 @@ public class DeckBuilderScreen extends StackPane {
         lacking.setVisible(missing > 0);
         lacking.setManaged(missing > 0);
 
-        final Button less = stepper("-", () -> {
-            editor.remove(card, 1);
-            refreshDeck();
-            refreshCatalogue();
-        });
-        final Button more = stepper("+", () -> {
-            final String no = editor.rejectionReason(card);
-            if (no != null) {
-                message(NeoText.get("deck.noMoreCopies"), no);
-                return;
-            }
-            editor.add(card, 1);
-            refreshDeck();
-            refreshCatalogue();
-        });
+        final Button less = stepper("-", () -> removeOne(card));
+        final Button more = stepper("+", () -> addOne(card));
 
         final HBox steps = new HBox(2, less, more);
         steps.setAlignment(Pos.CENTER_RIGHT);
@@ -2536,6 +2574,75 @@ public class DeckBuilderScreen extends StackPane {
         });
         hoverCard(row, card);
         return row;
+    }
+
+    /** Una copia menos en el mazo (los "-" de la lista, la cuadricula y la vista visual). */
+    private void removeOne(final PaperCard card) {
+        editor.remove(card, 1);
+        refreshDeck();
+        refreshCatalogue();
+    }
+
+    /** Una copia mas, si cabe (los "+"); si no, por que no. */
+    private void addOne(final PaperCard card) {
+        final String no = editor.rejectionReason(card);
+        if (no != null) {
+            message(NeoText.get("deck.noMoreCopies"), no);
+            return;
+        }
+        editor.add(card, 1);
+        refreshDeck();
+        refreshCatalogue();
+    }
+
+    /**
+     * Una carta del mazo en la CUADRICULA (Discord, 24-10-2026: <i>"a Grid View
+     * of my deck ... when I'm crafting it"</i>). Los mismos gestos que la fila:
+     * clic la amplia, clic derecho abre su menu, y al pasar el raton salen el
+     * "-" y el "+". Varias copias, una carta con su "xN".
+     */
+    private Region deckTile(final PaperCard card, final int amount) {
+        // Pequenya: en el panel del mazo tienen que caber unas cuatro por fila.
+        final double w = UiScale.px(78);
+        final forge.neo.card.CardNode node = new forge.neo.card.CardNode(w);
+        node.setRotationEnabled(false);
+        node.setBadgesVisible(false);
+        node.setCard(forge.game.card.CardView.getCardForUi(card));
+        final StackPane tile = new StackPane(node);
+        tile.getStyleClass().add("deck-tile");
+        if (amount > 1) {
+            final Label count = new Label("\u00d7" + amount);
+            count.getStyleClass().add("catalogue-count");
+            tile.getChildren().add(count);
+            StackPane.setAlignment(count, Pos.TOP_RIGHT);
+            StackPane.setMargin(count, new Insets(3));
+        }
+        final int missing = editor.missingOf(card);
+        if (missing > 0) {
+            final Label lacking = new Label(NeoText.get("deck.missing", missing));
+            lacking.getStyleClass().add("deck-row-missing");
+            tile.getChildren().add(lacking);
+            StackPane.setAlignment(lacking, Pos.TOP_LEFT);
+            StackPane.setMargin(lacking, new Insets(3));
+        }
+        final HBox steps = new HBox(3, stepper("-", () -> removeOne(card)), stepper("+", () -> addOne(card)));
+        steps.setAlignment(Pos.CENTER);
+        steps.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+        steps.setVisible(false);
+        tile.getChildren().add(steps);
+        StackPane.setAlignment(steps, Pos.BOTTOM_CENTER);
+        StackPane.setMargin(steps, new Insets(0, 0, 4, 0));
+        tile.hoverProperty().addListener((o, a, b) -> steps.setVisible(b));
+        javafx.scene.control.Tooltip.install(tile, new javafx.scene.control.Tooltip(CardText.nameOf(card)));
+        tile.setOnMouseClicked(e -> {
+            if (e.getButton() == MouseButton.SECONDARY) {
+                cardMenu(card, tile, e.getScreenX(), e.getScreenY());
+            } else if (e.getButton() == MouseButton.PRIMARY) {
+                zoom(card);
+            }
+        });
+        hoverCard(tile, card);
+        return tile;
     }
 
     /** Una linea del banquillo: quitarla, o pasarla al mazo. */
@@ -2611,6 +2718,8 @@ public class DeckBuilderScreen extends StackPane {
         showCardMenu(card, CardActionMenu.actions(
                 printingAction(card),
                 foilAction(card),
+                ownImageAction(card),
+                restoreImageAction(card),
                 new CardActionMenu.Action(
                         NeoText.get(editor.isSignatureSpell(card)
                                 ? "deck.dropSignature" : "deck.dropCommander"),
@@ -2656,6 +2765,8 @@ public class DeckBuilderScreen extends StackPane {
         showCardMenu(card, CardActionMenu.actions(
                 printingAction(card),
                 foilAction(card),
+                ownImageAction(card),
+                restoreImageAction(card),
                 commander,
                 secondCommanderAction(card),
                 companionAction(card),
@@ -2775,6 +2886,55 @@ public class DeckBuilderScreen extends StackPane {
             }
         });
         companionRow.getChildren().addAll(tag, node);
+    }
+
+    /**
+     * "Usar mi propia imagen..." en CUALQUIER carta (Discord, 25-10-2026: en la
+     * carta ampliada solo salia si no tenia imagen bajada). Pone tu JPG o PNG
+     * en lugar de la imagen de ESA impresion; la que habia se aparta para poder
+     * volver ({@link forge.neo.card.OwnImage}). Se ve en todas partes donde
+     * salga esa impresion, tambien en la mesa.
+     */
+    private CardActionMenu.Action ownImageAction(final PaperCard card) {
+        final String key = card.getImageKey(false);
+        if (forge.neo.card.OwnImage.shownPath(key) == null) {
+            return null;
+        }
+        return new CardActionMenu.Action(NeoText.get("zoom.ownImage"),
+                NeoText.get("deck.ownImage.detail"), true, () -> {
+                    final javafx.stage.FileChooser fc = new javafx.stage.FileChooser();
+                    fc.setTitle(NeoText.get("zoom.ownImage"));
+                    fc.getExtensionFilters().add(new javafx.stage.FileChooser.ExtensionFilter(
+                            "JPG / PNG", "*.jpg", "*.jpeg", "*.png"));
+                    final java.io.File chosen = fc.showOpenDialog(getScene() == null ? null : getScene().getWindow());
+                    if (chosen == null) {
+                        return;
+                    }
+                    try {
+                        if (forge.neo.card.CardImages.useOwnImage(key, chosen) == null) {
+                            message(NeoText.get("zoom.ownImage.failed"), chosen.getName());
+                        }
+                    } catch (final java.io.IOException ex) {
+                        System.err.println("[neo-img] no se pudo copiar " + chosen + ": " + ex);
+                        message(NeoText.get("zoom.ownImage.failed"), String.valueOf(ex.getMessage()));
+                    }
+                    refreshDeck();
+                    refreshCatalogue();
+                });
+    }
+
+    /** "Volver a la imagen original": solo si esa impresion lleva una propia. */
+    private CardActionMenu.Action restoreImageAction(final PaperCard card) {
+        final String key = card.getImageKey(false);
+        if (!forge.neo.card.OwnImage.isOwn(key)) {
+            return null;
+        }
+        return new CardActionMenu.Action(NeoText.get("deck.ownImage.restore"),
+                NeoText.get("deck.ownImage.restore.detail"), true, () -> {
+                    forge.neo.card.CardImages.restoreOriginalImage(key);
+                    refreshDeck();
+                    refreshCatalogue();
+                });
     }
 
     /**
@@ -3962,6 +4122,14 @@ public class DeckBuilderScreen extends StackPane {
         for (final javafx.scene.Node node : lookupAll(".deck-art-strip")) {
             if (node instanceof DeckArtStrip strip) strip.refresh();
         }
+    }
+
+    /** Guarda con ese nombre y sale, como Guardar + Volver (prueba de la sala). */
+    public void saveLeaveForTest(final String name) {
+        editor.setName(name);
+        save();
+        System.out.println("[mazo] guardado " + editor.getName() + " (" + editor.mainCount() + " cartas)");
+        leave();
     }
 
     /** El editor de detras. Herramienta de prueba. */
