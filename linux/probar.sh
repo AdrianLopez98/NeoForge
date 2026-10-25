@@ -48,6 +48,17 @@ if grep -E '\bFALLO\b|\[MAL\]' "$OUT/deckcheck.log" | grep -vq "$TIEMPO" \
     fallos=$((fallos + 1))
 fi
 
+echo "== 1b. audiocheck: los MP3 sin JavaFX"
+# En Linux el sonido no va por JavaFX Media, que pide el FFmpeg del sistema y
+# en SteamOS no lo encuentra (1.0.34): va por forge.neo.platform.JavaSound.
+# Aqui no hay tarjeta de sonido, asi que se prueba que se decodifica todo.
+timeout 300 "${PANTALLA[@]}" "$BIN" audiocheck > "$OUT/audiocheck.log" 2>&1
+tail -8 "$OUT/audiocheck.log"
+if grep -q '\[MAL\]' "$OUT/audiocheck.log" || ! grep -q 'decodificados sin JavaFX' "$OUT/audiocheck.log"; then
+    echo "::error::audiocheck no ha pasado con el paquete de Linux"
+    fallos=$((fallos + 1))
+fi
+
 echo "== 2. La pantalla de inicio"
 timeout 600 "${PANTALLA[@]}" "$BIN" ui --snapshot="$OUT/inicio.png" --wait=20 > "$OUT/inicio.log" 2>&1
 tail -15 "$OUT/inicio.log"
