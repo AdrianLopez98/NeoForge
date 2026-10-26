@@ -113,6 +113,7 @@ public final class OwnImage {
         dest.getParentFile().mkdirs();
         java.nio.file.Files.copy(source, dest.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
         markerOf(dest).createNewFile();
+        forgetLookup(imageKey);
         return dest;
     }
 
@@ -143,7 +144,38 @@ public final class OwnImage {
                 backupOf(t).renameTo(t);
             }
         }
+        forgetLookup(imageKey);
         return true;
+    }
+
+    /**
+     * Que Forge vuelva a buscar el fichero de esa clave (Discord, 26-10-2026:
+     * <i>"I don't think the image replacement works on mobile"</i>).
+     * {@code ImageKeys.getImageFile} recuerda que fichero encontro para cada
+     * nombre ({@code cachedCards}) y no mira si sigue existiendo: con una
+     * propia en .png sobre una bajada en .jpg (apartada como .original), o al
+     * volver a la original, seguia devolviendo el fichero que ya no esta, y la
+     * carta salia sin imagen o se volvia a bajar encima. El mapa es privado:
+     * reflexion, y si algun dia cambia, solo se pierde esto.
+     */
+    @SuppressWarnings("unchecked")
+    private static void forgetLookup(final String imageKey) {
+        try {
+            final File base = target(imageKey, "");
+            if (base == null) {
+                return;
+            }
+            // Sin la extension: "SET/Nombre.full" cubre tambien ".fullborder".
+            final String prefix = base.getPath().substring(0, base.getPath().length() - ".jpg".length());
+            final java.lang.reflect.Field f = ImageKeys.class.getDeclaredField("cachedCards");
+            f.setAccessible(true);
+            final java.util.Map<String, File> cached = (java.util.Map<String, File>) f.get(null);
+            synchronized (cached) {
+                cached.values().removeIf(file -> file != null && file.getPath().startsWith(prefix));
+            }
+        } catch (final ReflectiveOperationException | RuntimeException e) {
+            System.out.println("[neo] no se ha podido olvidar la imagen de " + imageKey + ": " + e);
+        }
     }
 
     // ---------------------------------------------------------------

@@ -105,6 +105,8 @@ public final class NeoBoot {
         // Los perfiles de IA que haya traido el jugador, junto a los de Forge
         // (FModel acaba de cargar solo los de res/ai). Sin ninguno, nada.
         forge.neo.look.AiProfiles.install();
+        // Tu lista de prohibidas de cada formato, sobre la oficial (BanList).
+        forge.neo.deck.BanList.applyAll();
         // Antes de que nadie lea los mazos: uno roto, Forge lo borra o tumba la
         // carpeta entera (BrokenDecks).
         forge.neo.deck.BrokenDecks.atStartup();

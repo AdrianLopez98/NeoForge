@@ -1,14 +1,13 @@
-**NeoForge para macOS 1.0.34 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.35 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **La mesa:** suelta un aura de la mano sobre una criatura y va a esa criatura; elegir X ya solo ofrece hasta lo que puedes pagar; si no puedes responder, una parada ya no te para; «Auto» ya no sacrifica una criatura sin preguntar (Phyrexian Tower); la carta grande al pasar el ratón también en el cementerio, el exilio o al adivinar.
-- **Constructor:** el mazo en cuadrícula, la vista visual agrupada por tipo, coste, color o rareza, y «Usar mi propia imagen…» para cualquier carta.
-- **Draft y sellado:** importa cubos de CubeCobra (una vez, y luego sin internet); el sellado también con cubo.
-- **Quest:** la vitrina (desafíos superados, Campeonatos, torneos y Coliseo) y las mejoras del bazar a la vista, con el zepelín por fin con icono.
-- **En red:** crear o importar un mazo sin salir de la sala, y al invitado ya no se le queda la mesa a medio pintar.
-- **Sonidos de Neo Forge encendidos de fábrica**, tierras con su paisaje, daño, equipar y fase; perder vida que se oye y la victoria más alta.
-- **Arte de fichas:** ya baja las 32 de borde antiguo que faltaban.
-- **Forge al día:** Star Trek (TRK) completo y arreglos de reglas.
+- **Tu propia lista de cartas prohibidas** en cada formato (Ajustes → Modos): quitar o añadir cartas, y volver a la oficial.
+- **La mesa:** las cartas que entran vuelan desde donde estaban (con las animaciones); destruir suena según el tipo de carta (un Sol Ring ya no grita); el color de lo que puedes jugar se elige, también uno propio.
+- **El pago automático:** con maná flotante te deja elegir con qué pagas, puede no girar criaturas y tiene un interruptor en el menú de la partida.
+- **El registro** puede apuntar tu mano cada turno (para analizar tus partidas).
+- **Quest:** mazos Jumpstart con tus sobres, la carta de premio explicada y ordenada por rareza, mejoras del bazar que se apagan, y sin sobres vacíos de expansiones «Un-».
+- **Logros:** los hitos de Ascenso, con cómo se consiguen.
+- **Forge al día:** Star Trek, arreglos de reglas y de la IA.
 
 Descarga el `.dmg` de tu Mac:
 

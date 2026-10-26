@@ -161,7 +161,9 @@ public final class NeoQuestRewards implements IWinLoseView<IButton> {
             // Con el ante puesto, perder la apuesta quita cartas por el
             // motor (loseCards -> removeCard), y eso se llevaba de los
             // mazos de deseos lo que nunca tuviste. Ver keepingWishlist.
-            NeoQuestSell.keepingWishlist(controller::showRewards);
+            // Y la carta de premio que pregunta el motor, con su contexto y
+            // cuantas tienes (QuestRewardPick).
+            QuestRewardPick.during(() -> NeoQuestSell.keepingWishlist(controller::showRewards));
         } catch (final RuntimeException | LinkageError e) {
             fail(view, "showRewards", e);
         } finally {

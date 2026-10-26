@@ -16,7 +16,7 @@ on:
 env:
   # El commit de Forge sobre el que se ha probado este codigo. El MISMO que en
   # macos.yml: se suben los dos a la vez cuando se rebasa.
-  FORGE_REF: 434b1efef2ec697becf801132e3a34fa54dd69de
+  FORGE_REF: 0dc8c66996e2f362a32872a69b87f95fb3ac0ed5
   # La version NO va aqui: linux/empaquetar.sh la lee de <neo.version> del pom.
 
 jobs:

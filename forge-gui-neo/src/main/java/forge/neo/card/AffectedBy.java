@@ -51,6 +51,15 @@ public final class AffectedBy {
         game = new WeakReference<>(g);
     }
 
+    /**
+     * Esa misma partida, para quien la necesite fuera de la mesa: el sonido
+     * de destruir segun el tipo ({@code forge.neo.sound.DestroySound}). La
+     * registran {@code NeoMatchUI} y la de Android al abrir la mesa.
+     */
+    public static Game current() {
+        return game.get();
+    }
+
     /** Lo que le afecta a esa carta ahora mismo; vacio si nada o si no se sabe. */
     public static List<Line> of(final CardView view) {
         final Game g = game.get();

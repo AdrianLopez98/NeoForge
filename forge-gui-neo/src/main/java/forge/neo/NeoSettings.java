@@ -313,6 +313,29 @@ public final class NeoSettings {
     }
 
     /**
+     * Que el pago automatico no gire criaturas (Discord, 26-10-2026). Apagado
+     * de fabrica. Ver {@code forge.neo.match.AutoPayCreatures}. La misma clave
+     * en Android.
+     */
+    public static final String AUTO_MANA_NO_CREATURES = "autoManaNoCreatures";
+
+    public static boolean autoManaNoCreatures() {
+        return getBool(AUTO_MANA_NO_CREATURES, false);
+    }
+
+    /**
+     * El interruptor del pago automatico en el menu de la partida (Discord,
+     * 26-10-2026: <i>"An easily accessible button that toggles auto pay
+     * without having to go into the settings"</i>). Apagado de fabrica: lo que
+     * sale nuevo en la mesa, solo si se pide (Ana). La misma clave en Android.
+     */
+    public static final String AUTO_MANA_QUICK = "autoManaQuick";
+
+    public static boolean autoManaQuick() {
+        return getBool(AUTO_MANA_QUICK, false);
+    }
+
+    /**
      * Si el pago automatico prueba tambien las fuentes que el planificador del
      * motor <b>no sabe ver</b>: las que cobran mana para dar mas del que
      * cobran (tierras de filtro, amuletos de {@code {1},{T}: {G}{W}}).
@@ -804,6 +827,79 @@ public final class NeoSettings {
      * Forge son de antes de 2018, con sus escaneos de la epoca.
      */
     public static final String MODERN_RIVALS = "modernRivals";
+
+    /**
+     * El color de lo que puedes jugar ahora (Discord, 26-10-2026: <i>"it's
+     * really hard to tell if a card is playable. The bluish highlight border
+     * doesn't stand out much, especially on blue cards"</i>). Un indice en
+     * {@link #ACTIONABLE_COLORS}; la misma clave en Android.
+     */
+    public static final String ACTIONABLE_COLOR = "actionableColor";
+
+    /**
+     * Los colores que se ofrecen: el celeste de siempre y otros que no se
+     * confunden con nada de la mesa (el verde es "elige una", el rojo atacar y
+     * los objetivos). El naranja, porque es el de Arena, aunque se cruza con
+     * el plan de "Auto" mientras pagas (que tambien es naranja). Las
+     * claves de texto, en el mismo orden ({@code settings.actionableColor.*}).
+     */
+    public static final String[] ACTIONABLE_COLORS = {"#66CCFF", "#FFE14D", "#FF9A2E", "#FFFFFF", "#FF6FD8", "#B8FF3C"};
+    public static final String[] ACTIONABLE_COLOR_KEYS = {"blue", "yellow", "orange", "white", "pink", "lime"};
+
+    /**
+     * EL COLOR PERSONALIZADO (Discord, 26-10-2026: <i>"Does that let us pick
+     * our own colors from a palette?"</i>): el indice que va detras de los de
+     * la lista, y el color en {@code #RRGGBB} en esta otra clave. Puede
+     * coincidir con el verde de "elige una" o el rojo de atacar: es cosa de
+     * quien lo elige.
+     */
+    public static final int ACTIONABLE_CUSTOM_INDEX = ACTIONABLE_COLORS.length;
+    public static final String ACTIONABLE_CUSTOM = "actionableCustom";
+
+    public static int actionableColorIndex() {
+        return Math.max(0, Math.min(ACTIONABLE_CUSTOM_INDEX, getInt(ACTIONABLE_COLOR, 0)));
+    }
+
+    /** El color en {@code #RRGGBB}. */
+    public static String actionableColor() {
+        final int i = actionableColorIndex();
+        return i == ACTIONABLE_CUSTOM_INDEX ? actionableCustom() : ACTIONABLE_COLORS[i];
+    }
+
+    /** El personalizado, o el celeste si no hay ninguno valido guardado. */
+    public static String actionableCustom() {
+        final String hex = hexColor(get(ACTIONABLE_CUSTOM, ""));
+        return hex == null ? ACTIONABLE_COLORS[0] : hex;
+    }
+
+    /** Guarda el personalizado y lo deja elegido. Lo que no sea un color no se guarda. */
+    public static void setActionableCustom(final String color) {
+        final String hex = hexColor(color);
+        if (hex != null) {
+            set(ACTIONABLE_CUSTOM, hex);
+            setInt(ACTIONABLE_COLOR, ACTIONABLE_CUSTOM_INDEX);
+        }
+    }
+
+    /** {@code #RRGGBB} en mayusculas, o null. Acepta {@code RRGGBB}, {@code #RRGGBBAA} y {@code 0xRRGGBBAA}. */
+    public static String hexColor(final String s) {
+        if (s == null) {
+            return null;
+        }
+        String t = s.trim();
+        if (t.startsWith("0x") || t.startsWith("0X")) {
+            t = t.substring(2);
+        } else if (t.startsWith("#")) {
+            t = t.substring(1);
+        }
+        if (t.length() == 8) {
+            t = t.substring(0, 6);
+        }
+        if (!t.matches("[0-9A-Fa-f]{6}")) {
+            return null;
+        }
+        return "#" + t.toUpperCase(java.util.Locale.ROOT);
+    }
 
     /**
      * Preguntar antes de salir de tu fase principal.

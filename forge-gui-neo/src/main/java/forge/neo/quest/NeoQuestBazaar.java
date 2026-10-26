@@ -166,6 +166,11 @@ public final class NeoQuestBazaar {
                 final QuestStallDefinition def = q.getBazaar().getStall(name);
                 final List<IQuestBazaarItem> items =
                         new ArrayList<>(q.getBazaar().getItems(q, name));
+                // Una mejora BAJADA no se vende: Forge la ofreceria a precio de
+                // su nivel activo y pagarias por lo que ya tienes. Se sube en
+                // "Tus mejoras" (QuestUpgradeLevels).
+                items.removeIf(i -> i instanceof forge.gamemodes.quest.bazaar.QuestItemBasic b
+                        && QuestUpgradeLevels.parked(b.getItemType()));
                 final List<LockedPet> locked = new ArrayList<>();
                 if (def != null && def.getItems() != null) {
                     for (final String itemName : def.getItems()) {
@@ -236,9 +241,17 @@ public final class NeoQuestBazaar {
         if (!canAfford(item)) {
             return false;
         }
+        final QuestItemType type = item instanceof forge.gamemodes.quest.bazaar.QuestItemBasic b
+                ? b.getItemType() : null;
+        if (type != null && QuestUpgradeLevels.parked(type)) {
+            return false;
+        }
         final long before = NeoQuest.credits();
         QuestUtil.buyQuestItem(item);
         final boolean done = NeoQuest.credits() != before || priceOf(item) == 0;
+        if (done && type != null) {
+            QuestUpgradeLevels.remember(type);
+        }
         if (done) {
             System.out.printf(java.util.Locale.ROOT,
                     "[bazar] %s por %d cr., quedan %d%n",
@@ -309,7 +322,25 @@ public final class NeoQuestBazaar {
      * {@code {x, y, ancho, alto}}, o null si no se sabe.
      */
     public record OwnedUpgrade(IQuestBazaarItem item, String name, int level, int maxLevel,
-                               String description, String iconFile, int[] iconRect) {
+                               String description, String iconFile, int[] iconRect,
+                               int owned, boolean adjustable) {
+
+        /**
+         * {@code level} es el ACTIVO (el que cuenta en partida) y {@code owned}
+         * lo comprado: bajarlo y volver a subirlo es gratis (Discord, 26-10-2026,
+         * ver {@link QuestUpgradeLevels}). Apagada del todo, {@code level} es 0.
+         */
+        public QuestItemType type() {
+            return item instanceof forge.gamemodes.quest.bazaar.QuestItemBasic b ? b.getItemType() : null;
+        }
+    }
+
+    /**
+     * Pone el nivel activo de una mejora comprada (0 = apagada), entre 0 y lo
+     * comprado. Ver {@link QuestUpgradeLevels}.
+     */
+    public static int setUpgradeLevel(final OwnedUpgrade u, final int level) {
+        return u == null ? 0 : QuestUpgradeLevels.setActive(u.type(), level);
     }
 
     /**
@@ -356,11 +387,14 @@ public final class NeoQuestBazaar {
                     continue;
                 }
                 final int level = q.getAssets().getItemLevel(basic.getItemType());
-                if (level <= 0) {
+                // Lo comprado, aunque este apagada (QuestUpgradeLevels).
+                final int owned = QuestUpgradeLevels.owned(basic.getItemType());
+                if (owned <= 0) {
                     continue;
                 }
                 out.add(new OwnedUpgrade(item, item.getPurchaseName(), level, basic.getMaxLevel(),
-                        descriptionOf(item), iconFile(basic), iconRect(basic)));
+                        descriptionOf(item), iconFile(basic), iconRect(basic),
+                        owned, QuestUpgradeLevels.adjustable(basic.getItemType())));
             }
         } catch (final ReflectiveOperationException | RuntimeException e) {
             System.err.println("[bazar] no se han podido leer las mejoras compradas: " + e);

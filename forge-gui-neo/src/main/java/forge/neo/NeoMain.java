@@ -344,6 +344,36 @@ public final class NeoMain {
                 banner("Auto-pass: los objetivos que dependen de X");
                 forge.neo.match.XTargetCheck.run();
                 break;
+            case "emergecheck":
+                // Reproduccion: emerge en el turno del rival con destello (Discord). No es de la bateria.
+                banner("Emerge con destello: lo que ofrece el motor");
+                forge.neo.match.EmergeCheck.run();
+                break;
+            case "autopaycheck":
+                // Reproduccion: "Auto" que gira de menos y deja mana flotando (Discord). No es de la bateria.
+                banner("Pago automatico: tierras giradas y reserva");
+                forge.neo.match.AutoPayCheck.run();
+                break;
+            case "electrocheck":
+                // Reproduccion: Electro en la zona de mando dando {R} (Discord). No es de la bateria.
+                banner("Electro en la zona de mando: el mana que entra");
+                forge.neo.match.ElectroCheck.run();
+                break;
+            case "persistcheck":
+                // Reproduccion: Cauldron of Souls + Atsushi contra Zodiark (Discord). No es de la bateria.
+                banner("Persistencia y sacrificio: lo que hace el motor");
+                forge.neo.match.PersistCheck.run();
+                break;
+            case "phaseguardcheck":
+                // La pregunta de dejar tu fase principal, leida del motor (Android). Ver PhaseGuard.
+                banner("Dejar la fase principal: la pregunta de Android");
+                forge.neo.match.PhaseGuardCheck.run();
+                break;
+            case "floatingcheck":
+                // Con mana flotante, el pago automatico deja elegir. Ver FloatingManaChoice.
+                banner("Mana flotante: el pago automatico deja elegir");
+                forge.neo.match.FloatingManaCheck.run();
+                break;
             case "affordablexcheck":
                 // Elegir X: los botones, hasta lo que puedes pagar. Ver AffordableX.
                 banner("Elegir X: hasta lo que puedes pagar");
@@ -490,6 +520,21 @@ public final class NeoMain {
                 // El orden del menu: mover, esconder y casillas nuevas.
                 banner("El orden del menu");
                 forge.neo.MenuLayoutCheck.run();
+                break;
+            case "handlogcheck":
+                // Tu mano en el registro cada turno (HandLog).
+                banner("Tu mano en el registro");
+                forge.neo.match.HandLogCheck.run();
+                break;
+            case "banlistcheck":
+                // Tu lista de prohibidas de cada formato (BanList).
+                banner("Las cartas prohibidas, editables");
+                forge.neo.deck.BanListCheck.run();
+                break;
+            case "destroysoundcheck":
+                // Destruir suena segun el tipo de carta (Discord: el Sol Ring gritaba).
+                banner("Destruir: el sonido segun el tipo");
+                forge.neo.sound.DestroySoundCheck.run();
                 break;
             case "soundcheck":
                 // Los sonidos de Neo Forge: que salen del jar, el azar y el ajuste.

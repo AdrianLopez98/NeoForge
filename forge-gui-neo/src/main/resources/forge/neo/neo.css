@@ -13,6 +13,7 @@
     -neo-text:         #E6EBF2;
     -neo-text-dim:     #8D9AAB;
     -neo-accent:       #4A9BE0;
+    -neo-actionable:   #66CCFF;   /* lo jugable: es un ajuste, lo pisa UiScale.rootStyle */
     -neo-valid:        #4FB477;
     -neo-danger:       #D9534F;
     -neo-warn:         #E0A63C;
@@ -1096,7 +1097,7 @@
    la mesa, porque es lo mismo que dice: "esto se puede usar". Sin esto la pila
    solo cuenta cartas, y nadie la abre para descubrir que tenia una jugada. */
 .zone-pile:playable .zone-pile-face {
-    -fx-stroke: #66CCFF;
+    -fx-stroke: -neo-actionable;
     -fx-stroke-width: 2;
     -fx-effect: dropshadow(gaussian, rgba(102,204,255,0.45), 12, 0.35, 0, 0);
 }
@@ -3411,8 +3412,8 @@
    fino y sin halo — y pierde siempre contra el fuerte, que se define despues. */
 
 .card:actionable .card-border {
-    -fx-stroke: #66CCFF;
-    -fx-stroke-width: 2;
+    -fx-stroke: -neo-actionable;
+    -fx-stroke-width: 2.5;
 }
 
 /* Y las que el boton "Auto" iba a tapar: el plan del motor, antes de pulsarlo */
@@ -4486,3 +4487,15 @@
 .library-rows .scroll-bar > .increment-button,
 .library-rows .scroll-bar > .decrement-button { -fx-pref-height: 0; -fx-opacity: 0; }
 .library-rows .scroll-bar:horizontal { -fx-pref-height: 0; -fx-opacity: 0; }
+
+/* Ajustes -> Modos: una carta prohibida, con su X (BanListEditor). */
+.banlist-chip {
+    -fx-padding: 2 4 2 10;
+    -fx-background-color: #1B212A;
+    -fx-background-radius: 6;
+    -fx-border-color: #2C3542;
+    -fx-border-radius: 6;
+}
+.banlist-chip > .label {
+    -fx-text-fill: #E6EBF2;
+}

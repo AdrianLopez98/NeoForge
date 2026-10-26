@@ -92,11 +92,37 @@ public final class NeoQuestShop {
                 && e.getName() != null && e.getName().startsWith("Alchemy");
     }
 
+    /**
+     * Si es de las que Forge solo carga con "cargar cartas no legales": las
+     * "Funny" y las de borde plateado (Unglued, Unstable...). Sin esa opcion,
+     * {@code StaticData} descarta todas sus cartas menos las de {@code [eternal]}.
+     */
+    static boolean isFunny(final CardEdition e) {
+        return e != null && (e.getType() == CardEdition.Type.FUNNY
+                || e.getBorderColor() == CardEdition.BorderColor.SILVER);
+    }
+
+    /** Si al arrancar se cargaron las cartas no legales (lo lee {@code FModel} una vez). */
+    private static boolean funnyCardsLoaded() {
+        try {
+            return FModel.getPreferences().getPrefBoolean(
+                    forge.localinstance.properties.ForgePreferences.FPref.UI_LOAD_NONLEGAL_CARDS);
+        } catch (final RuntimeException e) {
+            return true;
+        }
+    }
+
     public static List<CardEdition> editions() {
         final List<CardEdition> out = new ArrayList<>();
         final boolean alchemy = forge.neo.NeoSettings.getBool(ALCHEMY, true);
+        final boolean funny = funnyCardsLoaded();
         for (final CardEdition e : FModel.getMagicDb().getEditions()) {
             if (!alchemy && isAlchemy(e)) {
+                continue;
+            }
+            // Sin sus cartas cargadas, un sobre "Funny" esta vacio (Discord,
+            // 26-10-2026: el de Unstable solo podia dar Steamflogger Boss).
+            if (!funny && isFunny(e)) {
                 continue;
             }
             if (e != null && (e.hasBoosterTemplate() || hasBuiltPack(e)) && NeoQuest.allowsSet(e.getCode())) {
@@ -1345,6 +1371,8 @@ public final class NeoQuestShop {
         final Before before = Before.now();
         NeoQuest.engine().getAssets().subtractCredits(price);
         NeoQuest.engine().getCards().addAllCards(cards);
+        // Y se apunta el sobre, para montar mazos Jumpstart con el (Discord, 26-10-2026).
+        NeoQuestJumpstart.record(theme.name(), cards);
         return finish(theme.name(), new ArrayList<>(cards), before, price);
     }
 

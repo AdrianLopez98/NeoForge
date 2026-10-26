@@ -31,6 +31,11 @@ public final class NeoPaymentPeek {
         return input instanceof InputPayMana pay ? pay.manaCost : null;
     }
 
+    /** Quien paga, o {@code null} si el input no es un pago de mana. */
+    public static forge.game.player.Player payer(final Input input) {
+        return input instanceof InputPayMana pay ? pay.player : null;
+    }
+
     /** Lo que se esta pagando, o {@code null} si el input no es un pago de mana. */
     public static SpellAbility paidFor(final Input input) {
         return input instanceof InputPayMana pay ? pay.saPaidFor : null;

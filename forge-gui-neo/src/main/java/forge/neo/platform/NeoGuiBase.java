@@ -615,14 +615,21 @@ public class NeoGuiBase implements IGuiBase {
     public <T> List<T> getChoices(final String msg, final int min, final int max,
                                   final Collection<T> choices, final Collection<T> selected,
                                   final FSerializableFunction<T, String> display) {
-        final List<T> options = choices == null ? List.of() : new java.util.ArrayList<>(choices);
+        // La carta de premio de la Quest: con contexto, por rareza y con
+        // cuantas tienes (forge.neo.quest.QuestRewardPick).
+        final boolean reward = forge.neo.quest.QuestRewardPick.applies(msg, choices);
+        final List<T> options = choices == null ? List.of()
+                : reward ? forge.neo.quest.QuestRewardPick.sorted(choices) : new java.util.ArrayList<>(choices);
         final List<T> pre = selected == null ? List.<T>of() : new java.util.ArrayList<>(selected);
         if (options.isEmpty()) {
             return List.of();
         }
+        final String question = reward
+                ? forge.neo.quest.QuestRewardPick.title() + "\n" + forge.neo.quest.QuestRewardPick.help(msg)
+                : inSpanish(msg);
         final Chooser c = chooser;
         if (c != null) {
-            final List<T> answer = c.choose(inSpanish(msg), min, max, options, pre,
+            final List<T> answer = c.choose(question, min, max, options, pre,
                     display == null ? null : display::apply);
             if (answer != null && (min <= 0 || !answer.isEmpty())) {
                 return answer;

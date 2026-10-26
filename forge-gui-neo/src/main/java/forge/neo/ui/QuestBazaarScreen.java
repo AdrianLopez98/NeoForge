@@ -536,17 +536,70 @@ public class QuestBazaarScreen extends StackPane {
         cap.getStyleClass().add("caption");
         final javafx.scene.layout.FlowPane badges = new javafx.scene.layout.FlowPane(10, 10);
         for (final NeoQuestBazaar.OwnedUpgrade u : owned) {
-            badges.getChildren().add(upgradeBadge(u));
+            final Region badge = upgradeBadge(u);
+            final Region adjust = u.adjustable() ? upgradeAdjust(u) : null;
+            badges.getChildren().add(adjust == null ? badge : new VBox(4, badge, adjust));
         }
-        final VBox tile = new VBox(8, cap, badges);
+        final Label hint = new Label(NeoText.get("bazaar.upgrade.hint"));
+        hint.getStyleClass().add("home-subtitle");
+        hint.setWrapText(true);
+        final VBox tile = new VBox(8, cap, hint, badges);
         tile.getStyleClass().add("stat-tile");
         tile.setPadding(new Insets(14, 18, 14, 18));
         tile.setId("bazaar-upgrades");
         return tile;
     }
 
+    /**
+     * <b>Bajar o apagar una mejora comprada</b>, como se quita una mascota
+     * (Discord, 26-10-2026: volver a la vida de salida para que cueste mas, y
+     * subirla otra vez si se pone dificil). Con un nivel, un interruptor; con
+     * varios (el Elixir, Estates), "− 2/3 +". Subir es gratis hasta lo comprado:
+     * ver {@link forge.neo.quest.QuestUpgradeLevels}.
+     */
+    private Region upgradeAdjust(final NeoQuestBazaar.OwnedUpgrade u) {
+        if (u.owned() <= 1) {
+            final boolean on = u.level() > 0;
+            final Button toggle = new Button(NeoText.get(on ? "bazaar.upgrade.on" : "bazaar.upgrade.off"));
+            toggle.getStyleClass().add("segment");
+            toggle.pseudoClassStateChanged(SELECTED, on);
+            toggle.setMaxWidth(Double.MAX_VALUE);
+            toggle.setOnAction(e -> changeUpgrade(u, on ? 0 : 1));
+            return toggle;
+        }
+        final Button less = new Button("−");
+        final Button more = new Button("+");
+        for (final Button b : new Button[] {less, more}) {
+            b.getStyleClass().add("segment");
+            b.setMinWidth(Region.USE_PREF_SIZE);
+        }
+        less.setDisable(u.level() <= 0);
+        more.setDisable(u.level() >= u.owned());
+        less.setOnAction(e -> changeUpgrade(u, u.level() - 1));
+        more.setOnAction(e -> changeUpgrade(u, u.level() + 1));
+        final Label value = new Label(NeoText.get("bazaar.upgrade.active", u.level(), u.owned()));
+        value.getStyleClass().add("home-subtitle");
+        final javafx.scene.layout.Region gap1 = new javafx.scene.layout.Region();
+        final javafx.scene.layout.Region gap2 = new javafx.scene.layout.Region();
+        javafx.scene.layout.HBox.setHgrow(gap1, javafx.scene.layout.Priority.ALWAYS);
+        javafx.scene.layout.HBox.setHgrow(gap2, javafx.scene.layout.Priority.ALWAYS);
+        final javafx.scene.layout.HBox row = new javafx.scene.layout.HBox(4, less, gap1, value, gap2, more);
+        row.setAlignment(Pos.CENTER);
+        return row;
+    }
+
+    private void changeUpgrade(final NeoQuestBazaar.OwnedUpgrade u, final int level) {
+        NeoQuestBazaar.setUpgradeLevel(u, level);
+        reload();
+        actions.changed();
+    }
+
     static Region upgradeBadge(final NeoQuestBazaar.OwnedUpgrade u) {
         final VBox badge = new VBox(4);
+        // Apagada (QuestUpgradeLevels): se sigue viendo, que es tuya, pero en gris.
+        if (u.level() <= 0) {
+            badge.setOpacity(0.45);
+        }
         badge.setAlignment(Pos.CENTER);
         badge.getStyleClass().add("set-tile");
         badge.setPadding(new Insets(10, 12, 10, 12));

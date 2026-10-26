@@ -4178,6 +4178,87 @@ public class TableScreen extends Pane {
         });
     }
 
+    /** La ultima carta soltada desde la mano, donde y cuando: de ahi sale su vuelo. */
+    private int lastDropId = -1;
+    private double lastDropX;
+    private double lastDropY;
+    private long lastDropAt;
+
+    /**
+     * <b>La carta que entra en la mesa vuela desde donde estaba</b> (Discord,
+     * 26-10-2026: <i>"a quick float to the board from the opponent's hand, or
+     * from where I release my card"</i>). Va con las animaciones: si estan
+     * encendidas sale, si no, no. Sin ajuste propio (Ana).
+     *
+     * <p>Sale de donde soltaste la carta si la arrastraste hace poco, si no del
+     * stack (un hechizo que se resuelve), de tu mano o del retrato del rival
+     * (una tierra). La carta aun no esta en su sitio cuando llega el aviso: se
+     * espera a que el refresco la pinte y entonces vuela con {@link #flyCard}.
+     */
+    public void flyIn(final CardView card, final boolean fromStack, final boolean mine, final PlayerView owner) {
+        if (card == null || !CardNode.areAnimationsEnabled()) {
+            return;
+        }
+        final javafx.geometry.Bounds from = flightSource(card, fromStack, mine, owner);
+        if (from != null) {
+            flyInLater(card, from, 0);
+        }
+    }
+
+    private void flyInLater(final CardView card, final javafx.geometry.Bounds from, final int attempt) {
+        final javafx.animation.PauseTransition wait =
+                new javafx.animation.PauseTransition(javafx.util.Duration.millis(attempt == 0 ? 20 : 60));
+        wait.setOnFinished(e -> {
+            final CardNode n = nodeOf(card);
+            if (n == null || n.getScene() == null || n.getWidth() <= 0) {
+                // Hasta ~0,7 s: lo que no aparece en ese rato no vuela.
+                if (attempt < 12) {
+                    flyInLater(card, from, attempt + 1);
+                }
+                return;
+            }
+            applyCss();
+            layout();
+            if (Boolean.getBoolean("neo.impact.log")) {
+                System.out.println("[vuelo] " + card.getName() + " desde " + (int) from.getCenterX() + ","
+                        + (int) from.getCenterY() + " (intento " + attempt + ")");
+            }
+            flyCard(n, from);
+        });
+        wait.play();
+    }
+
+    /** De donde sale el vuelo, como un rectangulo de carta pequenya en la escena. */
+    private javafx.geometry.Bounds flightSource(final CardView card, final boolean fromStack, final boolean mine,
+            final PlayerView owner) {
+        javafx.geometry.Point2D c = null;
+        if (mine && card.getId() == lastDropId && System.currentTimeMillis() - lastDropAt < 8000) {
+            c = new javafx.geometry.Point2D(lastDropX, lastDropY);
+        } else if (fromStack) {
+            final Node s = stackBox.getScene() != null && stackBox.isVisible() ? stackBox
+                    : stackChip.getScene() != null && stackChip.isVisible() ? stackChip : null;
+            c = centerOf(s);
+        } else if (mine) {
+            c = centerOf(hand);
+        } else if (owner != null) {
+            c = centerOf(portraitOf(owner));
+        }
+        if (c == null) {
+            return null;
+        }
+        final double w = UiScale.px(70);
+        final double h = w * 7 / 5;
+        return new javafx.geometry.BoundingBox(c.getX() - w / 2, c.getY() - h / 2, w, h);
+    }
+
+    private static javafx.geometry.Point2D centerOf(final Node n) {
+        if (n == null || n.getScene() == null) {
+            return null;
+        }
+        final javafx.geometry.Bounds b = n.localToScene(n.getBoundsInLocal());
+        return new javafx.geometry.Point2D(b.getCenterX(), b.getCenterY());
+    }
+
     /** Una foto de {@code n} que va de {@code fromScene} a donde esta {@code n} ahora. */
     private void flyCard(final CardNode n, final javafx.geometry.Bounds fromScene) {
         final javafx.geometry.Bounds toScene = n.localToScene(n.getBoundsInLocal());
@@ -5189,6 +5270,13 @@ public class TableScreen extends Pane {
                         source, fromHand, target, cancelled ? " [CANCELADO]" : "");
             }
             if (!cancelled && onDrop != null && source != null) {
+                // Para que vuele desde aqui al entrar (flyIn).
+                if (fromHand) {
+                    lastDropId = source.getId();
+                    lastDropX = e.getSceneX();
+                    lastDropY = e.getSceneY();
+                    lastDropAt = System.currentTimeMillis();
+                }
                 onDrop.onDrop(source, fromHand, target);
             }
             // Soltarla DENTRO de la mano la cambia de sitio, como en Forge

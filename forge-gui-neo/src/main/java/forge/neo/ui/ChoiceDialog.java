@@ -558,6 +558,15 @@ public class ChoiceDialog<T> extends VBox implements NumberedChoice {
                     toggle(option, node);
                 }
             });
+            // La carta de premio de la Quest: cuantas tienes, debajo.
+            final String owned = forge.neo.quest.QuestRewardPick.caption(pc);
+            if (owned != null) {
+                final Label tag = new Label(owned);
+                tag.getStyleClass().add("caption");
+                final javafx.scene.layout.VBox box = new javafx.scene.layout.VBox(4, node, tag);
+                box.setAlignment(Pos.CENTER);
+                return box;
+            }
             return node;
         }
         final Button b = new Button(display == null ? String.valueOf(option) : display.apply(option));

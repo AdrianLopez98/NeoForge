@@ -143,6 +143,26 @@ public class DeckPickerDialog extends VBox {
         footer.getChildren().add(at < 0 ? footer.getChildren().size() : at, b);
     }
 
+    /**
+     * Un boton mas en el pie, antes del de "al azar" (el "Mazo Jumpstart" de la
+     * Quest, Discord 26-10-2026).
+     */
+    public void addFooterAction(final String id, final String label, final String tip, final Runnable action) {
+        if (action == null || footer == null) {
+            return;
+        }
+        final Button b = new Button(label);
+        b.setId(id);
+        b.getStyleClass().add("btn-secondary");
+        b.setMinWidth(Region.USE_PREF_SIZE);
+        if (tip != null) {
+            b.setTooltip(new javafx.scene.control.Tooltip(tip));
+        }
+        b.setOnAction(e -> action.run());
+        final int at = footer.getChildren().indexOf(randomButton);
+        footer.getChildren().add(at < 0 ? footer.getChildren().size() : at, b);
+    }
+
     /** El pie y su boton de "al azar", para colgar el menu de colecciones al lado. */
     private HBox footer;
     private Button randomButton;

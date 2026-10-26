@@ -104,6 +104,13 @@ public final class NeoSounds {
         put("damage", 1);
         put("equip", 1);
         put("phasing", 2);
+        // Destruir segun el tipo (26-10-2026, ver DestroySound). Criaturas y
+        // planeswalkers siguen con "destroy"; un tipo sin monton, tambien.
+        put("destroy_artifact_creature", 2);
+        put("destroy_artifact", 1);
+        put("destroy_land", 1);
+        put("destroy_enchantment", 1);
+        put("destroy_other", 1);
     }
 
     private NeoSounds() {
@@ -150,9 +157,17 @@ public final class NeoSounds {
         if (!enabled()) {
             return null;
         }
-        final String[] pool = POOLS.get(base(forgeName));
+        String[] pool = POOLS.get(base(forgeName));
         if (pool == null) {
             return null;
+        }
+        // Destruir, segun el tipo de la carta (DestroySound). Sin monton para
+        // ese tipo, el de siempre.
+        if ("destroy".equals(base(forgeName))) {
+            final String byType = DestroySound.pool();
+            if (byType != null && POOLS.containsKey(byType)) {
+                pool = POOLS.get(byType);
+            }
         }
         final String choice = pool[ThreadLocalRandom.current().nextInt(pool.length)];
         return choice.isEmpty() ? null : file(choice);

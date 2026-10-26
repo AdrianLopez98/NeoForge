@@ -75,6 +75,16 @@ public final class NeoAchievements {
         private final PaperCard card;
         private final String search;
 
+        /** Un hito de Ascenso (ver {@link #ascentGroup}): o lo tienes o no. */
+        Item(final String name, final String description, final boolean earned) {
+            this.name = name;
+            this.description = description;
+            this.progress = null;
+            this.tier = earned ? Tier.SPECIAL : Tier.NONE;
+            this.card = null;
+            this.search = (name + " " + description).toLowerCase(java.util.Locale.ROOT);
+        }
+
         Item(final Achievement a) {
             this.name = a.getDisplayName() == null ? a.getKey() : a.getDisplayName();
             this.description = describe(a);
@@ -206,7 +216,33 @@ public final class NeoAchievements {
         add(out, PlaneswalkerAchievements.instance);
         add(out, CardActivationAchievements.instance);
         add(out, ChallengeAchievements.instance);
+        final Group ascent = ascentGroup();
+        if (ascent != null) {
+            out.add(ascent);
+        }
         return out;
+    }
+
+    /**
+     * LOS HITOS DE ASCENSO, como una pestanya mas (Discord, 26-10-2026:
+     * <i>"In Ascent Mode, I unlocked some milestones, but I can only see their
+     * titles, not how I got them (maybe they could go in the Achievements
+     * screen with some explanation?)"</i>). Cada uno con como se consigue y lo
+     * que abre. Antes solo salian, por su nombre, en el resumen de la run.
+     */
+    private static Group ascentGroup() {
+        try {
+            final java.util.Set<forge.neo.ascent.AscentFeat> got = forge.neo.ascent.AscentUnlocks.feats();
+            final List<Item> items = new ArrayList<>();
+            for (final forge.neo.ascent.AscentFeat f : forge.neo.ascent.AscentFeat.values()) {
+                items.add(new Item(NeoText.get(f.getNameKey()),
+                        NeoText.get(f.getHowKey(), f.howValue()) + " " + NeoText.get(f.getOpensKey()),
+                        got.contains(f)));
+            }
+            return new Group(NeoText.get("achv.ascent"), items);
+        } catch (final RuntimeException e) {
+            return null;
+        }
     }
 
     private static void add(final List<Group> out, final AchievementCollection collection) {

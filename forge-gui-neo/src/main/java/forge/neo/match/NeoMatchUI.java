@@ -2914,6 +2914,18 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         if (t == null || !forge.neo.card.CardNode.areAnimationsEnabled()) {
             return;
         }
+        // La carta que entra en la mesa vuela desde donde estaba (Discord,
+        // 26-10-2026): de donde la soltaste, del stack, de tu mano o del
+        // retrato del rival. Va con las animaciones, sin ajuste propio (Ana).
+        if (event instanceof GameEventCardChangeZone move && move.card() != null && move.from() != null
+                && move.to() != null && move.to().zoneType() == ZoneType.Battlefield
+                && (move.from().zoneType() == ZoneType.Hand || move.from().zoneType() == ZoneType.Stack)) {
+            final CardView card = move.card();
+            final boolean fromStack = move.from().zoneType() == ZoneType.Stack;
+            final boolean mine = isMine(card);
+            final PlayerView owner = card.getController() != null ? card.getController() : card.getOwner();
+            runOnUi(() -> t.flyIn(card, fromStack, mine, owner));
+        }
         // Juntas, nunca una tarea por aviso: ver CardPulses (una cascada de
         // contadores dejo el juego sin memoria).
         if (event instanceof forge.game.event.GameEventCardDamaged e && e.amount() > 0) {
@@ -4223,6 +4235,8 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         // aqui, por lo mismo. Una repeticion no se cuenta.
         if (ending != Ending.REPLAY && getGameView() != null) {
             GameStats.attach(getGameView().getGame());
+            // Y tu mano en el registro cada turno, si lo pides (HandLog).
+            HandLog.attach(getGameView().getGame());
         }
         // "Le afecta" en la ampliacion y al pasar el raton (Discord,
         // 23-10-2026): se lee de ESTA partida (null en el invitado en red).
@@ -4268,6 +4282,15 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         // El aviso de "el motor se ha muerto" es de un solo uso: si no se
         // rearma aqui, la segunda partida se rompe en silencio.
         forge.neo.platform.NeoGuiBase.clearEngineCrash();
+        // Las repeticiones de Forge cuelgan un forwarder de la cola del humano
+        // que no se puede vaciar desde el hilo de interfaz (ForwarderGuard).
+        if (myPlayers != null) {
+            for (final PlayerView pv : myPlayers) {
+                if (getGameController(pv) instanceof forge.player.PlayerControllerHuman human) {
+                    ForwarderGuard.guard(human.getInputQueue());
+                }
+            }
+        }
         lastPhase = null;
         lastTurn = -1;
         log("Game opened. Local seats: %s",
@@ -6813,13 +6836,22 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
      * sigue ahi, y si lo pulsas pregunta ({@link #confirmAutoSacrifice}).
      */
     private void autoPressOrHold() {
-        final forge.game.card.Card culprit =
-                AutoPaySacrifice.culprit(pendingInput(getGameController()));
-        if (culprit == null) {
+        final Object input = pendingInput(getGameController());
+        final forge.game.card.Card culprit = AutoPaySacrifice.culprit(input);
+        // Con mana flotante y otras fuentes, elegir con que se paga es tuyo:
+        // "Auto" gastaria primero lo flotante (Discord, 25-10-2026). Ver
+        // FloatingManaChoice.
+        final boolean floating = culprit == null && FloatingManaChoice.applies(input);
+        // Y si se ha pedido que no gire criaturas (AutoPayCreatures).
+        final forge.game.card.Card creature = culprit == null && !floating
+                ? AutoPayCreatures.culprit(input) : null;
+        if (culprit == null && !floating && creature == null) {
             getGameController().selectButtonOk();
             return;
         }
-        trace("pago automatico parado: %s sacrificaria una carta", culprit.getName());
+        trace(floating ? "pago automatico parado: hay mana flotante"
+                : creature != null ? "pago automatico parado: giraria " + creature.getName()
+                : "pago automatico parado: " + culprit.getName() + " sacrificaria una carta");
         // Este pago ya no se intenta solo, y sus botones (Auto / Cancelar) a la
         // vista: hasta aqui no se habian pintado porque se iba a pagar solo.
         autoPayHeldFor = pendingInput(getGameController());
@@ -6830,8 +6862,11 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         }
         setActionableScans(true);
         if (table != null) {
-            table.getActionBar().setWarning(NeoText.get("mana.autoSac.held",
-                    forge.neo.card.CardText.nameOf(culprit.getView())), false);
+            table.getActionBar().setWarning(floating ? NeoText.get("mana.floating.held")
+                    : creature != null ? NeoText.get("mana.creatures.held",
+                            forge.neo.card.CardText.nameOf(creature.getView()))
+                    : NeoText.get("mana.autoSac.held",
+                            forge.neo.card.CardText.nameOf(culprit.getView())), false);
         }
     }
 

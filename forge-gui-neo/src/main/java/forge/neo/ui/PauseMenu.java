@@ -186,6 +186,19 @@ public class PauseMenu extends StackPane {
                 item(NeoText.get("pause.resume"), "btn-primary", actions::resume),
                 item(NeoText.get("common.settings"), "btn-secondary", this::showSettings));
 
+        // El pago automatico a mano, si se ha pedido (Ajustes, apagado de
+        // fabrica): dice como esta y lo cambia sin entrar en Ajustes.
+        if (forge.neo.NeoSettings.autoManaQuick()) {
+            final boolean on = forge.neo.NeoSettings.autoPayMana();
+            root.getChildren().add(item(NeoText.get(on ? "pause.autoMana.on" : "pause.autoMana.off"),
+                    "btn-secondary", () -> {
+                        settingsHost.setAutoPayMana(!on);
+                        forge.neo.NeoSettings.setBool(forge.neo.NeoSettings.AUTO_MANA, !on);
+                        forge.neo.NeoSettings.save();
+                        showMain();
+                    }));
+        }
+
         if (actions.hasSavedOrders()) {
             root.getChildren().add(item(NeoText.get("pause.forgetOrders"), "btn-secondary", () -> {
                 actions.forgetSavedOrders();

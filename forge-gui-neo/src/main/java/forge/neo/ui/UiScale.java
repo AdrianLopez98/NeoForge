@@ -201,7 +201,16 @@ public final class UiScale {
     /** Estilo a aplicar a la raiz de la escena para fijar la escala. */
     public static String rootStyle(final double windowHeight) {
         textFactor = forHeight(windowHeight);
-        return "-fx-font-size: " + round(BASE_FONT_PX * textFactor) + "px;";
+        // Y el color de lo jugable, que es un ajuste (NeoSettings.ACTIONABLE_COLOR):
+        // va aqui porque esta es la raiz de todas las pantallas, y un color
+        // "buscado" (-neo-actionable) lo heredan todos los nodos de debajo.
+        String actionable;
+        try {
+            actionable = forge.neo.NeoSettings.actionableColor();
+        } catch (final RuntimeException e) {
+            actionable = forge.neo.NeoSettings.ACTIONABLE_COLORS[0];
+        }
+        return "-fx-font-size: " + round(BASE_FONT_PX * textFactor) + "px; -neo-actionable: " + actionable + ";";
     }
 
     private static double clamp(final double v) {

@@ -170,7 +170,15 @@ public final class ArtlessCheck {
             downloaded.getParentFile().mkdirs();
             javax.imageio.ImageIO.write(img, "jpg", downloaded);
             final long size = downloaded.length();
+            // Forge recuerda el .jpg que acaba de encontrar (ImageKeys.cachedCards)...
+            forge.ImageKeys.getImageFile(key);
             final java.io.File mine = CardImages.useOwnImage(key, src);
+            // ...y con la propia en .png tiene que dar la .png, no el .jpg que ya
+            // no esta (Discord, 26-10-2026: "the image replacement doesn't work").
+            final java.io.File found = forge.ImageKeys.getImageFile(key);
+            check(found != null && mine != null && found.getPath().equals(mine.getPath()),
+                    "Forge encuentra la propia en .png, no el .jpg que recordaba",
+                    "Forge sigue dando " + found + " en vez de " + mine);
             check(mine != null && mine.isFile() && !downloaded.exists()
                             && new java.io.File(downloaded.getPath() + ".original").isFile(),
                     "la imagen que habia se aparta, no se borra", "la que habia: " + downloaded.exists()

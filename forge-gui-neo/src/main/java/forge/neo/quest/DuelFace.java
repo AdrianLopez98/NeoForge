@@ -127,7 +127,7 @@ public final class DuelFace {
      * {@code MythicRare}, o sea que una carta de desarrollo le ganaria a una
      * mitica.
      */
-    private static int rank(final CardRarity rarity) {
+    static int rank(final CardRarity rarity) {
         if (rarity == null) {
             return 0;
         }

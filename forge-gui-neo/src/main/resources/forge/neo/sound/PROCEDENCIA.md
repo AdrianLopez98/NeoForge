@@ -83,3 +83,9 @@ elegidos uno a uno por Adri el 24-10-2026. Ver `forge.neo.sound.NeoSounds`.
 | phasing_2.mp3 | fase_a_02.mp3 | 2026-10-25 | something flickering out of reality, a soft reversed whoosh with a ghostly shimmer, ethereal | 953105883 (lote 2/4) |
 | red_land_1.mp3 | montana_hoguera_01.mp3 | 2026-10-25 | crackling campfire bursting into flames, wood popping and fire roaring up, warm and lively Retocado: recortado a 1,7 s con desvanecido (como las tierras de Forge). | 1414937924 (lote 1/4) |
 | red_land_2.mp3 | montana_hoguera_03.mp3 | 2026-10-25 | crackling campfire bursting into flames, wood popping and fire roaring up, warm and lively Retocado: recortado a 1,7 s con desvanecido (como las tierras de Forge). | 1414937924 (lote 3/4) |
+| destroy_artifact_creature_1.mp3 | artefacto_criatura_c_01.mp3 | 2026-10-26 | a brass automaton powering down, a winding-down whir sliding lower and lower, then a soft metal clunk, dreamlike reverb | 1798295853 (lote 1/4) |
+| destroy_artifact_creature_2.mp3 | artefacto_criatura_c_03.mp3 | 2026-10-26 | a brass automaton powering down, a winding-down whir sliding lower and lower, then a soft metal clunk, dreamlike reverb | 1798295853 (lote 3/4) |
+| destroy_artifact_1.mp3 | artefacto_b_02.mp3 | 2026-10-26 | an enchanted iron relic bursting apart, a sharp metal crunch and a deep resonant clang echoing away, fantasy | 1588708251 (lote 2/4) |
+| destroy_land_1.mp3 | tierra_b_02.mp3 | 2026-10-26 | the earth cracking open, a heavy stone break and pebbles tumbling down, echoing and dreamlike | 640686488 (lote 2/4) |
+| destroy_other_1.mp3 | otro_b_01.mp3 | 2026-10-26 | a short arcane blast, a heavy thump with a crackle of energy fading out with reverb | 222256123 (lote 1/4) |
+| destroy_enchantment_1.mp3 | encantamiento_f_02.mp3 | 2026-10-26 | a glowing spell powering down, soft electric static crackle and a descending shimmer fading to nothing, fantasy | 1434269391 (lote 2/4) |

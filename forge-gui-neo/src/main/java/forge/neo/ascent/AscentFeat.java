@@ -133,6 +133,25 @@ public enum AscentFeat {
         return "ascent.feat." + id + ".opens";
     }
 
+    /**
+     * La clave de «como se consigue» (Discord, 26-10-2026: <i>"I can only see
+     * their titles, not how I got them"</i>). Lleva {@code {0}} con
+     * {@link #howValue()}: el numero sale de {@link Limits}, no del texto.
+     */
+    public String getHowKey() {
+        return "ascent.feat." + id + ".how";
+    }
+
+    /** El numero de la condicion (reliquias, nivel de Ascension), o 0. */
+    public int howValue() {
+        switch (this) {
+            case HOARDER: return Limits.HOARD;
+            case CHAMPION: return Limits.CHAMPION_ASCENSION;
+            case MASTER: return Limits.MASTER_ASCENSION;
+            default: return 0;
+        }
+    }
+
     /** El hito con ese id, o {@code null}. */
     public static AscentFeat byId(final String id) {
         for (final AscentFeat f : values()) {

@@ -453,6 +453,19 @@ public class SettingsPanel extends VBox {
                     NeoSettings.setBool(NeoSettings.AUTO_MANA, on);
                     NeoSettings.save();
                 }));
+        // Sus dos coletillas (Discord, 26-10-2026), apagadas de fabrica: que no
+        // gire criaturas (AutoPayCreatures), y tenerlo a mano en el menu de la
+        // partida (Escape) sin entrar aqui.
+        getChildren().add(toggleRow(NeoText.get("settings.autoManaNoCreatures"),
+                NeoSettings.autoManaNoCreatures(), on -> {
+                    NeoSettings.setBool(NeoSettings.AUTO_MANA_NO_CREATURES, on);
+                    NeoSettings.save();
+                }));
+        getChildren().add(toggleRow(NeoText.get("settings.autoManaQuick"),
+                NeoSettings.autoManaQuick(), on -> {
+                    NeoSettings.setBool(NeoSettings.AUTO_MANA_QUICK, on);
+                    NeoSettings.save();
+                }));
 
         // --- fuentes que el motor no sabe usar ---
         //
@@ -1043,6 +1056,52 @@ public class SettingsPanel extends VBox {
                     NeoSettings.setBool(NeoSettings.BIG_HOVER_CARD, on);
                     NeoSettings.save();
                 }));
+        // --- el color de lo que puedes jugar ---
+        //
+        // Discord, 26-10-2026: el celeste no se distingue bien, sobre todo en
+        // cartas azules. Se aplica al momento: va en la raiz (applyScale).
+        // Y el ultimo, "Personalizado", con el selector de color al lado
+        // (Discord, 26-10-2026: "pick our own colors from a palette").
+        final String[] colorLabels = new String[NeoSettings.ACTIONABLE_COLOR_KEYS.length + 1];
+        for (int i = 0; i < NeoSettings.ACTIONABLE_COLOR_KEYS.length; i++) {
+            colorLabels[i] = NeoText.get("settings.actionableColor." + NeoSettings.ACTIONABLE_COLOR_KEYS[i]);
+        }
+        colorLabels[NeoSettings.ACTIONABLE_CUSTOM_INDEX] = NeoText.get("settings.actionableColor.custom");
+        final HBox colorRow = choiceRow(NeoText.get("settings.actionableColor"), colorLabels,
+                colorLabels[NeoSettings.actionableColorIndex()], v -> {
+                    for (int i = 0; i < colorLabels.length; i++) {
+                        if (colorLabels[i].equals(v)) {
+                            NeoSettings.setInt(NeoSettings.ACTIONABLE_COLOR, i);
+                        }
+                    }
+                    NeoSettings.save();
+                    host.applyScale();
+                });
+        final javafx.scene.control.ColorPicker picker = new javafx.scene.control.ColorPicker(
+                javafx.scene.paint.Color.web(NeoSettings.actionableCustom()));
+        picker.getStyleClass().add("settings-color");
+        for (final javafx.scene.Node n : colorRow.getChildren()) {
+            if (n instanceof javafx.scene.layout.FlowPane buttons) {
+                buttons.getChildren().add(picker);
+                picker.setOnAction(e -> {
+                    final javafx.scene.paint.Color c = picker.getValue();
+                    NeoSettings.setActionableCustom(String.format(java.util.Locale.ROOT, "#%02X%02X%02X",
+                            Math.round(c.getRed() * 255), Math.round(c.getGreen() * 255),
+                            Math.round(c.getBlue() * 255)));
+                    NeoSettings.save();
+                    // Y queda marcado "Personalizado", que es lo que ahora manda.
+                    for (final javafx.scene.Node b : buttons.getChildren()) {
+                        if (b instanceof Button button) {
+                            button.pseudoClassStateChanged(SELECTED,
+                                    colorLabels[NeoSettings.ACTIONABLE_CUSTOM_INDEX].equals(button.getText()));
+                        }
+                    }
+                    host.applyScale();
+                });
+            }
+        }
+        getChildren().add(colorRow);
+
         final Label bigNote = new Label(NeoText.get("settings.bigHoverCard.note"));
         bigNote.getStyleClass().add("settings-note");
         bigNote.setWrapText(true);
@@ -1086,6 +1145,9 @@ public class SettingsPanel extends VBox {
         getChildren().add(rivalsNote);
 
         tab(Tab.MODES);
+        // --- las cartas prohibidas de cada formato (Discord, 26-10-2026) ---
+        getChildren().add(section(NeoText.get("banlist.section")));
+        getChildren().add(new BanListEditor());
         getChildren().add(section(NeoText.get("settings.modesSection")));
 
         // --- vender solas las repetidas (aventura) ---
@@ -1218,6 +1280,19 @@ public class SettingsPanel extends VBox {
                     NeoSettings.setBool(forge.neo.match.DetailLog.SETTING, on);
                     NeoSettings.save();
                 }));
+        // Tu mano en el registro, cada turno (HandLog; Discord, 26-10-2026).
+        getChildren().add(toggleRow(NeoText.get("settings.handLog"),
+                forge.neo.match.HandLog.enabled(),
+                on -> {
+                    NeoSettings.setBool(forge.neo.match.HandLog.SETTING, on);
+                    NeoSettings.save();
+                }));
+        final Label handNote = new Label(NeoText.get("settings.handLog.note"));
+        handNote.getStyleClass().add("home-subtitle");
+        handNote.setWrapText(true);
+        handNote.setMaxWidth(UiScale.px(560));
+        handNote.setMinHeight(Region.USE_PREF_SIZE);
+        getChildren().add(handNote);
         final Label detailNote = new Label(NeoText.get("settings.detailLog.note",
                 forge.neo.match.DetailLog.file().getPath()));
         detailNote.getStyleClass().add("home-subtitle");

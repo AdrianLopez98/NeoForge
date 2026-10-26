@@ -83,6 +83,7 @@ public final class QuestCheck {
         ok &= checkLowLife();
         ok &= checkRename();
         ok &= checkKept();
+        ok &= checkUpgradeLevels();
         System.out.println();
         ok &= checkEveryRivalHasAFace();
         System.out.println();
@@ -3367,6 +3368,56 @@ public final class QuestCheck {
      * vuelven a entrar. La estrella es de Forge y del jugador: se deja como
      * estaba.
      */
+    /**
+     * Las mejoras del bazar se apagan y se bajan (Discord, 26-10-2026): el
+     * Elixir comprado a 3, bajado a 0, da 3 vidas menos y NO se vuelve a
+     * vender (pagarias por lo que ya tienes); subido otra vez, gratis, vuelve
+     * la vida. Lo comprado no se pierde por el camino.
+     */
+    private static boolean checkUpgradeLevels() {
+        System.out.println("  --- Mejoras del bazar: apagar y bajar ---");
+        final String name = "neo-questcheck-mejoras";
+        NeoQuest.delete(name);
+        boolean ok = true;
+        try {
+            final List<Deck> starters = NeoQuest.starterDecks(NeoQuest.Modalidad.ESTANDAR);
+            NeoQuest.start(name, NeoQuest.Modalidad.ESTANDAR, NeoQuest.Dificultad.NORMAL,
+                    starters.isEmpty() ? null : starters.get(0));
+            final forge.gamemodes.quest.QuestController q = NeoQuest.engine();
+            final forge.gamemodes.quest.bazaar.QuestItemType elixir =
+                    forge.gamemodes.quest.bazaar.QuestItemType.ELIXIR_OF_LIFE;
+            q.getAssets().setItemLevel(elixir, 3);
+            QuestUpgradeLevels.remember(elixir);
+            final int full = q.getAssets().getLife(q.getMode());
+            final long credits = NeoQuest.credits();
+            QuestUpgradeLevels.setActive(elixir, 0);
+            final int low = q.getAssets().getLife(q.getMode());
+            boolean offered = false;
+            for (final NeoQuestBazaar.Stall s : NeoQuestBazaar.stalls()) {
+                for (final forge.gamemodes.quest.bazaar.IQuestBazaarItem i : s.getItems()) {
+                    offered |= i instanceof forge.gamemodes.quest.bazaar.QuestItemBasic b && b.getItemType() == elixir;
+                }
+            }
+            final boolean listed = NeoQuestBazaar.ownedUpgrades().stream()
+                    .anyMatch(u -> u.type() == elixir && u.level() == 0 && u.owned() == 3);
+            final int back = QuestUpgradeLevels.setActive(elixir, 7);
+            final int again = q.getAssets().getLife(q.getMode());
+            final boolean free = NeoQuest.credits() == credits;
+            final boolean good = low == full - 3 && !offered && listed && back == 3 && again == full
+                    && free && QuestUpgradeLevels.owned(elixir) == 3 && !QuestUpgradeLevels.parked(elixir);
+            System.out.printf(Locale.ROOT,
+                    "  [%s] vida %d -> apagado %d -> otra vez %d | no se vende bajado: %s | sale en Tus mejoras: %s | subir no cobra: %s | no pasa de lo comprado: %s%n",
+                    good ? "OK " : "MAL", full, low, again, !offered, listed, free, back == 3);
+            ok &= good;
+        } finally {
+            NeoQuest.delete(name);
+        }
+        final boolean gone = !new java.io.File(forge.localinstance.properties.ForgeConstants.QUEST_SAVE_DIR,
+                name + ".neo-mejoras").exists();
+        System.out.printf(Locale.ROOT, "  [%s] al borrar la Quest se borra su fichero de mejoras%n", gone ? "OK " : "MAL");
+        return ok && gone;
+    }
+
     private static boolean checkKept() {
         System.out.println("  --- Cartas con estrella: no se venden solas ---");
         final String name = "neo-questcheck-estrella";

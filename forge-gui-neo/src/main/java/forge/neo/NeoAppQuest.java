@@ -1088,9 +1088,107 @@ final class NeoAppQuest {
                     }));
             layer.getChildren().add(ask);
         });
+        // Un mazo con dos de tus sobres Jumpstart (Discord, 26-10-2026). Solo
+        // si hay con que: con menos de dos sobres apuntados, el boton no sale.
+        final java.util.List<forge.neo.quest.NeoQuestJumpstart.Pack> packs =
+                forge.neo.quest.NeoQuestJumpstart.packs();
+        if (packs.size() >= 2) {
+            picker.addFooterAction("quest-jumpstart-deck", forge.neo.NeoText.get("quest.jumpstart.button"),
+                    forge.neo.NeoText.get("quest.jumpstart.tip"), () -> showJumpstartBuilder(layer, packs));
+        }
+        final boolean openJumpstart = packs.size() >= 2 && System.getProperty("neo.quest.jumpstartPick") != null;
         layer.getChildren().add(picker);
         app.scene.setRoot(new javafx.scene.layout.StackPane(previous, layer));
         app.applyScale();
+        // Solo pruebas: con -Dneo.quest.jumpstartPick, el dialogo abierto.
+        if (openJumpstart) {
+            showJumpstartBuilder(layer, packs);
+        }
+    }
+
+    /**
+     * Elegir dos sobres Jumpstart y montar el mazo. Los dos ultimos marcados
+     * son los que valen: marcar un tercero suelta el primero.
+     */
+    private void showJumpstartBuilder(final javafx.scene.layout.StackPane layer,
+                                      final java.util.List<forge.neo.quest.NeoQuestJumpstart.Pack> packs) {
+        final javafx.scene.control.Label title = new javafx.scene.control.Label(
+                forge.neo.NeoText.get("quest.jumpstart.title"));
+        title.getStyleClass().add("dialog-title");
+        final javafx.scene.control.Label sub = new javafx.scene.control.Label(
+                forge.neo.NeoText.get("quest.jumpstart.sub"));
+        sub.getStyleClass().add("home-subtitle");
+        sub.setWrapText(true);
+        final java.util.List<Integer> chosen = new java.util.ArrayList<>();
+        final javafx.scene.layout.FlowPane grid = new javafx.scene.layout.FlowPane(8, 8);
+        final javafx.scene.control.Button build = new javafx.scene.control.Button(
+                forge.neo.NeoText.get("quest.jumpstart.build"));
+        build.setId("quest-jumpstart-build");
+        build.getStyleClass().add("btn-primary");
+        build.setDisable(true);
+        final java.util.List<javafx.scene.control.ToggleButton> toggles = new java.util.ArrayList<>();
+        for (int i = 0; i < packs.size(); i++) {
+            final int idx = i;
+            final forge.neo.quest.NeoQuestJumpstart.Pack p = packs.get(i);
+            final javafx.scene.control.ToggleButton t = new javafx.scene.control.ToggleButton(
+                    p.theme() + "  \u00b7  " + forge.neo.NeoText.get("quest.jumpstart.cards", p.cards().size()));
+            t.getStyleClass().add("segment");
+            t.setMinWidth(javafx.scene.layout.Region.USE_PREF_SIZE);
+            t.setOnAction(e -> {
+                if (t.isSelected()) {
+                    chosen.add(idx);
+                    if (chosen.size() > 2) {
+                        toggles.get(chosen.remove(0)).setSelected(false);
+                    }
+                } else {
+                    chosen.remove(Integer.valueOf(idx));
+                }
+                build.setDisable(chosen.size() != 2);
+            });
+            toggles.add(t);
+            grid.getChildren().add(t);
+        }
+        final javafx.scene.control.ScrollPane sp = new javafx.scene.control.ScrollPane(grid);
+        sp.getStyleClass().add("dialog-scroll");
+        sp.setFitToWidth(true);
+        sp.setPrefViewportHeight(Math.min(360, 60 + packs.size() * 22));
+        final javafx.scene.control.Button cancel = new javafx.scene.control.Button(
+                forge.neo.NeoText.get("common.cancel"));
+        cancel.getStyleClass().add("btn-secondary");
+        final javafx.scene.layout.HBox bottom = new javafx.scene.layout.HBox(8, cancel, build);
+        bottom.setAlignment(javafx.geometry.Pos.CENTER_RIGHT);
+        final javafx.scene.layout.VBox box = new javafx.scene.layout.VBox(10, title, sub, sp, bottom);
+        box.getStyleClass().add("dialog");
+        box.setPadding(new javafx.geometry.Insets(18));
+        box.setMaxWidth(Math.min(forge.neo.ui.UiScale.px(760), app.scene.getWidth() * 0.9));
+        box.setMaxHeight(javafx.scene.layout.Region.USE_PREF_SIZE);
+        final javafx.scene.layout.StackPane ask = new javafx.scene.layout.StackPane(box);
+        ask.getStyleClass().add("overlay");
+        cancel.setOnAction(e -> layer.getChildren().remove(ask));
+        build.setOnAction(e -> {
+            if (chosen.size() == 2) {
+                forge.neo.quest.NeoQuestJumpstart.buildDeck(packs.get(chosen.get(0)), packs.get(chosen.get(1)));
+                showQuestHome();
+            }
+        });
+        layer.getChildren().add(ask);
+        // Solo pruebas: -Dneo.quest.jumpstartPick=0,1 marca esos dos (y con
+        // -Dneo.quest.jumpstartBuild=true, monta el mazo).
+        final String pick = System.getProperty("neo.quest.jumpstartPick");
+        if (pick != null) {
+            for (final String n : pick.split(",")) {
+                try {
+                    toggles.get(Integer.parseInt(n.trim())).fire();
+                } catch (final RuntimeException ex) {
+                    // Indice fuera: se ignora.
+                }
+            }
+        }
+        if (Boolean.getBoolean("neo.quest.jumpstartBuild") && !build.isDisabled()) {
+            build.fire();
+            System.out.println("[jumpstart] mazo montado: " + forge.neo.quest.NeoQuest.currentDeck().getName()
+                    + " (" + forge.neo.quest.NeoQuest.currentDeck().getMain().countAll() + " cartas)");
+        }
     }
 
     /** Recompensas de mentira, para poder capturar la pantalla del botin. */
@@ -1209,6 +1307,8 @@ final class NeoAppQuest {
         for (int i = 0; i < Integer.getInteger("neo.quest.demoWins", 0); i++) {
             forge.model.FModel.getQuest().getAchievements().addWin();
         }
+        // -Dneo.quest.demoJumpstart=N: N sobres Jumpstart apuntados (sin cobrar).
+        forge.neo.quest.NeoQuestJumpstart.demoForTest(Integer.getInteger("neo.quest.demoJumpstart", 0));
         // -Dneo.quest.demoPets=Wolf:2,Plant:3: mascotas compradas, para ver su
         // arte en el bazar sin comprarlas (la guía de pruebas).
         final String pets = System.getProperty("neo.quest.demoPets");
@@ -1273,6 +1373,10 @@ final class NeoAppQuest {
             forge.neo.quest.NeoQuest.save();
         }
         showQuestHome();
+        // -Dneo.quest.openDeckPicker=true: el selector de mazos de la Quest abierto.
+        if (Boolean.getBoolean("neo.quest.openDeckPicker")) {
+            pickQuestDeck();
+        }
         final int clickAt = Integer.getInteger("neo.quest.clickCollection", 0);
         if (clickAt > 0) {
             clickCollectionTile(clickAt);
