@@ -462,14 +462,27 @@ final class NeoAppAscent {
                 donde = combate;
             }
         }
+        // -Dneo.ascent.rewardElite=true: el de una ELITE, con la reliquia que
+        // se lleva sola y sus botones de quedarsela o dejarla.
+        if (Boolean.getBoolean("neo.ascent.rewardElite")) {
+            final AscentNode elite = first(demo, AscentNode.Kind.ELITE);
+            if (elite != null) {
+                donde = elite;
+            }
+        }
         reward(demo, donde);
     }
 
     /** El primer combate del mapa, para la maqueta del premio normal. */
     private static AscentNode firstCombat(final AscentRun run) {
+        return first(run, AscentNode.Kind.COMBAT);
+    }
+
+    /** El primer nodo de esa clase del mapa, o null. */
+    private static AscentNode first(final AscentRun run, final AscentNode.Kind kind) {
         for (int r = 0; r < forge.neo.ascent.AscentMap.ROWS; r++) {
             for (final AscentNode n : run.map().row(r)) {
-                if (n.getKind() == AscentNode.Kind.COMBAT) {
+                if (n.getKind() == kind) {
                     return n;
                 }
             }

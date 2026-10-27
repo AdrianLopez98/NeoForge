@@ -137,6 +137,26 @@ public final class PackContents {
      * Lo que puede salir en un sobre de esa expansion, de la mas probable a la
      * menos (y por nombre a igualdad). Vacio si no tiene sobre.
      */
+    /**
+     * Las cartas de un MAZO, para el mismo visor: cada una con sus copias
+     * como "cuantas trae" (Discord, 27-10-2026: <i>"add the ability to see
+     * what cards come in a deck/precon"</i>). Todas las secciones, comandante
+     * incluido.
+     */
+    public static List<Pull> ofDeck(final forge.deck.Deck deck) {
+        final Map<PaperCard, Integer> copies = new LinkedHashMap<>();
+        if (deck != null) {
+            for (final Map.Entry<PaperCard, Integer> e : deck.getAllCardsInASinglePool()) {
+                copies.merge(e.getKey(), e.getValue(), Integer::sum);
+            }
+        }
+        final List<Pull> out = new ArrayList<>();
+        for (final Map.Entry<PaperCard, Integer> e : copies.entrySet()) {
+            out.add(new Pull(e.getKey(), e.getValue()));
+        }
+        return out;
+    }
+
     public static List<Pull> of(final CardEdition edition) {
         if (edition == null) {
             return Collections.emptyList();

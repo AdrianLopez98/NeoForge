@@ -1,12 +1,11 @@
-**NeoForge para macOS 1.0.35 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.36 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Tu propia lista de cartas prohibidas** en cada formato (Ajustes → Modos): quitar o añadir cartas, y volver a la oficial.
-- **La mesa:** las cartas que entran vuelan desde donde estaban (con las animaciones); destruir suena según el tipo de carta (un Sol Ring ya no grita); el color de lo que puedes jugar se elige, también uno propio.
-- **El pago automático:** con maná flotante te deja elegir con qué pagas, puede no girar criaturas y tiene un interruptor en el menú de la partida.
-- **El registro** puede apuntar tu mano cada turno (para analizar tus partidas).
-- **Quest:** mazos Jumpstart con tus sobres, la carta de premio explicada y ordenada por rareza, mejoras del bazar que se apagan, y sin sobres vacíos de expansiones «Un-».
-- **Logros:** los hitos de Ascenso, con cómo se consiguen.
+- **Quest:** ver las cartas de un mazo antes de comprarlo, el sobre de colector reparte por rareza, y Pound of Flesh ya no se puede bajar.
+- **Ascenso:** las reliquias se pueden dejar.
+- **La mesa:** el aviso del centro se puede cerrar solo (5, 7 o 10 s), la carta grande al pasar el ratón también en el stack, el portador del Anillo se ve, y tus cartas boca abajo dicen lo que son al ordenar disparos.
+- **Draft y sellado:** dos artes de la misma carta ya no se multiplican, y la pastilla de cada carta cuenta bien.
+- **Cryptic Spires** ya da maná de color: te pregunta los dos colores al empezar la partida.
 - **Forge al día:** Star Trek, arreglos de reglas y de la IA.
 
 Descarga el `.dmg` de tu Mac:

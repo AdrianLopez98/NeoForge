@@ -1822,6 +1822,30 @@ public class TableScreen extends Pane {
         return bigCardSweep(nodes, layer);
     }
 
+    /**
+     * Solo pruebas ({@code -Dneo.bigcard.stack}): la carta grande por cada fila
+     * del stack, por el mismo manejador que el raton. Dice cuantas salen y si
+     * alguna tapa la columna (tiene que ir siempre a su izquierda).
+     */
+    public String stackHoverForTest() {
+        int shown = 0;
+        int bad = 0;
+        for (final Region row : stackRows.values()) {
+            if (row.getOnMouseEntered() == null || row.getScene() == null) {
+                continue;
+            }
+            row.getOnMouseEntered().handle(null);
+            if (!bigCard.isVisible()) {
+                continue;
+            }
+            shown++;
+            if (bigCard.getBoundsInParent().getMaxX() > getWidth() - sideWidthNow()) {
+                bad++;
+            }
+        }
+        return stackRows.size() + " filas, " + shown + " con carta grande, " + bad + " tapando la columna";
+    }
+
     /** Solo pruebas ({@code -Dneo.bigcard.table}): lo mismo con todas las cartas de la mesa. */
     public String tableHoverForTest() {
         final java.util.List<CardNode> all = new java.util.ArrayList<>();
@@ -1902,7 +1926,7 @@ public class TableScreen extends Pane {
     /** La carta grande: no se toca (el raton la atraviesa) y va por encima de la mesa. */
     private final CardNode bigCard = new CardNode(300);
     /** Sobre cual esta el raton, para saber cuando se va. */
-    private CardNode bigCardOf;
+    private Node bigCardOf;
     /** Esconderla un pelin despues de salir: pasar de una carta a la de al lado no parpadea. */
     private final javafx.animation.PauseTransition bigCardHide =
             new javafx.animation.PauseTransition(javafx.util.Duration.millis(120));
@@ -1929,7 +1953,18 @@ public class TableScreen extends Pane {
      * salir de la carta. El raton la atraviesa: la mesa se sigue clicando.
      */
     private void showBigCard(final CardNode n) {
-        if (!forge.neo.NeoSettings.bigHoverCard() || n == null || n.getCard() == null
+        showBigCard(n, n == null ? null : n.getCard());
+    }
+
+    /**
+     * Lo mismo con cualquier nodo de ancla: una fila del stack ensenya la carta
+     * de quien la puso (Discord, 27-10-2026: <i>"If you mouse over a card on the
+     * stack can you blow it up big like other cards"</i>). Su miniatura es
+     * transparente al raton a proposito (ver stackCardArt), asi que el raton lo
+     * mira la fila.
+     */
+    private void showBigCard(final Node n, final CardView card) {
+        if (!forge.neo.NeoSettings.bigHoverCard() || n == null || card == null
                 || zoomOverlay.isShowing()) {
             return;
         }
@@ -1977,7 +2012,7 @@ public class TableScreen extends Pane {
             return;
         }
         bigCard.setCardWidth(spot[2]);
-        bigCard.setCard(n.getCard());
+        bigCard.setCard(card);
         // resizeRelocate y no relocate: va fuera del layout (setManaged false),
         // asi que nadie mas le da su tamanyo y se quedaba con el del arranque.
         bigCard.resizeRelocate(spot[0], spot[1], spot[2], spot[3]);
@@ -2010,7 +2045,7 @@ public class TableScreen extends Pane {
      * 150 %), asi que se cuenta YA crecida. Si no cabe en su lado, el otro; si
      * en ninguno, se encoge al hueco mas grande.
      */
-    private double[] bigCardSpot(final CardNode n) {
+    private double[] bigCardSpot(final Node n) {
         final javafx.geometry.Bounds b = sceneToLocal(n.localToScene(n.getBoundsInLocal()));
         if (b == null) {
             return null;
@@ -2819,6 +2854,7 @@ public class TableScreen extends Pane {
         row.setOnMouseEntered(e -> {
             hoveredStackId = item.getId();
             applyStackTargets();
+            showBigCard(row, item.getSourceCard());
         });
         row.setOnMouseExited(e -> {
             if (hoveredStackId == item.getId()) {
@@ -2898,8 +2934,13 @@ public class TableScreen extends Pane {
 
     private static String headlineOf(final StackItemView item, final PlayerView me, final forge.game.Game game) {
         final CardView src = item.getSourceCard();
-        final String name = src == null || src.getCurrentState() == null
+        String name = src == null || src.getCurrentState() == null
                 ? "" : CardText.nameOf(src.getCurrentState());
+        // La tuya boca abajo, con lo que es (Magar of the Magic Strings).
+        final String real = forge.neo.card.FaceDownName.of(src, forge.neo.match.NeoMatchUI::mayFlipHere);
+        if (real != null) {
+            name = name + " (" + real + ")";
+        }
         String head = item.isTrigger() ? NeoText.get("stack.triggerOf", name) : name;
         // Un disparo OPCIONAL se puede declinar; uno normal, no — y sin esto
         // no habia forma de distinguirlos salvo leyendo el texto entero cada

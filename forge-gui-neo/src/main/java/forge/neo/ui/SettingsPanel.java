@@ -733,15 +733,46 @@ public class SettingsPanel extends VBox {
         final String[] newsLabels = {
                 NeoText.get("settings.news.corner"),
                 NeoText.get("settings.news.center")};
+        // Y si sale en el centro, si se cierra solo (Discord, 27-10-2026).
+        // Apagado de fabrica: el que lo quiere es el que no quiere pulsar.
+        final int[] autoValues = {0, 5, 7, 10};
+        final String[] autoLabels = {
+                NeoText.get("settings.newsAutoClose.never"),
+                NeoText.get("settings.newsAutoClose.seconds", 5),
+                NeoText.get("settings.newsAutoClose.seconds", 7),
+                NeoText.get("settings.newsAutoClose.seconds", 10)};
+        int autoNow = 0;
+        for (int i = 0; i < autoValues.length; i++) {
+            if (autoValues[i] == NeoSettings.getInt(NeoSettings.NEWS_AUTOCLOSE, 0)) {
+                autoNow = i;
+            }
+        }
+        final Region autoRow = choiceRow(NeoText.get("settings.newsAutoClose"),
+                autoLabels, autoLabels[autoNow],
+                v -> {
+                    for (int i = 0; i < autoLabels.length; i++) {
+                        if (autoLabels[i].equals(v)) {
+                            NeoSettings.setInt(NeoSettings.NEWS_AUTOCLOSE, autoValues[i]);
+                        }
+                    }
+                    NeoSettings.save();
+                });
+        final java.util.function.IntConsumer showAuto = pause -> {
+            final boolean shown = pause > 0 && NeoSettings.getInt(NeoSettings.NEWS_STYLE, 0) == 1;
+            autoRow.setVisible(shown);
+            autoRow.setManaged(shown);
+        };
         final Region newsRow = choiceRow(NeoText.get("settings.news"),
                 newsLabels, newsLabels[Math.max(0, Math.min(1,
                         NeoSettings.getInt(NeoSettings.NEWS_STYLE, 0)))],
                 v -> {
                     NeoSettings.setInt(NeoSettings.NEWS_STYLE, newsLabels[1].equals(v) ? 1 : 0);
                     NeoSettings.save();
+                    showAuto.accept(NeoSettings.getInt(NeoSettings.PAUSE_MODE, 2));
                 });
         newsRow.setVisible(pauseNow > 0);
         newsRow.setManaged(pauseNow > 0);
+        showAuto.accept(pauseNow);
         getChildren().add(choiceRow(NeoText.get("settings.pause"),
                 pauseLabels, pauseLabels[pauseNow],
                 v -> {
@@ -756,8 +787,10 @@ public class SettingsPanel extends VBox {
                     NeoSettings.save();
                     newsRow.setVisible(mode > 0);
                     newsRow.setManaged(mode > 0);
+                    showAuto.accept(mode);
                 }));
         getChildren().add(newsRow);
+        getChildren().add(autoRow);
 
         // --- ritmo de la IA ---
         //

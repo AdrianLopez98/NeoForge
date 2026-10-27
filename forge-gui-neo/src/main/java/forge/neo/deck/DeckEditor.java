@@ -1255,7 +1255,57 @@ public final class DeckEditor {
                     : forge.neo.NeoText.get(have == 1 ? "reject.ownOne" : "reject.ownSome",
                             have, forge.neo.card.CardText.nameOf(card));
         }
+        // Y en limitado, ESTA impresion: lo que queda de ella en la banda (el
+        // pozo). Con una Elenda de cada arte, la tuya ya puesta se apaga y queda
+        // la otra para meter; sin esto el techo por nombre dejaba meter dos de
+        // la misma (itch.io, 27-10-2026).
+        if (pooledPrinting(card) && poolLeft(card) <= 0) {
+            final int exact = catalogueOf(card);
+            return exact == 0
+                    ? forge.neo.NeoText.get("reject.notOwned", forge.neo.card.CardText.nameOf(card))
+                    : forge.neo.NeoText.get(exact == 1 ? "reject.ownOne" : "reject.ownSome",
+                            exact, forge.neo.card.CardText.nameOf(card));
+        }
         return null;
+    }
+
+    /** Si esta carta se cuenta POR IMPRESION: en limitado, menos las basicas (que no salen del pozo). */
+    private boolean pooledPrinting(final PaperCard card) {
+        return format.poolInSideboard() && card != null && !format.showsAllCards()
+                && (card.getRules() == null || !card.getRules().getType().isBasicLand());
+    }
+
+    /** Cuantas quedan de ESTA impresion en el pozo (la banda). */
+    private int poolLeft(final PaperCard card) {
+        final CardPool side = deck.get(DeckSection.Sideboard);
+        return side == null ? 0 : side.count(card);
+    }
+
+    /**
+     * El primer numero de la pastilla del catalogo: cuantas lleva el mazo.
+     *
+     * <p>En limitado, de ESTA impresion y solo en el principal: la banda es el
+     * pozo, y contarla hacia que el numero no bajara nunca — siempre "2/2"
+     * (itch.io, 27-10-2026: <i>"Adding a card from the pool to the deck doesn't
+     * change the first number"</i>). Fuera, como siempre: por nombre.
+     */
+    public int catalogueHave(final PaperCard card) {
+        if (pooledPrinting(card)) {
+            return deck.getMain().count(card);
+        }
+        return countOf(card);
+    }
+
+    /**
+     * El segundo: de cuantas. En limitado, las que tienes de ESTA impresion
+     * (mazo mas pozo): dos Elendas de distinto arte son "1/1" y "1/1", no dos
+     * "2/2" que parecen cuatro. Fuera, {@link #owned}.
+     */
+    public int catalogueOf(final PaperCard card) {
+        if (pooledPrinting(card)) {
+            return deck.getMain().count(card) + poolLeft(card);
+        }
+        return owned(card);
     }
 
     /**
@@ -1308,8 +1358,10 @@ public final class DeckEditor {
         final int used = format.poolInSideboard() ? countInMain(card) : countOf(card);
         final int roomByOwned = owned == Integer.MAX_VALUE
                 ? Integer.MAX_VALUE : Math.max(0, owned - used);
+        // Y de ESTA impresion, lo que queda en el pozo (ver rejectionReason).
+        final int roomByPrinting = pooledPrinting(card) ? poolLeft(card) : Integer.MAX_VALUE;
 
-        return Math.min(roomByRules, roomByOwned);
+        return Math.min(Math.min(roomByRules, roomByOwned), roomByPrinting);
     }
 
     /**
@@ -1512,8 +1564,33 @@ public final class DeckEditor {
             return;
         }
         final int there = side.count(card);
+        int left = amount;
         if (there > 0) {
-            side.remove(card, Math.min(amount, there));
+            side.remove(card, Math.min(left, there));
+            left -= Math.min(left, there);
+        }
+        // Y si de ESA impresion no queda, sale otra de la misma carta. El techo
+        // ({@link #roomFor}) cuenta por nombre, asi que con una Elenda de cada
+        // arte el catalogo deja meter dos de la misma; sacando solo la exacta
+        // la segunda no salia de ningun sitio, y al quitarla volvia a la banda
+        // como carta NUEVA: el pool crecia una cada vez (itch.io, 27-10-2026,
+        // "giving you two free cards. You can seemingly repeat this").
+        if (left > 0) {
+            final String key = normalized(card.getName());
+            final List<PaperCard> others = new ArrayList<>();
+            for (final Map.Entry<PaperCard, Integer> e : side) {
+                if (normalized(e.getKey().getName()).equals(key)) {
+                    others.add(e.getKey());
+                }
+            }
+            for (final PaperCard other : others) {
+                final int n = Math.min(left, side.count(other));
+                side.remove(other, n);
+                left -= n;
+                if (left <= 0) {
+                    break;
+                }
+            }
         }
     }
 

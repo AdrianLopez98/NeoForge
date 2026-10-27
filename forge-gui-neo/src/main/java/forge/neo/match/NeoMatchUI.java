@@ -3261,7 +3261,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             table.getPromptBanner().showAlert(text, NeoText.get("banner.understood"), () -> {
                 table.getPromptBanner().hide();
                 done.accept(Boolean.TRUE);
-            });
+            }, forge.neo.NeoSettings.getInt(forge.neo.NeoSettings.NEWS_AUTOCLOSE, 0));
             table.requestLayout();
         }, Boolean.TRUE);
         return true;
@@ -4241,6 +4241,11 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         // "Le afecta" en la ampliacion y al pasar el raton (Discord,
         // 23-10-2026): se lee de ESTA partida (null en el invitado en red).
         forge.neo.card.AffectedBy.setGame(getGameView() == null ? null : getGameView().getGame());
+        // Los colores de Cryptic Spires, que el motor solo le pregunta a la IA
+        // (itch.io, 27-10-2026). Ver CircledColors.
+        if (ending != Ending.REPLAY && getGameView() != null) {
+            CircledColors.watch(getGameView().getGame());
+        }
         if (mode == Mode.HUMAN) {
             // Una repeticion no es una partida: ni preferencias del motor ni
             // registro detallado (abrirlo rota detailed-game.log y se llevaba
@@ -8659,7 +8664,18 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         if (option instanceof forge.game.card.CardFaceView face) {
             return forge.neo.card.CardText.nameOf(face);
         }
+        // Una habilidad de una carta TUYA boca abajo lleva su nombre real:
+        // con cuatro de Magar pegando a la vez, ordenar sus disparos era a
+        // ciegas. Ver FaceDownName.
+        if (option instanceof forge.game.spellability.SpellAbilityView sa) {
+            return forge.neo.card.FaceDownName.label(sa, NeoMatchUI::mayFlipHere);
+        }
         return String.valueOf(option);
+    }
+
+    /** Si quien tiene la mesa delante puede girar esta carta boca abajo (lo mismo que CardNode). */
+    public static boolean mayFlipHere(final CardView card) {
+        return card.canFaceDownBeShownToAny(forge.neo.ui.CardZoom.localViewers());
     }
 
     Map<forge.card.MagicColor.Color, Integer> askManaCombo(final CardView source, final forge.card.ColorSet options,

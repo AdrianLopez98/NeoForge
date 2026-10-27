@@ -370,6 +370,13 @@ public final class NeoSettings {
     public static final String NEWS_STYLE = "newsStyle";
 
     /**
+     * Con {@link #NEWS_STYLE} en el centro: a los cuantos segundos se cierra
+     * solo el aviso si no lo pulsas. {@code 0} nunca (de fabrica) · 5 · 7 · 10.
+     * Discord, 27-10-2026. Ver {@code PromptBanner.showAlert}.
+     */
+    public static final String NEWS_AUTOCLOSE = "newsAutoClose";
+
+    /**
      * <b>Parar la partida mientras el jugador lee.</b>
      *
      * <p>Pedido el 20-09-2026 por un jugador de itch.io, y el argumento es el

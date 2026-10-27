@@ -2148,8 +2148,8 @@ public class DeckBuilderScreen extends StackPane {
 
         final Label count = new Label();
         count.getStyleClass().add("catalogue-count");
-        final int have = editor.countOf(card);
-        count.setText(countLabel(have, editor.owned(card)));
+        final int have = editor.catalogueHave(card);
+        count.setText(countLabel(have, editor.catalogueOf(card)));
         count.setVisible(!count.getText().isEmpty());
         // Lleva mas de las que tienes (la lista de deseos de la Quest): en ambar.
         if (editor.missingOf(card) > 0) {
@@ -2222,8 +2222,8 @@ public class DeckBuilderScreen extends StackPane {
                 return;
             }
             editor.add(card, 1);
-            final int now = editor.countOf(card);
-            count.setText(countLabel(now, editor.owned(card)));
+            final int now = editor.catalogueHave(card);
+            count.setText(countLabel(now, editor.catalogueOf(card)));
             count.setVisible(!count.getText().isEmpty());
             // Y si ya lleva mas de las que tienes, en ambar desde este clic.
             count.getStyleClass().remove("catalogue-count-missing");

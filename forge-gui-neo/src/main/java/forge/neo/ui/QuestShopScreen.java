@@ -289,6 +289,15 @@ public class QuestShopScreen extends StackPane {
                         collectorPane, preconsPane, commanderPane, boxesPane)) {
                     if (p != null) {
                         p.pickFirst();
+                        // -Dneo.shop.openPreview=true: y pulsa "Ver las cartas" /
+                        // "Que puede salir" del elegido, como el jugador.
+                        // Con la pantalla ya medida: el visor se dimensiona con ella.
+                        if (Boolean.getBoolean("neo.shop.openPreview") && p.previewIt.isVisible()) {
+                            final javafx.animation.PauseTransition later =
+                                    new javafx.animation.PauseTransition(javafx.util.Duration.millis(1500));
+                            later.setOnFinished(ev -> p.previewIt.fire());
+                            later.play();
+                        }
                     }
                 }
             }
@@ -627,7 +636,9 @@ public class QuestShopScreen extends StackPane {
                             .showFace(NeoQuestShop::faceOf)
                             .showCode(forge.item.PreconDeck::getEdition)
                             // Y de que va, con las palabras del propio mazo.
-                            .showDetail(forge.item.PreconDeck::getDescription);
+                            .showDetail(forge.item.PreconDeck::getDescription)
+                            // Y QUE CARTAS trae (Discord, 27-10-2026).
+                            .withPreview(this::showDeck, NeoText.get("shop.deckPreview"));
                 }
                 page.getChildren().setAll(preconsPane);
                 preconsPane.reload();
@@ -649,7 +660,8 @@ public class QuestShopScreen extends StackPane {
                             .showFace(NeoQuestShop::faceOf)
                             .showCode(forge.item.PreconDeck::getEdition)
                             .showNote(QuestShopScreen::commanderLine)
-                            .showDetail(QuestShopScreen::commanderDetail);
+                            .showDetail(QuestShopScreen::commanderDetail)
+                            .withPreview(this::showDeck, NeoText.get("shop.deckPreview"));
                 }
                 page.getChildren().setAll(commanderPane);
                 final long t0 = System.nanoTime();
@@ -2318,6 +2330,20 @@ public class QuestShopScreen extends StackPane {
     }
 
     /**
+     * Las cartas que trae un mazo preconstruido, encima de todo como lo de un
+     * sobre (Discord, 27-10-2026: <i>"add the ability to see what cards come
+     * in a deck/precon"</i>).
+     */
+    private void showDeck(final forge.item.PreconDeck precon) {
+        if (precon == null || precon.getDeck() == null) {
+            return;
+        }
+        overlay.setOnBackgroundClick(overlay::hide);
+        overlay.show(PackPreview.ofDeck(deckTitle(precon), precon.getDeck(), ownedCounts(),
+                getWidth(), getHeight(), overlay::hide));
+    }
+
+    /**
      * Lo que puede salir en el sobre de una expansion, fuera de la tienda: el
      * elegidor del sobre de premio (ver {@code ChoiceDialog.setEditionPeek}).
      */
@@ -3028,6 +3054,12 @@ public class QuestShopScreen extends StackPane {
             previewIt.setManaged(f != null);
             previewIt.setVisible(f != null);
             return this;
+        }
+
+        /** Lo mismo con otro rotulo: en un mazo no "puede salir" nada, se ve lo que trae. */
+        ProductPage<T> withPreview(final java.util.function.Consumer<T> f, final String label) {
+            previewIt.setText(label);
+            return withPreview(f);
         }
 
         /**

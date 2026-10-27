@@ -71,6 +71,8 @@ public final class PackPreview extends StackPane {
     private final Label empty = new Label(NeoText.get("shop.preview.none"));
     private final Pager pager;
     private final double cardWidth;
+    /** Las cartas de un mazo ({@link #ofDeck}): copias en vez de probabilidades. */
+    private final boolean deck;
     private List<PackContents.Pull> shown = new ArrayList<>();
     private Show show = Show.ALL;
     /**
@@ -92,6 +94,28 @@ public final class PackPreview extends StackPane {
                        final Map<String, Integer> owned, final int perPack,
                        final double availW, final double availH,
                        final String highlight, final Runnable onClose) {
+        this(setName, pulls, owned, perPack, availW, availH, highlight, onClose, false);
+    }
+
+    /**
+     * <b>Las cartas que trae un mazo</b>, antes de comprarlo (Discord,
+     * 27-10-2026: <i>"add the ability to see what cards come in a
+     * deck/precon"</i>). El mismo visor que el de los sobres —buscador, Me
+     * faltan / Las tengo, filtros, clic para verla en grande—, con "×2" donde
+     * el sobre dice cada cuanto sale.
+     */
+    public static PackPreview ofDeck(final String deckName, final forge.deck.Deck deck,
+                                     final Map<String, Integer> owned,
+                                     final double availW, final double availH, final Runnable onClose) {
+        return new PackPreview(deckName, PackContents.ofDeck(deck), owned, 0, availW, availH,
+                null, onClose, true);
+    }
+
+    private PackPreview(final String setName, final List<PackContents.Pull> pulls,
+                        final Map<String, Integer> owned, final int perPack,
+                        final double availW, final double availH,
+                        final String highlight, final Runnable onClose, final boolean deck) {
+        this.deck = deck;
         this.owned = owned;
         this.pulls = new ArrayList<>(pulls);
         this.pulls.sort(Comparator.comparingInt((PackContents.Pull p) -> rank(p.getCard().getRarity()))
@@ -110,7 +134,7 @@ public final class PackPreview extends StackPane {
         cardWidth = Math.max(UiScale.px(110), Math.min(UiScale.px(160), (width - 80 - 7 * 14) / 8));
 
         // --- cabecera ---
-        final Label heading = new Label(NeoText.get("shop.preview.title", setName));
+        final Label heading = new Label(NeoText.get(deck ? "shop.deckPreview.title" : "shop.preview.title", setName));
         heading.getStyleClass().add("opening-title");
         heading.setWrapText(true);
         int ownedDistinct = 0;
@@ -119,8 +143,13 @@ public final class PackPreview extends StackPane {
                 ownedDistinct++;
             }
         }
-        final Label detail = new Label(NeoText.get("shop.preview.detail", this.pulls.size(), perPack,
-                ownedDistinct));
+        int total = 0;
+        for (final PackContents.Pull p : this.pulls) {
+            total += (int) Math.round(p.getPerPack());
+        }
+        final Label detail = new Label(deck
+                ? NeoText.get("shop.deckPreview.detail", total, this.pulls.size(), ownedDistinct)
+                : NeoText.get("shop.preview.detail", this.pulls.size(), perPack, ownedDistinct));
         detail.getStyleClass().add("opening-detail");
         detail.setWrapText(true);
         final VBox head = new VBox(5, heading, detail);
@@ -128,7 +157,7 @@ public final class PackPreview extends StackPane {
         head.setPadding(new Insets(18, 20, 8, 20));
 
         // --- buscador y filtro ---
-        search.setPromptText(NeoText.get("shop.preview.search"));
+        search.setPromptText(NeoText.get(deck ? "shop.deckPreview.search" : "shop.preview.search"));
         search.getStyleClass().add("text-input");
         search.setPrefColumnCount(22);
         search.setId("pack-preview-search");
@@ -296,6 +325,20 @@ public final class PackPreview extends StackPane {
         }
         final Label name = new Label(NeoText.get("shop.rarity." + rank).toUpperCase() + "  ·  " + count);
         name.getStyleClass().add("preview-group-name");
+        if (deck) {
+            // En un mazo, cuantas copias de esa rareza trae.
+            final Label copies = new Label("×" + Math.round(per));
+            copies.getStyleClass().add("preview-group-odds");
+            final Region gap = new Region();
+            HBox.setHgrow(gap, Priority.ALWAYS);
+            final HBox row = new HBox(10, name, gap, copies);
+            row.setAlignment(Pos.BOTTOM_LEFT);
+            row.getStyleClass().add("preview-group");
+            row.prefWidthProperty().bind(javafx.beans.binding.Bindings.createDoubleBinding(
+                    () -> Math.max(0, grid.getWidth() - grid.getPadding().getLeft() - grid.getPadding().getRight() - 2),
+                    grid.widthProperty(), grid.paddingProperty()));
+            return row;
+        }
         final Label odds = new Label(per >= 0.95
                 ? NeoText.get("shop.odds.perPack", Math.round(per))
                 : NeoText.get("shop.odds.oneInSection", Math.max(1, Math.round(1 / Math.max(per, 1e-9)))));
@@ -318,7 +361,8 @@ public final class PackPreview extends StackPane {
         node.setBadgesVisible(false);
         node.setCard(CardView.getCardForUi(p.getCard()));
 
-        final Label odds = new Label(p.getOneIn() <= 1
+        final Label odds = new Label(deck ? "×" + Math.round(p.getPerPack())
+                : p.getOneIn() <= 1
                 ? NeoText.get("shop.odds.every")
                 : NeoText.get("shop.odds.oneIn", p.getOneIn()));
         odds.getStyleClass().add("preview-odds");

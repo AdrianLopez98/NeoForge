@@ -412,9 +412,10 @@ public final class NeoQuest {
             FModel.getQuest().load(data);
             QuestAcquired.forget();
             oneGamePerDuel();
-            // Las tres arreglan algo guardado mal; las tres, antes de guardar.
+            // Las cuatro arreglan algo guardado mal; las cuatro, antes de guardar.
             final boolean renamed = repairDeckNames();
-            if (dropSideboards() | renamed | aligned) {
+            final boolean restored = QuestUpgradeLevels.restoreFixed();
+            if (dropSideboards() | renamed | aligned | restored) {
                 save();
             }
             forgetDuels();

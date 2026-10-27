@@ -86,6 +86,8 @@ public class PromptBanner extends VBox {
     private final VBox column = new VBox(10);
 
     private Runnable onOk;
+    /** La cuenta atras del aviso que se cierra solo, o null. Ver {@link #showAlert(String, String, Runnable, int)}. */
+    private javafx.animation.Timeline countdown;
 
     /** Donde lo ha dejado el jugador: milesimas del ancho y del alto de la mesa. */
     public static final String KEY_X = "stackBannerX";
@@ -397,6 +399,7 @@ public class PromptBanner extends VBox {
             hide();
             return;
         }
+        stopCountdown();
         onOk = null;
         layoutContent(source, message, false);
     }
@@ -409,14 +412,63 @@ public class PromptBanner extends VBox {
      * jugada.
      */
     public void showAlert(final String message, final String okLabel, final Runnable onContinue) {
+        showAlert(message, okLabel, onContinue, 0);
+    }
+
+    /**
+     * El mismo aviso, pero <b>se cierra solo</b> a los {@code seconds} segundos
+     * si nadie lo pulsa (0 = no). El boton lleva la cuenta: <i>"Got it (Space) · 7"</i>.
+     *
+     * <p>Discord, 27-10-2026: <i>"a count of X seconds to close if i dont do
+     * anything"</i> — con el aviso en el centro, un Espacio por cada cosa del
+     * rival. Apagado de fabrica (Ajustes → "Cerrarlo solo"). El miedo es que
+     * se cierre mientras lees, asi que <b>con el raton encima del cartel la
+     * cuenta se para</b> y vuelve a empezar al salir. Al acabar se dispara el
+     * boton, igual que la tecla ({@link #acknowledge}): hace lo mismo que el click.
+     */
+    public void showAlert(final String message, final String okLabel, final Runnable onContinue,
+                          final int seconds) {
+        stopCountdown();
         if (message == null || message.isBlank()) {
             hide();
             return;
         }
         onOk = onContinue;
-        ok.setText(withKey(okLabel == null || okLabel.isBlank()
-                ? NeoText.get("banner.understood") : okLabel));
+        final String label = withKey(okLabel == null || okLabel.isBlank()
+                ? NeoText.get("banner.understood") : okLabel);
+        ok.setText(label);
         layoutContent(null, message, true);
+        if (seconds > 0) {
+            final int[] left = {seconds};
+            ok.setText(label + " · " + left[0]);
+            final javafx.animation.Timeline t = new javafx.animation.Timeline(
+                    new javafx.animation.KeyFrame(javafx.util.Duration.seconds(1), e -> {
+                        if (isHover()) {
+                            left[0] = seconds;
+                        } else {
+                            left[0]--;
+                        }
+                        if (left[0] <= 0) {
+                            stopCountdown();
+                            ok.setText(label);
+                            if (onOk != null && isVisible()) {
+                                ok.fire();
+                            }
+                            return;
+                        }
+                        ok.setText(label + " · " + left[0]);
+                    }));
+            t.setCycleCount(javafx.animation.Animation.INDEFINITE);
+            countdown = t;
+            t.play();
+        }
+    }
+
+    private void stopCountdown() {
+        if (countdown != null) {
+            countdown.stop();
+            countdown = null;
+        }
     }
 
     /**
@@ -501,6 +553,7 @@ public class PromptBanner extends VBox {
     }
 
     public void hide() {
+        stopCountdown();
         onOk = null;
         setVisible(false);
         setManaged(false);

@@ -377,17 +377,23 @@ public final class AscentProbe {
         if (elegido == null) {
             fail("rejugabilidad: el pozo de comandantes esta vacio");
         } else {
-            final Deck d1 = AscentSeedDeck.generate(AscentRun.Mode.COMMANDER, elegido, "elegido-1");
-            final Deck d2 = AscentSeedDeck.generate(AscentRun.Mode.COMMANDER, elegido, "elegido-2");
-            final boolean mismo = !d1.getCommanders().isEmpty()
-                    && d1.getCommanders().get(0).getName().equals(elegido.getName())
-                    && !d2.getCommanders().isEmpty()
-                    && d2.getCommanders().get(0).getName().equals(elegido.getName());
-            if (mismo) {
-                ok("comandante elegido: se respeta (" + elegido.getName()
-                        + "), y el mazo se monta a su alrededor");
-            } else {
-                fail("comandante elegido: el mazo sale con OTRO comandante");
+            // ENTRE los de la zona de mando, no el primero (26-10-2026): desde
+            // el 24-10 un comandante que admite companero (Wyll: "Choose a
+            // Background") sale con el que le busco el generador, y la zona
+            // de mando es un ConcurrentHashMap: el companero puede ir delante.
+            // Mirando solo get(0), la prueba salia roja a veces sin fallo.
+            checkChosenCommander(elegido);
+            // Y siempre uno con companero, para no depender del azar.
+            final PaperCard wyll = FModel.getMagicDb().getCommonCards().getCard("Wyll, Blade of Frontiers");
+            if (wyll != null) {
+                checkChosenCommander(wyll);
+            }
+            // -Dneo.ascent.scanCommanders=N: N mas al azar (no va en la bateria: lento).
+            for (int i = Integer.getInteger("neo.ascent.scanCommanders", 0); i > 0; i--) {
+                final PaperCard otro = AscentSeedDeck.randomCommander();
+                if (otro != null) {
+                    checkChosenCommander(otro);
+                }
             }
             // El pozo entero, que es lo que necesita la pantalla de eleccion.
             final int pool = AscentSeedDeck.commanderPool().size();
@@ -851,6 +857,41 @@ public final class AscentProbe {
             }
         }
         return null;
+    }
+
+    /**
+     * Que el comandante elegido salga en el mazo (dos veces, que el generador
+     * es al azar), y si falla, cual era y que salio: un rojo sin nombre no se
+     * puede reproducir.
+     */
+    private static void checkChosenCommander(final PaperCard elegido) {
+        final Deck d1 = AscentSeedDeck.generate(AscentRun.Mode.COMMANDER, elegido, "elegido-1");
+        final Deck d2 = AscentSeedDeck.generate(AscentRun.Mode.COMMANDER, elegido, "elegido-2");
+        final boolean mismo = hasCommander(d1, elegido) && hasCommander(d2, elegido);
+        if (mismo) {
+            ok("comandante elegido: se respeta (" + commanderNames(d1)
+                    + "), y el mazo se monta a su alrededor");
+        } else {
+            fail("comandante elegido: " + elegido.getName() + " y el mazo sale con "
+                    + commanderNames(d1) + " / " + commanderNames(d2));
+        }
+    }
+
+    private static boolean hasCommander(final Deck d, final PaperCard c) {
+        for (final PaperCard p : d.getCommanders()) {
+            if (p.getName().equals(c.getName())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String commanderNames(final Deck d) {
+        final java.util.List<String> names = new java.util.ArrayList<>();
+        for (final PaperCard p : d.getCommanders()) {
+            names.add(p.getName());
+        }
+        return names.isEmpty() ? "(ninguno)" : String.join(" + ", names);
     }
 
     private static void ok(final String msg) {

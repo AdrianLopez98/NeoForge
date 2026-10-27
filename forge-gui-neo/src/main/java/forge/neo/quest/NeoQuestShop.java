@@ -1115,9 +1115,16 @@ public final class NeoQuestShop {
         // en WAR casi siempre. Lo encontro PackContentsCheck (09-10-2026).
         final String must = edition.getBoosterMustContain();
         final String foil = must == null || must.trim().isEmpty() ? "+" : "";
-        final StringBuilder desc = new StringBuilder("5 Common, 4 Uncommon, 1 RareMythic" + foil);
+        // Comunes, infrecuentes y la rara de la HOJA NORMAL si la expansion la
+        // tiene ("LTR cards", la que usa su sobre de siempre). Sin ella, "1
+        // RareMythic" sale de TODAS las impresiones del set, arte especial
+        // incluido: el poster de Sauron salia tambien por ahi, 1 de cada 656,
+        // ademas de por su hoja (27-10-2026).
+        final String from = hasSheet(edition, "cards") ? ":fromSheet(\"" + code + " cards\")" : "";
+        final StringBuilder desc = new StringBuilder("5 Common" + from + ", 4 Uncommon" + from
+                + ", 1 RareMythic" + from + foil);
         for (final String sheet : sheets) {
-            desc.append(", 1 fromSheet(\"").append(code).append(' ').append(sheet).append("\")");
+            desc.append(", 1 fromSheet(\"").append(weightedSheet(edition, sheet)).append("\")");
         }
         if (hasSheet(edition, "fullart")) {
             desc.append(", 1 Land:fromSheet(\"").append(code).append(" fullart\")").append(foil);
@@ -1129,6 +1136,78 @@ public final class NeoQuestShop {
                     + code + ": " + e);
             return null;
         }
+    }
+
+    /**
+     * Cuanto sale cada RAREZA de una hoja de arte: primero se sortea la rareza
+     * y luego la carta, como en un sobre de verdad. Las hojas de Forge no la
+     * miran: en la borderless de LTR (85 cartas, 31 miticas) el poster de
+     * Sauron salia igual que una comun, 1 de cada 75, y mas facil que el
+     * Sauron normal (Discord, 27-10-2026: <i>"No way the band poster is easier
+     * to get than the normal one in collector pack"</i>). Rara y mitica 7:1,
+     * como el hueco de rara de un sobre normal. Si la hoja no tiene alguna
+     * rareza (la extended art solo trae raras y miticas), se reparte entre las
+     * que tenga.
+     */
+    static double rarityShare(final forge.card.CardRarity r) {
+        if (r == null) {
+            return 0.175;
+        }
+        switch (r) {
+            case Common:
+            case BasicLand:
+                return 0.50;
+            case Uncommon:
+                return 0.30;
+            case MythicRare:
+                return 0.025;
+            default:
+                return 0.175;
+        }
+    }
+
+    /** Cuantas veces va cada carta en la hoja con peso: lo bastante para que el reparto sea fino. */
+    private static final int WEIGHT_SCALE = 20000;
+
+    /**
+     * La hoja de arte con su peso por rareza ({@link #rarityShare}), y su
+     * nombre. Se registra una vez en las hojas del motor ({@code StorageExtendable}
+     * acepta anyadir), con el codigo de la expansion delante, que es como la
+     * busca {@code BoosterGenerator.tryGetStaticSheet}: asi el generador saca
+     * las cartas con ese peso y {@link PackContents} cuenta lo mismo, porque
+     * los dos leen la hoja aplanada con sus repeticiones.
+     */
+    static String weightedSheet(final CardEdition edition, final String sheet) {
+        final String code = edition.getCode();
+        final String name = code + " neo-" + sheet.replace(' ', '-');
+        final forge.util.storage.IStorage<forge.card.PrintSheet> sheets =
+                FModel.getMagicDb().getPrintSheets();
+        synchronized (NeoQuestShop.class) {
+            if (!sheets.contains(name)) {
+                final forge.card.PrintSheet base = sheets.get(code + " " + sheet);
+                final forge.card.PrintSheet weighted = new forge.card.PrintSheet(name);
+                if (base != null) {
+                    final java.util.Map<PaperCard, Integer> copies = new java.util.LinkedHashMap<>();
+                    final java.util.Map<Double, Integer> perShare = new java.util.HashMap<>();
+                    for (final PaperCard c : base.toFlatList()) {
+                        copies.merge(c, 1, Integer::sum);
+                        perShare.merge(rarityShare(c.getRarity()), 1, Integer::sum);
+                    }
+                    double present = 0;
+                    for (final Double share : perShare.keySet()) {
+                        present += share;
+                    }
+                    for (final java.util.Map.Entry<PaperCard, Integer> e : copies.entrySet()) {
+                        final double share = rarityShare(e.getKey().getRarity());
+                        final double each = share / present / perShare.get(share);
+                        weighted.add(e.getKey(),
+                                Math.max(1, (int) Math.round(each * WEIGHT_SCALE)) * e.getValue());
+                    }
+                }
+                sheets.add(name, weighted);
+            }
+        }
+        return name;
     }
 
     /**

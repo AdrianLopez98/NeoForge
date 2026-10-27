@@ -1533,6 +1533,13 @@ public class CardNode extends StackPane {
         if (isPrepared()) {
             lines.add(0, NeoText.get("marker.prepared"));
         }
+        // El PORTADOR DEL ANILLO (El Senor de los Anillos): el motor lo sabe
+        // (isRingBearer) y no lo pinta nadie, asi que tras elegirlo no habia
+        // forma de saber cual era (Discord, 27-10-2026: "should there be an
+        // indication somewhere showing which creature is the ring bearer?").
+        if (card != null && card.isRingBearer()) {
+            lines.add(0, NeoText.get("marker.ringBearer"));
+        }
         // A quien va, si no es a quien la controla: una maldicion encanta a un
         // jugador y una batalla la protege otro (Discord, 03-10-2026). Estan
         // en la mesa de su controlador, como dicen las reglas, y sin esto no

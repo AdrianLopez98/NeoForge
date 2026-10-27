@@ -114,6 +114,49 @@ public final class PackContentsCheck {
         check(collectorMisses.isEmpty(), collectorPacks + " sobres de colector abiertos: todo en su lista",
                 "cartas de colector fuera de la lista: " + collectorMisses);
 
+        // 1b1. Y por RAREZA dentro de cada hoja de arte (Discord, 27-10-2026: el
+        // poster mitico de Sauron salia 1 de cada 75, mas facil que el normal).
+        final CardEdition ltr = forge.model.FModel.getMagicDb().getEditions().get("LTR");
+        double poster = 0;
+        double plainSauron = 0;
+        double borderlessCommon = 0;
+        if (ltr != null) {
+            for (final PackContents.Pull p : PackContents.ofCollector(ltr)) {
+                final PaperCard c = p.getCard();
+                if ("Sauron, the Dark Lord".equals(c.getName()) && "744".equals(c.getCollectorNumber())) {
+                    poster = p.getPerPack();
+                }
+                if ("Sauron, the Dark Lord".equals(c.getName()) && "224".equals(c.getCollectorNumber())) {
+                    plainSauron = p.getPerPack();
+                }
+                if (c.getRarity() == forge.card.CardRarity.Common
+                        && forge.model.FModel.getMagicDb().getPrintSheets().get("LTR borderless") != null
+                        && forge.model.FModel.getMagicDb().getPrintSheets().get("LTR borderless").contains(c)) {
+                    borderlessCommon = Math.max(borderlessCommon, p.getPerPack());
+                }
+            }
+        }
+        if (ltr != null) {
+            // Como queda la hoja con peso: cuantas cartas y que parte se lleva cada rareza.
+            final forge.card.PrintSheet base = forge.model.FModel.getMagicDb().getPrintSheets().get("LTR borderless");
+            final forge.card.PrintSheet w = forge.model.FModel.getMagicDb().getPrintSheets()
+                    .get(NeoQuestShop.weightedSheet(ltr, "borderless"));
+            final java.util.Map<forge.card.CardRarity, Integer> by = new java.util.TreeMap<>();
+            for (final PaperCard c : w.toFlatList()) {
+                by.merge(c.getRarity(), 1, Integer::sum);
+            }
+            System.out.println("  [i  ] LTR borderless: " + base.toFlatList().size() + " entradas, con peso "
+                    + w.toFlatList().size() + " " + by);
+        }
+        check(ltr != null && poster > 0 && poster < plainSauron
+                        && (borderlessCommon == 0 || poster < borderlessCommon),
+                String.format(java.util.Locale.ROOT,
+                        "colector de LTR por rareza: el poster de Sauron 1 de cada %d (una comun borderless 1 de cada %d; el normal 1 de cada %d)",
+                        Math.round(1 / Math.max(poster, 1e-9)),
+                        borderlessCommon == 0 ? 0 : Math.round(1 / borderlessCommon),
+                        Math.round(1 / Math.max(plainSauron, 1e-9))),
+                "colector de LTR: el poster mitico no es el mas raro (" + poster + " / normal " + plainSauron + " / comun " + borderlessCommon + ")");
+
         // 1b2. Las que Forge trae sin sobre y se les monta uno (22-10-2026):
         // Assassin's Creed de 7, Mystery Booster 2 y sus cartas de prueba de 12, y
         // (24-10-2026) el Mystery Booster Commander de 20, como el de verdad.

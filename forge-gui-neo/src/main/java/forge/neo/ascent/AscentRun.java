@@ -782,10 +782,11 @@ public final class AscentRun {
     /**
      * Quita una reliquia.
      *
-     * <p>Lo unico que la quita hoy es la fragua ({@code AscentEvent}), que
-     * refunde una comun en una rara. No hay ningun otro camino a proposito: una
-     * reliquia perdida sin haberlo pedido seria el peor tipo de sorpresa —
-     * pasan mucho rato en pantalla y se cuenta con ellas.
+     * <p>La quitan la fragua ({@code AscentEvent}), que refunde una comun en
+     * una rara, y "Dejarla" en el premio (27-10-2026), que deshace la que se
+     * apunto al verla. Ningun otro camino, a proposito: una reliquia perdida
+     * sin haberlo pedido seria el peor tipo de sorpresa — pasan mucho rato en
+     * pantalla y se cuenta con ellas.
      *
      * @return {@code true} si la llevabas y ya no
      */

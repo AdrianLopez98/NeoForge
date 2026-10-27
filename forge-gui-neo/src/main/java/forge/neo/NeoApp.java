@@ -975,7 +975,9 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                     table.getPromptBanner().showAlert(
                             "Has perdido Gravecrawler." + System.lineSeparator()
                             + "Te han hecho 4 de daño con Blightning.",
-                            "Entendido", () -> table.getPromptBanner().hide());
+                            "Entendido", () -> table.getPromptBanner().hide(),
+                            // -Dneo.alert.autoclose=7: con la cuenta atras.
+                            Integer.getInteger("neo.alert.autoclose", 0));
                     table.requestLayout();
                 }
                 if (args.contains("--mock-notice")) {
@@ -2476,6 +2478,11 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 }
                 // -Dneo.bigcard.table=true: la carta grande por TODAS las cartas
                 // de la mesa, y que no tape nunca la que se mira (25-10-2026).
+                // -Dneo.bigcard.stack=true: y por las filas del stack (27-10-2026).
+                if (Boolean.getBoolean("neo.bigcard.stack")) {
+                    System.out.println("[grande] en el stack: " + table.stackHoverForTest());
+                    return;
+                }
                 if (Boolean.getBoolean("neo.bigcard.table")) {
                     System.out.println("[grande] en la mesa: " + table.tableHoverForTest());
                     return;

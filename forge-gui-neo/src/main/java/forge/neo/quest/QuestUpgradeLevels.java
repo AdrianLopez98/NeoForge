@@ -40,9 +40,42 @@ public final class QuestUpgradeLevels {
     /**
      * Las que se pueden bajar. El zepelin no (es un viaje, no una ventaja) ni el
      * carne del banco (abre una pantalla): apagarlos no hace la Quest mas dificil.
+     *
+     * <p>⚠️ <b>Pound of Flesh tampoco</b> (Discord, 27-10-2026): es la unica que
+     * va al reves, te PAGA 750 creditos por cada vida que te quita. Bajarla
+     * devolvia la vida y te dejaba los creditos: <i>"upgraded to 29/29, went to
+     * max 10 life, got a lot of creds and then later on just changed to 0/29"</i>.
+     * Lo que se vende no se apaga.
      */
     public static boolean adjustable(final QuestItemType type) {
-        return type != null && type != QuestItemType.ZEPPELIN && type != QuestItemType.MEMBERSHIP_TOKEN;
+        return type != null && type != QuestItemType.ZEPPELIN && type != QuestItemType.MEMBERSHIP_TOKEN
+                && type != QuestItemType.POUND_FLESH;
+    }
+
+    /**
+     * Al cargar una Quest: lo que ya no se puede bajar y estaba bajado vuelve a
+     * su nivel comprado. Es Pound of Flesh bajado antes de cerrar el agujero
+     * (ver {@link #adjustable}): los creditos se cobraron, la vida se paga.
+     *
+     * @return si ha cambiado algo (entonces hay que guardar)
+     */
+    public static synchronized boolean restoreFixed() {
+        final QuestController q = quest();
+        if (q == null) {
+            return false;
+        }
+        boolean changed = false;
+        for (final QuestItemType type : QuestItemType.values()) {
+            if (adjustable(type)) {
+                continue;
+            }
+            final int owned = owned(type);
+            if (active(type) < owned) {
+                q.getAssets().setItemLevel(type, owned);
+                changed = true;
+            }
+        }
+        return changed;
     }
 
     /** El nivel que se usa en partida (el de Forge). */

@@ -1,9 +1,11 @@
 package forge.neo.deck;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
 import forge.deck.Deck;
+import forge.deck.DeckSection;
 import forge.item.PaperCard;
 import forge.model.FModel;
 import forge.neo.ascent.AscentRelics;
@@ -71,6 +73,7 @@ public final class DeckRulesCheck {
         oathbreakerDoesNotChangeCommander();
         companionGoesToTheSideboard();
         foilAllAtOnce();
+        limitedArtsDoNotMultiply();
         ascentCardsStayOutOfGeneratedDecks();
         // La ultima: mete las reliquias de Ascenso en el catalogo del motor y
         // ya no las saca. Ver su javadoc.
@@ -2512,6 +2515,89 @@ public final class DeckRulesCheck {
 
         check("Fuera de la Aventura no se ofrece ninguna edicion",
                 DeckEditor.createNew(NeoFormat.COMMANDER, "x").basicLandEditions().isEmpty());
+    }
+
+    /**
+     * <b>Dos artes de la misma carta en un sellado no se multiplican</b>
+     * (itch.io, 27-10-2026). Con una Elenda de cada arte, el techo por nombre
+     * deja meter dos de la misma impresion; la segunda no salia de la banda y
+     * al quitarla volvia como carta nueva: 3/2, 4/2... y el .dck guardado con
+     * cartas gratis. Ahora la segunda sale de la otra impresion.
+     */
+    private static void limitedArtsDoNotMultiply() {
+        final List<PaperCard> arts = new ArrayList<>();
+        for (final PaperCard p : FModel.getMagicDb().getCommonCards().getAllCards("Elenda, Saint of Dusk")) {
+            if (arts.stream().noneMatch(a -> a.getEdition().equals(p.getEdition())
+                    && a.getCollectorNumber().equals(p.getCollectorNumber()))) {
+                arts.add(p);
+            }
+        }
+        if (arts.size() < 2) {
+            check("Limitado: hay dos artes de Elenda para probar", false);
+            return;
+        }
+        final PaperCard a = arts.get(0);
+        final PaperCard b = arts.get(1);
+        final Deck deck = new Deck("__neocheck-limited-arts__");
+        deck.getOrCreate(DeckSection.Sideboard).add(a, 1);
+        deck.getOrCreate(DeckSection.Sideboard).add(b, 1);
+        final DeckEditor ed = new DeckEditor(new LimitedLike(), deck);
+        for (int round = 0; round < 3; round++) {
+            ed.add(a, 2);
+            ed.remove(a, 2);
+            ed.add(b, 2);
+            ed.remove(b, 2);
+        }
+        int total = 0;
+        for (final DeckSection s : new DeckSection[] {DeckSection.Main, DeckSection.Sideboard}) {
+            for (final java.util.Map.Entry<PaperCard, Integer> e : ed.getDeck().getOrCreate(s)) {
+                total += e.getKey().getName().equals(a.getName()) ? e.getValue() : 0;
+            }
+        }
+        check("Limitado: meter y quitar dos de un arte no crea cartas (quedan " + total + " de 2)",
+                total == 2);
+        // Por impresion (itch.io, 27-10-2026): cada arte cuenta lo suyo.
+        check("Limitado: cada arte dice 0/1 (" + ed.catalogueHave(a) + "/" + ed.catalogueOf(a) + ")",
+                ed.catalogueHave(a) == 0 && ed.catalogueOf(a) == 1);
+        check("Limitado: de un arte con una copia entra una", ed.add(a, 2) == 1);
+        check("Limitado: y el numero sube: 1/1", ed.catalogueHave(a) == 1 && ed.catalogueOf(a) == 1);
+        check("Limitado: la segunda de ese arte se rechaza", ed.rejectionReason(a) != null);
+        check("Limitado: el otro arte sigue entrando", ed.rejectionReason(b) == null && ed.add(b, 1) == 1);
+        check("Limitado: el arte puesto no se cambia por otro",
+                ed.getDeck().getMain().count(a) == 1 && ed.getDeck().getMain().count(b) == 1);
+    }
+
+    /** Un sellado de mentira: dos Elendas en la banda, que es el pool. */
+    private static final class LimitedLike implements DeckContext {
+        @Override
+        public String getLabel() {
+            return "Sealed";
+        }
+
+        @Override
+        public forge.deck.DeckFormat deckFormat() {
+            return forge.game.GameType.Sealed.getDeckFormat();
+        }
+
+        @Override
+        public forge.util.storage.IStorage<Deck> storage() {
+            return new forge.util.storage.StorageBase<>("lim", "lim", new java.util.HashMap<>());
+        }
+
+        @Override
+        public List<PaperCard> pool() {
+            return List.of();
+        }
+
+        @Override
+        public int owned(final PaperCard card) {
+            return card.getName().startsWith("Elenda") ? 2 : 0;
+        }
+
+        @Override
+        public boolean poolInSideboard() {
+            return true;
+        }
     }
 
     private static PaperCard card(final String name) {

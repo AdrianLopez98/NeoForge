@@ -89,6 +89,11 @@ public class AscentRewardScreen extends StackPane {
     /** Y si has dicho que no quieres mas. */
     private boolean cardsDone;
     private boolean relicTaken;
+    /**
+     * Las que se llevan solas y SE HAN APUNTADO al verlas (no las que ya
+     * tenias): son las unicas que "Dejarla" puede quitar.
+     */
+    private List<AscentRelic> relicsGranted;
 
     public AscentRewardScreen(final AscentRun run, final AscentRewards.Reward reward,
                               final double cardWidth, final Actions actions) {
@@ -454,21 +459,52 @@ public class AscentRewardScreen extends StackPane {
             row.getChildren().add(cell);
             i++;
         }
-        if (!reward.chooseOne) {
-            // Se lleva sola: no hay nada que elegir, solo que verla.
-            for (final AscentRelic relic : shown) {
-                run.addRelic(relic);
-            }
-            final Button ok = new Button(NeoText.get("ascent.reward.toMap"));
-            ok.getStyleClass().addAll("ascent-button", "btn-primary");
-            ok.setOnAction(e -> {
+        // Y SE PUEDE DEJAR (Discord, 27-10-2026: "definitely needs the ability
+        // to NOT accept a relic" - una reliquia de +1 al dano le rompio una run
+        // de Ghyrson Starn, que vive de hacer exactamente 1).
+        final Button leave = new Button(NeoText.get(reward.chooseOne
+                ? "ascent.reward.skipRelic" : "ascent.reward.leaveRelic"));
+        leave.getStyleClass().add("ascent-button");
+        if (reward.chooseOne) {
+            leave.setOnAction(e -> {
                 relicTaken = true;
                 rebuild();
             });
-            final VBox wrap = new VBox(12, row, ok);
+            final VBox wrap = new VBox(12, row, leave);
             wrap.setAlignment(Pos.CENTER);
             return wrap;
         }
-        return row;
+        // Se lleva sola, y se apunta AL VERLA, no al pulsar: el nodo ya esta
+        // gastado, y cerrar el juego aqui no puede dejarte sin ella. Por eso
+        // "Dejarla" la quita en vez de no darla. Una sola vez: esto se vuelve
+        // a pintar al reajustar la pantalla.
+        if (relicsGranted == null) {
+            relicsGranted = new ArrayList<>();
+            for (final AscentRelic relic : shown) {
+                if (run.addRelic(relic)) {
+                    relicsGranted.add(relic);
+                }
+            }
+        }
+        final Button ok = new Button(NeoText.get("ascent.reward.keepRelic"));
+        ok.getStyleClass().addAll("ascent-button", "btn-primary");
+        ok.setOnAction(e -> {
+            relicTaken = true;
+            rebuild();
+        });
+        leave.setOnAction(e -> {
+            for (final AscentRelic relic : relicsGranted) {
+                run.removeRelic(relic);
+            }
+            relicsGranted.clear();
+            relicTaken = true;
+            rebuild();
+        });
+        // Lo que no se deshace a la izquierda, lejos de la inercia (principio 12).
+        final HBox buttons = new HBox(12, leave, ok);
+        buttons.setAlignment(Pos.CENTER);
+        final VBox wrap = new VBox(12, row, buttons);
+        wrap.setAlignment(Pos.CENTER);
+        return wrap;
     }
 }

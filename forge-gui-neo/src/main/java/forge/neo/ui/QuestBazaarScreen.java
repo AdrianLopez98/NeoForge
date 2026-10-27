@@ -632,6 +632,11 @@ public class QuestBazaarScreen extends StackPane {
             final javafx.scene.control.Tooltip tip = new javafx.scene.control.Tooltip(u.description());
             tip.setWrapText(true);
             tip.setMaxWidth(UiScale.px(420));
+            // Casi al momento (Discord, 27-10-2026: "it would be nice to see
+            // what each upgrade does if you put the mouse above the icons"):
+            // con el segundo de JavaFX parecia que no habia nada que ver.
+            tip.setShowDelay(javafx.util.Duration.millis(150));
+            tip.setShowDuration(javafx.util.Duration.INDEFINITE);
             javafx.scene.control.Tooltip.install(badge, tip);
         }
         return badge;

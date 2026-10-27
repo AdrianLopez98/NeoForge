@@ -3409,6 +3409,25 @@ public final class QuestCheck {
                     "  [%s] vida %d -> apagado %d -> otra vez %d | no se vende bajado: %s | sale en Tus mejoras: %s | subir no cobra: %s | no pasa de lo comprado: %s%n",
                     good ? "OK " : "MAL", full, low, again, !offered, listed, free, back == 3);
             ok &= good;
+
+            // Pound of Flesh NO se baja (Discord, 27-10-2026): te paga por la
+            // vida, y bajarla devolvia la vida dejando los creditos.  Y quien
+            // ya la habia bajado, al cargar la Quest la recupera entera.
+            final forge.gamemodes.quest.bazaar.QuestItemType flesh =
+                    forge.gamemodes.quest.bazaar.QuestItemType.POUND_FLESH;
+            q.getAssets().setItemLevel(flesh, 5);
+            QuestUpgradeLevels.remember(flesh);
+            final int stays = QuestUpgradeLevels.setActive(flesh, 0);
+            final boolean fixedInList = NeoQuestBazaar.ownedUpgrades().stream()
+                    .anyMatch(u -> u.type() == flesh && !u.adjustable());
+            q.getAssets().setItemLevel(flesh, 0); // lo que dejo el agujero
+            final boolean restored = QuestUpgradeLevels.restoreFixed();
+            final boolean fleshGood = stays == 5 && fixedInList && restored
+                    && q.getAssets().getItemLevel(flesh) == 5 && !QuestUpgradeLevels.restoreFixed();
+            System.out.printf(Locale.ROOT,
+                    "  [%s] Pound of Flesh no se baja: %s | sin botones: %s | la bajada de antes vuelve a 5: %s%n",
+                    fleshGood ? "OK " : "MAL", stays == 5, fixedInList, q.getAssets().getItemLevel(flesh) == 5);
+            ok &= fleshGood;
         } finally {
             NeoQuest.delete(name);
         }
