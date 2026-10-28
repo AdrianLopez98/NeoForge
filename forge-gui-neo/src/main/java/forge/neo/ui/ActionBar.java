@@ -252,6 +252,19 @@ public class ActionBar extends VBox {
     }
 
     /**
+     * Solo pruebas ({@code -Dneo.cancel.testAt}): pulsa Cancelar como el raton,
+     * si esta encendido. Devuelve lo que decia, o null si estaba apagado.
+     */
+    public String fireCancelForTest() {
+        if (cancel.isDisabled()) {
+            return null;
+        }
+        final String said = cancel.getText();
+        cancel.fire();
+        return said;
+    }
+
+    /**
      * Pone (o quita, con una lista vacia) los botones de jugador. Al clicar uno
      * se quitan todos en el acto: la pregunta se ha contestado, y un boton
      * que se queda puesto hasta el siguiente aviso del motor se puede pulsar

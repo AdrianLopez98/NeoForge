@@ -114,6 +114,16 @@ final class NeoAppAscent {
             gameOver(run, false);
             return;
         }
+        // EL JUEGO SE CERRO CON UNA PARTIDA A MEDIAS (Ana, 28-10-2026): cuenta
+        // como perdida. Si no, cerrarlo cuando vas perdiendo seria repetir el
+        // nodo — en el jefe final, o en el reto del dia. Ver
+        // AscentRun#wasInterrupted.
+        if (run.wasInterrupted()) {
+            System.out.println("[ascenso] el juego se cerro a mitad de una partida: run perdida");
+            lostByClosing = true;
+            gameOver(run, false);
+            return;
+        }
         if (Integer.getInteger("neo.ascent.enterAt", 0) > 0
                 || Integer.getInteger("neo.ascent.hoverAt", 0) > 0) {
             showMap(run);
@@ -191,6 +201,13 @@ final class NeoAppAscent {
                     public void start(final AscentRun.Mode mode, final PaperCard commander,
                                       final PaperCard partner, final int ascension, final byte colours,
                                       final forge.neo.ascent.AscentPool pool) {
+                        start(mode, commander, partner, ascension, colours, pool, false);
+                    }
+
+                    @Override
+                    public void start(final AscentRun.Mode mode, final PaperCard commander,
+                                      final PaperCard partner, final int ascension, final byte colours,
+                                      final forge.neo.ascent.AscentPool pool, final boolean melee) {
                         final AscentRun previous = AscentRun.current();
                         if (previous != null) {
                             // Su mazo se va con ella: si no, la carpeta de
@@ -198,7 +215,8 @@ final class NeoAppAscent {
                             previous.discard();
                         }
                         showMap(AscentRun.begin(mode, ascension,
-                                mode == AscentRun.Mode.COMMANDER ? 40 : 20, commander, partner, colours, pool));
+                                mode == AscentRun.Mode.COMMANDER ? 40 : 20, commander, partner, colours, pool,
+                                melee));
                     }
 
                     @Override
@@ -548,6 +566,16 @@ final class NeoAppAscent {
         final TableBinder binder = new TableBinder(app.table);
         app.binder = binder;
         app.table.setPrompt(NeoText.get("app.preparingDuel"));
+        // En disco ANTES de jugar: cerrar el juego a mitad cuenta como perder.
+        run.markFighting(node);
+        // Pero si es el MOTOR el que se rompe (eso no lo provoca nadie), el
+        // nodo se puede repetir: el hilo de la partida puede no volver nunca,
+        // asi que se borra aqui, al salir por el aviso.
+        binder.setOnAbandoned(why -> {
+            if (why == TableBinder.Abandon.CRASH) {
+                run.clearFighting();
+            }
+        });
 
         final Thread engine = new Thread(() -> {
             AscentBattle.Outcome outcome = null;
@@ -562,6 +590,8 @@ final class NeoAppAscent {
                 Platform.runLater(() -> {
                     app.binder = null;
                     app.runAtStake = false;
+                    // La partida ha vuelto con el juego abierto, como sea.
+                    run.clearFighting();
                     if (got == null) {
                         // La partida ha reventado. NO se da el nodo por
                         // resuelto ni la run por perdida: se vuelve al mapa
@@ -690,7 +720,14 @@ final class NeoAppAscent {
      * infinito</b>: es el resumen de la victoria. Las otras dos salidas cierran
      * la run (se borra entonces, no antes).
      */
+    /** La run que se va a resumir se perdio por cerrar el juego a mitad de una partida. */
+    private boolean lostByClosing;
+
     private void showOver(final AscentSummary summary, final AscentRun endlessRun) {
+        if (lostByClosing) {
+            lostByClosing = false;
+            summary.markInterrupted();
+        }
         final AscentOverScreen.Actions[] actions = new AscentOverScreen.Actions[1];
         final int pressAt = Integer.getInteger("neo.ascent.pressEndlessAt", 0);
         if (pressAt > 0 && endlessRun != null) {

@@ -64,6 +64,19 @@ public final class AscentShop {
     private static final int RELIC_RARE = 160;
 
     /**
+     * <b>Lo que te dan por vender una reliquia</b>, por rareza: comun, rara, de
+     * jefe y legendaria (Ana, 27-10-2026: <i>"que se paguen bien porque son
+     * raras de conseguir ... pero que tampoco te den muchisimo dinero"</i>).
+     *
+     * <p>La comun y la rara, la MITAD de lo que cuestan aqui: comprar para
+     * vender siempre pierde. La de jefe, lo que paga un jefe del acto 2 (no se
+     * vende en ninguna tienda); la legendaria, como una rara nueva. Fijo, sin el
+     * pellizco de azar del mostrador: lo que vas a cobrar se sabe antes de
+     * decidir.
+     */
+    static final int[] RELIC_SELL = {45, 80, 120, 160};
+
+    /**
      * Quitar una carta, por acto.
      *
      * <p>Sube con el acto y no con las veces que se ha usado. Lo segundo es lo
@@ -257,6 +270,47 @@ public final class AscentShop {
      *
      * @return si se ha comprado
      */
+    /** Lo que te dan por esa reliquia (con la Ascension 6, como todos los creditos, un cuarto menos). */
+    public static int sellPrice(final AscentRun run, final AscentRelic relic) {
+        if (relic == null) {
+            return 0;
+        }
+        final int base;
+        switch (relic.getRarity()) {
+            case RARE:
+                base = RELIC_SELL[1];
+                break;
+            case BOSS:
+                base = RELIC_SELL[2];
+                break;
+            case LEGENDARY:
+                base = RELIC_SELL[3];
+                break;
+            default:
+                base = RELIC_SELL[0];
+                break;
+        }
+        return run.getAscension() >= 6 ? base * 3 / 4 : base;
+    }
+
+    /**
+     * <b>Vende una reliquia tuya</b>: se quita, se cobra y se apunta como
+     * vendida, para que no te la vuelvan a ofrecer en la run
+     * ({@link AscentRun#getRelicsGone}). No se deshace: la pantalla la hace
+     * elegir primero y vender despues, como al comprar.
+     *
+     * @return lo cobrado, o 0 si no la llevabas
+     */
+    public static int sellRelic(final AscentRun run, final AscentRelic relic) {
+        if (relic == null || !run.removeRelic(relic)) {
+            return 0;
+        }
+        final int price = sellPrice(run, relic);
+        run.noteRelicGone(relic.getId());
+        run.addCredits(price);
+        return price;
+    }
+
     public static boolean buy(final AscentRun run, final Item item) {
         if (run == null || item == null || item.sold || item.kind == Kind.REMOVE) {
             return false;

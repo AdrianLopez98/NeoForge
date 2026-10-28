@@ -986,6 +986,14 @@ public class SettingsPanel extends VBox {
                     NeoSettings.save();
                     host.refreshTable();
                 }));
+        // Mas sitio para la mesa o para la mano (Discord, 28-10-2026).
+        getChildren().add(toggleRow(NeoText.get("settings.selfBarBesideHand"),
+                NeoSettings.getBool(NeoSettings.SELF_BAR_BESIDE_HAND, false),
+                on -> {
+                    NeoSettings.setBool(NeoSettings.SELF_BAR_BESIDE_HAND, on);
+                    NeoSettings.save();
+                    host.refreshTable();
+                }));
 
         // --- la carta grande del stack en mitad de la mesa ---
         //

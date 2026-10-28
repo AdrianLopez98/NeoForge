@@ -184,9 +184,13 @@ public class AscentMapScreen extends StackPane {
         if (hoverAt > 0) {
             final javafx.animation.PauseTransition wait =
                     new javafx.animation.PauseTransition(javafx.util.Duration.millis(hoverAt));
+            // -Dneo.ascent.hoverKind=MELEE: la ficha del primer nodo de ese tipo,
+            // alcanzable o no (la de una mesa no sale en la primera fila).
+            final String kind = System.getProperty("neo.ascent.hoverKind", "");
             wait.setOnFinished(e -> {
                 for (final NodeDot d : dots) {
-                    if (reachable.contains(d.node.key())) {
+                    if (kind.isEmpty() ? reachable.contains(d.node.key())
+                            : d.node.getKind().name().equalsIgnoreCase(kind)) {
                         hover(d, true);
                         return;
                     }
@@ -452,13 +456,17 @@ public class AscentMapScreen extends StackPane {
             // El jefe y la elite son mas grandes. No es un adorno: son los dos
             // nodos por los que se decide una ruta, y tienen que verse venir
             // desde el otro lado del mapa (principio 3, el estado se ve).
+            // La mesa de cuatro, entre las dos: tambien decide la ruta (es
+            // una apuesta), pero no da miedo como una elite.
             final double r = base * (node.getKind() == AscentNode.Kind.BOSS ? 1.55
-                    : node.getKind() == AscentNode.Kind.ELITE ? 1.22 : 1.0);
+                    : node.getKind() == AscentNode.Kind.ELITE ? 1.22
+                    : node.getKind() == AscentNode.Kind.MELEE ? 1.15 : 1.0);
             final Color plateFill = done ? Color.web("#B9A884")
                     : can ? Color.web("#33404F")
                     : node.getKind() == AscentNode.Kind.BOSS
                             || node.getKind() == AscentNode.Kind.ELITE
-                    ? Color.web("#5E4038") : Color.web("#6E6553");
+                    ? Color.web("#5E4038")
+                    : node.getKind() == AscentNode.Kind.MELEE ? Color.web("#4E5A3C") : Color.web("#6E6553");
             plate.setRadius(r);
             plate.setFill(plateFill);
             plate.setStroke(can ? Color.web("#4A9BE0")
@@ -504,13 +512,18 @@ public class AscentMapScreen extends StackPane {
             return;
         }
         info.getChildren().clear();
-        final Label name = new Label(NeoText.get("ascent.node." + key(dot.node.getKind())));
+        // La mesa del final (jefe del acto 3 con mesas) tiene su propia ficha:
+        // no es el jefe de siempre, son tres jefes y tu.
+        final boolean finalTable = run.isFinalTable(dot.node);
+        final Label name = new Label(NeoText.get(finalTable ? "ascent.node.finalTable"
+                : "ascent.node." + key(dot.node.getKind())));
         name.getStyleClass().add("ascent-info-title");
         // El combate dice cuantas cartas eliges, y en Commander van por dos
         // (2 de 6). Los numeros salen de donde los saca el premio: escritos en
         // el texto, decia "1 de 3" tambien en Commander. Las demas fichas no
         // tienen huecos y los ignoran.
-        final Label what = new Label(NeoText.get("ascent.node." + key(dot.node.getKind()) + ".desc",
+        final Label what = new Label(NeoText.get(finalTable ? "ascent.node.finalTable.desc"
+                        : "ascent.node." + key(dot.node.getKind()) + ".desc",
                 run.cardBatch(), AscentRewards.choices(run.getMode())));
         what.getStyleClass().add("ascent-info-text");
         what.setWrapText(true);
@@ -525,7 +538,10 @@ public class AscentMapScreen extends StackPane {
                     AscentBattle.progress(run.getAct(), dot.node.getRow()), edge);
             // fightLife(): con la vida por debajo de la mitad, el duelo empieza
             // en la mitad — y la ficha tiene que decir el duelo que se juega.
-            final Label duel = new Label(NeoText.get("ascent.node.duel", run.fightLife(), life));
+            // En una mesa de cuatro, la vida de cada uno de los tres.
+            final Label duel = new Label(dot.node.getKind() == AscentNode.Kind.MELEE
+                    ? NeoText.get("ascent.node.table", run.fightLife(), AscentBattle.tableLifeAt(life))
+                    : NeoText.get("ascent.node.duel", run.fightLife(), life));
             duel.getStyleClass().add("ascent-info-duel");
             info.getChildren().add(duel);
         }

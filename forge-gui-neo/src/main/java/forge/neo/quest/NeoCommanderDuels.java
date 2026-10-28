@@ -152,6 +152,32 @@ public final class NeoCommanderDuels {
      * El mazo de un comandante para ese nivel, o {@code null} si no ha salido
      * (el que llama prueba con el siguiente comandante).
      */
+    /**
+     * El mazo de ese comandante para una <b>mesa de cuatro</b> (el Coliseo, el
+     * torneo de Commander): como {@link #deckFor}, pero si sale un mazo de
+     * fichas ({@link forge.neo.match.TokenDecks}) se vuelve a generar, hasta
+     * tres veces. Con el MISMO comandante: es el que ya sale en el cuadro.
+     * Discord, 28-10-2026: un rival de fichas hundio una partida del Coliseo.
+     */
+    public static Deck deckForTable(final PaperCard cmd, final QuestEventDifficulty tier) {
+        Deck d = deckFor(cmd, tier);
+        for (int i = 0; i < 3 && forge.neo.match.TokenDecks.isHeavy(d); i++) {
+            System.out.println("[quest] " + cmd.getName() + " ha salido con un mazo de fichas ("
+                    + forge.neo.match.TokenDecks.tokenMakers(d) + "): otro");
+            d = deckFor(cmd, tier);
+        }
+        return d;
+    }
+
+    /**
+     * Si ese comandante puede sentarse en una mesa de cuatro: uno que crea
+     * fichas el mismo (Hazel, Adrix and Nev...) arrastra el mazo entero a las
+     * fichas, asi que ni se sortea.
+     */
+    public static boolean fitsTable(final PaperCard cmd) {
+        return !forge.neo.match.TokenDecks.makesTokens(cmd);
+    }
+
     public static Deck deckFor(final PaperCard cmd, final QuestEventDifficulty tier) {
         try {
             if (tier == QuestEventDifficulty.EXPERT) {

@@ -379,6 +379,12 @@ public final class PackContentsCheck {
                                     + " comandante en su sitio %s, segunda copia %s, problema: %s, el de la tienda intacto %s",
                             mode.name(), name, refused, first != null, second != null, before - NeoQuest.credits(),
                             price * 2L, placed, twice, problem, untouched));
+            // "Comprado x2" en la tienda (QuestPurchases, Discord 28-10-2026). La
+            // compra rechazada sin dinero no cuenta.
+            final int counted = QuestPurchases.count(precon);
+            check(counted == 2,
+                    String.format(Locale.ROOT, "Quest de %s: la tienda apunta %s como comprado x2", mode.name(), name),
+                    String.format(Locale.ROOT, "Quest de %s: %s apuntado como comprado x%d, no x2", mode.name(), name, counted));
         } finally {
             NeoQuest.delete(quest);
             prefs.setPref(forge.gamemodes.quest.data.QuestPreferences.QPref.CURRENT_QUEST, current);

@@ -2070,6 +2070,8 @@ public class LobbyScreen extends BorderPane
      *
      * <p>No se activa jugando: solo con la bandera.
      */
+    private boolean swappedForTest;
+
     public void autoDriveForTest() {
         final javafx.animation.Timeline t = new javafx.animation.Timeline(
                 new javafx.animation.KeyFrame(javafx.util.Duration.seconds(1), e -> {
@@ -2083,12 +2085,31 @@ public class LobbyScreen extends BorderPane
                         if (s == null || s.getType() == LobbySlotType.OPEN || !isMe(l, i, s)) {
                             continue;
                         }
+                        // -Dneo.lobby.deckFileLater=true: el mazo del fichero
+                        // solo DESPUES de la primera partida (cambiar de mazo
+                        // entre partidas de la misma conexion).
+                        final String later = System.getProperty("neo.lobby.deckFile");
+                        if (later != null && Boolean.getBoolean("neo.lobby.deckFileLater")
+                                && forge.neo.match.NeoMatchUI.openedViewsForTest() == 1 && !swappedForTest
+                                && s.getDeck() != null && !limited) {
+                            swappedForTest = true;
+                            final Deck d = forge.deck.io.DeckSerializer.fromFile(new java.io.File(later));
+                            System.out.println("[lobby-auto] cambio de mazo: " + d.getName());
+                            sendDeck(i, d);
+                            return;
+                        }
                         if (s.getDeck() == null && NeoLobby.needsDeck(format)) {
                             // En limitado, el mazo montado con el pool (40+
                             // cartas: el pool en bruto no vale). Si aun no
                             // lo hay, se sigue: el "listo" no lo pide.
                             final List<Deck> mine = limited ? builtPools(l)
                                     : new ArrayList<>(format.decks());
+                            // -Dneo.lobby.deckFile=ruta.dck: ese mazo, que no
+                            // esta en tus datos (un mazo con compañero, p.ej.).
+                            final String file = System.getProperty("neo.lobby.deckFile");
+                            if (!limited && file != null && !Boolean.getBoolean("neo.lobby.deckFileLater")) {
+                                mine.add(0, forge.deck.io.DeckSerializer.fromFile(new java.io.File(file)));
+                            }
                             if (!mine.isEmpty()) {
                                 System.out.println("[lobby-auto] mi mazo: " + mine.get(0).getName());
                                 sendDeck(i, mine.get(0));

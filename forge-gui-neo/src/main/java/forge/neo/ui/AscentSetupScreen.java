@@ -81,6 +81,13 @@ public class AscentSetupScreen extends StackPane {
             start(mode, commander, ascension, colours, pool);
         }
 
+        /** Igual, con o sin mesas de cuatro (solo Commander). */
+        default void start(final AscentRun.Mode mode, final PaperCard commander, final PaperCard partner,
+                           final int ascension, final byte colours, final forge.neo.ascent.AscentPool pool,
+                           final boolean melee) {
+            start(mode, commander, partner, ascension, colours, pool);
+        }
+
         /** Empezar la run de un codigo o del reto de la semana ({@link AscentSeed}). */
         default void startRecipe(final AscentSeed.Recipe recipe) {
         }
@@ -109,6 +116,16 @@ public class AscentSetupScreen extends StackPane {
     private final javafx.scene.control.ScrollPane scroll =
             new javafx.scene.control.ScrollPane(content);
     private AscentRun.Mode mode = AscentRun.Mode.STANDARD;
+
+    /** Donde se recuerda la ultima eleccion de las mesas. Sin {@code ascent.}: eso es la run. */
+    private static final String MELEE_SETTING = "ascentSetup.melee";
+
+    /**
+     * Con mesas de cuatro (solo Commander). {@code -Dneo.ascent.setupMelee=true}
+     * lo deja puesto para capturarlo.
+     */
+    private boolean melee = forge.neo.NeoSettings.getBool(MELEE_SETTING, false)
+            || Boolean.getBoolean("neo.ascent.setupMelee");
     private PaperCard commander;
     /**
      * Su companero de mando (Discord, 21-10-2026: <i>"is there a way to select a
@@ -368,7 +385,8 @@ public class AscentSetupScreen extends StackPane {
     /** Empezar con lo que haya puesto: la semilla, o lo elegido en la pantalla. */
     private void startNow() {
         if (seedSource == SeedSource.RANDOM) {
-            actions.start(mode, commander, commander == null ? null : partner, ascension, colours, pool());
+            actions.start(mode, commander, commander == null ? null : partner, ascension, colours, pool(),
+                    mode == AscentRun.Mode.COMMANDER && melee);
         } else {
             final AscentSeed.Recipe r = recipe();
             if (r != null && seedProblem() == null) {
@@ -503,6 +521,9 @@ public class AscentSetupScreen extends StackPane {
                 NeoText.get(r.mode == AscentRun.Mode.COMMANDER
                         ? "ascent.setup.mode.commander" : "ascent.setup.mode.standard"),
                 r.ascension == 0 ? NeoText.get("ascent.setup.ascension.none") : String.valueOf(r.ascension))));
+        if (r.melee) {
+            box.getChildren().add(line(NeoText.get("ascent.seed.sum.melee")));
+        }
         if (seedSource == SeedSource.CODE && ownDeck) {
             // El mazo lo eliges debajo: aqui no se dice el del codigo.
         } else if (r.mode == AscentRun.Mode.COMMANDER) {
@@ -753,6 +774,9 @@ public class AscentSetupScreen extends StackPane {
 
         if (mode == AscentRun.Mode.COMMANDER) {
             content.getChildren().addAll(label("ascent.setup.commander"), commanderBox());
+            // Las mesas de cuatro, debajo del comandante: es una pregunta de
+            // Commander, y despues de elegir con quien se juega.
+            content.getChildren().addAll(label("ascent.setup.melee"), meleeRow());
         } else {
             content.getChildren().addAll(label("ascent.setup.colours"), coloursBox());
         }
@@ -773,6 +797,33 @@ public class AscentSetupScreen extends StackPane {
         if (kept > 0) {
             javafx.application.Platform.runLater(() -> scroll.setVvalue(kept));
         }
+    }
+
+    /**
+     * <b>Mesas de cuatro</b> (Ana, 27-10-2026): 1 contra 1 como siempre, o con
+     * nodos de partida a cuatro y la mesa del final. Apagado de fabrica; se
+     * recuerda la ultima eleccion.
+     */
+    private Region meleeRow() {
+        final HBox row = new HBox(12);
+        row.setAlignment(Pos.CENTER);
+        final Button off = choice(NeoText.get("ascent.setup.melee.off"), !melee);
+        off.setOnAction(e -> setMelee(false));
+        final Button on = choice(NeoText.get("ascent.setup.melee.on"), melee);
+        on.setId("ascent-melee-on");
+        on.setOnAction(e -> setMelee(true));
+        row.getChildren().addAll(off, on);
+        final VBox box = new VBox(6, row, line(NeoText.get(melee ? "ascent.setup.melee.on.desc"
+                : "ascent.setup.melee.off.desc")));
+        box.setAlignment(Pos.CENTER);
+        return box;
+    }
+
+    private void setMelee(final boolean on) {
+        melee = on;
+        forge.neo.NeoSettings.setBool(MELEE_SETTING, on);
+        forge.neo.NeoSettings.save();
+        rebuild();
     }
 
     private static Region stretch() {
@@ -1016,7 +1067,8 @@ public class AscentSetupScreen extends StackPane {
                 }
                 // Un segundo clic sobre el elegido lo suelta y vuelve al azar.
                 commander = chosen ? null : c;
-                partner = null;
+                // Con "Partner with X", X ya marcada (se puede quitar).
+                partner = chosen ? null : AscentSeedDeck.fixedPartner(c, pool());
                 rebuild();
             });
             grid.getChildren().add(withStar(node, c));

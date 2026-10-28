@@ -109,6 +109,12 @@ public final class AscentRewards {
     /** Creditos de un combate normal, por acto. */
     private static final int[] CREDITS_BY_ACT = {25, 40, 60};
 
+    /** Lo que sube la calidad de las cartas de una mesa de cuatro, en altura de run. */
+    static final double MELEE_CLIMB = 0.15;
+
+    /** Y lo que multiplica sus creditos sobre los de un combate. */
+    static final double MELEE_CREDITS = 1.5;
+
     // ------------------------------------------------------------------
 
     /** Cuantas reliquias ofrece un jefe para que elijas una. */
@@ -199,6 +205,13 @@ public final class AscentRewards {
                 return new Reward(pickCards(run, climb, rnd),
                         credits(run, CREDITS_BY_ACT[act - 1], rnd), List.of(), false, picks,
                         landsFor(run, act, rnd));
+            case MELEE:
+                // Una mesa de cuatro paga mejor que un duelo (Ana, 27-10-2026):
+                // cartas como de un poco mas arriba y la mitad mas de creditos.
+                // Sin reliquia: eso es lo de la elite.
+                return new Reward(pickCards(run, Math.min(1.0, climb + MELEE_CLIMB), rnd),
+                        credits(run, (int) Math.round(CREDITS_BY_ACT[act - 1] * MELEE_CREDITS), rnd),
+                        List.of(), false, picks, landsFor(run, act, rnd));
             case ELITE:
                 // Una elite da carta, mas creditos Y reliquia: es el nodo que
                 // se elige a proposito sabiendo que puede costarte la run.
@@ -1296,9 +1309,13 @@ public final class AscentRewards {
         return null;
     }
 
-    /** Las que ya llevas puestas. */
+    /**
+     * Las que ya llevas puestas, y las que has <b>vendido</b>: si la vendiste es
+     * que no la querias, y ofrecertela otra vez seria un premio vacio. Por aqui
+     * pasan los premios, la tienda y los eventos.
+     */
     private static Set<String> owned(final AscentRun run) {
-        final Set<String> mine = new HashSet<>();
+        final Set<String> mine = new HashSet<>(run.getRelicsGone());
         for (final AscentRelic r : run.relics()) {
             mine.add(r.getId());
         }

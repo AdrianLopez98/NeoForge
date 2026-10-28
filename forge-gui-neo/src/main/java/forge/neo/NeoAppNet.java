@@ -405,7 +405,11 @@ final class NeoAppNet {
         final TableBinder b = new TableBinder(app.table);
         app.binder = b;
 
-        final NeoMatchUI gui = new NeoMatchUI(NeoMatchUI.Mode.HUMAN, false);
+        // -Dneo.lobby.autoPlay=true: este lado juega solo (pruebas). Es lo que
+        // deja ver lo que le llega al OTRO sin dos personas: el anfitrion
+        // contesta "empezar", su mulligan y todo lo demas sin manos.
+        final NeoMatchUI gui = new NeoMatchUI(Boolean.getBoolean("neo.lobby.autoPlay")
+                ? NeoMatchUI.Mode.AUTO_PLAY : NeoMatchUI.Mode.HUMAN, false);
         gui.setAutoPayMana(NeoSettings.autoPayMana());
         gui.setBinder(b);
         gui.setTable(app.table);

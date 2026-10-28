@@ -19,6 +19,9 @@ import forge.player.PlayerControllerHuman;
  *   <li>modo 0: no pregunta nada;</li>
  *   <li>modo 1: el OK pregunta "¿ir al combate?" y "Fin de turno" pregunta;</li>
  *   <li>modo 2: lo mismo.</li>
+ *   <li>y en cuanto has jugado algo en esa fase (aqui, una tierra), el OK ya
+ *       no pregunta; "Fin de turno" si (Discord, 28-10-2026,
+ *       {@link MainPhaseActivity}).</li>
  * </ul>
  *
  * <p>Se ejecuta con {@code run.cmd phaseguardcheck}.
@@ -33,6 +36,9 @@ public final class PhaseGuardCheck {
 
     private static final String ISLAND = "Island|Set:M21";
     private static final int SECONDS = 20;
+
+    /** Lo mismo despues de jugar una tierra. */
+    private static final AtomicReference<String> AFTER = new AtomicReference<>();
 
     public static void run() {
         passed = 0;
@@ -68,9 +74,15 @@ public final class PhaseGuardCheck {
                                                 instanceof forge.gamemodes.match.input.InputPassPriority)) {
                                     continue;
                                 }
-                                out.set(PhaseGuard.leavingMain(gc, 0) + " " + PhaseGuard.leavingMain(gc, 1) + " "
+                                final String before = PhaseGuard.leavingMain(gc, 0) + " " + PhaseGuard.leavingMain(gc, 1) + " "
                                         + PhaseGuard.leavingMain(gc, 2) + " " + PhaseGuard.endingTurn(gc, 0) + " "
+                                        + PhaseGuard.endingTurn(gc, 1);
+                                // Como si hubieras jugado una tierra en esta fase.
+                                final forge.game.player.Player me = human.getPlayer();
+                                me.setLandsPlayedThisTurn(me.getLandsPlayedThisTurn() + 1);
+                                AFTER.set(PhaseGuard.leavingMain(gc, 1) + " " + PhaseGuard.leavingMain(gc, 2) + " "
                                         + PhaseGuard.endingTurn(gc, 1));
+                                out.set(before);
                             } catch (final InterruptedException e) {
                                 return;
                             } catch (final RuntimeException e) {
@@ -85,6 +97,8 @@ public final class PhaseGuardCheck {
         check(r != null, "se llego a mirar la mesa (" + r + ")");
         check("NONE TO_COMBAT TO_COMBAT false true".equals(r),
                 "modo 0 no pregunta; 1 y 2 preguntan al ir al combate; Fin de turno pregunta con 1");
+        check("NONE NONE true".equals(AFTER.get()),
+                "con una tierra jugada en la fase, el OK ya no pregunta; Fin de turno si (" + AFTER.get() + ")");
         System.out.printf(Locale.ROOT, "%n  %d bien, %d mal%n", passed, failed);
         if (failed > 0) {
             throw new IllegalStateException(failed + " comprobacion(es) de la fase principal han fallado");

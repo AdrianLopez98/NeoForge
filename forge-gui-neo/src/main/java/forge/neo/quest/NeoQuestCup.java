@@ -28,9 +28,12 @@ import forge.util.MyRandom;
  * se quedan, esto va al lado).
  *
  * <ul>
- *   <li><b>Commander</b>: 16 jugadores. Primera ronda, cuatro mesas de cuatro
- *       (la tuya se juega, como el Coliseo); final, una mesa con los cuatro
- *       ganadores.</li>
+ *   <li><b>Commander</b>: 64 jugadores en mesas de cuatro (la tuya se juega,
+ *       como el Coliseo): 16 mesas, luego 4 y la final con los cuatro que
+ *       quedan. Eran 16 y dos rondas hasta el 28-10-2026 (Discord: <i>"mas
+ *       como un campeonato"</i>); un torneo guardado de antes sigue con los
+ *       suyos ({@link Terms#players}). Solo se montan los mazos de las mesas
+ *       que se juegan o se miran: las demas plazas son un nombre.</li>
  *   <li><b>Estandar</b>: cuadro de 8, eliminacion directa, uno contra uno con
  *       tu mazo de la Quest contra los de los duelos de Forge.</li>
  * </ul>
@@ -45,7 +48,11 @@ import forge.util.MyRandom;
  * partida (Forge solo lista los {@code .dat}): cerrar entre la primera ronda y
  * la final deja el torneo donde estaba. Las mesas que no son la tuya se
  * resuelven al azar al cerrarse la tuya (los rivales son todos del mismo
- * nivel), y el cuadro las ensenya.
+ * nivel), y el cuadro las ensenya. <b>Salvo las que mires</b> (28-10-2026,
+ * Discord): antes de jugar la tuya, cualquier otra mesa de la ronda se puede
+ * ver entera entre IAs ({@link #watchableTables}), y entonces pasa quien la
+ * gane de verdad ({@link #recordWatched}). Mirar es opcional: sin mirar, todo
+ * como antes.
  *
  * <p>Sin JavaFX: lo usa tambien NeoForge Android.
  */
@@ -86,10 +93,20 @@ public final class NeoQuestCup {
         public final int collectors;
         /** Que carta se elige de entre tres, o NONE. */
         public final PrizeCard pick;
+        /**
+         * Cuantos jugadores: 64 en Commander y 8 en Estandar al pagar; el de
+         * un torneo guardado, los que tenia (uno de 16 de antes sigue a 16).
+         */
+        public final int players;
 
         Terms(final boolean commander, final QuestEventDifficulty tier) {
+            this(commander, tier, commander ? 64 : 8);
+        }
+
+        Terms(final boolean commander, final QuestEventDifficulty tier, final int players) {
             this.commander = commander;
             this.tier = tier;
+            this.players = players;
             switch (tier) {
                 case EXPERT:
                     fee = 3600;
@@ -134,9 +151,9 @@ public final class NeoQuestCup {
             }
         }
 
-        /** Cuantos jugadores: 16 en Commander (mesas de 4), 8 en Estandar. */
+        /** Cuantos jugadores: ver {@link #players}. */
         public int seats() {
-            return commander ? 16 : 8;
+            return players;
         }
 
         /** Cuantos por mesa. */
@@ -144,9 +161,24 @@ public final class NeoQuestCup {
             return commander ? 4 : 2;
         }
 
-        /** Cuantas rondas: 2 en Commander, 3 en Estandar. */
+        /** Cuantas rondas: hasta que quede una mesa (3 con 64 a cuatro, 3 con 8 a dos). */
         public int rounds() {
-            return commander ? 2 : 3;
+            int n = players;
+            int r = 0;
+            while (n > 1) {
+                n /= groupSize();
+                r++;
+            }
+            return r;
+        }
+
+        /** Si con tantos jugadores sale un cuadro entero (una potencia del tamanyo de mesa). */
+        boolean wholeBracket() {
+            int n = players;
+            while (n > 1 && n % groupSize() == 0) {
+                n /= groupSize();
+            }
+            return n == 1 && players > 1;
         }
     }
 
@@ -165,6 +197,8 @@ public final class NeoQuestCup {
         final List<String> choices = new ArrayList<>();
         /** Si la entrada esta ya liquidada (cobrada, perdida o devuelta). */
         boolean settled;
+        /** Las mesas de la ronda de ahora que se han mirado: mesa -> asiento que la gano. */
+        final java.util.Map<Integer, Integer> watched = new java.util.TreeMap<>();
     }
 
     /** Si hay torneo en esta Quest (en todas: Commander y Estandar). */
@@ -278,6 +312,112 @@ public final class NeoQuestCup {
             }
         }
         return out;
+    }
+
+    // ---------------------------------------------------------------
+    // Mirar las mesas de las IAs
+
+    /**
+     * Las mesas de la ronda de ahora que se pueden mirar: las que no son la
+     * tuya y aun no tienen ganador. Solo mientras te toca jugar.
+     */
+    public static synchronized List<Integer> watchableTables() {
+        final Cup c = current();
+        final List<Integer> out = new ArrayList<>();
+        if (c == null || c.stage != Stage.PLAYING) {
+            return out;
+        }
+        final List<List<Integer>> tables = groups(c.winners.size());
+        for (int i = 0; i < tables.size(); i++) {
+            if (!tables.get(i).contains(0) && !c.watched.containsKey(i)) {
+                out.add(i);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Quien gano esa mesa de esa ronda, o null si aun no se sabe: la de una
+     * ronda cerrada, o la que has mirado en la de ahora.
+     */
+    public static synchronized Integer tableWinner(final int round, final int table) {
+        final Cup c = current();
+        if (c == null) {
+            return null;
+        }
+        if (round < c.winners.size()) {
+            final List<Integer> w = c.winners.get(round);
+            return table >= 0 && table < w.size() ? w.get(table) : null;
+        }
+        return round == c.winners.size() ? c.watched.get(table) : null;
+    }
+
+    /** Los asientos de esa mesa de la ronda de ahora. */
+    public static synchronized List<Integer> tableSeats(final int table) {
+        final Cup c = current();
+        if (c == null) {
+            return new ArrayList<>();
+        }
+        final List<List<Integer>> tables = groups(c.winners.size());
+        return table >= 0 && table < tables.size() ? tables.get(table) : new ArrayList<>();
+    }
+
+    /** Con que nombre se sienta cada uno de esa mesa, en el orden de {@link #tableSeats}. */
+    public static synchronized List<String> tableNames(final int table) {
+        final Cup c = current();
+        final List<String> out = new ArrayList<>();
+        if (c != null) {
+            for (final int s : tableSeats(table)) {
+                out.add(displayName(c, s));
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Los mazos de esa mesa, en el orden de {@link #tableSeats}, o una lista
+     * mas corta si alguno no sale (entonces no se puede mirar). Tarda: fuera
+     * del hilo de interfaz.
+     */
+    public static List<Deck> tableDecks(final int table) {
+        final Cup c;
+        final List<Integer> seats;
+        synchronized (NeoQuestCup.class) {
+            c = current();
+            seats = tableSeats(table);
+        }
+        final List<Deck> out = new ArrayList<>();
+        if (c == null || seats.contains(0)) {
+            return out;
+        }
+        for (final int s : seats) {
+            final Deck d = c.terms.commander
+                    ? commanderDeck(c.seats.get(s), c.terms.rivalTier())
+                    : duelDeck(c.seats.get(s));
+            if (d != null) {
+                out.add(d);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Apunta quien ha ganado la mesa que has mirado: pasa de ronda al cerrarse
+     * la tuya. Una mesa que ya tiene ganador no cambia (mirarla dos veces no
+     * vale para elegir quien pasa).
+     *
+     * @param seat el asiento ganador (de {@link #tableSeats})
+     */
+    public static synchronized boolean recordWatched(final int table, final int seat) {
+        final Cup c = current();
+        if (c == null || c.stage != Stage.PLAYING || c.watched.containsKey(table)
+                || !watchableTables().contains(table) || !tableSeats(table).contains(seat)) {
+            return false;
+        }
+        c.watched.put(table, seat);
+        save();
+        System.out.printf(Locale.ROOT, "[torneo] mesa %d mirada: gana %s%n", table + 1, displayName(c, seat));
+        return true;
     }
 
     private static List<Integer> entrants(final Cup c, final int round) {
@@ -396,20 +536,28 @@ public final class NeoQuestCup {
      */
     public static synchronized Result record(final boolean won) {
         final Cup c = current();
+        stopPlaying();
         if (c == null || c.stage != Stage.PLAYING) {
             return null;
         }
         final int round = c.winners.size();
         final boolean last = round == c.terms.rounds() - 1;
         final List<Integer> pass = new ArrayList<>();
-        for (final List<Integer> g : groups(round)) {
+        final List<List<Integer>> tables = groups(round);
+        for (int i = 0; i < tables.size(); i++) {
+            final List<Integer> g = tables.get(i);
+            final Integer seen = c.watched.get(i);
             if (g.contains(0)) {
                 pass.add(won ? 0 : pickOther(g));
+            } else if (seen != null && g.contains(seen)) {
+                // La que has mirado: pasa quien la gano de verdad.
+                pass.add(seen);
             } else {
                 pass.add(g.get(MyRandom.getRandom().nextInt(g.size())));
             }
         }
         c.winners.add(pass);
+        c.watched.clear();
         Prize prize = null;
         int refunded = 0;
         final QuestController q = FModel.getQuest();
@@ -616,7 +764,9 @@ public final class NeoQuestCup {
         final List<PaperCard> pool = new ArrayList<>();
         final String mine = myCommanderName();
         for (final PaperCard c : forge.neo.ascent.AscentSeedDeck.commanderPool()) {
-            if (forge.neo.ascent.AscentSynergy.knows(c) && !c.getName().equals(mine)) {
+            // Sin comandantes de fichas: a cuatro hunden la partida (TokenDecks).
+            if (forge.neo.ascent.AscentSynergy.knows(c) && !c.getName().equals(mine)
+                    && NeoCommanderDuels.fitsTable(c)) {
                 pool.add(c);
             }
         }
@@ -706,7 +856,7 @@ public final class NeoQuestCup {
     /** El mazo de ese comandante a ese nivel; si no sale legal, el de otro. */
     private static Deck commanderDeck(final String name, final QuestEventDifficulty tier) {
         final PaperCard cmd = commanderByName(name);
-        Deck d = cmd == null ? null : NeoCommanderDuels.deckFor(cmd, tier);
+        Deck d = cmd == null ? null : NeoCommanderDuels.deckForTable(cmd, tier);
         if (d != null && DeckFormat.Commander.getDeckConformanceProblem(d) == null) {
             return d;
         }
@@ -714,7 +864,10 @@ public final class NeoQuestCup {
             if (!forge.neo.ascent.AscentSynergy.knows(other) || other.getName().equals(name)) {
                 continue;
             }
-            d = NeoCommanderDuels.deckFor(other, tier);
+            if (!NeoCommanderDuels.fitsTable(other)) {
+                continue;
+            }
+            d = NeoCommanderDuels.deckForTable(other, tier);
             if (d != null && DeckFormat.Commander.getDeckConformanceProblem(d) == null) {
                 return d;
             }
@@ -761,6 +914,75 @@ public final class NeoQuestCup {
         return new File(ForgeConstants.QUEST_SAVE_DIR, questName + ".torneo");
     }
 
+    // ---------------------------------------------------------------
+    // La partida a medias (Ana, 28-10-2026)
+    //
+    // La ronda solo se apunta al ACABAR la partida, asi que cerrar el juego a
+    // lo bruto cuando vas perdiendo dejaba repetirla. Ahora se apunta en disco
+    // que hay una en juego justo antes de empezar; si al volver al torneo
+    // sigue ahi, la ronda cuenta como perdida. Salir por Escape ya era
+    // perder; que el MOTOR se rompa con el juego abierto si deja repetirla
+    // ({@link #crashed}): eso no lo provoca el jugador.
+
+    private static File playingFileOf(final String questName) {
+        return new File(ForgeConstants.QUEST_SAVE_DIR, questName + ".torneo-en-juego");
+    }
+
+    /** Va a empezar una partida del torneo: se apunta YA en disco. */
+    public static synchronized void startPlaying() {
+        final Cup c = current();
+        if (c == null || c.stage != Stage.PLAYING) {
+            return;
+        }
+        try {
+            Files.write(playingFileOf(cupQuest).toPath(), new byte[0]);
+        } catch (final java.io.IOException | RuntimeException e) {
+            System.out.println("[torneo] no se ha podido apuntar la partida en juego: " + e);
+        }
+    }
+
+    /** El motor se ha roto con el juego abierto: la ronda se puede repetir. */
+    public static synchronized void crashed() {
+        stopPlaying();
+    }
+
+    private static void stopPlaying() {
+        if (cupQuest != null) {
+            playingFileOf(cupQuest).delete();
+        }
+    }
+
+    /** Si la ultima vez se cerro el juego a mitad de una ronda (para decirlo una vez). */
+    private static boolean interruptedNotice;
+
+    /**
+     * Si el juego se cerro a mitad de una partida del torneo, la ronda cuenta
+     * como perdida, aqui. Lo llaman las dos pantallas del torneo al abrirse.
+     *
+     * @return true si se ha dado una ronda por perdida
+     */
+    public static synchronized boolean settleInterrupted() {
+        final Cup c = current();
+        if (c == null || cupQuest == null || !playingFileOf(cupQuest).isFile()) {
+            return false;
+        }
+        if (c.stage != Stage.PLAYING) {
+            stopPlaying();
+            return false;
+        }
+        System.out.println("[torneo] el juego se cerro a mitad de una ronda: cuenta como perdida");
+        record(false);
+        interruptedNotice = true;
+        return true;
+    }
+
+    /** El aviso de {@link #settleInterrupted}, una sola vez. */
+    public static synchronized boolean takeInterruptedNotice() {
+        final boolean was = interruptedNotice;
+        interruptedNotice = false;
+        return was;
+    }
+
     /**
      * Una linea por cosa: version, formato, nivel, etapa, asientos, las
      * cartas del premio y una linea por ronda con los que pasan.
@@ -783,6 +1005,14 @@ public final class NeoQuestCup {
             }
             sb.append(String.join(",", parts)).append('\n');
         }
+        // Las mesas miradas de la ronda de ahora: "W" y mesa=asiento.
+        if (!cup.watched.isEmpty()) {
+            final List<String> parts = new ArrayList<>();
+            for (final java.util.Map.Entry<Integer, Integer> e : cup.watched.entrySet()) {
+                parts.add(e.getKey() + "=" + e.getValue());
+            }
+            sb.append('W').append(String.join(",", parts)).append('\n');
+        }
         try {
             Files.write(fileOf(cupQuest).toPath(), sb.toString().getBytes(StandardCharsets.UTF_8));
         } catch (final java.io.IOException | RuntimeException e) {
@@ -801,12 +1031,13 @@ public final class NeoQuestCup {
                 return null;
             }
             final Cup c = new Cup();
-            c.terms = new Terms("commander".equals(lines.get(1).trim()),
-                    QuestEventDifficulty.valueOf(lines.get(2).trim()));
             c.stage = Stage.valueOf(lines.get(3).trim());
             for (final String s : lines.get(4).split("\t", -1)) {
                 c.seats.add(s);
             }
+            // Los jugadores, los que tenga (uno de 16 de antes del 28-10-2026 sigue a 16).
+            c.terms = new Terms("commander".equals(lines.get(1).trim()),
+                    QuestEventDifficulty.valueOf(lines.get(2).trim()), c.seats.size());
             for (final String s : lines.get(5).split("\t")) {
                 if (!s.isEmpty()) {
                     c.choices.add(s);
@@ -817,6 +1048,16 @@ public final class NeoQuestCup {
                 if (l.isEmpty()) {
                     continue;
                 }
+                if (l.startsWith("W")) {
+                    for (final String part : l.substring(1).split(",")) {
+                        final int eq = part.indexOf('=');
+                        if (eq > 0) {
+                            c.watched.put(Integer.parseInt(part.substring(0, eq).trim()),
+                                    Integer.parseInt(part.substring(eq + 1).trim()));
+                        }
+                    }
+                    continue;
+                }
                 final List<Integer> r = new ArrayList<>();
                 for (final String p : l.split(",")) {
                     r.add(Integer.parseInt(p.trim()));
@@ -824,7 +1065,7 @@ public final class NeoQuestCup {
                 c.winners.add(r);
             }
             c.settled = c.stage != Stage.PLAYING;
-            if (c.seats.size() != c.terms.seats()) {
+            if (!c.terms.wholeBracket()) {
                 return null;
             }
             return c;

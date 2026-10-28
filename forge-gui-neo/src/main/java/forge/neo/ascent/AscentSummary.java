@@ -90,6 +90,18 @@ public final class AscentSummary {
         this.code = code;
     }
 
+    /** La run se perdio por cerrar el juego a mitad de una partida ({@link AscentRun#wasInterrupted}). */
+    private boolean interrupted;
+
+    public AscentSummary markInterrupted() {
+        interrupted = true;
+        return this;
+    }
+
+    public boolean isInterrupted() {
+        return interrupted;
+    }
+
     /**
      * La misma foto, con los hitos que la run acaba de conseguir apuntados.
      *

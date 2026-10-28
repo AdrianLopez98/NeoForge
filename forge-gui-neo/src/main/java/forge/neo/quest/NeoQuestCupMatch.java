@@ -104,6 +104,73 @@ public final class NeoQuestCupMatch {
         return new Outcome(won, r.exit, r.turns);
     }
 
+    /**
+     * MIRAR otra mesa de la ronda (28-10-2026, Discord): sus IAs juegan entre
+     * ellas en la mesa de siempre, como el "Ver a la IA" del torneo
+     * ({@code NeoAppTournament.watchPairing}), al ritmo que tengas puesto. Si
+     * acaba con ganador, ese pasa de ronda ({@link NeoQuestCup#recordWatched});
+     * si la dejas a medias o no acaba, la mesa se resuelve al azar como las que
+     * no se miran.
+     *
+     * @return el asiento ganador, o null si no ha habido ganador
+     */
+    public static Integer watch(final TableBinder binder, final int table) {
+        return watch(binder, table, 86_400);
+    }
+
+    /** Con tope de tiempo: el comprobador no espera a que acabe. */
+    static Integer watch(final TableBinder binder, final int table, final int timeoutSecs) {
+        final List<Integer> seats = NeoQuestCup.tableSeats(table);
+        final List<String> names = NeoQuestCup.tableNames(table);
+        if (!NeoQuestCup.watchableTables().contains(table) || seats.size() < 2) {
+            return null;
+        }
+        final List<Deck> decks = NeoQuestCup.tableDecks(table);
+        if (decks.size() < seats.size()) {
+            System.out.println("[torneo] la mesa " + (table + 1) + " no tiene sus mazos: no se mira");
+            return null;
+        }
+        if (binder != null && binder.isAbandoned()) {
+            return null;
+        }
+        final boolean commander = NeoQuestCup.terms().commander;
+        final NeoFormat format = commander ? NeoFormat.COMMANDER : NeoFormat.ESTANDAR;
+        final int[] faces = faces(decks.size());
+        final NeoGame.Seating seating = new NeoGame.Seating() {
+            @Override
+            public EnumSet<GameType> variants() {
+                return EnumSet.of(commander ? GameType.Commander : GameType.Constructed);
+            }
+
+            @Override
+            public RegisteredPlayer human(final Deck deck, final int n) {
+                return format.register(deck, n);
+            }
+
+            @Override
+            public RegisteredPlayer opponent(final int i, final Deck deck, final int n) {
+                return format.register(deck, n);
+            }
+
+            @Override
+            public forge.LobbyPlayer player(final int i, final String profile) {
+                return GamePlayerUtil.createAiPlayer(names.get(i), faces[i],
+                        forge.neo.look.RivalSetup.resolve(profile, i, MyRandom.getRandom()));
+            }
+        };
+        System.out.println("[torneo] se mira la mesa " + (table + 1) + ": " + names);
+        // Observando, todos los asientos son "rivales": el 0 tambien.
+        final NeoGame.Result r = NeoGame.play(decks.get(0), decks.size() - 1, NeoMatchUI.Mode.OBSERVE,
+                timeoutSecs, false, binder, null, true, format, decks, 1, seating, NeoMatchUI.Ending.QUEST);
+        final int i = r.matchWinner == null ? -1 : names.indexOf(r.matchWinner);
+        if (i < 0) {
+            System.out.println("[torneo] la mesa " + (table + 1) + " no ha acabado: se resolvera al azar");
+            return null;
+        }
+        final int winner = seats.get(i);
+        return NeoQuestCup.recordWatched(table, winner) ? winner : null;
+    }
+
     private static int[] faces(final int n) {
         final int total = Math.max(n, forge.neo.look.NeoLook.builtInAvatarCount());
         final List<Integer> all = new ArrayList<>();

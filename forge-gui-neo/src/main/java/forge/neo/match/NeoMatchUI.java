@@ -2648,6 +2648,29 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         }
     }
 
+    /**
+     * EL "ESPERANDO A..." PEDIDO DESDE DOS HILOS A LA VEZ (Android, 28-10-2026:
+     * <i>"IllegalStateException: Task already scheduled or cancelled"</i>, al
+     * empezar la partida 3 de un Bo3, y la partida muerta).
+     *
+     * <p>{@code AbstractGuiGame.awaitNextInput} guarda la tarea en un campo y
+     * luego programa <b>el campo</b>, sin cerrojo. Y lo llaman dos hilos: el de
+     * interfaz al terminar una pregunta ({@code InputBase.setFinished}: el clic en
+     * "Quedarse la mano") y el de la partida, que en cuanto se suelta pasa solo
+     * las fases ({@code chooseSpellAbilityToPlay}). Si se cruzan, los dos
+     * programan la misma tarea, el {@code Timer} se niega y la excepcion se lleva
+     * el hilo de la partida. Uno detras de otro no pasa nada: el segundo deja el
+     * primer aviso pendiente y gana el suyo, que dice lo mismo.
+     */
+    private final Object awaitLock = new Object();
+
+    @Override
+    public void awaitNextInput() {
+        synchronized (awaitLock) {
+            super.awaitNextInput();
+        }
+    }
+
     private void finishIfGuest(final GameEvent event) {
         if (!(event instanceof forge.game.event.GameEventGameFinished)) {
             return;
@@ -4213,8 +4236,17 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         pushToTable();
     }
 
+    /** Solo pruebas: cuantas partidas se han abierto en este proceso. */
+    private static final java.util.concurrent.atomic.AtomicInteger OPENED_VIEWS =
+            new java.util.concurrent.atomic.AtomicInteger();
+
+    public static int openedViewsForTest() {
+        return OPENED_VIEWS.get();
+    }
+
     @Override
     public void openView(final TrackableCollection<PlayerView> myPlayers) {
+        OPENED_VIEWS.incrementAndGet();
         // Los ajustes que el motor necesita para que esta interfaz funcione,
         // AQUI, que es por donde pasan TODAS las partidas.
         //
@@ -4245,6 +4277,11 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         // (itch.io, 27-10-2026). Ver CircledColors.
         if (ending != Ending.REPLAY && getGameView() != null) {
             CircledColors.watch(getGameView().getGame());
+        }
+        // En una mesa de cuatro de Ascenso, si caes se acaba la partida: Forge
+        // la seguiria entre las IA. Ver AscentTableEnd.
+        if (ending == Ending.ASCENT && getGameView() != null) {
+            forge.neo.ascent.AscentTableEnd.watch(getGameView().getGame());
         }
         if (mode == Mode.HUMAN) {
             // Una repeticion no es una partida: ni preferencias del motor ni
@@ -4544,6 +4581,10 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         // mira el vigilante de "salir" para saber si la partida se cerro de
         // verdad.
         final boolean first = closeNotified.compareAndSet(false, true);
+        if (Boolean.getBoolean("neo.trace.choices")) {
+            System.out.println("[red] afterGameEnd: primero=" + first + " pantalla final=" + gameOverShowing
+                    + " finishGame=" + finishGameCalled);
+        }
         if (first && (ending == Ending.NET || ending == Ending.REPLAY) && gameOverShowing) {
             // En red la partida la cierra el PRIMERO que contesta: si el
             // anfitrion pulsa "volver a la sala" al momento, al invitado se le
@@ -4708,7 +4749,12 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         final int gameNumber = gv == null ? 0 : gv.getNumPlayedGamesInMatch() + 1;
         gameOverShowing = true;
         final boolean hotSeatOver = hotSeat();
-        ui.runLater(() -> table.getOverlay().show(lookButtons(gv, new GameOverScreen(
+        // UN RESPIRO ANTES DEL CUADRO (Discord, metior, 28-10-2026: *"lingering on
+        // the life total for a second or 2 before fading in the 'You win' like in
+        // MTG Arena"*): el ultimo golpe y la vida a 0 se ven, y el cuadro entra
+        // fundido. Sin camara lenta ni temblor: las animaciones de la mesa son
+        // cortas y explican algo. -Dneo.gameOver.breathMs=0 lo quita (capturas).
+        ui.runLater(() -> later(GAME_OVER_BREATH_MS, () -> showFaded(lookButtons(gv, new GameOverScreen(
                 won, winner, turns, ending, matchOver, gameNumber, totalGames, hotSeatOver,
                 decision -> {
                     table.getOverlay().hide();
@@ -4746,8 +4792,33 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                             ? Exit.RESTART : Exit.MENU;
                     respondLater(() ->
                             getGameController().nextGameDecision(NextGameDecision.QUIT));
-                }))));
+                })))));
         return true;
+    }
+
+    /** Lo que se queda la mesa a la vista antes del cuadro de fin de partida. */
+    private static final long GAME_OVER_BREATH_MS = Long.getLong("neo.gameOver.breathMs", 1500L);
+
+    /** Ejecuta eso dentro de {@code ms} en el hilo de JavaFX (ya en el); 0 = ahora. */
+    private static void later(final long ms, final Runnable what) {
+        if (ms <= 0) {
+            what.run();
+            return;
+        }
+        final javafx.animation.PauseTransition wait =
+                new javafx.animation.PauseTransition(javafx.util.Duration.millis(ms));
+        wait.setOnFinished(e -> what.run());
+        wait.play();
+    }
+
+    /** El cuadro del final, entrando fundido (250 ms). */
+    private void showFaded(final GameOverScreen screen) {
+        table.getOverlay().show(screen);
+        screen.setOpacity(0);
+        final javafx.animation.FadeTransition fade =
+                new javafx.animation.FadeTransition(javafx.util.Duration.millis(250), screen);
+        fade.setToValue(1);
+        fade.play();
     }
 
     /**
@@ -4838,6 +4909,21 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             return fromGame;
         }
         if (!hasLocalPlayers()) {
+            return false;
+        }
+        // El INVITADO en red no tiene la partida (fromGame null), y el "ha
+        // perdido" de su asiento le llega por deltas, a veces DESPUES del final:
+        // perdia y le salia "HAS GANADO" con "gana Ana" debajo. El nombre del
+        // ganador si llega a tiempo (es lo que pinta esa misma pantalla), asi
+        // que se le pregunta a el. Por equipos sigue mandando lo de abajo.
+        final GameView over = getGameView();
+        final String winnerName = over == null ? null : over.getWinningPlayerName();
+        if (fromGame == null && winnerName != null && NeoTeams.winningTeam(over) < 0) {
+            for (final PlayerView p : getLocalPlayers()) {
+                if (winnerName.equals(live(p).getName())) {
+                    return true;
+                }
+            }
             return false;
         }
         for (final PlayerView p : getLocalPlayers()) {
@@ -5545,6 +5631,13 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         if (payingMana || isSelecting() || getSelectionMax() > 0 || topOfStack() != null) {
             return false;
         }
+        // Si ya has jugado algo en esta fase principal, pasar es a proposito:
+        // la pregunta es para no saltartela entera sin querer (Discord,
+        // 28-10-2026: "only ask if you played no cards in main1").
+        if (getGameController() instanceof forge.player.PlayerControllerHuman human
+                && MainPhaseActivity.playedSomething(human.getPlayer())) {
+            return false;
+        }
         final String prompt = lastPrompt;
         if (prompt == null || prompt.isBlank() || !isRoutinePriorityPrompt(prompt)) {
             return false;
@@ -5888,6 +5981,10 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         if (isReplay()) {
             replayButtons(okLabel, cancelLabel, okEnabled, cancelEnabled);
             return;
+        }
+        if (Boolean.getBoolean("neo.trace.choices")) {
+            System.out.println("[botones] " + okLabel + "/" + cancelLabel + " " + okEnabled + "/" + cancelEnabled
+                    + " de " + (owner == null ? "?" : owner.getName() + "#" + owner.getId()));
         }
         // Los botones de una pregunta nueva, antes que su seleccion: se aparcan
         // hasta que llegue (ver earlyButtons).
@@ -7663,13 +7760,19 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
     }
 
     /** @param note una linea de ayuda bajo el titulo, o null (ver {@link #orderHint}) */
-    private <T> List<T> askChoice(final String title, final List<T> options,
+    private <T> List<T> askChoice(final String title, final List<T> asked,
                                   final int min, final int max,
                                   final FSerializableFunction<T, String> display,
                                   final List<TriggerSubject.Subject> about,
                                   final boolean ordered, final String note) {
+        // En red, las cartas de ESTA partida: el invitado podia recibir la de la
+        // anterior con el mismo numero (ver GuestCards).
+        final List<T> options = forge.neo.net.GuestCards.fresh(asked, getGameView());
         if (options == null || options.isEmpty()) {
             return new ArrayList<>();
+        }
+        if (Boolean.getBoolean("neo.trace.choices")) {
+            System.out.println("[eleccion] " + title + " -> " + options);
         }
         // reveal() llega como getChoices(msg, -1, -1, items): no hay nada que
         // elegir, solo enseñar una lista. Se pasa tal cual al dialogo, que sabe
@@ -8322,6 +8425,11 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                         actions.get(picked).run();
                     }
                 });
+        // Clicar fuera lo cierra, como cualquier consulta. Sin esto se quedaba
+        // con lo que hubiera dejado puesto el ultimo panel de esta capa — a
+        // veces nada, y entonces solo cerraba Escape (Discord, 27-10-2026:
+        // "right and left click don't close it ... I have to press esc").
+        table.getMenuOverlay().setOnBackgroundClick(table.getMenuOverlay()::hide);
         table.getMenuOverlay().show(menu);
     }
 
@@ -9423,6 +9531,15 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         // pregunta: con eso se elige la lista.
         final boolean mine = player == null || isLocalPlayer(player);
         if ((mine ? stops : theirStops).contains(phase)) {
+            // Con parada ya tienes prioridad: solo se apunta lo que se puede
+            // lanzar desde fuera de la mano, para no parar luego por ello.
+            if (!forge.gui.FThreads.isGuiThread()
+                    && getGameController() instanceof forge.player.PlayerControllerHuman human) {
+                NewlyCastable.observe(human.getPlayer());
+                // Y cuanto llevabas al entrar en la fase principal, para no
+                // preguntar al dejarla si ya has jugado algo.
+                MainPhaseActivity.observe(human.getPlayer());
+            }
             return false;
         }
         // Una fase sin parada se salta... salvo que tengas algo que SOLO se puede
@@ -9431,7 +9548,10 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         // pregunta antes de dar prioridad y el unico que puede leer la partida.
         return !(!forge.gui.FThreads.isGuiThread()
                 && getGameController() instanceof forge.player.PlayerControllerHuman human
-                && PhaseOnlyAbilities.worthStopping(human.getPlayer(), phase));
+                && (PhaseOnlyAbilities.worthStopping(human.getPlayer(), phase)
+                        // Y si acaba de aparecer algo que lanzar desde el
+                        // cementerio o el exilio (Ebondeath): una vez.
+                        || NewlyCastable.worthStopping(human.getPlayer())));
     }
 
     // ---------------------------------------------------------------

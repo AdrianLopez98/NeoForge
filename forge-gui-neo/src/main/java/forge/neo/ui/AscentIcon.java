@@ -73,6 +73,9 @@ public final class AscentIcon {
             case EVENT:
                 question(g, size, color);
                 break;
+            case MELEE:
+                table(g, size, color, hole);
+                break;
             case BOSS:
             default:
                 crown(g, size, color, hole);
@@ -88,6 +91,27 @@ public final class AscentIcon {
     }
 
     // ------------------------------------------------------------------
+
+    /**
+     * Mesa de cuatro: una mesa redonda vista desde arriba con cuatro sitios
+     * alrededor. Se distingue de las espadas por la silueta (un disco con
+     * cuatro bolas, nada en diagonal) y dice lo que es: cuatro a la mesa.
+     */
+    private static void table(final Group g, final double s, final Color c, final Color hole) {
+        final Circle top = new Circle(0, 0, s * 0.25);
+        top.setFill(c);
+        // El hueco del centro: sin el, a tamanyo de mapa, se leeria como una
+        // bola mas grande que las otras cuatro.
+        final Circle inner = new Circle(0, 0, s * 0.10);
+        inner.setFill(hole);
+        g.getChildren().addAll(top, inner);
+        for (int i = 0; i < 4; i++) {
+            final double a = Math.PI / 4 + i * Math.PI / 2;
+            final Circle seat = new Circle(Math.cos(a) * s * 0.43, Math.sin(a) * s * 0.43, s * 0.13);
+            seat.setFill(c);
+            g.getChildren().add(seat);
+        }
+    }
 
     /** Combate: dos espadas cruzadas. */
     private static void swords(final Group g, final double s, final Color c) {

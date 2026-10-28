@@ -99,8 +99,9 @@ public final class QuestCupCheck {
         ok &= check(NeoQuest.credits() == before - NeoQuestCup.terms().fee, "y se cobra una vez");
         ok &= check(!NeoQuestCup.pay(), "no se puede entrar dos veces");
         final List<String> seats = NeoQuestCup.seatNames();
-        ok &= check(seats.size() == 16 && new HashSet<>(seats).size() == 16, "16 asientos distintos");
-        ok &= check(NeoQuestCup.groups(0).size() == 4, "cuatro mesas en la primera ronda");
+        ok &= check(seats.size() == 64 && new HashSet<>(seats).size() == 64, "64 asientos distintos");
+        ok &= check(NeoQuestCup.terms().rounds() == 3, "tres rondas: 16 mesas, 4 y la final");
+        ok &= check(NeoQuestCup.groups(0).size() == 16, "dieciseis mesas en la primera ronda");
         ok &= check(NeoQuestCup.myRivals().size() == 3, "tres rivales en tu mesa: " + NeoQuestCup.rivalNames());
         final List<Deck> decks = NeoQuestCup.rivalDecks();
         ok &= check(decks.size() == 3, "sus mazos salen (" + decks.size() + ")");
@@ -113,18 +114,48 @@ public final class QuestCupCheck {
         ok &= check(out != null && out.turns >= 1, "se juega la mesa a cuatro"
                 + (out == null ? "" : " (" + out.turns + " turnos" + (out.won ? ", ganada)" : ")")));
 
+        // Mirar otra mesa (28-10-2026): opcional, y quien la gana pasa de verdad.
+        final List<Integer> watchable = NeoQuestCup.watchableTables();
+        ok &= check(watchable.size() == 15, "las otras quince mesas se pueden mirar: " + watchable.size());
+        final int table = watchable.get(0);
+        ok &= check(NeoQuestCup.tableNames(table).size() == 4 && NeoQuestCup.tableDecks(table).size() == 4,
+                "sus cuatro mazos salen: " + NeoQuestCup.tableNames(table));
+        final Integer watched = NeoQuestCupMatch.watch(null, table, secs);
+        System.out.println("  -- mesa mirada " + (table + 1) + ": " + (watched == null ? "sin acabar" : "gana el asiento " + watched));
+        final int chosen = watched != null ? watched : NeoQuestCup.tableSeats(table).get(2);
+        if (watched == null) {
+            ok &= check(NeoQuestCup.recordWatched(table, chosen), "se apunta quien gana la mesa mirada");
+        }
+        ok &= check(!NeoQuestCup.recordWatched(table, NeoQuestCup.tableSeats(table).get(1)),
+                "una mesa mirada no se vuelve a decidir");
+        ok &= check(!NeoQuestCup.watchableTables().contains(table) && NeoQuestCup.watchableTables().size() == 14,
+                "y ya no sale para mirar");
+        ok &= check(NeoQuestCup.myRivals().size() == 3 && !NeoQuestCup.watchableTables().contains(
+                NeoQuestCup.groups(0).indexOf(NeoQuestCup.groups(0).stream().filter(g -> g.contains(0)).findFirst().get())),
+                "tu mesa no se mira, se juega");
+        NeoQuestCup.forgetInMemoryForTest();
+        ok &= check(Integer.valueOf(chosen).equals(NeoQuestCup.tableWinner(0, table)),
+                "lo mirado se guarda en el disco");
+
         NeoQuestCup.Result r = NeoQuestCup.record(true);
+        ok &= check(r != null && r.stage == NeoQuestCup.Stage.PLAYING && !NeoQuestCup.isFinal(),
+                "ganar tu mesa te pasa a la segunda ronda");
+        ok &= check(NeoQuestCup.winnersOf(0).size() == 16, "las otras mesas tambien tienen ganador");
+        ok &= check(NeoQuestCup.winnersOf(0).get(table) == chosen, "y la mirada, el que la gano");
+        ok &= check(NeoQuestCup.watchableTables().size() == 3, "en la segunda, otras tres mesas para mirar");
+        ok &= check(NeoQuestCup.groups(1).size() == 4, "cuatro mesas en la segunda ronda");
+        r = NeoQuestCup.record(true);
         ok &= check(r != null && r.stage == NeoQuestCup.Stage.PLAYING && NeoQuestCup.isFinal(),
-                "ganar tu mesa te lleva a la final");
-        ok &= check(NeoQuestCup.winnersOf(0).size() == 4, "las otras mesas tambien tienen ganador");
-        ok &= check(NeoQuestCup.groups(1).size() == 1 && NeoQuestCup.groups(1).get(0).contains(0),
+                "ganar la segunda te lleva a la final");
+        ok &= check(NeoQuestCup.groups(2).size() == 1 && NeoQuestCup.groups(2).get(0).contains(0),
                 "la final es una mesa con los cuatro, tu dentro");
+        ok &= check(NeoQuestCup.watchableTables().isEmpty(), "en la final no hay otra mesa que mirar");
 
         // Cerrar el juego a medias: se recupera tal cual.
-        final List<Integer> finalists = NeoQuestCup.groups(1).get(0);
+        final List<Integer> finalists = NeoQuestCup.groups(2).get(0);
         NeoQuestCup.forgetInMemoryForTest();
         ok &= check(NeoQuestCup.stage() == NeoQuestCup.Stage.PLAYING && NeoQuestCup.isFinal()
-                && NeoQuestCup.groups(1).get(0).equals(finalists) && NeoQuestCup.seatNames().equals(seats),
+                && NeoQuestCup.groups(2).get(0).equals(finalists) && NeoQuestCup.seatNames().equals(seats),
                 "se recupera del disco donde estaba");
 
         final long beforePrize = NeoQuest.credits();
@@ -149,6 +180,7 @@ public final class QuestCupCheck {
         // 3. La final perdida devuelve la entrada; perder antes, no.
         NeoQuestCup.pay();
         NeoQuestCup.record(true);
+        NeoQuestCup.record(true);
         final long beforeLoss = NeoQuest.credits();
         r = NeoQuestCup.record(false);
         ok &= check(r != null && r.stage == NeoQuestCup.Stage.RUNNER_UP
@@ -159,7 +191,40 @@ public final class QuestCupCheck {
         r = NeoQuestCup.record(false);
         ok &= check(r != null && r.stage == NeoQuestCup.Stage.ELIMINATED && NeoQuest.credits() == beforeOut,
                 "perder en la primera ronda: fuera, sin devolver");
-        ok &= check(NeoQuestCup.winnersOf(1).size() == 1, "y el cuadro se completa hasta el campeon");
+        ok &= check(NeoQuestCup.winnersOf(2).size() == 1, "y el cuadro se completa hasta el campeon");
+        NeoQuestCup.dismiss();
+        // Un torneo de 16 guardado antes del 28-10-2026 sigue a 16 (y dos rondas).
+        NeoQuestCup.pay();
+        try {
+            final List<String> lines = new java.util.ArrayList<>(
+                    java.nio.file.Files.readAllLines(file.toPath(), java.nio.charset.StandardCharsets.UTF_8));
+            final String[] all = lines.get(4).split("\t", -1);
+            lines.set(4, String.join("\t", java.util.Arrays.copyOf(all, 16)));
+            java.nio.file.Files.write(file.toPath(), (String.join("\n", lines) + "\n")
+                    .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        } catch (final java.io.IOException e) {
+            ok &= check(false, "no se ha podido preparar el torneo de 16: " + e);
+        }
+        NeoQuestCup.forgetInMemoryForTest();
+        ok &= check(NeoQuestCup.seatNames().size() == 16 && NeoQuestCup.terms().rounds() == 2
+                && NeoQuestCup.groups(0).size() == 4 && NeoQuestCup.stage() == NeoQuestCup.Stage.PLAYING,
+                "un torneo de 16 de antes se carga y sigue con sus dos rondas");
+        NeoQuestCup.record(true);
+        ok &= check(NeoQuestCup.isFinal() && NeoQuestCup.groups(1).size() == 1, "y su final es la segunda");
+        NeoQuestCup.record(false);
+        NeoQuestCup.dismiss();
+        NeoQuestCup.pay();
+        // Cerrar el juego a mitad de una ronda (Ana, 28-10-2026): al volver
+        // cuenta como perdida; acabarla o que el motor reviente, no.
+        NeoQuestCup.startPlaying();
+        NeoQuestCup.crashed();
+        ok &= check(!NeoQuestCup.settleInterrupted() && NeoQuestCup.stage() == NeoQuestCup.Stage.PLAYING,
+                "si el motor revienta, la ronda se puede repetir");
+        NeoQuestCup.startPlaying();
+        ok &= check(NeoQuestCup.settleInterrupted() && NeoQuestCup.stage() == NeoQuestCup.Stage.ELIMINATED
+                && NeoQuestCup.takeInterruptedNotice() && !NeoQuestCup.takeInterruptedNotice()
+                && !NeoQuestCup.settleInterrupted(),
+                "cerrar el juego a mitad de una ronda la da por perdida, y se avisa una vez");
         NeoQuestCup.dismiss();
         NeoQuestCup.pay();
         NeoQuest.delete(NAME);

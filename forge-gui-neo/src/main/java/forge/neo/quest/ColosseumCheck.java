@@ -99,6 +99,10 @@ public final class ColosseumCheck {
                     tier, NeoQuest.wins(), fee, rivals);
             ok &= check(fee > lastFee, "la entrada sube con el nivel: " + fee);
             ok &= check(NeoColosseum.prizeCredits() == fee * 2, "el premio es el doble");
+            // Mas barato desde el 28-10-2026: el sobre de colector, solo en dificil y experto.
+            ok &= check(NeoColosseum.collectorPrize() == (tier == QuestEventDifficulty.HARD
+                    || tier == QuestEventDifficulty.EXPERT), "sobre de colector solo en dificil y experto");
+            ok &= check(fee <= 1000, "la entrada asequible (como mucho 1000): " + fee);
             ok &= check(rivals == next(tier), "los rivales van un nivel por delante: " + rivals);
             lastFee = fee;
 

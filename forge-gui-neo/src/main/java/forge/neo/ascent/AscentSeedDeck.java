@@ -751,6 +751,29 @@ public final class AscentSeedDeck {
         return out;
     }
 
+    /**
+     * La pareja FIJA de un comandante con "Partner with X" (Jenny Flint y
+     * Madame Vastra, Alisaie y Alphinaud), o {@code null}. Sale marcada de
+     * fabrica al elegirlo: sin ella el mazo se montaba para uno solo y nadie
+     * echaba en falta un boton que ni sabia que existia (Discord, 28-10-2026:
+     * <i>"Jenny Flint, for example, is missing her wife"</i>). Se puede quitar.
+     */
+    public static PaperCard fixedPartner(final PaperCard commander, final AscentPool pool) {
+        if (commander == null) {
+            return null;
+        }
+        final String mate = commander.getRules().getPartnerWith();
+        if (mate == null || mate.isEmpty()) {
+            return null;
+        }
+        for (final PaperCard c : partnersFor(commander, pool)) {
+            if (c.getName().equals(mate)) {
+                return c;
+            }
+        }
+        return null;
+    }
+
     /** El companero que pide una receta, o {@code null} (como {@link #commanderFor}). */
     public static PaperCard partnerFor(final AscentSeed.Recipe r) {
         if (r == null || !r.hasPartner()) {

@@ -2764,6 +2764,9 @@ public class QuestShopScreen extends StackPane {
             commanderPane.reload();
         } else if (tab == Tab.BOXES && boxesPane != null) {
             boxesPane.reload();
+        } else if (tab == Tab.JUMPSTART && jumpstartPane != null) {
+            // Para que salga su "Comprado xN" (QuestPurchases).
+            jumpstartPane.reload();
         }
     }
 
@@ -3228,6 +3231,16 @@ public class QuestShopScreen extends StackPane {
             cost.getStyleClass().add(
                     NeoQuest.credits() >= price ? "set-price-ok" : "set-price-no");
             tile.getChildren().add(cost);
+
+            // Y si ya lo has comprado, cuantas veces (Discord, 28-10-2026: el
+            // mazo de Jace solo se notaba por "0 que te faltan").
+            final int bought = forge.neo.quest.QuestPurchases.count(item);
+            if (bought > 0) {
+                final Label b = new Label(NeoText.get("shop.bought", bought));
+                b.getStyleClass().add("set-bought");
+                b.setMinWidth(Region.USE_PREF_SIZE);
+                tile.getChildren().add(b);
+            }
 
             tile.pseudoClassStateChanged(PICKED, item == picked);
             tile.setOnMouseClicked(ev -> {

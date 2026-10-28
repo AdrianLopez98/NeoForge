@@ -560,6 +560,17 @@
     -fx-text-fill: -neo-text-dim;
 }
 
+/* "Comprado x2" en una casilla de la tienda de la Quest (QuestPurchases). */
+.set-bought {
+    -fx-font-size: 0.75em;
+    -fx-font-weight: bold;
+    -fx-text-fill: -neo-accent;
+    -fx-border-color: -neo-accent;
+    -fx-border-radius: 999;
+    -fx-background-radius: 999;
+    -fx-padding: 0 0.55em 0.05em 0.55em;
+}
+
 .shop-filter {
     -fx-text-fill: -neo-text;
 }

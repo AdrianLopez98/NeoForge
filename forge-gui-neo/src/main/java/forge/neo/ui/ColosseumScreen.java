@@ -124,7 +124,7 @@ public class ColosseumScreen extends StackPane {
         final CardEdition ed = NeoColosseum.prizeEdition();
         final String prize = ed == null
                 ? NeoText.get("colosseum.prizeCreditsOnly", NeoColosseum.prizeCredits())
-                : NeoText.get("colosseum.prize", NeoColosseum.prizeCredits(), ed.getName());
+                : NeoText.get(NeoColosseum.prizeTextKey(), NeoColosseum.prizeCredits(), ed.getName());
         // En una fila que se reparte el ancho: con FlowPane, en 2K la tercera
         // bajaba a otra linea y empujaba tu mazo fuera de la pantalla.
         final HBox row = new HBox(14);
@@ -239,7 +239,7 @@ public class ColosseumScreen extends StackPane {
         final CardEdition ed = NeoColosseum.prizeEdition();
         final String prize = ed == null
                 ? NeoText.get("colosseum.prizeCreditsOnly", NeoColosseum.prizeCredits())
-                : NeoText.get("colosseum.prize", NeoColosseum.prizeCredits(), ed.getName());
+                : NeoText.get(NeoColosseum.prizeTextKey(), NeoColosseum.prizeCredits(), ed.getName());
         overlay.setOnBackgroundClick(overlay::hide);
         overlay.show(new ConfirmDialog(NeoText.get("colosseum.confirmTitle"),
                 NeoText.get("colosseum.confirmBody", fee, NeoQuest.credits() - fee, prize),
@@ -275,7 +275,7 @@ public class ColosseumScreen extends StackPane {
         notes.add(NeoText.get("colosseum.noteCredits", prize.credits));
         notes.add(NeoText.get("colosseum.noteWin"));
         if (pack == null) {
-            notes.add(NeoText.get("colosseum.noteNoPack"));
+            notes.add(NeoText.get(NeoColosseum.collectorPrize() ? "colosseum.noteNoPack" : "colosseum.noteNoBooster"));
         }
         overlay.setOnBackgroundClick(null);
         overlay.show(CardHaul.panel(NeoText.get("colosseum.wonTitle"), NeoText.get("colosseum.wonSub"),

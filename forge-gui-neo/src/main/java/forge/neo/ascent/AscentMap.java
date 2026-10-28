@@ -56,9 +56,13 @@ public final class AscentMap {
     /** Ni elites ni descansos antes de esto: al principio no hay con que. */
     private static final int NO_HARD_BEFORE = 4;
 
+    /** Las mesas de cuatro no salen antes de esta fila: al principio, duelos sueltos. */
+    static final int MELEE_FROM_ROW = 2;
+
     private final long seed;
     private final int act;
     private final int ascension;
+    private final boolean melee;
     private final Map<String, AscentNode> nodes = new LinkedHashMap<>();
     private final List<List<AscentNode>> rows = new ArrayList<>();
 
@@ -78,9 +82,24 @@ public final class AscentMap {
      *                  (§forceExtraElite). El resto de niveles no tocan el mapa
      */
     public AscentMap(final long seed, final int act, final int ascension) {
+        this(seed, act, ascension, false);
+    }
+
+    /**
+     * Igual, con las <b>mesas de cuatro</b> de una run de Commander que las
+     * lleva puestas ({@link AscentRun#isMelee}).
+     *
+     * <p>⚠️ Van <b>despues</b> de todo el sorteo de siempre y con su propio
+     * azar ({@link #placeMelee}): sin mesas, el mapa sale exactamente igual que
+     * antes de que existieran — los codigos y los retos de una run 1 contra 1 no
+     * cambian. Si se metieran dentro de {@link #weighted}, cada tirada de mas
+     * desplazaria todas las siguientes y cambiarian TODOS los mapas.
+     */
+    public AscentMap(final long seed, final int act, final int ascension, final boolean melee) {
         this.seed = seed;
         this.act = act;
         this.ascension = Math.max(0, ascension);
+        this.melee = melee;
         for (int r = 0; r < ROWS; r++) {
             rows.add(new ArrayList<>());
         }
@@ -90,6 +109,9 @@ public final class AscentMap {
         assignKinds(rnd);
         if (this.ascension >= 7) {
             forceExtraElite(rnd);
+        }
+        if (melee) {
+            placeMelee(new Random((seed * 31L + act) ^ 0x4D454C4545L));
         }
     }
 
@@ -275,6 +297,58 @@ public final class AscentMap {
         }
     }
 
+    /**
+     * Cuantas mesas de cuatro lleva un acto: <b>dos en el primero, tres
+     * despues</b>. Era una y dos, y Ana lo subio el mismo dia (<i>"1 pelea solo
+     * en nivel 1 es poco ... tampoco es el fin del mundo jugar commander"</i>):
+     * a cambio, ganarla cura ({@link AscentRun#healAfterWin}). No mas: una
+     * partida a cuatro con la IA dura dos o tres veces lo que un duelo.
+     */
+    static int meleePerAct(final int act) {
+        return act <= 1 ? 2 : 3;
+    }
+
+    /**
+     * Convierte algunos combates en <b>mesas de cuatro</b> (Ana, 27-10-2026).
+     *
+     * <p>Solo combates ya sorteados —nunca una elite, una tienda o el jefe—, a
+     * partir de la fila {@value #MELEE_FROM_ROW} y nunca dos seguidas en un
+     * mismo camino: son una apuesta (mas tiempo y mas riesgo por un premio
+     * mejor), como las elites, y dos seguidas dejarian de serlo.
+     */
+    private void placeMelee(final Random rnd) {
+        final List<AscentNode> candidates = new ArrayList<>();
+        for (int r = MELEE_FROM_ROW; r < REST_ROW; r++) {
+            for (final AscentNode n : rows.get(r)) {
+                if (n.getKind() == AscentNode.Kind.COMBAT) {
+                    candidates.add(n);
+                }
+            }
+        }
+        java.util.Collections.shuffle(candidates, rnd);
+        int left = meleePerAct(act);
+        for (final AscentNode n : candidates) {
+            if (left <= 0) {
+                break;
+            }
+            if (repeatsParent(n, AscentNode.Kind.MELEE) || leadsTo(n, AscentNode.Kind.MELEE)) {
+                continue;
+            }
+            n.setKind(AscentNode.Kind.MELEE);
+            left--;
+        }
+    }
+
+    /** Si alguno de los nodos a los que se va desde aqui ya es de ese tipo. */
+    private static boolean leadsTo(final AscentNode node, final AscentNode.Kind kind) {
+        for (final AscentNode nx : node.getNext()) {
+            if (nx.getKind() == kind) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** Si alguno de los nodos que llevan aqui ya es de ese tipo. */
     private boolean repeatsParent(final AscentNode node, final AscentNode.Kind kind) {
         if (kind == AscentNode.Kind.COMBAT || kind == AscentNode.Kind.EVENT) {
@@ -294,6 +368,11 @@ public final class AscentMap {
 
     public long getSeed() {
         return seed;
+    }
+
+    /** Si este mapa lleva mesas de cuatro. */
+    public boolean isMelee() {
+        return melee;
     }
 
     public int getAct() {
@@ -388,7 +467,8 @@ public final class AscentMap {
      * Los tramos que rompen la regla de "no dos iguales seguidos en un camino".
      *
      * <p>Solo se mira sobre los tipos que <b>cambian la decision</b>: descanso,
-     * tienda y elite. Dos combates seguidos son lo normal — son el relleno.
+     * tienda, elite y mesa de cuatro. Dos combates seguidos son lo normal —
+     * son el relleno.
      *
      * <p>Devuelve las aristas infractoras como {@code "5,2 -> 6,2 (REST)"}.
      */
@@ -397,6 +477,7 @@ public final class AscentMap {
         watched.add(AscentNode.Kind.REST);
         watched.add(AscentNode.Kind.SHOP);
         watched.add(AscentNode.Kind.ELITE);
+        watched.add(AscentNode.Kind.MELEE);
 
         final List<String> bad = new ArrayList<>();
         for (final AscentNode n : nodes.values()) {
@@ -435,6 +516,7 @@ public final class AscentMap {
             case TREASURE: return 'T';
             case EVENT:    return '?';
             case BOSS:     return 'B';
+            case MELEE:    return '4';
             default:       return '.';
         }
     }

@@ -117,6 +117,11 @@ public final class AscentCheck {
             nivelesDeAscension();
             elArteSeCambia();
             comandantesFavoritos();
+            mesasDeCuatro();
+            mesasSinFichas();
+            cerrarAMedias();
+            mazosGenerados();
+            venderReliquias();
         } finally {
             final List<String> sobras = prestado.restore();
             if (!sobras.isEmpty()) {
@@ -1327,12 +1332,14 @@ public final class AscentCheck {
         // Que se vea de todo. Un mapa que solo diera combates seria un pasillo.
         final Set<AscentNode.Kind> faltan = new HashSet<>();
         for (final AscentNode.Kind k : AscentNode.Kind.values()) {
-            if (!vistos.containsKey(k)) {
+            // La mesa de cuatro solo sale con las mesas puestas, y estas runs
+            // son 1 contra 1: la mira mesasDeCuatro().
+            if (!vistos.containsKey(k) && k != AscentNode.Kind.MELEE) {
                 faltan.add(k);
             }
         }
         if (faltan.isEmpty()) {
-            ok("recorrido: han salido los siete tipos de nodo " + vistos);
+            ok("recorrido: han salido los siete tipos de nodo de una run 1 contra 1 " + vistos);
         } else {
             fail("recorrido: no ha salido ni un nodo de " + faltan + " en " + RUNS + " runs");
         }
@@ -4123,6 +4130,168 @@ public final class AscentCheck {
     }
 
     /** El primer nodo de ese tipo del mapa actual, o {@code null}. */
+    /**
+     * Ningun mazo de fichas en una mesa de cuatro (forge.neo.match.TokenDecks,
+     * Discord 28-10-2026: un rival de fichas hundio una partida del Coliseo).
+     * Que el detector marque algunos preconstruidos —ni ninguno (no detecta
+     * nada) ni la mitad (quitaria medio pozo)— y que las mesas de varias runs
+     * no sienten ninguno.
+     */
+    private static void mesasSinFichas() {
+        final List<forge.deck.Deck> pozo = AscentBattle.pool(AscentRun.Mode.COMMANDER);
+        final List<String> marcados = new ArrayList<>();
+        for (final forge.deck.Deck d : pozo) {
+            if (forge.neo.match.TokenDecks.isHeavy(d)) {
+                marcados.add(AscentBattle.name(d));
+            }
+        }
+        if (marcados.isEmpty() || marcados.size() * 4 > pozo.size()) {
+            fail("fichas: el detector marca " + marcados.size() + " de " + pozo.size() + " preconstruidos");
+            return;
+        }
+        int mesas = 0;
+        for (int i = 0; i < 8; i++) {
+            final AscentRun run;
+            try {
+                run = AscentRun.begin(AscentRun.Mode.COMMANDER, 0, 40, null, null, AscentSeedDeck.NO_COLOURS,
+                        AscentPool.ALL, true);
+            } catch (final RuntimeException e) {
+                fail("fichas: no se ha podido empezar la run: " + e);
+                return;
+            }
+            try {
+                for (int r = 0; r < AscentMap.ROWS; r++) {
+                    for (final AscentNode n : run.map().row(r)) {
+                        if (n.getKind() != AscentNode.Kind.MELEE) {
+                            continue;
+                        }
+                        mesas++;
+                        for (final AscentBattle.Rival rival : AscentBattle.plan(run, n).rivals) {
+                            if (forge.neo.match.TokenDecks.isHeavy(rival.deck)) {
+                                fail("fichas: una mesa sienta " + AscentBattle.name(rival.deck) + " ("
+                                        + forge.neo.match.TokenDecks.tokenMakers(rival.deck) + " cartas de fichas)");
+                                return;
+                            }
+                        }
+                    }
+                }
+            } finally {
+                run.discard();
+            }
+        }
+        ok("fichas: " + marcados.size() + " de " + pozo.size() + " preconstruidos son de fichas (p. ej. "
+                + String.join(", ", marcados.subList(0, Math.min(3, marcados.size())))
+                + ") y ninguna de " + mesas + " mesas sienta uno");
+        // Los comandantes que el Coliseo y el torneo de la Quest pueden sortear.
+        int conocidos = 0;
+        int caben = 0;
+        for (final forge.item.PaperCard c : AscentSeedDeck.commanderPool()) {
+            if (AscentSynergy.knows(c)) {
+                conocidos++;
+                if (forge.neo.quest.NeoCommanderDuels.fitsTable(c)) {
+                    caben++;
+                }
+            }
+        }
+        if (caben * 2 < conocidos) {
+            fail("fichas: solo " + caben + " de " + conocidos + " comandantes caben en una mesa de cuatro");
+        } else {
+            ok("fichas: " + caben + " de " + conocidos + " comandantes caben en el Coliseo y el torneo"
+                    + " (los demas crean fichas ellos mismos)");
+        }
+    }
+
+    /**
+     * Cerrar el juego a mitad de una partida (Ana, 28-10-2026): la marca se
+     * guarda en disco antes de jugar, sobrevive a recargar la run, se borra al
+     * acabar y con la run.
+     */
+    private static void cerrarAMedias() {
+        final AscentRun run;
+        try {
+            run = AscentRun.begin(AscentRun.Mode.STANDARD, 0, 20, null);
+        } catch (final RuntimeException e) {
+            fail("a medias: no se ha podido empezar la run: " + e);
+            return;
+        }
+        final AscentNode nodo = run.available().get(0);
+        final boolean antes = run.wasInterrupted();
+        run.markFighting(nodo);
+        final AscentRun leida = AscentRun.current();
+        final boolean guardada = leida != null && leida.wasInterrupted();
+        leida.clearFighting();
+        final boolean borrada = !AscentRun.current().wasInterrupted();
+        leida.markFighting(nodo);
+        leida.discard();
+        run.discard();
+        final boolean sinRastro = forge.neo.NeoSettings.get("ascent.fighting", null) == null;
+        if (!antes && guardada && borrada && sinRastro) {
+            ok("a medias: la partida en curso se apunta en disco, se lee al volver, se borra al acabar y con la run");
+        } else {
+            fail("a medias: antes " + antes + ", guardada " + guardada + ", borrada " + borrada
+                    + ", sin rastro " + sinRastro);
+        }
+    }
+
+    /**
+     * Los rivales con mazo generado (AscentGenerated, Ana 28-10-2026): el acto
+     * 1 sigue con preconstruidos; el acto 3 los lleva generados, legales y sin
+     * fichas; el jefe a bracket 4 con Ascension 5; y la misma semilla da el
+     * mismo mazo (es lo que deja que el reto del dia sea igual para todos).
+     */
+    private static void mazosGenerados() {
+        final AscentRun run;
+        try {
+            run = AscentRun.begin(AscentRun.Mode.COMMANDER, AscentGenerated.BOSS_BRACKET_FROM, 40, null, null,
+                    AscentSeedDeck.NO_COLOURS, AscentPool.ALL, false);
+        } catch (final RuntimeException e) {
+            fail("generados: no se ha podido empezar la run: " + e);
+            return;
+        }
+        try {
+            final AscentBattle.Plan uno = AscentBattle.plan(run, firstOfKind(run, AscentNode.Kind.COMBAT));
+            final boolean actoUnoPrecon = !esGenerado(uno.rivals.get(0).deck);
+            final Random rnd = new Random(20261028L);
+            for (int act = 1; act < AscentRun.ACTS; act++) {
+                if (!walkToBoss(run, rnd) || run.advance() != AscentRun.Step.NEXT_ACT) {
+                    fail("generados: no se ha llegado al acto " + (act + 1));
+                    return;
+                }
+            }
+            final AscentNode combate = firstOfKind(run, AscentNode.Kind.COMBAT);
+            final long t0 = System.currentTimeMillis();
+            final forge.deck.Deck rival = AscentBattle.plan(run, combate).rivals.get(0).deck;
+            final long ms = System.currentTimeMillis() - t0;
+            final forge.deck.Deck otraVez = AscentBattle.plan(run, combate).rivals.get(0).deck;
+            final forge.deck.Deck jefe = AscentBattle.plan(run, run.map().boss()).rivals.get(0).deck;
+            final boolean bien = esGenerado(rival) && esGenerado(jefe)
+                    && forge.deck.DeckFormat.Commander.getDeckConformanceProblem(rival) == null
+                    && !forge.neo.match.TokenDecks.isHeavy(rival)
+                    && AscentDeckgenProbe.print(rival).equals(AscentDeckgenProbe.print(otraVez));
+            // La misma semilla, generada de nuevo sin cache: el mismo mazo.
+            final forge.item.PaperCard cmd = rival.get(forge.deck.DeckSection.Commander).get(0);
+            final boolean igual = AscentDeckgenProbe.print(AscentGenerated.generate(cmd, 4242L, 4))
+                    .equals(AscentDeckgenProbe.print(AscentGenerated.generate(cmd, 4242L, 4)));
+            if (actoUnoPrecon && bien && igual) {
+                ok("generados: acto 1 con preconstruido (" + AscentBattle.name(uno.rivals.get(0).deck)
+                        + "); acto 3 con generado (" + AscentBattle.name(rival) + ", " + ms + " ms), jefe "
+                        + AscentBattle.name(jefe) + "; la misma semilla da el mismo mazo");
+            } else {
+                fail("generados: acto 1 precon " + actoUnoPrecon + ", acto 3 " + AscentBattle.name(rival)
+                        + " / jefe " + AscentBattle.name(jefe) + " bien " + bien + ", misma semilla " + igual);
+            }
+        } finally {
+            run.discard();
+        }
+    }
+
+    /** Un rival generado se llama como su comandante; un preconstruido, no. */
+    private static boolean esGenerado(final forge.deck.Deck d) {
+        return d != null && d.has(forge.deck.DeckSection.Commander)
+                && d.get(forge.deck.DeckSection.Commander).toFlatList().stream()
+                        .anyMatch(c -> c.getName().equals(d.getName()));
+    }
+
     private static AscentNode firstOfKind(final AscentRun run, final AscentNode.Kind kind) {
         final AscentMap map = run.map();
         for (int r = 0; r < AscentMap.ROWS; r++) {
@@ -4848,6 +5017,347 @@ public final class AscentCheck {
             }
         } finally {
             forge.neo.NeoSettings.set(AscentPoolPresets.KEY, before);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    //  Las mesas de cuatro
+    // ------------------------------------------------------------------
+
+    /**
+     * <b>Las mesas de cuatro</b> (Ana, 27-10-2026): nodos a cuatro, todos
+     * contra todos, y la mesa del final con tres jefes.
+     *
+     * <p>Lo que mas importa no se ve jugando: que <b>sin las mesas el mapa salga
+     * exactamente igual</b> que antes de que existieran (los codigos y los
+     * retos 1 contra 1 dicen lo mismo), y que con ellas lo unico que cambie
+     * sean combates convertidos en mesa. Se mira casilla a casilla.
+     */
+    private static void mesasDeCuatro() {
+        // 1. El mapa: con y sin mesas, sobre muchas semillas.
+        int mapas = 0;
+        int conTodas = 0;
+        for (int i = 0; i < 300; i++) {
+            for (int act = 1; act <= AscentRun.ACTS; act++) {
+                for (final int asc : new int[]{0, 7}) {
+                    final long seed = 70270L + i * 7919L;
+                    final AscentMap solo = new AscentMap(seed, act, asc);
+                    final AscentMap igual = new AscentMap(seed, act, asc, false);
+                    final AscentMap mesas = new AscentMap(seed, act, asc, true);
+                    mapas++;
+                    if (!solo.render().equals(igual.render()) || countKindAt(solo, AscentNode.Kind.MELEE, -1) > 0) {
+                        fail("mesas: sin ellas el mapa cambia (semilla " + seed + ", acto " + act + ")");
+                        return;
+                    }
+                    final String a = solo.render();
+                    final String b = mesas.render();
+                    int puestas = 0;
+                    for (int k = 0; k < a.length(); k++) {
+                        if (a.charAt(k) == b.charAt(k)) {
+                            continue;
+                        }
+                        if (a.charAt(k) != 'x' || b.charAt(k) != '4') {
+                            fail("mesas: cambian algo que no es un combate (semilla " + seed + ", acto " + act
+                                    + "):" + System.lineSeparator() + a + System.lineSeparator() + b);
+                            return;
+                        }
+                        puestas++;
+                    }
+                    if (puestas > AscentMap.meleePerAct(act)) {
+                        fail("mesas: " + puestas + " en el acto " + act + " (tope " + AscentMap.meleePerAct(act) + ")");
+                        return;
+                    }
+                    if (puestas == AscentMap.meleePerAct(act)) {
+                        conTodas++;
+                    }
+                    for (int r = 0; r < AscentMap.MELEE_FROM_ROW; r++) {
+                        if (countKindAt(mesas, AscentNode.Kind.MELEE, r) > 0) {
+                            fail("mesas: una en la fila " + r + " (no antes de la " + AscentMap.MELEE_FROM_ROW + ")");
+                            return;
+                        }
+                    }
+                    // Solo las seguidas DE MESA: el mapa de siempre ya trae a veces dos
+                    // elites seguidas (el sorteo reintenta ocho veces y se rinde).
+                    final List<String> seguidas = new ArrayList<>();
+                    for (final String v : mesas.consecutiveViolations()) {
+                        if (v.endsWith("(MELEE)")) {
+                            seguidas.add(v);
+                        }
+                    }
+                    if (!seguidas.isEmpty() || !mesas.unreachable().isEmpty()) {
+                        fail("mesas: " + seguidas + " / islas " + mesas.unreachable().size());
+                        return;
+                    }
+                }
+            }
+        }
+        if (conTodas * 100 < mapas * 95) {
+            fail("mesas: solo " + conTodas + " de " + mapas + " mapas llevan todas las que tocan");
+        } else {
+            ok("mesas: en " + mapas + " mapas, sin ellas el mapa no cambia ni una casilla; con ellas solo"
+                    + " combates pasan a mesa, sin dos seguidas ni antes de la fila " + AscentMap.MELEE_FROM_ROW
+                    + " (" + conTodas + " con todas las que tocan)");
+        }
+
+        // 2. El codigo: la marca 4P, solo en Commander, y los de antes sin ella.
+        final AscentSeed.Recipe cmd = AscentSeed.fresh(AscentRun.Mode.COMMANDER, 0, AscentSeedDeck.NO_COLOURS,
+                null, null, AscentPool.ALL, true);
+        final AscentSeed.Parsed leido = AscentSeed.parse(cmd.code());
+        final AscentSeed.Recipe std = AscentSeed.fresh(AscentRun.Mode.STANDARD, 0, AscentSeedDeck.NO_COLOURS,
+                null, null, AscentPool.ALL, true);
+        final AscentSeed.Parsed viejo = AscentSeed.parse(cmd.withMelee(false).code());
+        if (cmd.melee && cmd.code().contains("-4P-") && leido.ok() && leido.recipe.melee
+                && leido.recipe.seed == cmd.seed && leido.recipe.withDeck(AscentSeedDeck.NO_COLOURS, null).melee
+                && !std.melee && !std.code().contains("4P")
+                && viejo.ok() && !viejo.recipe.melee && !cmd.withMelee(false).code().contains("4P")) {
+            ok("mesas: el codigo lleva 4P (" + cmd.code() + "), se lee igual, y sin la marca es 1 contra 1");
+        } else {
+            fail("mesas: el codigo no guarda las mesas (" + cmd.code() + " / " + std.code() + ")");
+        }
+
+        // 3. Los retos: el del dia de Commander con mesas; el de Estandar y el semanal, no.
+        java.time.LocalDate dia = java.time.LocalDate.of(2026, 10, 27);
+        AscentSeed.Recipe diaCmd = null;
+        AscentSeed.Recipe diaStd = null;
+        for (int i = 0; i < 4; i++) {
+            final AscentSeed.Recipe r = AscentSeed.daily(dia.plusDays(i));
+            if (r.mode == AscentRun.Mode.COMMANDER) {
+                diaCmd = r;
+            } else {
+                diaStd = r;
+            }
+        }
+        final AscentSeed.Recipe semana = AscentSeed.weekly(dia);
+        if (diaCmd != null && diaCmd.melee && diaStd != null && !diaStd.melee && !semana.melee) {
+            ok("mesas: el reto del dia de Commander las lleva (" + diaCmd.code() + "); el de Estandar"
+                    + " y el de la semana, no");
+        } else {
+            fail("mesas: los retos no salen como deben (dia Commander " + diaCmd + ", Estandar " + diaStd
+                    + ", semana " + semana + ")");
+        }
+
+        // 4. Una run de Commander con mesas.
+        final AscentRun run;
+        try {
+            run = AscentRun.begin(AscentRun.Mode.COMMANDER, 0, 40, null, null, AscentSeedDeck.NO_COLOURS,
+                    AscentPool.ALL, true);
+        } catch (final RuntimeException e) {
+            fail("mesas: no se ha podido empezar la run: " + e);
+            return;
+        }
+        try {
+            final AscentRun recargada = AscentRun.current();
+            if (!run.isMelee() || recargada == null || !recargada.isMelee()) {
+                fail("mesas: la run no se guarda con las mesas");
+                return;
+            }
+            final AscentNode mesa = firstOfKind(run, AscentNode.Kind.MELEE);
+            if (mesa == null) {
+                fail("mesas: el mapa de la run no trae ninguna");
+                return;
+            }
+            final AscentBattle.Plan plan = AscentBattle.plan(run, mesa);
+            final int duelo = AscentBattle.lifeAt(run.getMaxLife(),
+                    AscentBattle.progress(run.getAct(), mesa.getRow()), AscentBattle.playerEdge(run));
+            final Set<String> mazos = new HashSet<>();
+            boolean vidas = true;
+            boolean sinReliquias = true;
+            for (final AscentBattle.Rival r : plan.rivals) {
+                mazos.add(AscentBattle.name(r.deck));
+                vidas &= r.life == AscentBattle.tableLifeAt(duelo);
+                sinReliquias &= r.relics.isEmpty();
+            }
+            if (plan.isTable() && plan.rivals.size() == AscentBattle.TABLE_RIVALS
+                    && mazos.size() == AscentBattle.TABLE_RIVALS && vidas && sinReliquias) {
+                ok("mesas: " + plan);
+            } else {
+                fail("mesas: el plan de la mesa no cuadra (" + plan + "; mazos distintos " + mazos.size()
+                        + ", vidas " + vidas + " contra " + AscentBattle.tableLifeAt(duelo)
+                        + ", sin reliquias " + sinReliquias + ")");
+            }
+            final AscentRewards.Reward premio = AscentRewards.of(run, mesa);
+            if (!premio.cards.isEmpty() && premio.relics.isEmpty() && premio.credits > 0) {
+                ok("mesas: el premio es " + premio);
+            } else {
+                fail("mesas: el premio no cuadra (" + premio + ")");
+            }
+            // Ganarla cura un cuarto del maximo; un combate, nada.
+            run.recordLife(20);
+            final int curado = run.healAfterWin(mesa);
+            final int nada = run.healAfterWin(firstOfKind(run, AscentNode.Kind.COMBAT));
+            if (curado == run.tableHeal() && curado > 0 && run.getLife() == 20 + curado && nada == 0) {
+                ok("mesas: ganarla cura " + curado + " vidas (de 20 a " + run.getLife() + "); un combate, nada");
+            } else {
+                fail("mesas: la cura no cuadra (curado " + curado + " de " + run.tableHeal() + ", vida "
+                        + run.getLife() + ", combate " + nada + ")");
+            }
+            run.recordLife(run.getMaxLife());
+
+            // 5. La mesa del final: tres jefes, cada uno con sus reliquias, sin repetir.
+            final Random rnd = new Random(20261027L);
+            for (int act = 1; act < AscentRun.ACTS; act++) {
+                if (!walkToBoss(run, rnd) || run.advance() != AscentRun.Step.NEXT_ACT) {
+                    fail("mesas: no se ha llegado al acto " + (act + 1));
+                    return;
+                }
+            }
+            final AscentNode jefe = run.map().boss();
+            final AscentBattle.Plan finalPlan = AscentBattle.plan(run, jefe);
+            final Set<String> reliquias = new HashSet<>();
+            int cuantas = 0;
+            final Set<String> mazosJefes = new HashSet<>();
+            boolean dosCada = true;
+            for (final AscentBattle.Rival r : finalPlan.rivals) {
+                mazosJefes.add(AscentBattle.name(r.deck));
+                dosCada &= r.relics.size() >= 2;
+                for (final PaperCard c : r.relics) {
+                    reliquias.add(c.getName());
+                    cuantas++;
+                }
+            }
+            run.setMeleeForTest(false);
+            final AscentBattle.Plan solo = AscentBattle.plan(run, jefe);
+            run.setMeleeForTest(true);
+            if (run.isFinalTable(jefe) && finalPlan.rivals.size() == AscentBattle.TABLE_RIVALS && dosCada
+                    && reliquias.size() == cuantas && mazosJefes.size() == AscentBattle.TABLE_RIVALS
+                    && !solo.isTable()
+                    && AscentBattle.name(solo.opponentDeck).equals(AscentBattle.name(finalPlan.opponentDeck))
+                    && solo.opponentRelics.equals(finalPlan.opponentRelics)) {
+                ok("mesas: la del final son tres jefes con " + cuantas + " reliquias distintas, y el primero es"
+                        + " el jefe de siempre (" + finalPlan + ")");
+            } else {
+                fail("mesas: la mesa del final no cuadra (" + finalPlan + " | a 1 contra 1: " + solo + ")");
+            }
+
+            // 6. En infinito, los jefes vuelven a ser 1 contra 1.
+            if (!walkToBoss(run, rnd) || run.advance() != AscentRun.Step.RUN_COMPLETED || !run.enterEndless()) {
+                fail("mesas: no se ha podido entrar en el modo infinito");
+                return;
+            }
+            final AscentNode jefeInfinito = run.map().boss();
+            if (!run.isFinalTable(jefeInfinito) && !AscentBattle.plan(run, jefeInfinito).isTable()) {
+                ok("mesas: en el modo infinito el jefe vuelve a ser 1 contra 1");
+            } else {
+                fail("mesas: en el modo infinito el jefe sigue siendo una mesa");
+            }
+        } finally {
+            run.discard();
+        }
+
+        // 7. La Ascension 10: el segundo aliento solo en el primero, y sin nacer por debajo.
+        final AscentRun diez;
+        try {
+            diez = AscentRun.begin(AscentRun.Mode.COMMANDER, 10, 40, null, null, AscentSeedDeck.NO_COLOURS,
+                    AscentPool.ALL, true);
+        } catch (final RuntimeException e) {
+            fail("mesas: no se ha podido empezar la run de Ascension 10: " + e);
+            return;
+        }
+        try {
+            final Random rnd = new Random(10L);
+            for (int act = 1; act < AscentRun.ACTS; act++) {
+                if (!walkToBoss(diez, rnd) || diez.advance() != AscentRun.Step.NEXT_ACT) {
+                    fail("mesas: Ascension 10, no se ha llegado al acto " + (act + 1));
+                    return;
+                }
+            }
+            final AscentBattle.Plan p10 = AscentBattle.plan(diez, diez.map().boss());
+            final PaperCard aliento = AscentRelics.bossPhaseCard(AscentRun.Mode.COMMANDER);
+            int conAliento = 0;
+            for (final AscentBattle.Rival r : p10.rivals) {
+                if (r.relics.contains(aliento)) {
+                    conAliento++;
+                }
+            }
+            if (aliento != null && conAliento == 1 && p10.rivals.get(0).relics.contains(aliento)
+                    && p10.rivals.get(0).life >= AscentBattle.FINAL_TABLE_PHASE_FLOOR) {
+                ok("mesas: Ascension 10, el segundo aliento solo en el primer jefe, que sale con "
+                        + p10.rivals.get(0).life + " vidas (salta con 36)");
+            } else {
+                fail("mesas: Ascension 10 no cuadra (" + p10 + ", con aliento " + conAliento + ")");
+            }
+        } finally {
+            diez.discard();
+        }
+
+        // 8. En Estandar no hay mesas, se pidan o no.
+        final AscentRun estandar = demoRun(AscentRun.Mode.STANDARD);
+        if (estandar != null) {
+            try {
+                estandar.setMeleeForTest(true);
+                if (!estandar.isMelee() && firstOfKind(estandar, AscentNode.Kind.MELEE) == null) {
+                    ok("mesas: en Estandar no salen aunque se pidan");
+                } else {
+                    fail("mesas: una run de Estandar con mesas");
+                }
+            } finally {
+                estandar.discard();
+            }
+        }
+    }
+
+    /**
+     * <b>Vender reliquias en la tienda</b> (Ana, 27-10-2026): cada rareza a su
+     * precio, por debajo de lo que cuesta comprarla (comprar para vender
+     * pierde), y la vendida no vuelve a salir en la run.
+     */
+    private static void venderReliquias() {
+        final AscentRun run = demoRun(AscentRun.Mode.STANDARD);
+        if (run == null) {
+            fail("vender reliquias: no se ha podido montar la run");
+            return;
+        }
+        try {
+            AscentRelic comun = null;
+            AscentRelic rara = null;
+            for (final AscentRelic r : AscentRelics.all()) {
+                if (comun == null && r.getRarity() == AscentRelic.Rarity.COMMON) {
+                    comun = r;
+                } else if (rara == null && r.getRarity() == AscentRelic.Rarity.RARE) {
+                    rara = r;
+                }
+            }
+            if (comun == null || rara == null) {
+                fail("vender reliquias: el catalogo no trae comun y rara");
+                return;
+            }
+            final int pc = AscentShop.sellPrice(run, comun);
+            final int pr = AscentShop.sellPrice(run, rara);
+            if (pc > 0 && pr > pc && pc < 90 && pr < 160) {
+                ok("vender reliquias: una comun da " + pc + " y una rara " + pr
+                        + " — menos de lo que cuestan en la tienda (90 y 160)");
+            } else {
+                fail("vender reliquias: precios raros (comun " + pc + ", rara " + pr + ")");
+            }
+
+            run.addRelic(comun);
+            final String id = comun.getId();
+            final int antes = run.getCredits();
+            final int cobrado = AscentShop.sellRelic(run, comun);
+            final AscentRun recargada = AscentRun.current();
+            if (cobrado == pc && run.getCredits() == antes + pc && run.relics().stream().noneMatch(r -> r.getId().equals(id))
+                    && recargada != null && recargada.getRelicsGone().contains(comun.getId())
+                    && AscentShop.sellRelic(run, comun) == 0) {
+                ok("vender reliquias: se quita, se cobra " + cobrado + ", se guarda como vendida y no se"
+                        + " vende dos veces");
+            } else {
+                fail("vender reliquias: la venta no cuadra (cobrado " + cobrado + ", creditos " + antes + " -> "
+                        + run.getCredits() + ")");
+            }
+
+            // La vendida no vuelve: ni en premios, ni en la tienda, ni en eventos (todo pasa por relic()).
+            boolean vuelve = false;
+            for (int i = 0; i < 400 && !vuelve; i++) {
+                final AscentRelic r = AscentRewards.relic(run, AscentRelic.Rarity.COMMON, new Random(i));
+                vuelve = r != null && r.getId().equals(comun.getId());
+            }
+            if (!vuelve) {
+                ok("vender reliquias: en 400 sorteos no vuelve a salir");
+            } else {
+                fail("vender reliquias: la vendida vuelve a ofrecerse");
+            }
+        } finally {
+            run.discard();
         }
     }
 

@@ -6,6 +6,7 @@ import forge.game.card.CardView;
 import forge.item.PaperCard;
 import forge.neo.NeoText;
 import forge.neo.ascent.AscentDecks;
+import forge.neo.ascent.AscentRelic;
 import forge.neo.ascent.AscentRelics;
 import forge.neo.ascent.AscentRun;
 import forge.neo.ascent.AscentShop;
@@ -59,6 +60,8 @@ public class AscentShopScreen extends StackPane {
 
     private final VBox body = new VBox(14);
     private AscentShop.Item selected;
+    /** La reliquia tuya elegida para vender, en la vista de vender. */
+    private AscentRelic sellPick;
 
     public AscentShopScreen(final AscentRun run, final List<AscentShop.Item> stock,
                             final double cardWidth, final Actions actions) {
@@ -79,6 +82,15 @@ public class AscentShopScreen extends StackPane {
         // El borde del papel esta ROTO: ver Parchment.SAFE_EDGE.
         body.setPadding(new Insets(Parchment.SAFE_EDGE, 28, Parchment.SAFE_EDGE, 28));
         rebuild();
+        // -Dneo.ascent.shopSell=true abre la vista de vender, y con
+        // -Dneo.ascent.shopSellPick=N deja elegida la N-esima: para capturarla.
+        if (Boolean.getBoolean("neo.ascent.shopSell") && !run.relics().isEmpty()) {
+            final int pick = Integer.getInteger("neo.ascent.shopSellPick", -1);
+            if (pick >= 0 && pick < run.relics().size()) {
+                sellPick = run.relics().get(pick);
+            }
+            showSell();
+        }
 
         getChildren().addAll(paper, body);
         // "Tu mazo" y "Reliquias" a mano, como en el mapa: ver AscentQuickLook.
@@ -116,7 +128,124 @@ public class AscentShopScreen extends StackPane {
 
         final HBox buttons = new HBox(14, leave, buy);
         buttons.setAlignment(Pos.CENTER);
+        // Vender reliquias (Ana, 27-10-2026), a la izquierda: es lo
+        // secundario, y lo que no se deshace no va donde va la inercia de
+        // salir (principio 12). Solo si tienes alguna que vender.
+        if (!run.relics().isEmpty()) {
+            final Button sell = new Button(NeoText.get("ascent.shop.sellRelics", run.relics().size()));
+            sell.setId("ascent-shop-sell");
+            sell.getStyleClass().add("ascent-button");
+            sell.setOnAction(e -> {
+                selected = null;
+                sellPick = null;
+                showSell();
+            });
+            buttons.getChildren().add(0, sell);
+        }
         body.getChildren().add(buttons);
+    }
+
+    /**
+     * <b>Vender una reliquia</b> (Ana, 27-10-2026). Como comprar: se elige
+     * primero y se vende despues con el boton, que es lo unico que cobra — una
+     * reliquia vendida no vuelve (ni a ti ni a los premios de la run). Cada una
+     * dice lo que te dan, que depende de su rareza ({@link AscentShop#sellPrice}).
+     */
+    private void showSell() {
+        if (quickLook != null) {
+            quickLook.run();
+        }
+        body.getChildren().clear();
+        final Label title = new Label(NeoText.get("ascent.shop.sellTitle"));
+        title.getStyleClass().add("ascent-act");
+        final Label credits = new Label(NeoText.get("ascent.credits") + "  " + run.getCredits());
+        credits.getStyleClass().addAll("ascent-pill-base", "ascent-pill");
+        final Label hint = new Label(NeoText.get("ascent.shop.sellHint"));
+        hint.getStyleClass().add("ascent-hint");
+        hint.setWrapText(true);
+
+        final javafx.scene.layout.FlowPane grid = new javafx.scene.layout.FlowPane(16, 16);
+        grid.setAlignment(Pos.CENTER);
+        for (final AscentRelic relic : run.relics()) {
+            grid.getChildren().add(sellCell(relic));
+        }
+        final javafx.scene.control.ScrollPane scroll = new javafx.scene.control.ScrollPane(grid);
+        scroll.getStyleClass().add("dialog-scroll");
+        scroll.setFitToWidth(true);
+        scroll.setHbarPolicy(javafx.scene.control.ScrollPane.ScrollBarPolicy.NEVER);
+        VBox.setVgrow(scroll, Priority.ALWAYS);
+
+        final Button back = new Button(NeoText.get("common.back"));
+        back.getStyleClass().add("ascent-button");
+        back.setOnAction(e -> {
+            sellPick = null;
+            rebuild();
+        });
+        final Button sell = new Button(sellPick == null ? NeoText.get("ascent.shop.sellPick")
+                : NeoText.get("ascent.shop.sellFor", AscentShop.sellPrice(run, sellPick)));
+        sell.setId("ascent-shop-sell-confirm");
+        sell.getStyleClass().addAll("ascent-button", "btn-primary");
+        sell.setDisable(sellPick == null);
+        sell.setOnAction(e -> {
+            AscentShop.sellRelic(run, sellPick);
+            sellPick = null;
+            if (run.relics().isEmpty()) {
+                rebuild();
+            } else {
+                showSell();
+            }
+        });
+        final HBox buttons = new HBox(14, back, sell);
+        buttons.setAlignment(Pos.CENTER);
+        body.getChildren().addAll(title, credits, hint, scroll, buttons);
+    }
+
+    /** Una reliquia tuya: su carta, su texto y lo que te dan por ella. */
+    private Region sellCell(final AscentRelic relic) {
+        final VBox cell = new VBox(6);
+        cell.setAlignment(Pos.TOP_CENTER);
+        cell.getStyleClass().add("ascent-shop-item");
+        final PaperCard card = AscentRelics.cardOf(relic);
+        if (card != null) {
+            final CardNode node = new CardNode(cardWidth);
+            node.setRotationEnabled(false);
+            node.setCard(CardView.getCardForUi(card));
+            cell.getChildren().add(node);
+        }
+        final Label name = new Label(relic.getCardName());
+        name.getStyleClass().add("ascent-info-title");
+        name.setWrapText(true);
+        name.setMaxWidth(cardWidth);
+        cell.getChildren().add(name);
+        // Su texto, como en el mostrador: no tiene arte, y vender a ciegas es
+        // tan malo como comprar a ciegas.
+        if (card != null && card.getRules() != null) {
+            final String text = card.getRules().getOracleText();
+            if (text != null && !text.isBlank()) {
+                final Label what = new Label(text);
+                what.getStyleClass().add("ascent-info-text");
+                what.setWrapText(true);
+                what.setMaxWidth(cardWidth);
+                cell.getChildren().add(what);
+            }
+        }
+        final Label price = new Label(NeoText.get("ascent.shop.sellPrice", AscentShop.sellPrice(run, relic)));
+        price.getStyleClass().addAll("ascent-pill-base", "ascent-pill");
+        cell.getChildren().add(price);
+        final boolean picked = sellPick != null && relic.getId().equals(sellPick.getId());
+        if (picked) {
+            cell.getStyleClass().add("ascent-shop-item-picked");
+        }
+        cell.setCursor(javafx.scene.Cursor.HAND);
+        cell.setOnMouseClicked(e -> {
+            // Elegir no vende: lo unico que cobra es el boton de abajo.
+            if (e.getButton() != MouseButton.PRIMARY) {
+                return;
+            }
+            sellPick = picked ? null : relic;
+            showSell();
+        });
+        return cell;
     }
 
     /** Que pone el boton de comprar segun lo elegido. */

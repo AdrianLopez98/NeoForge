@@ -97,22 +97,29 @@ public final class AscentSeed {
         public final long seed;
         /** La version de Neo Forge con la que se hizo el codigo. */
         public final String version;
+        /**
+         * <b>Con mesas de cuatro</b> (solo Commander, {@link AscentRun#isMelee}).
+         * Va en el codigo como {@code 4P}; un codigo sin la marca es 1 contra 1,
+         * asi que los de antes siguen diciendo lo mismo.
+         */
+        public final boolean melee;
 
         public Recipe(final AscentRun.Mode mode, final int ascension, final byte colours,
                       final String commander, final AscentPool pool, final long seed,
                       final String version) {
-            this(mode, ascension, colours, commander, null, null, null, pool, seed, version);
+            this(mode, ascension, colours, commander, null, null, null, pool, seed, version, false);
         }
 
         public Recipe(final AscentRun.Mode mode, final int ascension, final byte colours,
                       final String commander, final String partner, final AscentPool pool,
                       final long seed, final String version) {
-            this(mode, ascension, colours, commander, null, partner, null, pool, seed, version);
+            this(mode, ascension, colours, commander, null, partner, null, pool, seed, version, false);
         }
 
         Recipe(final AscentRun.Mode mode, final int ascension, final byte colours,
                final String commander, final String commanderHash, final String partner,
-               final String partnerHash, final AscentPool pool, final long seed, final String version) {
+               final String partnerHash, final AscentPool pool, final long seed, final String version,
+               final boolean melee) {
             this.mode = mode == null ? AscentRun.Mode.STANDARD : mode;
             this.ascension = Math.max(0, ascension);
             this.colours = this.mode == AscentRun.Mode.STANDARD ? colours : AscentSeedDeck.NO_COLOURS;
@@ -125,6 +132,14 @@ public final class AscentSeed {
             this.pool = pool == null ? AscentPool.ALL : pool;
             this.seed = seed & MASK;
             this.version = version == null || version.isEmpty() ? currentVersion() : version;
+            // Las mesas son de Commander: en Estandar no hay partidas a cuatro.
+            this.melee = this.mode == AscentRun.Mode.COMMANDER && melee;
+        }
+
+        /** La misma receta, con o sin mesas de cuatro. */
+        public Recipe withMelee(final boolean on) {
+            return new Recipe(mode, ascension, colours, commander, commanderHash, partner, partnerHash,
+                    pool, seed, version, on);
         }
 
         /** El comandante va en el codigo (el jugador lo eligio, no lo sorteo la semilla). */
@@ -155,7 +170,8 @@ public final class AscentSeed {
 
         /** Igual, con companero de mando. */
         public Recipe withDeck(final byte ownColours, final String ownCommander, final String ownPartner) {
-            return new Recipe(mode, ascension, ownColours, ownCommander, null, ownPartner, null, pool, seed, version);
+            return new Recipe(mode, ascension, ownColours, ownCommander, null, ownPartner, null, pool, seed, version,
+                    melee);
         }
 
         /** Hecho con la misma version que esta jugando. */
@@ -193,6 +209,13 @@ public final class AscentSeed {
     public static Recipe fresh(final AscentRun.Mode mode, final int ascension, final byte colours,
                                final String commander, final String partner, final AscentPool pool) {
         return new Recipe(mode, ascension, colours, commander, partner, pool, newSeed(), currentVersion());
+    }
+
+    /** Igual, con o sin mesas de cuatro (solo cuenta en Commander). */
+    public static Recipe fresh(final AscentRun.Mode mode, final int ascension, final byte colours,
+                               final String commander, final String partner, final AscentPool pool,
+                               final boolean melee) {
+        return fresh(mode, ascension, colours, commander, partner, pool).withMelee(melee);
     }
 
     /**
@@ -274,7 +297,11 @@ public final class AscentSeed {
         final long seed = challengeSeed("NeoForge Ascent daily " + day);
         final AscentRun.Mode mode = Math.floorMod(day.toEpochDay(), 2L) == 0
                 ? AscentRun.Mode.COMMANDER : AscentRun.Mode.STANDARD;
-        return new Recipe(mode, 0, AscentSeedDeck.NO_COLOURS, null, AscentPool.ALL, seed, currentVersion());
+        // Los dias de Commander, con mesas de cuatro (Ana, 27-10-2026): el
+        // reto del dia es el escaparate del modo. El de la semana sigue 1 contra
+        // 1 — ya lleva Ascension y dos mundos sorteados.
+        return new Recipe(mode, 0, AscentSeedDeck.NO_COLOURS, null, AscentPool.ALL, seed, currentVersion())
+                .withMelee(mode == AscentRun.Mode.COMMANDER);
     }
 
     /**
@@ -342,6 +369,11 @@ public final class AscentSeed {
         final List<String> parts = new ArrayList<>();
         parts.add(r.mode == AscentRun.Mode.COMMANDER ? "CMD" : "STD");
         parts.add("A" + r.ascension);
+        if (r.melee) {
+            // Dos letras y no cuatro: parse() toma cualquier trozo de cuatro
+            // como media semilla.
+            parts.add("4P");
+        }
         if (r.mode == AscentRun.Mode.STANDARD && r.colours != AscentSeedDeck.NO_COLOURS) {
             parts.add(colourLetters(r.colours));
         }
@@ -403,6 +435,7 @@ public final class AscentSeed {
         AscentPool pool = AscentPool.ALL;
         String version = null;
         Long seed = null;
+        boolean melee = false;
         final StringBuilder halves = new StringBuilder();
         for (final String token : text.split("-")) {
             if (token.isEmpty()) {
@@ -413,6 +446,8 @@ public final class AscentSeed {
                 mode = AscentRun.Mode.STANDARD;
             } else if ("CMD".equals(up)) {
                 mode = AscentRun.Mode.COMMANDER;
+            } else if ("4P".equals(up)) {
+                melee = true;
             } else if (up.matches("A\\d{1,2}")) {
                 ascension = Integer.parseInt(up.substring(1));
             } else if (up.startsWith("@") && up.length() > 1) {
@@ -458,8 +493,8 @@ public final class AscentSeed {
         if (mode == null || ascension < 0) {
             return new Parsed(null, "ascent.seed.err.bad");
         }
-        return new Parsed(new Recipe(mode, ascension, colours, null, hash, null, partnerHash, pool, seed, version),
-                null);
+        return new Parsed(new Recipe(mode, ascension, colours, null, hash, null, partnerHash, pool, seed, version,
+                melee), null);
     }
 
     /** Ocho letras de base 32. */

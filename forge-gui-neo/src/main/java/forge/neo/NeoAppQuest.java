@@ -543,6 +543,11 @@ final class NeoAppQuest {
                 cup = null;
                 showQuestHome();
             }
+
+            @Override
+            public void watch(final int table) {
+                watchCupTable(table);
+            }
         });
         app.scene.setRoot(cup);
         app.applyScale();
@@ -566,8 +571,14 @@ final class NeoAppQuest {
         liveBinder.setOnAbandoned(why -> {
             if (why == TableBinder.Abandon.QUIT) {
                 forge.neo.quest.NeoQuestCup.record(false);
+            } else {
+                // El motor se ha roto: la ronda se puede repetir.
+                forge.neo.quest.NeoQuestCup.crashed();
             }
         });
+        // En disco ANTES de jugar: cerrar el juego a mitad cuenta como perder
+        // la ronda (NeoQuestCup.settleInterrupted).
+        forge.neo.quest.NeoQuestCup.startPlaying();
         app.table.setPrompt(forge.neo.NeoText.get("cup.preparing"));
         final Thread engine = new Thread(() -> {
             forge.neo.quest.NeoQuestCupMatch.Outcome out = null;
@@ -595,6 +606,8 @@ final class NeoAppQuest {
                     }
                     app.binder = null;
                     if (got == null) {
+                        // La partida ha reventado con el juego abierto: se repite.
+                        forge.neo.quest.NeoQuestCup.crashed();
                         showQuestCup();
                     } else {
                         final forge.neo.quest.NeoQuestCup.Result r = forge.neo.quest.NeoQuestCup.record(got.won);
@@ -603,6 +616,47 @@ final class NeoAppQuest {
                 });
             }
         }, "Game-neo-cup");
+        engine.setDaemon(true);
+        engine.start();
+    }
+
+    /**
+     * MIRAR otra mesa del torneo entre IAs (28-10-2026, Discord), en la mesa
+     * de siempre y al ritmo que tengas puesto, como el "Ver a la IA" del
+     * torneo de eliminacion ({@code NeoAppTournament.watchPairing}). Si acaba
+     * con ganador, ese pasa de ronda; si la dejas antes, la mesa se resolvera
+     * al azar como las que no se miran. No toca la entrada ni tu partida.
+     */
+    void watchCupTable(final int table) {
+        cup = null;
+        app.table = new TableScreen(app.cardWidth, app.sideWidth);
+        app.table.getDetailPanel().setTextZoom(NeoSettings.getDouble(NeoSettings.TEXT_ZOOM, 1.15));
+        app.showTable();
+        final TableBinder liveBinder = new TableBinder(app.table);
+        app.binder = liveBinder;
+        app.table.setPrompt(forge.neo.NeoText.get("cup.preparing"));
+        final Thread engine = new Thread(() -> {
+            try {
+                forge.neo.quest.NeoQuestCupMatch.watch(liveBinder, table);
+            } catch (final Exception e) {
+                System.err.println("[neo] la mesa mirada del torneo ha fallado: " + e);
+                e.printStackTrace();
+            } finally {
+                Platform.runLater(() -> {
+                    if (liveBinder.isAbandoned()) {
+                        if (app.abandonedBinder == liveBinder) {
+                            app.abandonedBinder = null;
+                        }
+                        if (app.binder == liveBinder) {
+                            app.binder = null;
+                        }
+                        return;
+                    }
+                    app.binder = null;
+                    showQuestCup();
+                });
+            }
+        }, "Game-neo-cup-watch");
         engine.setDaemon(true);
         engine.start();
     }

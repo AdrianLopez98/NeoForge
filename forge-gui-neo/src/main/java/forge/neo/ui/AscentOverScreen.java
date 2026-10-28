@@ -225,6 +225,9 @@ public class AscentOverScreen extends StackPane {
 
     /** Hasta donde llegaste, en una linea. */
     private String subtitle() {
+        if (summary.isInterrupted()) {
+            return NeoText.get("ascent.over.interrupted", summary.getAct());
+        }
         if (summary.getEndless() > 0) {
             return NeoText.get("ascent.over.endless.reached", summary.getEndless());
         }

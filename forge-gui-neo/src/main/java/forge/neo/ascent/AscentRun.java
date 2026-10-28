@@ -56,6 +56,17 @@ public final class AscentRun {
     private int ascension;
     /** El nodo en el que estas, o {@code null} si todavia no has entrado en el acto. */
     private String currentNode;
+
+    /**
+     * El nodo cuya partida esta EN CURSO, o null (Ana, 28-10-2026). Se apunta
+     * en disco justo antes de jugarla y se borra al acabar. Si al volver al
+     * modo sigue puesto, el juego se cerro a mitad — a lo bruto, que salir
+     * por Escape ya cuenta como perder — y la partida cuenta como perdida: si
+     * no, cerrar el juego cuando vas perdiendo seria repetir el nodo. Que el
+     * motor reviente con el juego abierto si deja repetirlo: eso el jugador
+     * no lo puede provocar.
+     */
+    private String fighting;
     private final Set<String> clearedNodes = new LinkedHashSet<>();
     private final List<String> relics = new ArrayList<>();
 
@@ -67,6 +78,13 @@ public final class AscentRun {
      * ({@link #noteCut}) y se va con la run.
      */
     private final java.util.Set<String> cut = new java.util.LinkedHashSet<>();
+    /**
+     * <b>Las reliquias que has vendido</b> en esta run (Ana, 27-10-2026): como
+     * las cartas quitadas, no te las vuelven a ofrecer los premios, la tienda
+     * ni los eventos ({@code AscentRewards.owned}). Si la vendiste es que te
+     * estorbaba. Por id, y se va con la run.
+     */
+    private final java.util.Set<String> relicsGone = new java.util.LinkedHashSet<>();
     /** El nombre del mazo de la run, que es un .dck en la carpeta de Ascenso. */
     private String deckName;
     /** De que expansiones salen las cartas (ver {@link AscentPool}). De fabrica, todas. */
@@ -99,6 +117,13 @@ public final class AscentRun {
      * Las de antes de existir esto, {@code false}: eran todas al azar.
      */
     private boolean fromCode;
+    /**
+     * <b>Con mesas de cuatro</b> (Ana, 27-10-2026): algunos combates del mapa
+     * son partidas a cuatro, todos contra todos ({@link AscentNode.Kind#MELEE}),
+     * y el jefe del acto 3 tambien — tres jefes y tu. Solo Commander. Las runs
+     * de antes, {@code false}: eran todas 1 contra 1.
+     */
+    private boolean melee;
 
     private AscentRun() {
     }
@@ -139,6 +164,11 @@ public final class AscentRun {
         demoMode = true;
         AscentDecks.keepInMemory();
         demoRun = saved != null ? saved : begin(mode, 0, maxLife, null);
+        // -Dneo.ascent.demoMelee=true: la run de la maqueta con mesas de cuatro
+        // (solo cuenta en Commander), para capturar el mapa con ellas.
+        if (Boolean.getBoolean("neo.ascent.demoMelee")) {
+            demoRun.setMeleeForTest(true);
+        }
         return demoRun;
     }
 
@@ -189,6 +219,7 @@ public final class AscentRun {
         run.currentNode = null;
         // Lo quitado es de la run: una nueva empieza sin nada (ver save()).
         NeoSettings.set(PREFIX + "cut", null);
+        NeoSettings.set(PREFIX + "relicsGone", null);
         run.save();
         return run;
     }
@@ -216,6 +247,7 @@ public final class AscentRun {
         run.ascension = NeoSettings.getInt(PREFIX + "ascension", 0);
         run.deckName = NeoSettings.get(PREFIX + "deck", null);
         run.currentNode = NeoSettings.get(PREFIX + "node", null);
+        run.fighting = NeoSettings.get(PREFIX + "fighting", null);
         split(NeoSettings.get(PREFIX + "cleared", ""), run.clearedNodes);
         final List<String> rel = new ArrayList<>();
         split(NeoSettings.get(PREFIX + "relics", ""), rel);
@@ -223,11 +255,15 @@ public final class AscentRun {
         final List<String> gone = new ArrayList<>();
         split(NeoSettings.get(PREFIX + "cut", ""), gone);
         run.cut.addAll(gone);
+        final List<String> sold = new ArrayList<>();
+        split(NeoSettings.get(PREFIX + "relicsGone", ""), sold);
+        run.relicsGone.addAll(sold);
         run.pool = AscentPool.parse(NeoSettings.get(PREFIX + "pool", ""));
         run.endless = NeoSettings.getBool(PREFIX + "endless", false);
         run.victoryRecorded = NeoSettings.getBool(PREFIX + "won", false);
         run.code = NeoSettings.get(PREFIX + "code", null);
         run.fromCode = NeoSettings.getBool(PREFIX + "fromCode", false);
+        run.melee = run.mode == Mode.COMMANDER && NeoSettings.getBool(PREFIX + "melee", false);
         return run;
     }
 
@@ -244,6 +280,7 @@ public final class AscentRun {
                 && String.valueOf(seed).equals(NeoSettings.get(PREFIX + "seed", null))
                 && java.util.Objects.equals(deckName, NeoSettings.get(PREFIX + "deck", null))) {
             split(NeoSettings.get(PREFIX + "cut", ""), cut);
+            split(NeoSettings.get(PREFIX + "relicsGone", ""), relicsGone);
         }
         NeoSettings.setBool(ACTIVE, true);
         NeoSettings.set(PREFIX + "mode", mode.name());
@@ -258,11 +295,14 @@ public final class AscentRun {
         NeoSettings.set(PREFIX + "cleared", String.join(";", clearedNodes));
         NeoSettings.set(PREFIX + "relics", String.join(";", relics));
         NeoSettings.set(PREFIX + "cut", cut.isEmpty() ? null : String.join(";", cut));
+        NeoSettings.set(PREFIX + "relicsGone", relicsGone.isEmpty() ? null : String.join(";", relicsGone));
         NeoSettings.set(PREFIX + "pool", pool.isAll() ? null : pool.serialize());
         NeoSettings.set(PREFIX + "endless", endless ? "true" : null);
         NeoSettings.set(PREFIX + "won", victoryRecorded ? "true" : null);
         NeoSettings.set(PREFIX + "code", code);
         NeoSettings.set(PREFIX + "fromCode", fromCode ? "true" : null);
+        NeoSettings.set(PREFIX + "melee", melee ? "true" : null);
+        NeoSettings.set(PREFIX + "fighting", fighting);
         NeoSettings.save();
     }
 
@@ -310,10 +350,17 @@ public final class AscentRun {
     public static AscentRun begin(final Mode mode, final int ascension, final int maxLife,
                                   final forge.item.PaperCard commander, final forge.item.PaperCard partner,
                                   final byte colours, final AscentPool pool) {
+        return begin(mode, ascension, maxLife, commander, partner, colours, pool, false);
+    }
+
+    /** Igual, con o sin mesas de cuatro (solo Commander, {@link #isMelee}). */
+    public static AscentRun begin(final Mode mode, final int ascension, final int maxLife,
+                                  final forge.item.PaperCard commander, final forge.item.PaperCard partner,
+                                  final byte colours, final AscentPool pool, final boolean melee) {
         // La unica entrada AL AZAR: todas las demas son de una receta dada.
         return begin(AscentSeed.fresh(mode, ascension, colours,
                 commander == null ? null : commander.getName(),
-                commander == null || partner == null ? null : partner.getName(), pool), maxLife, false);
+                commander == null || partner == null ? null : partner.getName(), pool, melee), maxLife, false);
     }
 
     /** Una run desde su receta, con la vida de su modo (40 en Commander, 20 en Estandar). */
@@ -364,6 +411,7 @@ public final class AscentRun {
                 recipe.seed);
         run.code = recipe.code();
         run.fromCode = fromCode;
+        run.melee = recipe.melee;
         run.save();
         System.out.println("[ascenso] run nueva con el codigo " + run.code
                 + (fromCode ? " (de un codigo o un reto: no sube la Ascension)" : ""));
@@ -412,6 +460,18 @@ public final class AscentRun {
         NeoSettings.save();
     }
 
+    /** Las reliquias que has vendido en esta run (por id): no se te vuelven a ofrecer. */
+    public java.util.Set<String> getRelicsGone() {
+        return java.util.Collections.unmodifiableSet(relicsGone);
+    }
+
+    /** Apunta que esa reliquia se ha vendido, y guarda. Lo llama {@code AscentShop.sellRelic}. */
+    void noteRelicGone(final String id) {
+        if (id != null && !id.isEmpty() && relicsGone.add(id)) {
+            save();
+        }
+    }
+
     /** Las cartas que has quitado en esta run: no se te vuelven a ofrecer. */
     public java.util.Set<String> getCut() {
         return java.util.Collections.unmodifiableSet(cut);
@@ -444,7 +504,7 @@ public final class AscentRun {
         }
         for (final String k : new String[]{"mode", "seed", "act", "life", "maxLife",
                 "credits", "ascension", "deck", "node", "cleared", "relics", "cut", "pool",
-                "endless", "won", "code", "fromCode"}) {
+                "endless", "won", "code", "fromCode", "melee", "relicsGone", "fighting"}) {
             NeoSettings.set(PREFIX + k, null);
         }
         NeoSettings.setBool(ACTIVE, false);
@@ -457,7 +517,7 @@ public final class AscentRun {
 
     /** El mapa del acto en curso, reconstruido de la semilla. */
     public AscentMap map() {
-        final AscentMap map = new AscentMap(seed, act, ascension);
+        final AscentMap map = new AscentMap(seed, act, ascension, melee);
         for (int r = 0; r < AscentMap.ROWS; r++) {
             for (final AscentNode n : map.row(r)) {
                 n.setCleared(clearedNodes.contains(n.key()));
@@ -503,6 +563,25 @@ public final class AscentRun {
      *
      * @return {@code true} si era un movimiento legal
      */
+    /** Va a empezar la partida de ese nodo: se apunta YA en disco (ver {@link #fighting}). */
+    public void markFighting(final AscentNode node) {
+        fighting = node == null ? null : node.key();
+        save();
+    }
+
+    /** La partida ha acabado (como sea, con el juego abierto). */
+    public void clearFighting() {
+        if (fighting != null) {
+            fighting = null;
+            save();
+        }
+    }
+
+    /** Si el juego se cerro con una partida a medias: cuenta como perdida. */
+    public boolean wasInterrupted() {
+        return fighting != null;
+    }
+
     public boolean clear(final AscentNode node) {
         if (!canEnter(node)) {
             return false;
@@ -680,6 +759,36 @@ public final class AscentRun {
         return Math.max(1, amount);
     }
 
+    /**
+     * Lo que cura ganar una <b>mesa de cuatro</b>: un cuarto de tu maximo (10
+     * en Commander). Ana, 27-10-2026: <i>"podemos hacer que se curen un poco
+     * mas tras una partida de commander de 4"</i> — son tres rivales pegando, y
+     * con tres mesas por acto la vida no aguantaria el acto.
+     */
+    public static final double TABLE_HEAL = 0.25;
+
+    /** Cuanto cura ganar una mesa de cuatro con tu maximo de ahora. */
+    public int tableHeal() {
+        return (int) Math.round(maxLife * TABLE_HEAL);
+    }
+
+    /**
+     * Despues de GANAR ese nodo: si era una mesa de cuatro, cura
+     * {@link #tableHeal()} sin pasar del maximo. Lo llaman los dos sitios que
+     * juegan un nodo (el escritorio en {@code AscentBattle.fight}, Android en
+     * {@code AscentMatch}), justo despues de apuntar la vida.
+     *
+     * @return lo que ha curado de verdad (0 si no era una mesa)
+     */
+    public int healAfterWin(final AscentNode node) {
+        if (node == null || node.getKind() != AscentNode.Kind.MELEE || life <= 0) {
+            return 0;
+        }
+        final int before = life;
+        heal(tableHeal());
+        return life - before;
+    }
+
     /** Cura, sin pasar del maximo. */
     public void heal(final int amount) {
         life = Math.min(maxLife, life + amount);
@@ -783,8 +892,9 @@ public final class AscentRun {
      * Quita una reliquia.
      *
      * <p>La quitan la fragua ({@code AscentEvent}), que refunde una comun en
-     * una rara, y "Dejarla" en el premio (27-10-2026), que deshace la que se
-     * apunto al verla. Ningun otro camino, a proposito: una reliquia perdida
+     * una rara, "Dejarla" en el premio (27-10-2026), que deshace la que se
+     * apunto al verla, y venderla en la tienda ({@code AscentShop.sellRelic},
+     * el mismo dia). Ningun otro camino, a proposito: una reliquia perdida
      * sin haberlo pedido seria el peor tipo de sorpresa — pasan mucho rato en
      * pantalla y se cuenta con ellas.
      *
@@ -866,6 +976,30 @@ public final class AscentRun {
      * Si se empezo desde un codigo o un reto y no al azar: entonces ganarla no
      * sube la Ascension ({@link AscentUnlocks#recordWin(AscentRun)}).
      */
+    /**
+     * Si la run lleva <b>mesas de cuatro</b>: nodos {@link AscentNode.Kind#MELEE}
+     * en el mapa y el jefe del acto 3 a cuatro ({@link #isFinalTable}).
+     */
+    public boolean isMelee() {
+        return melee;
+    }
+
+    /** Solo para los comprobadores: poner o quitar las mesas sin pasar por una receta. */
+    void setMeleeForTest(final boolean on) {
+        melee = mode == Mode.COMMANDER && on;
+    }
+
+    /**
+     * Si ese nodo es <b>la mesa del final</b>: el jefe del acto 3 de una run con
+     * mesas, que se juega a cuatro — tres jefes y tu (Ana, 27-10-2026). En
+     * modo infinito los jefes vuelven a ser 1 contra 1: el final de la run es
+     * el del acto 3.
+     */
+    public boolean isFinalTable(final AscentNode node) {
+        return melee && node != null && node.getKind() == AscentNode.Kind.BOSS
+                && act == ACTS && !endless;
+    }
+
     public boolean isFromCode() {
         return fromCode;
     }

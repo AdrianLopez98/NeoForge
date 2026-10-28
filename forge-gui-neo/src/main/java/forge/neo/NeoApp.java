@@ -1678,6 +1678,18 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             }
         }
 
+        // -Dneo.cancel.testAt=N: pulsa el Cancelar de la barra a los N ms (en un
+        // mulligan es "Mulligan"); -Dneo.cancel.times=K, K veces, cada 4 s.
+        final long cancelAt = Long.getLong("neo.cancel.testAt", -1L);
+        if (cancelAt >= 0) {
+            for (int i = 0; i < Integer.getInteger("neo.cancel.times", 1); i++) {
+                final PauseTransition hit = new PauseTransition(Duration.millis(cancelAt + i * 4000L));
+                hit.setOnFinished(x -> System.out.println("[neo] cancelar de prueba: "
+                        + (table == null ? "sin mesa" : table.getActionBar().fireCancelForTest())));
+                hit.play();
+            }
+        }
+
         if (args.contains("--nested-test")) {
             debug.nestedDialogTest();
         }

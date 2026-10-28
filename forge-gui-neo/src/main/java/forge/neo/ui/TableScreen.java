@@ -678,12 +678,25 @@ public class TableScreen extends Pane {
             setFolded(wantFold);
         }
         slimBars = forge.neo.NeoSettings.getBool(forge.neo.NeoSettings.SLIM_BARS, false);
+        barBesideHand = !folded && (Boolean.getBoolean("neo.table.barBesideHand")
+                || forge.neo.NeoSettings.getBool(forge.neo.NeoSettings.SELF_BAR_BESIDE_HAND, false));
+        // La ficha es la barra en su forma compacta, la de los rivales en fila:
+        // vida junto al nombre y el resto apilado debajo, sin perder un dato.
+        selfBar.setCompact(barBesideHand);
         selfBar.setSlim(slimBars);
         opponentBar.setSlim(slimBars);
         for (final PlayerBar b : oppBars) {
             b.setSlim(slimBars);
         }
     }
+
+    /**
+     * Tu barra en una ficha a la izquierda de la mano, en vez de en su franja
+     * a todo el ancho (ajuste {@code SELF_BAR_BESIDE_HAND}, Discord 28-10-2026).
+     * La mesa se queda la franja; la mano empieza despues de la ficha. Con la
+     * columna plegada no: esa franja lleva los botones.
+     */
+    private boolean barBesideHand;
 
     @Override
     protected void layoutChildren() {
@@ -816,8 +829,19 @@ public class TableScreen extends Pane {
         for (final PlayerBar b : oppBars) {
             oppBarH = Math.max(oppBarH, b.prefHeight(seatW));
         }
-        final double selfBarH = Math.max(selfBar.prefHeight(contentW), abH);
+        // Junto a la mano: la ficha va despues de la columna de botones de la
+        // esquina (registro, turno, pausa...), que es de donde empieza la mano.
+        final double cardX = PAD + mbW + PAD;
+        // Lo que pide su contenido (crece con la escala de la letra), con un
+        // techo: lo que se lleva la ficha se le quita a la mano.
+        final double cardW = barBesideHand
+                ? Math.min(contentW * 0.36, Math.max(UiScale.px(300), selfBar.prefWidth(-1) + 4))
+                : 0;
+        final double cardH = barBesideHand ? selfBar.prefHeight(cardW) : 0;
+        final double selfBarH = barBesideHand ? 0 : Math.max(selfBar.prefHeight(contentW), abH);
         double handH = Math.min(hand.prefHeight(contentW), h * 0.205);
+        // La ficha cabe entera en la fila de la mano: si es mas alta, la fila crece.
+        handH = Math.max(handH, cardH);
 
         // Si la ventana es baja, la mano cede altura antes que los campos:
         // es mejor ver la mesa entera con la mano un poco recortada que al
@@ -917,7 +941,9 @@ public class TableScreen extends Pane {
             notices.resizeRelocate(contentW - PAD - nw, boardTop + PAD, nw, nh);
         }
 
-        selfBar.resizeRelocate(0, y, contentW, selfBarH);
+        if (!barBesideHand) {
+            selfBar.resizeRelocate(0, y, contentW, selfBarH);
+        }
         if (folded) {
             actionBar.resizeRelocate(w - abW - PAD, y + (selfBarH - abH) / 2, abW, abH);
             final double chipH = stackChip.prefHeight(chipW);
@@ -944,7 +970,15 @@ public class TableScreen extends Pane {
         // media mesa. Reportado jugando: once efectos identicos y la mano
         // fuera de la pantalla.
         final double cmdW = Math.min(contentW * 0.34, commandZone.preferredWidth() + 16);
-        hand.resizeRelocate(0, y, Math.max(120, contentW - cmdW), handArea);
+        if (barBesideHand) {
+            // La ficha, pegada abajo como la mano, y la mano a su derecha.
+            final double cy = y + Math.max(0, handArea - cardH - PAD);
+            selfBar.resizeRelocate(cardX, cy, cardW, Math.min(cardH, handArea));
+            final double handX = cardX + cardW + PAD;
+            hand.resizeRelocate(handX, y, Math.max(120, contentW - cmdW - handX), handArea);
+        } else {
+            hand.resizeRelocate(0, y, Math.max(120, contentW - cmdW), handArea);
+        }
         commandZone.resizeRelocate(contentW - cmdW, y, cmdW, handArea);
 
         // El cerco va el ULTIMO: se calcula sobre las posiciones que se acaban

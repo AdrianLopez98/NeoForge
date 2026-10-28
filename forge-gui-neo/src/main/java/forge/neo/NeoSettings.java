@@ -750,6 +750,14 @@ public final class NeoSettings {
     public static final String SLIM_BARS = "slimBars";
 
     /**
+     * Tu barra junto a la mano, en una ficha, en vez de a todo el ancho encima
+     * de ella (Discord, 28-10-2026): la mesa gana esa franja y la mano se
+     * estrecha. Apagado de fabrica; con la columna plegada no se aplica (ahi la
+     * fila de tu barra lleva los botones).
+     */
+    public static final String SELF_BAR_BESIDE_HAND = "selfBarBesideHand";
+
+    /**
      * Poder mover y agrandar esa carta (arrastrar, rueda, esquina). <b>Apagado
      * de fabrica</b>: apagado es el cartel de siempre, sin un gesto nuevo que
      * se pueda disparar sin querer. Ver {@code PromptBanner}.

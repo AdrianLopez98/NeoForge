@@ -219,6 +219,11 @@ public final class NeoGame {
      */
     static volatile java.util.function.Consumer<NeoMatchUI> onUiForTest;
 
+    /** Solo medidas de fuera del paquete (Ascenso): la interfaz de la partida que va a empezar. */
+    public static void setOnUiForTest(final java.util.function.Consumer<NeoMatchUI> hook) {
+        onUiForTest = hook;
+    }
+
     public interface Seating {
         /** Las variantes de la partida. Van a las reglas Y a {@code forVariants}. */
         EnumSet<GameType> variants();

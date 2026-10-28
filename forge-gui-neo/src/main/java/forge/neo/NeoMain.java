@@ -759,6 +759,27 @@ public final class NeoMain {
                 banner("Ascenso: una run entera, sin ventana");
                 forge.neo.ascent.AscentCheck.run();
                 break;
+            case "deckgenseed":
+                // Si el generador de Forge da el mismo mazo con la misma semilla (medida).
+                banner("Ascenso: el generador de mazos, sembrado");
+                forge.neo.ascent.AscentDeckgenProbe.run(Long.parseLong(opt(args, "--seed", "20261028")),
+                        Integer.parseInt(opt(args, "--bracket", "3")));
+                break;
+            case "ascenttable":
+                // Las mesas de cuatro de Ascenso, MEDIDAS: la misma casilla a 1
+                // contra 1 y a cuatro, con una IA llevando tu mazo. No es un
+                // comprobador: tarda, y lo que dice es un numero para afinar.
+                banner("Ascenso: las mesas de cuatro, medidas");
+                if (has(args, "--fall")) {
+                    // Que al caer en una mesa la partida se cierra (AscentTableEnd).
+                    if (!forge.neo.ascent.AscentTableProbe.fall()) {
+                        throw new IllegalStateException("la mesa no se cierra al caer");
+                    }
+                } else {
+                    forge.neo.ascent.AscentTableProbe.run(Integer.parseInt(opt(args, "--games", "3")),
+                            has(args, "--final"));
+                }
+                break;
             case "reliccheck":
                 // Las 37 reliquias, JUGADAS: una partida por cada una, mirando
                 // en la mesa que el efecto ocurre de verdad. Va aparte de

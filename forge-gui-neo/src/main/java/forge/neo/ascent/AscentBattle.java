@@ -4,9 +4,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 
 import forge.card.CardRarity;
 import forge.deck.CardPool;
@@ -20,6 +22,7 @@ import forge.neo.match.NeoFormat;
 import forge.neo.match.NeoGame;
 import forge.neo.match.NeoMatchUI;
 import forge.neo.match.TableBinder;
+import forge.neo.match.TokenDecks;
 import forge.neo.quest.DuelFace;
 
 /**
@@ -145,6 +148,41 @@ public final class AscentBattle {
     private static final double BOSS_DECK_EDGE = 0.15;
 
     /**
+     * La vida de cada rival de una <b>mesa de cuatro</b>, sobre la de un
+     * combate de su altura. Son tres y hay que tumbarlos a los tres, pero
+     * tambien se pegan entre ellos: con la vida entera la partida seria
+     * eterna. <b>Numero de partida, sin jugar aun</b>: es la palanca a tocar.
+     */
+    static final double MELEE_LIFE = 0.60;
+
+    /**
+     * Y la de cada uno de los tres jefes de la mesa del final, sobre la de un
+     * jefe 1 contra 1. Llevan sus dos reliquias cada uno — es lo que les hace
+     * jefes —, asi que lo que se recorta es el saco de vida.
+     */
+    static final double FINAL_TABLE_LIFE = 0.60;
+
+    /**
+     * Suelo de vida del jefe que lleva el segundo aliento (Ascension 10) en la
+     * mesa del final: el aliento salta con 36 o menos en Commander
+     * ({@code tyrants_last_stand.txt}), y recortado a {@link #FINAL_TABLE_LIFE}
+     * podria nacer ya por debajo y saltar en su primer mantenimiento.
+     */
+    static final int FINAL_TABLE_PHASE_FLOOR = 48;
+
+    /** Los rivales de una mesa de cuatro: tres, todos contra todos. */
+    public static final int TABLE_RIVALS = 3;
+
+    /**
+     * La vida de cada rival de una mesa de cuatro, a partir de la de un duelo
+     * de su altura. La misma cuenta que {@code tablePlan}: la ficha del mapa
+     * tiene que decir la partida que se juega.
+     */
+    public static int tableLifeAt(final int duelLife) {
+        return Math.max(MIN_LIFE, (int) Math.round(duelLife * MELEE_LIFE));
+    }
+
+    /**
      * Los caracteres de IA, del mas blando al mas agresivo.
      *
      * <p>Son ficheros de {@code forge-gui/res/ai}. Se reparten por <b>altura de
@@ -187,6 +225,13 @@ public final class AscentBattle {
         public final CardPool schemes;
         /** Las variantes que se aplican: la del modo y, en el jefe, Archenemy. */
         public final EnumSet<GameType> variants;
+        /**
+         * <b>Todos los rivales de la mesa</b>: uno en un duelo, tres en una mesa
+         * de cuatro. El primero es el de los campos de arriba
+         * ({@link #opponentDeck}, {@link #opponentLife}...), que se quedan para
+         * lo que solo sabe de duelos.
+         */
+        public final List<Rival> rivals;
 
         Plan(final AscentNode.Kind kind, final int act, final Deck opponentDeck,
              final PaperCard opponentFace, final int yourLife, final int opponentLife,
@@ -205,6 +250,31 @@ public final class AscentBattle {
             this.yourRelics = Collections.unmodifiableList(yourRelics);
             this.schemes = schemes;
             this.variants = variants;
+            this.rivals = List.of(new Rival(opponentDeck, opponentFace, opponentLife,
+                    this.opponentHeadStart, this.opponentRelics));
+        }
+
+        Plan(final AscentNode.Kind kind, final int act, final List<Rival> rivals, final int yourLife,
+             final String aiProfile, final List<PaperCard> yourRelics, final EnumSet<GameType> variants) {
+            final Rival first = rivals.get(0);
+            this.kind = kind;
+            this.act = act;
+            this.opponentDeck = first.deck;
+            this.opponentFace = first.face;
+            this.yourLife = yourLife;
+            this.opponentLife = first.life;
+            this.aiProfile = aiProfile;
+            this.opponentHeadStart = first.headStart;
+            this.opponentRelics = first.relics;
+            this.yourRelics = Collections.unmodifiableList(yourRelics);
+            this.schemes = null;
+            this.variants = variants;
+            this.rivals = List.copyOf(rivals);
+        }
+
+        /** Si se juega a cuatro: una mesa de cuatro o la mesa del final. */
+        public boolean isTable() {
+            return rivals.size() > 1;
         }
 
         /** Si el rival juega de archienemigo. */
@@ -214,12 +284,46 @@ public final class AscentBattle {
 
         @Override
         public String toString() {
+            if (isTable()) {
+                final StringBuilder sb = new StringBuilder("acto " + act + " " + kind + " A CUATRO | vidas "
+                        + yourLife + " | IA " + aiProfile);
+                for (final Rival r : rivals) {
+                    sb.append(" | ").append(r);
+                }
+                return sb.toString();
+            }
             return "acto " + act + " " + kind + " | " + name(opponentDeck)
                     + " | vidas " + yourLife + " vs " + opponentLife
                     + " | IA " + aiProfile
                     + (opponentHeadStart.isEmpty() ? "" : " | ventaja " + opponentHeadStart.size())
                     + (opponentRelics.isEmpty() ? "" : " | reliquias rival " + opponentRelics.size())
                     + (schemes == null ? "" : " | esquemas " + schemes.countAll());
+        }
+    }
+
+    /** Un rival de la mesa: su mazo, su cara, su vida, su ventaja y sus reliquias. */
+    public static final class Rival {
+        public final Deck deck;
+        /** Con que carta se presenta. {@code null} si el mazo no da ninguna. */
+        public final PaperCard face;
+        public final int life;
+        public final List<PaperCard> headStart;
+        public final List<PaperCard> relics;
+
+        Rival(final Deck deck, final PaperCard face, final int life, final List<PaperCard> headStart,
+              final List<PaperCard> relics) {
+            this.deck = deck;
+            this.face = face;
+            this.life = life;
+            this.headStart = Collections.unmodifiableList(new ArrayList<>(headStart));
+            this.relics = Collections.unmodifiableList(new ArrayList<>(relics));
+        }
+
+        @Override
+        public String toString() {
+            return name(deck) + " " + life + " vidas"
+                    + (headStart.isEmpty() ? "" : ", ventaja " + headStart.size())
+                    + (relics.isEmpty() ? "" : ", reliquias " + relics.size());
         }
     }
 
@@ -235,14 +339,16 @@ public final class AscentBattle {
         final int act = clampAct(run.getAct());
         final Random rnd = rng(run, node);
         final AscentNode.Kind kind = node.getKind();
-        final boolean tough = kind != AscentNode.Kind.COMBAT;
+        // Una mesa de cuatro son tres rivales NORMALES de su altura: lo duro es
+        // que sean tres, no que cada uno pegue mas.
+        final boolean tough = kind != AscentNode.Kind.COMBAT && kind != AscentNode.Kind.MELEE;
 
         // Cuanto has subido en la run entera, de 0 (primer nodo del acto 1) a 1
         // (el jefe del acto 3). TODA la curva cuelga de aqui, y por eso sube
         // dentro de cada acto y no solo al cambiar de acto: entre el nodo 1 y
         // el 12 tu mazo ya ha crecido en once cartas.
         double climb = progress(act, node.getRow());
-        if (run.getAscension() >= 4 && kind == AscentNode.Kind.COMBAT) {
+        if (run.getAscension() >= 4 && (kind == AscentNode.Kind.COMBAT || kind == AscentNode.Kind.MELEE)) {
             // Ascension 4: los rivales normales pelean como los de un acto mas arriba.
             climb = Math.min(1.0, climb + 1.0 / AscentRun.ACTS);
         }
@@ -261,8 +367,13 @@ public final class AscentBattle {
         // convierte: ningun preconstruido de Forge es de antes de 1995, y un
         // rival con cartas modernas es justo lo que no queria quien lo pidio.
         // Mismo rnd, asi que el rival de ese nodo sigue sin sortearse dos veces.
-        final Deck deck = run.getPool().restrict(pickDeck(run.getMode(), tierFor(effective), rnd),
+        final Deck precon = run.getPool().restrict(pickDeck(run.getMode(), tierFor(effective), rnd),
                 run.getMode(), rnd);
+        // En los actos altos de Commander, un mazo GENERADO a bracket 3 o 4
+        // (AscentGenerated): sembrado, el mismo para todos. El preconstruido
+        // se sortea igual, para no mover el resto del azar del nodo.
+        final Deck deck = AscentGenerated.orPrecon(run, node, kind, act, 0, precon,
+                java.util.Collections.emptySet());
 
         int life = lifeAt(run.getMaxLife(), climb, playerEdge(run));
         if (kind == AscentNode.Kind.ELITE) {
@@ -326,10 +437,97 @@ public final class AscentBattle {
         // fightLife() y no getLife(): el suelo de la mitad del maximo
         // (AscentRun.FIGHT_FLOOR). Lo que se APUNTA al salir sigue siendo la
         // vida con la que acabas, en fight() mas abajo.
+        if (kind == AscentNode.Kind.MELEE || run.isFinalTable(node)) {
+            return tablePlan(run, node, kind, act, effective, deck, life, headStartCount,
+                    opponentRelics, endless, ai, variants);
+        }
         return new Plan(kind, act, deck, DuelFace.bestCardOf(deck),
                 run.fightLife(), life, ai,
                 headStart(deck, headStartCount),
                 opponentRelics, relicCards(run), schemes, variants);
+    }
+
+    /**
+     * <b>La mesa de cuatro</b> (Ana, 27-10-2026): tres rivales y tu, todos
+     * contra todos, como el Commander de siempre.
+     *
+     * <p>El primer rival es <b>el mismo</b> que tendria ese nodo a 1 contra 1
+     * (mismo azar, mismo orden): en la mesa del final es el jefe de siempre,
+     * con su segundo aliento si toca. Los otros dos salen de un azar aparte
+     * derivado del nodo, sin repetir mazo ni reliquia.
+     *
+     * <ul>
+     *   <li><b>Mesa de cuatro</b>: tres rivales normales de su altura, cada uno
+     *       con {@link #MELEE_LIFE} de la vida y sin reliquias (en infinito,
+     *       las del combate, con tope de dos: la IA evalua cada reliquia en
+     *       cada prioridad, y aqui son tres IA).</li>
+     *   <li><b>Mesa del final</b>: tres jefes, cada uno con sus reliquias de
+     *       jefe y {@link #FINAL_TABLE_LIFE} de la vida de un jefe. El segundo
+     *       aliento de la Ascension 10, solo en el primero: tres a la vez era
+     *       demasiado.</li>
+     * </ul>
+     */
+    private static Plan tablePlan(final AscentRun run, final AscentNode node, final AscentNode.Kind kind,
+                                  final int act, final double effective, final Deck nodeDeck,
+                                  final int life, final int headStartCount,
+                                  final List<PaperCard> firstRelics, final int endless,
+                                  final String ai, final EnumSet<GameType> variants) {
+        final boolean boss = kind == AscentNode.Kind.BOSS;
+        final int eachLife = boss ? Math.max(MIN_LIFE, (int) Math.round(life * FINAL_TABLE_LIFE))
+                : tableLifeAt(life);
+        final List<Rival> rivals = new ArrayList<>();
+        final Set<String> decks = new HashSet<>();
+        final Set<String> relicNames = new HashSet<>();
+
+        final long base = nodeSeed(run, node);
+        // El primero: el rival que tendria el nodo a 1 contra 1 — salvo que sea
+        // un mazo de fichas (TokenDecks, Discord 28-10-2026): a cuatro, una IA
+        // que llena la mesa de fichas hunde la partida, y en la mesa del final
+        // seria la run. Se cambia por otro de su altura, con un azar aparte
+        // para no mover el del resto de la mesa.
+        Deck firstDeck = nodeDeck;
+        if (TokenDecks.isHeavy(firstDeck)) {
+            final Random swap = new Random(base ^ 0x5DEECE66DL);
+            for (int attempt = 0; attempt < 12 && TokenDecks.isHeavy(firstDeck); attempt++) {
+                firstDeck = run.getPool().restrict(pickDeck(run.getMode(), tierFor(effective), swap),
+                        run.getMode(), swap);
+            }
+        }
+        int firstLife = eachLife;
+        final PaperCard phase = AscentRelics.bossPhaseCard(run.getMode());
+        if (phase != null && firstRelics.contains(phase)) {
+            firstLife = Math.max(firstLife, FINAL_TABLE_PHASE_FLOOR);
+        }
+        rivals.add(new Rival(firstDeck, DuelFace.bestCardOf(firstDeck), firstLife,
+                headStart(firstDeck, headStartCount), firstRelics));
+        decks.add(name(firstDeck));
+        for (final PaperCard c : firstRelics) {
+            relicNames.add(c.getName());
+        }
+
+        for (int i = 1; i < TABLE_RIVALS; i++) {
+            final Random rnd = new Random(base ^ (0x9E3779B97F4A7C15L * i));
+            Deck deck = null;
+            // Sin repetir mazo en la mesa: tres veces el mismo precon no es
+            // una partida a cuatro, es un espejo. Y sin mazos de fichas (ver
+            // arriba).
+            for (int attempt = 0; attempt < 12; attempt++) {
+                deck = run.getPool().restrict(pickDeck(run.getMode(), tierFor(effective), rnd),
+                        run.getMode(), rnd);
+                if (deck == null || !decks.contains(name(deck)) && !TokenDecks.isHeavy(deck)) {
+                    break;
+                }
+            }
+            deck = AscentGenerated.orPrecon(run, node, kind, act, i, deck, decks);
+            decks.add(name(deck));
+            final List<PaperCard> relics = relicsFor(kind, act, rnd, endlessRelics(kind, endless), relicNames);
+            for (final PaperCard c : relics) {
+                relicNames.add(c.getName());
+            }
+            rivals.add(new Rival(deck, DuelFace.bestCardOf(deck), eachLife,
+                    headStart(deck, headStartCount), relics));
+        }
+        return new Plan(kind, act, rivals, run.fightLife(), ai, relicCards(run), variants);
     }
 
     // ------------------------------------------------------------------
@@ -460,7 +658,8 @@ public final class AscentBattle {
     public static boolean isBattle(final AscentNode.Kind kind) {
         return kind == AscentNode.Kind.COMBAT
                 || kind == AscentNode.Kind.ELITE
-                || kind == AscentNode.Kind.BOSS;
+                || kind == AscentNode.Kind.BOSS
+                || kind == AscentNode.Kind.MELEE;
     }
 
     // ------------------------------------------------------------------
@@ -483,6 +682,24 @@ public final class AscentBattle {
         seat.setStartingLife(plan.yourLife);
         if (!plan.yourRelics.isEmpty()) {
             seat.addExtraCardsInCommandZone(new ArrayList<>(plan.yourRelics));
+        }
+        return seat;
+    }
+
+    /** El asiento del rival numero {@code i} de la mesa (0 = el de un duelo). */
+    public static RegisteredPlayer opponentSeat(final Plan plan, final int i, final int seats) {
+        if (i <= 0 || i >= plan.rivals.size()) {
+            return opponentSeat(plan, seats);
+        }
+        final Rival r = plan.rivals.get(i);
+        final RegisteredPlayer seat = RegisteredPlayer.forVariants(
+                seats, plan.variants, r.deck, null, false, null, null);
+        seat.setStartingLife(r.life);
+        if (!r.headStart.isEmpty()) {
+            seat.addExtraCardsOnBattlefield(new ArrayList<>(r.headStart));
+        }
+        if (!r.relics.isEmpty()) {
+            seat.addExtraCardsInCommandZone(new ArrayList<>(r.relics));
         }
         return seat;
     }
@@ -558,10 +775,14 @@ public final class AscentBattle {
         // se han medido siempre.
         final boolean autoMana = mode != NeoMatchUI.Mode.HUMAN
                 || forge.neo.NeoSettings.autoPayMana() || Boolean.getBoolean("neo.autoPay");
-        final NeoGame.Result result = NeoGame.play(yours, 1, mode, timeoutSecs, false,
+        final List<Deck> decks = new ArrayList<>();
+        for (final Rival r : plan.rivals) {
+            decks.add(r.deck);
+        }
+        final NeoGame.Result result = NeoGame.play(yours, plan.rivals.size(), mode, timeoutSecs, false,
                 binder, plan.aiProfile, autoMana,
                 run.getMode() == AscentRun.Mode.COMMANDER ? NeoFormat.COMMANDER : NeoFormat.ESTANDAR,
-                List.of(plan.opponentDeck), 1, seating(plan), NeoMatchUI.Ending.ASCENT);
+                decks, 1, seating(plan), NeoMatchUI.Ending.ASCENT);
 
         // ⚠️ GANAR y SOBREVIVIR no son lo mismo, y confundirlos rompe el modo
         // en las dos direcciones. Se puede perder una partida de Magic con
@@ -574,6 +795,13 @@ public final class AscentBattle {
         // deja la que habia: dar una run por perdida porque no se leyo un
         // numero seria el peor fallo posible en un modo donde perder es final.
         final boolean alive = run.recordLife(result.yourLife < 0 ? run.getLife() : result.yourLife);
+        if (won && alive) {
+            // Una mesa de cuatro ganada cura un poco (AscentRun.TABLE_HEAL).
+            final int healed = run.healAfterWin(node);
+            if (healed > 0) {
+                System.out.println("[ascenso] mesa ganada: +" + healed + " vidas");
+            }
+        }
         return new Outcome(won, won && alive, result.exit);
     }
 
@@ -624,7 +852,7 @@ public final class AscentBattle {
 
             @Override
             public RegisteredPlayer opponent(final int i, final Deck deck, final int seats) {
-                return opponentSeat(plan, seats);
+                return opponentSeat(plan, i, seats);
             }
 
             // Un rival distinto en cada duelo: nombre y cara al azar, sin
@@ -808,12 +1036,22 @@ public final class AscentBattle {
         if (level <= 0) {
             return 0;
         }
+        if (kind == AscentNode.Kind.MELEE) {
+            // Tres IA en la mesa: con tope, por el tiempo que cuesta cada una.
+            return Math.min(2, (level + 1) / 2);
+        }
         return kind == AscentNode.Kind.COMBAT ? (level + 1) / 2 : level;
     }
 
     /** Las reliquias que le tocan al rival de ese nodo. */
     private static List<PaperCard> relicsFor(final AscentNode.Kind kind, final int act,
                                              final Random rnd, final int extra) {
+        return relicsFor(kind, act, rnd, extra, Set.of());
+    }
+
+    /** Igual, sin las que ya lleva otro rival de la misma mesa ({@code taken}, por nombre). */
+    private static List<PaperCard> relicsFor(final AscentNode.Kind kind, final int act,
+                                             final Random rnd, final int extra, final Set<String> taken) {
         final int howMany = Math.min(ENDLESS_MAX_RELICS, extra + (kind == AscentNode.Kind.ELITE ? 1
                 : kind == AscentNode.Kind.BOSS ? bossRelics(act) : 0));
         final List<PaperCard> out = new ArrayList<>();
@@ -854,7 +1092,7 @@ public final class AscentBattle {
                 break;
             }
             final PaperCard card = AscentRelics.cardOf(relic);
-            if (card != null) {
+            if (card != null && !taken.contains(card.getName())) {
                 out.add(card);
             }
         }
@@ -920,11 +1158,16 @@ public final class AscentBattle {
      * roguelike no puede permitir.
      */
     private static Random rng(final AscentRun run, final AscentNode node) {
+        return new Random(nodeSeed(run, node));
+    }
+
+    /** El numero del que sale {@link #rng}: semilla, acto y clave del nodo. */
+    static long nodeSeed(final AscentRun run, final AscentNode node) {
         long h = run.getSeed() * 31L + run.getAct();
         for (final char c : node.key().toCharArray()) {
             h = h * 31L + c;
         }
-        return new Random(h);
+        return h;
     }
 
     /**

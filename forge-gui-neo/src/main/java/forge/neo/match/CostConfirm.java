@@ -1,8 +1,6 @@
 package forge.neo.match;
 
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import forge.LobbyPlayer;
 import forge.game.card.CardView;
@@ -37,6 +35,16 @@ import forge.util.Localizer;
  * pregunta y no cinco. "No" sigue cancelando la activacion: es la red para un
  * clic por error, y sacrificar no se deshace (principio 6).
  *
+ * <p><b>Fabricate</b> (Discord, 28-10-2026, con Cayth, Famed Mechanist: <i>"a
+ * 'No and don't ask again' if I just wanted to make a Servo for each
+ * trigger"</i>) tambien pregunta por aqui: es un "salvo que pongas el
+ * contador" ({@code UnlessCost$ AddCounter}), y "No" es la ficha. Ahi, y solo
+ * ahi, sale un cuarto boton, <b>"No, y no volver a preguntar"</b>: en un coste
+ * de sacrificar, "No" cancela la activacion, y fijarlo para toda la partida te
+ * dejaria sin poder usar la carta. Y lo de Fabricate se recuerda por la palabra
+ * clave, no por la carta: con Cayth la tienen todas tus criaturas, y seria una
+ * pregunta por criatura.
+ *
  * <p>Se deja como estaba (la pregunta de Forge) mientras se reproduce una macro
  * — la reproduccion contesta ese {@code InputConfirm}, no un dialogo nuestro —
  * y cuando la interfaz no es una {@link NeoMatchUI} (el otro lado de una
@@ -51,11 +59,26 @@ public final class CostConfirm {
     private CostConfirm() {
     }
 
+    /** Si es el "pon el contador o crea la ficha" de Fabricate (la palabra clave, venga de donde venga). */
+    static boolean isFabricate(final SpellAbility sa) {
+        for (SpellAbility s = sa; s != null;
+             s = s instanceof forge.game.spellability.AbilitySub sub ? sub.getParent() : null) {
+            if (s.isKeyword(forge.game.keyword.Keyword.FABRICATE)) {
+                return true;
+            }
+            final forge.game.trigger.Trigger t = s.getTrigger();
+            if (t != null && t.isKeyword(forge.game.keyword.Keyword.FABRICATE)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** El controlador humano de siempre, con los costes de la propia carta en un dialogo. */
     public static class Asking extends TriggerSubject.Telling {
 
-        /** Lo que no hay que volver a preguntar, y de que partida es. */
-        private final Set<String> noMoreAsking = new HashSet<>();
+        /** Lo que no hay que volver a preguntar (y que se contesto), y de que partida es. */
+        private final java.util.Map<String, Boolean> noMoreAsking = new java.util.HashMap<>();
         private Object askingGame;
 
         public Asking(final Player player, final LobbyPlayer lobby,
@@ -117,19 +140,25 @@ public final class CostConfirm {
                 noMoreAsking.clear();
                 askingGame = getGame();
             }
-            final String key = sa.getHostCard().getName() + "|"
+            final boolean fabricate = isFabricate(sa);
+            final String key = (fabricate ? "kw:FABRICATE" : sa.getHostCard().getName()) + "|"
                     + (costPart == null ? "" : costPart.getClass().getSimpleName());
-            boolean yes = noMoreAsking.contains(key);
-            if (!yes) {
+            final Boolean remembered = noMoreAsking.get(key);
+            boolean yes;
+            if (remembered != null) {
+                yes = remembered;
+            } else {
                 final Localizer loc = Localizer.getInstance();
-                final int picked = ui.askWithCard(card, question.replace("\n", " "),
-                        List.of(loc.getMessage("lblYes"), loc.getMessage("lblNo"),
-                                NeoText.get("cost.confirm.always")),
-                        0);
-                if (picked == 2) {
-                    noMoreAsking.add(key);
+                final List<String> options = fabricate
+                        ? List.of(loc.getMessage("lblYes"), loc.getMessage("lblNo"),
+                                NeoText.get("cost.confirm.always"), NeoText.get("cost.confirm.neverAgain"))
+                        : List.of(loc.getMessage("lblYes"), loc.getMessage("lblNo"),
+                                NeoText.get("cost.confirm.always"));
+                final int picked = ui.askWithCard(card, question.replace("\n", " "), options, 0);
+                yes = picked != 1 && picked != 3;
+                if (picked == 2 || picked == 3) {
+                    noMoreAsking.put(key, yes);
                 }
-                yes = picked != 1;
             }
             if (yes) {
                 // Lo mismo que apunta Forge al contestar "Si": las macros lo graban.

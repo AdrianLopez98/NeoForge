@@ -46,6 +46,13 @@ public class QuestCupScreen extends StackPane {
 
         /** Al cuartel general. */
         void back();
+
+        /**
+         * Mirar otra mesa de la ronda entre IAs (28-10-2026): su ganador pasa
+         * de verdad. Ver {@link NeoQuestCup#watchableTables}.
+         */
+        default void watch(final int table) {
+        }
     }
 
     private final double cardWidth;
@@ -58,6 +65,8 @@ public class QuestCupScreen extends StackPane {
         this.actions = actions;
         getStyleClass().addAll("table-root", "quest");
         setId("quest-cup");
+        // Si el juego se cerro a mitad de una ronda, aqui cuenta como perdida.
+        NeoQuestCup.settleInterrupted();
         build();
         getChildren().addAll(frame, overlay);
         overlay.hide();
@@ -78,6 +87,12 @@ public class QuestCupScreen extends StackPane {
 
         final VBox body = new VBox(16);
         body.setPadding(new Insets(8, 30, 8, 30));
+        if (NeoQuestCup.takeInterruptedNotice()) {
+            final Label closed = new Label(NeoText.get("cup.interrupted"));
+            closed.getStyleClass().add("home-subtitle");
+            closed.setWrapText(true);
+            body.getChildren().add(closed);
+        }
         final List<Node> left = new ArrayList<>();
         Button primary = null;
         switch (stage) {
@@ -88,7 +103,16 @@ public class QuestCupScreen extends StackPane {
                 primary.setDisable(!NeoQuestCup.canAfford() || NeoQuestCup.deckProblem() != null);
                 break;
             case PLAYING:
-                body.getChildren().addAll(explain(t), bracket(t), myDeck());
+                body.getChildren().add(explain(t));
+                if (!NeoQuestCup.watchableTables().isEmpty()) {
+                    // Mirar es opcional: lo que no mires, al azar como siempre.
+                    final Label hint = new Label(NeoText.get("cup.watchHint"));
+                    hint.getStyleClass().add("home-subtitle");
+                    hint.setWrapText(true);
+                    hint.setMaxWidth(UiScale.px(900));
+                    body.getChildren().add(hint);
+                }
+                body.getChildren().addAll(bracket(t), myDeck());
                 primary = button(NeoQuestCup.isFinal() ? NeoText.get("cup.playFinal")
                         : NeoText.get("cup.play", NeoQuestCup.round() + 1), "btn-primary", actions::play);
                 primary.setId("cup-play");
@@ -292,7 +316,21 @@ public class QuestCupScreen extends StackPane {
             col.getChildren().add(head);
             final List<List<Integer>> groups = NeoQuestCup.groups(r);
             final List<Integer> won = NeoQuestCup.winnersOf(r);
-            if (groups.isEmpty()) {
+            final List<Integer> watchable = r == NeoQuestCup.round() ? NeoQuestCup.watchableTables() : List.of();
+            if (groups.size() > 4) {
+                // 64 jugadores (28-10-2026): las 16 mesas de la primera ronda en
+                // una rejilla de cuatro por fila, y cada fila al lado de la mesa
+                // de la segunda ronda a la que van sus ganadores. En columna
+                // eran dos mil pixeles de alto.
+                final javafx.scene.layout.GridPane grid = new javafx.scene.layout.GridPane();
+                grid.setHgap(10);
+                grid.setVgap(12);
+                for (int g = 0; g < groups.size(); g++) {
+                    grid.add(table(names, groups.get(g), NeoQuestCup.tableWinner(r, g), g, watchable),
+                            g % 4, g / 4);
+                }
+                col.getChildren().add(grid);
+            } else if (groups.isEmpty()) {
                 // Aun no se sabe quien llega: huecos.
                 final int count = t.seats() / (int) Math.pow(t.groupSize(), r + 1);
                 for (int g = 0; g < Math.max(1, count); g++) {
@@ -306,13 +344,7 @@ public class QuestCupScreen extends StackPane {
                 }
             } else {
                 for (int g = 0; g < groups.size(); g++) {
-                    final List<Integer> group = groups.get(g);
-                    final Integer winner = g < won.size() ? won.get(g) : null;
-                    final VBox box = new VBox(4);
-                    for (final int s : group) {
-                        box.getChildren().add(seat(names, s, winner));
-                    }
-                    col.getChildren().add(groupBox(box, group.contains(0)));
+                    col.getChildren().add(table(names, groups.get(g), NeoQuestCup.tableWinner(r, g), g, watchable));
                 }
                 if (r == t.rounds() - 1 && !won.isEmpty()) {
                     champion = won.get(0);
@@ -333,6 +365,21 @@ public class QuestCupScreen extends StackPane {
         sp.setFitToHeight(true);
         sp.setVbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         return sp;
+    }
+
+    /** Una mesa: sus asientos, y "Ver" si se puede mirar. */
+    private Region table(final List<String> names, final List<Integer> group, final Integer winner,
+                         final int index, final List<Integer> watchable) {
+        final VBox box = new VBox(4);
+        for (final int s : group) {
+            box.getChildren().add(seat(names, s, winner));
+        }
+        if (watchable.contains(index)) {
+            final Button see = button(NeoText.get("cup.watch"), "btn-secondary", () -> actions.watch(index));
+            see.setId("cup-watch-" + index);
+            box.getChildren().add(see);
+        }
+        return groupBox(box, group.contains(0));
     }
 
     private static Region groupBox(final VBox box, final boolean mine) {

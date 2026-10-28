@@ -37,6 +37,11 @@ public final class PhaseGuard {
         if (ph == null) {
             return Ask.NONE;
         }
+        // Si ya has jugado algo en esta fase principal, pasar es a proposito
+        // (Discord, 28-10-2026). Ver MainPhaseActivity.
+        if (MainPhaseActivity.playedSomething(((PlayerControllerHuman) controller).getPlayer())) {
+            return Ask.NONE;
+        }
         if (ph.getPhase() == PhaseType.MAIN1) {
             return Ask.TO_COMBAT;
         }

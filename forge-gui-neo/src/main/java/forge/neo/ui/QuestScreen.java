@@ -744,7 +744,8 @@ public class QuestScreen extends StackPane {
     private Region colosseum(final Actions actions) {
         final Label caption = new Label(NeoText.get("colosseum.caption"));
         caption.getStyleClass().add("caption");
-        final Label text = new Label(NeoText.get("colosseum.line", forge.neo.quest.NeoColosseum.fee(),
+        final Label text = new Label(NeoText.get(forge.neo.quest.NeoColosseum.collectorPrize() ? "colosseum.line" : "colosseum.lineBooster",
+                forge.neo.quest.NeoColosseum.fee(),
                 forge.neo.quest.NeoColosseum.prizeCredits()));
         text.getStyleClass().add("home-subtitle");
         text.setWrapText(true);

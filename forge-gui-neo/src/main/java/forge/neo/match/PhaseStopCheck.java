@@ -34,6 +34,8 @@ public final class PhaseStopCheck {
     private static final String PLAINS = "Plains|Set:M21";
     private static final String BEARS = "Grizzly Bears|Set:6ED";
     private static final String ISLAND = "Island|Set:M21";
+    private static final String SWAMP = "Swamp|Set:M21";
+    private static final String BALL = "Ball Lightning|Set:M10";
 
     /** El combate de la mesa preparada: el turno 3, de la IA. */
     private static final String FIRST_COMBAT = "T3:COMBAT_END:Desert";
@@ -59,6 +61,22 @@ public final class PhaseStopCheck {
         seen = PhaseOnlyAbilities.seenForTest();
         check(seen.isEmpty(), "sin Desert no se para " + seen);
 
+        // Ebondeath (Discord, 28-10-2026): lanzable desde el cementerio cuando
+        // muere algo. Una criatura del rival muere en SU turno (Ball Lightning se
+        // sacrifica en el paso final): se para una vez. Tiene que morir A MITAD
+        // de turno: muerta al montar la mesa, ya era lanzable desde el principio.
+        final String swamps = (SWAMP + ";").repeat(3) + SWAMP;
+        ebondeath("ebondeath, muere una criatura", swamps, BALL + ";" + ISLAND);
+        java.util.List<String> stops = new java.util.ArrayList<>(NewlyCastable.STOPS);
+        check(stops.stream().anyMatch(x -> x.startsWith("T3:") && x.endsWith(":Ebondeath, Dracolich")),
+                "Ebondeath en el cementerio y muere una criatura en el turno del rival: se para " + stops);
+        ebondeath("ebondeath, no muere nada", swamps, BEARS + ";" + ISLAND);
+        stops = new java.util.ArrayList<>(NewlyCastable.STOPS);
+        check(stops.stream().noneMatch(x -> x.startsWith("T3:")), "si no muere nada, no se para " + stops);
+        ebondeath("ebondeath, sin mana", PLAINS, BALL + ";" + ISLAND);
+        stops = new java.util.ArrayList<>(NewlyCastable.STOPS);
+        check(stops.stream().noneMatch(x -> x.startsWith("T3:")), "sin con que pagarlo, no se para " + stops);
+
         System.out.printf(Locale.ROOT, "%n  %d bien, %d mal%n", passed, failed);
         if (failed > 0) {
             throw new IllegalStateException(failed + " comprobacion(es) de las paradas por fase han fallado");
@@ -76,6 +94,36 @@ public final class PhaseStopCheck {
                 "humanlibrary=" + (ISLAND + ";").repeat(6) + ISLAND,
                 "humangraveyard=", "humanexile=", "humancommand=",
                 "aibattlefield=" + BEARS + ";" + ISLAND, "aihand=",
+                "ailibrary=" + (ISLAND + ";").repeat(6) + ISLAND,
+                "aigraveyard=", "aiexile=", "aicommand="), List.of());
+        NeoGame.playTutorial(lesson, new TutorialState(lesson.getState()),
+                NeoMatchUI.Mode.AUTO_PLAY, SECONDS, null, false, null);
+    }
+
+    private static void ebondeath(final String title, final String humanLands, final String aiField) {
+        System.out.println("  Mesa: " + title);
+        NewlyCastable.STOPS.clear();
+        // Las paradas de fabrica en los turnos del rival (sin el paso final):
+        // si otra prueba dejo guardado alli una parada, ya tendrias prioridad.
+        final String before = forge.neo.NeoSettings.get(forge.neo.NeoSettings.PHASE_STOPS_THEIRS, null);
+        forge.neo.NeoSettings.set(forge.neo.NeoSettings.PHASE_STOPS_THEIRS,
+                "MAIN1,MAIN2,COMBAT_DECLARE_ATTACKERS,COMBAT_DECLARE_BLOCKERS");
+        try {
+            playEbondeath(humanLands, aiField);
+        } finally {
+            forge.neo.NeoSettings.set(forge.neo.NeoSettings.PHASE_STOPS_THEIRS, before);
+        }
+    }
+
+    private static void playEbondeath(final String humanLands, final String aiField) {
+        final TutorialLesson lesson = new TutorialLesson("phasestop", Arrays.asList(
+                "turn=3", "activeplayer=ai", "activephase=MAIN1",
+                "humanlife=20", "ailife=20",
+                "humanbattlefield=" + humanLands,
+                "humanhand=",
+                "humanlibrary=" + (ISLAND + ";").repeat(6) + ISLAND,
+                "humangraveyard=Ebondeath, Dracolich|Set:AFR", "humanexile=", "humancommand=",
+                "aibattlefield=" + aiField, "aihand=",
                 "ailibrary=" + (ISLAND + ";").repeat(6) + ISLAND,
                 "aigraveyard=", "aiexile=", "aicommand="), List.of());
         NeoGame.playTutorial(lesson, new TutorialState(lesson.getState()),

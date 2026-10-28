@@ -35,6 +35,12 @@ import forge.util.MyRandom;
  *       ({@link NeoCommanderDuels#deckFor}: la matriz de mazos reales con el
  *       techo de rareza y de bracket del nivel). La entrada sube con el nivel
  *       ({@link #fee}) y el premio en creditos es el doble.</li>
+ *   <li><b>Asequible</b> (Discord, 28-10-2026: es la forma de jugar Commander a
+ *       cuatro dentro de la Quest, y costaba demasiado): la entrada bajo a un
+ *       40 % y el premio con ella, y el sobre es de colector solo en dificil y
+ *       experto ({@link #collectorPrize}); en facil y medio, uno normal de la
+ *       misma expansion. Ganando una de cada cuatro sigue sin salir a cuenta,
+ *       asi que no es una forma de sacar sobres.</li>
  *   <li><b>Ganar cuenta como una victoria de la Quest</b> (sube el rango y
  *       acerca desafios y torneos). Perder solo cuesta la entrada.</li>
  *   <li><b>Los rivales se quedan</b> hasta que juegues ({@link #lineup}), y
@@ -80,18 +86,35 @@ public final class NeoColosseum {
         return NeoQuest.isActive() && NeoQuest.modalidad() == NeoQuest.Modalidad.COMMANDER;
     }
 
-    /** La entrada: cara a proposito, y sube con el nivel de la Quest. */
+    /**
+     * La entrada: sube con el nivel de la Quest. Era 600/1000/1600/2400 hasta
+     * el 28-10-2026; ver la cabecera.
+     */
     public static int fee() {
         switch (NeoQuest.tier()) {
             case EXPERT:
-                return 2400;
-            case HARD:
-                return 1600;
-            case MEDIUM:
                 return 1000;
+            case HARD:
+                return 650;
+            case MEDIUM:
+                return 400;
             default:
-                return 600;
+                return 250;
         }
+    }
+
+    /** Si el sobre del premio es de colector (dificil y experto) o uno normal. */
+    public static boolean collectorPrize() {
+        final QuestEventDifficulty t = NeoQuest.tier();
+        return t == QuestEventDifficulty.HARD || t == QuestEventDifficulty.EXPERT;
+    }
+
+    /**
+     * La clave del texto del premio con sobre, "{0} creditos y un sobre (de
+     * colector) de {1}": la usan las dos interfaces.
+     */
+    public static String prizeTextKey() {
+        return collectorPrize() ? "colosseum.prize" : "colosseum.prizeBooster";
     }
 
     /** Los creditos del premio (ademas del sobre de colector). */
@@ -155,7 +178,8 @@ public final class NeoColosseum {
         final List<PaperCard> pool = new ArrayList<>();
         final String mine = myCommanderName();
         for (final PaperCard c : forge.neo.ascent.AscentSeedDeck.commanderPool()) {
-            if (forge.neo.ascent.AscentSynergy.knows(c) && !c.getName().equals(mine)) {
+            if (forge.neo.ascent.AscentSynergy.knows(c) && !c.getName().equals(mine)
+                    && NeoCommanderDuels.fitsTable(c)) {
                 pool.add(c);
             }
         }
@@ -274,15 +298,18 @@ public final class NeoColosseum {
         final List<Deck> out = new ArrayList<>();
         final List<PaperCard> tried = new ArrayList<>(commanders);
         for (final PaperCard cmd : commanders) {
-            Deck d = NeoCommanderDuels.deckFor(cmd, tier);
+            // Sin mazos de fichas: a cuatro hunden la partida, y con ella la
+            // entrada (forge.neo.match.TokenDecks, Discord 28-10-2026).
+            Deck d = NeoCommanderDuels.deckForTable(cmd, tier);
             if (!legal(d)) {
                 d = null;
                 for (final PaperCard other : forge.neo.ascent.AscentSeedDeck.commanderPool()) {
-                    if (tried.contains(other) || !forge.neo.ascent.AscentSynergy.knows(other)) {
+                    if (tried.contains(other) || !forge.neo.ascent.AscentSynergy.knows(other)
+                            || !NeoCommanderDuels.fitsTable(other)) {
                         continue;
                     }
                     tried.add(other);
-                    final Deck alt = NeoCommanderDuels.deckFor(other, tier);
+                    final Deck alt = NeoCommanderDuels.deckForTable(other, tier);
                     if (legal(alt)) {
                         d = alt;
                         break;
@@ -372,13 +399,13 @@ public final class NeoColosseum {
         e.quest.getAssets().addCredits(credits);
         // El sobre va a la coleccion de la Quest ABIERTA: si ya no es la que
         // pago, solo los creditos (no hay forma de abrirlo en otra).
-        final NeoQuestShop.Opened pack = FModel.getQuest() == e.quest ? giftCollector() : null;
+        final NeoQuestShop.Opened pack = FModel.getQuest() == e.quest ? giftPack() : null;
         e.quest.getAchievements().addWin();
         NeoQuestTrophies.noteColosseumWin(e.questName);
         forgetLineup(e.questName);
         e.quest.save();
         System.out.printf(java.util.Locale.ROOT, "[coliseo] ganado: %d creditos y %s%n", credits,
-                pack == null ? "sin sobre" : pack.getCards().size() + " cartas de colector");
+                pack == null ? "sin sobre" : pack.getCards().size() + " cartas");
         return new Prize(credits, pack);
     }
 
@@ -400,12 +427,14 @@ public final class NeoColosseum {
     }
 
     /**
-     * El sobre de colector del premio, ya en tu coleccion. Si el de la
-     * expansion anunciada no se deja montar (alguna revienta en el motor, ver
+     * El sobre del premio, ya en tu coleccion: de colector o normal segun el
+     * nivel ({@link #collectorPrize}). Si el de la expansion anunciada no se
+     * deja montar (alguna revienta en el motor, ver
      * {@code NeoQuestShop.collectorTemplate}), se prueba con otras: un premio
      * anunciado no puede quedarse en nada.
      */
-    private static NeoQuestShop.Opened giftCollector() {
+    private static NeoQuestShop.Opened giftPack() {
+        final boolean collector = collectorPrize();
         final List<CardEdition> tries = new ArrayList<>();
         if (prizeEdition != null) {
             tries.add(prizeEdition);
@@ -415,12 +444,13 @@ public final class NeoColosseum {
         tries.addAll(others.subList(0, Math.min(5, others.size())));
         for (final CardEdition ed : tries) {
             try {
-                final NeoQuestShop.Opened got = NeoQuestShop.grantFree(NeoQuestShop.collectorBooster(ed));
+                final NeoQuestShop.Opened got = NeoQuestShop.grantFree(
+                        collector ? NeoQuestShop.collectorBooster(ed) : NeoQuestShop.boosterOf(ed));
                 if (got != null) {
                     return got;
                 }
             } catch (final RuntimeException ex) {
-                System.out.println("[coliseo] el colector de " + ed.getCode() + " no sale: " + ex);
+                System.out.println("[coliseo] el sobre de " + ed.getCode() + " no sale: " + ex);
             }
         }
         return null;

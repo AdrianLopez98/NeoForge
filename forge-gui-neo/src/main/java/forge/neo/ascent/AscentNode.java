@@ -32,7 +32,14 @@ public final class AscentNode {
         /** Texto con opciones. A veces sale mal. */
         EVENT,
         /** Archenemy: el rival tiene mazo de esquemas. Cierra el acto. */
-        BOSS
+        BOSS,
+        /**
+         * <b>Mesa de cuatro</b>: tres rivales, todos contra todos, como el
+         * Commander de siempre. Solo en runs de Commander con las mesas puestas
+         * ({@link AscentRun#isMelee}); paga mejor que un combate. Va al final
+         * para no mover el orden de los demas.
+         */
+        MELEE
     }
 
     private final int row;

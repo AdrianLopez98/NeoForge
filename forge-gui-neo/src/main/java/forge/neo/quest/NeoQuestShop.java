@@ -292,6 +292,7 @@ public final class NeoQuestShop {
         final List<PaperCard> cards = copy.getAllCardsInASinglePool().toFlatList();
         NeoQuest.engine().getCards().buyPreconDeck(new forge.item.PreconDeck(copy, precon.getEdition(), null), price);
         NeoQuest.dropSideboards();
+        QuestPurchases.record(precon, 1);
         return finish(cleanDeckName(precon.getName()), new ArrayList<>(cards), before, price);
     }
 
@@ -968,6 +969,7 @@ public final class NeoQuestShop {
         // NeoQuest.dropSideboards(). Las cartas ya estan en tu coleccion.
         NeoQuest.dropSideboards();
         NeoQuest.engine().getAssets().getShopList().remove(precon);
+        QuestPurchases.record(precon, 1);
         return finish(precon.getName(), new ArrayList<>(cards), before, price);
     }
 
@@ -993,6 +995,7 @@ public final class NeoQuestShop {
         if (!(product instanceof LandPack)) {
             NeoQuest.engine().getAssets().getShopList().remove(product);
         }
+        QuestPurchases.record(product, 1);
         return finish(productName(product), new ArrayList<>(product.getCards()), before, price);
     }
 
@@ -1234,7 +1237,11 @@ public final class NeoQuestShop {
         if (NeoQuest.credits() < price) {
             return null;
         }
-        return open(pack, price);
+        final Opened got = open(pack, price);
+        if (got != null) {
+            QuestPurchases.record(edition, 1);
+        }
+        return got;
     }
 
     /**
@@ -1252,7 +1259,11 @@ public final class NeoQuestShop {
             return buyCollector(edition, collectorBooster(edition));
         }
         final int price = collectorPrice(edition);
-        return buyMany(edition, count, NeoQuestShop::collectorBooster, pack -> price);
+        final Opened got = buyMany(edition, count, NeoQuestShop::collectorBooster, pack -> price);
+        if (got != null) {
+            QuestPurchases.record(edition, count);
+        }
+        return got;
     }
 
     // ===============================================================
@@ -1427,7 +1438,11 @@ public final class NeoQuestShop {
 
     /** Compra un sobre Jumpstart: trae UN tema al azar de los suyos, como el de verdad. */
     public static Opened buyJumpstart(final NeoJumpstart.Product product) {
-        return product == null || product.themes.isEmpty() ? null : buyJumpstart(product.draw());
+        final Opened got = product == null || product.themes.isEmpty() ? null : buyJumpstart(product.draw());
+        if (got != null) {
+            QuestPurchases.record(product, 1);
+        }
+        return got;
     }
 
     /**
