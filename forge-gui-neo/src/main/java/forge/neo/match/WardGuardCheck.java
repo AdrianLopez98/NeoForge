@@ -58,7 +58,9 @@ public final class WardGuardCheck {
                                     }
                                 }
                             }
-                            if (!"(sin mirar)".equals(kappa.get())) {
+                            // Las DOS: el puzzle pone las cartas una a una, y cortar
+                            // al ver la primera dejaba la otra "sin mirar".
+                            if (!"(sin mirar)".equals(kappa.get()) && !"(sin mirar)".equals(bears.get())) {
                                 return;
                             }
                         }
