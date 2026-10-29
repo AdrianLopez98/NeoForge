@@ -180,6 +180,36 @@ public final class NeoSettings {
      */
     public static final String ORDER_HAND = "orderHand";
 
+    /**
+     * Lo que se puede lanzar desde el cementerio o el exilio, ensenyado al
+     * final de la mano (Discord, 29-10-2026, del Forge de movil). Encendido de
+     * fabrica. {@code -Dneo.handOutside=false} lo fuerza sin escribir nada.
+     */
+    public static final String HAND_OUTSIDE = "handShowsOutside";
+
+    /**
+     * Lo que un permanente tiene en el exilio (Banishing Light...), asomando
+     * por debajo como un equipo (Discord, 29-10-2026, "Show Linked Exile Cards"
+     * del Forge de movil). Encendido. {@code -Dneo.linkedExile=false} lo fuerza.
+     */
+    public static final String LINKED_EXILE = "linkedExile";
+
+    public static boolean linkedExile() {
+        final String forced = System.getProperty("neo.linkedExile");
+        if (forced != null && !forced.isEmpty()) {
+            return Boolean.parseBoolean(forced);
+        }
+        return getBool(LINKED_EXILE, true);
+    }
+
+    public static boolean handShowsOutside() {
+        final String forced = System.getProperty("neo.handOutside");
+        if (forced != null && !forced.isEmpty()) {
+            return Boolean.parseBoolean(forced);
+        }
+        return getBool(HAND_OUTSIDE, true);
+    }
+
     public static boolean orderHand() {
         final String forced = System.getProperty("neo.orderHand");
         if (forced != null && !forced.isEmpty()) {

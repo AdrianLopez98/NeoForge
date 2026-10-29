@@ -272,6 +272,23 @@ public class SettingsPanel extends VBox {
                     }
                 }));
 
+        // --- lo que se puede lanzar desde fuera, en la mano ---
+        //
+        // Discord, 29-10-2026 (del Forge de movil). Se nota al siguiente aviso
+        // del motor: la mano la pinta TableBinder.
+        getChildren().add(toggleRow(NeoText.get("settings.handOutside"),
+                NeoSettings.handShowsOutside(),
+                on -> {
+                    NeoSettings.setBool(NeoSettings.HAND_OUTSIDE, on);
+                    NeoSettings.save();
+                }));
+        getChildren().add(toggleRow(NeoText.get("settings.linkedExile"),
+                NeoSettings.linkedExile(),
+                on -> {
+                    NeoSettings.setBool(NeoSettings.LINKED_EXILE, on);
+                    NeoSettings.save();
+                }));
+
         // --- la mano tactil de Android ---
         //
         // Pedido en itch.io el 27-09-2026 por quien juega en una Surface: en la

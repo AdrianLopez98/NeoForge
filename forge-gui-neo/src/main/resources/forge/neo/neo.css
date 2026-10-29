@@ -1298,6 +1298,40 @@
 
 /* El impuesto de comandante, sobre la carta de la zona de mando (CardNode).
    El tamano de letra lo pone CardNode segun el ancho de la carta. */
+/* Lo que se puede lanzar desde el cementerio o el exilio, ensenyado en la mano:
+   desvaido, con su zona debajo. Al pasar el raton se ve entero. */
+.card:outside {
+    -fx-opacity: 0.62;
+}
+
+.card:outside:hover {
+    -fx-opacity: 1;
+}
+
+.card-origin-tag {
+    -fx-background-color: rgba(8,11,16,0.92);
+    -fx-text-fill: -neo-actionable;
+    -fx-font-weight: bold;
+    -fx-padding: 1 7 1 7;
+    -fx-background-radius: 5;
+    -fx-border-color: -neo-actionable;
+    -fx-border-radius: 5;
+    -fx-border-width: 1;
+}
+
+/* Provocada: solo el icono, abajo a la izquierda, pequeno y en el color de
+   "atencion", como un aviso y no como un control. Quien, al ampliarla. */
+.card-goad-tag {
+    -fx-background-color: rgba(8,11,16,0.88);
+    -fx-text-fill: -neo-warn;
+    -fx-font-weight: bold;
+    -fx-padding: 0 3 0 3;
+    -fx-background-radius: 4;
+    -fx-border-color: rgba(224,166,60,0.7);
+    -fx-border-radius: 4;
+    -fx-border-width: 1;
+}
+
 .card-commander-tax {
     -fx-background-color: -neo-warn;
     -fx-text-fill: #10141A;

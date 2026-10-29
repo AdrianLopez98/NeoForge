@@ -744,6 +744,31 @@ public class BattlefieldPane extends Pane {
 
     private java.util.function.Predicate<CardView> selectableTest;
 
+    /**
+     * Si algo del stack apunta ya a esta carta.
+     *
+     * <p>Reportado en Discord el 29-10-2026: Erode a una de dos fichas de
+     * Soldado apiladas, Pyromancer Ascension lo copia, y la copia elige
+     * objetivo nuevo... clicando la pila, que manda siempre la de delante: la
+     * MISMA que ya llevaba el original. La copia se quedo sin objetivo al
+     * resolverse el primero. Las dos fichas eran elegibles, asi que la pila no
+     * se partia por {@link #setSelectableTest}; lo que las distingue para el
+     * jugador es que a una le apunta una flecha. Ahora la apuntada va aparte,
+     * con su flecha, y la otra se clica como siempre. Vale tambien cuando es
+     * el rival el que apunta a una de tus fichas: se ve CUAL.
+     */
+    public void setTargetedTest(final java.util.function.Predicate<CardView> test) {
+        this.targetedTest = test;
+        regroupIfNeeded();
+    }
+
+    private java.util.function.Predicate<CardView> targetedTest;
+
+    private boolean targeted(final CardView cv) {
+        final java.util.function.Predicate<CardView> test = targetedTest;
+        return test != null && test.test(cv);
+    }
+
     private boolean selectableNow(final CardView cv) {
         final java.util.function.Predicate<CardView> test = selectableTest;
         return test != null && test.test(cv);
@@ -806,6 +831,7 @@ public class BattlefieldPane extends Pane {
                 final CardStateView st = cv.getCurrentState();
                 key = (cv.isToken() ? "tok|" : "same|") + (st == null ? "?" : st.getName())
                         + "|" + countersKey(cv)
+                        + "|" + linkedKey(cv)
                         + "|" + (st == null ? "" : st.getPower() + "/" + st.getToughness())
                         + "|" + cv.isTapped()
                         + "|" + cv.isSick()
@@ -815,7 +841,9 @@ public class BattlefieldPane extends Pane {
                         // Y si ya esta elegida: ver setPickedTest.
                         + "|" + picked(cv)
                         // Y si se puede elegir: ver setSelectableTest.
-                        + "|" + selectableNow(cv);
+                        + "|" + selectableNow(cv)
+                        // Y si algo del stack le apunta: ver setTargetedTest.
+                        + "|" + targeted(cv);
             } else if (cv != null && cv.getId() >= 0) {
                 // El id de la vista es estable mientras la carta siga ahi, y es
                 // lo que permite reutilizar su nodo entre refrescos.
@@ -846,6 +874,46 @@ public class BattlefieldPane extends Pane {
             return false;
         }
         return cv.getAttachedCards() == null || cv.getAttachedCards().isEmpty();
+    }
+
+    /**
+     * <b>Lo que lleva ATADO, para que dos iguales a la vista pero distintas no se
+     * apilen</b> (Discord, 29-10-2026, con video: dos copias de un mismo
+     * encantamiento, una con la criatura del jugador exiliada debajo y la otra
+     * sin nada; apiladas, clicar la pila siempre mandaba la de delante y no habia
+     * forma de devolver la que importaba). Lo exiliado, lo enganchado por
+     * codificar o imprimir, de quien roba el control, lo elegido (tipo, color,
+     * nombre, numero, jugador, modo) y los marcadores del motor.
+     */
+    private static String linkedKey(final CardView cv) {
+        final StringBuilder sb = new StringBuilder();
+        ids(sb, cv.getExiledCards());
+        ids(sb, cv.getUntilLeavesBattlefield());
+        ids(sb, cv.getEncodedCards());
+        ids(sb, cv.getImprintedCards());
+        ids(sb, cv.getGainControlTargets());
+        ids(sb, cv.getChosenCards());
+        sb.append('|').append(cv.getPairedWith() == null ? "" : cv.getPairedWith().getId())
+                .append('|').append(cv.getChosenType()).append('|').append(cv.getChosenType2())
+                .append('|').append(cv.getChosenNumber()).append('|').append(cv.getChosenColors())
+                .append('|').append(cv.getChosenPlayer() == null ? "" : cv.getChosenPlayer().getId())
+                .append('|').append(cv.getChosenMode()).append('|').append(cv.getNamedCard())
+                .append('|').append(cv.getMarkerText());
+        return sb.toString();
+    }
+
+    private static void ids(final StringBuilder sb, final Iterable<forge.game.card.CardView> cards) {
+        sb.append('[');
+        if (cards != null) {
+            final java.util.TreeSet<Integer> sorted = new java.util.TreeSet<>();
+            for (final forge.game.card.CardView c : cards) {
+                if (c != null) {
+                    sorted.add(c.getId());
+                }
+            }
+            sb.append(sorted);
+        }
+        sb.append(']');
     }
 
     /** Los contadores, ordenados, para que dos cartas con distintos no se apilen. */

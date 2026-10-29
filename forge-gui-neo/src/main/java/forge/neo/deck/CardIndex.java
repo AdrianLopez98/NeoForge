@@ -46,6 +46,12 @@ final class CardIndex {
      */
     private final String[] translated;
 
+    /**
+     * La linea de tipo en ingles y traducida (null en ingles): lo unico que
+     * mira {@code t:} (SearchTerms). Hecho aqui para no reservar en cada tecla.
+     */
+    private final String[][] typeLines;
+
     private CardIndex(final Collection<PaperCard> source) {
         cards = withoutOurCustomCards(source);
         names = new String[cards.length];
@@ -53,13 +59,17 @@ final class CardIndex {
         final boolean localized =
                 !forge.neo.NeoLanguage.DEFAULT.equals(forge.neo.NeoLanguage.current());
         translated = localized ? new String[cards.length] : null;
+        typeLines = new String[cards.length][];
         for (int i = 0; i < cards.length; i++) {
             names[i] = cards[i].getName().toLowerCase(Locale.ROOT);
             types[i] = cards[i].getRules().getType().toString().toLowerCase(Locale.ROOT);
+            String typeShown = null;
             if (localized) {
-                translated[i] = (forge.neo.card.CardText.nameOf(cards[i]) + " "
-                        + forge.neo.card.CardText.typeOf(cards[i])).toLowerCase(Locale.ROOT);
+                typeShown = forge.neo.card.CardText.typeOf(cards[i]).toLowerCase(Locale.ROOT);
+                translated[i] = forge.neo.card.CardText.nameOf(cards[i]).toLowerCase(Locale.ROOT)
+                        + " " + typeShown;
             }
+            typeLines[i] = new String[] {types[i], typeShown};
         }
     }
 
@@ -139,7 +149,7 @@ final class CardIndex {
     boolean matches(final int i, final String lowerQuery) {
         // Cada palabra, en cualquier orden y en cualquiera de los campos
         // (SearchTerms): "elf warrior" encuentra el tipo entero.
-        return lowerQuery.isEmpty() || SearchTerms.matches(lowerQuery,
+        return lowerQuery.isEmpty() || SearchTerms.matchesTyped(lowerQuery, typeLines[i],
                 names[i], types[i], translated == null ? null : translated[i]);
     }
 
@@ -162,7 +172,7 @@ final class CardIndex {
         }
         // "flying, vigilance" encuentra lo que tenga las dos, en el orden que
         // sea y aunque haya mas cosas en medio (SearchTerms, 16-10-2026).
-        return SearchTerms.matches(lowerQuery, names[i], types[i],
+        return SearchTerms.matchesTyped(lowerQuery, typeLines[i], names[i], types[i],
                 translated == null ? null : translated[i], rulesText()[i]);
     }
 

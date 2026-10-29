@@ -1546,7 +1546,16 @@ public class TableScreen extends Pane {
      */
     public void setHand(final List<CardView> cards) {
         lastHand = cards == null ? List.of() : List.copyOf(cards);
-        final List<CardView> order = forge.neo.NeoSettings.orderHand() ? orderedHand(lastHand) : lastHand;
+        final List<CardView> sorted = forge.neo.NeoSettings.orderHand() ? orderedHand(lastHand) : lastHand;
+        // Y detras, desvaido, lo que se puede lanzar desde el cementerio o el
+        // exilio (ver setHandOutside). Sin ordenar: va siempre al final.
+        final List<CardView> order;
+        if (handOutside.isEmpty()) {
+            order = sorted;
+        } else {
+            order = new java.util.ArrayList<>(sorted);
+            order.addAll(handOutside);
+        }
         // Las mismas cartas en el mismo orden: solo se repintan, sin tocar el
         // abanico.
         if (sameHand(order)) {
@@ -1598,6 +1607,51 @@ public class TableScreen extends Pane {
         } else {
             n.setCard(cv);
         }
+        n.setOrigin(originLabel(cv));
+    }
+
+    /** "Cementerio" o "Exilio" para una carta que no es de la mano; null si lo es. */
+    private static String originLabel(final CardView cv) {
+        final forge.game.zone.ZoneType z = cv == null ? null : cv.getZone();
+        if (z == null || z == forge.game.zone.ZoneType.Hand) {
+            return null;
+        }
+        return NeoText.get(z == forge.game.zone.ZoneType.Graveyard ? "hand.from.graveyard"
+                : z == forge.game.zone.ZoneType.Exile ? "hand.from.exile" : "hand.from.other");
+    }
+
+    /** Lo que se ensenya en la mano sin estar en ella. Ver {@link #setHandOutside}. */
+    private List<CardView> handOutside = List.of();
+
+    /**
+     * <b>Lo que puedes lanzar desde el cementerio o el exilio, en la mano</b>
+     * (Discord, 29-10-2026). Una copia desvaida al final del abanico, con su
+     * zona debajo: el flashback o la carta exiliada "que puedes jugar este
+     * turno" se olvidan en su pila, y la mano es donde se buscan. La carta es
+     * la de verdad, asi que clicarla o arrastrarla a la mesa la lanza por el
+     * mismo {@code selectCard} que desde el visor de la zona. Lo calcula
+     * {@code TableBinder.castableOutsideForHand}; el ajuste lo apaga.
+     */
+    public void setHandOutside(final List<CardView> cards) {
+        final List<CardView> now = cards == null ? List.of() : List.copyOf(cards);
+        if (sameIds(now, handOutside)) {
+            handOutside = now;
+            return;
+        }
+        handOutside = now;
+        setHand(lastHand);
+    }
+
+    private static boolean sameIds(final List<CardView> a, final List<CardView> b) {
+        if (a.size() != b.size()) {
+            return false;
+        }
+        for (int i = 0; i < a.size(); i++) {
+            if (a.get(i).getId() != b.get(i).getId()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private CardNode newHandNode() {
@@ -1605,6 +1659,9 @@ public class TableScreen extends Pane {
         n.hoverProperty().addListener((o, was, is) -> {
             if (is) {
                 hovered(n);
+            }
+            if (onHandHover != null) {
+                onHandHover.accept(is ? n.getCard() : null);
             }
         });
         n.setOnMouseClicked(e -> {
@@ -2270,6 +2327,7 @@ public class TableScreen extends Pane {
         lastStackMe = me;
         refreshStackChip();
         applyStackTargets();
+        splitStackTargets(list);
 
         // Lo que ya se ha resuelto se olvida. Los ids del motor se reciclan, y
         // uno guardado como "abierto" de hace tres turnos abriria por su cuenta
@@ -4122,6 +4180,41 @@ public class TableScreen extends Pane {
      * hay que reponerlo cuando cambian los nodos: lo llama {@link #setStack},
      * que el binder llama despues de colocar las mesas.
      */
+    /** Los ids a los que apunta algo del stack, la ultima vez. */
+    private java.util.Set<Integer> stackTargetIds = java.util.Set.of();
+
+    /**
+     * Que una ficha a la que apunta el stack no se quede en la pila de sus
+     * gemelas. Ver {@link BattlefieldPane#setTargetedTest}. Solo se reparte si
+     * cambia: el stack se repinta varias veces por segundo.
+     */
+    private void splitStackTargets(final List<StackItemView> items) {
+        final java.util.Set<Integer> ids = new java.util.HashSet<>();
+        for (final StackItemView s : items) {
+            try {
+                if (s.getTargetCards() != null) {
+                    for (final CardView c : s.getTargetCards()) {
+                        if (c != null && c.getId() > 0) {
+                            ids.add(c.getId());
+                        }
+                    }
+                }
+            } catch (final RuntimeException e) {
+                // Una vista a medio montar: se queda como estaba.
+            }
+        }
+        if (ids.equals(stackTargetIds)) {
+            return;
+        }
+        stackTargetIds = ids;
+        final java.util.function.Predicate<CardView> test =
+                cv -> cv != null && cv.getId() > 0 && ids.contains(cv.getId());
+        selfField.setTargetedTest(test);
+        for (final PlayerField f : oppFields) {
+            f.setTargetedTest(test);
+        }
+    }
+
     private void applyStackTargets() {
         final java.util.Set<Integer> cards = new java.util.HashSet<>();
         // Las cartas sin partida (maquetas, getCardForUi) tienen todas id 0:
@@ -4423,6 +4516,13 @@ public class TableScreen extends Pane {
     }
 
     private java.util.function.ToIntFunction<CardView> actionable;
+
+    /** La carta de la mano bajo el raton, o null al salir. Ver forge.neo.match.TapPreview. */
+    public void setOnHandHover(final java.util.function.Consumer<CardView> handler) {
+        this.onHandHover = handler;
+    }
+
+    private java.util.function.Consumer<CardView> onHandHover;
 
     /**
      * Que hacer cuando se clica el retrato de un jugador.
@@ -5360,9 +5460,12 @@ public class TableScreen extends Pane {
             // primera". Es la misma soltada que antes no hacia nada (soltar
             // fuera de la mesa es arrepentirse), asi que no le quita nada a
             // jugar arrastrando.
+            // Lo que se ensenya en la mano sin ser de ella (setHandOutside) no
+            // se cambia de sitio: no esta en la mano del motor.
             if (cancelled && fromHand && source != null && onHandReorder != null
+                    && source.getZone() == forge.game.zone.ZoneType.Hand
                     && isOverHand(e.getSceneX(), e.getSceneY())) {
-                final int index = handDropIndex(e.getSceneX(), source);
+                final int index = Math.min(handDropIndex(e.getSceneX(), source), lastHand.size() - 1);
                 if (index >= 0) {
                     onHandReorder.accept(source, index);
                 }

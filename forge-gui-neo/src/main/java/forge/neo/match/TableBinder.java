@@ -929,6 +929,10 @@ public class TableBinder {
                     hasPlayable(p, ZoneType.Graveyard), hasPlayable(p, ZoneType.Exile));
             // La mano solo se ve entera si es la nuestra; la del rival se
             // muestra como reverso en la barra (contador de MANO).
+            // Y al final de la mano, desvaido, lo que puedes lanzar desde el
+            // cementerio o el exilio (Discord, 29-10-2026).
+            table.setHandOutside(forge.neo.NeoSettings.handShowsOutside()
+                    ? castableOutsideForHand(p) : java.util.List.of());
             table.setHand(toList(p.getHand()));
             table.setCommandZone(toList(p.getCommand()), p);
         }
@@ -987,6 +991,40 @@ public class TableBinder {
             }
         }
         return false;
+    }
+
+    /**
+     * Lo que se ensenya en la mano sin estar en ella: lo que puedes lanzar YA
+     * desde un cementerio o un exilio. Lo mismo que enciende sus pilas
+     * ({@link #hasPlayable}), carta a carta: la lista del motor (de quien sea
+     * la carta: un exilio del rival que te deja jugarla) y lo que esa lista se
+     * deja en tus zonas (lo planeado, el caos). Ni el mando (ya se ve) ni la
+     * biblioteca (su primera carta ya sale en el mazo).
+     */
+    private java.util.List<CardView> castableOutsideForHand(final PlayerView me) {
+        final NeoMatchUI ui = matchUi;
+        if (ui == null) {
+            return java.util.List.of();
+        }
+        final java.util.Map<Integer, CardView> out = new java.util.LinkedHashMap<>();
+        for (final CardView cv : playableOutside()) {
+            if (cv != null && (cv.getZone() == ZoneType.Graveyard || cv.getZone() == ZoneType.Exile)
+                    && ui.isPlayableOutside(cv)) {
+                out.putIfAbsent(cv.getId(), cv);
+            }
+        }
+        for (final ZoneType zone : new ZoneType[] {ZoneType.Graveyard, ZoneType.Exile}) {
+            final var cards = me.getCards(zone);
+            if (cards == null) {
+                continue;
+            }
+            for (final CardView cv : cards) {
+                if (cv != null && !out.containsKey(cv.getId()) && ui.isPlayableOutside(cv)) {
+                    out.put(cv.getId(), cv);
+                }
+            }
+        }
+        return new java.util.ArrayList<>(out.values());
     }
 
     /** Lo que el motor dice que puedes lanzar desde fuera de mano y campo. */

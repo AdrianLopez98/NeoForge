@@ -200,6 +200,8 @@ public class CardLibraryScreen extends StackPane {
 
     private Region body() {
         search.setPromptText(NeoText.get(rulesText ? "deck.search.rules" : "deck.search"));
+        // t:shrine, solo en la linea de tipo (forge.neo.deck.SearchTerms)
+        search.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("deck.search.tip")));
         search.getStyleClass().add("text-input");
         search.setPrefColumnCount(20);
         HBox.setHgrow(search, Priority.SOMETIMES);

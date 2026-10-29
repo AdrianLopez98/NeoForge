@@ -156,6 +156,7 @@ public class CardStackNode extends Pane {
         if (sameCards(now)) {
             for (int i = 0; i < attachments.size(); i++) {
                 attachments.get(i).setCard(now.get(i));
+                markExiled(attachments.get(i), now.get(i));
             }
             layoutAttachments();
             return;
@@ -169,12 +170,23 @@ public class CardStackNode extends Pane {
             final CardNode n = new CardNode(cardWidth * ATTACH_SCALE);
             n.setCard(cv);
             n.setAttached(true);
+            markExiled(n, cv);
             n.getStyleClass().add("attachment");
             wireAttachment(n);
             attachments.add(n);
             getChildren().add(n);
         }
         layoutAttachments();
+    }
+
+    /**
+     * Lo que asoma por estar EXILIADO por esta carta, no enganchado a ella
+     * ({@code PlayerField.linkedExile}): desvaido y con "Exilio", que no se
+     * confunda con un aura. Es solo informacion; la carta sigue en el exilio.
+     */
+    private static void markExiled(final CardNode n, final CardView cv) {
+        n.setOrigin(cv != null && cv.getZone() == forge.game.zone.ZoneType.Exile
+                ? forge.neo.NeoText.get("hand.from.exile") : null);
     }
 
     private boolean sameCards(final List<CardView> now) {

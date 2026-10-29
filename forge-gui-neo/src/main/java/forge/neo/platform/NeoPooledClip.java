@@ -30,12 +30,14 @@ final class NeoPooledClip implements IAudioClip {
 
     @Override
     public void play(final float volume) {
-        final File f = NeoSounds.pick(name);
-        final IAudioClip c = f == null ? forge : ours.computeIfAbsent(f, JavaSound::clip);
-        if (c != null) {
-            last = c;
-            c.play(volume);
-        }
+        NeoSounds.play(name, () -> {
+            final File f = NeoSounds.pick(name);
+            final IAudioClip c = f == null ? forge : ours.computeIfAbsent(f, JavaSound::clip);
+            if (c != null) {
+                last = c;
+                c.play(volume);
+            }
+        });
     }
 
     @Override

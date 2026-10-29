@@ -334,7 +334,7 @@ public class ActionBar extends VBox {
         return resolveAll.isVisible() ? resolveAll.getText() : null;
     }
 
-    /** Solo pruebas: pulsarlo, como el raton. */
+    /** Pulsarlo, como el raton: el atajo (R) y las pruebas. */
     public boolean clickResolveAll() {
         if (!resolveAll.isVisible()) {
             return false;

@@ -79,8 +79,11 @@ public final class DeckFilter {
         // El nombre en el idioma de la partida Y en ingles, y la linea de tipo:
         // se busca "elfo" igual que "Llanowar" o "artifact".
         // Cada palabra en cualquiera de los tres, en cualquier orden (SearchTerms).
-        return SearchTerms.matches(q, CardText.nameOf(card).toLowerCase(Locale.ROOT),
-                card.getName().toLowerCase(Locale.ROOT),
-                rules.getType().toString().toLowerCase(Locale.ROOT));
+        // t:shrine, solo en la linea de tipo (en ingles o traducida).
+        final String type = rules.getType().toString().toLowerCase(Locale.ROOT);
+        return SearchTerms.matchesTyped(q,
+                new String[] {type, CardText.typeOf(card).toLowerCase(Locale.ROOT)},
+                CardText.nameOf(card).toLowerCase(Locale.ROOT),
+                card.getName().toLowerCase(Locale.ROOT), type);
     }
 }

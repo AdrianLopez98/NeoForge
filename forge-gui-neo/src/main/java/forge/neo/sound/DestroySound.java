@@ -1,5 +1,9 @@
 package forge.neo.sound;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import forge.game.Game;
 import forge.game.card.Card;
 import forge.game.player.Player;
@@ -10,11 +14,15 @@ import forge.game.zone.ZoneType;
  * Sol Ring screams when it is destroyed"</i>).
  *
  * <p>El aviso de Forge ({@code GameEventCardDestroyed}) va vacio: no dice que
- * carta. Pero {@code GameAction.destroy} hace, en este orden y por cada carta,
- * {@code updateWasDestroyed(true)} -> el aviso (que es cuando suena) -> los
- * disparos -> moverla al cementerio. O sea que mientras suena, la carta sigue
- * en la mesa y es la que lleva la marca. Se lee en el hilo de la partida: el
- * bus de eventos es sincrono y el sonido se pide dentro del aviso.
+ * carta. Hasta Forge #12500 (29-10-2026) la carta llevaba una marca
+ * ({@code wasDestroyed}) mientras sonaba; ya no. Lo que si se sabe es que
+ * {@code GameAction.destroy} la mueve al cementerio justo despues del aviso, y
+ * que cada cementerio guarda EN ORDEN lo que le ha llegado desde la mesa este
+ * turno ({@code Zone.getCardsAddedThisTurn}). Asi que al sonar el aviso se
+ * apunta cuanto habia ({@link #snapshot}) y un momento despues la primera
+ * carta nueva es la destruida ({@link #poolSince}). Lo de esperar lo hace
+ * {@link NeoSounds#play}. Si no llega al cementerio (Rest in Peace...), el de
+ * siempre.
  *
  * <p>De lo concreto a lo general: artefacto criatura, criatura o planeswalker
  * (el grito de siempre: devuelve null), artefacto, tierra, encantamiento y lo
@@ -25,18 +33,34 @@ public final class DestroySound {
     private DestroySound() {
     }
 
-    /** El monton de la carta que se esta destruyendo ahora, o null para el de siempre. */
-    static String pool() {
+    /** Cuantas cartas habia llegado ya a cada cementerio desde la mesa (al sonar el aviso). */
+    public static Map<Player, Integer> snapshot() {
+        final Map<Player, Integer> out = new HashMap<>();
         final Game g = forge.neo.card.AffectedBy.current();
         if (g == null) {
-            return null;
+            return out;
         }
         try {
             for (final Player p : g.getPlayers()) {
-                for (final Card c : p.getCardsIn(ZoneType.Battlefield)) {
-                    if (c.getView().wasDestroyed()) {
-                        return of(c);
-                    }
+                out.put(p, p.getZone(ZoneType.Graveyard).getCardsAddedThisTurn(ZoneType.Battlefield).size());
+            }
+        } catch (final RuntimeException e) {
+            out.clear();
+        }
+        return out;
+    }
+
+    /** El monton de la primera carta llegada desde {@code before}, o null para el de siempre. */
+    public static String poolSince(final Map<Player, Integer> before) {
+        if (before == null || before.isEmpty()) {
+            return null;
+        }
+        try {
+            for (final Map.Entry<Player, Integer> e : before.entrySet()) {
+                final List<Card> added = e.getKey().getZone(ZoneType.Graveyard)
+                        .getCardsAddedThisTurn(ZoneType.Battlefield);
+                if (added.size() > e.getValue()) {
+                    return of(added.get(e.getValue()));
                 }
             }
         } catch (final RuntimeException e) {

@@ -661,6 +661,9 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             // "Equipar" desde la carta ampliada. Ver equipLabel.
             table.setEquipAction(this::equipLabel, this::equipFromZoom);
             table.setOnCardDropped(this::onCardDropped);
+            // Las tierras que giraria "Auto", con el raton sobre una carta de
+            // la mano. Ver TapPreview.
+            table.setOnHandHover(this::previewPayment);
             // Cambiar de sitio una carta de la mano: el motor la mueve en su
             // zona, asi que el orden aguanta cada repintado y vale en red.
             table.setOnHandReorder((card, index) -> {
@@ -1051,6 +1054,13 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             return;
         }
 
+        // Apuntar a un permanente del rival con Ward: se pregunta antes, porque
+        // despues no se puede cambiar de objetivo (WardGuard).
+        if (askBeforeWardTarget(card)) {
+            clickTrace(card, "preguntar antes de apuntar a un ward");
+            return;
+        }
+
         // El toque que cerraria una eleccion de "elige N", con el ajuste
         // puesto: se pregunta antes de mandarlo (PickGuard).
         if (askBeforeLastPick(card)) {
@@ -1217,6 +1227,63 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
 
     /** El atacante al que bloquear, si se arrastro sobre uno; si no, el que marque el motor. */
     private CardView pendingBlockAttacker;
+
+    /**
+     * Ver {@link WardGuard}. Una vez por carta y por objetivo que se esta
+     * eligiendo: si dices que si, el siguiente toque a la misma no vuelve a
+     * preguntar (al quitarla y volver a ponerla, por ejemplo).
+     */
+    private boolean askBeforeWardTarget(final CardView card) {
+        if (table == null || !interactive() || finished.get()
+                || table.getOverlay().isShowing()
+                || !(pendingInput(getGameController()) instanceof forge.gamemodes.match.input.InputSelectTargets in)
+                || !isSelectable(card) || isMe(card.getController())) {
+            return false;
+        }
+        final String ward = WardGuard.wardOf(card);
+        if (ward == null) {
+            return false;
+        }
+        if (wardInput != in) {
+            wardInput = in;
+            wardAccepted.clear();
+        }
+        if (wardAccepted.contains(card.getId())) {
+            return false;
+        }
+        final String name = forge.neo.card.CardText.nameOf(card);
+        final AtomicBoolean answered = new AtomicBoolean();
+        final ConfirmDialog dialog = new ConfirmDialog(
+                NeoText.get("ward.ask.title", name, ward),
+                NeoText.get("ward.ask.text", ward),
+                List.of(NeoText.get("ward.ask.cancel"), NeoText.get("ward.ask.go")),
+                0,
+                index -> {
+                    if (!answered.compareAndSet(false, true)) {
+                        return;
+                    }
+                    table.getOverlay().hide();
+                    if (index != null && index == 1) {
+                        wardAccepted.add(card.getId());
+                        lastClicked = card;
+                        respondLater(() -> getGameController().selectCard(card, null, null));
+                    }
+                });
+        dialog.getStyleClass().add("phase-ask");
+        if (dialog.option(1) != null) {
+            dialog.option(1).getStyleClass().add("phase-ask-go");
+        }
+        table.getOverlay().show(dialog);
+        table.requestLayout();
+        return true;
+    }
+
+    /**
+     * Las cartas con Ward ya aceptadas como objetivo en la pregunta
+     * {@link #wardInput}; con otra pregunta se vacia. Solo el hilo de interfaz.
+     */
+    private final java.util.Set<Integer> wardAccepted = new java.util.HashSet<>();
+    private Object wardInput;
 
     private boolean askBeforeActivate(final CardView card) {
         if (table == null || !interactive() || finished.get()
@@ -4167,39 +4234,43 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
     }
 
     /**
-     * Cada revelacion, ademas de lo que ya hace Forge (el monton de
-     * {@code GameView.getRevealedCollection}), al registro: {@link RevealLog}
-     * (Discord, 20-10-2026: "show the reveal card in the log").
-     */
-    @Override
-    public void updateRevealedCards(final forge.trackable.TrackableCollection<CardView> collection) {
-        final GameView gv = getGameView();
-        if (gv != null && collection != null) {
-            RevealLog.note(gv.getGameLog(), new java.util.ArrayList<>(collection));
-        }
-        super.updateRevealedCards(collection);
-    }
-
-    /**
-     * Cartas reveladas para la pregunta en curso (la mano de otro), hasta
-     * {@link #hideRevealedCards}. Ver {@code TableScreen.showRevealed}: sin
-     * esto, en red salia el OK de "has visto las cartas" sin ninguna carta.
+     * Cartas reveladas, hasta {@link #hideRevealedCards}. Desde Forge #12503
+     * (30-10-2026) llega en CADA revelacion, y es por donde se apuntan al
+     * registro: {@link RevealLog} (Discord, 20-10-2026: "show the reveal card
+     * in the log"; antes iba por {@code updateRevealedCards}, que ya no existe).
+     *
+     * <p>En la mesa se ensenyan para la pregunta en curso (la mano de otro, que
+     * se contesta con el OK): ver {@code TableScreen.showRevealed}; sin esto, en
+     * red salia el OK de "has visto las cartas" sin ninguna carta. Si detras
+     * viene el dialogo de siempre ({@link #reveal}), las quita el: si no, la
+     * misma revelacion saldria dos veces.
      */
     @Override
     public void showRevealedCards(final Iterable<CardView> cards) {
-        if (!interactive() || cards == null) {
+        if (cards == null) {
             return;
         }
         final List<CardView> list = new ArrayList<>();
         for (final CardView c : cards) {
             list.add(c);
         }
-        if (list.isEmpty()) {
+        final GameView gv = getGameView();
+        if (gv != null && !list.isEmpty()) {
+            RevealLog.note(gv.getGameLog(), list);
+        }
+        if (!interactive() || list.isEmpty()) {
             return;
         }
         final PlayerView owner = list.get(0).getOwner();
         trace("revelado sin dialogo: %d cartas de %s", list.size(), nameOf(owner));
         uiRunLater(() -> table.showRevealed(owner, list));
+    }
+
+    /** El dialogo de "mira lo revelado": se lleva lo que {@link #showRevealedCards} puso en la mesa. */
+    @Override
+    public <T> void reveal(final String message, final List<T> items) {
+        hideRevealedCards();
+        super.reveal(message, items);
     }
 
     @Override
@@ -5981,6 +6052,12 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         if (isReplay()) {
             replayButtons(okLabel, cancelLabel, okEnabled, cancelEnabled);
             return;
+        }
+        // Una pregunta nueva (el pago, sin ir mas lejos): la prevision de la
+        // mano ya no vale, y el pago trae la suya.
+        if (!tapPreviewIds.isEmpty()) {
+            tapPreviewIds = java.util.Set.of();
+            pushActionable();
         }
         if (Boolean.getBoolean("neo.trace.choices")) {
             System.out.println("[botones] " + okLabel + "/" + cancelLabel + " " + okEnabled + "/" + cancelEnabled
@@ -8138,6 +8215,28 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
 
     private volatile java.util.Set<Integer> overlookedIds = java.util.Set.of();
 
+    /**
+     * Lo que giraria "Auto" para lanzar la carta de la mano bajo el raton
+     * (Discord, 29-10-2026; ver {@link TapPreview}). Se pinta como el plan del
+     * pago de Forge, fuerza 2, y se va al salir de la carta o en cuanto el
+     * motor pregunta otra cosa.
+     */
+    private volatile java.util.Set<Integer> tapPreviewIds = java.util.Set.of();
+
+    private void previewPayment(final CardView card) {
+        java.util.Set<Integer> ids = java.util.Set.of();
+        if (card != null && interactive() && !finished.get()
+                && getGameController() instanceof forge.player.PlayerControllerHuman human
+                && human.getInputQueue().getInput() instanceof forge.gamemodes.match.input.InputPassPriority) {
+            ids = TapPreview.sourcesFor(getGameView(), card);
+        }
+        if (ids.equals(tapPreviewIds)) {
+            return;
+        }
+        tapPreviewIds = ids;
+        pushActionable();
+    }
+
     private void pushActionable() {
         if (verbose) {
             // El recuento recorre todas las zonas: solo con traza encendida.
@@ -8179,6 +8278,9 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             return 0;
         }
         try {
+            if (tapPreviewIds.contains(card.getId())) {
+                return 2;
+            }
             final int engine = getActionableStrength(card);
             if (engine > 0) {
                 return engine;

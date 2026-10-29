@@ -77,12 +77,14 @@ public final class DestroySoundCheck {
                                 notes.add("la partida no llego a tu prioridad");
                                 return;
                             }
-                            final String[] current = new String[1];
+                            // Como NeoSounds.play: lo que habia al sonar el aviso,
+                            // y la carta nueva cuando ya se ha movido.
+                            final List<Map<Player, Integer>> before = Collections.synchronizedList(new ArrayList<>());
                             game.subscribeToEvents(new Object() {
                                 @Subscribe
                                 public void on(final GameEvent ev) {
                                     if (ev instanceof GameEventCardDestroyed) {
-                                        heard.put(current[0], String.valueOf(DestroySound.pool()));
+                                        before.add(DestroySound.snapshot());
                                     }
                                 }
                             });
@@ -103,8 +105,10 @@ public final class DestroySoundCheck {
                                     notes.add("no esta en la mesa: " + e[0]);
                                     continue;
                                 }
-                                current[0] = e[0];
+                                before.clear();
                                 game.getAction().destroy(target, null, false, null);
+                                heard.put(e[0], before.isEmpty() ? "sin aviso"
+                                        : String.valueOf(DestroySound.poolSince(before.get(0))));
                             }
                         } catch (final InterruptedException e) {
                             Thread.currentThread().interrupt();

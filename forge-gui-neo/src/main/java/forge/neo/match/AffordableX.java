@@ -1,7 +1,9 @@
 package forge.neo.match;
 
 import forge.ai.ComputerUtilMana;
+import forge.game.card.Card;
 import forge.game.cost.Cost;
+import forge.game.keyword.Keyword;
 import forge.game.player.Player;
 import forge.game.spellability.SpellAbility;
 
@@ -50,6 +52,9 @@ public final class AffordableX {
             if (cost.getTotalMana().countX() <= 0) {
                 return;
             }
+            if (asksWhilePaying(ability)) {
+                return;
+            }
             // Ya es la X, no el mana: la IA multiplica lo que prueba por las
             // X del coste ({X}{X}{X} prueba de tres en tres).
             HINT.set(Math.max(0, ComputerUtilMana.determineLeftoverMana(ability, player, false)));
@@ -57,6 +62,33 @@ public final class AffordableX {
             HINT.remove();
             System.err.println("[neo] no se ha podido calcular la X que puedes pagar: " + e);
         }
+    }
+
+    /**
+     * <b>Si pagar PREGUNTA algo al jugador, no hay pista</b> (Discord,
+     * 29-10-2026, con Teval y Exsanguinate: <i>"it kept looping back from the
+     * card selecting UI to the delve screen"</i>).
+     *
+     * <p>La prueba de la IA pasa por {@code CostAdjustment.adjust}, y ahi
+     * dentro el escavar, la asistencia, convocar, improvisar, la ofrenda y
+     * emerger se lo preguntan al controlador del que paga - que es el HUMANO,
+     * aunque sea modo prueba. O sea un "cuantas cartas escavas" por cada X que
+     * se prueba, de 1 hasta 99: 0-1, luego 0-2, 0-3... y en bucle al llegar al
+     * tamanyo del cementerio. Sin pista sale la lista de Forge de siempre.
+     */
+    static boolean asksWhilePaying(final SpellAbility ability) {
+        if (ability.hasParam("TapCreaturesForMana")) {
+            return true;
+        }
+        final Card host = ability.getHostCard();
+        if (host == null || !ability.isSpell()) {
+            return false;
+        }
+        if (ability.isOffering() || ability.isEmerge()) {
+            return true;
+        }
+        return host.hasKeyword(Keyword.DELVE) || host.hasKeyword(Keyword.ASSIST)
+                || host.hasKeyword(Keyword.CONVOKE) || host.hasKeyword(Keyword.IMPROVISE);
     }
 
     static void clear() {

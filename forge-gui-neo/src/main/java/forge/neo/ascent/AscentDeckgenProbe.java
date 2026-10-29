@@ -54,6 +54,52 @@ public final class AscentDeckgenProbe {
         return same;
     }
 
+    /**
+     * Que la run empiece CON la pareja (Discord, 28-10-2026: "Jenny's wife isn't
+     * around in the deck", "Burakos ... the Background didn't work"). Imprime la
+     * zona de mando del mazo de salida de cada uno.
+     */
+    public static boolean partners() {
+        boolean ok = true;
+        for (final String name : new String[] {"Jenny Flint", "Burakos, Party Leader", "Alisaie Leveilleur"}) {
+            PaperCard cmd = null;
+            for (final PaperCard c : AscentSeedDeck.commanderPool()) {
+                if (c.getName().equals(name)) {
+                    cmd = c;
+                    break;
+                }
+            }
+            if (cmd == null) {
+                System.out.println("[pareja] no esta " + name);
+                continue;
+            }
+            PaperCard partner = AscentSeedDeck.fixedPartner(cmd, AscentPool.ALL);
+            final List<PaperCard> options = AscentSeedDeck.partnersFor(cmd, AscentPool.ALL);
+            if (partner == null && !options.isEmpty()) {
+                partner = options.get(0);
+            }
+            System.out.println("[pareja] " + name + ": fija=" + AscentSeedDeck.fixedPartner(cmd, AscentPool.ALL)
+                    + " opciones=" + options.size() + " elegida=" + (partner == null ? "-" : partner.getName()));
+            if (partner == null) {
+                ok = false;
+                continue;
+            }
+            final Deck d = AscentSeedDeck.generate(AscentRun.Mode.COMMANDER, cmd, partner, "neo-pareja",
+                    0, AscentSeedDeck.NO_COLOURS, AscentPool.ALL);
+            final List<String> zone = new ArrayList<>();
+            if (d.has(forge.deck.DeckSection.Commander)) {
+                for (final Map.Entry<PaperCard, Integer> e : d.get(forge.deck.DeckSection.Commander)) {
+                    zone.add(e.getKey().getName());
+                }
+            }
+            final boolean both = zone.contains(name) && zone.contains(partner.getName());
+            ok &= both;
+            System.out.println("[pareja]   mando: " + zone + " main=" + d.getMain().countAll()
+                    + (both ? " BIEN" : " MAL"));
+        }
+        return ok;
+    }
+
     static Deck generate(final PaperCard cmd, final long seed, final int bracket) {
         final Random before = MyRandom.getRandom();
         MyRandom.setRandom(new Random(seed));

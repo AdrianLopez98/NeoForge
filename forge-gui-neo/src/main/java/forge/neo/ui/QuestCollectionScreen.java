@@ -175,6 +175,8 @@ public class QuestCollectionScreen extends StackPane {
 
     private Region body() {
         search.setPromptText(NeoText.get("deck.search.rules"));
+        // t:shrine, solo en la linea de tipo (forge.neo.deck.SearchTerms)
+        search.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("deck.search.tip")));
         search.getStyleClass().add("text-input");
         search.setPrefColumnCount(22);
         search.textProperty().addListener((o, was, is) -> {
@@ -224,7 +226,8 @@ public class QuestCollectionScreen extends StackPane {
         filtered = new ArrayList<>();
         for (final Entry e : all) {
             if (filters.test(e.card)
-                    && forge.neo.deck.SearchTerms.allIn(terms, e.lowerName, e.lowerType, e.lowerText)) {
+                    && forge.neo.deck.SearchTerms.allInTyped(terms, new String[] {e.lowerType},
+                            e.lowerName, e.lowerType, e.lowerText)) {
                 filtered.add(e);
             }
         }

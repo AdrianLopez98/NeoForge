@@ -59,6 +59,7 @@ public final class DeckRulesCheck {
         copyKeepsArtAndFoil();
         collectionsKeepDecksApart();
         otherFormatsFilterThePool();
+        oldSchool();
         generatesADeckForTheCommander();
         generatedDeckSkipsWhatIsAlreadyInTheDeck();
         generatedDeckFitsTheCommandZone();
@@ -1332,6 +1333,78 @@ public final class DeckRulesCheck {
      * independiente: cartas que NUNCA fueron comunes (no pueden aparecer) y
      * cartas comunes de sobra conocidas (tienen que aparecer).
      */
+    /**
+     * Old School 93/94 (itch.io, 29-10-2026), que Forge no trae y se monta en
+     * {@link forge.neo.match.OldSchool}: el pozo con sus reglas, y los mazos
+     * de los rivales que van en el jar — que existan TODAS sus cartas (una que
+     * Forge no conoce se cae en silencio y el mazo se queda en 59), que sean
+     * legales, con el arte de su edicion y sin nada que la IA tenga apartado.
+     */
+    private static void oldSchool() {
+        final NeoFormat os = NeoFormat.OLD_SCHOOL;
+        final forge.game.GameFormat pool = os.poolFormat();
+        check("Old School: hay pozo (" + (pool == null ? "null" : pool.getName()) + ")", pool != null);
+        if (pool == null) {
+            return;
+        }
+        final java.util.function.Function<String, forge.item.PaperCard> card =
+                n -> forge.model.FModel.getMagicDb().getCommonCards().getCard(n);
+        final java.util.function.BiFunction<String, Integer, Boolean> legal = (n, copies) -> {
+            final forge.item.PaperCard c = card.apply(n);
+            if (c == null) {
+                return null;
+            }
+            final Deck d = new Deck("prueba");
+            d.getMain().add(c, copies);
+            return pool.isDeckLegal(d);
+        };
+        check("Old School: Juzam Djinn (Arabian Nights) vale", Boolean.TRUE.equals(legal.apply("Juzam Djinn", 4)));
+        check("Old School: las duales de Revised valen", Boolean.TRUE.equals(legal.apply("Tundra", 4)));
+        check("Old School: Hymn to Tourach (Fallen Empires) vale", Boolean.TRUE.equals(legal.apply("Hymn to Tourach", 4)));
+        check("Old School: Nalathni Dragon (promo de HarperPrism) vale",
+                Boolean.TRUE.equals(legal.apply("Nalathni Dragon", 1)));
+        check("Old School: Necropotence (Ice Age, 1995) no", Boolean.FALSE.equals(legal.apply("Necropotence", 1)));
+        check("Old School: Jeweled Bird (ante) no", Boolean.FALSE.equals(legal.apply("Jeweled Bird", 1)));
+        check("Old School: un Black Lotus si", Boolean.TRUE.equals(legal.apply("Black Lotus", 1)));
+        check("Old School: dos Black Lotus no (restringida)", Boolean.FALSE.equals(legal.apply("Black Lotus", 2)));
+        check("Old School: cuatro Strip Mine si (en Eternal Central no esta restringida)",
+                Boolean.TRUE.equals(legal.apply("Strip Mine", 4)));
+
+        final List<Deck> bundled = forge.neo.match.OldSchool.decks();
+        check("Old School: los " + bundled.size() + " mazos del jar se leen",
+                bundled.size() == forge.neo.match.OldSchool.decksInJar());
+        for (final Deck d : bundled) {
+            final int main = d.getMain().countAll();
+            final String rules = os.deckFormat().getDeckConformanceProblem(d);
+            final String cards = pool.getDeckConformanceProblem(d);
+            final List<String> aiOut = new ArrayList<>();
+            final List<String> modernArt = new ArrayList<>();
+            for (final java.util.Map.Entry<forge.item.PaperCard, Integer> e : d.getMain()) {
+                if (e.getKey().getRules().getAiHints().getRemAIDecks()) {
+                    aiOut.add(e.getKey().getName());
+                }
+                if (!forge.neo.match.OldSchool.SETS.contains(e.getKey().getEdition())) {
+                    modernArt.add(e.getKey().getName() + "|" + e.getKey().getEdition());
+                }
+            }
+            check("Old School: \"" + d.getName() + "\" tiene 60 cartas (" + main + "), es legal"
+                            + (rules == null ? "" : " [" + rules + "]") + (cards == null ? "" : " [" + cards + "]"),
+                    main == 60 && rules == null && cards == null);
+            check("  y la IA no tiene apartada ninguna" + (aiOut.isEmpty() ? "" : " " + aiOut), aiOut.isEmpty());
+            check("  y todas con el arte de su edicion antigua" + (modernArt.isEmpty() ? "" : " " + modernArt),
+                    modernArt.isEmpty());
+        }
+        final List<Deck> toPlay = os.decks();
+        int fromJar = 0;
+        for (final Deck d : toPlay) {
+            if (d.getName() != null && d.getName().startsWith("Old School - ")) {
+                fromJar++;
+            }
+        }
+        check("Old School: la lista para jugar trae los mazos del jar (" + fromJar + " de " + toPlay.size() + ")",
+                fromJar == bundled.size());
+    }
+
     private static void otherFormatsFilterThePool() {
         // La lista para JUGAR, no solo el catalogo (Discord, 12-10-2026: en
         // Premodern salian los 441 mazos de Estandar, con uno de M19 delante).

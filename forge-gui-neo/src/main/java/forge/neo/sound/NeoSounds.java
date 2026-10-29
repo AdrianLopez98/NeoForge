@@ -133,6 +133,40 @@ public final class NeoSounds {
         }
     }
 
+    /**
+     * Hacer sonar un evento: ya, o, si es destruir, un momento despues, cuando
+     * la carta ya esta en el cementerio y se sabe cual era ({@link DestroySound}).
+     * Se espera en otro hilo: el aviso llega en el de la partida, y la carta no
+     * se mueve hasta que el aviso vuelve.
+     */
+    public static void play(final String forgeName, final Runnable sound) {
+        if (!enabled() || !"destroy".equals(base(forgeName))) {
+            sound.run();
+            return;
+        }
+        final java.util.Map<forge.game.player.Player, Integer> before = DestroySound.snapshot();
+        LATER.schedule(() -> {
+            DESTROYED.set(DestroySound.poolSince(before));
+            try {
+                sound.run();
+            } catch (final RuntimeException e) {
+                System.err.println("[sonido] destroy: " + e);
+            } finally {
+                DESTROYED.remove();
+            }
+        }, 40, java.util.concurrent.TimeUnit.MILLISECONDS);
+    }
+
+    /** El monton de destruir que toca, mientras suena desde {@link #play}. */
+    private static final ThreadLocal<String> DESTROYED = new ThreadLocal<>();
+
+    private static final java.util.concurrent.ScheduledExecutorService LATER =
+            java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+                final Thread t = new Thread(r, "neo-sonido-destruir");
+                t.setDaemon(true);
+                return t;
+            });
+
     /** Los eventos con sonidos nuestros (para el comprobador). */
     static java.util.Set<String> events() {
         return POOLS.keySet();
@@ -164,7 +198,7 @@ public final class NeoSounds {
         // Destruir, segun el tipo de la carta (DestroySound). Sin monton para
         // ese tipo, el de siempre.
         if ("destroy".equals(base(forgeName))) {
-            final String byType = DestroySound.pool();
+            final String byType = DESTROYED.get();
             if (byType != null && POOLS.containsKey(byType)) {
                 pool = POOLS.get(byType);
             }

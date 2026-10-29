@@ -1,11 +1,11 @@
-**NeoForge para macOS 1.0.37 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.38 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Quest:** el Coliseo, mucho más barato; el campeonato de Commander, a 64 jugadores, y las otras mesas se pueden mirar entre IAs; la tienda marca lo que ya has comprado.
-- **Ascenso:** mesas de cuatro, vender reliquias, rivales con mazos generados (bracket 3 y 4) en los actos altos, y los comandantes con «Partner with» salen con su pareja.
-- **La mesa:** se para si de repente puedes lanzar algo desde el cementerio (Ebondeath), «Preguntar antes de dejar tu fase principal» solo si no has jugado nada, Fabricate con «No, y no volver a preguntar», un respiro antes del cartel de fin, y el ajuste «tu barra junto a la mano».
-- **Red:** la segunda partida de una sala ya no se cae al empezar.
-- **Forge al día:** Star Trek Commander y arreglos de reglas.
+- **Antes de lanzar, las tierras que giraría «Auto»:** con el ratón sobre una carta de la mano se marcan las que pagaría.
+- **En la mano, lo que puedes lanzar desde el cementerio o el exilio** (flashback y compañía), desvaído y con su zona; y lo que un Oblivion Ring tiene exiliado asoma junto a él.
+- **Nuevo formato: Old School 93/94**, con cinco mazos clásicos para los rivales.
+- **La mesa:** aviso antes de apuntar a algo con Ward, icono ⚔ en las criaturas provocadas, la R para «Resolverlo todo» y `t:` para buscar solo en el tipo (`t:shrine`).
+- **Arreglos:** escavar con un hechizo de X ya no pregunta en bucle; la pareja de mando de Ascenso entra de verdad en el mazo; dos permanentes iguales con algo distinto atado ya no se apilan.
 
 Descarga el `.dmg` de tu Mac:
 

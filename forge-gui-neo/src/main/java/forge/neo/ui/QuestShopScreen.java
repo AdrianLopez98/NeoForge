@@ -890,7 +890,8 @@ public class QuestShopScreen extends StackPane {
         } catch (final RuntimeException ignored) {
             // sin traduccion
         }
-        return forge.neo.deck.SearchTerms.matches(q, shown, name, type, oracle, typeShown,
+        return forge.neo.deck.SearchTerms.matchesTyped(q, new String[] {type, typeShown},
+                shown, name, type, oracle, typeShown,
                 translated == null ? null : translated.toLowerCase(Locale.ROOT));
     }
 

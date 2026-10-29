@@ -48,7 +48,7 @@ public final class DeckEra {
      */
     public static final List<NeoFormat> FORMATS = Collections.unmodifiableList(Arrays.asList(
             NeoFormat.STANDARD, NeoFormat.PIONEER, NeoFormat.HISTORIC, NeoFormat.MODERN,
-            NeoFormat.EXTENDED, NeoFormat.PREMODERN, NeoFormat.LEGACY, NeoFormat.VINTAGE,
+            NeoFormat.EXTENDED, NeoFormat.PREMODERN, NeoFormat.LEGACY, NeoFormat.VINTAGE, NeoFormat.OLD_SCHOOL,
             NeoFormat.PAUPER));
 
     /** Tope de la cache: unas cuantas listas enteras de mazos. */

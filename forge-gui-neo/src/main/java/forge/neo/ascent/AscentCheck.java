@@ -121,6 +121,7 @@ public final class AscentCheck {
             mesasSinFichas();
             cerrarAMedias();
             mazosGenerados();
+            parejaDeMando();
             venderReliquias();
         } finally {
             final List<String> sobras = prestado.restore();
@@ -4239,6 +4240,21 @@ public final class AscentCheck {
      * fichas; el jefe a bracket 4 con Ascension 5; y la misma semilla da el
      * mismo mazo (es lo que deja que el reto del dia sea igual para todos).
      */
+    /**
+     * La pareja de mando ELEGIDA esta en el mazo de salida (Discord, 28-10-2026:
+     * Jenny Flint sin Madame Vastra). Con Jenny el mazo de los dos sale vacio
+     * (la matriz de mazos reales no conoce a ninguna) y la pareja se perdia en
+     * el recorte. Tambien un Background (Burakos) y un "Partner with" que si
+     * conoce (Alisaie).
+     */
+    private static void parejaDeMando() {
+        if (AscentDeckgenProbe.partners()) {
+            ok("pareja: Jenny con Madame Vastra, Burakos con su Background y Alisaie con Alphinaud, en la zona de mando");
+        } else {
+            fail("pareja: alguna run empieza sin la pareja elegida en la zona de mando (ver [pareja] arriba)");
+        }
+    }
+
     private static void mazosGenerados() {
         final AscentRun run;
         try {

@@ -21,10 +21,9 @@ import forge.neo.NeoText;
  * log? I know I'm stupid for skipping too fast or forgetting right away"</i>.
  * El motor escribe "Gandalf searches their library for an instant or sorcery
  * card, reveals it..." pero no QUE carta: la ensenya en el momento
- * ({@code IGuiGame.reveal}) y ya. Lo unico que guarda es un monton sin orden
- * ({@code GameView.getRevealedCollection}).
+ * ({@code IGuiGame.reveal}) y ya.
  *
- * <p>Cada revelacion pasa por {@code IGuiGame.updateRevealedCards} (las dos
+ * <p>Cada revelacion pasa por {@code IGuiGame.showRevealedCards} (las dos
  * interfaces la reenvian aqui, {@link #note}) y se apunta con el punto del
  * registro en que ocurrio. Al pintar el registro, {@link #merged} mete una
  * entrada de {@code INFORMATION} en ese punto: "Gandalf revela: Lightning

@@ -99,6 +99,13 @@ public enum NeoFormat implements forge.neo.deck.DeckContext {
             "Construido con las ediciones de 1999 a 2003", 1, "Premodern"),
 
     /**
+     * Las ediciones de 1993 y 1994, de Alpha a Fallen Empires. Forge no lo
+     * trae: el pozo y los mazos de los rivales los pone {@link OldSchool}.
+     */
+    OLD_SCHOOL("Old School 93/94", GameType.Constructed,
+            "Construido con las primeras ediciones: de Alpha a Fallen Empires", 1, OldSchool.NAME),
+
+    /**
      * El unico "otro formato" que es Commander de verdad: 100 cartas, zona de
      * mando e identidad de color, pero solo con ediciones anteriores a 2020.
      */
@@ -203,6 +210,9 @@ public enum NeoFormat implements forge.neo.deck.DeckContext {
      */
     @Override
     public forge.game.GameFormat poolFormat() {
+        if (this == OLD_SCHOOL) {
+            return OldSchool.format(); // no esta en res/formats/
+        }
         return poolFormatName == null ? null : FModel.getFormats().getFormat(poolFormatName);
     }
 
@@ -320,6 +330,11 @@ public enum NeoFormat implements forge.neo.deck.DeckContext {
         // con un Mentor of the Meek de M19). Solo se miran las CARTAS
         // (isDeckLegal: expansiones, prohibidas, restringidas): el tamanyo lo
         // dice deckFormat(), y un mazo a medio montar no desaparece.
+        if (this == OLD_SCHOOL) {
+            // Ningun preconstruido de Forge es de 1993-94: sin estos, cada
+            // rival jugaba una copia de tu mazo.
+            out.addAll(OldSchool.decks());
+        }
         final forge.game.GameFormat pool = poolFormat();
         if (pool != null) {
             out.removeIf(d -> d == null || !pool.isDeckLegal(d));

@@ -27,6 +27,9 @@ import forge.player.PlayerControllerHuman;
  *   <li>Hurricane sin tierras: X = 0, y la lista sigue preguntando (con un
  *       corte por debajo del minimo, Forge contestaria sin preguntar).</li>
  *   <li>Grizzly Bears: no tiene X, no hay pista y la lista es la de Forge.</li>
+ *   <li>Escavar (Treasure Cruise): pagar pregunta, asi que la prueba de la IA
+ *       NO se hace - le preguntaba al jugador una vez por cada X probada
+ *       (Discord, 29-10-2026, Teval y Exsanguinate). Y Hurricane si se hace.</li>
  * </ul>
  *
  * <p>Se ejecuta con {@code run.cmd affordablexcheck}.
@@ -40,10 +43,13 @@ public final class AffordableXCheck {
     private static int failed;
     /** Si la ultima mesa se llego a mirar (sin esto, "sin pista" no prueba nada). */
     private static boolean looked;
+    /** {@link AffordableX#asksWhilePaying} del hechizo de la ultima mesa. */
+    private static boolean asks;
 
     private static final String HURRICANE = "Hurricane|Set:10E";
     private static final String CRACKLE = "Crackle with Power|Set:WAR";
     private static final String BEARS = "Grizzly Bears|Set:6ED";
+    private static final String CRUISE = "Treasure Cruise|Set:KTK";
     private static final String FOREST = "Forest|Set:M21";
     private static final String MOUNTAIN = "Mountain|Set:M21";
 
@@ -67,6 +73,11 @@ public final class AffordableXCheck {
         h = probe("Grizzly Bears", BEARS, (FOREST + ";").repeat(3) + FOREST);
         check(looked && h == null, "sin X no hay pista (" + h + ", mirada: " + looked + ")");
         check(AffordableX.cutoff(0, Integer.MAX_VALUE, 9) == 9, "sin pista, el corte de Forge");
+
+        probe("Treasure Cruise (escavar)", CRUISE, FOREST);
+        check(looked && asks, "escavar pregunta al pagar: sin prueba de la IA (mirada: " + looked + ")");
+        probe("Hurricane otra vez", HURRICANE, FOREST);
+        check(looked && !asks, "Hurricane no pregunta al pagar: con prueba (mirada: " + looked + ")");
 
         System.out.printf(Locale.ROOT, "%n  %d bien, %d mal%n", passed, failed);
         if (failed > 0) {
@@ -132,6 +143,7 @@ public final class AffordableXCheck {
                                 final Card c = p.getCardsIn(ZoneType.Hand).get(0);
                                 final SpellAbility sa = c.getFirstSpellAbility();
                                 sa.setActivatingPlayer(p);
+                                asks = AffordableX.asksWhilePaying(sa);
                                 AffordableX.prepare(sa, p);
                                 out.set(AffordableX.hintForTest());
                                 AffordableX.clear();

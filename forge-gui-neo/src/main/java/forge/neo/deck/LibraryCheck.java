@@ -242,6 +242,31 @@ public final class LibraryCheck {
         check("las palabras: la frase entre comillas y \"elf\" (" + String.join("|", parsed) + ")",
                 parsed.length == 2 && parsed[0].equals("double strike") && parsed[1].equals("elf"));
 
+        // t: solo en la linea de tipo (Discord, 29-10-2026: el mazo de Shrines)
+        tq.rulesText = true;
+        tq.text = "shrine";
+        check("\"shrine\" a secas trae tambien Shrine of Burning Rage (por el nombre)",
+                hasName(lib.find(tq), "Shrine of Burning Rage"));
+        tq.text = "t:shrine";
+        check("t:shrine trae Sanctum of Stone Fangs (Enchantment - Shrine)",
+                hasName(lib.find(tq), "Sanctum of Stone Fangs"));
+        check("y deja fuera Shrine of Burning Rage, que es un artefacto",
+                !hasName(lib.find(tq), "Shrine of Burning Rage"));
+        tq.text = "t:\"elf warrior\" t:legendary";
+        check("t: con comillas y combinado trae a Ezuri (Legendary Creature - Elf Warrior)",
+                hasName(lib.find(tq), "Ezuri, Renegade Leader"));
+        check("y no a Lathril, que es Elf Noble", !hasName(lib.find(tq), "Lathril, Blade of the Elves"));
+        tq.text = "t:";
+        check("\"t:\" a medio escribir no vacia el catalogo", !lib.find(tq).isEmpty());
+        tq.text = "";
+        tq.rulesText = false;
+        final String[] typed = SearchTerms.parse("t:\"elf warrior\" flying");
+        check("t:\"...\" es una sola palabra (" + String.join("|", typed) + ")",
+                typed.length == 2 && typed[0].equals("t:elf warrior") && typed[1].equals("flying"));
+        check("allInTyped: t: no mira el nombre",
+                !SearchTerms.allInTyped(SearchTerms.parse("t:shrine"), new String[] {"artifact"},
+                        "shrine of burning rage", "artifact"));
+
         artPolicy();
 
         System.out.println();

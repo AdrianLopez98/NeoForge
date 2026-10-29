@@ -154,6 +154,13 @@ public class PlayerField extends Pane {
         landRow.setPickedTest(test);
     }
 
+    /** Ver {@link BattlefieldPane#setTargetedTest}. */
+    public void setTargetedTest(final java.util.function.Predicate<CardView> test) {
+        creatureRow.setTargetedTest(test);
+        permanentRow.setTargetedTest(test);
+        landRow.setTargetedTest(test);
+    }
+
     public void setOnAttachPeek(
             final java.util.function.BiConsumer<CardView, java.util.List<CardView>> handler) {
         creatureRow.setOnAttachPeek(handler);
@@ -205,6 +212,15 @@ public class PlayerField extends Pane {
             if (on != null && !on.isEmpty()) {
                 attachedTo.put(cv.getId(), new ArrayList<>(on));
             }
+            // Y lo que tiene EXILIADO (Banishing Light, Oblivion Ring...),
+            // asomando igual que un equipo pero desvaido: CardStackNode lo
+            // distingue por la zona (Discord, 29-10-2026, del Forge de movil).
+            if (forge.neo.NeoSettings.linkedExile()) {
+                final List<CardView> exiled = linkedExile(cv);
+                if (!exiled.isEmpty()) {
+                    attachedTo.computeIfAbsent(cv.getId(), k -> new ArrayList<>()).addAll(exiled);
+                }
+            }
         }
 
         // Y lo que se pinta enganchado en algun sitio de la mesa no ocupa
@@ -255,6 +271,28 @@ public class PlayerField extends Pane {
         // el orden en que se jugaron (Discord, 11-10-2026). Ver LandOrder.
         landRow.setCards(forge.neo.card.LandOrder.sorted(lands), attachedTo);
         requestLayout();
+    }
+
+    /**
+     * Lo que este permanente tiene en el exilio: lo que se llevo
+     * ({@code getExiledCards}) y lo que vuelve cuando se vaya
+     * ({@code getUntilLeavesBattlefield}). Solo lo que SIGUE en el exilio:
+     * esas listas no se vacian solas si la carta vuelve por otro camino.
+     */
+    static List<CardView> linkedExile(final CardView cv) {
+        final java.util.Map<Integer, CardView> out = new java.util.LinkedHashMap<>();
+        for (final Iterable<CardView> from : java.util.Arrays.<Iterable<CardView>>asList(
+                cv.getExiledCards(), cv.getUntilLeavesBattlefield())) {
+            if (from == null) {
+                continue;
+            }
+            for (final CardView e : from) {
+                if (e != null && e.getZone() == forge.game.zone.ZoneType.Exile) {
+                    out.putIfAbsent(e.getId(), e);
+                }
+            }
+        }
+        return new ArrayList<>(out.values());
     }
 
     /** Sin el resto de la mesa: para las maquetas, que solo tienen un lado. */

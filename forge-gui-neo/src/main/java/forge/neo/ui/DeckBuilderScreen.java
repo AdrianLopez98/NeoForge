@@ -407,6 +407,8 @@ public class DeckBuilderScreen extends StackPane {
     /** La columna de la izquierda: buscar entre todas las cartas de Magic. */
     private Region catalogue() {
         search.setPromptText(NeoText.get(searchRules ? "deck.search.rules" : "deck.search"));
+        // t:shrine, solo en la linea de tipo (forge.neo.deck.SearchTerms)
+        search.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("deck.search.tip")));
         search.getStyleClass().add("text-input");
         HBox.setHgrow(search, Priority.ALWAYS);
 

@@ -576,6 +576,17 @@ public final class NeoMain {
                 banner("El modo de un disparo dice de quien habla");
                 forge.neo.match.TriggerDetailCheck.run();
                 break;
+            case "wardcheck":
+                // Que se vea el Ward al apuntar (Discord, 29-10-2026). Ver WardGuard.
+                banner("Apuntar a algo con Ward: se ve su coste");
+                forge.neo.match.WardGuardCheck.run();
+                break;
+            case "tapcheck":
+                // Que tierras giraria "Auto", con la carta en la mano (Discord,
+                // 29-10-2026). Ver TapPreview.
+                banner("La prevision del pago, con la carta en la mano");
+                forge.neo.match.TapPreviewCheck.run();
+                break;
             case "moxchaincheck":
                 // Girar fuentes de mana en cadena y rapido (Mox Opal sin su
                 // mana, Discord 01-10-2026). Ver MoxChainCheck.
@@ -764,6 +775,11 @@ public final class NeoMain {
                 banner("Ascenso: el generador de mazos, sembrado");
                 forge.neo.ascent.AscentDeckgenProbe.run(Long.parseLong(opt(args, "--seed", "20261028")),
                         Integer.parseInt(opt(args, "--bracket", "3")));
+                break;
+            case "ascentpartner":
+                // Que la run de Ascenso empiece con la pareja de mando (medida).
+                banner("Ascenso: la pareja de mando en el mazo de salida");
+                forge.neo.ascent.AscentDeckgenProbe.partners();
                 break;
             case "ascenttable":
                 // Las mesas de cuatro de Ascenso, MEDIDAS: la misma casilla a 1

@@ -634,7 +634,13 @@ public final class AscentSeedDeck {
         // monta el mazo con la identidad DE LOS DOS. El recorte solo ponia el
         // comandante en la zona de mando: se perdia el Background y quedaba un
         // mazo rojo y azul con un comandante rojo.
-        return trim(full, cmd, generatedPartner(full, cmd), COMMANDER_SIZE, name, NO_COLOURS);
+        // Y LA QUE ELIGIO EL JUGADOR, ANTES QUE NADA (Discord, 28-10-2026: "Jenny
+        // ... her wife isn't around in the deck"). Si la matriz de mazos reales no
+        // conoce a ninguno de los dos (Jenny Flint y Madame Vastra, de Doctor Who),
+        // el mazo de los dos sale vacio y se llega aqui con un mazo de uno solo:
+        // la pareja elegida iba al recorte como "ninguna" y desaparecia.
+        return trim(full, cmd, partner != null ? partner : generatedPartner(full, cmd),
+                COMMANDER_SIZE, name, NO_COLOURS);
     }
 
     /** El otro de la zona de mando que trae un mazo generado, o {@code null}. */

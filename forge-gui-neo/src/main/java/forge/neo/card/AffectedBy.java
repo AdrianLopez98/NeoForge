@@ -88,6 +88,56 @@ public final class AffectedBy {
         }
     }
 
+    /**
+     * <b>Quien provoco esta carta</b>, para el icono de la mesa (Discord,
+     * 29-10-2026: <i>"a visual indicator showing when a creature is goaded and,
+     * more importantly, which player goaded it"</i>); vacio si nadie.
+     *
+     * <p>La mesa lo pide por cada carta en cada repintado, y {@code findById}
+     * recorre la partida entera. Asi que se mira el campo de batalla UNA vez y
+     * se guarda un momento: como mucho una pasada cada {@value #GOAD_TTL_MS} ms.
+     */
+    public static List<String> goadedBy(final int cardId) {
+        final Game g = game.get();
+        if (g == null) {
+            return List.of();
+        }
+        final long now = System.currentTimeMillis();
+        java.util.Map<Integer, List<String>> map = goaded;
+        if (goadedGame.get() != g || now - goadedAt > GOAD_TTL_MS) {
+            map = new java.util.HashMap<>();
+            try {
+                for (final Card c : g.getCardsIn(ZoneType.Battlefield)) {
+                    if (!c.isGoaded()) {
+                        continue;
+                    }
+                    final List<String> who = new ArrayList<>();
+                    for (final Player p : c.getGoaded()) {
+                        who.add(forge.neo.match.PlayerName.of(p.getView()));
+                    }
+                    map.put(c.getId(), who);
+                }
+            } catch (final RuntimeException e) {
+                // Leido con el motor jugando: si cambia a medias, esta vez nada.
+                map = java.util.Map.of();
+            }
+            goaded = map;
+            goadedAt = now;
+            goadedGame = new WeakReference<>(g);
+        }
+        return map.getOrDefault(cardId, List.of());
+    }
+
+    /** Si alguien provoco esa carta: el icono de la mesa. Ver {@link #goadedBy}. */
+    public static boolean isGoaded(final int cardId) {
+        return !goadedBy(cardId).isEmpty();
+    }
+
+    private static final long GOAD_TTL_MS = 150;
+    private static volatile java.util.Map<Integer, List<String>> goaded = java.util.Map.of();
+    private static volatile long goadedAt;
+    private static volatile WeakReference<Game> goadedGame = new WeakReference<>(null);
+
     /** Una linea lista para leer: "Collector Ouphe: ..." (la de provocar ya nombra a quien). */
     public static String text(final Line l) {
         return l.text().contains(l.source()) ? l.text() : l.source() + ": " + l.text();

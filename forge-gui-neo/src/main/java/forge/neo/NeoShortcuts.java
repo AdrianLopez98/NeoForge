@@ -56,6 +56,13 @@ public final class NeoShortcuts {
         PASS_PRIORITY("passPriority"),
         /** "End Turn" de Forge (Ctrl+E), "Pass turn" de Arena (Enter). */
         PASS_TURN("passTurn"),
+        /**
+         * El boton "Resolverlo todo (N)", cuando esta puesto (Discord,
+         * 29-10-2026: "Enter for OK, 1 for End Turn and 2 for Resolve All").
+         * No existe en Forge ni en Arena; R en los tres estilos, que estaba
+         * libre en todos.
+         */
+        RESOLVE_ALL("resolveAll"),
         /** "Alpha strike" de Forge (Ctrl+A). */
         ALPHA_STRIKE("alphaStrike"),
         /**
@@ -164,6 +171,7 @@ public final class NeoShortcuts {
         final Preset neo = Preset.NEOFORGE;
         neo.bind(Action.PASS_PRIORITY, "Space");
         neo.bind(Action.PASS_TURN, "Ctrl+E");
+        neo.bind(Action.RESOLVE_ALL, "R");
         neo.bind(Action.ALPHA_STRIKE, "Ctrl+A");
         neo.bind(Action.ATTACK_NON_TOKENS, "Ctrl+Shift+A");
         neo.bind(Action.UNDO, "Ctrl+Z");
@@ -186,6 +194,7 @@ public final class NeoShortcuts {
         final Preset forge = Preset.FORGE;
         forge.bind(Action.PASS_PRIORITY, "Space");
         forge.bind(Action.PASS_TURN, "Ctrl+E");
+        forge.bind(Action.RESOLVE_ALL, "R");
         forge.bind(Action.ALPHA_STRIKE, "Ctrl+A");
         forge.bind(Action.ATTACK_NON_TOKENS, "Ctrl+Shift+A");
         forge.bind(Action.UNDO, "Ctrl+Z");
@@ -211,6 +220,7 @@ public final class NeoShortcuts {
         final Preset arena = Preset.ARENA;
         arena.bind(Action.PASS_PRIORITY, "Space");
         arena.bind(Action.PASS_TURN, "Enter", "Shift+Enter");
+        arena.bind(Action.RESOLVE_ALL, "R");
         arena.bind(Action.ALPHA_STRIKE);
         arena.bind(Action.ATTACK_NON_TOKENS);
         arena.bind(Action.UNDO, "Z");

@@ -51,7 +51,7 @@ public class OtherFormatsScreen extends BorderPane {
         // Tiny Leaders baja aqui desde el menu principal (03-09-2026) para
         // dejarle su sitio a Ascenso. Encaja: es un formato de construido mas
         // y responde la MISMA pregunta que sus vecinos — elige un mazo y juega.
-        NeoFormat.TINY_LEADERS, NeoFormat.PREMODERN, NeoFormat.PREDH,
+        NeoFormat.TINY_LEADERS, NeoFormat.PREMODERN, NeoFormat.OLD_SCHOOL, NeoFormat.PREDH,
     };
 
     /** Los que se montan el mazo solos (la auditoría del motor, apartado C4): tocar y jugar. */

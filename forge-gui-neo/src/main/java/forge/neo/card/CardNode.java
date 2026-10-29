@@ -253,6 +253,15 @@ public class CardNode extends StackPane {
     private final Label rankBadge = new Label();
     /** El impuesto de comandante, en la zona de mando. Ver {@link #setCommanderTax}. */
     private final Label taxBadge = new Label();
+    /** De donde viene una carta que se ensenya en la mano sin estar en ella. Ver {@link #setOrigin}. */
+    private final Label originTag = new Label();
+    /**
+     * Provocada (Discord, 29-10-2026). Solo el icono, abajo a la izquierda: la
+     * esquina que en la mesa esta libre (el rating solo sale en el draft), y
+     * pequeno, para no tapar ni la P/T ni el nombre. QUIEN la provoco va al
+     * ampliarla ({@link AffectedBy}, "Provocada por X"), como pidio Ana.
+     */
+    private final Label goadTag = new Label("⚔");
     private int commanderTax;
 
     /**
@@ -396,6 +405,16 @@ public class CardNode extends StackPane {
         taxBadge.setMouseTransparent(true);
         StackPane.setAlignment(taxBadge, Pos.TOP_RIGHT);
 
+        originTag.getStyleClass().add("card-origin-tag");
+        originTag.setVisible(false);
+        originTag.setMouseTransparent(true);
+        StackPane.setAlignment(originTag, Pos.BOTTOM_CENTER);
+
+        goadTag.getStyleClass().add("card-goad-tag");
+        goadTag.setVisible(false);
+        goadTag.setMouseTransparent(true);
+        StackPane.setAlignment(goadTag, Pos.BOTTOM_LEFT);
+
         // Danyo y fuerza/resistencia JUNTOS, y en la esquina donde van
         // impresos. Separados (el danyo en la otra punta) hay que mirar dos
         // sitios y hacer la resta de cabeza para saber si una criatura muere.
@@ -434,7 +453,7 @@ public class CardNode extends StackPane {
         relicFace.setVisible(false);
 
         getChildren().addAll(fallback, relicFace, art, foilTint, foilShine, border,
-                counters, markers, keywords, ptRow, rankBadge, taxBadge);
+                counters, markers, keywords, ptRow, rankBadge, taxBadge, originTag, goadTag);
         setClip(clip);
 
         setCardWidth(width);
@@ -698,6 +717,10 @@ public class CardNode extends StackPane {
         rankBadge.setStyle("-fx-font-size:" + (fs * 1.05) + "px;");
         taxBadge.setStyle("-fx-font-size:" + (fs * 1.15) + "px;");
         StackPane.setMargin(taxBadge, new javafx.geometry.Insets(w * 0.035, w * 0.035, 0, 0));
+        originTag.setStyle("-fx-font-size:" + (fs * 1.0) + "px;");
+        StackPane.setMargin(originTag, new javafx.geometry.Insets(0, 0, w * 0.06, 0));
+        goadTag.setStyle("-fx-font-size:" + (fs * 0.95) + "px;");
+        StackPane.setMargin(goadTag, new javafx.geometry.Insets(0, 0, w * 0.035, w * 0.035));
         counterFontPx = fs * 0.95;
         for (final javafx.scene.Node n : counters.getChildren()) {
             applyCounterFont((Label) n);
@@ -1094,6 +1117,9 @@ public class CardNode extends StackPane {
         // --- palabras clave de combate ---
         refreshKeywords();
 
+        // --- provocada ---
+        refreshGoad();
+
         // --- estado ---
         // Girar y enderezar CON animacion. setTapped ya se corta solo cuando el
         // valor no cambia, asi que esto no relanza la transicion en cada aviso
@@ -1427,6 +1453,11 @@ public class CardNode extends StackPane {
      * esto corre en cada {@link #refresh()} y la mesa se repinta entera con
      * cada aviso del motor.
      */
+    private void refreshGoad() {
+        goadTag.setVisible(card != null && ZoneType.Battlefield == card.getZone() && badgesVisible
+                && !card.isFaceDown() && AffectedBy.isGoaded(card.getId()));
+    }
+
     private void refreshKeywords() {
         final boolean inPlay = card != null && ZoneType.Battlefield == card.getZone();
         final List<forge.localinstance.skin.FSkinProp> icons = inPlay && keywordBadges && badgesVisible
@@ -1952,6 +1983,22 @@ public class CardNode extends StackPane {
         taxBadge.setText("+" + t);
         taxBadge.setVisible(t > 0);
     }
+
+    /**
+     * <b>Una carta que se puede lanzar desde fuera, ensenyada en la mano</b>
+     * (Discord, 29-10-2026: <i>"cards in the exile zone or graveyard that can
+     * potentially be cast ... a faded informational copy displayed in the hand
+     * area"</i>). Desvaida y con la zona de donde viene ("Cementerio"); null la
+     * devuelve a carta normal. Ver {@code TableScreen.setHandOutside}.
+     */
+    public void setOrigin(final String zone) {
+        final boolean on = zone != null && !zone.isEmpty();
+        originTag.setText(on ? zone : "");
+        originTag.setVisible(on);
+        pseudoClassStateChanged(OUTSIDE, on);
+    }
+
+    private static final javafx.css.PseudoClass OUTSIDE = javafx.css.PseudoClass.getPseudoClass("outside");
 
     public void setDraftRank(final Integer rank) {
         this.draftRank = rank == null ? null : Math.max(0, Math.min(99, rank));
