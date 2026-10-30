@@ -246,7 +246,8 @@ public final class AscentRewards {
         if (deck == null || card == null) {
             return deck;
         }
-        deck.getMain().add(card);
+        // Con tu arte favorito, aunque sea de otra rareza (AscentArt.forDeck).
+        deck.getMain().add(AscentArt.forDeck(card, run.getPool()));
         AscentDecks.save(deck);
         return deck;
     }
@@ -269,7 +270,9 @@ public final class AscentRewards {
         if (deck == null || card == null) {
             return deck;
         }
-        deck.getMain().remove(card);
+        // La misma impresion que metio take: la de tu arte favorito si la hay.
+        final PaperCard put = AscentArt.forDeck(card, run.getPool());
+        deck.getMain().remove(deck.getMain().contains(put) ? put : card);
         AscentDecks.save(deck);
         return deck;
     }
@@ -548,7 +551,7 @@ public final class AscentRewards {
                     || c.getRules().getType().isBasicLand()) {
                 continue;
             }
-            if (!rarityFits(AscentArt.rarity(c), act)) {
+            if (!rarityFits(c.getRarity(), act)) {
                 continue;
             }
             final ColorSet id = c.getRules().getColorIdentity();
@@ -558,8 +561,8 @@ public final class AscentRewards {
             // Dual o triple, o buena de verdad. Una tierra infrecuente que solo
             // produce un color y entra girada no es un premio, es un hueco.
             if (id.countColors() < 2
-                    && AscentArt.rarity(c) != CardRarity.Rare
-                    && AscentArt.rarity(c) != CardRarity.MythicRare) {
+                    && c.getRarity() != CardRarity.Rare
+                    && c.getRarity() != CardRarity.MythicRare) {
                 continue;
             }
             if (singleton && owned.contains(c.getName())) {
@@ -785,7 +788,7 @@ public final class AscentRewards {
             }
 
             void add(final PaperCard c) {
-                switch (AscentArt.rarity(c)) {
+                switch (c.getRarity()) {
                     case Uncommon:
                         uncommon.add(c);
                         break;

@@ -924,10 +924,9 @@ public final class AscentBattle {
                 continue;
             }
             spells += e.getValue();
-            final CardRarity r = AscentArt.rarity(e.getKey());
-            if (r == CardRarity.MythicRare) {
+            if (e.getKey().getRarity() == CardRarity.MythicRare) {
                 score += 2 * e.getValue();
-            } else if (r == CardRarity.Rare) {
+            } else if (e.getKey().getRarity() == CardRarity.Rare) {
                 score += e.getValue();
             }
         }

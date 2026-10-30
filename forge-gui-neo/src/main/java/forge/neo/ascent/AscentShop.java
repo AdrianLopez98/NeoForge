@@ -221,7 +221,7 @@ public final class AscentShop {
 
     /** Lo que cuesta una carta segun su rareza. */
     private static int cardPrice(final PaperCard card) {
-        final CardRarity r = card == null ? null : AscentArt.rarity(card);
+        final CardRarity r = card == null ? null : card.getRarity();
         if (r == CardRarity.MythicRare || r == CardRarity.Special) {
             return CARD_PRICE[3];
         }

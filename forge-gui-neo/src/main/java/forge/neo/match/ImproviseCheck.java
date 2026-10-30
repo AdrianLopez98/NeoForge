@@ -75,10 +75,14 @@ public final class ImproviseCheck {
         check(TapToPay.first() == null && TapToPay.holds() == 0,
                 "sin artefactos no se para (" + TapToPay.first() + ")");
 
-        // 4. Convocar.
+        // 4. Convocar. Desde Forge #12362 (30-10-2026) el propio motor cuenta a
+        // las criaturas al ver si se puede pagar ("for the AI or for the
+        // playable-card scan"), y TapToPay solo para lo que el motor NO ve
+        // (overlooked: canPayManaCost). O sea: aqui ya no tiene que parar. Si
+        // Card-Forge lo deshace, esto se pone en rojo y hay que volver a mirarlo.
         play("convocar", STOKE, MOUNTAIN + ";" + MOUNTAIN + ";" + BEARS + ";" + BEARS, false);
-        check(TapToPay.first() != null && "Stoke the Flames".equals(TapToPay.first().reason()),
-                "convocar tambien se para (" + TapToPay.first() + ")");
+        check(TapToPay.first() == null && TapToPay.holds() == 0,
+                "convocar lo ve ya el motor (Forge #12362), TapToPay no para (" + TapToPay.first() + ")");
 
         System.out.printf(Locale.ROOT, "%n  %d bien, %d mal%n", passed, failed);
         if (failed > 0) {

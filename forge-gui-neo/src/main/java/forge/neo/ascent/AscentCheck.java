@@ -4830,10 +4830,7 @@ public final class AscentCheck {
         }
         final PaperCard sldFav = sld;
         final PaperCard spgFav = spg;
-        // Desde el 30-10-2026 el de otra rareza TAMBIEN entra (solo el dibujo), y
-        // para las reglas cuenta como la que tapa.
-        final PaperCard withSld = AscentArt.favourite(rix, AscentPool.ALL, n -> sldFav);
-        final boolean rareStays = withSld == sldFav && AscentArt.rarity(withSld) == forge.card.CardRarity.Uncommon;
+        final boolean rareStays = AscentArt.favourite(rix, AscentPool.ALL, n -> sldFav) == rix;
         final boolean sameTakes = AscentArt.favourite(rix, AscentPool.ALL, n -> spgFav) == spgFav;
 
         // Y con el mazo de salida de verdad: favoritos de mentira que apuntan,
@@ -4848,30 +4845,42 @@ public final class AscentCheck {
             }
             return null;
         };
+        // Desde el 30-10-2026 el MAZO si se queda con el de otra rareza (solo el
+        // dibujo: Ronin's Arsenal, Arcane Signet), y lo que se ofrece no: el
+        // pozo sigue con la misma rareza (rareStays, arriba). En el mazo se
+        // comprueba que cambia el dibujo y no las cartas ni las copias.
         int tempted = 0;
-        final List<String> leaked = new ArrayList<>();
+        int swapped = 0;
+        final List<String> changed = new ArrayList<>();
         for (int i = 0; i < 6; i++) {
             final Deck d = AscentSeedDeck.generate(AscentRun.Mode.STANDARD, "favorito-raro-" + i);
+            final Map<String, Integer> before = new java.util.TreeMap<>();
             for (final Map.Entry<PaperCard, Integer> e : d.getMain()) {
+                before.merge(e.getKey().getName(), e.getValue(), Integer::sum);
                 if (rarest.apply(e.getKey().getName()) != null) {
                     tempted++;
                 }
             }
             AscentArt.withFavourites(d, AscentPool.ALL, rarest);
+            final Map<String, Integer> after = new java.util.TreeMap<>();
             for (final Map.Entry<PaperCard, Integer> e : d.getMain()) {
-                final forge.card.CardRarity r = AscentArt.rarity(e.getKey());
-                if (r == forge.card.CardRarity.Rare || r == forge.card.CardRarity.MythicRare) {
-                    leaked.add(e.getKey().getName() + " (" + e.getKey().getEdition() + ", " + r + ")");
+                after.merge(e.getKey().getName(), e.getValue(), Integer::sum);
+                final PaperCard rare = rarest.apply(e.getKey().getName());
+                if (rare != null && rare.getEdition().equals(e.getKey().getEdition())) {
+                    swapped++;
                 }
             }
+            if (!before.equals(after)) {
+                changed.add("mazo " + i);
+            }
         }
-        if (rareStays && sameTakes && tempted > 0 && leaked.isEmpty()) {
-            ok("favorito de otra rareza: Pitiless Plunderer de RIX coge el de SLD (rara) y sigue contando"
-                    + " como infrecuente, y coge el de SPG; 6 mazos de salida de Estandar con "
-                    + tempted + " cartas con favorito raro de mentira, y ninguna cuenta como rara");
+        if (rareStays && sameTakes && tempted > 0 && swapped > 0 && changed.isEmpty()) {
+            ok("favorito de otra rareza: en el pozo Pitiless Plunderer de RIX se queda con la suya si el"
+                    + " favorito es el de SLD (rara) y coge el de SPG (infrecuente); en 6 mazos de salida, "
+                    + swapped + " de " + tempted + " cartas con el favorito raro puesto y las mismas cartas");
         } else {
-            fail("favorito de otra rareza: SLD cogido y como infrecuente " + rareStays + ", SPG cogido " + sameTakes
-                    + ", tentadas " + tempted + ", coladas " + leaked);
+            fail("favorito de otra rareza: SLD rechazado en el pozo " + rareStays + ", SPG cogido " + sameTakes
+                    + ", tentadas " + tempted + ", puestas " + swapped + ", mazos cambiados " + changed);
         }
     }
 
