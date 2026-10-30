@@ -422,7 +422,10 @@ public final class NeoColosseum {
         }
         pending = null;
         forgetLineup(e.questName);
-        System.out.println("[coliseo] perdido");
+        // Tu puesto en la mesa, a la vitrina (2.º a 4.º): el que tenias al caer.
+        final int place = forge.neo.ascent.AscentTableEnd.lastFallPlace();
+        NeoQuestTrophies.noteColosseumPlace(e.questName, place);
+        System.out.println("[coliseo] perdido" + (place > 0 ? ", " + place + ".º" : ""));
         return true;
     }
 

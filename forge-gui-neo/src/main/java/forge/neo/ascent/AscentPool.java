@@ -598,7 +598,7 @@ public final class AscentPool {
     private static PaperCard closest(final PaperCard old, final List<PaperCard> candidates,
                                      final Set<String> used, final Random rnd) {
         final int cmc = old.getRules().getManaCost().getCMC();
-        final CardRarity rarity = bucket(old.getRarity());
+        final CardRarity rarity = bucket(AscentArt.rarity(old));
         final boolean creature = old.getRules().getType().isCreature();
         List<PaperCard> best = new ArrayList<>();
         int bestScore = Integer.MAX_VALUE;

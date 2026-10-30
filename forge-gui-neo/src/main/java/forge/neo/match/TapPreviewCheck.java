@@ -78,6 +78,12 @@ public final class TapPreviewCheck {
                 expect(bad, good, "Counterspell", preview(gui[0], self, "Counterspell"), 0, null, g);
                 expect(bad, good, "Blaze", preview(gui[0], self, "Blaze"), 0, null, g);
                 expect(bad, good, "Treasure Cruise", preview(gui[0], self, "Treasure Cruise"), 0, null, g);
+                // Y el tipo: "depende de lo que elijas" solo donde falta una
+                // eleccion (la X, escavar); sin poder pagarla, nada.
+                kind(bad, good, gui[0], self, "Grizzly Bears", TapPreview.Kind.SOURCES);
+                kind(bad, good, gui[0], self, "Counterspell", TapPreview.Kind.NONE);
+                kind(bad, good, gui[0], self, "Blaze", TapPreview.Kind.CHOICE);
+                kind(bad, good, gui[0], self, "Treasure Cruise", TapPreview.Kind.CHOICE);
                 // Y que nada de lo anterior haya dejado una pregunta abierta.
                 final NeoMatchUI ui = gui[0];
                 if (!(ui.getGameController() instanceof PlayerControllerHuman c
@@ -122,6 +128,15 @@ public final class TapPreviewCheck {
         GuiBase.getInterface().invokeInEdtAndWait(
                 () -> out.set(TapPreview.sourcesFor(ui.getGameView(), card.getView())));
         return out.get();
+    }
+
+    private static void kind(final List<String> bad, final List<String> good, final NeoMatchUI ui,
+                             final Player me, final String name, final TapPreview.Kind want) {
+        final Card card = named(me, ZoneType.Hand, name);
+        final AtomicReference<TapPreview.Kind> got = new AtomicReference<>();
+        GuiBase.getInterface().invokeInEdtAndWait(
+                () -> got.set(TapPreview.of(ui.getGameView(), card.getView()).kind()));
+        (got.get() == want ? good : bad).add(name + " -> " + got.get() + (got.get() == want ? "" : " (esperaba " + want + ")"));
     }
 
     private static void expect(final List<String> bad, final List<String> good, final String what,

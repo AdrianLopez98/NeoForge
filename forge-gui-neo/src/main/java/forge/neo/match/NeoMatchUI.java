@@ -4350,8 +4350,11 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             CircledColors.watch(getGameView().getGame());
         }
         // En una mesa de cuatro de Ascenso, si caes se acaba la partida: Forge
-        // la seguiria entre las IA. Ver AscentTableEnd.
-        if (ending == Ending.ASCENT && getGameView() != null) {
+        // la seguiria entre las IA. Ver AscentTableEnd. Y en las de la Quest
+        // (el Coliseo y el campeonato de Commander), donde caer ya es perder y
+        // mirar a las IA no da nada (Discord, 30-10-2026: "when I got 3rd place I
+        // don't want to sit there and watch the bots playing").
+        if ((ending == Ending.ASCENT || ending == Ending.QUEST) && getGameView() != null) {
             forge.neo.ascent.AscentTableEnd.watch(getGameView().getGame());
         }
         if (mode == Mode.HUMAN) {
@@ -4789,6 +4792,11 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
      *
      * @return si se ha ensenyado (si no, quien llama tiene que cerrar el match)
      */
+    /** El cuadro de fin, como empate si lo es. Ver {@link GameOverScreen#asDraw}. */
+    private static GameOverScreen withDraw(final GameOverScreen screen, final boolean draw) {
+        return draw ? screen.asDraw() : screen;
+    }
+
     private boolean showGameOverScreen(final boolean won) {
         if (mode != Mode.HUMAN || table == null) {
             return false;
@@ -4807,6 +4815,11 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                                 + " " + (winningTeam + 1)
                         : gv.getWinningPlayerName();
         final int turns = gv == null ? 0 : gv.getTurn();
+        // EMPATE: la misma regla que Forge (ViewWinLose.composeTitle): sin
+        // ganador ni equipo ganador. Vale tambien en el invitado, que solo tiene
+        // la GameView.
+        final boolean draw = gv != null && winningTeam < 0
+                && (gv.getWinningPlayerName() == null || gv.getWinningPlayerName().isBlank());
         // En red siempre es la ultima: NetHostedMatch juega partidas sueltas.
         // Y en el invitado isMatchOver() es una copia por deltas que puede
         // llegar DESPUES del final (ver finishGame): fiarse de ella ofreceria
@@ -4825,7 +4838,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         // MTG Arena"*): el ultimo golpe y la vida a 0 se ven, y el cuadro entra
         // fundido. Sin camara lenta ni temblor: las animaciones de la mesa son
         // cortas y explican algo. -Dneo.gameOver.breathMs=0 lo quita (capturas).
-        ui.runLater(() -> later(GAME_OVER_BREATH_MS, () -> showFaded(lookButtons(gv, new GameOverScreen(
+        ui.runLater(() -> later(GAME_OVER_BREATH_MS, () -> showFaded(lookButtons(gv, withDraw(new GameOverScreen(
                 won, winner, turns, ending, matchOver, gameNumber, totalGames, hotSeatOver,
                 decision -> {
                     table.getOverlay().hide();
@@ -4863,7 +4876,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                             ? Exit.RESTART : Exit.MENU;
                     respondLater(() ->
                             getGameController().nextGameDecision(NextGameDecision.QUIT));
-                })))));
+                }), draw)))));
         return true;
     }
 
@@ -6058,6 +6071,10 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         if (!tapPreviewIds.isEmpty()) {
             tapPreviewIds = java.util.Set.of();
             pushActionable();
+        }
+        if (costHintId != -1) {
+            costHintId = -1;
+            runOnUi(() -> table.setHandCostHint(-1));
         }
         if (Boolean.getBoolean("neo.trace.choices")) {
             System.out.println("[botones] " + okLabel + "/" + cancelLabel + " " + okEnabled + "/" + cancelEnabled
@@ -8224,11 +8241,19 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
     private volatile java.util.Set<Integer> tapPreviewIds = java.util.Set.of();
 
     private void previewPayment(final CardView card) {
-        java.util.Set<Integer> ids = java.util.Set.of();
+        TapPreview.Preview p = null;
         if (card != null && interactive() && !finished.get()
                 && getGameController() instanceof forge.player.PlayerControllerHuman human
                 && human.getInputQueue().getInput() instanceof forge.gamemodes.match.input.InputPassPriority) {
-            ids = TapPreview.sourcesFor(getGameView(), card);
+            p = TapPreview.of(getGameView(), card);
+        }
+        final java.util.Set<Integer> ids = p == null ? java.util.Set.of() : p.ids();
+        // "Depende de lo que elijas" (X, escavar...): un rotulo en la carta, para
+        // que la falta de borde ambar no parezca "no hace falta girar nada".
+        final int hint = p != null && p.kind() == TapPreview.Kind.CHOICE ? card.getId() : -1;
+        if (hint != costHintId) {
+            costHintId = hint;
+            runOnUi(() -> table.setHandCostHint(hint));
         }
         if (ids.equals(tapPreviewIds)) {
             return;
@@ -8236,6 +8261,9 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         tapPreviewIds = ids;
         pushActionable();
     }
+
+    /** La carta de la mano con el rotulo de "depende de lo que elijas", o -1. */
+    private volatile int costHintId = -1;
 
     private void pushActionable() {
         if (verbose) {

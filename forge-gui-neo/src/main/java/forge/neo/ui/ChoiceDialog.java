@@ -138,6 +138,18 @@ public class ChoiceDialog<T> extends VBox implements NumberedChoice {
     static final int SEARCH_FROM = 60;
     /** Cuantas coincidencias se pintan a la vez. */
     static final int SHOWN = 120;
+    /**
+     * Cuantas se pintan ahora: {@link #SHOWN} y, con "Mostrar mas", otras
+     * tantas cada vez (Discord, 30-10-2026: <i>"Leyline of Transformation is
+     * missing pirate type sometimes"</i>). Los ~360 tipos de criatura van con
+     * los de tu mazo arriba y el resto por orden alfabetico, y un tipo que no
+     * esta en tu mazo (Pirate cae hacia el 200) no salia sin escribirlo.
+     * Paginado y no todo de golpe: cientos de botones a la vez es lo que
+     * congelaba la mesa con los nombres de carta. Vuelve a {@link #SHOWN} al
+     * cambiar lo escrito.
+     */
+    private int pageLimit = SHOWN;
+    private String pageQuery;
 
     private final boolean searchMode;
     /**
@@ -819,6 +831,13 @@ public class ChoiceDialog<T> extends VBox implements NumberedChoice {
     private void refilter() {
         final String q = fold(search.getText() == null ? "" : search.getText().trim());
         final List<javafx.scene.Node> shown = new ArrayList<>();
+        // Lo escrito ha cambiado: otra vez la primera pagina, y arriba del todo.
+        final boolean newQuery = !q.equals(pageQuery);
+        if (newQuery) {
+            pageQuery = q;
+            pageLimit = SHOWN;
+        }
+        final int cap = pageLimit;
         int matches = 0;
         // Dos pasadas: primero lo que EMPIEZA por lo escrito ("light" ->
         // Lightning Bolt), despues lo que solo lo contiene. Cada una en el orden
@@ -832,20 +851,36 @@ public class ChoiceDialog<T> extends VBox implements NumberedChoice {
                     continue;
                 }
                 if (hit) {
-                    if (shown.size() < SHOWN) {
+                    if (shown.size() < cap) {
                         shown.add(searchNode(i));
                     }
                     matches++;
                 }
             }
         }
+        final int left = matches - shown.size();
+        if (left > 0) {
+            // La salida a lo recortado (principio 5), al final de la lista, que
+            // es donde se busca lo que falta.
+            final javafx.scene.control.Button more = new javafx.scene.control.Button(
+                    NeoText.get("choice.search.showMore", Math.min(SHOWN, left), left));
+            more.getStyleClass().add("btn-secondary");
+            more.setMaxWidth(Double.MAX_VALUE);
+            more.setOnAction(e -> {
+                pageLimit += SHOWN;
+                refilter();
+            });
+            shown.add(more);
+        }
         items.getChildren().setAll(shown);
         searchNote.setText(matches == 0 ? NeoText.get("choice.search.none")
-                : matches > shown.size() ? NeoText.get("choice.search.more", shown.size(), matches)
+                : left > 0 ? NeoText.get("choice.search.more", matches - left, matches)
                 : "");
         searchNote.setVisible(!searchNote.getText().isEmpty());
         searchNote.setManaged(searchNote.isVisible());
-        scroll.setVvalue(0);
+        if (newQuery) {
+            scroll.setVvalue(0);
+        }
     }
 
     /** Esconde las cartas que no casan con lo escrito (nombre o tipo). */

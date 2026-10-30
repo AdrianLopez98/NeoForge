@@ -51,10 +51,12 @@ final class QuestTrophyCase extends VBox {
         shelves.getChildren().add(challenges());
         shelves.getChildren().add(shelf(NeoText.get("trophies.championships"), null,
                 podium(NeoQuestTrophies.championshipPlaces())));
-        shelves.getChildren().add(shelf(NeoText.get("trophies.events"), NeoText.get("trophies.since"), List.of(
-                trophy(Cup.GOLD, NeoText.get("trophies.cupWins"), NeoQuestTrophies.cupWins(), true),
-                trophy(Cup.SILVER, NeoText.get("trophies.cupFinals"), NeoQuestTrophies.cupFinals(), true),
-                trophy(Cup.FOURTH, NeoText.get("trophies.colosseum"), NeoQuestTrophies.colosseumWins(), true))));
+        // El torneo y el Coliseo, con su podio como los campeonatos (Discord,
+        // 30-10-2026: el 3.º del Coliseo no contaba). Del 5.º para abajo, nada.
+        shelves.getChildren().add(shelf(NeoText.get("trophies.cupShelf"), NeoText.get("trophies.sincePlaces"),
+                podium(NeoQuestTrophies.cupPlaces())));
+        shelves.getChildren().add(shelf(NeoText.get("trophies.colosseumShelf"), NeoText.get("trophies.sincePlaces"),
+                podium(NeoQuestTrophies.colosseumPlaces())));
         final List<NeoQuestBazaar.OwnedUpgrade> owned = NeoQuestBazaar.ownedUpgrades();
         if (!owned.isEmpty()) {
             final List<Region> badges = new java.util.ArrayList<>();

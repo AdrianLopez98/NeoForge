@@ -4830,7 +4830,10 @@ public final class AscentCheck {
         }
         final PaperCard sldFav = sld;
         final PaperCard spgFav = spg;
-        final boolean rareStays = AscentArt.favourite(rix, AscentPool.ALL, n -> sldFav) == rix;
+        // Desde el 30-10-2026 el de otra rareza TAMBIEN entra (solo el dibujo), y
+        // para las reglas cuenta como la que tapa.
+        final PaperCard withSld = AscentArt.favourite(rix, AscentPool.ALL, n -> sldFav);
+        final boolean rareStays = withSld == sldFav && AscentArt.rarity(withSld) == forge.card.CardRarity.Uncommon;
         final boolean sameTakes = AscentArt.favourite(rix, AscentPool.ALL, n -> spgFav) == spgFav;
 
         // Y con el mazo de salida de verdad: favoritos de mentira que apuntan,
@@ -4856,18 +4859,18 @@ public final class AscentCheck {
             }
             AscentArt.withFavourites(d, AscentPool.ALL, rarest);
             for (final Map.Entry<PaperCard, Integer> e : d.getMain()) {
-                final forge.card.CardRarity r = e.getKey().getRarity();
+                final forge.card.CardRarity r = AscentArt.rarity(e.getKey());
                 if (r == forge.card.CardRarity.Rare || r == forge.card.CardRarity.MythicRare) {
                     leaked.add(e.getKey().getName() + " (" + e.getKey().getEdition() + ", " + r + ")");
                 }
             }
         }
         if (rareStays && sameTakes && tempted > 0 && leaked.isEmpty()) {
-            ok("favorito de otra rareza: Pitiless Plunderer de RIX se queda con la suya si el favorito es"
-                    + " el de SLD (rara) y coge el de SPG (infrecuente); 6 mazos de salida de Estandar con "
-                    + tempted + " cartas con favorito raro de mentira, y ni una rara dentro");
+            ok("favorito de otra rareza: Pitiless Plunderer de RIX coge el de SLD (rara) y sigue contando"
+                    + " como infrecuente, y coge el de SPG; 6 mazos de salida de Estandar con "
+                    + tempted + " cartas con favorito raro de mentira, y ninguna cuenta como rara");
         } else {
-            fail("favorito de otra rareza: SLD rechazado " + rareStays + ", SPG cogido " + sameTakes
+            fail("favorito de otra rareza: SLD cogido y como infrecuente " + rareStays + ", SPG cogido " + sameTakes
                     + ", tentadas " + tempted + ", coladas " + leaked);
         }
     }

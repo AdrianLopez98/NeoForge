@@ -50,35 +50,62 @@ public final class TapPreview {
     private TapPreview() {
     }
 
+    /**
+     * Que se puede decir del pago antes de lanzar. {@link Kind#CHOICE} es "depende
+     * de lo que elijas" (Discord, 30-10-2026: <i>"no amber border might look like
+     * the spell needs no lands, rather than the preview waiting for a
+     * decision"</i>): una X, un coste opcional, escavar, dos maneras de
+     * lanzarla... La mesa lo dice con un rotulo, para que no parezca gratis.
+     */
+    public enum Kind {
+        /** Nada que decir: no se puede lanzar ahora, o no hay que girar nada. */
+        NONE,
+        /** Las fuentes de {@link Preview#ids}. */
+        SOURCES,
+        /** El pago depende de una eleccion que aun no se ha hecho. */
+        CHOICE
+    }
+
+    /** La prevision: que tipo y, si {@link Kind#SOURCES}, que fuentes. */
+    public record Preview(Kind kind, Set<Integer> ids) {
+        static final Preview NOTHING = new Preview(Kind.NONE, Set.of());
+        static final Preview DEPENDS = new Preview(Kind.CHOICE, Set.of());
+    }
+
     /** Los ids de las fuentes que giraria "Auto" para lanzar {@code card}; vacio si no hay prevision. */
     public static Set<Integer> sourcesFor(final GameView view, final CardView card) {
+        return of(view, card).ids();
+    }
+
+    /** La prevision entera, con el "depende" (ver {@link Kind}). */
+    public static Preview of(final GameView view, final CardView card) {
         try {
             return compute(view, card);
         } catch (final RuntimeException e) {
             // Es una pista: si algo revienta, no hay pista.
-            return Set.of();
+            return Preview.NOTHING;
         }
     }
 
-    private static Set<Integer> compute(final GameView view, final CardView card) {
+    private static Preview compute(final GameView view, final CardView card) {
         if (view == null || card == null) {
-            return Set.of();
+            return Preview.NOTHING;
         }
         final Game game = view.getGame();
         if (game == null) {
-            return Set.of();
+            return Preview.NOTHING;
         }
         final Card c = game.findById(card.getId());
         if (c == null || c.isLand()) {
-            return Set.of();
+            return Preview.NOTHING;
         }
         final Zone zone = c.getZone();
         if (zone == null || (zone.getZoneType() != ZoneType.Hand && zone.getZoneType() != ZoneType.Command)) {
-            return Set.of();
+            return Preview.NOTHING;
         }
         final Player me = c.getController();
         if (me == null || me.isAI() || game.getPhaseHandler().getPriorityPlayer() != me) {
-            return Set.of();
+            return Preview.NOTHING;
         }
         SpellAbility pick = null;
         for (final SpellAbility sa : c.getSpells()) {
@@ -91,26 +118,29 @@ public final class TapPreview {
             }
             if (pick != null) {
                 // Dos maneras de lanzarla (partida, aventura): no se sabe cual.
-                return Set.of();
+                return Preview.DEPENDS;
             }
             pick = sa;
         }
-        if (pick == null || !predictable(pick, game)) {
-            return Set.of();
+        if (pick == null) {
+            return Preview.NOTHING;
+        }
+        if (!predictable(pick, game)) {
+            return Preview.DEPENDS;
         }
         final ManaCostBeingPaid cost = ComputerUtilMana.calculateManaCost(pick.getPayCosts(), pick, me, true, 0, false);
         if (cost == null || cost.isPaid()) {
-            return Set.of();
+            return Preview.NOTHING;
         }
         final CardCollection sources = ComputerUtilMana.getManaSourcesToPayCost(cost, pick, me, false);
         if (sources == null) {
-            return Set.of();
+            return Preview.NOTHING;
         }
         final Set<Integer> ids = new HashSet<>();
         for (final Card s : sources) {
             ids.add(s.getId());
         }
-        return ids;
+        return new Preview(Kind.SOURCES, ids);
     }
 
     /** Si el coste se sabe ya, sin preguntar nada a nadie. */

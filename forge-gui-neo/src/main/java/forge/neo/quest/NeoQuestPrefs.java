@@ -271,6 +271,10 @@ public final class NeoQuestPrefs {
         final QuestPreferences prefs = FModel.getQuestPreferences();
         prefs.setPref(item.getPref(), on ? "1" : "0");
         prefs.save();
+        // Mas o menos rivales: que se vea ya, no tras el siguiente duelo.
+        if (item.getPref() == QuestPreferences.QPref.MORE_DUEL_CHOICES) {
+            NeoQuest.forgetDuels();
+        }
     }
 
     /** Una, a como viene de fabrica. */

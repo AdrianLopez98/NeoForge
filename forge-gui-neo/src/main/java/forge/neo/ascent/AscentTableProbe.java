@@ -113,9 +113,12 @@ public final class AscentTableProbe {
                     youLost |= p.getHasLost() && p.getName().equals(forge.neo.look.NeoPlayers.human().getName());
                 }
             }
-            final boolean ok = !won && youLost && standing >= 2;
+            // Y tu puesto, el de la vitrina del Coliseo y del campeonato: uno mas
+            // que los que quedaban en pie.
+            final int place = AscentTableEnd.lastFallPlace();
+            final boolean ok = !won && youLost && standing >= 2 && place == standing + 1;
             System.out.println("  [" + (ok ? "ok" : "MAL") + "]   al caer en la mesa: ganada=" + won
-                    + ", has caido=" + youLost + ", rivales en pie al cerrar=" + standing);
+                    + ", has caido=" + youLost + ", rivales en pie al cerrar=" + standing + ", tu puesto=" + place);
             return ok;
         } finally {
             if (run != null) {

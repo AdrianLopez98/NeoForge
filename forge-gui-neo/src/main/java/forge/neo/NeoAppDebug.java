@@ -1121,15 +1121,50 @@ final class NeoAppDebug {
      */
     void mockCardName() {
         final long t0 = System.nanoTime();
-        final List<String> names = forge.model.FModel.getMagicDb().getCommonCards().streamAllFaces()
+        // -Dneo.choice.types=true: los ~300 tipos de criatura, como los pide
+        // Leyline of Transformation (alfabeticos: un mazo sin ninguno de ellos).
+        final boolean types = Boolean.getBoolean("neo.choice.types");
+        final List<String> names = types
+                ? forge.card.CardType.getAllCreatureTypes().stream().sorted()
+                        .collect(java.util.stream.Collectors.toList())
+                : forge.model.FModel.getMagicDb().getCommonCards().streamAllFaces()
                 .map(forge.card.ICardFace::getName).distinct().sorted()
                 .collect(java.util.stream.Collectors.toList());
         final forge.neo.ui.ChoiceDialog<String> dialog = new forge.neo.ui.ChoiceDialog<>(
-                "Choose a card name", names, 1, 1, null, 132,
+                types ? "Choose a creature type" : "Choose a card name", names, 1, 1, null, 132,
                 picked -> System.out.println("[card-name] elegido: " + picked));
         app.table.getOverlay().show(dialog);
         System.out.printf(java.util.Locale.ROOT, "[card-name] %d nombres, dialogo en %d ms%n",
                 names.size(), (System.nanoTime() - t0) / 1_000_000);
+        // -Dneo.choice.more=N: pulsa N veces "Mostrar mas" y baja al final de la
+        // lista; dice cuantas opciones hay pintadas (la paginacion).
+        final int more = Integer.getInteger("neo.choice.more", 0);
+        if (more > 0) {
+            final javafx.animation.PauseTransition wait =
+                    new javafx.animation.PauseTransition(javafx.util.Duration.millis(800));
+            wait.setOnFinished(e -> {
+                for (int k = 0; k < more; k++) {
+                    for (final javafx.scene.Node n : dialog.lookupAll(".btn-secondary")) {
+                        if (n instanceof javafx.scene.control.Button b
+                                && b.getText().equals(forge.neo.NeoText.get("choice.search.showMore",
+                                        Math.min(120, names.size() - 120 * (k + 1)), names.size() - 120 * (k + 1)))) {
+                            b.fire();
+                            break;
+                        }
+                    }
+                }
+                final javafx.scene.Node sp = dialog.lookup(".scroll-pane");
+                if (sp instanceof javafx.scene.control.ScrollPane s) {
+                    s.setVvalue(1);
+                }
+                int shownNow = 0;
+                for (final javafx.scene.Node n : dialog.lookupAll(".button")) {
+                    shownNow++;
+                }
+                System.out.println("[card-name] botones en el dialogo tras " + more + " paginas: " + shownNow);
+            });
+            wait.play();
+        }
         final String q = System.getProperty("neo.choice.search");
         if (q != null) {
             final javafx.scene.Node f = dialog.lookup("#choice-search");

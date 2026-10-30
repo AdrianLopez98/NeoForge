@@ -114,14 +114,40 @@ public final class NeoQuestTrophies {
         return read(NeoQuest.isActive() ? NeoQuest.name() : null, "cupFinal");
     }
 
+    /**
+     * Las veces que quedaste 1.º, 2.º, 3.º y 4.º en el COLISEO (Discord,
+     * 30-10-2026: el 3.º no contaba). El 1.º son las victorias de siempre
+     * ({@code colosseum}); los demas, desde la 1.0.39. Del 5.º para abajo no hay.
+     */
+    public static int[] colosseumPlaces() {
+        final String q = NeoQuest.isActive() ? NeoQuest.name() : null;
+        return new int[] {read(q, "colosseum"), read(q, "colosseum2"), read(q, "colosseum3"), read(q, "colosseum4")};
+    }
+
+    /**
+     * Las veces que quedaste 1.º a 4.º en el TORNEO de la Quest: el 1.º, las
+     * copas ganadas; el 2.º a 4.º, tu puesto en la mesa final (Commander) o la
+     * final y la semifinal (Estandar). Las finales perdidas de antes de la 1.0.39
+     * ({@code cupFinal}) no guardaban el puesto: cuentan como 2.º.
+     */
+    public static int[] cupPlaces() {
+        final String q = NeoQuest.isActive() ? NeoQuest.name() : null;
+        return new int[] {read(q, "cup"), read(q, "cup2") + read(q, "cupFinal"), read(q, "cup3"), read(q, "cup4")};
+    }
+
     /** Si hay algo que ensenyar (si no, la vitrina dice que esta vacia). */
     public static boolean isEmpty() {
         int places = 0;
         for (final int p : championshipPlaces()) {
             places += p;
         }
-        return challenges().isEmpty() && places == 0 && colosseumWins() == 0 && cupWins() == 0
-                && cupFinals() == 0 && NeoQuestBazaar.ownedUpgrades().isEmpty();
+        for (final int p : colosseumPlaces()) {
+            places += p;
+        }
+        for (final int p : cupPlaces()) {
+            places += p;
+        }
+        return challenges().isEmpty() && places == 0 && NeoQuestBazaar.ownedUpgrades().isEmpty();
     }
 
     // ---------------------------------------------------------------
@@ -133,9 +159,20 @@ public final class NeoQuestTrophies {
         add(questName, "colosseum");
     }
 
-    /** Una Copa ganada (o una final perdida) en esa Quest. */
-    static void noteCup(final String questName, final boolean champion) {
-        add(questName, champion ? "cup" : "cupFinal");
+    /** Un puesto del 2.º al 4.º en el Coliseo (el 1.º es {@link #noteColosseumWin}). */
+    static void noteColosseumPlace(final String questName, final int place) {
+        if (place >= 2 && place <= 4) {
+            add(questName, "colosseum" + place);
+        }
+    }
+
+    /** Un puesto del 1.º al 4.º en el torneo; del 5.º para abajo, nada. */
+    static void noteCup(final String questName, final int place) {
+        if (place == 1) {
+            add(questName, "cup");
+        } else if (place >= 2 && place <= 4) {
+            add(questName, "cup" + place);
+        }
     }
 
     private static File fileOf(final String questName) {
@@ -160,7 +197,7 @@ public final class NeoQuestTrophies {
 
     private static int read(final String questName, final String key) {
         if (DEMO) {
-            return "cupFinal".equals(key) ? 0 : "cup".equals(key) ? 1 : 3;
+            return "cupFinal".equals(key) ? 0 : "cup".equals(key) ? 1 : key.endsWith("3") ? 2 : 3;
         }
         try {
             return Integer.parseInt(load(questName).getProperty(key, "0").trim());

@@ -548,7 +548,7 @@ public final class AscentRewards {
                     || c.getRules().getType().isBasicLand()) {
                 continue;
             }
-            if (!rarityFits(c.getRarity(), act)) {
+            if (!rarityFits(AscentArt.rarity(c), act)) {
                 continue;
             }
             final ColorSet id = c.getRules().getColorIdentity();
@@ -558,8 +558,8 @@ public final class AscentRewards {
             // Dual o triple, o buena de verdad. Una tierra infrecuente que solo
             // produce un color y entra girada no es un premio, es un hueco.
             if (id.countColors() < 2
-                    && c.getRarity() != CardRarity.Rare
-                    && c.getRarity() != CardRarity.MythicRare) {
+                    && AscentArt.rarity(c) != CardRarity.Rare
+                    && AscentArt.rarity(c) != CardRarity.MythicRare) {
                 continue;
             }
             if (singleton && owned.contains(c.getName())) {
@@ -785,7 +785,7 @@ public final class AscentRewards {
             }
 
             void add(final PaperCard c) {
-                switch (c.getRarity()) {
+                switch (AscentArt.rarity(c)) {
                     case Uncommon:
                         uncommon.add(c);
                         break;

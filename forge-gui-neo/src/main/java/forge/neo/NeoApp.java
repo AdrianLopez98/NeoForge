@@ -1077,6 +1077,10 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                     // Los mismos que en una partida (NeoMatchUI.lookButtons); en
                     // la maqueta no hay registro que abrir.
                     over.addLookButtons(() -> { }, () -> table.getOverlay().setPeeking(true));
+                    // -Dneo.over.draw=true (con -Dneo.over.lost=true): el empate.
+                    if (Boolean.getBoolean("neo.over.draw")) {
+                        over.asDraw();
+                    }
                     // Y el porque (EndReason), con dos frases de ejemplo.
                     over.withReason(forge.neo.NeoText.get("over.reason.commanderFrom", "Parker", "Giada, Font of Hope")
                             + "\n" + forge.neo.NeoText.get("over.reason.life", "IA-2"));
@@ -1958,6 +1962,14 @@ public class NeoApp extends Application implements SettingsPanel.Host {
         // nunca y que ni el comprobador sin ventana ni una captura podian
         // pillar — el modo automatico solo sabe pulsar el boton grande, y una
         // imagen no dice si el paso avanzo.
+        // Pasar el raton por una carta de la mano (-Dneo.hand.name), para ver la
+        // prevision del pago y su rotulo de "depende de lo que elijas".
+        if (args.contains("--hand-hover")) {
+            final PauseTransition t = new PauseTransition(Duration.millis(Long.getLong("neo.hand.hoverAt", 8000L)));
+            t.setOnFinished(e -> System.out.println("[mano] raton sobre " + System.getProperty("neo.hand.name") + ": "
+                    + (table != null && table.hoverHandForTest(System.getProperty("neo.hand.name", "")))));
+            t.play();
+        }
         if (args.contains("--hand-click")) {
             final PauseTransition t = new PauseTransition(Duration.millis(
                     Long.getLong("neo.hand.clickAt", 8000L)));

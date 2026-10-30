@@ -102,12 +102,79 @@ public final class AscentArt {
         if (pool != null && !pool.isAll() && !pool.codes().contains(fav.getEdition())) {
             return card;
         }
-        if (!sameRarity(fav, card)) {
+        final PaperCard out = card.isFoil() ? fav.getFoiled() : fav;
+        if (out.equals(card)) {
             return card;
         }
-        final PaperCard out = card.isFoil() ? fav.getFoiled() : fav;
-        return out.equals(card) ? card : out;
+        // De OTRA rareza tambien (Discord, 30-10-2026: Ronin's Arsenal, la mitica
+        // de las Tortugas de Conqueror's Flail, no se quedaba nunca). Solo cambia
+        // el dibujo: para las reglas de la run cuenta la rareza de la que tapa
+        // (ver rarity).
+        if (!sameRarity(fav, card)) {
+            BASE.put(out, plain(card.getRarity()));
+        }
+        return out;
     }
+
+    /**
+     * La rareza de una impresion PARA LAS REGLAS DE ASCENSO (mazo de salida sin
+     * raras, premios, tienda, potencia): la de la carta que tapa si es un arte
+     * favorito de otra rareza, y si no, la suya. Asi el favorito es solo el
+     * dibujo. Lo que se tapo en esta sesion se sabe ({@link #favourite}); una
+     * run guardada con el favorito puesto, al volver a abrir el juego, se
+     * resuelve por la rareza mas baja de sus impresiones normales.
+     */
+    public static CardRarity rarity(final PaperCard c) {
+        if (c == null) {
+            return null;
+        }
+        final CardRarity known = BASE.get(c);
+        if (known != null) {
+            return known;
+        }
+        if (enabled()) {
+            try {
+                final PaperCard pref = preferred(c.getName());
+                if (pref != null && (pref.equals(c) || pref.getFoiled().equals(c))) {
+                    return lowest(c);
+                }
+            } catch (final RuntimeException e) {
+                // la suya
+            }
+        }
+        return c.getRarity();
+    }
+
+    /** La rareza mas baja de las impresiones normales (sin especiales) de esa carta. */
+    private static CardRarity lowest(final PaperCard c) {
+        CardRarity best = null;
+        for (final PaperCard p : FModel.getMagicDb().getCommonCards().getAllCards(c.getName())) {
+            final CardRarity r = plain(p.getRarity());
+            if (r == CardRarity.Special || r == null) {
+                continue;
+            }
+            if (best == null || rank(r) < rank(best)) {
+                best = r;
+            }
+        }
+        return best == null ? c.getRarity() : best;
+    }
+
+    private static int rank(final CardRarity r) {
+        switch (r) {
+            case Common:
+                return 0;
+            case Uncommon:
+                return 1;
+            case Rare:
+                return 2;
+            default:
+                return 3;
+        }
+    }
+
+    /** Favorito de otra rareza -> la rareza de lo que tapo. */
+    private static final Map<PaperCard, CardRarity> BASE = new java.util.concurrent.ConcurrentHashMap<>();
 
     /**
      * Si cambiar una impresion por la otra deja la rareza como estaba. Comun y

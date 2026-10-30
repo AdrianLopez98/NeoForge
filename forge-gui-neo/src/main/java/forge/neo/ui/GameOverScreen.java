@@ -112,6 +112,25 @@ public class GameOverScreen extends VBox {
      * @param hotSeat varias personas en el mismo aparato: no hay "has ganado" ni
      *                "has perdido" que valga para todas, asi que se dice quien
      */
+    /** El titulo, para {@link #asDraw}. */
+    private Label title;
+
+    /**
+     * <b>Empate</b> (29-10-2026, un hilo de r/forgeMTG: el motor declara tablas
+     * con la pila pasada de 999 objetos, un disparo obligatorio que vuelve sin
+     * fin, o todos perdiendo a la vez). Como Forge ({@code ViewWinLose.composeTitle}):
+     * su "It's a draw!" ({@code lblItsADraw}) en vez del "Has perdido" de
+     * siempre, y sin motivo, que Forge tampoco lo da.
+     */
+    public GameOverScreen asDraw() {
+        final String text = forge.util.Localizer.getInstance().getMessage("lblItsADraw");
+        title.setText(title.getText().equals(NeoText.get("replay.titled", NeoText.get("over.lost")))
+                ? NeoText.get("replay.titled", text) : text);
+        title.getStyleClass().removeAll("victory", "defeat");
+        title.getStyleClass().add("draw");
+        return this;
+    }
+
     public GameOverScreen(final boolean won, final String winner, final int turns,
                           final NeoMatchUI.Ending ending, final boolean matchOver,
                           final int gameNumber, final int totalGames, final boolean hotSeat,
@@ -123,7 +142,7 @@ public class GameOverScreen extends VBox {
         setMaxWidth(Region.USE_PREF_SIZE);
         setMaxHeight(Region.USE_PREF_SIZE);
 
-        final Label title = new Label(hotSeat && won && winner != null && !winner.isBlank()
+        final Label title = this.title = new Label(hotSeat && won && winner != null && !winner.isBlank()
                 ? NeoText.get("over.hotseat", winner)
                 : won ? NeoText.get("over.won") : NeoText.get("over.lost"));
         title.getStyleClass().addAll("game-over-title", won ? "victory" : "defeat");

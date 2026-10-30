@@ -564,10 +564,18 @@ public final class NeoQuestCup {
         if (!won) {
             if (last) {
                 c.stage = Stage.RUNNER_UP;
-                NeoQuestTrophies.noteCup(NeoQuest.name(), false);
+                // Tu puesto en la final, a la vitrina: en Commander el de la mesa
+                // al caer (2.º a 4.º); a uno contra uno, 2.º.
+                final int fell = forge.neo.ascent.AscentTableEnd.lastFallPlace();
+                NeoQuestTrophies.noteCup(NeoQuest.name(), fell >= 2 ? fell : 2);
                 refunded = c.terms.fee;
                 q.getAssets().addCredits(refunded);
             } else {
+                // La semifinal de un cuadro a uno contra uno es el 3.º puesto; en
+                // Commander caer antes de la final es del 5.º para abajo: nada.
+                if (round == c.terms.rounds() - 2 && !c.terms.commander) {
+                    NeoQuestTrophies.noteCup(NeoQuest.name(), 3);
+                }
                 // El resto del cuadro, para que se vea quien lo gana.
                 while (c.winners.size() < c.terms.rounds()) {
                     final List<Integer> next = new ArrayList<>();
@@ -581,7 +589,7 @@ public final class NeoQuestCup {
             c.settled = true;
         } else if (last) {
             c.stage = Stage.CHAMPION;
-            NeoQuestTrophies.noteCup(NeoQuest.name(), true);
+            NeoQuestTrophies.noteCup(NeoQuest.name(), 1);
             prize = grantPrize(c);
             q.getAchievements().addWin();
             c.settled = true;

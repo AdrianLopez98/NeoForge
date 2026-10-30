@@ -256,6 +256,12 @@ public class CardNode extends StackPane {
     /** De donde viene una carta que se ensenya en la mano sin estar en ella. Ver {@link #setOrigin}. */
     private final Label originTag = new Label();
     /**
+     * "El coste depende de lo que elijas": la carta levantada de la mano cuya
+     * prevision del pago no se puede dar todavia (ver {@code TapPreview.Kind}).
+     * Encima de la etiqueta de la zona, para no pisarla.
+     */
+    private final Label hintTag = new Label();
+    /**
      * Provocada (Discord, 29-10-2026). Solo el icono, abajo a la izquierda: la
      * esquina que en la mesa esta libre (el rating solo sale en el draft), y
      * pequeno, para no tapar ni la P/T ni el nombre. QUIEN la provoco va al
@@ -410,6 +416,13 @@ public class CardNode extends StackPane {
         originTag.setMouseTransparent(true);
         StackPane.setAlignment(originTag, Pos.BOTTOM_CENTER);
 
+        hintTag.getStyleClass().add("card-cost-hint");
+        hintTag.setVisible(false);
+        hintTag.setMouseTransparent(true);
+        hintTag.setWrapText(true);
+        hintTag.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
+        StackPane.setAlignment(hintTag, Pos.BOTTOM_CENTER);
+
         goadTag.getStyleClass().add("card-goad-tag");
         goadTag.setVisible(false);
         goadTag.setMouseTransparent(true);
@@ -453,7 +466,7 @@ public class CardNode extends StackPane {
         relicFace.setVisible(false);
 
         getChildren().addAll(fallback, relicFace, art, foilTint, foilShine, border,
-                counters, markers, keywords, ptRow, rankBadge, taxBadge, originTag, goadTag);
+                counters, markers, keywords, ptRow, rankBadge, taxBadge, originTag, goadTag, hintTag);
         setClip(clip);
 
         setCardWidth(width);
@@ -720,6 +733,9 @@ public class CardNode extends StackPane {
         originTag.setStyle("-fx-font-size:" + (fs * 1.0) + "px;");
         StackPane.setMargin(originTag, new javafx.geometry.Insets(0, 0, w * 0.06, 0));
         goadTag.setStyle("-fx-font-size:" + (fs * 0.95) + "px;");
+        hintTag.setStyle("-fx-font-size:" + (fs * 0.9) + "px;");
+        hintTag.setMaxWidth(w * 0.86);
+        StackPane.setMargin(hintTag, new javafx.geometry.Insets(0, 0, w * 0.2, 0));
         StackPane.setMargin(goadTag, new javafx.geometry.Insets(0, 0, w * 0.035, w * 0.035));
         counterFontPx = fs * 0.95;
         for (final javafx.scene.Node n : counters.getChildren()) {
@@ -1991,6 +2007,15 @@ public class CardNode extends StackPane {
      * area"</i>). Desvaida y con la zona de donde viene ("Cementerio"); null la
      * devuelve a carta normal. Ver {@code TableScreen.setHandOutside}.
      */
+    /** El rotulo de "el coste depende de lo que elijas", o null para quitarlo. */
+    public void setCostHint(final String text) {
+        final boolean on = text != null && !text.isEmpty();
+        if (on && !text.equals(hintTag.getText())) {
+            hintTag.setText(text);
+        }
+        hintTag.setVisible(on);
+    }
+
     public void setOrigin(final String zone) {
         final boolean on = zone != null && !zone.isEmpty();
         originTag.setText(on ? zone : "");

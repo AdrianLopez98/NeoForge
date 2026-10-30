@@ -274,25 +274,12 @@ public class PlayerField extends Pane {
     }
 
     /**
-     * Lo que este permanente tiene en el exilio: lo que se llevo
-     * ({@code getExiledCards}) y lo que vuelve cuando se vaya
-     * ({@code getUntilLeavesBattlefield}). Solo lo que SIGUE en el exilio:
-     * esas listas no se vacian solas si la carta vuelve por otro camino.
+     * Lo que este permanente tiene enlazado en el exilio: lo que vuelve cuando
+     * se vaya, y lo exiliado con el si su texto lo vuelve a usar (no el
+     * cementerio que exilio Bojuka Bog). Ver {@link forge.neo.card.LinkedExile}.
      */
     static List<CardView> linkedExile(final CardView cv) {
-        final java.util.Map<Integer, CardView> out = new java.util.LinkedHashMap<>();
-        for (final Iterable<CardView> from : java.util.Arrays.<Iterable<CardView>>asList(
-                cv.getExiledCards(), cv.getUntilLeavesBattlefield())) {
-            if (from == null) {
-                continue;
-            }
-            for (final CardView e : from) {
-                if (e != null && e.getZone() == forge.game.zone.ZoneType.Exile) {
-                    out.putIfAbsent(e.getId(), e);
-                }
-            }
-        }
-        return new ArrayList<>(out.values());
+        return forge.neo.card.LinkedExile.of(cv);
     }
 
     /** Sin el resto de la mesa: para las maquetas, que solo tienen un lado. */

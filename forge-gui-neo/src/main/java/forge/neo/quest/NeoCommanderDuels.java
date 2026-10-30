@@ -23,6 +23,7 @@ import forge.gamemodes.quest.QuestEventCommanderDuel;
 import forge.gamemodes.quest.QuestEventCommanderDuelManager;
 import forge.gamemodes.quest.QuestEventDifficulty;
 import forge.gamemodes.quest.QuestEventDuel;
+import forge.gamemodes.quest.data.QuestPreferences.QPref;
 import forge.item.PaperCard;
 import forge.localinstance.properties.ForgePreferences.FPref;
 import forge.model.FModel;
@@ -90,6 +91,21 @@ public final class NeoCommanderDuels {
     /** Cuantos duelos se ofrecen: los mismos cuatro que Forge. */
     private static final int DUELS = 4;
 
+    /** Cuantos de mas con "More Duel Choices" (los que da Forge en la Quest normal). */
+    private static final int EXTRA = 2;
+
+    /** Un nivel por debajo (el facil se queda en facil). */
+    private static QuestEventDifficulty easier(final QuestEventDifficulty d) {
+        switch (d) {
+            case EXPERT:
+                return QuestEventDifficulty.HARD;
+            case HARD:
+                return QuestEventDifficulty.MEDIUM;
+            default:
+                return QuestEventDifficulty.EASY;
+        }
+    }
+
     /** Cuantas cartas del pozo del comandante se consideran como mucho. */
     private static final int OWN_POOL = 220;
 
@@ -115,13 +131,22 @@ public final class NeoCommanderDuels {
         }
 
         final QuestEventDifficulty tier = NeoQuest.tier();
+        // "More Duel Choices" de las preferencias de la Quest (Discord,
+        // 30-10-2026: no hacia nada en una de Commander, tampoco en Forge): dos
+        // rivales mas, un nivel por debajo, como en la Quest normal.
+        final int extra = FModel.getQuestPreferences().getPrefInt(
+                QPref.MORE_DUEL_CHOICES) > 0 ? EXTRA : 0;
+        final int wanted = DUELS + extra;
         Collections.shuffle(known, MyRandom.getRandom());
         final List<QuestEventDuel> out = new ArrayList<>();
         for (final PaperCard cmd : known) {
-            if (out.size() == DUELS) {
+            if (out.size() == wanted) {
                 break;
             }
-            final Deck deck = deckFor(cmd, tier);
+            // Los extra van justo antes del sorpresa, que es siempre el ultimo.
+            final boolean easier = out.size() >= DUELS - 1 && out.size() < DUELS - 1 + extra;
+            final QuestEventDifficulty level = easier ? easier(tier) : tier;
+            final Deck deck = deckFor(cmd, level);
             if (deck == null) {
                 continue;
             }
@@ -130,7 +155,7 @@ public final class NeoCommanderDuels {
             duel.setName(cmd.getName());
             duel.setTitle(cmd.getName());
             duel.setOpponentName(cmd.getName());
-            duel.setDifficulty(tier);
+            duel.setDifficulty(level);
             duel.setEventDeck(deck);
             out.add(duel);
         }
@@ -138,9 +163,9 @@ public final class NeoCommanderDuels {
             return forge.generateDuels();
         }
 
-        // El cuarto es el "rival sorpresa", como en Forge: mismo mazo, sin
+        // El ultimo es el "rival sorpresa", como en Forge: mismo mazo, sin
         // decir quien es ni su dificultad.
-        final QuestEventCommanderDuel last = (QuestEventCommanderDuel) out.get(DUELS - 1);
+        final QuestEventCommanderDuel last = (QuestEventCommanderDuel) out.get(out.size() - 1);
         last.setTitle("Random Opponent");
         last.setShowDifficulty(false);
         last.setDescription("Fight a random generated commander opponent.");

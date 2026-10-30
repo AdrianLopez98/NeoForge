@@ -1632,6 +1632,17 @@ public class TableScreen extends Pane {
      * mismo {@code selectCard} que desde el visor de la zona. Lo calcula
      * {@code TableBinder.castableOutsideForHand}; el ajuste lo apaga.
      */
+    /**
+     * El rotulo "el coste depende de lo que elijas" en la carta {@code cardId} de
+     * la mano, y en ninguna otra; -1 lo quita (ver {@code TapPreview.Kind}).
+     */
+    public void setHandCostHint(final int cardId) {
+        final String text = forge.neo.NeoText.get("hand.costDepends");
+        for (final CardNode n : extraNodes) {
+            n.setCostHint(n.getCard() != null && n.getCard().getId() == cardId ? text : null);
+        }
+    }
+
     public void setHandOutside(final List<CardView> cards) {
         final List<CardView> now = cards == null ? List.of() : List.copyOf(cards);
         if (sameIds(now, handOutside)) {
@@ -1652,6 +1663,21 @@ public class TableScreen extends Pane {
             }
         }
         return true;
+    }
+
+    /** Solo pruebas: como si el raton entrara en la carta de la mano con ese nombre. */
+    public boolean hoverHandForTest(final String name) {
+        for (final CardNode n : extraNodes) {
+            if (n.getCard() != null && n.getCard().getCurrentState() != null
+                    && name.equals(n.getCard().getCurrentState().getName())) {
+                hovered(n);
+                if (onHandHover != null) {
+                    onHandHover.accept(n.getCard());
+                }
+                return true;
+            }
+        }
+        return false;
     }
 
     private CardNode newHandNode() {

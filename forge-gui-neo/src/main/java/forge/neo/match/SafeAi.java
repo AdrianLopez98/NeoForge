@@ -238,7 +238,7 @@ public final class SafeAi {
         @Override
         public List<SpellAbility> chooseSpellAbilityToPlay() {
             try {
-                final List<SpellAbility> chosen = super.chooseSpellAbilityToPlay();
+                final List<SpellAbility> chosen = forbiddenToCast(super.chooseSpellAbilityToPlay());
                 if (chosen != null && !chosen.isEmpty()) {
                     return chosen;
                 }
@@ -254,6 +254,52 @@ public final class SafeAi {
                 }
                 report(getPlayer(), "elegir que jugar", e);
                 return null;
+            }
+        }
+
+        /**
+         * <b>Lo que una regla le prohibe lanzar, no lo lanza</b> (Discord,
+         * 30-10-2026: Rakdos, Lord of Riots lanzado sin que el rival perdiera
+         * vida, "You can't cast this spell unless an opponent lost life").
+         *
+         * <p>Al humano el motor se lo para al empezar a lanzar
+         * ({@code PlaySpellAbility}: {@code checkRestrictions} con la carta ya en
+         * la pila). A la IA no: {@code ComputerUtil.handlePlayingSpellAbility}
+         * mueve la carta a la pila y paga sin volver a mirarlo, y se fia de lo
+         * que decidio antes. Aqui se repite esa misma comprobacion del motor
+         * ({@code AiController.canPlaySa}: una copia de la carta "en la pila")
+         * con lo que la IA ya ha elegido. Si no puede, se apunta como intento
+         * fallido (no la vuelve a elegir en este turno) y se queda fuera.
+         */
+        private List<SpellAbility> forbiddenToCast(final List<SpellAbility> chosen) {
+            if (chosen == null || chosen.isEmpty()) {
+                return chosen;
+            }
+            final List<SpellAbility> out = new java.util.ArrayList<>(chosen.size());
+            for (final SpellAbility sa : chosen) {
+                if (sa != null && sa.isSpell() && !sa.isCopied() && !mayCast(sa)) {
+                    getAi().noteFailedCast(forge.ai.AiController.castKey(sa));
+                    continue;
+                }
+                out.add(sa);
+            }
+            return out;
+        }
+
+        private boolean mayCast(final SpellAbility sa) {
+            try {
+                final forge.game.card.Card host = sa.getHostCard();
+                if (host == null || host.isInPlay()) {
+                    return true;
+                }
+                final forge.game.card.Card lki = forge.game.card.CardCopyService.getLKICopy(host);
+                lki.setLKICMC(-1);
+                lki.setLastKnownZone(host.getGame().getStackZone());
+                lki.setCastFrom(host.getZone());
+                return sa.checkRestrictions(lki, getPlayer());
+            } catch (final RuntimeException e) {
+                // Si no se sabe, lo de siempre: decide la IA.
+                return true;
             }
         }
 

@@ -1,11 +1,10 @@
-**NeoForge para macOS 1.0.38 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.39 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Antes de lanzar, las tierras que giraría «Auto»:** con el ratón sobre una carta de la mano se marcan las que pagaría.
-- **En la mano, lo que puedes lanzar desde el cementerio o el exilio** (flashback y compañía), desvaído y con su zona; y lo que un Oblivion Ring tiene exiliado asoma junto a él.
-- **Nuevo formato: Old School 93/94**, con cinco mazos clásicos para los rivales.
-- **La mesa:** aviso antes de apuntar a algo con Ward, icono ⚔ en las criaturas provocadas, la R para «Resolverlo todo» y `t:` para buscar solo en el tipo (`t:shrine`).
-- **Arreglos:** escavar con un hechizo de X ya no pregunta en bucle; la pareja de mando de Ascenso entra de verdad en el mazo; dos permanentes iguales con algo distinto atado ya no se apilan.
+- **Quest:** en el Coliseo y el campeonato, si caes se acaba la partida; la vitrina cuenta los puestos de 1.º a 4.º; y «More Duel Choices» da dos rivales más en la Quest de Commander.
+- **La mesa:** «el coste depende de lo que elijas» cuando el pago no se puede prever; bajo un permanente solo asoma lo que tiene enlazado (no el cementerio de Bojuka Bog); y el empate se ve como empate.
+- **La IA** ya no lanza lo que una regla le prohíbe (Rakdos, Lord of Riots sin que el rival haya perdido vida).
+- **Arreglos:** la lista de tipos de criatura ya no se corta (faltaba Pirate) y el arte favorito de Ascenso se queda aunque sea de otra rareza.
 
 Descarga el `.dmg` de tu Mac:
 
