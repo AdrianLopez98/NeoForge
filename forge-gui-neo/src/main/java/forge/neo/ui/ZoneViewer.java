@@ -123,6 +123,37 @@ public class ZoneViewer extends VBox {
      */
     private Label heading;
 
+    /** Las cartas, para {@link #letTry}. */
+    private FlowPane grid;
+
+    /**
+     * <b>Tu exilio y tu cementerio se pueden clicar siempre</b> (Discord,
+     * 31-10-2026: <i>"I sometimes lose the ability to cast spells from exile
+     * ... for the rest of the game"</i>, sin reproducirse aqui). Lo que brilla
+     * lo decide nuestro filtro ({@code NeoMatchUI.isPlayableOutside}); si se
+     * equivoca, la carta no respondia al clic y no habia forma de intentarlo.
+     * Ahora el clic llega igual al motor, que es quien decide: si se puede, se
+     * juega, y si no, dice por que (como en la mano). El brillo no cambia.
+     */
+    public ZoneViewer letTry(final Predicate<CardView> tryable,
+                             final java.util.function.Consumer<CardView> onPick) {
+        if (grid == null || tryable == null || onPick == null) {
+            return this;
+        }
+        for (final javafx.scene.Node n : grid.getChildren()) {
+            if (n instanceof CardNode node && node.getOnMouseClicked() == null
+                    && node.getCard() != null && tryable.test(node.getCard())) {
+                final CardView card = node.getCard();
+                node.setOnMouseClicked(e -> {
+                    if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY) {
+                        onPick.accept(card);
+                    }
+                });
+            }
+        }
+        return this;
+    }
+
     /** Cambia el titulo por uno ya escrito. */
     public void setHeading(final String text) {
         if (heading != null && text != null) {
@@ -186,6 +217,7 @@ public class ZoneViewer extends VBox {
         int castable = 0;
         int usableCount = 0;
         final FlowPane grid = new FlowPane(10, 10);
+        this.grid = grid;
         grid.setAlignment(Pos.CENTER);
         grid.setPrefWrapLength(Math.max(600, cardWidth * 6));
         // Sitio para la carta con el raton encima, que crece y sube: sin el

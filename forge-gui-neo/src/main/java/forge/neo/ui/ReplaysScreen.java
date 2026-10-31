@@ -1,6 +1,8 @@
 package forge.neo.ui;
 
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -9,9 +11,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
 
-import forge.gamemodes.replay.ReplayStore;
 import forge.neo.NeoSettings;
 import forge.neo.NeoText;
+import forge.neo.match.ReplayShare;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
@@ -22,6 +24,7 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
+import javafx.stage.FileChooser;
 
 /**
  * <b>Las repeticiones</b>: tus ultimas partidas, para volver a verlas.
@@ -34,10 +37,18 @@ import javafx.scene.layout.VBox;
  * <p>No se graban las partidas en red, las de dos en el mismo ordenador ni la
  * Aventura (lo decide Forge), y se apaga en Ajustes. La lista lo dice cuando
  * sale vacia, para que no parezca que no funciona.
+ *
+ * <p>Y se comparten (31-10-2026): "Compartir..." guarda una copia con un
+ * nombre que se entiende, e "Importar..." trae la de otro, que se queda en su
+ * propia carpeta para que Forge no la borre. Ver {@link ReplayShare}.
  */
 public class ReplaysScreen extends BorderPane {
 
+    private final Consumer<File> onPlay;
+    private final VBox list = new VBox(10);
+
     public ReplaysScreen(final Consumer<File> onPlay, final Runnable onBack) {
+        this.onPlay = onPlay;
         getStyleClass().addAll("table-root", "home");
 
         final Label title = new Label(NeoText.get("replays.title"));
@@ -50,20 +61,9 @@ public class ReplaysScreen extends BorderPane {
         titles.setPadding(new Insets(26, 20, 12, 20));
         setTop(titles);
 
-        final VBox list = new VBox(10);
         list.setAlignment(Pos.TOP_CENTER);
         list.setPadding(new Insets(4, 30, 10, 30));
-        final List<ReplayStore.Info> replays = ReplayStore.list();
-        if (replays.isEmpty()) {
-            final Label empty = new Label(NeoText.get(
-                    NeoSettings.recordReplays() ? "replays.empty" : "replays.off"));
-            empty.getStyleClass().add("home-subtitle");
-            empty.setWrapText(true);
-            list.getChildren().add(empty);
-        }
-        for (final ReplayStore.Info info : replays) {
-            list.getChildren().add(row(info, onPlay));
-        }
+        refresh();
 
         final ScrollPane scroll = new ScrollPane(list);
         scroll.getStyleClass().add("dialog-scroll");
@@ -71,18 +71,41 @@ public class ReplaysScreen extends BorderPane {
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         setCenter(scroll);
 
-        setBottom(BackBar.of(onBack));
+        // Importar es secundario: a la izquierda, como manda el principio 12.
+        final Button importButton = new Button(NeoText.get("replays.import"));
+        importButton.getStyleClass().add("btn-secondary");
+        importButton.setMinWidth(Region.USE_PREF_SIZE);
+        importButton.setOnAction(e -> importReplay());
+        setBottom(BackBar.of(onBack, importButton));
     }
 
-    /** Una partida: quienes jugaban, cuando, y Ver. */
-    private static Region row(final ReplayStore.Info info, final Consumer<File> onPlay) {
-        final Label name = new Label(info.title);
+    private void refresh() {
+        list.getChildren().clear();
+        final List<ReplayShare.Entry> replays = ReplayShare.list();
+        if (replays.isEmpty()) {
+            final Label empty = new Label(NeoText.get(
+                    NeoSettings.recordReplays() ? "replays.empty" : "replays.off"));
+            empty.getStyleClass().add("home-subtitle");
+            empty.setWrapText(true);
+            list.getChildren().add(empty);
+        }
+        for (final ReplayShare.Entry entry : replays) {
+            list.getChildren().add(row(entry));
+        }
+    }
+
+    /** Una partida: quienes jugaban, cuando, y Compartir, Quitar y Ver. */
+    private Region row(final ReplayShare.Entry entry) {
+        final Label name = new Label(entry.title);
         name.getStyleClass().add("quest-deck-name");
 
-        String when = when(info.startMillis);
+        String when = when(entry.startMillis);
+        if (entry.imported) {
+            when += "  ·  " + NeoText.get("replays.imported");
+        }
         // Grabada con otro Forge: puede no abrirse (lo que viaja son objetos
         // del motor). Se avisa en vez de esconderla.
-        if (!info.forgeVersion.equals(forge.util.BuildInfo.getVersionString())) {
+        if (entry.otherVersion()) {
             when += "  ·  " + NeoText.get("replays.otherVersion");
         }
         final Label detail = new Label(when);
@@ -93,20 +116,77 @@ public class ReplaysScreen extends BorderPane {
         HBox.setHgrow(text, Priority.ALWAYS);
         text.setMaxWidth(Double.MAX_VALUE);
 
-        final Button watch = new Button(NeoText.get("replays.watch"));
-        watch.getStyleClass().add("btn-primary");
-        watch.setMinWidth(Region.USE_PREF_SIZE);
-        watch.setOnAction(e -> onPlay.accept(info.file));
-        // Que el clic del boton no suba tambien a la fila: serian dos aperturas.
-        watch.addEventHandler(javafx.scene.input.MouseEvent.MOUSE_CLICKED, javafx.event.Event::consume);
-
-        final HBox row = new HBox(14, text, watch);
+        final HBox row = new HBox(10, text);
         row.setAlignment(Pos.CENTER_LEFT);
         row.getStyleClass().add("quest-save-row");
-        row.setMaxWidth(UiScale.px(720));
+        row.setMaxWidth(UiScale.px(820));
         row.setCursor(javafx.scene.Cursor.HAND);
-        row.setOnMouseClicked(e -> onPlay.accept(info.file));
+        row.setOnMouseClicked(e -> onPlay.accept(entry.file));
+
+        if (entry.imported) {
+            row.getChildren().add(button(NeoText.get("replays.remove"), "btn-secondary", () -> {
+                if (ReplayShare.remove(entry)) {
+                    refresh();
+                }
+            }));
+        }
+        row.getChildren().add(button(NeoText.get("replays.share"), "btn-secondary", () -> share(entry)));
+        row.getChildren().add(button(NeoText.get("replays.watch"), "btn-primary", () -> onPlay.accept(entry.file)));
         return row;
+    }
+
+    private static Button button(final String text, final String style, final Runnable action) {
+        final Button b = new Button(text);
+        b.getStyleClass().add(style);
+        b.setMinWidth(Region.USE_PREF_SIZE);
+        b.setOnAction(e -> action.run());
+        // Que el clic del boton no suba tambien a la fila: seria abrirla.
+        b.addEventHandler(javafx.scene.input.MouseEvent.MOUSE_CLICKED, javafx.event.Event::consume);
+        return b;
+    }
+
+    /** "Guardar como...": una copia con un nombre que se entiende, para mandarla. */
+    private void share(final ReplayShare.Entry entry) {
+        try {
+            final FileChooser chooser = new FileChooser();
+            chooser.setTitle(NeoText.get("replays.shareTitle"));
+            chooser.setInitialFileName(ReplayShare.shareName(entry));
+            chooser.getExtensionFilters().add(filter());
+            final File dest = chooser.showSaveDialog(getScene() == null ? null : getScene().getWindow());
+            if (dest == null) {
+                return;
+            }
+            Files.copy(entry.file.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            Toast.show(NeoText.get("replays.shared", dest.getName()));
+        } catch (final java.io.IOException | RuntimeException e) {
+            System.err.println("[neo] no se ha podido guardar la repeticion: " + e);
+            Toast.show(NeoText.get("replays.shareFailed"));
+        }
+    }
+
+    private void importReplay() {
+        final File source;
+        try {
+            final FileChooser chooser = new FileChooser();
+            chooser.setTitle(NeoText.get("replays.importTitle"));
+            chooser.getExtensionFilters().add(filter());
+            source = chooser.showOpenDialog(getScene() == null ? null : getScene().getWindow());
+        } catch (final RuntimeException e) {
+            System.err.println("[neo] no se ha podido abrir el explorador: " + e);
+            return;
+        }
+        if (source == null) {
+            return;
+        }
+        final ReplayShare.Result r = ReplayShare.importFile(source);
+        Toast.show(r.message());
+        if (r.outcome == ReplayShare.Outcome.ADDED) {
+            refresh();
+        }
+    }
+
+    private static FileChooser.ExtensionFilter filter() {
+        return new FileChooser.ExtensionFilter(NeoText.get("replays.fileType"), "*" + ReplayShare.EXTENSION);
     }
 
     /** La fecha en el idioma de la interfaz ("16 oct 2026, 21:05"). */

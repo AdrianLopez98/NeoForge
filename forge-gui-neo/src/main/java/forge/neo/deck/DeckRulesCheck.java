@@ -948,6 +948,19 @@ public final class DeckRulesCheck {
         check("Importar: lo prohibido en Commander (Black Lotus, Moxen...) no se pierde",
                 banned.deck != null && banned.deck.getMain().countAll() == 11);
 
+        // Una carta que existe, con una edicion que Forge no tiene (Discord,
+        // 31-10-2026: "Comet Storm [P10]"): entra por su nombre. Una que Forge
+        // aun no ha programado sigue sin reconocerse.
+        final DeckImporter.Result promo = DeckImporter.importCommander(String.join(System.lineSeparator(),
+                "Comet Storm [P10]", "1 Sol Ring", "1 Galvanizing Tenor (TRC) 67"), "prueba");
+        System.out.printf(java.util.Locale.ROOT, "        (promo: principal=%d desconocidas=%d %s)%n",
+                promo.deck == null ? -1 : promo.deck.getMain().countAll(), promo.unknown, promo.problems);
+        check("Importar: una edicion que Forge no tiene no tira la carta (Comet Storm [P10])",
+                promo.deck != null && promo.deck.getMain().countByName("Comet Storm") == 1
+                        && promo.deck.getMain().countAll() == 2);
+        check("Importar: y la que Forge no tiene sigue saliendo como no reconocida",
+                promo.unknown == 1);
+
         // "Actualizar desde el enlace" (Discord, 30-10-2026): el enlace viaja
         // en el .dck y vuelve igual al leerlo.
         try {

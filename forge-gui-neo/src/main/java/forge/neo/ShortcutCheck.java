@@ -107,8 +107,9 @@ public final class ShortcutCheck {
         // Las que cambian algo en silencio no llevan tecla de fabrica.
         check(NeoShortcuts.bindings(Action.AUTO_YIELD_YES).isEmpty()
                         && NeoShortcuts.bindings(Action.AUTO_YIELD_NO).isEmpty()
-                        && NeoShortcuts.bindings(Action.FULL_CONTROL).isEmpty(),
-                "siempre si, siempre no y control total nacen sin tecla");
+                        && NeoShortcuts.bindings(Action.FULL_CONTROL).isEmpty()
+                        && NeoShortcuts.bindings(Action.AUTO_PASS_TOP).isEmpty(),
+                "siempre si, siempre no, pasar sola la de arriba y control total nacen sin tecla");
         System.out.println();
     }
 

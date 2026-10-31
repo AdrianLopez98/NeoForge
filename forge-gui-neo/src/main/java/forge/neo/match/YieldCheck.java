@@ -180,6 +180,8 @@ public final class YieldCheck {
         check(onOk, "y encendido (de fabrica) vuelven los dos cortes",
                 "al encender el ajuste no vuelven los cortes");
 
+        rememberAcrossMatches();
+
         System.out.printf(Locale.ROOT, "%n  %d bien, %d mal%n", passed, failed);
         if (failed > 0) {
             throw new IllegalStateException(failed + " comprobacion(es) del pase han fallado");
@@ -398,6 +400,48 @@ public final class YieldCheck {
                 "aiexile=",
                 "aicommand=");
         return new TutorialLesson("yield", state, List.of());
+    }
+
+    /**
+     * Cuanto se recuerda lo marcado en el stack (Discord, 31-10-2026): el
+     * ajuste llega al motor, y con "hasta cerrar el juego" lo marcado sigue
+     * ahi al acabar la partida — en el jugador de verdad, que es el mismo de
+     * una partida a otra ({@code NeoPlayers.human}).
+     */
+    private static void rememberAcrossMatches() {
+        final forge.localinstance.properties.ForgePreferences prefs = forge.model.FModel.getPreferences();
+        final int before = forge.neo.NeoSettings.autoDecisionMode();
+        try {
+            check(forge.localinstance.properties.ForgeConstants.AUTO_DECISION_PER_ABILITY
+                            .equals(forge.neo.NeoSettings.AUTO_DECISION_MODES[1]),
+                    "de fabrica, \"esta partida\" (lo de Forge)",
+                    "el valor de fabrica no es el de Forge");
+            forge.neo.NeoSettings.setInt(forge.neo.NeoSettings.AUTO_DECISION, 2);
+            NeoGame.applyEnginePrefs();
+            check(forge.localinstance.properties.ForgeConstants.AUTO_DECISION_PER_ABILITY_SESSION
+                            .equals(prefs.getPref(FPref.UI_AUTO_DECISION_MODE)),
+                    "\"hasta cerrar el juego\" llega al motor",
+                    "el ajuste no llega al motor: " + prefs.getPref(FPref.UI_AUTO_DECISION_MODE));
+            final forge.LobbyPlayer me = forge.neo.look.NeoPlayers.human();
+            check(me == forge.neo.look.NeoPlayers.human(),
+                    "el jugador es el mismo de una partida a otra",
+                    "cada partida estrena jugador: lo recordado se perderia");
+            if (me instanceof forge.player.LobbyPlayerHuman human) {
+                final forge.player.AutoYieldStore store = human.getYieldStore();
+                final String key = "yieldcheck|Spiteful Visions";
+                store.setYield(forge.player.AutoYieldStore.Tier.SESSION, key, true);
+                store.setYield(forge.player.AutoYieldStore.Tier.MATCH, key, true);
+                store.onGameEnd(true);
+                check(store.shouldYield(forge.player.AutoYieldStore.Tier.SESSION, key)
+                                && !store.shouldYield(forge.player.AutoYieldStore.Tier.MATCH, key),
+                        "al acabar la partida se olvida lo de \"esta partida\" y se queda lo de la sesion",
+                        "lo recordado no se conserva entre partidas");
+                store.setYield(forge.player.AutoYieldStore.Tier.SESSION, key, false);
+            }
+        } finally {
+            forge.neo.NeoSettings.setInt(forge.neo.NeoSettings.AUTO_DECISION, before);
+            NeoGame.applyEnginePrefs();
+        }
     }
 
     private static void check(final boolean ok, final String good, final String bad) {

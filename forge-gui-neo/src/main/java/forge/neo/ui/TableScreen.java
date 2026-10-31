@@ -3472,7 +3472,7 @@ public class TableScreen extends Pane {
         }
         menuOverlay.show(new ZoneViewer(forge.neo.match.PlayerName.of(owner), zone, cards,
                 mayView, cardWidth * 1.15, selectable, playableOutside, this::pickedInZone,
-                menuOverlay::hide));
+                menuOverlay::hide).letTry(tryOutside, this::pickedInZone));
         gesture(Gesture.ZONE_OPEN);
     }
 
@@ -3550,6 +3550,13 @@ public class TableScreen extends Pane {
 
     /** Si el motor ha marcado esta carta como elegible ahora mismo. */
     private java.util.function.Predicate<CardView> selectable = c -> false;
+
+    /** Tu carta de tu exilio o cementerio: clicable siempre (ZoneViewer.letTry). */
+    private java.util.function.Predicate<CardView> tryOutside = c -> false;
+
+    public void setTryOutside(final java.util.function.Predicate<CardView> test) {
+        this.tryOutside = test == null ? c -> false : test;
+    }
 
     /** Si esta carta se puede LANZAR desde la zona en la que esta. */
     private java.util.function.Predicate<CardView> playableOutside = c -> false;
@@ -3821,6 +3828,18 @@ public class TableScreen extends Pane {
 
     public boolean isModalShowing() {
         return overlay.isShowing() || menuOverlay.isShowing() || zoomOverlay.isShowing();
+    }
+
+    /**
+     * Espacio con el dialogo de ordenar disparos delante: su "Auto". Solo si es
+     * lo que se ve (nada de consulta encima, sin apartar con "Ver la mesa").
+     * Ver {@link ChoiceDialog#pressAuto}.
+     */
+    public boolean pressDialogAuto() {
+        if (isConsultShowing() || !overlay.isShowing() || overlay.isPeeking()) {
+            return false;
+        }
+        return overlay.getContent() instanceof ChoiceDialog<?> dialog && dialog.pressAuto();
     }
 
     /** Lo que se CONSULTA (menu de pausa, carta ampliada) esta encima de la pregunta del motor. */

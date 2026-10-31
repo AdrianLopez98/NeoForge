@@ -2148,6 +2148,8 @@ final class NeoAppDebug {
             }
             // Las de la maqueta no llevan la marca de comandante: ya son solo esos.
             bar.setCommanders(zone, true);
+            bar.setCommanderNames(i < commanders.length
+                    ? java.util.Arrays.asList(commanders[i]) : List.of("Edgar Markov"));
             if (i == 1) {
                 final com.google.common.collect.Multiset<forge.game.card.CounterType> ctrs =
                         com.google.common.collect.HashMultiset.create();
@@ -2160,6 +2162,7 @@ final class NeoAppDebug {
 
         view.setSelfBoard(boards.get(opponents), everywhere);
         view.getSelfBar().setPlayerName(deck.getName());
+        view.getSelfBar().setCommanderNames(List.of("Meria, Scholar of Antiquity"));
         // El desglose de dano de comandante, que en una partida de verdad no se
         // puede provocar a voluntad: hacen falta tres comandantes distintos
         // conectandote. Es LO que hay que poder mirar — que 10+7+4 no se suman

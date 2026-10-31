@@ -961,6 +961,12 @@
     -fx-text-fill: -neo-text;
 }
 
+/* El comandante, junto al nombre del jugador: dato secundario (PlayerBar.commanderName). */
+.bar-commander-name {
+    -fx-font-size: 0.85em;
+    -fx-text-fill: -neo-text-dim;
+}
+
 .turn-mark {
     -fx-font-size: 0.692em;
     -fx-font-weight: bold;

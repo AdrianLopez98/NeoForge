@@ -214,6 +214,9 @@ public final class DuelControls {
                 if (free && table.getPromptBanner().acknowledge()) {
                     return true;
                 }
+                if (table.pressDialogAuto()) {
+                    return true;
+                }
                 return free && table.getActionBar().pressPrimary();
             case PASS_TURN:
                 return free && ui.passTurn();
@@ -236,6 +239,22 @@ public final class DuelControls {
                 return table.toggleAllStackEntries();
             case STACK_MENU:
                 return free && ui.openTopStackMenu();
+            // Lo mismo que en NeoApp: en la Aventura no estaban (Discord,
+            // 31-10-2026, jugando aqui con un mazo de muchos disparos).
+            case AUTO_YIELD_YES:
+            case AUTO_YIELD_NO:
+            case AUTO_PASS_TOP: {
+                if (!free) {
+                    return false;
+                }
+                final String said = action == NeoShortcuts.Action.AUTO_PASS_TOP ? ui.autoPassTop()
+                        : ui.autoYieldTop(action == NeoShortcuts.Action.AUTO_YIELD_YES);
+                if (said == null) {
+                    return false;
+                }
+                table.getActionBar().setWarning(said, false);
+                return true;
+            }
             default:
                 return false;
         }

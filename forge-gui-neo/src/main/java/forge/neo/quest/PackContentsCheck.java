@@ -157,6 +157,23 @@ public final class PackContentsCheck {
                         Math.round(1 / Math.max(plainSauron, 1e-9))),
                 "colector de LTR: el poster mitico no es el mas raro (" + poster + " / normal " + plainSauron + " / comun " + borderlessCommon + ")");
 
+        // 1b1. Las Nazgul de otra ilustracion, en el sobre NORMAL de LTR
+        // (AltArtsInPacks, Discord 31-10-2026: faltaba la #339). Las nueve,
+        // cada una como una infrecuente mas.
+        if (ltr != null) {
+            final java.util.Map<String, Double> nazgul = new java.util.TreeMap<>();
+            for (final PackContents.Pull p : PackContents.of(ltr)) {
+                if ("Nazgûl".equals(p.getCard().getName())) {
+                    nazgul.put(p.getCard().getCollectorNumber(), p.getPerPack());
+                }
+            }
+            final Double first = nazgul.get("100");
+            final Double last = nazgul.get("339");
+            check(nazgul.size() == 9 && first != null && last != null && Math.abs(first - last) < first * 0.01,
+                    "sobre normal de LTR: las 9 Nazgul (" + nazgul.keySet() + "), la #339 tanto como la #100",
+                    "sobre normal de LTR: Nazgul que pueden salir " + nazgul);
+        }
+
         // 1b2. Las que Forge trae sin sobre y se les monta uno (22-10-2026):
         // Assassin's Creed de 7, Mystery Booster 2 y sus cartas de prueba de 12, y
         // (24-10-2026) el Mystery Booster Commander de 20, como el de verdad.

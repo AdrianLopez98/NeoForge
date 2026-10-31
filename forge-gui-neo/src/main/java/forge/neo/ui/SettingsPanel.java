@@ -705,6 +705,30 @@ public class SettingsPanel extends VBox {
         getChildren().add(smartRow);
         getChildren().add(smartLevelRow);
 
+        // --- cuanto se recuerda lo marcado en el stack ---
+        // "Pasar esta habilidad" y "siempre si / no" se olvidaban al acabar la
+        // partida (Discord, 31-10-2026). Ver NeoSettings.AUTO_DECISION.
+        final String[] rememberLabels = {
+                NeoText.get("settings.autoDecision.card"),
+                NeoText.get("settings.autoDecision.match"),
+                NeoText.get("settings.autoDecision.session"),
+                NeoText.get("settings.autoDecision.always")};
+        getChildren().add(choiceRow(NeoText.get("settings.autoDecision"),
+                rememberLabels, rememberLabels[NeoSettings.autoDecisionMode()],
+                v -> {
+                    for (int i = 0; i < rememberLabels.length; i++) {
+                        if (rememberLabels[i].equals(v)) {
+                            NeoSettings.setInt(NeoSettings.AUTO_DECISION, i);
+                        }
+                    }
+                    NeoSettings.save();
+                    forge.neo.match.NeoGame.refreshAutoDecisionMode();
+                }));
+        final Label rememberNote = new Label(NeoText.get("settings.autoDecision.note"));
+        rememberNote.getStyleClass().add("settings-note");
+        rememberNote.setWrapText(true);
+        getChildren().add(rememberNote);
+
         // --- "Fin de turno" se para si te atacan o te lanzan algo ---
         // Va siempre a la vista: vale tambien con el pase automatico apagado,
         // que es justo cuando "Fin de turno" es lo unico que pasa solo.

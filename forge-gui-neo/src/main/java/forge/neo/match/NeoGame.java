@@ -1097,6 +1097,7 @@ public final class NeoGame {
     public static void applyEnginePrefs() {
         final ForgePreferences prefs = FModel.getPreferences();
         prefs.setPref(FPref.YIELD_AUTO_PASS_NO_ACTIONS, NeoSettings.getBool(NeoSettings.AUTO_PASS, true));
+        refreshAutoDecisionMode();
         // Grabar la partida (ReplaySession.begin lo mira ANTES de openView: por
         // eso va aqui, que tambien se llama antes de arrancar cada partida).
         prefs.setPref(FPref.UI_RECORD_REPLAYS, NeoSettings.recordReplays());
@@ -1227,6 +1228,12 @@ public final class NeoGame {
     public static void refreshAutoPass() {
         FModel.getPreferences().setPref(FPref.YIELD_AUTO_PASS_NO_ACTIONS,
                 NeoSettings.getBool(NeoSettings.AUTO_PASS, true));
+    }
+
+    /** Cuanto se recuerda lo marcado en el stack: ver NeoSettings.AUTO_DECISION. */
+    public static void refreshAutoDecisionMode() {
+        FModel.getPreferences().setPref(FPref.UI_AUTO_DECISION_MODE,
+                NeoSettings.AUTO_DECISION_MODES[NeoSettings.autoDecisionMode()]);
     }
 
     /** Devuelve el primer mazo de Commander del usuario, o null si no hay. */

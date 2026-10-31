@@ -984,6 +984,33 @@ public final class NeoSettings {
      */
     public static final int CONFIRM_PHASE_DEFAULT = 2;
 
+    /**
+     * Cuanto se recuerda un "pasar esta habilidad" o un "siempre si / siempre
+     * no" del stack (Discord, 31-10-2026, con Sheoldred y Spiteful Visions:
+     * <i>"it's getting tiring having to click auto every match"</i>).
+     *
+     * <p>Es el {@code UI_AUTO_DECISION_MODE} de Forge, con sus cuatro valores
+     * ({@link #AUTO_DECISION_MODES}): esta carta, esta partida (lo de fabrica),
+     * hasta cerrar el juego y siempre. La memoria es del motor
+     * ({@code YieldController}): "siempre" la guarda el en
+     * {@code auto-yields.dat}. Aqui solo se elige, y se le pasa en memoria en
+     * {@code NeoGame.applyEnginePrefs}, como el resto. Android lo tiene desde
+     * su decision 152.
+     */
+    public static final String AUTO_DECISION = "autoDecisionMode";
+
+    /** Los cuatro, en el orden de los botones. */
+    public static final String[] AUTO_DECISION_MODES = {
+            forge.localinstance.properties.ForgeConstants.AUTO_DECISION_PER_CARD,
+            forge.localinstance.properties.ForgeConstants.AUTO_DECISION_PER_ABILITY,
+            forge.localinstance.properties.ForgeConstants.AUTO_DECISION_PER_ABILITY_SESSION,
+            forge.localinstance.properties.ForgeConstants.AUTO_DECISION_PER_ABILITY_INSTALL};
+
+    /** El elegido, como indice de {@link #AUTO_DECISION_MODES}: 1 de fabrica. */
+    public static int autoDecisionMode() {
+        return Math.max(0, Math.min(AUTO_DECISION_MODES.length - 1, getInt(AUTO_DECISION, 1)));
+    }
+
     /** Cuando preguntar antes de salir de la fase principal. */
     public static int confirmPhaseMode() {
         return Math.max(0, Math.min(2, getInt(CONFIRM_PHASE, CONFIRM_PHASE_DEFAULT)));

@@ -617,6 +617,24 @@ public class TableBinder {
     }
 
     /**
+     * Los nombres de sus comandantes para la barra (PlayerBar.setCommanderNames),
+     * traducidos y esten donde esten: en la mesa, en el cementerio o en la zona
+     * de mando. Vacio si la partida no es de comandante.
+     */
+    static List<String> commanderNames(final PlayerView p) {
+        final List<String> out = new ArrayList<>();
+        final List<CardView> cmds = p.getCommanders();
+        if (cmds != null) {
+            for (final CardView c : cmds) {
+                if (c != null && c.getName() != null && !c.getName().isEmpty()) {
+                    out.add(forge.util.CardTranslation.getTranslatedName(c.getName()));
+                }
+            }
+        }
+        return out;
+    }
+
+    /**
      * Cuanto dano de comandante lleva este jugador, <b>de cada comandante</b>.
      *
      * <p>Uno por uno y no sumado, porque asi es la regla y asi lo lleva el
@@ -847,6 +865,7 @@ public class TableBinder {
         bar.setCommanderDamage(commanderDamage(gv, p));
         bar.setDetails(detailsOf(p));
         bar.setPlayerName(PlayerName.of(p));
+        bar.setCommanderNames(commanderNames(p));
         bar.setLife(p.getLife());
         bar.setActiveTurn(p.equals(gv.getPlayerTurn()));
         // Por equipos, el de tu lado se sienta arriba como un rival mas: la

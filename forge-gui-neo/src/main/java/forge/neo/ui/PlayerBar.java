@@ -27,6 +27,15 @@ import javafx.scene.shape.Circle;
 public class PlayerBar extends HBox {
 
     private final Label name = new Label();
+    /**
+     * EL NOMBRE DE SU COMANDANTE, al lado del suyo (Discord, 31-10-2026: <i>"would
+     * be good if in commander in yours and you opponents sections you could have
+     * the name of their commander shown"</i>). Siempre, este donde este el
+     * comandante: la miniatura de {@link #commanderThumbs} solo sale mientras
+     * esta en la zona de mando. Es lo primero que cede si falta ancho (puntos
+     * suspensivos y el nombre entero al pasar el raton); el del jugador no.
+     */
+    private final Label commanderName = new Label();
     private final Label life = new Label("40");
     private final Label hand = new Label();
     private final Label library = new Label();
@@ -220,7 +229,15 @@ public class PlayerBar extends HBox {
         allyMark.setManaged(false);
 
         turnChips.setAlignment(Pos.CENTER_LEFT);
-        final HBox nameRow = new HBox(8, name, allyMark, turnMark, commanderDamage, turnChips);
+        // Lo unico de la fila que encoge es el nombre del comandante: sin esto
+        // JavaFX reparte el recorte y la marca de turno se quedaba en "...".
+        for (final Region r : new Region[] {name, allyMark, turnMark, commanderDamage, turnChips}) {
+            r.setMinWidth(Region.USE_PREF_SIZE);
+        }
+        commanderName.getStyleClass().add("bar-commander-name");
+        commanderName.setVisible(false);
+        commanderName.setManaged(false);
+        final HBox nameRow = new HBox(8, name, commanderName, allyMark, turnMark, commanderDamage, turnChips);
         nameRow.setAlignment(Pos.CENTER_LEFT);
 
 
@@ -415,8 +432,12 @@ public class PlayerBar extends HBox {
                 }
             }
             final double thumbsW = commanderThumbs.getChildren().size() * (w + 4) + nameRow.getSpacing();
-            final double rowW = commanderThumbs.isManaged()
-                    ? nameRow.prefWidth(-1) : nameRow.prefWidth(-1) + thumbsW;
+            // El nombre del comandante no cuenta entero: encoge con puntos
+            // suspensivos antes que quitar la miniatura.
+            final double nameGive = commanderName.isManaged()
+                    ? Math.max(0, commanderName.prefWidth(-1) - UiScale.px(60)) : 0;
+            final double rowW = (commanderThumbs.isManaged()
+                    ? nameRow.prefWidth(-1) : nameRow.prefWidth(-1) + thumbsW) - nameGive;
             final Insets in = getInsets();
             final double need = in.getLeft() + in.getRight() + avatar.prefWidth(-1) + getSpacing() + rowW;
             want = need <= getWidth() + 0.5;
@@ -792,6 +813,18 @@ public class PlayerBar extends HBox {
 
     public void setPlayerName(final String n) {
         name.setText(n);
+    }
+
+    /** Los nombres de sus comandantes (dos con partner); vacio fuera de Commander. Ver {@link #commanderName}. */
+    public void setCommanderNames(final List<String> names) {
+        final String text = names == null || names.isEmpty() ? "" : String.join(" & ", names);
+        if (text.equals(commanderName.getText())) {
+            return;
+        }
+        commanderName.setText(text);
+        commanderName.setVisible(!text.isEmpty());
+        commanderName.setManaged(!text.isEmpty());
+        commanderName.setTooltip(text.isEmpty() ? null : new javafx.scene.control.Tooltip(text));
     }
 
     /**

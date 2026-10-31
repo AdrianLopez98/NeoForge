@@ -655,6 +655,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             // Lanzar desde el cementerio o el exilio: el visor de la zona deja
             // clicar lo que el motor dice que se puede lanzar desde ahi.
             table.setPlayableOutside(this::isPlayableOutside);
+            table.setTryOutside(this::mayTryOutside);
             // El visor de zonas ensenya cada carta solo si el motor lo permite:
             // la biblioteca es informacion oculta.
             table.setCardVisibility(this::mayView);
@@ -1935,10 +1936,20 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
      * cualquier otro caso es solo dejarlo pasar.
      *
      * @return lo que hay que decirle al jugador, o null si no hay partida. Nunca
-     *     en silencio: esto se recuerda <b>entre partidas</b>, y una tecla pulsada
+     *     en silencio: esto puede recordarse <b>entre partidas</b> (Ajustes,
+     *     {@code NeoSettings.AUTO_DECISION}), y una tecla pulsada
      *     sin querer tiene que verse (y el mensaje dice donde se deshace).
      */
     public String autoYieldTop(final boolean yes) {
+        return autoYieldTop(Boolean.valueOf(yes));
+    }
+
+    /** Solo "pasar sola esta habilidad", sin si ni no: {@code NeoShortcuts.Action.AUTO_PASS_TOP}. */
+    public String autoPassTop() {
+        return autoYieldTop((Boolean) null);
+    }
+
+    private String autoYieldTop(final Boolean yes) {
         if (!interactive() || finished.get()) {
             return null;
         }
@@ -1948,7 +1959,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         if (gc == null || top == null || !top.isAbility() || key == null || key.isEmpty()) {
             return NeoText.get("shortcuts.autoYield.none");
         }
-        final boolean decides = top.isOptionalTrigger() && isMe(top.getActivatingPlayer());
+        final boolean decides = yes != null && top.isOptionalTrigger() && isMe(top.getActivatingPlayer());
         if (decides) {
             gc.setTriggerDecision(key, yes ? AutoYieldStore.TriggerDecision.ACCEPT
                     : AutoYieldStore.TriggerDecision.DECLINE, abilityScope(gc));
@@ -4004,6 +4015,52 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
     }
 
     /**
+     * Si una carta de fuera se puede INTENTAR jugar aunque no brille: la tuya,
+     * boca arriba, en tu exilio o tu cementerio, con la partida en marcha.
+     * Decide el motor al clicar (ZoneViewer.letTry; Discord, 31-10-2026).
+     */
+    public boolean mayTryOutside(final CardView card) {
+        if (card == null || !interactive() || finished.get() || card.isFaceDown()) {
+            return false;
+        }
+        final forge.game.zone.ZoneType zone = card.getZone();
+        if (zone != forge.game.zone.ZoneType.Exile && zone != forge.game.zone.ZoneType.Graveyard) {
+            return false;
+        }
+        final PlayerView me = localPlayer();
+        final boolean mine = me != null && card.getOwner() != null && card.getOwner().getId() == me.getId();
+        if (mine && !isPlayableOutside(card)) {
+            explainNotPlayable(card, me);
+        }
+        return mine;
+    }
+
+    /**
+     * Por que una carta tuya de fuera no brilla, al registro: para el dia que
+     * vuelva a pasar lo de "ya no puedo jugar nada del exilio" (Discord,
+     * 31-10-2026), que aqui no se ha reproducido.
+     */
+    private void explainNotPlayable(final CardView card, final PlayerView me) {
+        try {
+            boolean listed = false;
+            final var flash = me.getFlashback();
+            if (flash != null) {
+                for (final CardView cv : flash) {
+                    listed |= cv != null && cv.getId() == card.getId();
+                }
+            }
+            final IGameController gc = getGameController();
+            final Object input = gc instanceof forge.player.PlayerControllerHuman h
+                    ? h.getInputQueue().getInput() : null;
+            log("fuera, sin brillo: %s en %s | en la lista del motor: %s | el motor espera: %s",
+                    card.getName(), card.getZone(), listed,
+                    input == null ? "-" : input.getClass().getSimpleName());
+        } catch (final RuntimeException e) {
+            // Es solo el registro.
+        }
+    }
+
+    /**
      * Si esta carta del cementerio se puede lanzar ya con <b>Caos</b> (Mayhem,
      * de SPM): <i>"puedes lanzarla desde tu cementerio si la descartaste este
      * turno"</i> — o con <b>Armonizar</b> (Harmonize, TDM) o "Beam me up", que
@@ -4055,6 +4112,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         if (!(getGameController() instanceof forge.player.PlayerControllerHuman human)
                 || !(human.getInputQueue().getInput()
                         instanceof forge.gamemodes.match.input.InputPassPriority)) {
+            recheckOutsideLater();
             return false;
         }
         try {
@@ -4099,6 +4157,36 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
      * arrastre (que no es un clic) funcionando.
      */
     private volatile Thread probing;
+
+    /**
+     * UN REPASO MAS DEL BRILLO, por si la prioridad llega despues de pintar
+     * (Discord, 31-10-2026: <i>"after playing another card the lotus is actually
+     * shown correctly"</i>, una carta de Meria en el exilio que no brillaba).
+     * El repintado va agrupado y se hace luego, en el hilo de interfaz: si justo
+     * entonces el motor aun no esta en {@code InputPassPriority} (resolviendo los
+     * disparos de una tormenta de artefactos), {@link #castableNow} dice que no y
+     * nada vuelve a preguntar hasta la siguiente accion. Se mira otra vez a los
+     * 400 ms, y solo se repinta si ya tienes la prioridad: asi no hay bucle
+     * (repintar con la prioridad no vuelve a programar nada) y en el turno del
+     * rival el repaso se tira sin repintar.
+     */
+    private void recheckOutsideLater() {
+        if (recheckPending) {
+            return;
+        }
+        recheckPending = true;
+        java.util.concurrent.CompletableFuture.delayedExecutor(400, java.util.concurrent.TimeUnit.MILLISECONDS)
+                .execute(() -> {
+                    recheckPending = false;
+                    if (!finished.get() && getGameController() instanceof forge.player.PlayerControllerHuman h
+                            && h.getInputQueue().getInput()
+                                    instanceof forge.gamemodes.match.input.InputPassPriority) {
+                        pushToTable();
+                    }
+                });
+    }
+
+    private volatile boolean recheckPending;
 
     boolean isMayhemCastable(final CardView card) {
         final GameView gv = getGameView();

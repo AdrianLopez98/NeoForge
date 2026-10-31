@@ -85,6 +85,14 @@ public final class NeoShortcuts {
         AUTO_YIELD_YES("autoYieldYes"),
         /** "Auto-yield, always no" de Forge (N). */
         AUTO_YIELD_NO("autoYieldNo"),
+        /**
+         * "Pasar sola esta habilidad" para lo de arriba del stack, la opcion
+         * del menu del stack sin abrir el menu (Discord, 31-10-2026: <i>"I just
+         * wish there was a bind for choosing 'Auto-pass this ability' for
+         * whatever's on top of the stack"</i>). Como Y y N, pero sin decidir
+         * nada del disparo opcional. Nace sin tecla, por lo mismo que ellas.
+         */
+        AUTO_PASS_TOP("autoPassTop"),
         /** "Full control" de Arena (Ctrl+Shift) / "Auto pass" de Forge (P). */
         FULL_CONTROL("fullControl"),
         /** "Concede" de Forge (Ctrl+Q). Pregunta antes, como el menu de pausa. */
@@ -181,6 +189,7 @@ public final class NeoShortcuts {
         neo.bind(Action.STACK_MENU, "Ctrl+Y");
         neo.bind(Action.AUTO_YIELD_YES);
         neo.bind(Action.AUTO_YIELD_NO);
+        neo.bind(Action.AUTO_PASS_TOP);
         neo.bind(Action.FULL_CONTROL);
         neo.bind(Action.CONCEDE, "Ctrl+Q");
         neo.bind(Action.SHOW_SHORTCUTS, "H");
@@ -204,6 +213,7 @@ public final class NeoShortcuts {
         forge.bind(Action.STACK_MENU, "Ctrl+Y");
         forge.bind(Action.AUTO_YIELD_YES, "Y");
         forge.bind(Action.AUTO_YIELD_NO, "N");
+        forge.bind(Action.AUTO_PASS_TOP);
         forge.bind(Action.FULL_CONTROL, "P");
         forge.bind(Action.CONCEDE, "Ctrl+Q");
         forge.bind(Action.SHOW_SHORTCUTS, "H");
@@ -230,6 +240,7 @@ public final class NeoShortcuts {
         arena.bind(Action.STACK_MENU);
         arena.bind(Action.AUTO_YIELD_YES);
         arena.bind(Action.AUTO_YIELD_NO);
+        arena.bind(Action.AUTO_PASS_TOP);
         arena.bind(Action.FULL_CONTROL, "Ctrl+Shift");
         arena.bind(Action.CONCEDE);
         arena.bind(Action.SHOW_SHORTCUTS, "H");

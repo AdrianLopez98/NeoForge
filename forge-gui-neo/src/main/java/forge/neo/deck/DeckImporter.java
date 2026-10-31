@@ -54,6 +54,78 @@ public final class DeckImporter {
      * @param name nombre con el que guardar el mazo
      */
     public static Result importCommander(final String text, final String name) {
+        final Result first = importOnce(text, name);
+        if (first.unknown == 0) {
+            return first;
+        }
+        // Segunda pasada, sin la edicion que Forge no tiene (ver withoutUnknownPrintings).
+        final String retry = withoutUnknownPrintings(text, first.problems);
+        return retry == null ? first : importOnce(retry, name);
+    }
+
+    /**
+     * <b>Una carta que existe, pedida con una edicion que Forge no tiene</b>
+     * (Discord, 31-10-2026: <i>"Comet Storm [P10]"</i> salia como no
+     * reconocida). El lector de Forge se fia del codigo de edicion y, si la
+     * edicion no existe o no trae esa carta, la da por desconocida aunque el
+     * nombre este en la base. Aqui, cada desconocida de la forma
+     * {@code "Nombre [SET]"} cuyo nombre SI existe se reescribe en su linea
+     * como {@code "N Nombre"}, y la lista se vuelve a leer: sale con el arte
+     * de siempre. Las que de verdad no estan (una carta que Forge aun no ha
+     * programado) siguen saliendo como no reconocidas.
+     *
+     * <p>Lo usa tambien Android (formatos sin comandante).
+     *
+     * @param problems los textos de las desconocidas ({@code Token.getText()})
+     * @return el texto arreglado, o null si no habia nada que arreglar
+     */
+    public static String withoutUnknownPrintings(final String text, final List<String> problems) {
+        if (text == null || problems == null || problems.isEmpty()) {
+            return null;
+        }
+        final java.util.Map<String, String> fix = new java.util.LinkedHashMap<>();
+        for (final String p : problems) {
+            final java.util.regex.Matcher m = PRINTING.matcher(p == null ? "" : p.trim());
+            if (!m.matches()) {
+                continue;
+            }
+            final String cardName = m.group(1).trim();
+            final forge.item.PaperCard known = cardName.isEmpty() ? null
+                    : forge.StaticData.instance().getCommonCards().getCard(cardName);
+            if (known != null) {
+                fix.put(cardName.toLowerCase(java.util.Locale.ROOT), m.group(2).toLowerCase(java.util.Locale.ROOT));
+            }
+        }
+        if (fix.isEmpty()) {
+            return null;
+        }
+        boolean changed = false;
+        final StringBuilder out = new StringBuilder();
+        for (final String line : text.split("\r?\n", -1)) {
+            String now = line;
+            final String lower = line.toLowerCase(java.util.Locale.ROOT);
+            for (final java.util.Map.Entry<String, String> e : fix.entrySet()) {
+                final int at = lower.indexOf(e.getKey());
+                if (at >= 0 && lower.indexOf(e.getValue(), at + e.getKey().length()) >= 0) {
+                    // Lo de delante del nombre (la cantidad, "SB:") se queda;
+                    // lo de detras (edicion, numero, foil) se va.
+                    now = line.substring(0, at) + line.substring(at, at + e.getKey().length());
+                    changed = true;
+                    break;
+                }
+            }
+            if (out.length() > 0) {
+                out.append('\n');
+            }
+            out.append(now);
+        }
+        return changed ? out.toString() : null;
+    }
+
+    /** "Comet Storm [P10]": lo que deja el lector en una desconocida con edicion. */
+    private static final java.util.regex.Pattern PRINTING = java.util.regex.Pattern.compile("^(.+) \\[([^\\]]+)\\]$");
+
+    private static Result importOnce(final String text, final String name) {
         final DeckImportController controller = new DeckImportController(
                 new HeadlessWidgets.CheckBox(false),
                 new HeadlessWidgets.ComboBox<String>(),

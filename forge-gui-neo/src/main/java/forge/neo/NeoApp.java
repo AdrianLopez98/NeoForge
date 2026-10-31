@@ -2069,6 +2069,19 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                             + " -> " + table.getActionBar().clickYesToAll());
                     return;
                 }
+                // "@space": la tecla Espacio de verdad, por los atajos de la
+                // escena (con el dialogo de ordenar disparos delante, su "Auto").
+                if (step.equals("@space")) {
+                    final boolean shown = table.getOverlay().isShowing();
+                    for (final javafx.event.EventType<javafx.scene.input.KeyEvent> type : java.util.List.of(
+                            javafx.scene.input.KeyEvent.KEY_PRESSED, javafx.scene.input.KeyEvent.KEY_RELEASED)) {
+                        table.getScene().getRoot().fireEvent(new javafx.scene.input.KeyEvent(type, "", "",
+                                javafx.scene.input.KeyCode.SPACE, false, false, false, false));
+                    }
+                    System.out.println("[mesa] Espacio (dialogo antes: " + shown + ", despues: "
+                            + table.getOverlay().isShowing() + ")");
+                    return;
+                }
                 if (step.equals("@ok")) {
                     System.out.println("[mesa] pulso el boton grande");
                     table.getActionBar().pressPrimary();
@@ -3499,6 +3512,10 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 if (free && table.getPromptBanner().acknowledge()) {
                     return true;
                 }
+                // Con el dialogo de ordenar disparos delante, su "Auto".
+                if (table.pressDialogAuto()) {
+                    return true;
+                }
                 // Pasar prioridad. Es lo que acaba usando todo el mundo.
                 return free && table.getActionBar().pressPrimary();
             case PASS_TURN:
@@ -3543,11 +3560,13 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             case STACK_MENU:
                 return free && ui != null && ui.openTopStackMenu();
             case AUTO_YIELD_YES:
-            case AUTO_YIELD_NO: {
+            case AUTO_YIELD_NO:
+            case AUTO_PASS_TOP: {
                 if (!free || ui == null) {
                     return false;
                 }
-                final String said = ui.autoYieldTop(action == forge.neo.NeoShortcuts.Action.AUTO_YIELD_YES);
+                final String said = action == forge.neo.NeoShortcuts.Action.AUTO_PASS_TOP ? ui.autoPassTop()
+                        : ui.autoYieldTop(action == forge.neo.NeoShortcuts.Action.AUTO_YIELD_YES);
                 if (said == null) {
                     return false;
                 }

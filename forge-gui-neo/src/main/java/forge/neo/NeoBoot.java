@@ -107,6 +107,9 @@ public final class NeoBoot {
         forge.neo.look.AiProfiles.install();
         // Tu lista de prohibidas de cada formato, sobre la oficial (BanList).
         forge.neo.deck.BanList.applyAll();
+        // Las Nazgul y los Teferi de otra ilustracion, en sus sobres, antes del
+        // primer sobre (AltArtsInPacks).
+        forge.neo.card.AltArtsInPacks.install();
         // Antes de que nadie lea los mazos: uno roto, Forge lo borra o tumba la
         // carpeta entera (BrokenDecks).
         forge.neo.deck.BrokenDecks.atStartup();

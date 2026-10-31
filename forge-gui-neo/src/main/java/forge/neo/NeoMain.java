@@ -492,6 +492,12 @@ public final class NeoMain {
                 banner("El caos: lanzarlo desde el cementerio");
                 forge.neo.match.MayhemCheck.run();
                 break;
+            case "exilecastcheck":
+                // Jugar desde el exilio y el cementerio, en la mesa de quien lo
+                // perdia a mitad de partida (Discord, 31-10-2026). Ver ExileCastCheck.
+                banner("Jugar desde el exilio: la mesa de Meria");
+                forge.neo.match.ExileCastCheck.run();
+                break;
             case "commandercolorcheck":
                 // El color elegido antes de empezar (Clara Oswald, The
                 // Prismatic Piper) se perdia al cambiar de zona y All Is Dust

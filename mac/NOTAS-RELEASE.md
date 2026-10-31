@@ -1,12 +1,13 @@
-**NeoForge para macOS 1.0.40 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.41 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **La IA ya no se atasca:** Forge hacía una copia de la partida entera antes de cada hechizo con objetivo de la IA, y con la mesa llena tardaba muchísimo o se colgaba. Arreglado (Forge #12529).
-- **Rivales con nombre** al azar en cada partida o el de su comandante (Personalizar → Rivales).
-- **Actualizar un mazo desde su enlace** de Moxfield, Archidekt, TappedOut o MTGGoldfish.
-- **Al acabar,** «Ver la mesa» y tu biblioteca boca arriba, en orden.
-- **La mesa:** las habitaciones y las partidas (Fire // Ice) se leen derechas al ampliarlas, y con todas las mesas a la vez el rival eliminado deja su sitio.
-- **Arreglo:** pegar una lista ya no se salta las cartas prohibidas en Commander (Old School con 49 de 60).
+- **Repeticiones para compartir:** «Compartir…» guarda una copia de cualquiera de tus partidas, e «Importar…» trae la de otro jugador para verla.
+- **El nombre de tu comandante y el de cada rival** en su barra, siempre, esté donde esté.
+- **Que se recuerde «pasar esta habilidad»** y «siempre sí / no» del stack más allá de una partida (Ajustes → Partida), un atajo para pasar sola la de arriba del stack, y Espacio pulsa «Auto» al ordenar disparos.
+- **Exilio y cementerio:** lo que se puede jugar de ahí se marca a tiempo, y clicar una carta tuya que no brilla se lo pregunta igual al motor.
+- **Sobres:** las Nazgûl de LTR y los Teferi de M21 de otra ilustración ya salen.
+- **Pegar una lista:** una carta con una edición que Forge no tiene entra por su nombre.
+- **Cartas nuevas de Forge:** Star Trek.
 
 Descarga el `.dmg` de tu Mac:
 

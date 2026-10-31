@@ -420,6 +420,7 @@ public class ChoiceDialog<T> extends VBox implements NumberedChoice {
             onDone.accept(new ArrayList<>(chosen));
         });
 
+        // Espacio = "Auto" (Discord, 31-10-2026): ver pressAuto.
         // Con "Auto" a la vista, "marcar todas" sobra: hace lo mismo con un
         // click de mas.
         final boolean worthIt = !readOnly && max > 1 && options.size() > 3 && !autoFits;
@@ -981,5 +982,20 @@ public class ChoiceDialog<T> extends VBox implements NumberedChoice {
         }
         accept.setDisable(n < min);
         accept.setText(n < min ? NeoText.get("choice.more", min - n) : NeoText.get("common.accept"));
+    }
+    /**
+     * Pulsa "Auto" si esta a la vista: lo que hace Espacio con este dialogo
+     * delante (Discord, 31-10-2026: <i>"it would be nice if spacebar selected
+     * Auto in the trigger order dialog box"</i>). Espacio es "pasar" en la
+     * mesa, y con muchos disparos es la misma tecla que ya llevas pulsando.
+     *
+     * @return si lo ha pulsado
+     */
+    public boolean pressAuto() {
+        if (!auto.isVisible() || auto.isDisabled()) {
+            return false;
+        }
+        auto.fire();
+        return true;
     }
 }
