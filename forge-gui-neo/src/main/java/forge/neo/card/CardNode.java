@@ -642,7 +642,8 @@ public class CardNode extends StackPane {
         final Image img = art.getImage();
         final CardStateView st = card == null ? null : shownState();
         final forge.card.CardTypeView t = st == null ? null : st.getType();
-        final boolean landscapeCard = t != null && (t.isPlane() || t.isPhenomenon() || t.isBattle());
+        // Planos, batallas, habitaciones y partidas: Sideways (lo comparte Android).
+        final boolean landscapeCard = st != null && Sideways.reads(card, t);
         final boolean wide = img != null && img.getWidth() > img.getHeight() * 1.15;
         final boolean on = landscapeCard && wide;
         readRotation.set(!landscapeCard || img == null ? 0 : wide ? -90 : 90);

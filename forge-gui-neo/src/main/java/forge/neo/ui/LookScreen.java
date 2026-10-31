@@ -169,6 +169,8 @@ public class LookScreen extends BorderPane {
         hint.setMinHeight(Region.USE_PREF_SIZE);
         content.getChildren().add(hint);
 
+        content.getChildren().add(nameModeRow());
+
         final Label aiHint = new Label(NeoText.get("look.rivals.aiHint"));
         aiHint.getStyleClass().add("home-subtitle");
         aiHint.setWrapText(true);
@@ -369,6 +371,45 @@ public class LookScreen extends BorderPane {
             lines.getChildren().add(row);
         }
         return lines;
+    }
+
+    /**
+     * Como se llaman en la partida: estos, al azar en cada una o el de su
+     * comandante (Discord, 30-10-2026). Ver {@code NeoPlayers.nameInGame}.
+     */
+    private Region nameModeRow() {
+        final String[] values = {forge.neo.NeoSettings.AI_NAMES_SAVED,
+                forge.neo.NeoSettings.AI_NAMES_RANDOM, forge.neo.NeoSettings.AI_NAMES_COMMANDER};
+        final String current = forge.neo.NeoSettings.aiNames();
+        final HBox row = new HBox(4);
+        row.setAlignment(Pos.CENTER_LEFT);
+        final Label label = caption(NeoText.get("look.rivals.names"));
+        label.setMinWidth(Region.USE_PREF_SIZE);
+        final HBox gap = new HBox();
+        gap.setMinWidth(UiScale.px(8));
+        row.getChildren().addAll(label, gap);
+        final List<Button> buttons = new ArrayList<>();
+        for (final String v : values) {
+            final Button b = new Button(NeoText.get("look.rivals.names." + v));
+            b.getStyleClass().add("segment");
+            b.setMinWidth(Region.USE_PREF_SIZE);
+            b.pseudoClassStateChanged(SELECTED, v.equals(current));
+            b.setOnAction(e -> {
+                forge.neo.NeoSettings.set(forge.neo.NeoSettings.AI_NAMES, v);
+                forge.neo.NeoSettings.save();
+                for (final Button other : buttons) {
+                    other.pseudoClassStateChanged(SELECTED, other == b);
+                }
+            });
+            buttons.add(b);
+            row.getChildren().add(b);
+        }
+        final Label note = new Label(NeoText.get("look.rivals.names.note"));
+        note.getStyleClass().add("home-subtitle");
+        note.setWrapText(true);
+        note.setMaxWidth(UiScale.px(820));
+        note.setMinHeight(Region.USE_PREF_SIZE);
+        return new VBox(6, row, note);
     }
 
     /** "La general", "Al azar" o el nombre del perfil de Forge. */

@@ -1,10 +1,12 @@
-**NeoForge para macOS 1.0.39 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.40 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Quest:** en el Coliseo y el campeonato, si caes se acaba la partida; la vitrina cuenta los puestos de 1.º a 4.º; y «More Duel Choices» da dos rivales más en la Quest de Commander.
-- **La mesa:** «el coste depende de lo que elijas» cuando el pago no se puede prever; bajo un permanente solo asoma lo que tiene enlazado (no el cementerio de Bojuka Bog); y el empate se ve como empate.
-- **La IA** ya no lanza lo que una regla le prohíbe (Rakdos, Lord of Riots sin que el rival haya perdido vida).
-- **Arreglos:** la lista de tipos de criatura ya no se corta (faltaba Pirate) y el arte favorito de Ascenso se queda aunque sea de otra rareza.
+- **La IA ya no se atasca:** Forge hacía una copia de la partida entera antes de cada hechizo con objetivo de la IA, y con la mesa llena tardaba muchísimo o se colgaba. Arreglado (Forge #12529).
+- **Rivales con nombre** al azar en cada partida o el de su comandante (Personalizar → Rivales).
+- **Actualizar un mazo desde su enlace** de Moxfield, Archidekt, TappedOut o MTGGoldfish.
+- **Al acabar,** «Ver la mesa» y tu biblioteca boca arriba, en orden.
+- **La mesa:** las habitaciones y las partidas (Fire // Ice) se leen derechas al ampliarlas, y con todas las mesas a la vez el rival eliminado deja su sitio.
+- **Arreglo:** pegar una lista ya no se salta las cartas prohibidas en Commander (Old School con 49 de 60).
 
 Descarga el `.dmg` de tu Mac:
 

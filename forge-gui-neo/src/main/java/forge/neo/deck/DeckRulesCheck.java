@@ -939,6 +939,35 @@ public final class DeckRulesCheck {
         check("Importar: un banquillo grande NO se toma por comandante",
                 big.deck != null && big.deck.getCommanders().isEmpty());
 
+        // Lo prohibido en Commander tambien entra (Discord, 30-10-2026: Old
+        // School de 60 con 49). Lo que diga el formato, lo dice el editor.
+        final String oldSchool = String.join(System.lineSeparator(),
+                "4 Savannah Lions", "1 Black Lotus", "1 Mox Pearl", "1 Time Walk",
+                "1 Ancestral Recall", "1 Library of Alexandria", "1 Chaos Orb", "1 Balance");
+        final DeckImporter.Result banned = DeckImporter.importCommander(oldSchool, "prueba");
+        check("Importar: lo prohibido en Commander (Black Lotus, Moxen...) no se pierde",
+                banned.deck != null && banned.deck.getMain().countAll() == 11);
+
+        // "Actualizar desde el enlace" (Discord, 30-10-2026): el enlace viaja
+        // en el .dck y vuelve igual al leerlo.
+        try {
+            final forge.deck.Deck withLink = new forge.deck.Deck("prueba");
+            DeckSource.set(withLink, "https://moxfield.com/decks/AbC-123_x");
+            final java.io.File tmp = java.io.File.createTempFile("neo-source", ".dck");
+            tmp.deleteOnExit();
+            forge.deck.io.DeckSerializer.writeDeck(withLink, tmp);
+            final forge.deck.Deck back = forge.deck.io.DeckSerializer.fromFile(tmp);
+            check("Enlace del mazo: se guarda en el .dck y vuelve igual",
+                    "https://moxfield.com/decks/AbC-123_x".equals(DeckSource.of(back)));
+            DeckSource.set(withLink, "https://moxfield.com/decks/otro");
+            check("Enlace del mazo: cambiarlo no deja el viejo",
+                    withLink.getTags().size() == 1 && DeckSource.of(withLink).endsWith("/otro"));
+            check("Enlace del mazo: uno con comas no se apunta",
+                    !DeckSource.set(new forge.deck.Deck("x"), "https://a.com/b,c"));
+        } catch (final java.io.IOException e) {
+            check("Enlace del mazo: fichero temporal (" + e + ")", false);
+        }
+
         importAPrecon();
     }
 

@@ -55,7 +55,19 @@ public final class NeoPlayers {
      *                  normal, donde cada rival juega con el suyo
      */
     public static LobbyPlayer ai(final int index, final String aiProfile) {
-        final String name = aiName(index);
+        return ai(index, aiProfile, aiName(index));
+    }
+
+    /**
+     * Lo mismo para una partida normal, con el mazo con el que va a jugar: el
+     * nombre puede salir de ahi, segun Personalizar → Rivales
+     * ({@link forge.neo.NeoSettings#aiNames}).
+     */
+    public static LobbyPlayer ai(final int index, final String aiProfile, final forge.deck.Deck deck) {
+        return ai(index, aiProfile, nameInGame(index, deck));
+    }
+
+    private static LobbyPlayer ai(final int index, final String aiProfile, final String name) {
         final String profile = RivalSetup.resolve(aiProfile, index, RANDOM);
         // La cara: si es de la hoja de Forge, su numero va al motor (y la ve
         // tambien un invitado en red); si es un PNG tuyo, el motor no sabe
@@ -122,6 +134,63 @@ public final class NeoPlayers {
     /** Una partida nueva: las caras importadas de la anterior no valen. */
     public static void newMatch() {
         CUSTOM_FACES.clear();
+        IN_GAME.clear();
+    }
+
+    /** Los nombres ya repartidos en esta partida: dos rivales no se llaman igual. */
+    private static final List<String> IN_GAME = new java.util.concurrent.CopyOnWriteArrayList<>();
+
+    /**
+     * <b>Como se llama el rival en ESTA partida</b> (Discord, 30-10-2026:
+     * <i>"AI Player names randomly generated or changed to the name of the
+     * commander they're using"</i>). El de Personalizar de fabrica; al azar,
+     * uno del generador sin guardarlo; o el nombre corto de su comandante
+     * (lo de antes de la coma: "Krenko", "Atraxa"), y sin comandante el de
+     * siempre. Nunca repite uno de esta partida ni el tuyo: si choca, un "2".
+     */
+    static String nameInGame(final int index, final forge.deck.Deck deck) {
+        final String mode = forge.neo.NeoSettings.aiNames();
+        String name = null;
+        if (forge.neo.NeoSettings.AI_NAMES_COMMANDER.equals(mode)) {
+            name = commanderName(deck);
+        } else if (forge.neo.NeoSettings.AI_NAMES_RANDOM.equals(mode)) {
+            name = randomName(index);
+        }
+        if (name == null || name.isBlank()) {
+            name = aiName(index);
+        }
+        final List<String> taken = new ArrayList<>(IN_GAME);
+        taken.add(NeoLook.playerName());
+        String unique = name;
+        for (int n = 2; taken.contains(unique); n++) {
+            unique = name + " " + n;
+        }
+        IN_GAME.add(unique);
+        return unique;
+    }
+
+    /** El nombre corto del primer comandante del mazo, traducido; o null. Lo usa tambien Android. */
+    public static String commanderName(final forge.deck.Deck deck) {
+        if (deck == null || deck.getCommanders().isEmpty()) {
+            return null;
+        }
+        final String full = deck.getCommanders().get(0).getName();
+        String shown = full;
+        try {
+            final String t = forge.util.CardTranslation.getTranslatedName(full);
+            if (t != null && !t.isBlank()) {
+                shown = t;
+            }
+        } catch (final RuntimeException e) {
+            // sin traduccion, el ingles
+        }
+        // Las partidas y las de dos caras: solo la de delante.
+        final int faces = shown.indexOf(" // ");
+        if (faces > 0) {
+            shown = shown.substring(0, faces);
+        }
+        final int comma = shown.indexOf(',');
+        return (comma > 0 ? shown.substring(0, comma) : shown).trim();
     }
 
     /**

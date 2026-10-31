@@ -1651,6 +1651,30 @@ public final class DeckEditor {
         return plain == null ? card : plain;
     }
 
+    /** El enlace del que se importo el mazo ({@link DeckSource}), o null. */
+    public String source() {
+        return DeckSource.of(deck);
+    }
+
+    public void setSource(final String url) {
+        if (DeckSource.set(deck, url)) {
+            dirty = true;
+        }
+    }
+
+    /**
+     * Vacia el principal y la zona de mando para volver a traer el mazo de su
+     * enlace ({@link DeckSource}). El banquillo se queda: la importacion por
+     * enlace no lo trae (solo el companero, que se vuelve a poner).
+     */
+    public void clearForUpdate() {
+        deck.getMain().clear();
+        for (final PaperCard c : new ArrayList<>(commanders())) {
+            removeCommander(c);
+        }
+        dirty = true;
+    }
+
     /** Si el mazo lleva reglas de la casa ({@link HouseRules}). */
     public boolean isHouseRules() {
         return format.allowsHouseRules() && HouseRules.isOn(deck);

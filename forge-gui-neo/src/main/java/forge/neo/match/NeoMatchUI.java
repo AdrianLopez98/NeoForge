@@ -3901,6 +3901,9 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
      */
     @Override
     public boolean mayView(final CardView c) {
+        if (libraryOpenAfterGame(c)) {
+            return true;
+        }
         final PlayerView f = front;
         // LA MANO DE TU ALIADO, a la vista (Discord, 24-10-2026, en red: "The
         // ability to view your ally's hand"). Por equipos se juega asi en la
@@ -3924,6 +3927,26 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             return true;
         }
         return c.canBeShownToAny(java.util.Collections.singletonList(live(f)));
+    }
+
+    /**
+     * <b>Tu biblioteca, boca arriba al acabar</b> (Discord, 30-10-2026: <i>"View
+     * Library after the game is over by going to View Battlefield and clicking
+     * your Library (Just to see what you'd draw next)"</i>). Con la partida
+     * terminada ya no es informacion oculta: «Ver la mesa» y clic en tu
+     * biblioteca, en orden, la de arriba primero. Solo la tuya, y no en red
+     * de invitado: ahi el motor no te manda sus cartas.
+     */
+    private boolean libraryOpenAfterGame(final CardView c) {
+        if (c == null || c.getZone() != forge.game.zone.ZoneType.Library) {
+            return false;
+        }
+        final GameView gv = getGameView();
+        if (gv == null || !gv.isGameOver() || isNetGuest()) {
+            return false;
+        }
+        final PlayerView me = localPlayerView();
+        return me != null && me.equals(c.getOwner());
     }
 
     @Override
@@ -4723,6 +4746,26 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             }
             log("local seats:%s | local won: %s (by the game: %s) | game %d", seats, localPlayerWon(),
                     localWonFromGame(), gv.getNumPlayedGamesInMatch() + 1);
+        }
+        // -Dneo.over.library=true: al acabar, abre tu biblioteca (en
+        // cualquier modo, tambien el piloto automatico), que al
+        // acabar ya se ve boca arriba (libraryOpenAfterGame). Para capturarlo.
+        if (Boolean.getBoolean("neo.over.library")) {
+            final PlayerView me = localPlayerView();
+            final var library = me == null ? null : me.getCards(forge.game.zone.ZoneType.Library);
+            if (library != null) {
+                int n = 0;
+                for (final CardView cv : library) {
+                    if (n++ == 5) {
+                        break;
+                    }
+                    System.out.println("[over.library] " + n + ": " + cv.getName() + " | visible=" + mayView(cv));
+                }
+            }
+            javafx.application.Platform.runLater(() -> {
+                table.getOverlay().setPeeking(true);
+                table.showZone(me, forge.game.zone.ZoneType.Library);
+            });
         }
 
         // Al acabar la partida, Forge espera a que el jugador decida que hacer

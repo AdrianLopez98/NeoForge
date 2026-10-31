@@ -286,9 +286,27 @@ public class TableBinder {
         // jugador que esta en la partida y no se ve por ninguna parte, que es
         // mucho peor que verlos de uno en uno. Si no caben todos, pestanyas.
         final boolean wanted = multiBoard() && !opponents.isEmpty();
+        // AL CAER UN RIVAL, SU MESA SE VA (Discord, 30-10-2026: "Dynamically
+        // hiding the enemy board after they're knocked out if you have 'View
+        // all battlefields' on, goes from 4 players, to 3, then 2"): los que
+        // siguen en pie se reparten su sitio, como la cuadricula de Android
+        // (su decision 489). El GameView guarda a todos hasta el final, asi que
+        // se mira getHasLost. Con pestanyas sigue la suya, por si quieres mirar
+        // como acabo; y si ya no queda nadie en pie (el final), todos.
+        final List<PlayerView> standing = new ArrayList<>();
+        for (final PlayerView p : opponents) {
+            if (!p.getHasLost()) {
+                standing.add(p);
+            }
+        }
+        final List<PlayerView> seated = wanted && !standing.isEmpty() ? standing : opponents;
+        if (wanted && seated.size() == 1 && top != null && top.getHasLost()) {
+            top = seated.get(0);
+            viewedOpponent = top;
+        }
         final int room = table.maxOpponentSeats();
-        final boolean fits = wanted && room >= opponents.size();
-        final int seats = fits ? opponents.size() : 1;
+        final boolean fits = wanted && room >= seated.size();
+        final int seats = fits ? seated.size() : 1;
         table.setOpponentSeats(seats);
 
         // Y si lo pidio y no cabe, SE DICE.
@@ -310,13 +328,13 @@ public class TableBinder {
             table.showInfo(
                     forge.neo.NeoText.get("table.allBoards.tight.title"),
                     forge.neo.NeoText.get("table.allBoards.tight.body",
-                            opponents.size(), room));
+                            seated.size(), room));
         }
         if (fits) {
             warnedNoRoom = false;
         }
 
-        table.setOpponents(opponents, top, gv.getPlayerTurn(), bottom);
+        table.setOpponents(seats > 1 ? seated : opponents, top, gv.getPlayerTurn(), bottom);
         // Donde estaba cada equipo o aura ANTES de recolocar (attachmentsMoved).
         table.noteAttachmentsBefore();
 
@@ -326,8 +344,8 @@ public class TableBinder {
             // animar. Cada asiento tiene su jugador fijo mientras dure.
             shownOpponent = null;
             applyPlayer(gv, bottom, -1);
-            for (int i = 0; i < opponents.size(); i++) {
-                applyPlayer(gv, opponents.get(i), i);
+            for (int i = 0; i < seated.size(); i++) {
+                applyPlayer(gv, seated.get(i), i);
             }
         } else {
             // Cambio de rival a la vista: la mesa de arriba se sustituye entera

@@ -318,6 +318,25 @@ public final class NeoSettings {
                 : get(TOUCH_HAND, TOUCH_HAND_OFF);
         return TOUCH_HAND_FINGER.equals(v) || TOUCH_HAND_ALWAYS.equals(v) ? v : TOUCH_HAND_OFF;
     }
+    /**
+     * <b>Como se llaman los rivales en una partida normal</b> (Discord,
+     * 30-10-2026: <i>"AI Player names randomly generated or changed to the
+     * name of the commander they're using"</i>): los de Personalizar
+     * ({@link #AI_NAMES_SAVED}, de fabrica), uno al azar en cada partida, o el
+     * nombre corto de su comandante. Ver {@code NeoPlayers.ai(int, String, Deck)}.
+     */
+    public static final String AI_NAMES = "aiNameMode";
+    public static final String AI_NAMES_SAVED = "saved";
+    public static final String AI_NAMES_RANDOM = "random";
+    public static final String AI_NAMES_COMMANDER = "commander";
+
+    /** {@code -Dneo.aiNames=saved|random|commander} lo fuerza sin escribir en las preferencias. */
+    public static String aiNames() {
+        final String forced = System.getProperty("neo.aiNames");
+        final String v = forced != null && !forced.isEmpty() ? forced : get(AI_NAMES, AI_NAMES_SAVED);
+        return AI_NAMES_RANDOM.equals(v) || AI_NAMES_COMMANDER.equals(v) ? v : AI_NAMES_SAVED;
+    }
+
     /** Ventana a pantalla completa. */
     public static final String FULLSCREEN = "fullscreen";
     /** Pagar el mana automaticamente al lanzar, en vez de clicar tierras. */

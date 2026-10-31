@@ -73,6 +73,14 @@ public final class DeckImporter {
                 forge.deck.DeckSection.Main,
                 forge.deck.DeckSection.Sideboard,
                 forge.deck.DeckSection.Commander));
+        // Las prohibidas y restringidas, DENTRO (Discord, 30-10-2026: un mazo de
+        // Old School de 60 entraba con 49). El lector va siempre con las reglas
+        // de Commander, que es para lo que nacio, pero importa para todos los
+        // formatos: la Power 9, Library of Alexandria, Chaos Orb o Balance salian
+        // como LIMITED_CARD y accept() las tiraba sin contarlas en ningun sitio.
+        // Que el mazo sea legal lo dice el editor con el formato de verdad
+        // (lo que no cabe entra, se marca y no deja guardar).
+        controller.importBannedAndRestrictedCards(true);
 
         final List<DeckRecognizer.Token> tokens = controller.parseInput(withSectionHeaders(text));
 

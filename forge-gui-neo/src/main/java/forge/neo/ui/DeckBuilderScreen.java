@@ -134,6 +134,8 @@ public class DeckBuilderScreen extends StackPane {
     private final Button clearSide = new Button();
     private final Button generate = new Button(NeoText.get("deck.generate"));
     private final Button importer = new Button(NeoText.get("deck.import"));
+    /** Volver a traer el mazo de su enlace (forge.neo.deck.DeckSource). Solo si lo tiene. */
+    private final Button updateFromUrl = new Button(NeoText.get("deck.updateFromUrl"));
 
     /**
      * Los dos botones de limitado: "Montar solo" y "Vaciar el mazo".
@@ -1774,6 +1776,21 @@ public class DeckBuilderScreen extends StackPane {
 
         importer.getStyleClass().add("btn-secondary");
         importer.setOnAction(e -> importList());
+        updateFromUrl.getStyleClass().add("btn-secondary");
+        updateFromUrl.setId("deck-update-from-url");
+        updateFromUrl.setOnAction(e -> updateFromSource());
+        refreshUpdateFromUrl();
+        // Solo pruebas: -Dneo.deck.source=URL le pone un enlace (sin guardar)
+        // para ver el boton; con -Dneo.deck.sourceUpdate=true ademas lo usa sin
+        // preguntar (es red: una peticion).
+        final String testSource = System.getProperty("neo.deck.source");
+        if (testSource != null && !testSource.isBlank()) {
+            editor.setSource(testSource);
+            refreshUpdateFromUrl();
+            if (Boolean.getBoolean("neo.deck.sourceUpdate")) {
+                javafx.application.Platform.runLater(() -> applyImportUrl(testSource, true));
+            }
+        }
 
         final Button export = new Button(NeoText.get("deck.export"));
         export.getStyleClass().add("btn-secondary");
@@ -1819,13 +1836,13 @@ public class DeckBuilderScreen extends StackPane {
         // Ningun boton se encoge por debajo de su texto: cuando la fila no cabe,
         // JavaFX lo corta con puntos suspensivos y queda un pie ilegible.
         for (final Button b : new Button[] {back, cleanup, removeMissing, exportMissing, clearSide, commander, spellButton, generate,
-                autoBuild, clearMain, importer, export, save}) {
+                autoBuild, clearMain, importer, updateFromUrl, export, save}) {
             b.setMinWidth(Region.USE_PREF_SIZE);
         }
 
         final FlowPane actions =
                 new FlowPane(8, 8, cleanup, removeMissing, exportMissing, clearSide, commander, spellButton, generate, autoBuild,
-                        clearMain, importer, export);
+                        clearMain, importer, updateFromUrl, export);
         actions.setAlignment(Pos.CENTER_RIGHT);
         actions.setMinWidth(0);
         HBox.setHgrow(actions, Priority.ALWAYS);
@@ -3248,7 +3265,7 @@ public class DeckBuilderScreen extends StackPane {
                     // es la lista de siempre. Un jugador no tiene por qué
                     // saber que por dentro son caminos distintos.
                     if (looksLikeDeckUrl(text)) {
-                        applyImportUrl(text.trim());
+                        applyImportUrl(text.trim(), false);
                     } else {
                         applyImport(text);
                     }
@@ -3447,7 +3464,7 @@ public class DeckBuilderScreen extends StackPane {
         }
     }
 
-    private void applyImportUrl(final String url) {
+    private void applyImportUrl(final String url, final boolean replacing) {
         if (busyImportingUrl) {
             return;
         }
@@ -3475,7 +3492,13 @@ public class DeckBuilderScreen extends StackPane {
                             why == null ? NeoText.get("deck.import.failed.detail") : why);
                     return;
                 }
+                if (replacing) {
+                    editor.clearForUpdate();
+                }
                 applyImportedDeck(loaded, 0, List.of());
+                // De donde salio, para "Actualizar desde el enlace" (DeckSource).
+                editor.setSource(url);
+                refreshUpdateFromUrl();
                 // Y su nombre, como en Android (itch.io, 12-10-2026: "When
                 // importing a deck on pc, bring the name with it"). Solo a un
                 // mazo que aun no esta guardado: a uno tuyo no se le cambia el
@@ -3489,6 +3512,37 @@ public class DeckBuilderScreen extends StackPane {
         }, "Game-neo-deckurl");
         t.setDaemon(true);
         t.start();
+    }
+
+    /**
+     * <b>"Actualizar desde el enlace"</b> (Discord, 30-10-2026: <i>"'Update
+     * Deck' button that is a one-click solution for any decks that were
+     * uploaded using a Moxfield link"</i>). Vuelve a bajar el mazo del enlace
+     * del que se importo y sustituye el principal y el comandante. Pregunta
+     * antes (principio 6) y no guarda: eso sigue siendo tuyo, con Guardar.
+     */
+    private void updateFromSource() {
+        final String url = editor.source();
+        if (url == null || busyImportingUrl) {
+            return;
+        }
+        overlay.setOnBackgroundClick(null);
+        overlay.show(new ConfirmDialog(NeoText.get("deck.updateFromUrl.title"),
+                NeoText.get("deck.updateFromUrl.ask", url),
+                java.util.List.of(NeoText.get("deck.updateFromUrl.yes"), NeoText.get("common.cancel")), 0,
+                choice -> {
+                    overlay.hide();
+                    if (choice == 0) {
+                        applyImportUrl(url, true);
+                    }
+                }));
+    }
+
+    /** El boton solo se ve en un mazo que sabe de donde vino. */
+    private void refreshUpdateFromUrl() {
+        final boolean on = editor.source() != null && !editor.getFormat().poolInSideboard();
+        updateFromUrl.setVisible(on);
+        updateFromUrl.setManaged(on);
     }
 
     /** Hay una descarga de mazo por URL en marcha. */

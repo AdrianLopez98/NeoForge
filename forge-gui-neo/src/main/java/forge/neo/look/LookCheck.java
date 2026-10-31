@@ -582,6 +582,35 @@ public final class LookCheck {
             NeoPlayers.ai(2, normal);
             check("Rivales/partida: y en la partida siguiente, sin ella, se olvida",
                     NeoPlayers.customFaceOf("Tres") == null);
+
+            // Como se llaman en la partida (Discord, 30-10-2026): el de su
+            // comandante o uno al azar. Por la bandera, sin tocar preferencias.
+            final forge.deck.Deck krenko = new forge.deck.Deck("prueba");
+            krenko.getOrCreate(forge.deck.DeckSection.Commander).add(
+                    forge.model.FModel.getMagicDb().getCommonCards().getCard("Krenko, Mob Boss"));
+            try {
+                System.setProperty("neo.aiNames", "commander");
+                NeoPlayers.newMatch();
+                final String k1 = NeoPlayers.ai(0, normal, krenko).getName();
+                final String k2 = NeoPlayers.ai(1, normal, krenko).getName();
+                final String none = NeoPlayers.ai(2, normal, new forge.deck.Deck("sin")).getName();
+                System.out.printf(java.util.Locale.ROOT, "        (comandante: %s / %s / %s)%n", k1, k2, none);
+                check("Rivales/nombre: el de su comandante, corto", !k1.contains(",") && k1.length() > 0
+                        && forge.util.CardTranslation.getTranslatedName("Krenko, Mob Boss").startsWith(k1));
+                check("Rivales/nombre: dos con el mismo comandante no se llaman igual", !k1.equals(k2));
+                check("Rivales/nombre: sin comandante, el de Personalizar", "Tres".equals(none));
+                System.setProperty("neo.aiNames", "random");
+                NeoPlayers.newMatch();
+                final String r = NeoPlayers.ai(0, normal, krenko).getName();
+                check("Rivales/nombre: al azar no toca el guardado",
+                        !r.isBlank() && "Uno".equals(NeoPlayers.aiName(0)));
+                System.setProperty("neo.aiNames", "saved");
+                NeoPlayers.newMatch();
+                check("Rivales/nombre: de fabrica, el de siempre",
+                        "Uno".equals(NeoPlayers.ai(0, normal, krenko).getName()));
+            } finally {
+                System.clearProperty("neo.aiNames");
+            }
         } finally {
             for (int i = 0; i < keys.length; i++) {
                 forge.neo.NeoSettings.set(keys[i], before[i]);

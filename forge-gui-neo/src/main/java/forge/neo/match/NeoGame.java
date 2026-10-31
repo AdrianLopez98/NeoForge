@@ -399,7 +399,12 @@ public final class NeoGame {
             // El perfil vacio significa "el que tenga puesto Forge": es lo que
             // hace la sobrecarga corta, asi que no hay que tratar el null aparte.
             final forge.LobbyPlayer passing = seating == null ? null : seating.player(i, aiProfile);
-            ai.setPlayer(passing != null ? passing : forge.neo.look.NeoPlayers.ai(i, aiProfile));
+            // El nombre de Personalizar → Rivales (el suyo, al azar o el de su
+            // comandante) solo si juegas tu: una partida observada del torneo
+            // reconoce al ganador por el nombre guardado (NeoAppTournament).
+            ai.setPlayer(passing != null ? passing
+                    : mode == NeoMatchUI.Mode.HUMAN ? forge.neo.look.NeoPlayers.ai(i, aiProfile, aiDeck)
+                    : forge.neo.look.NeoPlayers.ai(i, aiProfile));
             testRelics(ai);
             players.add(ai);
         }
