@@ -172,7 +172,9 @@ final class StarterDeck {
                         () -> {
                             NeoDuelBridge.log("mazo de salida: el jugador se queda el fijo");
                             back.run();
-                        });
+                        },
+                        seen -> reroll(color, seen),
+                        (q, any) -> search(color, q, any));
                 NeoWindow.show(screen[0], "NeoForge · Adventure");
                 NeoWindow.scene().setOnKeyPressed(null);
                 NeoWindow.scene().setOnKeyReleased(null);
@@ -188,7 +190,8 @@ final class StarterDeck {
     private static void build(final AdventurePlayer player, final ColorSet color, final PaperCard cmd,
                               final CommanderPickScreen screen, final Runnable back) {
         final Thread t = new Thread(() -> {
-            final Deck gen = generate(cmd, color);
+            // Con la identidad del elegido: del buscador puede venir de otro color.
+            final Deck gen = generate(cmd, cmd.getRules().getColorIdentity());
             if (gen == null) {
                 Platform.runLater(screen::failed);
                 sleep(2500);
@@ -324,6 +327,89 @@ final class StarterDeck {
         final List<PaperCard> pool = pool(color);
         Collections.shuffle(pool, MyRandom.getRandom());
         return new ArrayList<>(pool.subList(0, Math.min(OPTIONS, pool.size())));
+    }
+
+    /**
+     * Otros tres, sin repetir los que ya se han visto (Discord, 01-11-2026:
+     * <i>"give us a reroll button"</i>). Si ya se han visto todos los de la
+     * lista, se vuelve a empezar por ella entera.
+     */
+    static List<PaperCard> reroll(final ColorSet color, final java.util.Collection<PaperCard> seen) {
+        final List<PaperCard> pool = pool(color);
+        final java.util.Set<String> names = new java.util.HashSet<>();
+        for (final PaperCard c : seen) {
+            names.add(c.getName());
+        }
+        final List<PaperCard> fresh = new ArrayList<>();
+        for (final PaperCard c : pool) {
+            if (!names.contains(c.getName())) {
+                fresh.add(c);
+            }
+        }
+        final List<PaperCard> from = fresh.isEmpty() ? pool : fresh;
+        Collections.shuffle(from, MyRandom.getRandom());
+        return new ArrayList<>(from.subList(0, Math.min(OPTIONS, from.size())));
+    }
+
+    /** Todos los de ese color, por nombre: para "elegir el mio". La clave -1, todos los colores. */
+    private static final Map<Integer, List<PaperCard>> ALL = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * <b>Cualquier</b> comandante de exactamente ese color que tenga Forge, no
+     * solo los 100 de EDHREC (Discord, 01-11-2026: <i>"a way to choose our
+     * commander for Adventure"</i>), con lo buscado ({@code CommanderSearch}:
+     * nombre, tipo, texto o expansion). Fuera, como en la lista, los que pueden
+     * llevar companero, y las {@code A-} de Alchemy. El mazo se monta igual:
+     * {@link #generate} ya cae al generador por color si la matriz no lo conoce.
+     *
+     * <p>Con {@code anyColor}, de <b>cualquier</b> identidad (Ana, 01-11-2026:
+     * la pantalla del Adventure solo deja elegir un color, y asi se puede
+     * empezar con uno multicolor). El mazo se valida contra la identidad del
+     * propio comandante y el personaje se queda con esa ({@link #apply}).
+     */
+    static List<PaperCard> search(final ColorSet color, final String query, final boolean anyColor) {
+        final List<PaperCard> all = ALL.computeIfAbsent(anyColor ? -1 : (int) color.getColor(), k -> {
+            final List<PaperCard> out = new ArrayList<>();
+            for (final PaperCard pc : FModel.getMagicDb().getCommonCards().getUniqueCards()) {
+                if (pc.getRules().canBeCommander() && !pc.getRules().canBePartnerCommander()
+                        && !pc.getName().startsWith("A-")
+                        // Sin las de broma ni las prohibidas: con todos los
+                        // colores salia primero "1996 World Champion".
+                        && seriousAndLegal(pc)
+                        && (anyColor || pc.getRules().getColorIdentity().getColor() == color.getColor())) {
+                    out.add(pc);
+                }
+            }
+            out.sort(java.util.Comparator.comparing(PaperCard::getName));
+            return Collections.unmodifiableList(out);
+        });
+        final List<PaperCard> out = new ArrayList<>();
+        for (final PaperCard pc : all) {
+            if (forge.neo.ascent.CommanderSearch.matches(pc, query)) {
+                out.add(pc);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Ni prohibida en Commander ({@code res/formats/Casual/Commander.txt}) ni
+     * solo impresa en ediciones de broma (tipo {@code FUNNY}: las Un-, las
+     * Celebration Cards...). {@code DeckFormat.Commander} no mira ninguna de
+     * las dos: no tiene filtro de cartas.
+     */
+    private static boolean seriousAndLegal(final PaperCard pc) {
+        final forge.game.GameFormat cmd = FModel.getFormats().get("Commander");
+        if (cmd != null && cmd.getFilterRules() != null && !cmd.getFilterRules().test(pc)) {
+            return false;
+        }
+        for (final PaperCard p : FModel.getMagicDb().getCommonCards().getAllCards(pc.getName())) {
+            final forge.card.CardEdition ed = FModel.getMagicDb().getEditions().get(p.getEdition());
+            if (ed == null || ed.getType() != forge.card.CardEdition.Type.FUNNY) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

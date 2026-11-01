@@ -1,13 +1,12 @@
-**NeoForge para macOS 1.0.41 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.42 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Repeticiones para compartir:** «Compartir…» guarda una copia de cualquiera de tus partidas, e «Importar…» trae la de otro jugador para verla.
-- **El nombre de tu comandante y el de cada rival** en su barra, siempre, esté donde esté.
-- **Que se recuerde «pasar esta habilidad»** y «siempre sí / no» del stack más allá de una partida (Ajustes → Partida), un atajo para pasar sola la de arriba del stack, y Espacio pulsa «Auto» al ordenar disparos.
-- **Exilio y cementerio:** lo que se puede jugar de ahí se marca a tiempo, y clicar una carta tuya que no brilla se lo pregunta igual al motor.
-- **Sobres:** las Nazgûl de LTR y los Teferi de M21 de otra ilustración ya salen.
-- **Pegar una lista:** una carta con una edición que Forge no tiene entra por su nombre.
-- **Cartas nuevas de Forge:** Star Trek.
+- **Equipos y al mejor de 5:** 2 contra 2 o 1 contra 3 como en Forge, y «Al mejor de 5» junto a 1 y 3.
+- **Aventura en Commander:** «Otros tres» comandantes, o «Elegir el mío» de cualquier color, también multicolor.
+- **Ascenso:** filtro «Tuned deck» con los comandantes que traen un mazo montado, y los demás salen con su tribu.
+- **«Actualizar desde el enlace»** en la pantalla de mazos, sin abrir el editor.
+- **Votaciones con su carta** encima de las opciones.
+- **Portada de los mazos sin comandante:** la carta de mayor coste, no una tierra básica.
 
 Descarga el `.dmg` de tu Mac:
 

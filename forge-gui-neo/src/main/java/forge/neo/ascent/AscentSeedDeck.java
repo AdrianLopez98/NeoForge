@@ -601,7 +601,7 @@ public final class AscentSeedDeck {
             }
             if (both != null && both.getMain().countAll() > 0) {
                 GeneratedDecks.fixCopyLimits(both, DeckFormat.Commander);
-                return trim(both, cmd, partner, COMMANDER_SIZE, name, NO_COLOURS);
+                return themed(trim(both, cmd, partner, COMMANDER_SIZE, name, NO_COLOURS), cmd, partner);
             }
         }
         // El cuarto parametro es isCardGen, y es la diferencia entre un mazo
@@ -639,8 +639,32 @@ public final class AscentSeedDeck {
         // conoce a ninguno de los dos (Jenny Flint y Madame Vastra, de Doctor Who),
         // el mazo de los dos sale vacio y se llega aqui con un mazo de uno solo:
         // la pareja elegida iba al recorte como "ninguna" y desaparecia.
-        return trim(full, cmd, partner != null ? partner : generatedPartner(full, cmd),
-                COMMANDER_SIZE, name, NO_COLOURS);
+        final PaperCard pair = partner != null ? partner : generatedPartner(full, cmd);
+        return themed(trim(full, cmd, pair, COMMANDER_SIZE, name, NO_COLOURS), cmd, pair);
+    }
+
+    /**
+     * Con un comandante que la matriz de mazos reales no conoce, el mazo solo
+     * casa con sus colores: se le da un poco de su tribu (Discord, 31-10-2026,
+     * Vona y Munda "a random mishmash"). Ver {@link AscentTheme}: criaturas por
+     * criaturas del mismo coste, pocas, y con el mismo techo de bracket.
+     * Con uno que si conoce, el mazo ya pega y no se toca.
+     */
+    private static Deck themed(final Deck deck, final PaperCard cmd, final PaperCard partner) {
+        if (AscentSynergy.knows(cmd) || partner != null && AscentSynergy.knows(partner)) {
+            return deck;
+        }
+        try {
+            final int n = AscentTheme.apply(deck, cmd, partner, MAX_BRACKET);
+            if (n > 0) {
+                System.out.println("[ascenso] " + cmd.getName() + ": " + n + " criaturas de su tema ("
+                        + AscentTheme.describe(AscentTheme.themeOf(cmd, partner)) + ")");
+            }
+        } catch (final RuntimeException e) {
+            // Un tema es un adorno: si falla, el mazo de sus colores de siempre.
+            System.out.println("[ascenso] sin tema para " + cmd.getName() + ": " + e);
+        }
+        return deck;
     }
 
     /** El otro de la zona de mando que trae un mazo generado, o {@code null}. */

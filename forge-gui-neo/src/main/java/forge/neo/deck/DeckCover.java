@@ -28,7 +28,13 @@ public final class DeckCover {
     private DeckCover() {
     }
 
-    /** La carta de la portada: el comandante, la elegida, o la primera del mazo. */
+    /**
+     * La carta de la portada: el comandante, la elegida, o la de <b>mayor coste</b>
+     * del mazo sin contar tierras (Discord, 01-11-2026: con los mazos traidos de
+     * Forge sin carta clave, todas las portadas eran tierras basicas; <i>"at
+     * least the biggest potential threat in the deck would be shown"</i>). A
+     * igual coste, la primera de la lista; sin hechizos, la primera carta.
+     */
     public static PaperCard of(final Deck deck) {
         if (deck == null) {
             return null;
@@ -42,10 +48,21 @@ public final class DeckCover {
         if (chosen != null) {
             return chosen;
         }
+        PaperCard best = null;
+        PaperCard first = null;
         for (final Map.Entry<PaperCard, Integer> e : deck.getMain()) {
-            return e.getKey();
+            final PaperCard c = e.getKey();
+            if (first == null) {
+                first = c;
+            }
+            if (c.getRules().getType().isLand()) {
+                continue;
+            }
+            if (best == null || c.getRules().getManaCost().getCMC() > best.getRules().getManaCost().getCMC()) {
+                best = c;
+            }
         }
-        return null;
+        return best != null ? best : first;
     }
 
     /** La portada elegida, si sigue en el mazo; si no, {@code null}. */

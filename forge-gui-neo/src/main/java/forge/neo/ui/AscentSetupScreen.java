@@ -946,9 +946,24 @@ public class AscentSetupScreen extends StackPane {
             rebuild();
         });
 
+        // Con mazo montado (31-10-2026): solo los que la matriz de Forge conoce,
+        // los que salen con un mazo hecho para ellos y no solo de sus colores.
+        // Ver AscentSynergy.knownOnly.
+        final int tunedCount = forge.neo.ascent.AscentSynergy.knownOnly(commanders()).size();
+        final Button tuned = choice(NeoText.get("ascent.setup.tuned", tunedCount), onlyTuned);
+        tuned.setId("ascent-tuned");
+        tuned.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("ascent.setup.tuned.tip")));
+        tuned.setDisable(tunedCount == 0 && !onlyTuned);
+        tuned.setOnAction(e -> {
+            onlyTuned = !onlyTuned;
+            page = 0;
+            rebuild();
+        });
+
         // Eligiendo companero, "al azar" y "favoritos" son de los comandantes:
         // fuera, que no se mezclen las dos preguntas.
-        final HBox tools = pickingPartner ? new HBox(12, field) : new HBox(12, field, random, favorites);
+        final HBox tools = pickingPartner ? new HBox(12, field)
+                : new HBox(12, field, random, favorites, tuned);
         tools.setAlignment(Pos.CENTER);
 
         grid.getChildren().clear();
@@ -964,8 +979,18 @@ public class AscentSetupScreen extends StackPane {
                 : NeoText.get("ascent.setup.chosenPair", forge.neo.card.CardText.nameOf(commander),
                         forge.neo.card.CardText.nameOf(partner)));
         chosen.getStyleClass().add("ascent-info-title");
+        // Y que mazo le espera: el montado para el o uno de sus colores. Que no
+        // se descubra jugando (fue la queja).
+        final Label deckKind = new Label(commander == null ? ""
+                : NeoText.get(forge.neo.ascent.AscentSynergy.knows(commander)
+                        ? "ascent.setup.tunedYes" : "ascent.setup.tunedNo"));
+        deckKind.setId("ascent-deck-kind");
+        deckKind.getStyleClass().add("ascent-info-text");
+        deckKind.setWrapText(true);
+        deckKind.setManaged(commander != null);
+        deckKind.setVisible(commander != null);
 
-        final VBox box = new VBox(10, tools, chosen);
+        final VBox box = new VBox(10, tools, chosen, deckKind);
         final Region partnerRow = partnerRow();
         if (partnerRow != null) {
             box.getChildren().add(partnerRow);
@@ -1033,6 +1058,9 @@ public class AscentSetupScreen extends StackPane {
     /** El filtro de "solo favoritos" del selector de comandante. */
     private boolean onlyFavorites = Boolean.getBoolean("neo.ascent.onlyFavorites");
 
+    /** El filtro de "con mazo montado": solo los que conoce la matriz de Forge. */
+    private boolean onlyTuned = Boolean.getBoolean("neo.ascent.onlyTuned");
+
     /** Los comandantes que casan con lo escrito, la pagina actual. */
     private void refreshCommanders() {
         grid.getChildren().clear();
@@ -1090,11 +1118,14 @@ public class AscentSetupScreen extends StackPane {
     }
 
     private List<PaperCard> matches() {
-        final List<PaperCard> all = pickingPartner
+        List<PaperCard> all = pickingPartner
                 ? forge.neo.ascent.AscentFavorites.favoritesFirst(AscentSeedDeck.partnersFor(commander, pool()))
                 : onlyFavorites
                 ? forge.neo.ascent.AscentFavorites.only(commanders())
                 : forge.neo.ascent.AscentFavorites.favoritesFirst(commanders());
+        if (onlyTuned && !pickingPartner) {
+            all = forge.neo.ascent.AscentSynergy.knownOnly(all);
+        }
         if (search == null || search.isBlank()) {
             return all;
         }

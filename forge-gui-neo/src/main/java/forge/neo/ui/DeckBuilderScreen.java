@@ -3451,17 +3451,7 @@ public class DeckBuilderScreen extends StackPane {
      * {@link forge.neo.deck.DeckUrlFailure}.
      */
     private static String explainUrlFailure(final String url, final String message) {
-        final String site = forge.neo.deck.DeckUrlFailure.site(url);
-        switch (forge.neo.deck.DeckUrlFailure.classify(message)) {
-            case NOT_FOUND:
-                return NeoText.get("deck.import.url.notFound", site);
-            case BLOCKED:
-                return NeoText.get("deck.import.url.blocked", site);
-            case TOO_MANY:
-                return NeoText.get("deck.import.url.tooMany", site);
-            default:
-                return message;
-        }
+        return forge.neo.deck.DeckUrlFailure.explain(url, message);
     }
 
     private void applyImportUrl(final String url, final boolean replacing) {

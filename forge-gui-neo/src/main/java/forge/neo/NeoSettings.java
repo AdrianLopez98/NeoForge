@@ -1360,18 +1360,24 @@ public final class NeoSettings {
     }
 
     /**
-     * Al mejor de cuantas partidas se juega en este formato: 1 (lo de siempre)
-     * o 3 (Discord, 19-10-2026: <i>"there is no bo3 option, correct?"</i>). Lo
+     * Al mejor de cuantas partidas se juega en este formato: 1 (lo de siempre),
+     * 3 (Discord, 19-10-2026: <i>"there is no bo3 option, correct?"</i>) o 5
+     * (Discord, 01-11-2026: <i>"a Best-of-5 (first to 3 wins)"</i>). Lo
      * elige el boton PARTIDO de la pantalla de mazos y se recuerda por formato.
      * Con 3, el motor juega el partido entero y pide el banquillo entre
      * partidas donde el formato lo permite (no en Commander).
      */
     public static int bestOf(final forge.neo.match.NeoFormat format) {
-        return getInt(BEST_OF + "." + format.name(), 1) == 3 ? 3 : 1;
+        return validBestOf(getInt(BEST_OF + "." + format.name(), 1));
     }
 
     public static void setBestOf(final forge.neo.match.NeoFormat format, final int games) {
-        setInt(BEST_OF + "." + format.name(), games == 3 ? 3 : 1);
+        setInt(BEST_OF + "." + format.name(), validBestOf(games));
+    }
+
+    /** 1, 3 o 5; cualquier otra cosa, una partida. */
+    private static int validBestOf(final int games) {
+        return games == 3 || games == 5 ? games : 1;
     }
 
     private static final String BEST_OF = "bestOf";

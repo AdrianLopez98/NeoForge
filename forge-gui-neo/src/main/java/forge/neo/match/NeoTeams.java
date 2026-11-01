@@ -186,7 +186,8 @@ public final class NeoTeams {
      */
     public static int[] fromSetting(final String value, final int opponents) {
         final int[] out = freeForAll(opponents);
-        if (value == null || value.isBlank()) {
+        // Sin isBlank: este jar lo usa Android desde la API 26.
+        if (value == null || value.trim().isEmpty()) {
             return out;
         }
         final String[] parts = value.split(",");

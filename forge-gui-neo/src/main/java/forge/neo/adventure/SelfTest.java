@@ -408,6 +408,20 @@ final class SelfTest {
                         + cmd.getName() + " -> " + (d == null ? "SIN MAZO" : d.getMain().countAll() + " cartas, "
                         + d.getMain().toFlatList().stream().filter(c -> c.getRules().getType().isLand()).count()
                         + " tierras"));
+                NeoDuelBridge.log("autoprueba starter " + l + ": otros tres "
+                        + StarterDeck.reroll(color, StarterDeck.options(color)) + "; buscar todos "
+                        + StarterDeck.search(color, "", false).size() + ", 'vampire' "
+                        + StarterDeck.search(color, "vampire", false).size() + ", de cualquier color "
+                        + StarterDeck.search(color, "", true).size());
+            }
+            // Uno multicolor, del buscador con "todos los colores".
+            final List<forge.item.PaperCard> multi = StarterDeck.search(
+                    forge.card.ColorSet.fromNames("B".toCharArray()), "esper", true);
+            if (!multi.isEmpty()) {
+                final forge.item.PaperCard m = multi.get(0);
+                final Deck d = StarterDeck.generate(m, m.getRules().getColorIdentity());
+                NeoDuelBridge.log("autoprueba starter multicolor: " + multi.size() + " 'esper'; " + m.getName()
+                        + " -> " + (d == null ? "SIN MAZO" : d.getMain().countAll() + " cartas"));
             }
             Gdx.app.postRunnable(() -> {
                 final forge.adventure.data.DifficultyData diff =
@@ -437,7 +451,24 @@ final class SelfTest {
                         final javafx.scene.Parent root = NeoWindow.scene().getRoot();
                         NeoDuelBridge.log("autoprueba starter: en pantalla " + root.getClass().getSimpleName());
                         if (root instanceof CommanderPickScreen) {
-                            ((CommanderPickScreen) root).pickForTest(0);
+                            ((CommanderPickScreen) root).openSearchForTest();
+                        }
+                    } catch (final Exception e) {
+                        NeoDuelBridge.log("autoprueba starter: " + e);
+                    }
+                });
+                // El buscador de "elegir el mio": su captura, y se elige el
+                // primero de la lista (alfabetico: no suele ser de EDHREC).
+                Thread.sleep(2500);
+                javafx.application.Platform.runLater(() -> {
+                    try {
+                        if (file != null) {
+                            forge.neo.Snapshots.writePng(NeoWindow.scene().snapshot(null),
+                                    new java.io.File(file.replace(".png", "-buscar.png")));
+                        }
+                        final javafx.scene.Parent root = NeoWindow.scene().getRoot();
+                        if (root instanceof CommanderPickScreen) {
+                            ((CommanderPickScreen) root).pickSearchForTest(0);
                         }
                     } catch (final Exception e) {
                         NeoDuelBridge.log("autoprueba starter: " + e);

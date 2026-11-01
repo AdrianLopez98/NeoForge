@@ -2725,19 +2725,24 @@ public final class DeckRulesCheck {
 
     /**
      * La portada de un mazo sin comandante (Discord, 23-10-2026): sin elegir es
-     * la primera carta; elegida, sale ella, sobrevive a guardar y leer el .dck
-     * (va en las cartas clave de Forge) y quitarla devuelve a la primera.
+     * la carta de mayor coste sin contar tierras (Discord, 01-11-2026: antes la
+     * primera, muchas veces una basica); elegida, sale ella aunque cueste menos,
+     * sobrevive a guardar y leer el .dck (va en las cartas clave de Forge) y
+     * quitarla devuelve a la de mayor coste. Con comandante, siempre el
+     * comandante, haya o no carta elegida.
      */
     private static void deckCoverIsChosenAndSaved() {
         final forge.card.CardDb db = FModel.getMagicDb().getCommonCards();
-        final PaperCard first = db.getCard("Grizzly Bears");
-        final PaperCard chosen = db.getCard("Serra Angel");
+        final PaperCard land = db.getCard("Forest");
+        final PaperCard biggest = db.getCard("Serra Angel");
+        final PaperCard chosen = db.getCard("Grizzly Bears");
         final forge.deck.Deck deck = new forge.deck.Deck("Portada");
-        deck.getMain().add(first, 4);
-        deck.getMain().add(chosen, 2);
+        deck.getMain().add(land, 10);
+        deck.getMain().add(chosen, 4);
+        deck.getMain().add(biggest, 2);
         deck.addKeyCard("Llanowar Elves");
-        check("Portada: sin elegir es la primera carta (una clave que no esta en el mazo no cuenta)",
-                DeckCover.of(deck) == first);
+        check("Portada: sin elegir es la de mayor coste, no una tierra (una clave que no esta en el mazo no cuenta)",
+                DeckCover.of(deck) == biggest);
         DeckCover.set(deck, chosen);
         boolean saved = false;
         try {
@@ -2745,16 +2750,24 @@ public final class DeckRulesCheck {
             forge.deck.io.DeckSerializer.writeDeck(deck, f);
             final forge.deck.Deck back = forge.deck.io.DeckSerializer.fromFile(f);
             saved = back != null && DeckCover.of(back) != null
-                    && "Serra Angel".equals(DeckCover.of(back).getName())
+                    && "Grizzly Bears".equals(DeckCover.of(back).getName())
                     && back.getKeyCards().contains("Llanowar Elves");
             f.delete();
         } catch (final java.io.IOException e) {
             System.out.println("    " + e);
         }
-        check("Portada: elegida, sale ella y sigue tras guardar y leer el .dck (sin perder las otras claves)",
+        check("Portada: elegida, sale ella aunque cueste menos y sigue tras guardar y leer el .dck (sin perder las otras claves)",
                 DeckCover.of(deck) == chosen && saved);
         DeckCover.clear(deck, chosen);
-        check("Portada: al quitarla vuelve a la primera", DeckCover.of(deck) == first);
+        check("Portada: al quitarla vuelve a la de mayor coste", DeckCover.of(deck) == biggest);
+
+        final PaperCard cmd = db.getCard("Krenko, Mob Boss");
+        final forge.deck.Deck withCommander = new forge.deck.Deck("Portada con comandante");
+        withCommander.getOrCreate(forge.deck.DeckSection.Commander).add(cmd, 1);
+        withCommander.getMain().add(db.getCard("Shivan Dragon"), 1);
+        DeckCover.set(withCommander, db.getCard("Shivan Dragon"));
+        check("Portada: con comandante es siempre el comandante, aunque haya otra elegida",
+                DeckCover.of(withCommander) == cmd);
     }
 
     /**

@@ -8497,7 +8497,19 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             // Y si no es un disparo, la carta que avisa setCard (War o Peace de
             // Archangel of Strife): con la carta delante se lee que hace cada
             // opcion. Si se eligen cartas, ya se ven ellas.
-            final List<TriggerSubject.Subject> about = subjectsFor(choices);
+            List<TriggerSubject.Subject> about = subjectsFor(choices);
+            // Y si tampoco avisa (una VOTACION: Plea for Power, Council's
+            // Judgment...), la carta que nombra el titulo con su numero:
+            // "Plea for Power (580) Vote:". Discord, 01-11-2026: "an easy way to
+            // know what the effect of each vote will be, perhaps display the
+            // card on the menu so it can be read".
+            if (about.isEmpty() && choices != null && !choices.isEmpty()
+                    && !(choices.get(0) instanceof CardView)) {
+                final CardView named = cardNamedIn(message);
+                if (named != null) {
+                    about = List.of(new TriggerSubject.Subject(named, null));
+                }
+            }
             return askChoice(TriggerSubject.titleOf(message), choices, min, max, display,
                     about, false, TriggerSubject.detailFor(choices, message));
         }
@@ -9452,6 +9464,48 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             return List.of(new TriggerSubject.Subject(asking, null));
         }
         return about;
+    }
+
+    /**
+     * La carta que un titulo del motor nombra con su numero ("Plea for Power
+     * (580) Vote:"): la fuente de algo del stack o una carta de la mesa con ese
+     * numero. Null si no hay numero o no esta a la vista.
+     */
+    private CardView cardNamedIn(final String title) {
+        final GameView gv = getGameView();
+        if (title == null || gv == null) {
+            return null;
+        }
+        final java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\((\\d+)\\)").matcher(title);
+        while (m.find()) {
+            final int id;
+            try {
+                id = Integer.parseInt(m.group(1));
+            } catch (final NumberFormatException e) {
+                continue;
+            }
+            if (gv.getStack() != null) {
+                for (final StackItemView si : gv.getStack()) {
+                    final CardView src = si.getSourceCard();
+                    if (src != null && src.getId() == id) {
+                        return src;
+                    }
+                }
+            }
+            if (gv.getPlayers() != null) {
+                for (final PlayerView p : gv.getPlayers()) {
+                    if (p.getBattlefield() == null) {
+                        continue;
+                    }
+                    for (final CardView c : p.getBattlefield()) {
+                        if (c.getId() == id) {
+                            return c;
+                        }
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     /** La ultima carta que una pregunta habria ensenyado (sin jugador delante). Solo pruebas. */

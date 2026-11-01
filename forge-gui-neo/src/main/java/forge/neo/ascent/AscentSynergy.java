@@ -82,6 +82,24 @@ public final class AscentSynergy {
     }
 
     /**
+     * De estos comandantes, los que la matriz conoce, en el mismo orden: los
+     * que en Ascenso salen con un mazo <b>montado para ellos</b>, no solo de
+     * sus colores (Reddit/Discord, 31-10-2026: <i>"lesser known commanders ...
+     * I got completely random cards in my deck"</i>). Son ~1.000 de ~3.800, y
+     * no depende de lo popular que sea en EDHREC sino de que estuviera en los
+     * mazos de Forge. Recorrerlos todos son ~70 ms en el escritorio.
+     */
+    public static List<PaperCard> knownOnly(final List<PaperCard> commanders) {
+        final List<PaperCard> out = new ArrayList<>();
+        for (final PaperCard c : commanders) {
+            if (knows(c)) {
+                out.add(c);
+            }
+        }
+        return out;
+    }
+
+    /**
      * Los nombres de todo lo que pega con <b>estos</b> comandantes, juntos.
      *
      * <p>En plural porque un mazo de Commander puede llevar dos (companyeros,

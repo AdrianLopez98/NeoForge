@@ -120,6 +120,7 @@ public final class AscentCheck {
             mesasDeCuatro();
             mesasSinFichas();
             cerrarAMedias();
+            temaDeTribu();
             mazosGenerados();
             parejaDeMando();
             venderReliquias();
@@ -4199,6 +4200,46 @@ public final class AscentCheck {
         } else {
             ok("fichas: " + caben + " de " + conocidos + " comandantes caben en el Coliseo y el torneo"
                     + " (los demas crean fichas ellos mismos)");
+        }
+    }
+
+    /**
+     * El tema de tribu de un comandante que la matriz no conoce (31-10-2026,
+     * {@link AscentTheme}): Munda sale con Allies, el mazo sigue entero y en su
+     * bracket, y uno que la matriz SI conoce (Edgar Markov) no se toca.
+     */
+    private static void temaDeTribu() {
+        final forge.item.PaperCard munda = forge.model.FModel.getMagicDb().getCommonCards()
+                .getCard("Munda, Ambush Leader");
+        if (munda == null || AscentSynergy.knows(munda)) {
+            ok("tema: Munda no esta o ya la conoce la matriz; nada que comprobar");
+            return;
+        }
+        final java.util.Set<String> theme = AscentTheme.themeOf(munda, null);
+        if (!theme.contains("Ally")) {
+            fail("tema: el de Munda deberia llevar Ally y es " + theme);
+            return;
+        }
+        final forge.deck.Deck d = AscentSeedDeck.generate(AscentRun.Mode.COMMANDER, munda, "tema");
+        int allies = 0;
+        int lands = 0;
+        for (final java.util.Map.Entry<forge.item.PaperCard, Integer> e : d.getMain()) {
+            if (e.getKey().getRules().getType().isLand()) {
+                lands += e.getValue();
+            } else if (e.getKey().getRules().getType().getCreatureTypes().contains("Ally")) {
+                allies += e.getValue();
+            }
+        }
+        final forge.deck.Deck whole = new forge.deck.Deck("tema");
+        whole.getMain().addAll(d.getMain());
+        whole.getOrCreate(forge.deck.DeckSection.Commander).addAll(d.get(forge.deck.DeckSection.Commander));
+        final int bracket = forge.deck.CommanderBracketCalculator.calculate(whole).getBracket();
+        if (d.getMain().countAll() != AscentSeedDeck.COMMANDER_SIZE || allies < 5 || bracket > 2
+                || lands < 20) {
+            fail("tema: Munda con " + allies + " Allies, " + d.getMain().countAll() + " cartas, " + lands
+                    + " tierras y bracket " + bracket);
+        } else {
+            ok("tema: Munda sale con " + allies + " Allies, " + lands + " tierras y bracket " + bracket);
         }
     }
 

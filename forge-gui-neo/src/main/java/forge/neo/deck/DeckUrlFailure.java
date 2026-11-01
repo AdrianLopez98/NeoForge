@@ -53,6 +53,24 @@ public final class DeckUrlFailure {
         }
     }
 
+    /**
+     * Lo que se le dice al jugador cuando un enlace no se ha podido bajar: el
+     * editor y la pantalla de inicio ("Actualizar desde el enlace").
+     */
+    public static String explain(final String url, final String message) {
+        final String site = site(url);
+        switch (classify(message)) {
+            case NOT_FOUND:
+                return forge.neo.NeoText.get("deck.import.url.notFound", site);
+            case BLOCKED:
+                return forge.neo.NeoText.get("deck.import.url.blocked", site);
+            case TOO_MANY:
+                return forge.neo.NeoText.get("deck.import.url.tooMany", site);
+            default:
+                return message;
+        }
+    }
+
     /** El nombre de la web del enlace, para el mensaje ("Moxfield", "TappedOut"...). */
     public static String site(final String url) {
         final String u = url == null ? "" : url.toLowerCase(java.util.Locale.ROOT);

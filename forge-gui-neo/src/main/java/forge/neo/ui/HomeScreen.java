@@ -628,7 +628,15 @@ et}) y no se tocan.
             }
         });
 
-        final HBox tools = new HBox(8, newDeck, edit);
+        // ACTUALIZAR DESDE EL ENLACE sin entrar en el editor (Discord, 01-11-2026:
+        // "is there a way to put it on the main Commander screen without having to
+        // go to Edit?"). Solo con un mazo tuyo que sabe de donde vino.
+        unshrinkable(updateLink).getStyleClass().add("btn-secondary");
+        updateLink.setId("home-update-link");
+        updateLink.setOnAction(e -> updateFromLink());
+        refreshUpdateLink();
+
+        final HBox tools = new HBox(8, newDeck, edit, updateLink);
         tools.setAlignment(Pos.CENTER_RIGHT);
 
         // Bajar mazos hechos. Solo para los formatos de los que Forge mantiene
@@ -650,6 +658,127 @@ et}) y no se tocan.
     }
 
     private final Button newDeck = new Button(NeoText.get("home.newDeck"));
+
+    /** "Actualizar desde el enlace" del mazo elegido. Ver {@link forge.neo.deck.DeckUpdate}. */
+    private final Button updateLink = new Button(NeoText.get("deck.updateFromUrl"));
+
+    /** Una descarga de enlace en marcha: no se piden dos. */
+    private boolean updatingLink;
+
+    /** Si el mazo es tuyo (suelto o en una coleccion), y no de Forge ni de internet. */
+    private boolean isMine(final Deck deck) {
+        if (deck == null) {
+            return false;
+        }
+        if (mine.stream().anyMatch(d -> d == deck)) {
+            return true;
+        }
+        for (final List<Deck> in : collections.values()) {
+            if (in.stream().anyMatch(d -> d == deck)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void refreshUpdateLink() {
+        final boolean on = isMine(selected) && forge.neo.deck.DeckSource.of(selected) != null;
+        updateLink.setVisible(on);
+        updateLink.setManaged(on);
+        updateLink.setDisable(updatingLink);
+    }
+
+    /**
+     * Lo mismo que el boton del editor, sin abrirlo: pregunta, baja la lista en
+     * otro hilo y la aplica y guarda con {@link forge.neo.deck.DeckUpdate}. Si el
+     * mazo no se pudiera guardar asi (cartas ilegales), no toca nada y lo dice.
+     */
+    private void updateFromLink() {
+        final Deck deck = selected;
+        final String url = deck == null ? null : forge.neo.deck.DeckSource.of(deck);
+        if (url == null || updatingLink) {
+            return;
+        }
+        overlay.setOnBackgroundClick(null);
+        overlay.show(new ConfirmDialog(NeoText.get("deck.updateFromUrl.title"),
+                NeoText.get("deck.updateFromUrl.ask", url),
+                java.util.List.of(NeoText.get("deck.updateFromUrl.yes"), NeoText.get("common.cancel")), 0,
+                choice -> {
+                    overlay.hide();
+                    if (choice == 0) {
+                        downloadAndUpdate(deck, url);
+                    }
+                }));
+    }
+
+    private void downloadAndUpdate(final Deck deck, final String url) {
+        updatingLink = true;
+        updateLink.setText(NeoText.get("deck.import.url.working"));
+        refreshUpdateLink();
+        final forge.neo.deck.DeckContext where = contextFor(deck);
+        final Thread t = new Thread(() -> {
+            Deck loaded = null;
+            String failure = null;
+            try {
+                loaded = forge.deck.DeckUrlLoader.load(url).getDeck();
+            } catch (final java.io.IOException | RuntimeException e) {
+                failure = forge.neo.deck.DeckUrlFailure.explain(url, e.getMessage());
+            }
+            final Deck got = loaded;
+            final String why = failure;
+            javafx.application.Platform.runLater(() -> {
+                updatingLink = false;
+                updateLink.setText(NeoText.get("deck.updateFromUrl"));
+                if (got == null) {
+                    refreshUpdateLink();
+                    showProblem(NeoText.get("deck.import.failed") + "\n\n"
+                            + (why == null ? NeoText.get("deck.import.failed.detail") : why));
+                    return;
+                }
+                final forge.neo.deck.DeckUpdate.Result r;
+                try {
+                    r = forge.neo.deck.DeckUpdate.apply(where, deck, got);
+                } catch (final RuntimeException e) {
+                    refreshUpdateLink();
+                    showProblem(NeoText.get("deck.import.failed") + "\n\n" + e.getMessage());
+                    return;
+                }
+                if (r.saved() == null) {
+                    refreshUpdateLink();
+                    showProblem(NeoText.get("home.updateLink.blocked", deck.getName(), r.blocking()));
+                    return;
+                }
+                // El guardado es otro objeto: se cambia por el viejo donde estuviera.
+                replaceDeck(deck, r.saved());
+                select(r.saved());
+                fillGrid();
+                Toast.show(NeoText.get("home.updateLink.done", deck.getName(), r.added()));
+            });
+        }, "neo-update-link");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    /** Pone {@code now} donde estaba {@code old}: en tus mazos o en su coleccion, y en la lista entera. */
+    private void replaceDeck(final Deck old, final Deck now) {
+        for (int i = 0; i < mine.size(); i++) {
+            if (mine.get(i) == old) {
+                mine.set(i, now);
+            }
+        }
+        for (final List<Deck> in : collections.values()) {
+            for (int i = 0; i < in.size(); i++) {
+                if (in.get(i) == old) {
+                    in.set(i, now);
+                }
+            }
+        }
+        for (int i = 0; i < decks.size(); i++) {
+            if (decks.get(i) == old) {
+                decks.set(i, now);
+            }
+        }
+    }
 
     private Region deckGrid() {
         grid.setAlignment(Pos.CENTER);
@@ -1471,13 +1600,15 @@ et}) y no se tocan.
                             NeoSettings.set(NeoSettings.AI_PROFILE, v);
                             updateSummary();
                         }),
-                // Al mejor de 1 o de 3, como el "Games per match" del lobby de
-                // Forge (Discord, 19-10-2026). Se recuerda por formato.
+                // Al mejor de 1, de 3 o de 5, como el "Games per match" del
+                // lobby de Forge (Discord, 19-10 y 01-11-2026). Se recuerda por formato.
                 choice(NeoText.get("home.match"),
-                        new String[] {NeoText.get("home.bo1"), NeoText.get("home.bo3")},
-                        NeoText.get(NeoSettings.bestOf(format) == 3 ? "home.bo3" : "home.bo1"),
+                        new String[] {NeoText.get("home.bo1"), NeoText.get("home.bo3"),
+                                NeoText.get("home.bo5")},
+                        NeoText.get("home.bo" + NeoSettings.bestOf(format)),
                         v -> {
-                            NeoSettings.setBestOf(format, NeoText.get("home.bo3").equals(v) ? 3 : 1);
+                            NeoSettings.setBestOf(format, NeoText.get("home.bo5").equals(v) ? 5
+                                    : NeoText.get("home.bo3").equals(v) ? 3 : 1);
                             updateSummary();
                         }),
                 variantChoice(),
@@ -2341,6 +2472,7 @@ et}) y no se tocan.
             }
         }
         edit.setDisable(deck == null);
+        refreshUpdateLink();
         refreshCommander();
         // JUGAR lo habilita updateSummary, que es quien sabe si el mazo es legal.
         updateSummary();
@@ -2429,8 +2561,9 @@ et}) y no se tocan.
             if (people > 1) {
                 summary.setText(summary.getText() + "  ·  " + NeoText.get("home.seat.summary", people));
             }
-            if (NeoSettings.bestOf(format) == 3) {
-                summary.setText(summary.getText() + "  ·  " + NeoText.get("home.bo3.summary"));
+            if (NeoSettings.bestOf(format) > 1) {
+                summary.setText(summary.getText() + "  ·  "
+                        + NeoText.get("home.bo" + NeoSettings.bestOf(format) + ".summary"));
             }
         }
         summary.pseudoClassStateChanged(INVALID, problem != null);
