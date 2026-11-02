@@ -78,6 +78,15 @@ public final class AscentTheme {
      * companero). Vacio si no tiene.
      */
     public static Set<String> themeOf(final PaperCard commander, final PaperCard partner) {
+        return themeOf(commander, partner, true);
+    }
+
+    /**
+     * Con {@code own} a false, solo los tipos que NOMBRA: un comandante con otro
+     * tema (Codie copia hechizos preparados) no es un mazo de su propio tipo
+     * (Construct). Lo decide {@link CommanderTheme#hasMechanic}.
+     */
+    public static Set<String> themeOf(final PaperCard commander, final PaperCard partner, final boolean own) {
         final Set<String> out = new LinkedHashSet<>();
         for (final PaperCard c : new PaperCard[] {commander, partner}) {
             if (c == null) {
@@ -94,7 +103,7 @@ public final class AscentTheme {
             }
             // Los suyos, si son tribu. Un cambiaformas los tiene todos: esos no.
             final CardType type = c.getRules().getType();
-            if (!type.hasAllCreatureTypes()) {
+            if (own && !type.hasAllCreatureTypes()) {
                 for (final String t : type.getCreatureTypes()) {
                     if (!GENERIC.contains(t)) {
                         out.add(t);
@@ -119,8 +128,13 @@ public final class AscentTheme {
      */
     public static int apply(final Deck deck, final PaperCard commander, final PaperCard partner,
                             final int maxBracket) {
-        final Set<String> theme = themeOf(commander, partner);
-        if (theme.isEmpty()) {
+        final Set<String> theme = themeOf(commander, partner,
+                !CommanderTheme.hasMechanic(commander) && !CommanderTheme.hasMechanic(partner));
+        // Y lo que no es tribu (Discord, 02-11-2026: Codie y las de preparar):
+        // lo lee CommanderTheme de la carta. Aqui solo cuentan las criaturas.
+        final Predicate<PaperCard> more = c -> CommanderTheme.matches(commander, c)
+                || CommanderTheme.matches(partner, c);
+        if (theme.isEmpty() && !CommanderTheme.hasTheme(commander) && !CommanderTheme.hasTheme(partner)) {
             return 0;
         }
         final List<PaperCard> commanders = new ArrayList<>();
@@ -138,7 +152,7 @@ public final class AscentTheme {
             final PaperCard c = e.getKey();
             inDeck.add(c.getName());
             if (c.getRules().getType().isCreature() && !c.getRules().getType().isLand()
-                    && !onTheme(c, theme)) {
+                    && !onTheme(c, theme, more)) {
                 for (int i = 0; i < e.getValue(); i++) {
                     offTheme.add(c);
                 }
@@ -151,7 +165,7 @@ public final class AscentTheme {
         // Candidatas, en orden fijo y luego barajadas con el azar de la run.
         final List<PaperCard> candidates = new ArrayList<>();
         for (final PaperCard c : FModel.getMagicDb().getCommonCards().getUniqueCards()) {
-            if (fits(c, theme, inDeck, identity)) {
+            if (fits(c, theme, more, inDeck, identity)) {
                 candidates.add(c);
             }
         }
@@ -195,7 +209,10 @@ public final class AscentTheme {
         return swaps;
     }
 
-    private static boolean onTheme(final PaperCard c, final Set<String> theme) {
+    private static boolean onTheme(final PaperCard c, final Set<String> theme, final Predicate<PaperCard> more) {
+        if (more.test(c)) {
+            return true;
+        }
         for (final String t : c.getRules().getType().getCreatureTypes()) {
             if (theme.contains(t)) {
                 return true;
@@ -204,15 +221,15 @@ public final class AscentTheme {
         return false;
     }
 
-    private static boolean fits(final PaperCard c, final Set<String> theme, final Set<String> inDeck,
-                                final Predicate<PaperCard> identity) {
+    private static boolean fits(final PaperCard c, final Set<String> theme, final Predicate<PaperCard> more,
+                                final Set<String> inDeck, final Predicate<PaperCard> identity) {
         final CardType type = c.getRules().getType();
         if (!type.isCreature() || type.isLand()) {
             return false;
         }
         // Una cambiaformas es de todas las tribus: valdria para cualquier
         // tema, y llenaria todos los mazos de las mismas.
-        if (type.hasAllCreatureTypes() || !onTheme(c, theme)) {
+        if (type.hasAllCreatureTypes() || !onTheme(c, theme, more)) {
             return false;
         }
         final CardRarity r = c.getRarity();

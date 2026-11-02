@@ -2236,6 +2236,11 @@ public class CardNode extends StackPane {
                 && resting.contains(parent.sceneToLocal(sceneX, sceneY));
     }
 
+    /** Para las capturas, que no tienen raton: ampliarla como al pasar por encima. */
+    public void hoverForTest() {
+        hoverIn();
+    }
+
     private void hoverIn() {
         // Red por si otra se quedo levantada sin retener el raton: no puede
         // haber dos ampliadas (ver entering).

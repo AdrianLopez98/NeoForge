@@ -114,7 +114,9 @@ public final class ReplayCheck {
                     "un fichero que no lo es: no entra");
 
             final String name = ReplayShare.shareName(ReplayShare.read(rec.file, false));
-            bad += check(name.endsWith(ReplayShare.EXTENSION) && name.contains(" vs "),
+            final String neo = forge.neo.NeoVersion.neoVersion();
+            bad += check(name.endsWith(ReplayShare.EXTENSION) && name.contains(" vs ")
+                            && (neo == null || name.endsWith(" NeoForge-" + neo + ReplayShare.EXTENSION)),
                     "el nombre al compartir se entiende: " + name);
 
             final boolean gone = ReplayShare.remove(added.entry) && !added.entry.file.exists();

@@ -369,6 +369,20 @@ public class DeckPickerDialog extends VBox {
         }
     }
 
+    /**
+     * La pestanya "De internet", detras de la de Forge, como en la pantalla de
+     * mazos. Discord, 02-11-2026: <i>"I can choose 'From the net' deck for
+     * myself though"</i> — al rival solo se le podia sortear uno de ahi ("al
+     * azar de..."), no ELEGIRLO. Sin mazos de internet no sale.
+     */
+    public void setNetDecks(final List<Deck> net) {
+        if (net == null || net.isEmpty() || tabBar == null) {
+            return;
+        }
+        final Button t = tab(NeoText.get("home.tab.net", net.size()), net);
+        tabBar.getChildren().add(tabBar.getChildren().indexOf(tabStock) + 1, t);
+    }
+
     private void fill() {
         final List<Deck> source = showing;
         final String q = search.getText() == null ? ""

@@ -1,12 +1,12 @@
-**NeoForge para macOS 1.0.42 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.43 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Equipos y al mejor de 5:** 2 contra 2 o 1 contra 3 como en Forge, y «Al mejor de 5» junto a 1 y 3.
-- **Aventura en Commander:** «Otros tres» comandantes, o «Elegir el mío» de cualquier color, también multicolor.
-- **Ascenso:** filtro «Tuned deck» con los comandantes que traen un mazo montado, y los demás salen con su tribu.
-- **«Actualizar desde el enlace»** en la pantalla de mazos, sin abrir el editor.
-- **Votaciones con su carta** encima de las opciones.
-- **Portada de los mazos sin comandante:** la carta de mayor coste, no una tierra básica.
+- **Mazo de salida de un comandante nuevo con su tema** en la Quest y en Ascenso (Codie con cartas de preparar, Tam con planeswalkers).
+- **Lo jugable brilla bien:** lo que se paga filtrando maná (Prophetic Prism) se marca, y lo de retrospectiva solo si llega el maná.
+- **El mazo de un rival se puede elegir de los de internet**, y «EDHREC Average Decks» ya aparece al bajarlo.
+- **Mesa:** una ficha con algo enganchado no se apila, y fichas del mismo nombre pero de otro tipo o color tampoco.
+- **Constructor en columnas:** los − / + ya no quedan tapados por la carta.
+- **Repeticiones:** la versión de Neo Forge en el nombre al exportarlas.
 
 Descarga el `.dmg` de tu Mac:
 

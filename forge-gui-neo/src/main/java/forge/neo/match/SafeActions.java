@@ -408,11 +408,21 @@ public final class SafeActions {
             final TapToPay.Verdict tap = "true".equalsIgnoreCase(highlights)
                     || "true".equalsIgnoreCase(autoPass)
                     ? TapToPay.evaluate(getPlayer()) : null;
-            overlooked = tap == null ? List.of() : tap.cards();
+            // Y el cuarto: lo que solo se paga filtrando mana (Prophetic Prism,
+            // Conduit Pylons), que la IA tampoco sabe contar (FilterCast).
+            final List<CardView> filtered = tap == null ? List.of() : FilterCast.evaluate(getPlayer());
+            if (filtered.isEmpty()) {
+                overlooked = tap == null ? List.of() : tap.cards();
+            } else {
+                final java.util.LinkedHashSet<CardView> both = new java.util.LinkedHashSet<>(tap.cards());
+                both.addAll(filtered);
+                overlooked = List.copyOf(both);
+            }
             hiddenMana = "true".equalsIgnoreCase(autoPass)
                     && (HiddenMana.evaluate(getPlayer()).holds()
                         || XTargets.evaluate(getPlayer()).holds()
-                        || (tap != null && tap.holds()));
+                        || (tap != null && tap.holds())
+                        || !filtered.isEmpty());
             try {
                 return super.chooseSpellAbilityToPlay();
             } catch (final RuntimeException e) {

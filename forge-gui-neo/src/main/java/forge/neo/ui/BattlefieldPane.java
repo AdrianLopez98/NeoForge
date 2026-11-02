@@ -659,7 +659,19 @@ public class BattlefieldPane extends Pane {
      * es para lo que sirve: once Zombis no pueden ocupar once huecos.
      */
     private boolean canGroup(final CardView token) {
-        return grouping && !token.isAttacking() && !token.isBlocking();
+        return grouping && !token.isAttacking() && !token.isBlocking() && !hasAttached(token);
+    }
+
+    /**
+     * <b>Con algo enganchado, sola</b> (Discord, 01-11-2026, con capturas: unas
+     * Swiftfoot Boots puestas a una ficha de Kraken, que se apilo con el Kraken
+     * que ya tenia, y las botas no se veian por ningun lado hasta declarar
+     * atacantes). Lo enganchado cuelga de la carta, y en una pila solo se pinta
+     * la de delante. Las cartas iguales ya lo miraban ({@link #sameCardsStack});
+     * las fichas no. Android lo hacia bien desde el principio (`claveDePila`).
+     */
+    private static boolean hasAttached(final CardView cv) {
+        return cv.getAttachedCards() != null && !cv.getAttachedCards().isEmpty();
     }
 
     /**
@@ -833,6 +845,10 @@ public class BattlefieldPane extends Pane {
                         + "|" + countersKey(cv)
                         + "|" + linkedKey(cv)
                         + "|" + (st == null ? "" : st.getPower() + "/" + st.getToughness())
+                        // El tipo, los colores y lo que hace: una Soldier artefacto
+                        // de Myrel no es la Soldier de Mobilize, aunque se llamen
+                        // igual y las dos sean 1/1 (Discord, 02-11-2026).
+                        + "|" + (st == null ? "" : st.getType() + "|" + st.getColors() + "|" + st.getAbilityText())
                         + "|" + cv.isTapped()
                         + "|" + cv.isSick()
                         + "|" + cv.isAttacking()
@@ -873,7 +889,7 @@ public class BattlefieldPane extends Pane {
         if (cv.isFaceDown() || cv.isPhasedOut() || cv.isCloned() || cv.isCommander()) {
             return false;
         }
-        return cv.getAttachedCards() == null || cv.getAttachedCards().isEmpty();
+        return !hasAttached(cv);
     }
 
     /**

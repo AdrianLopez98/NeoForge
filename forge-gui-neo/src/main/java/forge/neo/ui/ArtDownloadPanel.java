@@ -44,6 +44,15 @@ public final class ArtDownloadPanel extends VBox {
     private NeoDownloads.Control control;
     private long startedAt;
     private int total;
+    private final ArtDownload.Scope scope;
+    private final String target;
+    /** Que servicio es el de ahora: los avisos de uno ya cancelado se tiran. */
+    private int generation;
+    /**
+     * Lo que se dijo al acabar la tanda anterior ("Parado", "quedan por
+     * comprobar"), para que siga a la vista encima de lo que falta. null = nada.
+     */
+    private String lead;
 
     public ArtDownloadPanel(final ArtDownload.Scope scope, final Runnable onBack) {
         this(scope, null, onBack);
@@ -55,6 +64,8 @@ public final class ArtDownloadPanel extends VBox {
      *               del formato. Con los demas, nada.
      */
     public ArtDownloadPanel(final ArtDownload.Scope scope, final String target, final Runnable onBack) {
+        this.scope = scope;
+        this.target = target;
         getStyleClass().addAll("dialog", "art-download");
         setSpacing(12);
         setAlignment(Pos.CENTER_LEFT);
@@ -112,6 +123,22 @@ public final class ArtDownloadPanel extends VBox {
 
         getChildren().addAll(title, note, bar, status, buttons);
 
+        prepare();
+    }
+
+    /**
+     * Monta el servicio y su mando, sin empezar: cuenta lo que falta en el
+     * disco y avisa con {@code ready}. Se llama al abrir y otra vez al
+     * cancelar, porque un servicio de Forge cancelado no vuelve a arrancar:
+     * sin rehacerlo, "Empezar" se quedaba apagado tras "Cancelar" hasta salir
+     * del panel (Discord, 02-11-2026: <i>"it doesn't let me restart the
+     * download"</i>). Volver a contar es ademas lo que hace seguir donde se
+     * quedo.
+     */
+    private void prepare() {
+        final ArtDownload.Scope scope = this.scope;
+        final String target = this.target;
+        final int gen = ++generation;
         // La lista se monta en un hilo de fondo (lo hace el propio servicio) y
         // avisa por ready(). Hasta entonces, "contando".
         // Todas las impresiones las baja el descargador de Forge tal cual; las
@@ -134,14 +161,14 @@ public final class ArtDownloadPanel extends VBox {
             // La primera vez de "todas" se baja antes el indice de Scryfall (75
             // MB, un par de minutos): sin decirlo, parece que "contando" se ha
             // colgado.
-            mine.setOnIndex(fraction -> onUi(() -> status.setText(NeoText.get("artdl.index",
+            mine.setOnIndex(fraction -> onUi(gen, () -> status.setText(NeoText.get("artdl.index",
                     fraction < 0 ? "" : Math.round(fraction * 100) + " %"))));
             service = mine;
         }
         control = NeoDownloads.watch(service, new NeoDownloads.Watch() {
             @Override
             public void ready(final int pending) {
-                onUi(() -> {
+                onUi(gen, () -> {
                     total = pending;
                     bar.setProgress(0);
                     if (pending == 0) {
@@ -153,16 +180,18 @@ public final class ArtDownloadPanel extends VBox {
                     // decir de que cartas habla no deja hacer nada con el.
                     final java.util.List<String> names = scope == ArtDownload.Scope.TOKENS
                             ? java.util.List.of() : ArtDownload.missingNames(10);
-                    status.setText(NeoText.get("artdl.missing", group(pending),
+                    status.setText((lead != null ? lead + "\n" : "")
+                            + NeoText.get("artdl.missing", group(pending),
                             group(ArtDownload.megabytes(pending)))
                             + (names.isEmpty() ? "" : "\n" + String.join(", ", names)));
                     startButton.setDisable(false);
+                    cycleTest();
                 });
             }
 
             @Override
             public void progress(final int done, final int max) {
-                onUi(() -> {
+                onUi(gen, () -> {
                     total = Math.max(total, max);
                     bar.setProgress(total == 0 ? 0 : done / (double) total);
                     status.setText(NeoText.get("artdl.progress", group(done), group(total),
@@ -177,7 +206,7 @@ public final class ArtDownloadPanel extends VBox {
                 // haya que contar).
                 if (scope == ArtDownload.Scope.TOKENS) {
                     forge.neo.card.TokenArtDownload.afterDownload();
-                    onUi(() -> {
+                    onUi(gen, () -> {
                         bar.setProgress(1);
                         status.setText(NeoText.get("artdl.done.tokens"));
                         startButton.setDisable(true);
@@ -194,7 +223,7 @@ public final class ArtDownloadPanel extends VBox {
                 // apuntarlas es lo que hizo volver el informe de itch.io.
                 final java.util.concurrent.CompletableFuture<forge.neo.card.ArtUnavailable.Result> noting =
                         skipped == 0 ? null : forge.neo.card.ArtUnavailable.last();
-                onUi(() -> {
+                onUi(gen, () -> {
                     bar.setProgress(1);
                     // Mientras se comprueban las que fallaron, "Listo" a
                     // secas: de las que no hay no se habla.
@@ -204,14 +233,22 @@ public final class ArtDownloadPanel extends VBox {
                     stopButton.setManaged(false);
                 });
                 if (noting != null) {
-                    noting.thenAccept(r -> onUi(() -> status.setText(
-                            // Las no disponibles ya estan apuntadas y no
-                            // vuelven a contar: no se habla de ellas (pedido
-                            // el 26-09-2026: "que ponga que lo tienes todo").
-                            // Solo se avisa si quedan por comprobar, porque
-                            // esas SI hay que volver a pedirlas.
-                            r.unchecked > 0 ? NeoText.get("artdl.doneRetry", group(r.noted), group(r.unchecked))
-                                    : NeoText.get("artdl.none"))));
+                    noting.thenAccept(r -> onUi(gen, () -> {
+                        // Las no disponibles ya estan apuntadas y no
+                        // vuelven a contar: no se habla de ellas (pedido
+                        // el 26-09-2026: "que ponga que lo tienes todo").
+                        // Solo se avisa si quedan por comprobar, porque
+                        // esas SI hay que volver a pedirlas...
+                        if (r.unchecked <= 0) {
+                            status.setText(NeoText.get("artdl.none"));
+                            return;
+                        }
+                        // ...y el aviso dice "pulsa Empezar otra vez":
+                        // tiene que poder pulsarse (Discord, 02-11-2026).
+                        lead = NeoText.get("artdl.doneRetry", group(r.noted), group(r.unchecked));
+                        status.setText(lead);
+                        prepare();
+                    }));
                 }
             }
         });
@@ -230,6 +267,7 @@ public final class ArtDownloadPanel extends VBox {
     }
 
     private void start() {
+        lead = null;
         startedAt = System.currentTimeMillis();
         startButton.setDisable(true);
         stopButton.setVisible(true);
@@ -257,6 +295,11 @@ public final class ArtDownloadPanel extends VBox {
         stopButton.setVisible(false);
         stopButton.setManaged(false);
         status.setText(NeoText.get("artdl.stopped"));
+        // Y otra vez listo para empezar, contando lo que falta ahora.
+        lead = NeoText.get("artdl.stopped");
+        startButton.setDisable(true);
+        bar.setProgress(javafx.scene.control.ProgressIndicator.INDETERMINATE_PROGRESS);
+        prepare();
     }
 
     /** Cuanto queda, con el ritmo que lleva. Traducido, que el del motor no lo esta. */
@@ -277,6 +320,40 @@ public final class ArtDownloadPanel extends VBox {
     /** 35950 -> "35.950", con el separador del idioma. */
     private static String group(final int n) {
         return String.format(java.util.Locale.getDefault(), "%,d", n);
+    }
+
+    /**
+     * {@code -Dneo.artdl.cycle=true} (con {@code -Dneo.settings.art}): empieza,
+     * cancela a los 3 s y, cuando vuelve a estar lista, dice si "Empezar" se
+     * puede pulsar. Una vez.
+     */
+    private void cycleTest() {
+        if (!Boolean.getBoolean("neo.artdl.cycle")) {
+            return;
+        }
+        if (cycled) {
+            System.out.println("[artdl] tras cancelar: Empezar "
+                    + (startButton.isDisabled() ? "APAGADO" : "encendido") + " | " + status.getText());
+            return;
+        }
+        cycled = true;
+        System.out.println("[artdl] listo, empiezo: " + status.getText());
+        start();
+        forge.util.ThreadUtil.delay(3000, () -> onUi(() -> {
+            System.out.println("[artdl] cancelo");
+            stop();
+        }));
+    }
+
+    private boolean cycled;
+
+    /** Lo mismo, solo si ese servicio sigue siendo el de ahora. */
+    private void onUi(final int gen, final Runnable task) {
+        onUi(() -> {
+            if (gen == generation) {
+                task.run();
+            }
+        });
     }
 
     private static void onUi(final Runnable task) {

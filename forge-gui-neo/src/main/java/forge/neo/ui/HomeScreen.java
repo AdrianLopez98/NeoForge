@@ -2094,6 +2094,7 @@ et}) y no se tocan.
                 overlay::hide,
                 format.isCommanderStyle() ? this::generateOpponentDeck : null);
         picker.setCollections(collections);
+        picker.setNetDecks(net);
         // Al azar DE UNA LISTA: las mismas que tu propio "al azar" (Discord,
         // 08-10-2026: "only in X folder and such").
         final List<DeckPickerDialog.RandomPool> pools = new ArrayList<>();

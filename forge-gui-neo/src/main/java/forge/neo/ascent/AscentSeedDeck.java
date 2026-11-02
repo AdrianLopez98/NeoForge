@@ -658,7 +658,7 @@ public final class AscentSeedDeck {
             final int n = AscentTheme.apply(deck, cmd, partner, MAX_BRACKET);
             if (n > 0) {
                 System.out.println("[ascenso] " + cmd.getName() + ": " + n + " criaturas de su tema ("
-                        + AscentTheme.describe(AscentTheme.themeOf(cmd, partner)) + ")");
+                        + String.join(", ", CommanderTheme.clues(cmd)) + ")");
             }
         } catch (final RuntimeException e) {
             // Un tema es un adorno: si falla, el mazo de sus colores de siempre.

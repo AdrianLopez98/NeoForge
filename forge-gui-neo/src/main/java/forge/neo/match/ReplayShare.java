@@ -232,7 +232,15 @@ public final class ReplayShare {
 
     /**
      * El nombre con el que sale al compartirla: quien la recibe ve de que va
-     * ("Ana vs Ajani 2026-10-31 1643.frp") en vez de "replay-20261031-164301".
+     * ("Ana vs Ajani 2026-10-31 1643 NeoForge-1.0.43.frp") en vez de
+     * "replay-20261031-164301".
+     *
+     * <p>Con la version (Discord, 01-11-2026): una repeticion solo se ve con
+     * la misma version que la grabo, y sin decirlo en el nombre habia que
+     * importarla para enterarse de cual hacia falta. Solo si es de ESTA
+     * version: de una importada de otra no sabemos que Neo Forge la grabo
+     * (la cabecera lleva la del motor), y mejor no poner nada que poner una
+     * que no es.
      */
     public static String shareName(final Entry e) {
         final String when = new SimpleDateFormat("yyyy-MM-dd HHmm", Locale.ROOT).format(new Date(e.startMillis));
@@ -240,7 +248,9 @@ public final class ReplayShare {
         if (name.length() > 80) {
             name = name.substring(0, 80).trim();
         }
-        return (name.isEmpty() ? "replay" : name) + " " + when + EXTENSION;
+        final String neo = forge.neo.NeoVersion.neoVersion();
+        final String version = neo != null && !e.otherVersion() ? " NeoForge-" + neo : "";
+        return (name.isEmpty() ? "replay" : name) + " " + when + version + EXTENSION;
     }
 
     private static File freeName(final File dir, final Entry e) {

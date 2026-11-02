@@ -4241,6 +4241,33 @@ public final class AscentCheck {
         } else {
             ok("tema: Munda sale con " + allies + " Allies, " + lands + " tierras y bracket " + bracket);
         }
+        temaDePreparar();
+    }
+
+    /**
+     * Y un tema que no es tribu (02-11-2026, {@link CommanderTheme}): Codie,
+     * Ravenous Codex copia los hechizos preparados, y su mazo de salida tiene
+     * que llevar criaturas con preparar.
+     */
+    private static void temaDePreparar() {
+        final forge.item.PaperCard codie = forge.model.FModel.getMagicDb().getCommonCards()
+                .getCard("Codie, Ravenous Codex");
+        if (codie == null || AscentSynergy.knows(codie)) {
+            ok("tema: Codie no esta o ya la conoce la matriz; nada que comprobar");
+            return;
+        }
+        final forge.deck.Deck d = AscentSeedDeck.generate(AscentRun.Mode.COMMANDER, codie, "tema");
+        int prepare = 0;
+        for (final java.util.Map.Entry<forge.item.PaperCard, Integer> e : d.getMain()) {
+            if (e.getKey().getRules().getSplitType() == forge.card.CardSplitType.Prepare) {
+                prepare += e.getValue();
+            }
+        }
+        if (d.getMain().countAll() != AscentSeedDeck.COMMANDER_SIZE || prepare < 5) {
+            fail("tema: Codie con " + prepare + " cartas de preparar y " + d.getMain().countAll() + " cartas");
+        } else {
+            ok("tema: Codie sale con " + prepare + " cartas de preparar");
+        }
     }
 
     /**

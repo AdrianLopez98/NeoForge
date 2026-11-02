@@ -4102,6 +4102,10 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
      * que pases prioridad: ahi no corre nada en su hilo, y fuera de ahi no se
      * puede lanzar nada de todas formas. En red el invitado no tiene
      * {@code Game}: se queda lo de antes, la lista sola.
+     *
+     * <p>Y desde el 01-11-2026, <b>si llega el mana</b>: la fase sola dejaba
+     * el retrospectivo marcado sin mana para pagarlo (Discord). Clicarla sigue
+     * dejando intentarlo ({@link #mayTryOutside}).
      */
     private boolean castableNow(final CardView card) {
         final GameView gv = getGameView();
@@ -4126,7 +4130,10 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                     final Thread was = probing;
                     probing = Thread.currentThread();
                     try {
-                        return !c.getAllPossibleAbilities(me, true).isEmpty();
+                        // Y con que pagarla (Discord, 01-11-2026: "flashback
+                        // cards are always highlighted, even when you don't
+                        // have the mana available"). Ver FilterCast.anyAffordable.
+                        return FilterCast.anyAffordable(me, c.getAllPossibleAbilities(me, true));
                     } finally {
                         probing = was;
                     }

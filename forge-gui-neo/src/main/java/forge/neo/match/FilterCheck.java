@@ -69,12 +69,25 @@ public final class FilterCheck {
     private static final String SPELL = "Watchwolf|Set:RAV";
     private static final String SPELL_NAME = "Watchwolf";
 
+    private static final String WASTES = "Wastes";
+    private static final String PRISM = "Prophetic Prism|Set:CMR";
+    /** {2}{U}: con tierras incoloras, solo se paga filtrando. */
+    private static final String BLUE = "Divination";
+    private static final String BLUE_NAME = "Divination";
+
     public static void run() {
         passed = 0;
         failed = 0;
 
-        final Probe filter = probe("filtro", FOREST, PRAIRIE, false);
-        final Probe control = probe("control", FOREST, PLAINS, false);
+        final Probe filter = probe("filtro", FOREST + ";" + PRAIRIE, SPELL, SPELL_NAME, false);
+        final Probe control = probe("control", FOREST + ";" + PLAINS, SPELL, SPELL_NAME, false);
+        // FilterCast (01-11-2026, Discord: un Tron de pauper con Prophetic
+        // Prism): tres Wastes y el Prisma pagan Divination ({2}{U}); con dos
+        // no llega. El motor no la ilumina; FilterCast si, y solo la primera.
+        final Probe prism = probe("prisma", WASTES + ";" + WASTES + ";" + WASTES + ";" + PRISM,
+                BLUE, BLUE_NAME, false);
+        final Probe short2 = probe("prisma-corto", WASTES + ";" + WASTES + ";" + PRISM,
+                BLUE, BLUE_NAME, false);
 
         check(filter.seen, "la posicion del filtro arranco");
         check(control.seen, "la posicion de control arranco");
@@ -96,6 +109,13 @@ public final class FilterCheck {
         check(control.blind.isEmpty(),
                 "y no senyala una tierra normal (encontro: " + control.blind + ")");
 
+        check(prism.seen && short2.seen, "las dos mesas del Prisma arrancaron");
+        check(prism.filtered.contains(BLUE_NAME),
+                "FilterCast ilumina Divination con tres Wastes y Prophetic Prism (encontro: "
+                + prism.filtered + "; el motor la pagaba: " + prism.canPay + ")");
+        check(!short2.filtered.contains(BLUE_NAME),
+                "y no con dos Wastes, que no llegan (encontro: " + short2.filtered + ")");
+
         System.out.printf(Locale.ROOT, "%n  %d bien, %d mal%n", passed, failed);
         if (failed > 0) {
             throw new IllegalStateException(
@@ -110,11 +130,14 @@ public final class FilterCheck {
         private boolean canPay;
         private boolean castTheSpell;
         private final List<String> blind = new ArrayList<>();
+        private final List<String> filtered = new ArrayList<>();
+        private String spellName;
     }
 
-    private static Probe probe(final String title, final String landA, final String landB,
-                               final boolean withFix) {
+    private static Probe probe(final String title, final String battlefield, final String spell,
+                               final String spellName, final boolean withFix) {
         final Probe out = new Probe();
+        out.spellName = spellName;
         final AtomicBoolean done = new AtomicBoolean(false);
         final AtomicBoolean alive = new AtomicBoolean(true);
         final NeoMatchUI[] gui = new NeoMatchUI[1];
@@ -128,6 +151,7 @@ public final class FilterCheck {
                         inspect(gui[0], done, out);
                     }
                     watchForCast(gui[0], out);
+
                     Thread.sleep(120L);
                 } catch (final InterruptedException e) {
                     Thread.currentThread().interrupt();
@@ -138,24 +162,28 @@ public final class FilterCheck {
             }
         }, "filtercheck-" + title);
         poller.setDaemon(true);
+        // Lo que ilumina FilterCast lo mira SafeActions en el hilo del motor,
+        // al empezar cada prioridad: se lee de ahi, no desde este sondeo.
+        FilterCast.resetForTest();
 
-        final TutorialLesson lesson = position(landA, landB);
+        final TutorialLesson lesson = position(battlefield, spell);
         NeoGame.playTutorial(lesson, new TutorialState(lesson.getState()),
                 NeoMatchUI.Mode.AUTO_PLAY, 30, null, withFix, ui -> {
                     gui[0] = ui;
                     poller.start();
                 });
         alive.set(false);
+        out.filtered.addAll(FilterCast.seen());
         NeoMatchUI.setBlindSourceFallback(false);
         return out;
     }
 
-    private static TutorialLesson position(final String landA, final String landB) {
+    private static TutorialLesson position(final String battlefield, final String spell) {
         return new TutorialLesson("filtro", Arrays.asList(
                 "turn=3", "activeplayer=human", "activephase=MAIN1",
                 "humanlife=20", "ailife=20",
-                "humanbattlefield=" + landA + ";" + landB,
-                "humanhand=" + SPELL,
+                "humanbattlefield=" + battlefield,
+                "humanhand=" + spell,
                 "humanlibrary=" + FOREST + ";" + FOREST + ";" + FOREST,
                 "humangraveyard=", "humanexile=", "humancommand=",
                 "aibattlefield=", "aihand=",
@@ -201,7 +229,7 @@ public final class FilterCheck {
         final Game game = ui.getGameView().getGame();
         Card spell = null;
         for (final Card c : me.getCardsIn(ZoneType.Hand)) {
-            if (SPELL_NAME.equals(c.getName())) {
+            if (out.spellName.equals(c.getName())) {
                 spell = c;
             }
         }

@@ -161,7 +161,9 @@ public final class QuestCheck {
         System.out.println("  --- Quest de Commander empezando por comandante ---");
         boolean ok = true;
         final List<PaperCard> commanders = new java.util.ArrayList<>();
-        for (final String name : new String[] {"Krenko, Mob Boss", "Meren of Clan Nel Toth"}) {
+        for (final String name : new String[] {"Krenko, Mob Boss", "Meren of Clan Nel Toth",
+                // Recien salidos, sin matriz: su tema sale de la carta (CommanderTheme).
+                "Codie, Ravenous Codex", "Tam, the Possibility"}) {
             final PaperCard pc = FModel.getMagicDb().getCommonCards().getUniqueByName(name);
             if (pc != null) {
                 commanders.add(pc);
@@ -196,6 +198,22 @@ public final class QuestCheck {
             final int uncommons = byRarity.getOrDefault(CardRarity.Uncommon, 0);
             final int rares = byRarity.getOrDefault(CardRarity.Rare, 0);
             final int mythics = byRarity.getOrDefault(CardRarity.MythicRare, 0);
+            // Lo del tema, para los que no conoce la matriz (Discord, 02-11-2026:
+            // "none of them have Prepared spells"). Al menos ocho, o la mitad si el tema es corto.
+            final java.util.Set<String> theme = new java.util.HashSet<>();
+            for (final java.util.Map.Entry<PaperCard, Integer> e : forge.neo.ascent.CommanderTheme.poolOf(cmd)) {
+                theme.add(e.getKey().getName());
+            }
+            int themed = 0;
+            for (final PaperCard c : d.getMain().toFlatList()) {
+                if (theme.contains(c.getName())) {
+                    themed++;
+                }
+            }
+            final boolean themeOk = forge.neo.ascent.AscentSynergy.knows(cmd) || theme.isEmpty() || themed >= Math.min(8, theme.size() / 2);
+            System.out.printf(Locale.ROOT, "  %-30s tema %s: %d cartas en el mazo%s%n", cmd.getName(),
+                    forge.neo.ascent.CommanderTheme.clues(cmd), themed, themeOk ? "" : "  <- FALLO");
+            ok &= themeOk;
             final boolean good = problem == null && bracket <= 2
                     && uncommons <= NeoCommanderDuels.STARTER_UNCOMMONS
                     && rares <= NeoCommanderDuels.STARTER_RARES && mythics == 0

@@ -201,14 +201,23 @@ public final class NetDecks {
         }
     }
 
-    /** Cuantos .dck hay en la carpeta de una categoria. */
-    private static int countFiles(final String name) {
-        final java.io.File dir = new java.io.File(ForgeConstants.DECK_NET_DIR + name);
-        if (!dir.isDirectory()) {
+    /**
+     * Cuantos .dck hay en la carpeta de una categoria, <b>subcarpetas
+     * incluidas</b>: el motor la lee entera ({@code getAllFilesList}), y el zip
+     * de "EDHREC Average Decks" mete los 6.858 en {@code average/} (Discord,
+     * 02-11-2026: se bajaba, decia "estan en la pestanya De internet" y ni la
+     * categoria salia como bajada ni la pestanya aparecia).
+     */
+    static int countFiles(final String name) {
+        final java.nio.file.Path dir = java.nio.file.Paths.get(ForgeConstants.DECK_NET_DIR + name);
+        if (!java.nio.file.Files.isDirectory(dir)) {
             return 0;
         }
-        final String[] files = dir.list((d, f) ->
-                f.toLowerCase(java.util.Locale.ROOT).endsWith(".dck"));
-        return files == null ? 0 : files.length;
+        try (java.util.stream.Stream<java.nio.file.Path> all = java.nio.file.Files.walk(dir)) {
+            return (int) all.filter(p -> p.getFileName().toString()
+                    .toLowerCase(java.util.Locale.ROOT).endsWith(".dck")).count();
+        } catch (final java.io.IOException | RuntimeException e) {
+            return 0;
+        }
     }
 }

@@ -366,7 +366,20 @@ public class DeckStackView extends ScrollPane {
             if (col instanceof VBox) {
                 for (final javafx.scene.Node n : ((VBox) col).getChildren()) {
                     if (n instanceof CardPile && ((CardPile) n).getChildren().size() > at + 1) {
-                        ((CardPile) n).openAt(((CardPile) n).getChildren().get(at));
+                        final javafx.scene.Node box = ((CardPile) n).getChildren().get(at);
+                        ((CardPile) n).openAt(box);
+                        // Y con la carta ampliada y sus - / + a la vista, como
+                        // con el raton encima (Discord, 01-11-2026: la carta
+                        // tapaba los botones).
+                        if (box instanceof StackPane) {
+                            for (final javafx.scene.Node c : ((StackPane) box).getChildren()) {
+                                if (c instanceof CardNode) {
+                                    ((CardNode) c).hoverForTest();
+                                } else if (c instanceof HBox) {
+                                    c.setVisible(true);
+                                }
+                            }
+                        }
                         return;
                     }
                 }
@@ -458,6 +471,8 @@ public class DeckStackView extends ScrollPane {
             box.getChildren().add(count);
             StackPane.setAlignment(count, Pos.TOP_RIGHT);
             StackPane.setMargin(count, new Insets(3));
+            // Delante de la carta ampliada, como los botones de abajo.
+            count.setViewOrder(-2);
         }
 
         box.setOnMouseClicked(e -> {
@@ -479,6 +494,10 @@ public class DeckStackView extends ScrollPane {
             box.getChildren().add(steps);
             StackPane.setAlignment(steps, Pos.BOTTOM_CENTER);
             StackPane.setMargin(steps, new Insets(0, 0, 6, 0));
+            // Por encima de la carta: al pasar el raton, CardNode se amplia y se
+            // pone delante (viewOrder -1) y tapaba sus propios botones (Discord,
+            // 01-11-2026, con captura). -2 gana a eso.
+            steps.setViewOrder(-2);
             box.hoverProperty().addListener((o, a, b) -> steps.setVisible(b));
         }
 

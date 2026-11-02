@@ -112,6 +112,9 @@ public final class NeoCommanderDuels {
     /** Y cuantas en total, contando los staples de relleno. */
     private static final int CANDIDATES = 320;
 
+    /** Cuantas del tema de un comandante sin matriz entran primero (ver CommanderTheme). */
+    private static final int THEME = 40;
+
     /**
      * Los cuatro duelos de hoy, como los devolveria {@code generateDuels()}: el
      * ultimo es el "rival sorpresa", con la dificultad escondida.
@@ -366,6 +369,12 @@ public final class NeoCommanderDuels {
         seen.add(cmd.getName());
 
         final List<PaperCard> candidates = new ArrayList<>();
+        // Un comandante que la matriz no conoce (uno recien salido, casi
+        // siempre): su tema, leido de su propia carta. Ver CommanderTheme.
+        if (!AscentSynergy.knows(cmd)) {
+            addWeighted(candidates, seen, forge.neo.ascent.CommanderTheme.poolOf(cmd), THEME,
+                    format, identity, maxRarity, quota);
+        }
         addWeighted(candidates, seen, AscentSynergy.poolOf(cmd), OWN_POOL,
                 format, identity, maxRarity, quota);
         addWeighted(candidates, seen, AscentSynergy.popularity(), CANDIDATES,
