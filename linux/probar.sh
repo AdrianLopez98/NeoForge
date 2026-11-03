@@ -48,6 +48,25 @@ if grep -E '\bFALLO\b|\[MAL\]' "$OUT/deckcheck.log" | grep -vq "$TIEMPO" \
     fallos=$((fallos + 1))
 fi
 
+echo "== 1a. add-to-menu.sh: el menu y los .frp (en una carpeta de prueba)"
+# Que el script registra el tipo .frp y que el .desktop lo abre con %f. En una
+# carpeta aparte (XDG_DATA_HOME), no en la de la maquina. El doble clic de
+# verdad no se puede probar sin escritorio; la base de tipos, si.
+XDG_PRUEBA="$OUT/xdg"
+rm -rf "$XDG_PRUEBA"
+if XDG_DATA_HOME="$XDG_PRUEBA" "$APP/add-to-menu.sh" > "$OUT/add-to-menu.log" 2>&1         && grep -q '^MimeType=application/x-neoforge-replay;' "$XDG_PRUEBA/applications/neoforge.desktop"         && grep -q 'bin/NeoForge" %f' "$XDG_PRUEBA/applications/neoforge.desktop"         && grep -q '\*\.frp' "$XDG_PRUEBA/mime/packages/neoforge-replay.xml"; then
+    echo "add-to-menu.sh: bien"
+    # Con shared-mime-info instalado, la base de tipos ya conoce los .frp.
+    if command -v update-mime-database >/dev/null 2>&1             && ! grep -q 'x-neoforge-replay' "$XDG_PRUEBA/mime/globs2" 2>/dev/null; then
+        echo "::error::update-mime-database no ha registrado *.frp (ver $XDG_PRUEBA/mime)"
+        fallos=$((fallos + 1))
+    fi
+else
+    cat "$OUT/add-to-menu.log"
+    echo "::error::add-to-menu.sh no ha dejado el .desktop o el tipo .frp como toca"
+    fallos=$((fallos + 1))
+fi
+
 echo "== 1b. audiocheck: los MP3 sin JavaFX"
 # En Linux el sonido no va por JavaFX Media, que pide el FFmpeg del sistema y
 # en SteamOS no lo encuentra (1.0.34): va por forge.neo.platform.JavaSound.

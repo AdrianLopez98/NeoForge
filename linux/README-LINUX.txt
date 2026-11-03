@@ -23,6 +23,10 @@ HOW TO PLAY
 
        ./NeoForge/add-to-menu.sh
 
+   It also makes replay files (.frp) open with Neo Forge: double-click one
+   and it plays in the game (if you're in the middle of a game, it's saved
+   in Replays for later).
+
 The first launch takes a little longer: it reads the 33,000+ cards.
 
 
