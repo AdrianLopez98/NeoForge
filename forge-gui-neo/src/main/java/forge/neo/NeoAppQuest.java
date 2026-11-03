@@ -88,9 +88,11 @@ final class NeoAppQuest {
                 // Quest, despues de crearla (start borra lo de una anterior
                 // con el mismo nombre).
                 final boolean lowLife = setup.isLowLife();
+                final boolean rivalSets = setup.isRivalSets();
                 if (commander == null && starter != null) {
                     forge.neo.quest.NeoQuest.start(name, modalidad, dificultad, starter, world, pool);
                     forge.neo.quest.QuestLowLife.set(name, lowLife);
+                    forge.neo.quest.QuestRivalSets.set(name, rivalSets);
                     showQuestHome();
                     return;
                 }
@@ -118,6 +120,7 @@ final class NeoAppQuest {
                         }
                         forge.neo.quest.NeoQuest.start(name, modalidad, dificultad, deck, world, pool);
                         forge.neo.quest.QuestLowLife.set(name, lowLife);
+                        forge.neo.quest.QuestRivalSets.set(name, rivalSets);
                         showQuestHome();
                     });
                 }, "neo-quest-starter");

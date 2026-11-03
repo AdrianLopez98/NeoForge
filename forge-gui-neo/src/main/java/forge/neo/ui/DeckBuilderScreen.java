@@ -2695,13 +2695,39 @@ public class DeckBuilderScreen extends StackPane {
         row.getStyleClass().add("deck-row");
         row.setAlignment(Pos.CENTER_LEFT);
         row.setOpacity(0.8);
+        // Derecho: el menu del banquillo, con su "Cambiar arte" (Discord,
+        // 03-11-2026: en el principal se podia y aqui no).
         row.setOnMouseClicked(e -> {
-            if (e.getButton() == MouseButton.PRIMARY) {
+            if (e.getButton() == MouseButton.SECONDARY) {
+                sideboardMenu(card);
+            } else if (e.getButton() == MouseButton.PRIMARY) {
                 zoom(card);
             }
         });
         hoverCard(row, card);
         return row;
+    }
+
+    /** El menu de una carta del banquillo: su arte, pasarla al mazo o quitarla. */
+    private void sideboardMenu(final PaperCard card) {
+        final int have = editor.copiesOfPrintingInSideboard(card);
+        final int printings = editor.allowsArtWishes()
+                ? editor.allPrintingsOf(card).size() : editor.printingsOf(card).size();
+        showCardMenu(card, CardActionMenu.actions(
+                new CardActionMenu.Action(NeoText.get("deck.changePrinting"),
+                        printings > 1 ? NeoText.get("deck.arts", printings) : NeoText.get("printing.only"),
+                        printings > 1 || editor.allowsArtWishes(),
+                        () -> choosePrinting(card, false, true)),
+                new CardActionMenu.Action(NeoText.get("deck.sideboard.toMain"), null, have > 0, () -> {
+                    editor.moveSideboardToMain(card);
+                    refreshDeck();
+                    refreshCatalogue();
+                }),
+                new CardActionMenu.Action(NeoText.get("deck.removeOne"), null, have > 0, () -> {
+                    editor.removeFromSideboard(card, 1);
+                    refreshDeck();
+                    refreshCatalogue();
+                })));
     }
 
     /** Coste de mana compacto para la lista de cartas. */
@@ -3081,6 +3107,11 @@ public class DeckBuilderScreen extends StackPane {
      * 16-10-2026: "que por defecto salgan los artes que tienes").
      */
     private void choosePrinting(final PaperCard card, final boolean all) {
+        choosePrinting(card, all, false);
+    }
+
+    /** Con {@code side}, la carta es del BANQUILLO y se cambian sus copias de alli. */
+    private void choosePrinting(final PaperCard card, final boolean all, final boolean side) {
         final boolean wishes = editor.allowsArtWishes();
         final List<PaperCard> printings = wishes && all ? editor.allPrintingsOf(card) : editor.printingsOf(card);
         if (printings.size() <= 1 && !wishes) {
@@ -3092,15 +3123,18 @@ public class DeckBuilderScreen extends StackPane {
             overlay.hide();
             // Las copias que diga el contador (de fabrica todas): nueve Nazgul
             // con nueve artes, treinta llanuras de dos (Discord, 06-10-2026).
-            final int changed = editor.switchPrinting(card, picked, dialog[0].copies());
+            final int changed = side
+                    ? editor.switchSideboardPrinting(card, picked, dialog[0].copies())
+                    : editor.switchPrinting(card, picked, dialog[0].copies());
             if (changed > 0) {
                 refreshDeck();
                 refreshCatalogue();
             }
-        }, overlay::hide).offerCopies(editor.copiesOfPrintingInMain(card));
+        }, overlay::hide).offerCopies(side ? editor.copiesOfPrintingInSideboard(card)
+                : editor.copiesOfPrintingInMain(card));
         if (wishes) {
             dialog[0].withSegments(List.of(NeoText.get("printing.mine"), NeoText.get("printing.all")),
-                    all ? 1 : 0, which -> choosePrinting(card, which == 1));
+                    all ? 1 : 0, which -> choosePrinting(card, which == 1, side));
             if (all) {
                 dialog[0].withNote(p -> editor.ownsPrinting(p) ? null : NeoText.get("printing.notOwned"),
                         editor::ownsPrinting);

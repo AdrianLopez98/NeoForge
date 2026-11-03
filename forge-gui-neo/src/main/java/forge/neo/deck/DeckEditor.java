@@ -2134,6 +2134,42 @@ public final class DeckEditor {
         return out;
     }
 
+    /**
+     * Cambia el arte de {@code copies} copias de una carta del BANQUILLO
+     * (Discord, 03-11-2026: <i>"you can change arts for the cards on the main
+     * deck, but you can't do it for the sideboard cards"</i>). Lo mismo que
+     * {@link #switchPrinting(PaperCard, PaperCard, int)} en el principal, y
+     * como alli, si son todas se recuerda como arte preferido. El companero no
+     * pasa por aqui: no sale en {@link #sideboardCards()} y lo cambia
+     * {@link #switchPrinting(PaperCard, PaperCard)}.
+     *
+     * @return cuantas se han cambiado
+     */
+    public int switchSideboardPrinting(final PaperCard from, final PaperCard to, final int copies) {
+        if (from == null || to == null || from.equals(to) || copies <= 0
+                || format.poolInSideboard() || !deck.has(DeckSection.Sideboard)) {
+            return 0;
+        }
+        final CardPool side = deck.get(DeckSection.Sideboard);
+        final int n = Math.min(copies, side.count(from));
+        if (n <= 0) {
+            return 0;
+        }
+        side.remove(from, n);
+        side.add(to, n);
+        dirty = true;
+        if (n == copies && side.count(from) == 0) {
+            rememberArt(to);
+        }
+        noteArtWish(to);
+        return n;
+    }
+
+    /** Cuantas copias de ESTA impresion hay en el banquillo. */
+    public int copiesOfPrintingInSideboard(final PaperCard card) {
+        return card == null || !deck.has(DeckSection.Sideboard) ? 0 : deck.get(DeckSection.Sideboard).count(card);
+    }
+
     /** Quita N copias de esa carta del banquillo. */
     public void removeFromSideboard(final PaperCard card, final int amount) {
         if (card == null || amount <= 0 || format.poolInSideboard() || !deck.has(DeckSection.Sideboard)) {
@@ -2441,7 +2477,8 @@ public final class DeckEditor {
         }
 
         // El companero vive en el banquillo. Solo el: el resto del banquillo
-        // no se ve en ninguna pantalla y cambiarle el arte seria a ciegas.
+        // tiene su propio "Cambiar arte" (switchSideboardPrinting), y cambiar
+        // el del principal no puede cambiarle el arte a esas copias a la vez.
         if (isCompanionCard(from) && deck.has(DeckSection.Sideboard)) {
             final CardPool side = deck.get(DeckSection.Sideboard);
             final int asCompanion = side.count(from);

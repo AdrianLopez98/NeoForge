@@ -121,6 +121,8 @@ public final class AscentCheck {
             mesasSinFichas();
             cerrarAMedias();
             temaDeTribu();
+            curvaDeSalida();
+            salidaSinRaras();
             mazosGenerados();
             parejaDeMando();
             venderReliquias();
@@ -4245,6 +4247,100 @@ public final class AscentCheck {
     }
 
     /**
+     * La curva y las tierras del mazo de salida de Commander tras el recorte a 60
+     * (Ana, 03-11-2026: "que con ese recorte se quede buena curva de mana y n de
+     * tierras"). Con comandantes que la matriz conoce y que no.
+     */
+    /**
+     * Ni una rara ni mitica en el mazo de salida de Estandar, en MUCHOS mazos
+     * (la sonda de rejugabilidad mira 40). Se juzga la CARTA, no la impresion:
+     * desde el 30-10-2026 tu arte favorito entra en tu mazo sea de la rareza
+     * que sea ({@code AscentArt.forDeck}), y con un favorito de Secret Lair
+     * esto se ponia en rojo de tarde en tarde y solo en el ordenador que lo
+     * tenia (ver {@link AscentBattle#rareCard}).
+     */
+    private static void salidaSinRaras() {
+        final int runs = Integer.getInteger("neo.ascent.check.rareRuns", 200);
+        final List<String> raras = new ArrayList<>();
+        for (int i = 0; i < runs; i++) {
+            final forge.deck.Deck d = AscentSeedDeck.generate(AscentRun.Mode.STANDARD, null, "raras-" + i);
+            for (final java.util.Map.Entry<PaperCard, Integer> e : d.getMain()) {
+                if (AscentBattle.rareCard(e.getKey())) {
+                    raras.add(e.getKey().getName() + " (" + e.getKey().getEdition() + ", "
+                            + e.getKey().getRarity() + ")");
+                }
+            }
+        }
+        if (raras.isEmpty()) {
+            ok("salida de Estandar: " + runs + " mazos y ni una carta rara ni mitica");
+        } else {
+            fail("salida de Estandar: " + raras.size() + " raras/miticas en " + runs + " mazos: "
+                    + String.join(" · ", raras.subList(0, Math.min(8, raras.size()))));
+        }
+
+        // Y tu arte favorito no endurece al rival: el mismo mazo con la
+        // Reassembling Skeleton de Secret Lair (rara) que con la de M19.
+        PaperCard sld = null;
+        for (final PaperCard p : forge.model.FModel.getMagicDb().getCommonCards()
+                .getAllCards("Reassembling Skeleton")) {
+            if ("SLD".equals(p.getEdition()) && p.getRarity() == forge.card.CardRarity.Rare) {
+                sld = p;
+            }
+        }
+        if (sld == null) {
+            ok("favorito raro: no hay Reassembling Skeleton rara de SLD con la que probarlo");
+            return;
+        }
+        final forge.deck.Deck fav = new forge.deck.Deck("favorito");
+        fav.getMain().add(sld, 4);
+        final boolean tuyo = AscentBattle.power(fav, true) == 0;
+        final boolean rival = AscentBattle.power(fav) > 0;
+        if (tuyo && rival) {
+            ok("favorito raro: en tu mazo cuenta como la carta (infrecuente); los rivales se ordenan igual");
+        } else {
+            fail("favorito raro: tu mazo " + AscentBattle.power(fav, true) + ", rival " + AscentBattle.power(fav));
+        }
+    }
+
+    private static void curvaDeSalida() {
+        final String[] names = {"Krenko, Mob Boss", "Meren of Clan Nel Toth", "Atraxa, Praetors' Voice",
+                "Codie, Ravenous Codex", "Tam, the Possibility", "Munda, Ambush Leader"};
+        for (final String n : names) {
+            final forge.item.PaperCard cmd = forge.model.FModel.getMagicDb().getCommonCards().getCard(n);
+            if (cmd == null) {
+                continue;
+            }
+            final forge.deck.Deck d = AscentSeedDeck.generate(AscentRun.Mode.COMMANDER, cmd, "curva");
+            int lands = 0;
+            int spells = 0;
+            int cmcSum = 0;
+            final int[] curve = new int[7];
+            for (final java.util.Map.Entry<forge.item.PaperCard, Integer> e : d.getMain()) {
+                if (e.getKey().getRules().getType().isLand()) {
+                    lands += e.getValue();
+                    continue;
+                }
+                final int cmc = e.getKey().getRules().getManaCost().getCMC();
+                curve[Math.min(6, cmc)] += e.getValue();
+                spells += e.getValue();
+                cmcSum += cmc * e.getValue();
+            }
+            final double avg = spells == 0 ? 0 : (double) cmcSum / spells;
+            final String what = n + ": " + lands + " tierras, curva 0-6+ " + java.util.Arrays.toString(curve)
+                    + String.format(java.util.Locale.ROOT, ", media %.2f", avg);
+            // Las caras dependen del mazo real de origen (al azar): con Meren
+            // salieron 2 de coste 4+ en una vuelta y 14 en otra, asi que eso no
+            // se exige. Lo que se vigila es que el recorte no se quede solo con
+            // lo barato, como antes: media 1,6-2,0. Eso lo dice la media.
+            if (lands < 22 || lands > 26 || avg < 2.0 || avg > 3.6) {
+                fail("curva: " + what);
+            } else {
+                ok("curva: " + what);
+            }
+        }
+    }
+
+    /**
      * Y un tema que no es tribu (02-11-2026, {@link CommanderTheme}): Codie,
      * Ravenous Codex copia los hechizos preparados, y su mazo de salida tiene
      * que llevar criaturas con preparar.
@@ -4267,6 +4363,25 @@ public final class AscentCheck {
             fail("tema: Codie con " + prepare + " cartas de preparar y " + d.getMain().countAll() + " cartas");
         } else {
             ok("tema: Codie sale con " + prepare + " cartas de preparar");
+        }
+        // Y lo que no es criatura (03-11-2026): Tam, the Possibility y sus planeswalkers.
+        final forge.item.PaperCard tam = forge.model.FModel.getMagicDb().getCommonCards()
+                .getCard("Tam, the Possibility");
+        if (tam == null || AscentSynergy.knows(tam)) {
+            ok("tema: Tam no esta o ya la conoce la matriz; nada que comprobar");
+            return;
+        }
+        final forge.deck.Deck dt = AscentSeedDeck.generate(AscentRun.Mode.COMMANDER, tam, "tema");
+        int walkers = 0;
+        for (final java.util.Map.Entry<forge.item.PaperCard, Integer> e : dt.getMain()) {
+            if (e.getKey().getRules().getType().isPlaneswalker()) {
+                walkers += e.getValue();
+            }
+        }
+        if (dt.getMain().countAll() != AscentSeedDeck.COMMANDER_SIZE || walkers < 2) {
+            fail("tema: Tam con " + walkers + " planeswalkers y " + dt.getMain().countAll() + " cartas");
+        } else {
+            ok("tema: Tam sale con " + walkers + " planeswalkers");
         }
     }
 

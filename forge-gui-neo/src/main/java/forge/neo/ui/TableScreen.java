@@ -3826,6 +3826,25 @@ public class TableScreen extends Pane {
         return out;
     }
 
+    /**
+     * Si el nodo esta DENTRO de una capa que se ve (dialogo, menu, carta
+     * ampliada): un boton de ahi si es lo que Espacio debe pulsar; uno de la
+     * mesa de detras, no. Ver {@code TableKeys.guardFocusedButtons}.
+     */
+    public boolean isInShownLayer(final javafx.scene.Node node) {
+        for (final Overlay layer : new Overlay[] {overlay, menuOverlay, zoomOverlay}) {
+            if (!layer.isShowing()) {
+                continue;
+            }
+            for (javafx.scene.Node n = node; n != null; n = n.getParent()) {
+                if (n == layer) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     public boolean isModalShowing() {
         return overlay.isShowing() || menuOverlay.isShowing() || zoomOverlay.isShowing();
     }

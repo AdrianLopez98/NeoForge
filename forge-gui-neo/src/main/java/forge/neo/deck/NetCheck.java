@@ -42,6 +42,7 @@ public final class NetCheck {
 
         listsAreRead();
         formatsWithoutListsSayNo();
+        everyFormatSurvivesItsNames();
         unsupportedDeckUrlIsRejected();
         final boolean online = hasLine();
         if (online) {
@@ -84,6 +85,27 @@ public final class NetCheck {
     }
 
     /** Un formato que Forge no cubre no ofrece la pantalla, en vez de fallar. */
+    /**
+     * Cada formato con lista se puede contar y leer sin lanzar, con TODAS sus
+     * categorias. En la 1.0.43 "Meme or Dream?" (el ? no vale en una ruta de
+     * Windows) tumbaba la pantalla de mazos de 10 formatos (Discord, 03-11-2026).
+     */
+    private static void everyFormatSurvivesItsNames() {
+        for (final GameType t : new GameType[] {GameType.Constructed, GameType.Commander, GameType.Brawl,
+                GameType.Oathbreaker, GameType.TinyLeaders}) {
+            String error = "";
+            try {
+                for (final NetDecks.Category c : NetDecks.categories(t)) {
+                    c.getDownloaded();
+                }
+                NetDecks.cached(t);
+            } catch (final RuntimeException e) {
+                error = e.toString();
+            }
+            check(t + ": contar y leer sus categorias no lanza", error.isEmpty(), error);
+        }
+    }
+
     private static void formatsWithoutListsSayNo() {
         check("el draft no ofrece mazos de internet",
                 !NetDecks.isSupported(GameType.Draft), "");

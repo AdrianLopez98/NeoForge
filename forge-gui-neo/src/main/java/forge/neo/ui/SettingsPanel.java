@@ -1419,6 +1419,32 @@ public class SettingsPanel extends VBox {
                     NeoSettings.setBool(NeoSettings.RECORD_REPLAYS, on);
                     NeoSettings.save();
                 }));
+        // Abrir los .frp con doble clic (Windows, con el .exe): lo pulsa el
+        // jugador, nunca solo. Ver forge.neo.platform.ReplayFileAssoc.
+        if (forge.neo.platform.ReplayFileAssoc.isAvailable()) {
+            final Label assocNote = new Label(NeoText.get("settings.replays.assocNote"));
+            assocNote.getStyleClass().add("home-subtitle");
+            assocNote.setWrapText(true);
+            assocNote.setMaxWidth(UiScale.px(560));
+            assocNote.setMinHeight(Region.USE_PREF_SIZE);
+            final Button assoc = new Button();
+            assoc.getStyleClass().add("segment");
+            assoc.setMinWidth(Region.USE_PREF_SIZE);
+            final Runnable label = () -> assoc.setText(NeoText.get(
+                    forge.neo.platform.ReplayFileAssoc.isAssociated()
+                            ? "settings.replays.assocRemove" : "settings.replays.assoc"));
+            label.run();
+            assoc.setOnAction(e -> {
+                final boolean was = forge.neo.platform.ReplayFileAssoc.isAssociated();
+                final boolean ok = was ? forge.neo.platform.ReplayFileAssoc.remove()
+                        : forge.neo.platform.ReplayFileAssoc.associate(NeoText.get("replays.fileType"));
+                Toast.show(NeoText.get(!ok ? "settings.replays.assocFail"
+                        : was ? "settings.replays.assocRemoved" : "settings.replays.assocDone"));
+                label.run();
+            });
+            getChildren().add(assocNote);
+            getChildren().add(assoc);
+        }
 
         getChildren().add(section(NeoText.get("settings.update")));
         getChildren().add(toggleRow(NeoText.get("settings.update.on"),

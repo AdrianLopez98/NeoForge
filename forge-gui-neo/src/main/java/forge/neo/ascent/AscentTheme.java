@@ -55,6 +55,9 @@ public final class AscentTheme {
     /** Cuantas criaturas se cambian como mucho, de las ~60 cartas. */
     static final int MAX_SWAPS = 12;
 
+    /** Y de esos, cuantos hechizos que no son criatura como mucho. */
+    static final int MAX_SPELL_SWAPS = 6;
+
     /** Lo mas caro que entra: un mazo de salida no vive de bombas. */
     private static final int MAX_CMC = 6;
 
@@ -123,15 +126,16 @@ public final class AscentTheme {
     }
 
     /**
-     * Cambia hasta {@link #MAX_SWAPS} criaturas fuera de tema por otras del
-     * tema. Toca {@code deck} en su sitio y devuelve cuantas ha cambiado.
+     * Cambia hasta {@link #MAX_SWAPS} cartas fuera de tema por otras del tema:
+     * criatura por criatura y, como mucho {@link #MAX_SPELL_SWAPS}, hechizo por
+     * hechizo. Toca {@code deck} en su sitio y devuelve cuantas ha cambiado.
      */
     public static int apply(final Deck deck, final PaperCard commander, final PaperCard partner,
                             final int maxBracket) {
         final Set<String> theme = themeOf(commander, partner,
                 !CommanderTheme.hasMechanic(commander) && !CommanderTheme.hasMechanic(partner));
         // Y lo que no es tribu (Discord, 02-11-2026: Codie y las de preparar):
-        // lo lee CommanderTheme de la carta. Aqui solo cuentan las criaturas.
+        // lo lee CommanderTheme de la carta: criaturas y tambien hechizos.
         final Predicate<PaperCard> more = c -> CommanderTheme.matches(commander, c)
                 || CommanderTheme.matches(partner, c);
         if (theme.isEmpty() && !CommanderTheme.hasTheme(commander) && !CommanderTheme.hasTheme(partner)) {
@@ -148,24 +152,29 @@ public final class AscentTheme {
         // Lo que ya lleva, por nombre: ni repetir (es singleton) ni quitar lo del tema.
         final Set<String> inDeck = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
         final List<PaperCard> offTheme = new ArrayList<>();
+        // Y los hechizos que no son criatura, para lo que pide la carta y no es
+        // criatura (Discord, 03-11-2026: Tam, the Possibility salia en Ascenso
+        // sin planeswalkers; en la Quest si). Se cambian hechizo por hechizo.
+        final List<PaperCard> offThemeSpells = new ArrayList<>();
         for (final Map.Entry<PaperCard, Integer> e : deck.getMain()) {
             final PaperCard c = e.getKey();
             inDeck.add(c.getName());
-            if (c.getRules().getType().isCreature() && !c.getRules().getType().isLand()
-                    && !onTheme(c, theme, more)) {
-                for (int i = 0; i < e.getValue(); i++) {
-                    offTheme.add(c);
-                }
+            final CardType t = c.getRules().getType();
+            if (t.isLand() || onTheme(c, theme, more)) {
+                continue;
+            }
+            for (int i = 0; i < e.getValue(); i++) {
+                (t.isCreature() ? offTheme : offThemeSpells).add(c);
             }
         }
-        if (offTheme.isEmpty()) {
+        if (offTheme.isEmpty() && offThemeSpells.isEmpty()) {
             return 0;
         }
 
         // Candidatas, en orden fijo y luego barajadas con el azar de la run.
         final List<PaperCard> candidates = new ArrayList<>();
         for (final PaperCard c : FModel.getMagicDb().getCommonCards().getUniqueCards()) {
-            if (fits(c, theme, more, inDeck, identity)) {
+            if (fits(c, theme, more, inDeck, identity) || fitsSpell(c, more, inDeck, identity)) {
                 candidates.add(c);
             }
         }
@@ -185,11 +194,17 @@ public final class AscentTheme {
         }
 
         int swaps = 0;
+        int spellSwaps = 0;
         for (final PaperCard in : candidates) {
-            if (swaps >= MAX_SWAPS || offTheme.isEmpty()) {
+            if (swaps >= MAX_SWAPS) {
                 break;
             }
-            final PaperCard out = sameCost(offTheme, in);
+            final boolean creature = in.getRules().getType().isCreature();
+            if (!creature && spellSwaps >= MAX_SPELL_SWAPS) {
+                continue;
+            }
+            final List<PaperCard> pool = creature ? offTheme : offThemeSpells;
+            final PaperCard out = sameCost(pool, in);
             if (out == null) {
                 continue;
             }
@@ -200,7 +215,10 @@ public final class AscentTheme {
                 continue;
             }
             names = next;
-            offTheme.remove(out);
+            pool.remove(out);
+            if (!creature) {
+                spellSwaps++;
+            }
             deck.getMain().remove(out, 1);
             deck.getMain().add(in);
             inDeck.add(in.getName());
@@ -244,6 +262,35 @@ public final class AscentTheme {
             return false;
         }
         return DeckFormat.Commander.isLegalCard(c) && identity.test(c);
+    }
+
+    /**
+     * Un hechizo que no es criatura y es del tema que lee {@link CommanderTheme}
+     * (no las tribus: un "Elf" no es un instantaneo). Comun o infrecuente en
+     * ALGUNA impresion (los planeswalkers infrecuentes de War of the Spark se
+     * reimprimen como raros), y lo demas igual que {@link #fits}.
+     */
+    private static boolean fitsSpell(final PaperCard c, final Predicate<PaperCard> more,
+                                     final Set<String> inDeck, final Predicate<PaperCard> identity) {
+        final CardType type = c.getRules().getType();
+        if (type.isCreature() || type.isLand() || !more.test(c)) {
+            return false;
+        }
+        if (c.getRules().getManaCost().getCMC() > MAX_CMC || inDeck.contains(c.getName())) {
+            return false;
+        }
+        if (c.getName().startsWith("A-") || c.getRules().getAiHints().getRemAIDecks()
+                || GeneratedDecks.notForDecks(c)) {
+            return false;
+        }
+        boolean cheap = false;
+        for (final PaperCard p : FModel.getMagicDb().getCommonCards().getAllCards(c.getName())) {
+            if (p.getRarity() == CardRarity.Common || p.getRarity() == CardRarity.Uncommon) {
+                cheap = true;
+                break;
+            }
+        }
+        return cheap && DeckFormat.Commander.isLegalCard(c) && identity.test(c);
     }
 
     /** La de fuera de tema que cuesta lo mismo; si no hay, una que cueste uno de diferencia. */

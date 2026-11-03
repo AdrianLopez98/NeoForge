@@ -281,13 +281,10 @@ public final class AscentProbe {
                         }
                     }
                     // Rareza: el mazo de principiante no lleva raras ni miticas.
-                    final forge.card.CardRarity rar = e.getKey().getRarity();
-                    if (mode == AscentRun.Mode.STANDARD
-                            && (rar == forge.card.CardRarity.Rare
-                                || rar == forge.card.CardRarity.MythicRare)) {
+                    if (mode == AscentRun.Mode.STANDARD && AscentBattle.rareCard(e.getKey())) {
                         raras++;
                         culpablesRaras.add(e.getKey().getName() + " (" + e.getKey().getEdition()
-                                + ", " + rar + ")");
+                                + ", " + e.getKey().getRarity() + ")");
                     }
                     // Colores del mazo, para el techo de dos.
                     //

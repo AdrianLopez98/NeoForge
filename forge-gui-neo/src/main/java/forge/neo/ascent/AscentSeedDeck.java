@@ -607,8 +607,14 @@ public final class AscentSeedDeck {
         // El cuarto parametro es isCardGen, y es la diferencia entre un mazo
         // QUE PEGA con el comandante y noventa y nueve cartas legales de su
         // color. Ver el javadoc de arriba.
-        Deck full = null;
-        if (AscentSynergy.knows(cmd)) {
+        // EL MISMO GENERADOR QUE LA QUEST (Ana, 03-11-2026: "que los dos modos
+        // usen el mismo generador"). NeoCommanderDuels.starter: los candidatos de
+        // la matriz de mazos reales y, si no conoce al comandante, el tema de su
+        // carta (CommanderTheme), casi todo comunes y bracket 2. Ascenso solo
+        // recorta despues a 60. Con un companero elegido sigue arriba, y si eso
+        // falla o el de la Quest no sale, el de Forge de antes.
+        Deck full = partner == null ? forge.neo.quest.NeoCommanderDuels.starter(cmd) : null;
+        if ((full == null || full.getMain().countAll() == 0) && AscentSynergy.knows(cmd)) {
             try {
                 full = DeckgenUtil.generateRandomCommanderDeck(
                         cmd, DeckFormat.Commander, false, true, MAX_BRACKET);
@@ -1233,6 +1239,49 @@ public final class AscentSeedDeck {
     }
 
     /** Cuantas tierras lleva un mazo de salida de ese tamanyo. */
+    /**
+     * La curva objetivo de los hechizos de un mazo de salida de Commander, en
+     * 36avos: de coste 0-1, 2, 3, 4, 5 y 6 o mas. Baja a proposito (una run
+     * empieza con poco mana) pero con algo arriba que jugar.
+     */
+    private static final int[] CURVE = {4, 9, 9, 7, 4, 3};
+
+    /**
+     * Rellena {@code out} hasta {@code spellSlots} hechizos siguiendo
+     * {@link #CURVE}: a cada tramo le toca su parte, descontando lo que ya
+     * hay (lo tematico y el suelo de colores). Lo que se usa sale de
+     * {@code spells}; si un tramo no tiene bastantes, el hueco lo llena luego
+     * el recorte de siempre, con lo mas barato.
+     */
+    private static void curveFill(final List<PaperCard> spells, final Deck out, final int spellSlots) {
+        final int total = java.util.Arrays.stream(CURVE).sum();
+        final int[] want = new int[CURVE.length];
+        int given = 0;
+        for (int b = 0; b < CURVE.length; b++) {
+            want[b] = (int) Math.round((double) spellSlots * CURVE[b] / total);
+            given += want[b];
+        }
+        want[2] += spellSlots - given;
+        for (final Map.Entry<PaperCard, Integer> e : out.getMain()) {
+            if (!e.getKey().getRules().getType().isLand()) {
+                want[bucket(e.getKey())] -= e.getValue();
+            }
+        }
+        for (final java.util.Iterator<PaperCard> it = spells.iterator(); it.hasNext(); ) {
+            final PaperCard c = it.next();
+            final int b = bucket(c);
+            if (want[b] > 0) {
+                want[b]--;
+                out.getMain().add(c);
+                it.remove();
+            }
+        }
+    }
+
+    private static int bucket(final PaperCard c) {
+        return Math.max(0, Math.min(CURVE.length - 1, c.getRules().getManaCost().getCMC() - 1));
+    }
+
     private static int landsFor(final int size) {
         return (int) Math.round(size * LAND_RATIO);
     }
@@ -1327,6 +1376,19 @@ public final class AscentSeedDeck {
         for (final PaperCard pick : colourFloor(spells, wanted, size - out.getMain().countAll())) {
             spells.remove(pick);
             out.getMain().add(pick);
+        }
+        // En Commander, por CURVA y no solo lo barato (Ana, 03-11-2026: "que con
+        // ese recorte se quede buena curva de mana"): quedarse con lo mas barato
+        // de cien cartas dejaba 30 de 36 hechizos de coste 1 y 2 y ni uno de 3.
+        if (commander != null) {
+            curveFill(spells, out, size - needLands);
+            // Y si un tramo se queda sin cartas (el mazo de origen trae pocas
+            // caras), el hueco lo llena lo mas cercano al centro de la curva y
+            // no lo mas barato: con Meren salian 14 de coste 1 (03-11-2026).
+            spells.sort(java.util.Comparator.comparingInt((PaperCard c) ->
+                    Math.abs(c.getRules().getManaCost().getCMC() - 3))
+                    .thenComparing(java.util.Comparator.comparingInt(
+                            (PaperCard c) -> -c.getRules().getManaCost().getCMC())));
         }
         for (int i = 0; i < spells.size() && out.getMain().countAll() < size; i++) {
             out.getMain().add(spells.get(i));

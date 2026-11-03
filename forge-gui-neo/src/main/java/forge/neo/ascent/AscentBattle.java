@@ -633,7 +633,7 @@ public final class AscentBattle {
         double edge = run.relics().size() * RELIC_EDGE;
         final Deck yours = AscentDecks.load(run);
         if (yours != null) {
-            edge += power(yours) * DECK_EDGE;
+            edge += power(yours, true) * DECK_EDGE;
         }
         return Math.min(MAX_EDGE, edge);
     }
@@ -891,7 +891,7 @@ public final class AscentBattle {
         // rival: es un mazo de muestra. Y con la vida del acto puesta seria un
         // nodo que se gana solo.
         decks.removeIf(d -> d == null || d.getMain().countAll() < 40);
-        decks.sort(Comparator.comparingDouble(AscentBattle::power).thenComparing(Deck::getName));
+        decks.sort(Comparator.comparingDouble((Deck d) -> power(d)).thenComparing(Deck::getName));
         if (mode == AscentRun.Mode.COMMANDER) {
             commanderPool = decks;
         } else {
@@ -917,6 +917,41 @@ public final class AscentBattle {
      * premiaria a los mazos que llevan pocas.
      */
     public static double power(final Deck deck) {
+        return power(deck, false);
+    }
+
+    /**
+     * Si esta carta es rara o mitica COMO CARTA: la impresion lo es y no tiene
+     * ninguna comun ni infrecuente. Tu arte favorito entra en tu mazo sea de la
+     * rareza que sea (Discord, 30-10-2026; {@code AscentArt.forDeck}): una
+     * Reassembling Skeleton de Secret Lair sigue siendo la infrecuente de M19 con
+     * otro dibujo, no una rara colada. Juzgar la impresion ponia en rojo
+     * {@code ascentcheck} de tarde en tarde, solo en el ordenador con esos
+     * favoritos (la bateria copia {@code card.preferences}): 28-10, 31-10 y
+     * 03-11-2026.
+     */
+    public static boolean rareCard(final PaperCard card) {
+        final forge.card.CardRarity r = card.getRarity();
+        if (r != forge.card.CardRarity.Rare && r != forge.card.CardRarity.MythicRare) {
+            return false;
+        }
+        for (final PaperCard p : forge.model.FModel.getMagicDb().getCommonCards().getAllCards(card.getName())) {
+            if (p.getRarity() == forge.card.CardRarity.Common || p.getRarity() == forge.card.CardRarity.Uncommon) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Con {@code byCard}, una rara cuenta solo si lo es como CARTA
+     * ({@link #rareCard}): es como se mide TU mazo. Tu arte favorito
+     * entra sea de la rareza que sea (Discord, 30-10-2026), y una Reassembling
+     * Skeleton de Secret Lair hacia mas duro al rival solo por el dibujo. Los
+     * rivales se siguen ordenando por la impresion: cambiarlo cambiaria que
+     * rival sale con cada semilla.
+     */
+    static double power(final Deck deck, final boolean byCard) {
         int spells = 0;
         int score = 0;
         for (final Map.Entry<PaperCard, Integer> e : deck.getMain()) {
@@ -924,6 +959,9 @@ public final class AscentBattle {
                 continue;
             }
             spells += e.getValue();
+            if (byCard && !rareCard(e.getKey())) {
+                continue;
+            }
             if (e.getKey().getRarity() == CardRarity.MythicRare) {
                 score += 2 * e.getValue();
             } else if (e.getKey().getRarity() == CardRarity.Rare) {

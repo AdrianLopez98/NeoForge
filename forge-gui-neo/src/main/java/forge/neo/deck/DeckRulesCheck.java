@@ -947,6 +947,55 @@ public final class DeckRulesCheck {
         final DeckImporter.Result banned = DeckImporter.importCommander(oldSchool, "prueba");
         check("Importar: lo prohibido en Commander (Black Lotus, Moxen...) no se pierde",
                 banned.deck != null && banned.deck.getMain().countAll() == 11);
+        // ...pero se DICE (Discord, 03-11-2026: "the import doesn't give you
+        // any feedback that it failed, nor why"). Es lo que pregunta la
+        // importacion de Android al guardar (su decision 614).
+        if (banned.deck != null) {
+            final DeckEditor ed = new DeckEditor(forge.neo.match.NeoFormat.COMMANDER, banned.deck);
+            final PaperCard lotus = ed.illegalCards().stream()
+                    .filter(c -> "Black Lotus".equals(c.getName())).findFirst().orElse(null);
+            check("Importar: lo prohibido sale en la lista de ilegales, con su motivo",
+                    lotus != null && ed.rejectionReason(lotus) != null);
+        }
+
+        // "Solo full art" en el selector de arte (Discord, 03-11-2026). La
+        // lista viaja en el jar (tools/full-art.py); Forge solo no lo sabe.
+        {
+            final List<PaperCard> islands = new ArrayList<>(
+                    FModel.getMagicDb().getCommonCards().getAllCards("Island"));
+            final List<PaperCard> full = FullArt.only(islands);
+            final boolean zen = full.stream().anyMatch(c -> "ZEN".equals(c.getEdition()));
+            final boolean m21 = islands.stream().filter(c -> "M21".equals(c.getEdition()))
+                    .noneMatch(FullArt::is);
+            System.out.printf(java.util.Locale.ROOT, "        (full art: lista=%d, Islands %d de %d)%n",
+                    FullArt.listSize(), full.size(), islands.size());
+            check("Full art: la lista viaja en el jar", FullArt.listSize() > 1000);
+            check("Full art: las Islands de Zendikar lo son y las de M21 no", zen && m21);
+            check("Full art: con las Islands se ofrece el filtro, con Divination no",
+                    FullArt.worthFiltering(islands) && !FullArt.worthFiltering(new ArrayList<>(
+                            FModel.getMagicDb().getCommonCards().getAllCards("Divination"))));
+        }
+
+        // El arte de una carta del BANQUILLO (Discord, 03-11-2026): cambia las
+        // copias de alli, cuantas se pidan, y no toca el principal.
+        {
+            final forge.deck.Deck sb = new forge.deck.Deck("prueba-banquillo");
+            final List<PaperCard> rings = new ArrayList<>(
+                    FModel.getMagicDb().getCommonCards().getAllCards("Sol Ring"));
+            final PaperCard a = rings.get(0);
+            final PaperCard b = rings.get(rings.size() - 1);
+            sb.getOrCreate(DeckSection.Sideboard).add(a, 3);
+            sb.getMain().add(a, 1);
+            final DeckEditor ed = new DeckEditor(NeoFormat.COMMANDER, sb);
+            final int one = ed.switchSideboardPrinting(a, b, 1);
+            check("Banquillo: cambiar el arte de UNA copia deja las otras dos",
+                    rings.size() > 1 && one == 1 && ed.copiesOfPrintingInSideboard(a) == 2
+                            && ed.copiesOfPrintingInSideboard(b) == 1);
+            ed.switchSideboardPrinting(a, b, 99);
+            check("Banquillo: y todas, sin tocar la del principal",
+                    ed.copiesOfPrintingInSideboard(a) == 0 && ed.copiesOfPrintingInSideboard(b) == 3
+                            && ed.copiesOfPrintingInMain(a) == 1);
+        }
 
         // Una carta que existe, con una edicion que Forge no tiene (Discord,
         // 31-10-2026: "Comet Storm [P10]"): entra por su nombre. Una que Forge

@@ -81,6 +81,7 @@ public final class QuestCheck {
         ok &= checkNewestFirst();
         ok &= checkDuelAfterTravel();
         ok &= checkLowLife();
+        ok &= checkRivalSets();
         ok &= checkRename();
         ok &= checkKept();
         ok &= checkUpgradeLevels();
@@ -3583,6 +3584,100 @@ public final class QuestCheck {
             }
         }
         return ok;
+    }
+
+    /**
+     * Los rivales con las expansiones de la Quest (QuestRivalSets, 03-11-2026):
+     * con la marca, el mazo del rival solo trae cartas de esas expansiones y al
+     * acabar vuelve el original; sin la marca no se toca; y tras viajar a un
+     * mundo, las de ese mundo.
+     */
+    private static boolean checkRivalSets() {
+        System.out.println("  --- Rivales con las expansiones de la Quest ---");
+        boolean ok = true;
+        final String name = "neo-questcheck-rivales";
+        NeoQuest.delete(name);
+        final java.util.List<String> codes = java.util.List.of("ZEN", "WWK", "ROE");
+        try {
+            NeoQuest.start(name, NeoQuest.Modalidad.ESTANDAR, NeoQuest.Dificultad.NORMAL, null,
+                    null, forge.neo.ascent.AscentPool.sets(codes));
+            final List<QuestEventDuel> duels = NeoQuest.duels();
+            if (duels.isEmpty()) {
+                System.out.println("  [MAL] la Quest no tiene duelos");
+                return false;
+            }
+            final QuestEventDuel duel = duels.get(0);
+            final Deck original = duel.getEventDeck();
+            // Sin la marca: nada.
+            QuestRivalSets.apply(duel).run();
+            final boolean untouched = duel.getEventDeck() == original;
+            // Con la marca.
+            QuestRivalSets.set(name, true);
+            final Runnable restore = QuestRivalSets.apply(duel);
+            final Deck converted = duel.getEventDeck();
+            final List<String> outside = outsideSets(converted, new java.util.HashSet<>(codes));
+            restore.run();
+            final boolean back = duel.getEventDeck() == original;
+            final boolean good = untouched && converted != original && converted.getMain().countAll() >= 40
+                    && outside.isEmpty() && back;
+            System.out.printf(Locale.ROOT, "  [%s] %s: sin marca igual %s; con marca %d cartas, fuera de %s: %s; vuelve el original %s%n",
+                    good ? "OK " : "MAL", duel.getTitle(), untouched, converted.getMain().countAll(), codes,
+                    outside.isEmpty() ? "ninguna" : outside, back);
+            ok &= good;
+        } finally {
+            NeoQuest.delete(name);
+        }
+        // Sin expansiones elegidas, viajando: las del mundo.
+        final String travel = "neo-questcheck-rivales-viaje";
+        NeoQuest.delete(travel);
+        try {
+            final List<Deck> starters = NeoQuest.starterDecks(NeoQuest.Modalidad.ESTANDAR);
+            NeoQuest.start(travel, NeoQuest.Modalidad.ESTANDAR, NeoQuest.Dificultad.NORMAL,
+                    starters.isEmpty() ? null : starters.get(0));
+            QuestRivalSets.set(travel, true);
+            final boolean noLimit = QuestRivalSets.sets() == null;
+            final forge.gamemodes.quest.QuestWorld bloom = NeoQuestWorlds.byName("Bloomburrow (*)");
+            final boolean went = bloom != null && NeoQuestWorlds.travelTo(bloom);
+            final java.util.Set<String> worldCodes = QuestRivalSets.sets();
+            final List<QuestEventDuel> duels = NeoQuest.duels();
+            boolean good = noLimit && went && worldCodes != null && !duels.isEmpty();
+            String detail = "";
+            if (good) {
+                final QuestEventDuel duel = duels.get(0);
+                final Runnable restore = QuestRivalSets.apply(duel);
+                final List<String> outside = outsideSets(duel.getEventDeck(), worldCodes);
+                restore.run();
+                good = outside.isEmpty();
+                detail = outside.isEmpty() ? "todas de " + worldCodes : "fuera: " + outside;
+            }
+            System.out.printf(Locale.ROOT, "  [%s] sin limite no convierte (%s); en Bloomburrow, de sus expansiones: %s%n",
+                    good ? "OK " : "MAL", noLimit, detail);
+            ok &= good;
+        } finally {
+            NeoQuest.delete(travel);
+        }
+        return ok;
+    }
+
+    /** Las cartas (no basicas) sin ninguna impresion en esas expansiones. */
+    private static List<String> outsideSets(final Deck deck, final java.util.Set<String> codes) {
+        final List<String> out = new java.util.ArrayList<>();
+        for (final java.util.Map.Entry<PaperCard, Integer> e : deck.getMain()) {
+            if (e.getKey().getRules().getType().isBasicLand()) {
+                continue;
+            }
+            boolean in = false;
+            for (final PaperCard p : FModel.getMagicDb().getCommonCards().getAllCards(e.getKey().getName())) {
+                if (codes.contains(p.getEdition())) {
+                    in = true;
+                    break;
+                }
+            }
+            if (!in) {
+                out.add(e.getKey().getName());
+            }
+        }
+        return out;
     }
 
     private static boolean checkDuelAfterTravel() {

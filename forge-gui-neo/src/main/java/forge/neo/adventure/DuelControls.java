@@ -120,6 +120,18 @@ public final class DuelControls {
                 ui.leaveMatch(NeoMatchUI.Exit.MENU);
             }
 
+            // Los eventos de la Aventura van al mejor de tres.
+            @Override
+            public boolean canConcedeGame() {
+                return ui.canConcedeGame();
+            }
+
+            @Override
+            public void concedeGame() {
+                table.getMenuOverlay().hide();
+                ui.concedeGame();
+            }
+
             @Override
             public boolean hasSavedOrders() {
                 return ui.hasSavedOrders();

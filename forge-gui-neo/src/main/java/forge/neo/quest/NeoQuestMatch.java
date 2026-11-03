@@ -124,6 +124,9 @@ public final class NeoQuestMatch {
             return match;
         });
 
+        // Con las expansiones de la Quest marcadas, el mazo del rival convertido
+        // (y el original de vuelta al acabar). Ver QuestRivalSets.
+        final Runnable restoreRival = QuestRivalSets.apply(duel);
         try {
             QuestUtil.setEvent(duel);
             // canStartGame() levantaria dialogos del motor si algo falla; la
@@ -136,6 +139,7 @@ public final class NeoQuestMatch {
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
         } finally {
+            restoreRival.run();
             NeoGuiBase.setOnMatchCreated(null);
         }
 

@@ -343,7 +343,15 @@ public final class SafeAi {
         public void playSpellAbilityNoStack(final SpellAbility effectSA,
                                             final boolean canSetupTargets) {
             try {
-                super.playSpellAbilityNoStack(effectSA, canSetupTargets);
+                if (canSetupTargets && ForEachPlayerTargets.applies(effectSA)) {
+                    // Lo mismo que el de Forge (elegir y jugar), con el recorte
+                    // de "uno por jugador" en medio. Ver ForEachPlayerTargets.
+                    getAi().doTrigger(effectSA, true);
+                    ForEachPlayerTargets.trim(effectSA);
+                    forge.ai.ComputerUtil.playNoStack(getPlayer(), effectSA, getGame(), true);
+                } else {
+                    super.playSpellAbilityNoStack(effectSA, canSetupTargets);
+                }
             } catch (final RuntimeException | StackOverflowError e) {
                 if (!GUARD) {
                     throw e;
@@ -352,6 +360,84 @@ public final class SafeAi {
                         + (effectSA == null || effectSA.getHostCard() == null
                             ? "un disparo suyo" : effectSA.getHostCard().getName()), e);
             }
+        }
+
+        /**
+         * Un disparo suyo que apunta "para cada jugador, hasta uno que ese
+         * jugador controle" (Nils, Discipline Enforcer): la IA se ponia dos
+         * objetivos suyos. Ver {@link ForEachPlayerTargets}.
+         *
+         * <p>Solo en ESOS disparos se hace a mano lo que hace
+         * {@code PlayerControllerAi.playTrigger}: preparar
+         * ({@code prepareSingleSa}, que es privado: modal, quien elige los
+         * objetivos, y {@code doTrigger}), recortar, y jugar. Cualquier otro
+         * disparo va por el de Forge tal cual, asi que si Card-Forge cambia ese
+         * camino, solo se nota en estos.
+         */
+        @Override
+        public boolean playTrigger(final forge.game.card.Card host,
+                                   final forge.game.trigger.WrappedAbility wrapperAbility,
+                                   final boolean isMandatory) {
+            if (!ForEachPlayerTargets.applies(wrapperAbility)) {
+                return super.playTrigger(host, wrapperAbility, isMandatory);
+            }
+            if (!prepareLikeForge(host, wrapperAbility, isMandatory)) {
+                return false;
+            }
+            ForEachPlayerTargets.trim(wrapperAbility);
+            return forge.ai.ComputerUtil.playNoStack(wrapperAbility.getActivatingPlayer(), wrapperAbility,
+                    getGame(), true);
+        }
+
+        /**
+         * Por aqui entran casi todos sus disparos (los que van a la pila, Nils
+         * incluido; {@link #playTrigger} solo ve los estaticos). Si ninguno
+         * apunta "uno por jugador", el de Forge tal cual. Si alguno si, se
+         * recorre en el MISMO orden que decide Forge y cada uno va al de Forge
+         * de uno en uno, salvo esos, que se preparan, se recortan y se apilan
+         * como hace Forge ({@code prepareSingleSa} + {@code playStack}).
+         */
+        @Override
+        public void orderAndPlaySimultaneousSa(final List<SpellAbility> activePlayerSAs) {
+            boolean any = false;
+            for (final SpellAbility sa : activePlayerSAs) {
+                any |= sa.isTrigger() && !sa.isCopied() && ForEachPlayerTargets.applies(sa);
+            }
+            if (!any) {
+                super.orderAndPlaySimultaneousSa(activePlayerSAs);
+                return;
+            }
+            for (final SpellAbility sa : orderSimultaneousSa(activePlayerSAs)) {
+                if (sa.isTrigger() && !sa.isCopied() && ForEachPlayerTargets.applies(sa)) {
+                    if (prepareLikeForge(sa.getHostCard(), sa, true)) {
+                        ForEachPlayerTargets.trim(sa);
+                        forge.ai.ComputerUtil.playStack(sa, getPlayer(), getGame());
+                    }
+                } else {
+                    super.orderAndPlaySimultaneousSa(new java.util.ArrayList<>(List.of(sa)));
+                }
+            }
+        }
+
+        /** {@code PlayerControllerAi.prepareSingleSa}, que es privado. */
+        private boolean prepareLikeForge(final forge.game.card.Card host, SpellAbility sa,
+                                         final boolean isMandatory) {
+            if (sa.getApi() == forge.game.ability.ApiType.Charm) {
+                if (!forge.game.ability.effects.CharmEffect.makeChoices(sa)) {
+                    return false;
+                }
+                if (!sa.hasParam("Random")) {
+                    return true;
+                }
+                sa = sa.getSubAbility();
+            }
+            if (sa.hasParam("TargetingPlayer")) {
+                final Player targetingPlayer = forge.game.ability.AbilityUtils.getDefinedPlayers(
+                        host, sa.getParam("TargetingPlayer"), sa).get(0);
+                sa.setTargetingPlayer(targetingPlayer);
+                return targetingPlayer.getController().chooseTargetsFor(sa);
+            }
+            return getAi().doTrigger(sa, isMandatory);
         }
 
         /** Solo con -Dneo.ai.crashTest=true, y una sola vez por IA. */

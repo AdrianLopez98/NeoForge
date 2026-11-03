@@ -30,6 +30,16 @@ public final class NeoMain {
     }
 
     public static void main(final String[] args) {
+        // UN .frp DE DOBLE CLIC (Discord, 03-11-2026; ver ReplayFileAssoc). El
+        // .exe de jpackage, si le pasan un fichero, SUSTITUYE sus argumentos de
+        // fabrica ("ui") por la ruta: sin esto se arrancaria el modo de consola.
+        if (args.length > 0 && replayArg(args) != null && !"ui".equalsIgnoreCase(args[0])) {
+            final String[] withUi = new String[args.length + 1];
+            withUi[0] = "ui";
+            System.arraycopy(args, 0, withUi, 1, args.length);
+            main(withUi);
+            return;
+        }
         // Lo PRIMERO: las -D de la linea de comandos.
         //
         // Los lanzadores pasan todos los argumentos DESPUES de la clase, asi
@@ -143,6 +153,11 @@ public final class NeoMain {
         // van los datos (NeoPortable, ya aplicado): no toca ForgeConstants.
         final boolean windowed = "ui".equals(cmd);
         if (windowed && wantsSingleInstance(args) && !NeoLock.acquire()) {
+            // Con un .frp, que lo abra el que ya esta abierto.
+            final String replay = replayArg(args);
+            if (replay != null) {
+                NeoLock.handOver(replay);
+            }
             System.exit(0);
         }
 
@@ -551,6 +566,16 @@ public final class NeoMain {
                 // Lo que otras cartas le hacen a esta (Collector Ouphe, Arrest, provocar).
                 banner("Lo que afecta a una carta");
                 forge.neo.card.AffectedCheck.run();
+                break;
+            case "outcheck":
+                // Has caido en una mesa de 3+: terminar la partida en vez de mirar a las IA.
+                banner("Has caido: terminar la partida");
+                forge.neo.match.OutCheck.run();
+                break;
+            case "foreachcheck":
+                // "Uno por jugador" tambien cuando elige la IA (Nils, Discipline Enforcer).
+                banner("Uno por jugador, tambien la IA");
+                forge.neo.match.ForEachCheck.run();
                 break;
             case "friendlycheck":
                 // "Agresividad de la IA contigo": en Commander, con el ajuste,
@@ -1029,6 +1054,17 @@ public final class NeoMain {
      *       siempre para cuando haga falta abrir dos a proposito.</li>
      * </ul>
      */
+    /** La ruta de un .frp que exista entre los argumentos, o null. */
+    static String replayArg(final String[] args) {
+        for (final String a : args) {
+            if (a != null && a.toLowerCase(Locale.ROOT).endsWith(forge.neo.match.ReplayShare.EXTENSION)
+                    && new java.io.File(a).isFile()) {
+                return new java.io.File(a).getAbsolutePath();
+            }
+        }
+        return null;
+    }
+
     private static boolean wantsSingleInstance(final String[] args) {
         if ("false".equalsIgnoreCase(System.getProperty("neo.singleInstance"))) {
             return false;

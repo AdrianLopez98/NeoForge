@@ -44,6 +44,18 @@ public class PauseMenu extends StackPane {
         /** Olvida esos ordenes: es el "Reset Saved Orders" del menu de Forge. */
         default void forgetSavedOrders() {
         }
+
+        /**
+         * Si se puede rendir solo esta partida de un partido al mejor de N
+         * ({@code NeoMatchUI.canConcedeGame}). Solo entonces sale el boton.
+         */
+        default boolean canConcedeGame() {
+            return false;
+        }
+
+        /** Rinde esta partida y sigue el partido ({@code NeoMatchUI.concedeGame}). */
+        default void concedeGame() {
+        }
     }
 
     private final VBox root = new VBox(10);
@@ -218,6 +230,16 @@ public class PauseMenu extends StackPane {
                     () -> confirm(NeoText.get("pause.restart.ask"),
                             NeoText.get("pause.restart.detail"),
                             NeoText.get("pause.restart.yes"), actions::restart)));
+        }
+
+        // Rendir SOLO esta partida, en un partido al mejor de N (Discord,
+        // 03-11-2026): la pantalla de derrota de siempre, con "Siguiente
+        // partida". Va justo encima de salir, que en un partido rinde TODO.
+        if (actions.canConcedeGame()) {
+            root.getChildren().add(item(NeoText.get("pause.concedeGame"), "btn-secondary",
+                    () -> confirm(NeoText.get("pause.concedeGame.ask"),
+                            NeoText.get("pause.concedeGame.detail"),
+                            NeoText.get("pause.concedeGame.yes"), actions::concedeGame)));
         }
 
         root.getChildren().add(item(NeoText.get(adventure ? "adventure.concede"

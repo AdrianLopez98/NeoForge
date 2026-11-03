@@ -173,8 +173,14 @@ public final class NetDecks {
     public static List<Deck> cached(final GameType gameType) {
         final List<Deck> out = new ArrayList<>();
         for (final Category c : categories(gameType)) {
-            if (c.isDownloaded()) {
-                out.addAll(decksOf(c));
+            // Una categoria rara no puede dejar sin pantalla de mazos al formato
+            // entero (ver countFiles): se salta y se siguen las demas.
+            try {
+                if (c.isDownloaded()) {
+                    out.addAll(decksOf(c));
+                }
+            } catch (final RuntimeException e) {
+                System.err.println("[neo] mazos de internet: se salta " + c.getName() + ": " + e);
             }
         }
         return out;
@@ -209,13 +215,20 @@ public final class NetDecks {
      * categoria salia como bajada ni la pestanya aparecia).
      */
     static int countFiles(final String name) {
-        final java.nio.file.Path dir = java.nio.file.Paths.get(ForgeConstants.DECK_NET_DIR + name);
-        if (!java.nio.file.Files.isDirectory(dir)) {
-            return 0;
-        }
-        try (java.util.stream.Stream<java.nio.file.Path> all = java.nio.file.Files.walk(dir)) {
-            return (int) all.filter(p -> p.getFileName().toString()
-                    .toLowerCase(java.util.Locale.ROOT).endsWith(".dck")).count();
+        // ⚠️ TODO dentro del try, tambien el Paths.get: hay categorias con
+        // caracteres que Windows no admite en una ruta ("Meme or Dream?", en los
+        // de Construido), y Paths.get LANZA donde new File no lanzaba. Fuera del
+        // try, la excepcion tumbaba la pantalla de mazos: 10 de los 14 formatos
+        // de "Otros formatos" no se abrian (Discord, 03-11-2026, en la 1.0.43).
+        try {
+            final java.nio.file.Path dir = java.nio.file.Paths.get(ForgeConstants.DECK_NET_DIR + name);
+            if (!java.nio.file.Files.isDirectory(dir)) {
+                return 0;
+            }
+            try (java.util.stream.Stream<java.nio.file.Path> all = java.nio.file.Files.walk(dir)) {
+                return (int) all.filter(p -> p.getFileName().toString()
+                        .toLowerCase(java.util.Locale.ROOT).endsWith(".dck")).count();
+            }
         } catch (final java.io.IOException | RuntimeException e) {
             return 0;
         }

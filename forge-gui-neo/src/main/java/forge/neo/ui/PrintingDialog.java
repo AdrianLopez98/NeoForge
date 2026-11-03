@@ -110,6 +110,9 @@ public class PrintingDialog extends VBox {
             setNames.putIfAbsent(c.getEdition(), editionName(c));
         }
         final javafx.scene.control.ComboBox<String> setBox = new javafx.scene.control.ComboBox<>();
+        // Los codigos de las colecciones que hay ahora en el desplegable, en
+        // su orden: con "Solo full art" se quedan solo las que tienen alguna.
+        final java.util.List<String> setCodes = new java.util.ArrayList<>(setNames.keySet());
         setBox.getItems().add(NeoText.get("printing.set.all"));
         setBox.getItems().addAll(setNames.values());
         setBox.getSelectionModel().select(0);
@@ -145,17 +148,56 @@ public class PrintingDialog extends VBox {
         next.setOnAction(e -> { page[0] = page[0] + 1; show.run(); });
         final HBox pager = new HBox(8, prev, pageLabel, next);
         pager.setAlignment(Pos.CENTER);
-        setBox.valueProperty().addListener((o, was, now) -> {
+        // "SOLO FULL ART" (Discord, 03-11-2026: "searching for one in specific
+        // is hard"). Solo si hay de las dos clases: con una Island salen 300
+        // y pico, y con un Sol Ring no sale el boton. Ver forge.neo.deck.FullArt.
+        final javafx.scene.control.ToggleButton fullArt =
+                new javafx.scene.control.ToggleButton(NeoText.get("printing.fullArt"));
+        fullArt.getStyleClass().add("segment");
+        fullArt.setId("printing-full-art");
+        fullArt.setMinWidth(Region.USE_PREF_SIZE);
+        final boolean offerFullArt = forge.neo.deck.FullArt.worthFiltering(ordered);
+        fullArt.setVisible(offerFullArt);
+        fullArt.setManaged(offerFullArt);
+        final Runnable refilter = () -> {
             final int i = setBox.getSelectionModel().getSelectedIndex();
-            final String code = i <= 0 ? null : new java.util.ArrayList<>(setNames.keySet()).get(i - 1);
+            final String code = i <= 0 || i > setCodes.size() ? null : setCodes.get(i - 1);
             shown.clear();
             for (final PaperCard c : ordered) {
-                if (code == null || code.equals(c.getEdition())) {
+                if ((code == null || code.equals(c.getEdition()))
+                        && (!fullArt.isSelected() || forge.neo.deck.FullArt.is(c))) {
                     shown.add(c);
                 }
             }
             page[0] = 0;
             show.run();
+        };
+        setBox.valueProperty().addListener((o, was, now) -> refilter.run());
+        fullArt.selectedProperty().addListener((o, was, now) -> {
+            // El desplegable, solo con las colecciones que quedan; y si la
+            // elegida no tiene full art, vuelve a "todas".
+            final int i = setBox.getSelectionModel().getSelectedIndex();
+            final String code = i <= 0 || i > setCodes.size() ? null : setCodes.get(i - 1);
+            setCodes.clear();
+            final java.util.List<String> labels = new java.util.ArrayList<>();
+            for (final java.util.Map.Entry<String, String> e : setNames.entrySet()) {
+                boolean keep = !now;
+                for (final PaperCard c : ordered) {
+                    if (keep) {
+                        break;
+                    }
+                    keep = e.getKey().equals(c.getEdition()) && forge.neo.deck.FullArt.is(c);
+                }
+                if (keep) {
+                    setCodes.add(e.getKey());
+                    labels.add(e.getValue());
+                }
+            }
+            final int again = code == null ? 0 : setCodes.indexOf(code) + 1;
+            setBox.getItems().setAll(NeoText.get("printing.set.all"));
+            setBox.getItems().addAll(labels);
+            setBox.getSelectionModel().select(again);
+            refilter.run();
         });
         show.run();
         this.repaint = show;
@@ -163,6 +205,10 @@ public class PrintingDialog extends VBox {
         final int presetSet = Integer.getInteger("neo.printing.set", 0);
         if (presetSet > 0 && presetSet < setBox.getItems().size()) {
             setBox.getSelectionModel().select(presetSet);
+        }
+        // -Dneo.printing.fullArt=true lo deja puesto, para capturarlo.
+        if (offerFullArt && Boolean.getBoolean("neo.printing.fullArt")) {
+            fullArt.setSelected(true);
         }
         // Mas rapida con la rueda: con cartas grandes, el paso de fabrica de
         // JavaFX avanza apenas un tercio de carta (Ana, 06-10-2026).
@@ -178,7 +224,7 @@ public class PrintingDialog extends VBox {
         HBox.setHgrow(gap, Priority.ALWAYS);
         final Region gap2 = new Region();
         HBox.setHgrow(gap2, Priority.ALWAYS);
-        final HBox footer = new HBox(10, count, setBox, gap, pager, gap2, cancel);
+        final HBox footer = new HBox(10, count, setBox, fullArt, gap, pager, gap2, cancel);
         footer.setAlignment(Pos.CENTER_LEFT);
 
         getChildren().addAll(heading, hint, scroll, footer);

@@ -217,11 +217,57 @@ public final class NeoLock {
                             + " me pongo delante");
                     alFrente.run();
                 }
+                final File abrir = new File(NeoLog.dir(), FICHERO_ABRIR);
+                final java.util.function.Consumer<String> quien = alAbrir;
+                if (quien != null && abrir.isFile()) {
+                    String ruta = null;
+                    try {
+                        ruta = java.nio.file.Files.readString(abrir.toPath()).trim();
+                    } catch (final IOException | RuntimeException e) {
+                        System.err.println("[cerrojo] no se ha podido leer " + abrir + ": " + e);
+                    }
+                    borrar(abrir);
+                    if (ruta != null && !ruta.isEmpty()) {
+                        System.out.println("[cerrojo] me piden abrir " + ruta);
+                        quien.accept(ruta);
+                    }
+                }
             }
         }, "neo-cerrojo");
         // Demonio: no puede ser lo que mantenga viva la aplicacion al cerrarla.
         vigilante.setDaemon(true);
         vigilante.start();
+    }
+
+    /**
+     * El fichero que se le pasa al que esta abierto (Discord, 03-11-2026: abrir
+     * un .frp con doble clic estando el juego abierto). Va aparte de la senyal
+     * de "ponte delante": esa solo mira si el fichero existe, y esta lleva
+     * dentro la ruta.
+     */
+    private static final String FICHERO_ABRIR = "neo.abrir";
+
+    private static volatile java.util.function.Consumer<String> alAbrir;
+
+    /** Quien atiende un fichero que llega de otro arranque. En el hilo del vigilante. */
+    public static void setOnOpen(final java.util.function.Consumer<String> quien) {
+        alAbrir = quien;
+    }
+
+    /**
+     * Le pasa una ruta al juego que ya esta abierto: la deja escrita y el
+     * vigilante de aquel la recoge (cada {@value #VIGILANCIA_MS} ms).
+     */
+    public static void handOver(final String ruta) {
+        try {
+            final File dir = NeoLog.dir();
+            final File tmp = new File(dir, FICHERO_ABRIR + ".tmp");
+            java.nio.file.Files.writeString(tmp.toPath(), ruta);
+            java.nio.file.Files.move(tmp.toPath(), new File(dir, FICHERO_ABRIR).toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        } catch (final IOException | RuntimeException e) {
+            System.err.println("[cerrojo] no se ha podido pasar " + ruta + " al otro: " + e);
+        }
     }
 
     private static void borrar(final File senyal) {

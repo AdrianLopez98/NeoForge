@@ -1,12 +1,12 @@
-**NeoForge para macOS 1.0.43 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.44 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Mazo de salida de un comandante nuevo con su tema** en la Quest y en Ascenso (Codie con cartas de preparar, Tam con planeswalkers).
-- **Lo jugable brilla bien:** lo que se paga filtrando maná (Prophetic Prism) se marca, y lo de retrospectiva solo si llega el maná.
-- **El mazo de un rival se puede elegir de los de internet**, y «EDHREC Average Decks» ya aparece al bajarlo.
-- **Mesa:** una ficha con algo enganchado no se apila, y fichas del mismo nombre pero de otro tipo o color tampoco.
-- **Constructor en columnas:** los − / + ya no quedan tapados por la carta.
-- **Repeticiones:** la versión de Neo Forge en el nombre al exportarlas.
+- **Arreglado:** la partida podía cerrarse con un error justo después de lanzar un hechizo (lo traía la 1.0.43), y 10 de los «Otros formatos» no se abrían.
+- **Partidos al mejor de 3 o 5:** «Rendir esta partida» en la pausa, y si caes en una mesa de tres o más puedes terminarla sin ver a las IA.
+- **Constructor:** «Solo full art» en el selector de arte, y cambiar el arte de las cartas del banquillo.
+- **Quest:** los rivales pueden usar solo las expansiones de tu Quest (casilla al crearla).
+- **La IA** respeta «para cada jugador, hasta un objetivo» (Nils, Discipline Enforcer).
+- **Ascenso:** mazo de salida del mismo generador que la Quest, con mejor curva de maná.
 
 Descarga el `.dmg` de tu Mac:
 

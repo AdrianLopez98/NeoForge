@@ -411,6 +411,8 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 + forge.neo.NeoBoot.sinceStart() + " ms");
         // Y si vuelven a abrir el juego estando ya abierto, ponerse delante en
         // vez de no hacer nada. Ver NeoLock.
+        // Y si lo que traen es un .frp (doble clic con el juego abierto), verlo.
+        forge.neo.NeoLock.setOnOpen(path -> Platform.runLater(() -> openReplayFile(path)));
         forge.neo.NeoLock.watchForRaise(() -> Platform.runLater(() -> {
             stage.setIconified(false);
             stage.toFront();
@@ -1434,6 +1436,11 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             } else {
                 draft.showDraftDeckBuilder(run, args);
             }
+        } else if (NeoMain.replayArg(args.toArray(new String[0])) != null) {
+            // Un .frp de doble clic (ver ReplayFileAssoc): importarlo y verlo,
+            // desde el menu (es lo que deja a openReplayFile abrirlo).
+            showMainMenu();
+            openReplayFile(NeoMain.replayArg(args.toArray(new String[0])));
         } else if (args.contains("--replays")) {
             // -Dneo.replay.play=true: abre la mas reciente directamente
             showReplays();
@@ -2071,11 +2078,30 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 }
                 // "@space": la tecla Espacio de verdad, por los atajos de la
                 // escena (con el dialogo de ordenar disparos delante, su "Auto").
+                // "@focus:Texto": le da el foco al boton de la mesa con ese texto,
+                // como haberlo clicado (el "Log", Discord 03-11-2026).
+                if (step.startsWith("@focus:")) {
+                    final String want = step.substring(7);
+                    final javafx.scene.control.ButtonBase hit = (javafx.scene.control.ButtonBase) table
+                            .lookupAll(".button").stream()
+                            .filter(n -> n instanceof javafx.scene.control.ButtonBase bb
+                                    && want.equalsIgnoreCase(bb.getText()))
+                            .findFirst().orElse(null);
+                    if (hit != null) {
+                        hit.requestFocus();
+                    }
+                    System.out.println("[mesa] foco en " + want + ": " + (hit != null && hit.isFocused()));
+                    return;
+                }
                 if (step.equals("@space")) {
                     final boolean shown = table.getOverlay().isShowing();
+                    // A quien tenga el foco, como una tecla de verdad: si es un
+                    // boton, JavaFX lo pulsaria con Espacio.
+                    final javafx.scene.Node target = table.getScene().getFocusOwner() != null
+                            ? table.getScene().getFocusOwner() : table.getScene().getRoot();
                     for (final javafx.event.EventType<javafx.scene.input.KeyEvent> type : java.util.List.of(
                             javafx.scene.input.KeyEvent.KEY_PRESSED, javafx.scene.input.KeyEvent.KEY_RELEASED)) {
-                        table.getScene().getRoot().fireEvent(new javafx.scene.input.KeyEvent(type, "", "",
+                        target.fireEvent(new javafx.scene.input.KeyEvent(type, "", "",
                                 javafx.scene.input.KeyCode.SPACE, false, false, false, false));
                     }
                     System.out.println("[mesa] Espacio (dialogo antes: " + shown + ", despues: "
@@ -3365,6 +3391,21 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             }
 
             @Override
+            public boolean canConcedeGame() {
+                final forge.neo.match.NeoMatchUI ui = binder == null ? null : binder.getMatchUi();
+                return ui != null && ui.canConcedeGame();
+            }
+
+            @Override
+            public void concedeGame() {
+                table.getMenuOverlay().hide();
+                final forge.neo.match.NeoMatchUI ui = binder == null ? null : binder.getMatchUi();
+                if (ui != null) {
+                    ui.concedeGame();
+                }
+            }
+
+            @Override
             public boolean hasSavedOrders() {
                 final forge.neo.match.NeoMatchUI ui = binder == null ? null : binder.getMatchUi();
                 return ui != null && ui.hasSavedOrders();
@@ -4216,6 +4257,41 @@ public class NeoApp extends Application implements SettingsPanel.Host {
         }
     }
 
+    /**
+     * Un .frp que llega de fuera (doble clic, o pasado por otro arranque con
+     * el juego ya abierto: ver ReplayFileAssoc y NeoLock.handOver): se importa
+     * (si ya estaba, la que habia) y se ve, como al pulsar Ver.
+     */
+    void openReplayFile(final String path) {
+        final forge.neo.match.ReplayShare.Result r =
+                forge.neo.match.ReplayShare.importFile(new java.io.File(path));
+        // Solo se abre sola desde el menu o desde Repeticiones. En cualquier
+        // otra pantalla (una partida, el constructor con cambios sin guardar,
+        // la Quest, Ascenso...) no se te saca de ella: se importa y se dice, y
+        // se ve luego desde Repeticiones (Discord, 03-11-2026: "what happens if
+        // the user is already playing a game and double clicks a replay?").
+        final boolean free = (scene.getRoot() instanceof MainMenu
+                || scene.getRoot() instanceof forge.neo.ui.ReplaysScreen)
+                && !forge.gamemodes.net.client.ReplayPlayer.isPlaying();
+        if (!free) {
+            final boolean ok = r.outcome == forge.neo.match.ReplayShare.Outcome.ADDED
+                    || r.outcome == forge.neo.match.ReplayShare.Outcome.ALREADY;
+            forge.neo.ui.Toast.show(ok ? NeoText.get("replays.savedForLater") : r.message());
+            return;
+        }
+        showReplays();
+        forge.neo.ui.Toast.show(r.message());
+        // Tambien si es "de otra version", como el boton Ver: Forge en PC y en
+        // Android firma con versiones distintas (el manifiesto del jar), y una
+        // del PC se ve bien en el movil. Si no se pudiera ver, queda en la lista.
+        final forge.neo.match.ReplayShare.Entry e = r.entry;
+        if (e != null
+                && (r.outcome == forge.neo.match.ReplayShare.Outcome.ADDED
+                    || r.outcome == forge.neo.match.ReplayShare.Outcome.ALREADY)) {
+            playReplay(e.file);
+        }
+    }
+
     /** Las repeticiones (Forge #12255): la lista, y de ahi a verlas. */
     void showReplays() {
         scene.setRoot(new forge.neo.ui.ReplaysScreen(this::playReplay, this::showMainMenu));
@@ -4861,7 +4937,8 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                         // solo jugando tu: mirando a la IA nadie contesta entre
                         // partida y partida.
                         liveBinder, aiProfile, autoMana, format, lastOpponentDecks,
-                        mode == NeoMatchUI.Mode.HUMAN ? NeoSettings.bestOf(format) : 1,
+                        // -Dneo.bestOf=3: forzarlo para capturar (sin tocar los ajustes).
+                        mode == NeoMatchUI.Mode.HUMAN ? Integer.getInteger("neo.bestOf", NeoSettings.bestOf(format)) : 1,
                         // Planechase (08-10-2026), ENCIMA de los equipos: envuelve.
                         // Y Archenemy (11-10-2026) entre los dos: decide los
                         // equipos, y Planechase pone los planos encima.

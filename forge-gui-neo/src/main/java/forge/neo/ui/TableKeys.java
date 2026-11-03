@@ -64,11 +64,19 @@ public final class TableKeys {
                 return;
             }
             final TableScreen now = table.get();
-            if (now == null || now.getScene() == null || now.isModalShowing()) {
+            if (now == null || now.getScene() == null) {
                 return;
             }
             final Node owner = scene.getFocusOwner();
             if (!(owner instanceof ButtonBase) || !isInside(owner, now)) {
+                return;
+            }
+            // Con un dialogo delante, solo manda el foco si esta EN el dialogo.
+            // El boton del registro clicado antes se queda con el foco detras
+            // del dialogo, y Espacio lo abria en vez de pulsar el "Auto" de
+            // ordenar disparos o de contestar el aviso del mana flotante
+            // (Discord, 03-11-2026: "Spacebar seems to ignore dialog boxes").
+            if (now.isModalShowing() && now.isInShownLayer(owner)) {
                 return;
             }
             ev.consume();

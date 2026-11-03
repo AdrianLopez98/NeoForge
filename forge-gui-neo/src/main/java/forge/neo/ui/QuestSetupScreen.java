@@ -118,6 +118,8 @@ public class QuestSetupScreen extends BorderPane {
      * 15 en Estandar y 30 en Commander. Ver {@code QuestLowLife}.
      */
     private final javafx.scene.control.CheckBox lowLife = new javafx.scene.control.CheckBox();
+    /** Los rivales con las expansiones de la Quest (QuestRivalSets). */
+    private final javafx.scene.control.CheckBox rivalSets = new javafx.scene.control.CheckBox();
     private final Pager pager;
     private List<Deck> filtered = new ArrayList<>();
 
@@ -168,8 +170,9 @@ public class QuestSetupScreen extends BorderPane {
                 section(NeoText.get("questNew.step3"), new javafx.scene.layout.VBox(10, diffRow, lowLifeRow())),
                 // Las expansiones, opcional como el mundo y por lo mismo: de
                 // fabrica se juega con todo.
-                section(NeoText.get("questNew.stepCards"),
-                        poolPicker = new SetPoolPicker(this::poolChanged, this::describePool)),
+                section(NeoText.get("questNew.stepCards"), new javafx.scene.layout.VBox(10,
+                        poolPicker = new SetPoolPicker(this::poolChanged, this::describePool),
+                        rivalSetsRow())),
                 // El mundo va EL ULTIMO y es opcional, a proposito.
                 //
                 // Estuvo un rato en el paso 2 y estaba mal: restringir la
@@ -519,6 +522,31 @@ public class QuestSetupScreen extends BorderPane {
         final HBox row = new HBox(12, lowLife, hint);
         row.setAlignment(Pos.CENTER_LEFT);
         return row;
+    }
+
+    /**
+     * La casilla de los rivales con las expansiones de la Quest, debajo de las
+     * expansiones: va atada a la Quest y no a los Ajustes (Ana, 03-11-2026).
+     * Vale tambien para los mundos: con ella, en Shandalar los rivales juegan
+     * con las de Shandalar.
+     */
+    private Region rivalSetsRow() {
+        rivalSets.setText(NeoText.get("questNew.rivalSets"));
+        rivalSets.getStyleClass().add("shop-filter");
+        rivalSets.setMinWidth(Region.USE_PREF_SIZE);
+        // -Dneo.questNew.rivalSets=true: marcada, para la captura.
+        rivalSets.setSelected(Boolean.getBoolean("neo.questNew.rivalSets"));
+        final Label hint = new Label(NeoText.get("questNew.rivalSets.hint"));
+        hint.getStyleClass().add("home-subtitle");
+        hint.setWrapText(true);
+        final HBox row = new HBox(12, rivalSets, hint);
+        row.setAlignment(Pos.CENTER_LEFT);
+        return row;
+    }
+
+    /** Si los rivales usan solo las expansiones de la Quest. */
+    public boolean isRivalSets() {
+        return rivalSets.isSelected();
     }
 
     /** Si se empieza con menos vida (15, o 30 en Commander). */

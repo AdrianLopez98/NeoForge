@@ -39,6 +39,19 @@ public final class Bo3Check {
                         "Estandar a una partida: " + describe(bo1));
             }
 
+            // Rendir SOLO la primera partida (la pausa, Discord 03-11-2026):
+            // el partido tiene que seguir, no cerrarse en esa partida.
+            if (std != null) {
+                System.setProperty("neo.bo3.concedeFirst", "true");
+                try {
+                    final NeoGame.Result conceded = play(std, NeoFormat.ESTANDAR, 3);
+                    bad += check(conceded != null && conceded.matchWinner != null && conceded.games >= 2,
+                            "Rendir la primera partida sigue el partido: " + describe(conceded));
+                } finally {
+                    System.clearProperty("neo.bo3.concedeFirst");
+                }
+            }
+
             final Deck cmd = FModel.getDecks().getCommanderPrecons().iterator().next();
             System.out.println("  Commander con " + cmd.getName());
             final NeoGame.Result cbo3 = play(cmd, NeoFormat.COMMANDER, 3);

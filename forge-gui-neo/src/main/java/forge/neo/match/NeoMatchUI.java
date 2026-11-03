@@ -255,6 +255,94 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         t.start();
     }
 
+    /**
+     * Si se puede rendir SOLO esta partida de un partido al mejor de N (la
+     * pausa). La regla es {@link GameConcession#possible}, la misma en Android;
+     * aqui ademas, nada que rendir mirando o con la partida ya cerrada.
+     */
+    public boolean canConcedeGame() {
+        return mode != Mode.OBSERVE && !finished.get() && GameConcession.possible(this);
+    }
+
+    /**
+     * Rendir esta partida y seguir el partido: la pantalla de derrota de
+     * siempre, con "Siguiente partida". {@code exitAction} se queda en null, que
+     * es lo que hace que {@code finishGame} la ensenye en vez de salir. El como,
+     * en {@link GameConcession} (no pasa por el {@code concede()} de Forge).
+     */
+    public void concedeGame() {
+        if (!canConcedeGame()) {
+            return;
+        }
+        log("The player concedes this game (game %d of %d)",
+                getGameView().getNumPlayedGamesInMatch() + 1, getGameView().getNumGamesInMatch());
+        uiRunLater(() -> table.forgetEngineDialogs());
+        GameConcession.concede(this);
+    }
+
+    private final AtomicBoolean concededForTest = new AtomicBoolean();
+
+    /**
+     * <b>Has caido y las IA siguen</b> (Discord, 03-11-2026: <i>"is there no
+     * way to end a game after the ai's knocked me out first? or do i have to
+     * wait for them to battle it out?"</i>).
+     *
+     * <p>Forge sigue la partida entre las IA cuando el humano pierde en una mesa
+     * de tres o mas ({@code checkGameOverCondition} solo cierra con un jugador
+     * en pie). Salir por la pausa ya la cerraba, pero eso no lo adivina nadie y
+     * te sacaba al menu sin la pantalla de final. Asi que, UNA vez por partida,
+     * se pregunta: terminarla ahora (como el {@code forceEndGameForRemainingAIs}
+     * de Forge: {@code AllHumansLost}, y la pantalla de derrota de siempre) o
+     * quedarse a ver como acaba.
+     *
+     * <p>No en Ascenso ni en la Quest (alli se cierra sola, ver
+     * {@code AscentTableEnd}), ni en red (la partida es del anfitrion), ni
+     * mirando, ni en una repeticion. {@code -Dneo.out.autoEnd=true} contesta
+     * "terminar" sola, para {@code outcheck}.
+     */
+    private void offerEndWhenOut() {
+        final boolean autoEnd = Boolean.getBoolean("neo.out.autoEnd");
+        if ((mode != Mode.HUMAN && !autoEnd) || ending != Ending.NORMAL || isNetGame() || isReplay()
+                || outOffered.get() || finished.get() || (table == null && !autoEnd)) {
+            return;
+        }
+        final GameView gv = getGameView();
+        if (gv == null || gv.isGameOver() || gv.getPlayers() == null || gv.getPlayers().size() <= 2) {
+            return;
+        }
+        int standing = 0;
+        for (final PlayerView p : gv.getPlayers()) {
+            if (!live(p).getHasLost()) {
+                standing++;
+            }
+        }
+        boolean allMineOut = !getLocalPlayers().isEmpty();
+        for (final PlayerView p : getLocalPlayers()) {
+            allMineOut &= live(p).getHasLost();
+        }
+        if (!allMineOut || standing < 2 || !outOffered.compareAndSet(false, true)) {
+            return;
+        }
+        final int left = standing;
+        log("The player is out with %d still playing: offering to end the game", left);
+        if (autoEnd) {
+            endTheGameForReal();
+            return;
+        }
+        uiRunLater(() -> table.getOverlay().show(new forge.neo.ui.ConfirmDialog(
+                NeoText.get("out.title"), NeoText.get("out.detail", left),
+                java.util.List.of(NeoText.get("out.end"), NeoText.get("out.watch")), 0,
+                choice -> {
+                    table.getOverlay().hide();
+                    if (choice == 0) {
+                        log("The player ends the game after being knocked out");
+                        endTheGameForReal();
+                    }
+                })));
+    }
+
+    private final AtomicBoolean outOffered = new AtomicBoolean();
+
     public void leaveMatch(final Exit action) {
         this.exitAction = action;
         if (isReplay()) {
@@ -2511,6 +2599,12 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         if (phase != lastPhase) {
             lastPhase = phase;
             trace("fase: %s", phase);
+            // -Dneo.bo3.concedeFirst=true (bo3check): rendir la PRIMERA partida
+            // del partido en el turno 3, como el boton de la pausa.
+            if (Boolean.getBoolean("neo.bo3.concedeFirst") && gv.getNumPlayedGamesInMatch() == 0 && gv.getTurn() >= 3
+                    && concededForTest.compareAndSet(false, true)) {
+                concedeGame();
+            }
             final DetailLog d = detail;
             if (d != null) {
                 // Si te paras aqui: las mismas listas que mira isUiSetToSkipPhase.
@@ -2608,6 +2702,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             detailLog.sync(getGameView());
         }
         refreshCentralPrompt();
+        offerEndWhenOut();
         flushStrandedViewChanges();
         final boolean stopped = watchForThingsThatAffectMe(event);
         // Si la partida acaba de pararse a contarte algo, ya has tenido tu
@@ -4096,12 +4191,11 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
      * graveyard"</i>, con la captura en la segunda fase principal). Pasa igual
      * con un flashback de conjuro en el turno del rival.
      *
-     * <p>Se pregunta al motor con lo MISMO que usa al clicar
-     * ({@code Card.getAllPossibleAbilities(jugador, true)}, que es lo que llama
-     * {@code InputPassPriority}), y solo cuando el motor esta parado esperando
-     * que pases prioridad: ahi no corre nada en su hilo, y fuera de ahi no se
-     * puede lanzar nada de todas formas. En red el invitado no tiene
-     * {@code Game}: se queda lo de antes, la lista sola.
+     * <p>Lo contesta lo resaltado del motor, que sale de lo MISMO que usa al
+     * clicar ({@code Card.getAllPossibleAbilities(jugador, true)}) pero
+     * calculado en su hilo, y solo cuenta con el motor esperando que pases
+     * prioridad: fuera de ahi no se puede lanzar nada de todas formas. En red
+     * el invitado no tiene {@code Game}: se queda lo de antes, la lista sola.
      *
      * <p>Y desde el 01-11-2026, <b>si llega el mana</b>: la fase sola dejaba
      * el retrospectivo marcado sin mana para pagarlo (Discord). Clicarla sigue
@@ -4119,27 +4213,18 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             recheckOutsideLater();
             return false;
         }
+        // ⚠️ SIN PREGUNTARLE AL MOTOR (Discord, 03-11-2026): esto corre en el
+        // hilo de interfaz, al repintar. Hasta la 1.0.43 se llamaba aqui a
+        // getAllPossibleAbilities, que acaba en checkStaticAbilities y reescribe
+        // el mapa de estaticas; si la partida seguia justo entonces (acabas de
+        // lanzar algo), los dos hilos se cruzaban y la partida moria con un
+        // ConcurrentModificationException en StaticEffects.clearStaticEffects.
+        // La respuesta ya la tiene el motor, calculada en SU hilo: lo resaltado
+        // (AvailableActions recorre esta misma zona con el mismo
+        // getAllPossibleAbilities, mira el momento y el mana) y lo que se paga
+        // girando o filtrando (overlookedIds, de SafeActions.Guarded).
         try {
-            final forge.game.player.Player me = game.getPlayer(localPlayer());
-            final forge.game.player.Player owner = game.getPlayer(card.getOwner());
-            if (me == null || owner == null || card.getZone() == null) {
-                return true;
-            }
-            for (final forge.game.card.Card c : owner.getCardsIn(card.getZone())) {
-                if (c.getId() == card.getId()) {
-                    final Thread was = probing;
-                    probing = Thread.currentThread();
-                    try {
-                        // Y con que pagarla (Discord, 01-11-2026: "flashback
-                        // cards are always highlighted, even when you don't
-                        // have the mana available"). Ver FilterCast.anyAffordable.
-                        return FilterCast.anyAffordable(me, c.getAllPossibleAbilities(me, true));
-                    } finally {
-                        probing = was;
-                    }
-                }
-            }
-            return true;
+            return getActionableStrength(card) > 0 || overlookedIds.contains(card.getId());
         } catch (final RuntimeException e) {
             // Ante la duda, lo de siempre: marcarla. Quien decide al clicar es
             // el motor.
@@ -4485,6 +4570,8 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                 detail = DetailLog.start(getGameView());
             }
             rounds = new RoundCounter();
+            // "Has caido" se pregunta una vez POR PARTIDA (un al mejor de N reusa esto).
+            outOffered.set(false);
             // Un nodo de Ascenso, con London siempre: con semillas, todos con las
             // mismas reglas (FriendlyMulligan.ASCENT_RULE).
             if (ending == Ending.ASCENT) {
@@ -8343,6 +8430,9 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         }
         overlookedFresh = false;
         pushActionable();
+        // El brillo de lo que se lanza desde fuera lo dice esta misma lista
+        // (castableNow): si llega despues de pintar, se repinta.
+        pushToTable();
     }
 
     /** Si {@link #setOverlooked} acaba de llegar para la seleccion que viene. */
