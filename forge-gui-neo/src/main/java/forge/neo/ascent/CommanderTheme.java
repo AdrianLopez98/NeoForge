@@ -60,7 +60,33 @@ public final class CommanderTheme {
         if (commander == null) {
             return List.of();
         }
-        return CACHE.computeIfAbsent(commander.getName(), n -> compute(commander));
+        // CON SU PROPIO AZAR (seedcheck, 04-11-2026: la misma semilla de Ascenso
+        // con Krenko daba otro mazo la segunda vez). Leer el tema gasta tiradas
+        // del azar compartido (MyRandom: la base de cartas elige impresiones),
+        // y solo la PRIMERA vez, que es la que lo calcula: con una semilla
+        // puesta, la run de despues ya no era la misma. El tema no depende del
+        // azar; la run, si. Asi la primera y las demas gastan lo mismo: nada.
+        final List<Map.Entry<PaperCard, Integer>> known = CACHE.get(commander.getName());
+        if (known != null) {
+            return known;
+        }
+        final List<Map.Entry<PaperCard, Integer>> out = ownRandom(commander, () -> compute(commander));
+        CACHE.put(commander.getName(), out);
+        return out;
+    }
+
+    /**
+     * Lo que solo se calcula la primera vez, con un azar suyo (ver
+     * {@link #poolOf}): el compartido se deja como estaba.
+     */
+    private static <T> T ownRandom(final PaperCard commander, final java.util.function.Supplier<T> work) {
+        final java.util.Random before = forge.util.MyRandom.getRandom();
+        forge.util.MyRandom.setRandom(new java.util.Random(commander.getName().hashCode()));
+        try {
+            return work.get();
+        } finally {
+            forge.util.MyRandom.setRandom(before);
+        }
     }
 
     /** Lo que se ha leido de la carta, para el registro y el comprobador. */
@@ -84,7 +110,8 @@ public final class CommanderTheme {
         }
         final Predicate<CardRules> p = FILTERS.computeIfAbsent(commander.getName(),
                 n -> {
-                    final Predicate<CardRules> b = build(commander, new ArrayList<>());
+                    final Predicate<CardRules> b = ownRandom(commander,
+                            () -> build(commander, new ArrayList<>()));
                     return b == null ? r -> false : b;
                 });
         return p.test(card.getRules());
