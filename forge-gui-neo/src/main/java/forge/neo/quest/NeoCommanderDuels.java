@@ -439,6 +439,7 @@ public final class NeoCommanderDuels {
             }
             final PaperCard c = e.getKey();
             if (seen.contains(c.getName())
+                    || forge.neo.deck.GeneratedDecks.notForDecks(c)
                     || !format.isLegalCard(c)
                     || !c.getRules().getColorIdentity().hasNoColorsExcept(identity)
                     || c.getRules().getAiHints().getRemAIDecks()

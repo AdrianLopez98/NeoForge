@@ -333,7 +333,30 @@ public final class GeneratedDecks {
      * con {@code setCustom()} — y cualquier otra personalizada. Ver la cabecera.
      */
     public static boolean notForDecks(final PaperCard card) {
-        return card != null && card.getRules() != null && card.getRules().isCustom();
+        return card != null && card.getRules() != null
+                && (card.getRules().isCustom() || uncastable(card.getRules()));
+    }
+
+    /**
+     * Una carta sin coste que no es tierra y que no se puede suspender ni
+     * empalmar: no hay forma de jugarla. Discord, 04-11-2026, con captura:
+     * <i>"I don't think this card is meant to enter a ascent deck"</i> —
+     * Garruk the Slayer, la de los Prerelease Challenge de M15 (cuarenta de
+     * lealtad... para jugar CONTRA ella), en el mazo de salida de una run de
+     * Commander. Forge la da por legal y su tema (planeswalkers) la cogia.
+     * Ancestral Vision, Lotus Bloom o Living End se quedan: se suspenden.
+     */
+    static boolean uncastable(final forge.card.CardRules rules) {
+        final forge.card.mana.ManaCost cost = rules.getManaCost();
+        if (cost == null || !cost.isNoCost() || rules.getType().isLand()) {
+            return false;
+        }
+        for (final String k : rules.getMainPart().getKeywords()) {
+            if (k.startsWith("Suspend") || k.startsWith("Splice")) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

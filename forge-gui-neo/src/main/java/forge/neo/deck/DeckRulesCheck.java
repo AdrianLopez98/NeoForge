@@ -2062,6 +2062,26 @@ public final class DeckRulesCheck {
                         && old.getMain().countAll() == 32);
         check("reliquias: la segunda vez no hay nada que cambiar",
                 GeneratedDecks.dropCustomCards(old) == 0 && old.getMain().countAll() == 32);
+
+        // Y las que no se pueden jugar (Discord, 04-11-2026: Garruk the Slayer,
+        // de los Prerelease Challenge, en un mazo de Ascenso). Las de
+        // suspender, si.
+        final PaperCard slayer = FModel.getMagicDb().getCommonCards().getCard("Garruk the Slayer");
+        final PaperCard vision = FModel.getMagicDb().getCommonCards().getCard("Ancestral Vision");
+        final PaperCard bloom = FModel.getMagicDb().getCommonCards().getCard("Lotus Bloom");
+        check("sin coste: Garruk the Slayer no va en ningun mazo; Ancestral Vision, Lotus Bloom"
+                        + " y Plains si",
+                slayer != null && GeneratedDecks.notForDecks(slayer)
+                        && vision != null && !GeneratedDecks.notForDecks(vision)
+                        && bloom != null && !GeneratedDecks.notForDecks(bloom)
+                        && !GeneratedDecks.notForDecks(plains));
+        if (slayer != null) {
+            old.getMain().add(slayer, 1);
+            check("sin coste: en un mazo que ya la traia, se cambia por su basica",
+                    GeneratedDecks.dropCustomCards(old) == 1
+                            && old.getMain().countByName(slayer.getName()) == 0
+                            && old.getMain().countAll() == 33);
+        }
     }
 
     private static int countByNames(final Deck deck, final Set<String> names) {
