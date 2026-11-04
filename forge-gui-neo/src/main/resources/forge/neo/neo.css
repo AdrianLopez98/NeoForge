@@ -1453,6 +1453,21 @@
     -fx-text-fill: #0B0E13;
 }
 
+/* Escribir para filtrar un desplegable largo (ComboSearch): lo escrito, arriba. */
+.combo-search {
+    -fx-padding: 6;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,.55), 14, .2, 0, 3);
+}
+.combo-search-query {
+    -fx-text-fill: -neo-text;
+    -fx-background-color: -neo-table-deep;
+    -fx-border-color: -neo-accent;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+    -fx-padding: 4 8 4 8;
+    -fx-min-height: 2em;
+}
+
 /* =====================================================================
    Interaccion (fase 4)
    ===================================================================== */

@@ -178,6 +178,8 @@ public class NeoApp extends Application implements SettingsPanel.Host {
         // vuelta (la mesa y las cartas no, ver Rtl). Con cualquier otro
         // idioma no hace nada.
         forge.neo.ui.Rtl.applyTo(scene);
+        // Escribir para filtrar los desplegables largos (expansiones...).
+        forge.neo.ui.ComboSearch.install(scene);
 
         // Escala de interfaz: la hoja de estilos usa em, asi que fijando el
         // tamano de fuente de la raiz se escala todo el texto de golpe. Se

@@ -112,6 +112,12 @@ public final class NeoCommanderDuels {
     /** Y cuantas en total, contando los staples de relleno. */
     private static final int CANDIDATES = 320;
 
+    /** Con menos candidatos que esto del pozo propio, entra tambien su tema. */
+    private static final int THIN_POOL = 90;
+
+    /** Cuantas incoloras pueden salir de la tanda de staples (Sol Ring, Signet... y poco mas). */
+    private static final int STAPLE_COLOURLESS = 14;
+
     /** Cuantas del tema de un comandante sin matriz entran primero (ver CommanderTheme). */
     private static final int THEME = 40;
 
@@ -373,12 +379,25 @@ public final class NeoCommanderDuels {
         // siempre): su tema, leido de su propia carta. Ver CommanderTheme.
         if (!AscentSynergy.knows(cmd)) {
             addWeighted(candidates, seen, forge.neo.ascent.CommanderTheme.poolOf(cmd), THEME,
-                    format, identity, maxRarity, quota);
+                    format, identity, maxRarity, quota, Integer.MAX_VALUE);
         }
         addWeighted(candidates, seen, AscentSynergy.poolOf(cmd), OWN_POOL,
-                format, identity, maxRarity, quota);
+                format, identity, maxRarity, quota, Integer.MAX_VALUE);
+        // UN POZO PROPIO QUE SE QUEDA CORTO (Discord, 04-11-2026: Giada salia
+        // con 20-30 artefactos incoloros - Myr, Ornithopter, piedras, un
+        // Desierto - en vez de angeles). Lo que se juega con ella es casi todo
+        // raro o mitico, el techo de rareza lo deja en nada, y el hueco lo
+        // llenaban los staples, que son incoloros casi todos. Antes que ellos,
+        // su tema (el tipo que nombra: Angel), aunque la matriz la conozca.
+        if (candidates.size() < THIN_POOL) {
+            addWeighted(candidates, seen, forge.neo.ascent.CommanderTheme.poolOf(cmd),
+                    candidates.size() + THEME,
+                    format, identity, maxRarity, quota, Integer.MAX_VALUE);
+        }
+        // Y los staples, con tope de incoloros: sin el, de "lo que se juega en
+        // cualquier mazo" salen sobre todo artefactos, que caben en todos.
         addWeighted(candidates, seen, AscentSynergy.popularity(), CANDIDATES,
-                format, identity, maxRarity, quota);
+                format, identity, maxRarity, quota, STAPLE_COLOURLESS);
 
         final List<PaperCard> pool = GeneratedDecks.limitToBracket(candidates, cmd, null, maxBracket);
         final CardThemedCommanderDeckBuilder gen =
@@ -398,11 +417,16 @@ public final class NeoCommanderDuels {
         return deck;
     }
 
-    /** Anyade del pozo lo que pasa los filtros, en orden al azar con peso, hasta {@code upTo}. */
+    /**
+     * Anyade del pozo lo que pasa los filtros, en orden al azar con peso, hasta
+     * {@code upTo}, y como mucho {@code maxColourless} cartas incoloras (sin
+     * contar basicas) de esta tanda.
+     */
     private static void addWeighted(final List<PaperCard> out, final Set<String> seen,
             final List<Map.Entry<PaperCard, Integer>> source, final int upTo,
             final DeckFormat format, final ColorSet identity, final CardRarity maxRarity,
-            final Map<CardRarity, Integer> quota) {
+            final Map<CardRarity, Integer> quota, final int maxColourless) {
+        int colourless = 0;
         final List<Map.Entry<PaperCard, Integer>> shuffled = new ArrayList<>(source);
         final Map<Map.Entry<PaperCard, Integer>, Double> key = new IdentityHashMap<>();
         for (final Map.Entry<PaperCard, Integer> e : shuffled) {
@@ -421,6 +445,11 @@ public final class NeoCommanderDuels {
                     || lowestRarity(c).ordinal() > maxRarity.ordinal()) {
                 continue;
             }
+            final boolean noColour = c.getRules().getColorIdentity().isColorless()
+                    && !c.getRules().getType().isBasicLand();
+            if (noColour && colourless >= maxColourless) {
+                continue;
+            }
             if (quota != null) {
                 final Integer left = quota.get(lowestRarity(c));
                 if (left != null) {
@@ -432,6 +461,9 @@ public final class NeoCommanderDuels {
             }
             seen.add(c.getName());
             out.add(c);
+            if (noColour) {
+                colourless++;
+            }
         }
     }
 

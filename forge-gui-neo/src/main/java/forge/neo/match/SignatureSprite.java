@@ -571,4 +571,159 @@ public final class SignatureSprite {
     public static final SignatureSprite WATER_DROP = of("waterDrop",
             "M0,0 C-30,0 -30,-40 0,-100 C30,-40 30,0 0,0 Z", "M-12,-30 C-14,-44 -8,-56 -4,-62",
             new float[] {0f, 0.5f, 1f}, new int[] {0xFFD8F4FF, 0xFF4AA8E8, 0xFF14508C}, true, 0, 0xCCFFFFFF);
+
+    // ------------------------------------------------------------------
+    // La sexta tanda de comandantes (04-11-2026).
+
+    /** Chatterfang: una bellota, con su caperuza y el rabito. */
+    public static final SignatureSprite ACORN = of("acorn",
+            "M0,0 C-30,-4 -34,-38 -32,-56 C-44,-58 -44,-74 -30,-80 C-16,-90 16,-90 30,-80 "
+                    + "C44,-74 44,-58 32,-56 C34,-38 30,-4 0,0 Z",
+            "M-34,-57 L34,-57 M0,-86 L5,-100",
+            new float[] {0f, 0.45f, 0.55f, 1f}, new int[] {0xFFE0A050, 0xFFA8641E, 0xFF6A4420, 0xFF4A2E14},
+            false, 0xFF3A220E, 0xFF3A220E);
+    /** Hashaton: un escarabajo de oro y lapislazuli. */
+    public static final SignatureSprite SCARAB = of("scarab",
+            "M0,0 C-34,-4 -40,-50 -26,-80 C-18,-96 18,-96 26,-80 C40,-50 34,-4 0,0 Z",
+            "M0,-8 L0,-80 M-26,-80 C-14,-70 14,-70 26,-80",
+            new float[] {0f, 0.5f, 1f}, new int[] {0xFFFFE08A, 0xFF2A7AB8, 0xFF143A6A}, false, 0xFF8A6A1A, 0xFFFFD866);
+    /**
+     * Frodo: el Anillo, un aro de oro. El hueco es el circulo de dentro en el
+     * sentido contrario, asi que sale vacio con las dos reglas de relleno.
+     */
+    public static final SignatureSprite RING = of("ring",
+            "M0,0 C-66,0 -66,-100 0,-100 C66,-100 66,0 0,0 Z M0,-16 C42,-16 42,-84 0,-84 C-42,-84 -42,-16 0,-16 Z",
+            null, new float[] {0f, 0.55f, 1f}, new int[] {0xFFFFF4C0, 0xFFF0C040, 0xFFA87418}, false,
+            0xFF7A5210, 0);
+    /** Bello: una corchea dorada. */
+    public static final SignatureSprite MUSIC_NOTE = of("musicNote",
+            "M-10,0 C-34,0 -34,-26 -10,-26 C-2,-26 4,-22 6,-16 L6,-100 L12,-100 C16,-86 36,-80 34,-60 "
+                    + "C30,-72 20,-78 12,-80 L12,-14 C12,-6 4,0 -10,0 Z",
+            null, new float[] {0f, 1f}, new int[] {0xFFFFE6A0, 0xFFD89A2A}, false, 0xFF6A4410, 0);
+    /** Baylen: una brizna de paja. */
+    public static final SignatureSprite STRAW = of("straw", "M-4,0 L-2,-100 L2,-100 L4,0 Z", null,
+            new float[] {0f, 1f}, new int[] {0xFFF6DC7A, 0xFFC8962E}, false, 0, 0);
+
+    // ------------------------------------------------------------------
+    // La septima tanda de comandantes (04-11-2026).
+
+    /** Rin and Seri: una huella, la almohadilla y cuatro dedos. */
+    public static final SignatureSprite PAW = of("paw",
+            "M0,0 C-30,0 -36,-22 -24,-36 C-14,-48 14,-48 24,-36 C36,-22 30,0 0,0 Z "
+                    + "M-38,-46 C-50,-48 -52,-66 -42,-70 C-32,-72 -26,-58 -30,-50 C-32,-46 -35,-45 -38,-46 Z "
+                    + "M-16,-62 C-28,-64 -28,-88 -16,-92 C-4,-94 -2,-70 -8,-64 C-10,-62 -13,-62 -16,-62 Z "
+                    + "M16,-62 C28,-64 28,-88 16,-92 C4,-94 2,-70 8,-64 C10,-62 13,-62 16,-62 Z "
+                    + "M38,-46 C50,-48 52,-66 42,-70 C32,-72 26,-58 30,-50 C32,-46 35,-45 38,-46 Z",
+            null, new float[] {0f, 1f}, new int[] {0xFFFFE2C8, 0xFFE08A5A}, true, 0xFF7A3A1E, 0);
+    /** Mr. House: un dado blanco con sus puntos. */
+    public static final SignatureSprite DIE = of("die",
+            "M-36,0 C-46,0 -50,-4 -50,-14 L-50,-86 C-50,-96 -46,-100 -36,-100 L36,-100 C46,-100 50,-96 50,-86 "
+                    + "L50,-14 C50,-4 46,0 36,0 Z",
+            "M-28,-78 L-26,-78 M-1,-51 L1,-51 M26,-24 L28,-24 M26,-78 L28,-78 M-28,-24 L-26,-24",
+            new float[] {0f, 1f}, new int[] {0xFFFFFFFF, 0xFFC8D0D8}, false, 0xFF3A4048, 0xFF14181E);
+    /** Ygra: una manzana roja con su hoja (todo se vuelve Comida). */
+    public static final SignatureSprite APPLE = of("apple",
+            "M0,-6 C-20,6 -46,-6 -46,-40 C-46,-70 -22,-80 0,-70 C22,-80 46,-70 46,-40 C46,-6 20,6 0,-6 Z",
+            "M0,-70 C0,-80 4,-90 10,-98 M4,-82 C14,-92 28,-92 34,-86",
+            new float[] {0f, 0.55f, 1f}, new int[] {0xFFFF9A7A, 0xFFD8282A, 0xFF7A1014}, true, 0xFF5A0A0E,
+            0xFF4A8A2A);
+
+    // ------------------------------------------------------------------
+    // La octava tanda de comandantes (04-11-2026).
+
+    /** Flubs: un nenufar, con su muesca y sus nervios. */
+    public static final SignatureSprite LILY_PAD = of("lilyPad",
+            "M0,0 C-66,0 -66,-100 0,-100 C40,-100 60,-70 62,-56 L4,-50 L50,-26 C40,-10 22,0 0,0 Z",
+            "M4,-50 L-40,-30 M4,-50 L-30,-82 M4,-50 L20,-92",
+            new float[] {0f, 0.6f, 1f}, new int[] {0xFF9ADC6A, 0xFF4A9A3A, 0xFF22582A}, true, 0xFF1A3A1A, 0x8834702A);
+    /** The Necrobloom: un brote, dos hojas en V. */
+    public static final SignatureSprite SPROUT = of("sprout",
+            "M-3,0 L-3,-48 C-14,-50 -44,-60 -48,-92 C-20,-94 -4,-74 -1,-54 C2,-74 20,-94 48,-92 "
+                    + "C44,-60 14,-50 3,-48 L3,0 Z",
+            "M-3,-50 L-34,-84 M3,-50 L34,-84",
+            new float[] {0f, 0.5f, 1f}, new int[] {0xFF2A6A2A, 0xFF5AB04A, 0xFFB8F08A}, false, 0xFF143A14, 0x88E0FFC0);
+    /** Atla Palani: un huevo moteado. */
+    public static final SignatureSprite EGG = of("egg",
+            "M0,0 C-36,0 -42,-34 -36,-56 C-28,-84 -14,-100 0,-100 C14,-100 28,-84 36,-56 C42,-34 36,0 0,0 Z",
+            "M-14,-60 L-11,-60 M10,-38 L13,-38 M8,-78 L11,-78 M-18,-30 L-15,-30",
+            new float[] {0f, 0.6f, 1f}, new int[] {0xFFFFFFF4, 0xFFF0E2C0, 0xFFC8A878}, true, 0xFF8A6A40, 0xFF8A5A2A);
+    /** Avatar Aang: un remolino de aire, blanco y medio transparente. */
+    public static final SignatureSprite AIR_WISP = of("airWisp",
+            "M0,0 C-40,-4 -50,-50 -20,-74 C4,-94 40,-80 38,-56 C36,-40 18,-36 10,-46 C24,-48 26,-66 8,-72 "
+                    + "C-14,-78 -34,-56 -24,-34 C-16,-16 2,-8 20,-12 C14,-4 8,0 0,0 Z",
+            null, new float[] {0f, 1f}, new int[] {0xEEFFFFFF, 0x88B8E4FF}, false, 0, 0);
+    /** Tidus: una pelota de blitzball, azul y blanca con sus costuras. */
+    public static final SignatureSprite BLITZBALL = of("blitzball", DISC,
+            "M-62,-50 C-30,-60 30,-60 62,-50 M-8,-98 C-30,-70 -30,-30 -8,-2",
+            new float[] {0f, 0.55f, 1f}, new int[] {0xFFFFFFFF, 0xFF5AB4F0, 0xFF1A5A9A}, true, 0xFF0E3A66,
+            0xFFF0F8FF);
+
+    // ------------------------------------------------------------------
+    // La novena tanda de comandantes (04-11-2026).
+
+    /** Arabella: un corazon de trapo, rosa (gana vida con cada ataque). */
+    public static final SignatureSprite HEART = of("heart",
+            "M0,0 C-20,-20 -50,-40 -50,-66 C-50,-90 -20,-100 0,-78 C20,-100 50,-90 50,-66 C50,-40 20,-20 0,0 Z",
+            "M-30,-70 C-30,-80 -22,-86 -14,-84",
+            new float[] {0f, 0.55f, 1f}, new int[] {0xFFFFC8D8, 0xFFF05A8A, 0xFFA8204A}, true, 0xFF6A1030,
+            0xCCFFFFFF);
+    /** Choco: una pluma de chocobo, amarilla; la misma forma que las de Sephiroth. */
+    public static final SignatureSprite FEATHER_YELLOW = of("featherYellow", BlackFeathers.VANE, BlackFeathers.QUILL,
+            new float[] {0f, 0.55f, 0.85f, 1f}, new int[] {0xFFFFFAD8, 0xFFFFE05A, 0xFFE8A81A, 0xFFA8700A},
+            false, 0x66FFF0B0, 0x99FFF8E0);
+    /** Auntie Ool: una calavera de hueso con los ojos verdes. */
+    public static final SignatureSprite SKULL = of("skull",
+            "M0,0 L-16,0 L-16,-14 C-40,-20 -48,-46 -46,-62 C-44,-88 -24,-100 0,-100 C24,-100 44,-88 46,-62 "
+                    + "C48,-46 40,-20 16,-14 L16,0 Z "
+                    // Los ojos y la nariz, HUECOS: en el sentido contrario al contorno.
+                    + "M-18,-62 C-30,-62 -30,-42 -18,-42 C-6,-42 -6,-62 -18,-62 Z "
+                    + "M18,-62 C6,-62 6,-42 18,-42 C30,-42 30,-62 18,-62 Z "
+                    + "M0,-38 L-6,-26 L6,-26 Z",
+            "M-18,-62 C-30,-62 -30,-42 -18,-42 C-6,-42 -6,-62 -18,-62 "
+                    + "M18,-62 C6,-62 6,-42 18,-42 C30,-42 30,-62 18,-62 M-6,-14 L-6,-4 M6,-14 L6,-4",
+            new float[] {0f, 0.6f, 1f}, new int[] {0xFFF4F0E0, 0xFFC8C0A0, 0xFF7A7460}, true, 0xFF3A3828,
+            0xFF7CF05A);
+
+    // ------------------------------------------------------------------
+    // La decima tanda de comandantes (04-11-2026).
+
+    /**
+     * Green Goblin: la bomba calabaza, naranja, con los ojos y la boca HUECOS
+     * (en el sentido contrario al contorno, como la calavera) y el rabito.
+     */
+    public static final SignatureSprite PUMPKIN_BOMB = of("pumpkinBomb",
+            "M0,0 C-66,0 -66,-92 0,-92 C66,-92 66,0 0,0 Z "
+                    + "M-26,-58 L-30,-46 L-14,-46 Z M26,-58 L14,-46 L30,-46 Z "
+                    + "M-30,-32 L-22,-14 L22,-14 L30,-32 L20,-22 L10,-30 L0,-20 L-10,-30 L-20,-22 Z",
+            "M0,-92 L4,-100",
+            new float[] {0f, 0.6f, 1f}, new int[] {0xFFFFD08A, 0xFFF0801A, 0xFF9A4208}, true, 0xFF5A2604,
+            0xFF3A7A1A);
+
+    // ------------------------------------------------------------------
+    // La undecima tanda de comandantes (04-11-2026).
+
+    /** Hope Estheim: su boomerang (el Airwing), una V curva plateada y azul. */
+    public static final SignatureSprite BOOMERANG = of("boomerang",
+            "M0,0 C-10,-40 -30,-70 -50,-90 C-44,-98 -36,-98 -32,-92 C-18,-70 -4,-50 0,-36 "
+                    + "C4,-50 18,-70 32,-92 C36,-98 44,-98 50,-90 C30,-70 10,-40 0,0 Z",
+            "M-40,-88 C-24,-66 -8,-40 0,-14",
+            new float[] {0f, 0.5f, 1f}, new int[] {0xFFE8F4FF, 0xFF8AB8E0, 0xFF3A5A8A}, false, 0xFF1A2A44,
+            0x99FFFFFF);
+    /**
+     * Obeka: un reloj, la esfera blanca con sus agujas y sus horas. Agujas y
+     * horas van HUECAS (en el sentido contrario a la esfera): como trazo de
+     * acento eran una raya de un pixel y en el halo grande no se veian.
+     */
+    public static final SignatureSprite CLOCK = of("clock",
+            "M0,0 C-66,0 -66,-100 0,-100 C66,-100 66,0 0,0 Z "
+                    + "M-3,-86 L-3,-50 L3,-50 L3,-86 Z M0,-54 L0,-46 L28,-46 L28,-54 Z "
+                    + "M-3,-97 L-3,-88 L3,-88 L3,-97 Z M-3,-12 L-3,-3 L3,-3 L3,-12 Z "
+                    + "M37,-53 L37,-47 L46,-47 L46,-53 Z M-46,-53 L-46,-47 L-37,-47 L-37,-53 Z",
+            null,
+            new float[] {0f, 0.75f, 0.85f, 1f}, new int[] {0xFFFFFFF8, 0xFFF0E8D0, 0xFFE0B040, 0xFF8A6010}, true,
+            0xFF5A3A08, 0xFF2A1A08);
+    /** Alela: un ala de hada, la forma de la polilla en azul y morado, medio transparente. */
+    public static final SignatureSprite FAE_WING = of("faeWing",
+            "M0,-20 C-20,-5 -55,-20 -52,-50 C-48,-80 -20,-70 0,-45 C20,-70 48,-80 52,-50 C55,-20 20,-5 0,-20 Z",
+            null, new float[] {0f, 0.5f, 1f}, new int[] {0xCC8AD8FF, 0xCCE0C8FF, 0xCC8A5AE0}, false, 0xDDF0E8FF, 0);
 }

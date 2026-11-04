@@ -1741,7 +1741,21 @@ public final class NeoQuest {
         if (q.getDuelsManager() instanceof forge.gamemodes.quest.QuestEventCommanderDuelManager cmd) {
             return NeoCommanderDuels.generate(cmd);
         }
-        return q.getDuelsManager().generateDuels();
+        final List<QuestEventDuel> out = q.getDuelsManager().generateDuels();
+        // EL SORPRESA PAGA EL DOBLE, como dice (Discord, 04-11-2026: "does the
+        // random opponent just not pay out the double credits like it says?").
+        // QuestWinLoseController lo dobla si getIsRandomMatch(), pero en la
+        // Quest normal lo crea QuestEventDuel.getRandomOpponent, que nunca pone
+        // la marca (solo la de Commander lo hace). Tambien en el Forge de
+        // siempre. Se reconoce como lo ensenya la pantalla: sin dificultad.
+        if (out != null) {
+            for (final QuestEventDuel d : out) {
+                if (d != null && !d.showDifficulty() && !d.getIsRandomMatch()) {
+                    d.setIsRandomMatch(true);
+                }
+            }
+        }
+        return out;
     }
 
     /**

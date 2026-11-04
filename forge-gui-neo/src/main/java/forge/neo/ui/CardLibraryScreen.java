@@ -409,6 +409,21 @@ public class CardLibraryScreen extends StackPane {
         final double tileH = w * 7 / 5 + 8;
         rows.setFixedCellSize(tileH + 10);
         rows.setCellFactory(v -> new ListCell<>() {
+            {
+                // Discord, 03-11-2026: la carta ampliada por el hover quedaba
+                // DETRAS de la fila de arriba (cada fila es su nodo y la lista
+                // no promete en que orden las pinta): la fila con el raton
+                // encima, por delante.
+                hoverProperty().addListener((o, was, is) -> setViewOrder(is ? -1 : 0));
+                // Y el primer clic no abria la carta: la lista seleccionaba la
+                // fila y la desplazaba para ensenyarla entera, asi que al
+                // soltar ya no habia la misma carta debajo y no salia el clic.
+                // Aqui no se selecciona nada: la pulsacion no llega a la lista
+                // (el clic lo genera la escena igual y lo recibe la casilla).
+                addEventFilter(javafx.scene.input.MouseEvent.MOUSE_PRESSED,
+                        javafx.scene.input.MouseEvent::consume);
+            }
+
             @Override
             protected void updateItem(final Integer row, final boolean empty) {
                 super.updateItem(row, empty);
@@ -605,6 +620,25 @@ public class CardLibraryScreen extends StackPane {
                 if (rows != null && list != null && !list.isEmpty()) {
                     CardZoom.show(rows, list.size(), 0,
                             i -> CardView.getCardForUi(shown(list, i)));
+                }
+            }));
+        }
+        // -Dneo.library.typeSet=zen: teclea eso en el desplegable de
+        // expansiones (ComboSearch) y, con .pickSet=true, da Intro.
+        final String typeSet = System.getProperty("neo.library.typeSet");
+        if (typeSet != null) {
+            Platform.runLater(() -> Platform.runLater(() -> {
+                set.requestFocus();
+                for (final char ch : typeSet.toCharArray()) {
+                    javafx.event.Event.fireEvent(set, new javafx.scene.input.KeyEvent(
+                            javafx.scene.input.KeyEvent.KEY_TYPED, String.valueOf(ch), "",
+                            javafx.scene.input.KeyCode.UNDEFINED, false, false, false, false));
+                }
+                if (Boolean.getBoolean("neo.library.pickSet")) {
+                    javafx.event.Event.fireEvent(set, new javafx.scene.input.KeyEvent(
+                            javafx.scene.input.KeyEvent.KEY_PRESSED, "", "",
+                            javafx.scene.input.KeyCode.ENTER, false, false, false, false));
+                    System.out.println("[combo] elegida: " + set.getValue());
                 }
             }));
         }

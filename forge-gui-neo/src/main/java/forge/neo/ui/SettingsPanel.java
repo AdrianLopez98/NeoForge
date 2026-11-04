@@ -616,6 +616,13 @@ public class SettingsPanel extends VBox {
                     NeoSettings.save();
                 }));
 
+        // --- y antes de no atacar con nada (AttackGuard): el mismo, al atacar ---
+        getChildren().add(toggleRow(NeoText.get("settings.confirmAttack"),
+                NeoSettings.confirmNoAttack(), on -> {
+                    NeoSettings.setBool(NeoSettings.CONFIRM_NO_ATTACK, on);
+                    NeoSettings.save();
+                }));
+
         // --- preguntar antes de cerrar una eleccion de cartas (PickGuard) ---
         //
         // El motor confirma solo al llegar a las que pide: descartar dos, y el

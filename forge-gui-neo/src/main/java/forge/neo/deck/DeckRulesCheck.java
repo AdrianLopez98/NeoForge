@@ -2860,6 +2860,19 @@ public final class DeckRulesCheck {
         final boolean added = ed.canAddSecondCommander(teysa) && ed.addSecondCommander(teysa);
         check("Reglas de la casa: el segundo comandante solo se ofrece con la marca, y entra",
                 !before && added && ed.commanders().size() == 2);
+        // Discord, 04-11-2026: un mazo de Brawl de los de antes (Forge #12523 lo
+        // paso a 100 cartas y le puso lista de prohibidas) no dejaba guardar la
+        // marca: Guardar se apagaba por la carta prohibida.
+        final DeckEditor brawl = DeckEditor.createNew(NeoFormat.BRAWL, "casa brawl");
+        brawl.setCommander(FModel.getMagicDb().getCommonCards().getCard("Kenrith, the Returned King"));
+        brawl.addAnyway(FModel.getMagicDb().getCommonCards().getCard("Oko, Thief of Crowns"), 1);
+        final boolean blockedBefore = brawl.blockingProblem() != null;
+        brawl.setHouseRules(true);
+        check("Reglas de la casa: un Brawl con una prohibida no se guarda sin la marca y con ella si",
+                blockedBefore && brawl.blockingProblem() == null);
+        check("Reglas de la casa: Brawl es de 100 cartas (Forge #12523) y admite la marca",
+                forge.game.GameType.Brawl.getDeckFormat().getMainRange().getMinimum() == 99
+                        && NeoFormat.BRAWL.allowsHouseRules());
         check("Reglas de la casa: solo en las partidas libres (Commander y Estandar si; draft no)",
                 NeoFormat.COMMANDER.allowsHouseRules() && NeoFormat.ESTANDAR.allowsHouseRules()
                         && !NeoFormat.DRAFT.allowsHouseRules());

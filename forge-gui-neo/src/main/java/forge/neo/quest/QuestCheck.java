@@ -48,6 +48,37 @@ public final class QuestCheck {
     }
 
     private static void runAll() {
+        final String probe = System.getProperty("neo.quest.check.starterProbe");
+        if (probe != null) {
+            for (final String n : probe.split(";")) {
+                final PaperCard cmd = FModel.getMagicDb().getCommonCards().getUniqueByName(n.trim());
+                for (int i = 0; i < 3 && cmd != null; i++) {
+                    final Deck d = NeoCommanderDuels.starter(cmd);
+                    int colourless = 0, onColour = 0, lands = 0;
+                    final java.util.List<String> cl = new java.util.ArrayList<>();
+                    for (final java.util.Map.Entry<PaperCard, Integer> e : d.getMain()) {
+                        final PaperCard c = e.getKey();
+                        if (c.getRules().getType().isLand()) {
+                            lands += e.getValue();
+                        } else if (c.getRules().getColor().isColorless()) {
+                            colourless += e.getValue();
+                            cl.add(c.getName());
+                        } else {
+                            onColour += e.getValue();
+                        }
+                    }
+                    System.out.printf(Locale.ROOT, "[probe] %s: %d tierras, %d de color, %d incoloras: %s%n",
+                            cmd.getName(), lands, onColour, colourless, cl);
+                }
+            }
+            return;
+        }
+        if (Boolean.getBoolean("neo.quest.check.rivalsOnly")) {
+            if (!checkRivalSetsEveryDuel()) {
+                throw new IllegalStateException("rivales con las expansiones de la Quest");
+            }
+            return;
+        }
         boolean ok = true;
         ok &= checkOne(NeoQuest.Modalidad.COMMANDER);
         System.out.println();
@@ -82,6 +113,7 @@ public final class QuestCheck {
         ok &= checkDuelAfterTravel();
         ok &= checkLowLife();
         ok &= checkRivalSets();
+        ok &= checkRivalSetsEveryDuel();
         ok &= checkRename();
         ok &= checkKept();
         ok &= checkUpgradeLevels();
@@ -1474,9 +1506,11 @@ public final class QuestCheck {
         boolean surpriseChecked = false;
         for (final QuestEventDuel d : NeoQuest.duels()) {
             if (!d.showDifficulty()) {
-                System.out.println("  El duelo sorpresa se marca como tal: bien"
-                        + " (la pantalla no le pide carta)");
-                surpriseChecked = true;
+                // Y lleva la marca con la que el motor dobla los creditos: la
+                // Quest normal de Forge no se la ponia (Discord, 04-11-2026).
+                System.out.println("  [" + (d.getIsRandomMatch() ? "OK " : "MAL")
+                        + "] El duelo sorpresa se marca como tal (sin carta) y paga el doble");
+                surpriseChecked = d.getIsRandomMatch();
             }
         }
         ok &= surpriseChecked;
@@ -3659,6 +3693,66 @@ public final class QuestCheck {
         return ok;
     }
 
+    /**
+     * TODOS los duelos de la Quest, de todas las dificultades, con un pozo
+     * pequenyo (Alpha a Revised): ninguno puede quedarse sin convertir.
+     * Discord, 03-11-2026: <i>"It worked fine for the first set of opponents
+     * ... but doesn't work beyond that"</i>.
+     */
+    private static boolean checkRivalSetsEveryDuel() {
+        System.out.println("  --- Rivales con Alpha-Revised, todos los duelos ---");
+        final String name = "neo-questcheck-rivales-todos";
+        NeoQuest.delete(name);
+        final java.util.List<String> codes = java.util.List.of("LEA", "LEB", "2ED", "ARN", "ATQ", "3ED");
+        final java.util.Set<String> allowed = new java.util.HashSet<>(codes);
+        int total = 0;
+        int bad = 0;
+        final long t0 = System.nanoTime();
+        try {
+            NeoQuest.start(name, NeoQuest.Modalidad.ESTANDAR, NeoQuest.Dificultad.NORMAL, null,
+                    null, forge.neo.ascent.AscentPool.sets(codes));
+            QuestRivalSets.set(name, true);
+            for (final QuestEventDuel duel : FModel.getQuest().getDuelsManager().getAllDuels()) {
+                final Deck original = duel.getEventDeck();
+                if (original == null) {
+                    continue;
+                }
+                total++;
+                final Runnable restore = QuestRivalSets.apply(duel);
+                final Deck played = duel.getEventDeck();
+                final List<String> outside = outsideSets(played, allowed);
+                restore.run();
+                final PaperCard face = DuelFace.of(duel);
+                final boolean faceOk = face == null || inSets(face, allowed);
+                if (played == original || !outside.isEmpty() || !faceOk) {
+                    if (bad++ < 15) {
+                        System.out.printf(Locale.ROOT, "  [MAL] %s (%s): %s%s%n", duel.getTitle(),
+                                duel.getDifficulty(), played == original ? "sin convertir" : "fuera " + outside,
+                                faceOk ? "" : "; cara " + face.getName() + " de " + face.getEdition());
+                    }
+                }
+            }
+        } finally {
+            NeoQuest.delete(name);
+        }
+        final boolean ok = total > 100 && bad == 0;
+        System.out.printf(Locale.ROOT, "  [%s] %d duelos, %d mal (%d s)%n", ok ? "OK " : "MAL", total, bad,
+                (System.nanoTime() - t0) / 1_000_000_000L);
+        return ok;
+    }
+
+    private static boolean inSets(final PaperCard pc, final java.util.Set<String> codes) {
+        if (pc.getRules().getType().isBasicLand()) {
+            return true;
+        }
+        for (final PaperCard p : FModel.getMagicDb().getCommonCards().getAllCards(pc.getName())) {
+            if (codes.contains(p.getEdition())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** Las cartas (no basicas) sin ninguna impresion en esas expansiones. */
     private static List<String> outsideSets(final Deck deck, final java.util.Set<String> codes) {
         final List<String> out = new java.util.ArrayList<>();
@@ -3923,7 +4017,24 @@ public final class QuestCheck {
         basics.getMain().add(forest, 40);
         final boolean none = NeoQuestTrophy.pick(basics, java.util.Set.of(), rnd) == null;
         System.out.printf(Locale.ROOT, "  [%s] un mazo de solo basicas no da trofeo%n", none ? "OK " : "MAL");
-        return weights && fallback && none;
+        // Quest solo de LEA (Discord, 04-11-2026: un Vulturous Zombie de RAV):
+        // la de RAV no sale nunca, y la Shivan Dragon de M10 sale en su LEA.
+        final java.util.function.Predicate<PaperCard> lea =
+                new forge.game.GameFormat("solo LEA", java.util.List.of("LEA"), null).getFilterPrinted();
+        final forge.deck.Deck mixed = new forge.deck.Deck("mezcla");
+        mixed.getMain().add(db.getCard("Vulturous Zombie", "RAV"), 4);
+        mixed.getMain().add(db.getCard("Shivan Dragon", "M10"), 1);
+        boolean inSets = true;
+        for (int i = 0; i < 200; i++) {
+            final PaperCard c = NeoQuestTrophy.pick(mixed, java.util.Set.of(), rnd, lea);
+            inSets &= c != null && "Shivan Dragon".equals(c.getName()) && "LEA".equals(c.getEdition());
+        }
+        final forge.deck.Deck outside = new forge.deck.Deck("fuera");
+        outside.getMain().add(db.getCard("Vulturous Zombie", "RAV"), 4);
+        inSets &= NeoQuestTrophy.pick(outside, java.util.Set.of(), rnd, lea) == null;
+        System.out.printf(Locale.ROOT, "  [%s] Quest solo de LEA: el trofeo sale de LEA o no sale%n",
+                inSets ? "OK " : "MAL");
+        return weights && fallback && none && inSets;
     }
 
     private static boolean checkOne(final NeoQuest.Modalidad modalidad) {

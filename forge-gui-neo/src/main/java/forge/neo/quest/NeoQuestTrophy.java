@@ -68,6 +68,21 @@ public final class NeoQuestTrophy {
      * principal), o null si no hay ninguna que no sea basica.
      */
     public static PaperCard pick(final Deck deck, final Set<String> ownedNames, final Random random) {
+        return pick(deck, ownedNames, random, null);
+    }
+
+    /**
+     * Lo mismo, pero solo con cartas de las expansiones de la Quest
+     * ({@code allowed}, el {@code getFilterPrinted} de su formato; null = todas).
+     *
+     * <p>Discord, 04-11-2026: en una Quest solo de LEA el trofeo le dio un
+     * <i>Vulturous Zombie</i> de Ravnica. El trofeo sale del mazo del rival, y
+     * los mazos de Forge no saben de expansiones. Una carta que tambien se
+     * imprimio en las de la Quest se da en ESA impresion; una que no, no entra
+     * en el sorteo.
+     */
+    public static PaperCard pick(final Deck deck, final Set<String> ownedNames, final Random random,
+                                 final java.util.function.Predicate<PaperCard> allowed) {
         if (deck == null) {
             return null;
         }
@@ -81,8 +96,12 @@ public final class NeoQuestTrophy {
                 if (c == null || c.getRules() == null || c.getRules().getType().isBasicLand()) {
                     continue;
                 }
+                final PaperCard given = allowed == null ? c : inAllowedSets(c, allowed);
+                if (given == null) {
+                    continue;
+                }
                 for (int i = 0; i < e.getValue(); i++) {
-                    all.add(c);
+                    all.add(given);
                 }
             }
         }
@@ -118,10 +137,29 @@ public final class NeoQuestTrophy {
         if (!(event instanceof QuestEventDuel) || !NeoQuest.isActive()) {
             return null;
         }
-        final PaperCard card = pick(event.getEventDeck(), NeoQuestCollection.ownedNames(), new Random());
+        final forge.gamemodes.quest.data.GameFormatQuest format = NeoQuest.engine().getFormat();
+        final PaperCard card = pick(event.getEventDeck(), NeoQuestCollection.ownedNames(), new Random(),
+                format == null ? null : format.getFilterPrinted());
         if (card != null) {
             NeoQuest.engine().getCards().addSingleCard(card, 1);
         }
         return card;
+    }
+
+    /** Esa carta en una impresion de las expansiones permitidas, o null si no hay ninguna. */
+    static PaperCard inAllowedSets(final PaperCard card, final java.util.function.Predicate<PaperCard> allowed) {
+        if (allowed.test(card)) {
+            return card;
+        }
+        try {
+            for (final PaperCard other : forge.model.FModel.getMagicDb().getCommonCards().getAllCards(card.getName())) {
+                if (allowed.test(other)) {
+                    return other;
+                }
+            }
+        } catch (final RuntimeException e) {
+            // Sin base de cartas: solo vale la impresion que habia.
+        }
+        return null;
     }
 }

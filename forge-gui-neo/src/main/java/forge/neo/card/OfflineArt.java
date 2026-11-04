@@ -69,6 +69,25 @@ public final class OfflineArt {
     }
 
     /**
+     * TUS IMAGENES: la carpeta {@code pics/own}, hermana de {@code arte} y con
+     * sus mismos nombres ({@code own/<letra>/<Nombre>.jpg} y {@code .artcrop.jpg}).
+     *
+     * <p>Al reves que el arte, esta <b>gana a todo</b>: a la impresion exacta
+     * bajada y a la traducida. Pedido en Discord (04-11-2026) por quien metio
+     * 12.000 cartas en su idioma en {@code arte}: cada carta que salia se bajaba
+     * en ingles a {@code cards} y le tapaba la suya. Lo que alguien pone a mano
+     * en una carpeta suya es lo que quiere ver; si no esta, todo sigue igual.
+     */
+    public static File ownDir() {
+        return new File(ForgeConstants.CACHE_DIR, "pics" + File.separator + "own");
+    }
+
+    /** La imagen propia de esa carta, si la hay. Ver {@link #ownDir()}. */
+    public static File own(final String imageKey, final boolean crop) {
+        return find(imageKey, crop, ownDir());
+    }
+
+    /**
      * El fichero de esa carta, si esta.
      *
      * @param imageKey clave de busqueda del motor, {@code c:Nombre|SET|1}, con

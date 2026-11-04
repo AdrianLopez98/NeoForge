@@ -1892,8 +1892,16 @@ public final class DeckEditor {
      * </ul>
      *
      * <p>Jugarlo es otra cosa: para eso hace falta {@link #problem()} a null.
+     *
+     * <p><b>Con reglas de la casa no se bloquea nada</b>: saltarse las reglas
+     * es justo lo que el jugador ha pedido. Si no, la marca no se podia guardar
+     * en el unico mazo que la necesita (Discord, 04-11-2026: un mazo de Brawl
+     * tras pasar Forge a 100 cartas, con el boton de Guardar apagado).
      */
     public String blockingProblem() {
+        if (isHouseRules()) {
+            return null;
+        }
         final List<PaperCard> bad = illegalCards();
         if (bad.isEmpty()) {
             return null;

@@ -1029,6 +1029,18 @@ public final class NeoSettings {
     }
 
     /**
+     * Preguntar antes de dejar pasar tu ataque sin declarar a nadie, pudiendo
+     * (Discord, 04-11-2026). El gemelo de {@link #CONFIRM_NO_BLOCK}, apagado
+     * de fabrica igual. Ver {@code forge.neo.match.AttackGuard}. La misma clave
+     * en Android.
+     */
+    public static final String CONFIRM_NO_ATTACK = "confirmNoAttack";
+
+    public static boolean confirmNoAttack() {
+        return getBool(CONFIRM_NO_ATTACK, false);
+    }
+
+    /**
      * Preguntar antes del toque que cerraria una eleccion de "elige N cartas"
      * (descartar, sacrificar...), que el motor confirma solo al llegar a N
      * (Discord, 11-10-2026). Apagado de fabrica. Ver

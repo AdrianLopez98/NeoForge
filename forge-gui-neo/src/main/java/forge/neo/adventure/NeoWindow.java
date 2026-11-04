@@ -144,6 +144,7 @@ final class NeoWindow {
                 scene.getStylesheets().add(css.toExternalForm());
             }
             forge.neo.platform.NeoFonts.apply(scene);
+            forge.neo.ui.ComboSearch.install(scene);
             scene.heightProperty().addListener((o, was, is) -> applyScale());
             // Cuando llegan imagenes de Scryfall, repintar lo que se vea. Lo pone
             // NeoApp en la ventana normal; sin esto aqui las cartas se quedaban

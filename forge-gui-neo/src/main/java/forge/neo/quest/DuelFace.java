@@ -53,7 +53,10 @@ public final class DuelFace {
         if (duel == null) {
             return null;
         }
-        final Deck deck = duel.getEventDeck();
+        // Con los rivales atados a las expansiones de la Quest, el mazo con el
+        // que va a jugar de verdad (QuestRivalSets.shown).
+        final Deck deck = QuestRivalSets.shown(duel);
+        final boolean limited = deck != null && QuestRivalSets.limited();
 
         // 1. Su comandante.
         if (deck != null && deck.has(DeckSection.Commander)) {
@@ -68,13 +71,25 @@ public final class DuelFace {
         final String title = duel.getTitle();
         if (title != null && !title.isBlank()) {
             final PaperCard pc = FModel.getMagicDb().getCommonCards().getUniqueByName(title);
-            if (pc != null) {
-                return pc;
+            // Con el pozo limitado, solo si la lleva: el personaje ("Ajani
+            // Goldmane") puede no existir en esas expansiones.
+            if (pc != null && (!limited || deck.getMain().countByName(pc.getName()) > 0)) {
+                return limited ? printedIn(deck, pc.getName()) : pc;
             }
         }
 
         // 3. Y si no, la mejor carta que lleve.
         return bestCardOf(deck);
+    }
+
+    /** La impresion de esa carta que lleva el mazo. */
+    private static PaperCard printedIn(final Deck deck, final String name) {
+        for (final Map.Entry<PaperCard, Integer> e : deck.getMain()) {
+            if (e.getKey().getName().equals(name)) {
+                return e.getKey();
+            }
+        }
+        return null;
     }
 
     /**

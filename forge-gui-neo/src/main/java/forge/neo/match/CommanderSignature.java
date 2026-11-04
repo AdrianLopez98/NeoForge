@@ -159,7 +159,139 @@ public enum CommanderSignature {
     /** Feather, the Redeemed: plumas rojas y fuego. */
     FEATHER_RED,
     /** Najeela, the Blade-Blossom: tres tajos y petalos. */
-    NAJEELA_BLADES;
+    NAJEELA_BLADES,
+
+    // La sexta tanda de EDHREC (04-11-2026).
+    /** Baylen, the Haymaker: paja, un punyetazo y sus tres colores. */
+    BAYLEN_HAY,
+    /** Valgavoth, Harrower of Souls: almas que entran en espiral. */
+    VALGAVOTH_SOULS,
+    /** Hashaton, Scarab's Fist: escarabajos que se multiplican. */
+    HASHATON_SCARABS,
+    /** Chatterfang, Squirrel General: bellotas que se multiplican y hojas. */
+    CHATTERFANG_ACORNS,
+    /** Ulalek, Fused Atrocity: el vacio de los Eldrazi. */
+    ULALEK_VOID,
+    /** Ashling, the Limitless: llamas sin fin. */
+    ASHLING_FLAMES,
+    /** Frodo, Adventurous Hobbit: el Anillo y las hojas de la Comarca. */
+    FRODO_RING,
+    /** Esika, God of the Tree: el arbol y el puente prismatico. */
+    ESIKA_PRISM,
+    /** Bello, Bard of the Brambles: notas y zarzas. */
+    BELLO_SONG,
+    /** Hakbal of the Surging Soul: agua y exploracion. */
+    HAKBAL_TIDE,
+
+    // La septima tanda de EDHREC (04-11-2026).
+    /** Rin and Seri, Inseparable: huellas de gato y perro que se multiplican. */
+    RIN_SERI_PAWS,
+    /** Glarb, Calamity's Augur: cartas que giran y motas del pantano. */
+    GLARB_SIGHT,
+    /** Maralen, Fae Ascendant: luces de hada. */
+    MARALEN_FAE,
+    /** Kuja, Genome Sorcerer: la estrella fulgurante. */
+    KUJA_FLARE,
+    /** Aragorn, the Uniter: la espada y sus cuatro colores. */
+    ARAGORN_BLADE,
+    /** Mr. House, President and CEO: dados y fichas de casino. */
+    HOUSE_DICE,
+    /** Ygra, Eater of All: todo se vuelve comida. */
+    YGRA_FEAST,
+    /** Caesar, Legion's Emperor: escudos de la legion. */
+    CAESAR_LEGION,
+    /** Ureni of the Unwritten: el dragon espiritu. */
+    URENI_DRAGON,
+    /** Oloro, Ageless Ascetic: la vida que vuelve. */
+    OLORO_LIFE,
+
+    // La octava tanda de EDHREC (04-11-2026).
+    /** Flubs, the Fool: el chapuzon y las cartas que van y vienen. */
+    FLUBS_SPLASH,
+    /** The Necrobloom: brotes que se multiplican y zombis. */
+    NECROBLOOM_SPROUTS,
+    /** Tidus, Yuna's Guardian: las luciernagas del Farplane, el agua y la pelota. */
+    TIDUS_BLITZ,
+    /** Zhulodok, Void Gorger: el cascade, cartas que se traga el vacio. */
+    ZHULODOK_CASCADE,
+    /** Zurgo Stormrender: la tormenta y los guerreros que se multiplican. */
+    ZURGO_STORM,
+    /** Atla Palani, Nest Tender: los huevos que eclosionan. */
+    ATLA_EGGS,
+    /** The Wandering Minstrel: la balada y todos los colores. */
+    MINSTREL_BALLAD,
+    /** Felothar the Steadfast: el escudo y la roca. */
+    FELOTHAR_SHIELD,
+    /** Tom Bombadil: canciones y flores. */
+    BOMBADIL_SONG,
+    /** Avatar Aang: los cuatro elementos. */
+    AANG_ELEMENTS,
+
+    // La novena tanda de EDHREC (04-11-2026).
+    /** Queen Marchesa: la corona del monarca y la daga. */
+    MARCHESA_CROWN,
+    /** Terra, Herald of Hope: el Trance, su magia rosa. */
+    TERRA_TRANCE,
+    /** Shorikai, Genesis Engine: engranajes y pilotos. */
+    SHORIKAI_ENGINE,
+    /** Arabella, Abandoned Doll: corazones de trapo. */
+    ARABELLA_HEARTS,
+    /** Betor, Ancestor's Voice: las almas de los ancestros. */
+    BETOR_ANCESTORS,
+    /** Choco, Seeker of Paradise: plumas de chocobo. */
+    CHOCO_FEATHERS,
+    /** Auntie Ool, Cursewretch: maldiciones y calaveras. */
+    OOL_CURSE,
+    /** Helga, Skittish Seer: la vidente del estanque. */
+    HELGA_POND,
+    /** Go-Shintai of Life's Origin: el santuario y los cinco colores. */
+    SHINTAI_SHRINE,
+    /** Kotis, the Fangkeeper: la biblioteca del rival, exiliada. */
+    KOTIS_FANGS,
+
+    // La decima tanda de EDHREC (04-11-2026).
+    /** K'rrik, Son of Yawgmoth: la vida que se paga y el aceite. */
+    KRRIK_BLOOD,
+    /** Zaxara, the Exemplary: hidras que se multiplican, de noche. */
+    ZAXARA_HYDRAS,
+    /** Kilo, Apogee Mind: el engranaje y los contadores que proliferan. */
+    KILO_PROLIFERATE,
+    /** Sisay, Weatherlight Captain: el viento y los cinco colores. */
+    SISAY_WEATHERLIGHT,
+    /** The First Sliver: el cascade y la colmena. */
+    FIRST_SLIVER_CASCADE,
+    /** Xyris, the Writhing Storm: la tormenta y el agua. */
+    XYRIS_STORM,
+    /** Ghyrson Starn, Kelermorph: tres disparos. */
+    GHYRSON_SHOTS,
+    /** Norman Osborn / Green Goblin: las bombas calabaza. */
+    GOBLIN_BOMBS,
+    /** Ragost, Deft Gastronaut: los fogones y la comida. */
+    RAGOST_KITCHEN,
+    /** Eriette of the Charmed Apple: la manzana hechizada. */
+    ERIETTE_APPLE,
+
+    // La undecima tanda de EDHREC (04-11-2026).
+    /** Hope Estheim: su boomerang y las cartas que pierde el rival. */
+    HOPE_BOOMERANG,
+    /** Henzie "Toolbox" Torre: el blitz, fuego y prisa. */
+    HENZIE_BLITZ,
+    /** Captain N'ghathrod: el mar negro y las cartas que se hunden. */
+    NGHATHROD_DEPTHS,
+    /** Urtet, Remnant of Memnarch: los myr que se multiplican. */
+    URTET_MYR,
+    /** Witherbloom, the Balancer: las almas que se cobra. */
+    WITHERBLOOM_DRAIN,
+    /** High Perfect Morcant: la hoja elfa y la plaga. */
+    MORCANT_BLIGHT,
+    /** Voja, Jaws of the Conclave: la luna del lobo. */
+    VOJA_MOON,
+    /** Alela, Cunning Conqueror: las hadas que se multiplican. */
+    ALELA_FAERIES,
+    /** Magda, Brazen Outlaw: el hacha y los tesoros. */
+    MAGDA_TREASURE,
+    /** Obeka, Splitter of Seconds: el reloj y el tiempo partido. */
+    OBEKA_CLOCK;
 
     /**
      * Su coreografia, para una pantalla de ese tamanyo; null en {@link #NONE}.
@@ -277,6 +409,126 @@ public enum CommanderSignature {
                 return LayeredSignature.feather(width, height);
             case NAJEELA_BLADES:
                 return LayeredSignature.najeela(width, height);
+            case BAYLEN_HAY:
+                return LayeredSignature.baylen(width, height);
+            case VALGAVOTH_SOULS:
+                return LayeredSignature.valgavoth(width, height);
+            case HASHATON_SCARABS:
+                return LayeredSignature.hashaton(width, height);
+            case CHATTERFANG_ACORNS:
+                return LayeredSignature.chatterfang(width, height);
+            case ULALEK_VOID:
+                return LayeredSignature.ulalek(width, height);
+            case ASHLING_FLAMES:
+                return LayeredSignature.ashling(width, height);
+            case FRODO_RING:
+                return LayeredSignature.frodo(width, height);
+            case ESIKA_PRISM:
+                return LayeredSignature.esika(width, height);
+            case BELLO_SONG:
+                return LayeredSignature.bello(width, height);
+            case HAKBAL_TIDE:
+                return LayeredSignature.hakbal(width, height);
+            case RIN_SERI_PAWS:
+                return LayeredSignature.rinSeri(width, height);
+            case GLARB_SIGHT:
+                return LayeredSignature.glarb(width, height);
+            case MARALEN_FAE:
+                return LayeredSignature.maralen(width, height);
+            case KUJA_FLARE:
+                return LayeredSignature.kuja(width, height);
+            case ARAGORN_BLADE:
+                return LayeredSignature.aragorn(width, height);
+            case HOUSE_DICE:
+                return LayeredSignature.house(width, height);
+            case YGRA_FEAST:
+                return LayeredSignature.ygra(width, height);
+            case CAESAR_LEGION:
+                return LayeredSignature.caesar(width, height);
+            case URENI_DRAGON:
+                return LayeredSignature.ureni(width, height);
+            case OLORO_LIFE:
+                return LayeredSignature.oloro(width, height);
+            case FLUBS_SPLASH:
+                return LayeredSignature.flubs(width, height);
+            case NECROBLOOM_SPROUTS:
+                return LayeredSignature.necrobloom(width, height);
+            case TIDUS_BLITZ:
+                return LayeredSignature.tidus(width, height);
+            case ZHULODOK_CASCADE:
+                return LayeredSignature.zhulodok(width, height);
+            case ZURGO_STORM:
+                return LayeredSignature.zurgo(width, height);
+            case ATLA_EGGS:
+                return LayeredSignature.atla(width, height);
+            case MINSTREL_BALLAD:
+                return LayeredSignature.minstrel(width, height);
+            case FELOTHAR_SHIELD:
+                return LayeredSignature.felothar(width, height);
+            case BOMBADIL_SONG:
+                return LayeredSignature.bombadil(width, height);
+            case AANG_ELEMENTS:
+                return LayeredSignature.aang(width, height);
+            case MARCHESA_CROWN:
+                return LayeredSignature.marchesa(width, height);
+            case TERRA_TRANCE:
+                return LayeredSignature.terra(width, height);
+            case SHORIKAI_ENGINE:
+                return LayeredSignature.shorikai(width, height);
+            case ARABELLA_HEARTS:
+                return LayeredSignature.arabella(width, height);
+            case BETOR_ANCESTORS:
+                return LayeredSignature.betor(width, height);
+            case CHOCO_FEATHERS:
+                return LayeredSignature.choco(width, height);
+            case OOL_CURSE:
+                return LayeredSignature.ool(width, height);
+            case HELGA_POND:
+                return LayeredSignature.helga(width, height);
+            case SHINTAI_SHRINE:
+                return LayeredSignature.shintai(width, height);
+            case KOTIS_FANGS:
+                return LayeredSignature.kotis(width, height);
+            case KRRIK_BLOOD:
+                return LayeredSignature.krrik(width, height);
+            case ZAXARA_HYDRAS:
+                return LayeredSignature.zaxara(width, height);
+            case KILO_PROLIFERATE:
+                return LayeredSignature.kilo(width, height);
+            case SISAY_WEATHERLIGHT:
+                return LayeredSignature.sisay(width, height);
+            case FIRST_SLIVER_CASCADE:
+                return LayeredSignature.firstSliver(width, height);
+            case XYRIS_STORM:
+                return LayeredSignature.xyris(width, height);
+            case GHYRSON_SHOTS:
+                return LayeredSignature.ghyrson(width, height);
+            case GOBLIN_BOMBS:
+                return LayeredSignature.goblin(width, height);
+            case RAGOST_KITCHEN:
+                return LayeredSignature.ragost(width, height);
+            case ERIETTE_APPLE:
+                return LayeredSignature.eriette(width, height);
+            case HOPE_BOOMERANG:
+                return LayeredSignature.hope(width, height);
+            case HENZIE_BLITZ:
+                return LayeredSignature.henzie(width, height);
+            case NGHATHROD_DEPTHS:
+                return LayeredSignature.nghathrod(width, height);
+            case URTET_MYR:
+                return LayeredSignature.urtet(width, height);
+            case WITHERBLOOM_DRAIN:
+                return LayeredSignature.witherbloom(width, height);
+            case MORCANT_BLIGHT:
+                return LayeredSignature.morcant(width, height);
+            case VOJA_MOON:
+                return LayeredSignature.voja(width, height);
+            case ALELA_FAERIES:
+                return LayeredSignature.alela(width, height);
+            case MAGDA_TREASURE:
+                return LayeredSignature.magda(width, height);
+            case OBEKA_CLOCK:
+                return LayeredSignature.obeka(width, height);
             default:
                 return null;
         }
@@ -367,6 +619,72 @@ public enum CommanderSignature {
         put(DEREVI_WIND, "Derevi, Empyrial Tactician");
         put(FEATHER_RED, "Feather, the Redeemed");
         put(NAJEELA_BLADES, "Najeela, the Blade-Blossom");
+        // La sexta tanda de EDHREC (04-11-2026: "dale a los 10 siguientes").
+        put(BAYLEN_HAY, "Baylen, the Haymaker");
+        put(VALGAVOTH_SOULS, "Valgavoth, Harrower of Souls");
+        put(HASHATON_SCARABS, "Hashaton, Scarab's Fist");
+        put(CHATTERFANG_ACORNS, "Chatterfang, Squirrel General");
+        put(ULALEK_VOID, "Ulalek, Fused Atrocity");
+        put(ASHLING_FLAMES, "Ashling, the Limitless");
+        put(FRODO_RING, "Frodo, Adventurous Hobbit");
+        put(ESIKA_PRISM, "Esika, God of the Tree");
+        put(BELLO_SONG, "Bello, Bard of the Brambles");
+        put(HAKBAL_TIDE, "Hakbal of the Surging Soul");
+        // La septima tanda de EDHREC (04-11-2026: "haz las 10 siguientes").
+        put(RIN_SERI_PAWS, "Rin and Seri, Inseparable");
+        put(GLARB_SIGHT, "Glarb, Calamity's Augur");
+        put(MARALEN_FAE, "Maralen, Fae Ascendant");
+        put(KUJA_FLARE, "Kuja, Genome Sorcerer", "Trance Kuja, Fate Defied");
+        put(ARAGORN_BLADE, "Aragorn, the Uniter");
+        put(HOUSE_DICE, "Mr. House, President and CEO");
+        put(YGRA_FEAST, "Ygra, Eater of All");
+        put(CAESAR_LEGION, "Caesar, Legion's Emperor");
+        put(URENI_DRAGON, "Ureni of the Unwritten");
+        put(OLORO_LIFE, "Oloro, Ageless Ascetic");
+        // La octava tanda de EDHREC (04-11-2026: "dale cana, calidad").
+        put(FLUBS_SPLASH, "Flubs, the Fool");
+        put(NECROBLOOM_SPROUTS, "The Necrobloom");
+        put(TIDUS_BLITZ, "Tidus, Yuna's Guardian");
+        put(ZHULODOK_CASCADE, "Zhulodok, Void Gorger");
+        put(ZURGO_STORM, "Zurgo Stormrender");
+        put(ATLA_EGGS, "Atla Palani, Nest Tender");
+        put(MINSTREL_BALLAD, "The Wandering Minstrel");
+        put(FELOTHAR_SHIELD, "Felothar the Steadfast");
+        put(BOMBADIL_SONG, "Tom Bombadil");
+        put(AANG_ELEMENTS, "Avatar Aang", "Aang, Master of Elements");
+        // La novena tanda de EDHREC (04-11-2026).
+        put(MARCHESA_CROWN, "Queen Marchesa");
+        put(TERRA_TRANCE, "Terra, Herald of Hope", "Terra, Magical Adept", "Esper Terra");
+        put(SHORIKAI_ENGINE, "Shorikai, Genesis Engine");
+        put(ARABELLA_HEARTS, "Arabella, Abandoned Doll");
+        put(BETOR_ANCESTORS, "Betor, Ancestor's Voice");
+        put(CHOCO_FEATHERS, "Choco, Seeker of Paradise");
+        put(OOL_CURSE, "Auntie Ool, Cursewretch");
+        put(HELGA_POND, "Helga, Skittish Seer");
+        put(SHINTAI_SHRINE, "Go-Shintai of Life's Origin");
+        put(KOTIS_FANGS, "Kotis, the Fangkeeper");
+        // La decima tanda de EDHREC (04-11-2026).
+        put(KRRIK_BLOOD, "K'rrik, Son of Yawgmoth");
+        put(ZAXARA_HYDRAS, "Zaxara, the Exemplary");
+        put(KILO_PROLIFERATE, "Kilo, Apogee Mind");
+        put(SISAY_WEATHERLIGHT, "Sisay, Weatherlight Captain");
+        put(FIRST_SLIVER_CASCADE, "The First Sliver");
+        put(XYRIS_STORM, "Xyris, the Writhing Storm");
+        put(GHYRSON_SHOTS, "Ghyrson Starn, Kelermorph");
+        put(GOBLIN_BOMBS, "Norman Osborn", "Green Goblin");
+        put(RAGOST_KITCHEN, "Ragost, Deft Gastronaut");
+        put(ERIETTE_APPLE, "Eriette of the Charmed Apple");
+        // La undecima tanda de EDHREC (04-11-2026).
+        put(HOPE_BOOMERANG, "Hope Estheim");
+        put(HENZIE_BLITZ, "Henzie \"Toolbox\" Torre");
+        put(NGHATHROD_DEPTHS, "Captain N'ghathrod");
+        put(URTET_MYR, "Urtet, Remnant of Memnarch");
+        put(WITHERBLOOM_DRAIN, "Witherbloom, the Balancer");
+        put(MORCANT_BLIGHT, "High Perfect Morcant");
+        put(VOJA_MOON, "Voja, Jaws of the Conclave");
+        put(ALELA_FAERIES, "Alela, Cunning Conqueror");
+        put(MAGDA_TREASURE, "Magda, Brazen Outlaw");
+        put(OBEKA_CLOCK, "Obeka, Splitter of Seconds");
     }
 
     private static void put(final CommanderSignature signature, final String... names) {

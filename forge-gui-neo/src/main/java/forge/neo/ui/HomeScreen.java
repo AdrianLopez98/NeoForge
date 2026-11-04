@@ -1397,10 +1397,11 @@ et}) y no se tocan.
                     play.fire();
                 }
             });
-            // La papelera, solo en los tuyos. Un preconstruido de Forge volveria
-            // a salir al arrancar (se lee de res/) y uno de internet se rehace
-            // con la siguiente descarga: ahi el boton seria mentira.
-            if (format.canDelete(deck) || collectionOf(deck) != null) {
+            // La papelera, en los tuyos y en los de internet. Un preconstruido de
+            // Forge volveria a salir al arrancar (se lee de res/): ahi el boton
+            // seria mentira. Uno de internet solo vuelve si bajas otra vez su
+            // coleccion, y el dialogo lo dice (Discord, 04-11-2026).
+            if (canDelete(deck)) {
                 tile.setOnDelete(() -> confirmDelete(deck));
             }
             // Mover a otra coleccion (o copiar, si no es tuyo). Solo donde hay
@@ -1473,28 +1474,44 @@ et}) y no se tocan.
         final javafx.animation.PauseTransition t =
                 new javafx.animation.PauseTransition(javafx.util.Duration.millis(at));
         t.setOnFinished(e -> {
-            if (selected != null && (format.canDelete(selected) || collectionOf(selected) != null)) {
+            if (selected != null && canDelete(selected)) {
                 confirmDelete(selected);
             }
         });
         t.play();
     }
 
+    /** Si el mazo lleva papelera: tuyo, de una coleccion tuya o bajado de internet. */
+    private boolean canDelete(final Deck deck) {
+        return format.canDelete(deck) || collectionOf(deck) != null || isNet(deck);
+    }
+
+    private boolean isNet(final Deck deck) {
+        return net.stream().anyMatch(d -> d == deck);
+    }
+
     private void confirmDelete(final Deck deck) {
         final boolean event = format == forge.neo.match.NeoFormat.DRAFT
                 || format == forge.neo.match.NeoFormat.SELLADO;
+        final boolean fromNet = isNet(deck);
         overlay.setOnBackgroundClick(overlay::hide);
         overlay.show(new ConfirmDialog(
                 NeoText.get("deck.delete.ask"),
-                NeoText.get(event ? "deck.delete.event" : "deck.delete.detail", deck.getName()),
+                NeoText.get(fromNet ? "deck.delete.net" : event ? "deck.delete.event" : "deck.delete.detail",
+                        deck.getName()),
                 java.util.List.of(NeoText.get("deck.delete.yes"), NeoText.get("common.cancel")), 1,
                 choice -> {
                     overlay.hide();
                     if (choice == null || choice != 0) {
                         return;
                     }
-                    final String in = collectionOf(deck);
-                    if (in != null) {
+                    final String in = fromNet ? null : collectionOf(deck);
+                    if (fromNet) {
+                        if (!forge.neo.deck.NetDecks.delete(format.getGameType(), deck)) {
+                            showProblem(NeoText.get("deck.delete.netError", deck.getName()));
+                            return;
+                        }
+                    } else if (in != null) {
                         final forge.util.storage.IStorage<Deck> s =
                                 forge.neo.deck.DeckCollections.storage(format, in);
                         if (s == null) {

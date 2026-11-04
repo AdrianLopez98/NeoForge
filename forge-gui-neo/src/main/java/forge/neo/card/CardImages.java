@@ -483,6 +483,12 @@ public final class CardImages {
         // Mirar el disco es I/O: fuera del hilo de interfaz.
         final Runnable job = () -> {
             try {
+                // Las tuyas primero (pics/own): ganan a todo. Ver OfflineArt.own.
+                final File own = OfflineArt.own(imageKey, false);
+                if (own != null && own.exists()) {
+                    decode(imageKey, own);
+                    return;
+                }
                 final File localized = findLocalized(imageKey);
                 if (localized != null) {
                     decode(imageKey, localized);

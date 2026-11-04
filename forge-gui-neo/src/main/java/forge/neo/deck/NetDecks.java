@@ -186,6 +186,74 @@ public final class NetDecks {
         return out;
     }
 
+    /**
+     * Borra del disco UN mazo bajado (Discord, 04-11-2026: <i>"I just want to
+     * delete unplayable downloaded ones as I find them"</i>).
+     *
+     * <p>El motor no lo sabe hacer: la categoria es un {@code StorageBase} de
+     * solo lectura ({@code delete} lanza). Asi que se borra su {@code .dck} de
+     * la carpeta, y se le quita a la categoria por su iterador
+     * ({@code map.values().iterator()}, que si deja quitar): sin eso volveria a
+     * salir hasta cerrar el juego, porque la categoria se lee una vez por
+     * sesion. Se busca por IDENTIDAD, el mismo objeto que se pinta.
+     *
+     * @return true si se ha borrado
+     */
+    public static boolean delete(final GameType gameType, final Deck deck) {
+        if (deck == null) {
+            return false;
+        }
+        for (final Category c : categories(gameType)) {
+            try {
+                if (!c.isDownloaded()) {
+                    continue;
+                }
+                final NetDeckCategory loaded = NetDeckCategory.selectAndLoad(gameType, c.getName(), false);
+                if (loaded == null || loaded.get(deck.getName()) != deck) {
+                    continue;
+                }
+                final java.io.File file = fileOf(new java.io.File(loaded.getFullPath()), deck.getName());
+                if (file == null || !file.delete()) {
+                    return false;
+                }
+                for (final java.util.Iterator<Deck> it = loaded.iterator(); it.hasNext(); ) {
+                    if (it.next() == deck) {
+                        it.remove();
+                    }
+                }
+                c.refresh();
+                return true;
+            } catch (final RuntimeException e) {
+                System.err.println("[neo] no se ha podido borrar " + deck.getName() + ": " + e);
+                return false;
+            }
+        }
+        return false;
+    }
+
+    /** El .dck de esa carpeta cuyo mazo se llama asi: primero por el nombre del fichero, si no abriendolos. */
+    private static java.io.File fileOf(final java.io.File dir, final String name) {
+        final java.util.List<java.io.File> all = forge.util.storage.StorageBase.getAllFilesList(
+                dir, forge.deck.io.DeckStorage.DCK_FILE_FILTER);
+        for (final java.io.File f : all) {
+            final String base = f.getName().replaceFirst("(?i)\\.dck$", "");
+            if (base.equalsIgnoreCase(name) && named(f, name)) {
+                return f;
+            }
+        }
+        for (final java.io.File f : all) {
+            if (named(f, name)) {
+                return f;
+            }
+        }
+        return null;
+    }
+
+    private static boolean named(final java.io.File f, final String name) {
+        final Deck d = forge.deck.io.DeckSerializer.fromFile(f);
+        return d != null && name.equals(d.getName());
+    }
+
     // ---------------------------------------------------------------
 
     /** Que fichero de categorias le toca a cada formato. Tabla, sin reglas. */

@@ -103,6 +103,69 @@ public final class QuestRivalSets {
     }
 
     /**
+     * El mazo con el que va a jugar ese rival: el convertido si toca, y si no
+     * el suyo. Para ENSENYARLO ({@link DuelFace}): la carta del cuartel salia
+     * del mazo original y el jugador veia un Ajani de Magic 2010 en una Quest
+     * de Alpha a Revised (Discord, 03-11-2026), aunque luego jugase bien.
+     * Guardado por rival y expansiones, porque se repinta a menudo.
+     */
+    public static Deck shown(final QuestEvent event) {
+        final Deck original = event == null ? null : safeDeck(event);
+        final Set<String> codes = original == null ? null : sets();
+        if (codes == null) {
+            return original;
+        }
+        final String key = System.identityHashCode(original) + "|" + event.getTitle() + "|" + codes;
+        synchronized (SHOWN) {
+            final Deck cached = SHOWN.get(key);
+            if (cached != null) {
+                return cached;
+            }
+        }
+        final Deck converted = convert(event, original, codes);
+        final Deck out = converted == null ? original : converted;
+        synchronized (SHOWN) {
+            SHOWN.put(key, out);
+        }
+        return out;
+    }
+
+    /** Los ultimos convertidos para ensenyar (cuatro a seis por cuartel). */
+    private static final java.util.Map<String, Deck> SHOWN = new java.util.LinkedHashMap<>(32, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(final java.util.Map.Entry<String, Deck> eldest) {
+            return size() > 48;
+        }
+    };
+
+    /** Si los rivales juegan con un pozo limitado (para no ensenyar cartas de fuera). */
+    public static boolean limited() {
+        return sets() != null;
+    }
+
+    private static Deck safeDeck(final QuestEvent event) {
+        try {
+            return event.getEventDeck();
+        } catch (final RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** El mazo convertido, o null si no se deja (o sale vacio). */
+    private static Deck convert(final QuestEvent event, final Deck original, final Set<String> codes) {
+        final boolean commander = FModel.getQuest().getDeckConstructionRules()
+                == forge.gamemodes.quest.data.DeckConstructionRules.Commander;
+        final Deck converted = forge.neo.ascent.AscentPool.sets(codes).restrict(original,
+                commander ? forge.neo.ascent.AscentRun.Mode.COMMANDER : forge.neo.ascent.AscentRun.Mode.STANDARD,
+                new Random((String.valueOf(event.getTitle()) + codes).hashCode()));
+        if (converted == null || converted.getMain().isEmpty()) {
+            return null;
+        }
+        converted.setName(original.getName());
+        return converted;
+    }
+
+    /**
      * Convierte el mazo del rival de este duelo, si toca. Devuelve lo que hay
      * que hacer al acabar (volver a poner el original); nunca null.
      */
@@ -111,25 +174,15 @@ public final class QuestRivalSets {
         if (event == null || codes == null) {
             return () -> { };
         }
-        final Deck original;
-        try {
-            original = event.getEventDeck();
-        } catch (final RuntimeException e) {
-            return () -> { };
-        }
+        final Deck original = safeDeck(event);
         if (original == null) {
             return () -> { };
         }
         try {
-            final boolean commander = FModel.getQuest().getDeckConstructionRules()
-                    == forge.gamemodes.quest.data.DeckConstructionRules.Commander;
-            final Deck converted = forge.neo.ascent.AscentPool.sets(codes).restrict(original,
-                    commander ? forge.neo.ascent.AscentRun.Mode.COMMANDER : forge.neo.ascent.AscentRun.Mode.STANDARD,
-                    new Random((String.valueOf(event.getTitle()) + codes).hashCode()));
-            if (converted == null || converted.getMain().isEmpty()) {
+            final Deck converted = convert(event, original, codes);
+            if (converted == null) {
                 return () -> { };
             }
-            converted.setName(original.getName());
             event.setEventDeck(converted);
             System.out.println("[quest] rival " + event.getTitle() + " con las expansiones " + codes);
             return () -> event.setEventDeck(original);

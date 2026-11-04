@@ -113,6 +113,7 @@ public final class ArtlessCheck {
                 "y la de una carta, en su impresion (" + cardPath + ")", "la carta iria a " + cardPath);
         check(".png".equals(OwnImage.extensionOf("mia.PNG")) && OwnImage.extensionOf("mia.gif") == null,
                 "se aceptan JPG y PNG y nada mas", "las extensiones no van bien");
+        checkOwnFolder(db);
         final java.util.List<String> krenkoTokens = new java.util.ArrayList<>();
         for (final forge.game.card.CardView t : CardTokens.of(krenko)) {
             krenkoTokens.add(t.getName());
@@ -211,6 +212,42 @@ public final class ArtlessCheck {
         System.out.printf(Locale.ROOT, "%n  %d bien, %d mal%n", passed, failed);
         if (failed > 0) {
             throw new IllegalStateException(failed + " comprobacion(es) de las cartas sin arte han fallado");
+        }
+    }
+
+    /**
+     * La carpeta pics/own (Discord, 04-11-2026: 12.000 cartas en su idioma que
+     * la inglesa bajada tapaba). Con su nombre de arte, se encuentra; sin ella,
+     * nada. Lo de dentro de load() - que gana a la bajada - es una linea antes
+     * de todo lo demas; lo que puede romperse es el NOMBRE, y eso es esto.
+     */
+    private static void checkOwnFolder(final forge.card.CardDb db) {
+        final PaperCard sol = db.getCard("Sol Ring");
+        if (sol == null) {
+            check(false, "", "no esta Sol Ring para probar pics/own");
+            return;
+        }
+        final String key = sol.getImageKey(false);
+        final java.io.File f = new java.io.File(new java.io.File(OfflineArt.ownDir(), "s"), "Sol Ring.jpg");
+        final boolean was = f.exists();
+        try {
+            OfflineArt.forget();
+            if (!was) {
+                f.getParentFile().mkdirs();
+                java.nio.file.Files.write(f.toPath(), new byte[] {1});
+            }
+            final java.io.File found = OfflineArt.own(key, false);
+            check(f.equals(found), "pics/own/s/Sol Ring.jpg se encuentra por el nombre de la carta",
+                    "pics/own no encuentra Sol Ring: " + found);
+            check(OfflineArt.own(key, true) == null, "y sin su .artcrop.jpg, el recorte no sale de ahi",
+                    "el recorte sale de pics/own sin fichero");
+        } catch (final java.io.IOException e) {
+            check(false, "", "no se ha podido escribir en pics/own: " + e);
+        } finally {
+            if (!was) {
+                f.delete();
+            }
+            OfflineArt.forget();
         }
     }
 

@@ -44,6 +44,7 @@ public final class NetCheck {
         formatsWithoutListsSayNo();
         everyFormatSurvivesItsNames();
         unsupportedDeckUrlIsRejected();
+        oneDownloadedDeckIsDeleted();
         final boolean online = hasLine();
         if (online) {
             downloadBringsDecks();
@@ -225,6 +226,52 @@ public final class NetCheck {
     }
 
     // ---------------------------------------------------------------
+
+    /**
+     * Borrar UN mazo bajado (Discord, 04-11-2026), sin red: se deja un .dck en
+     * la carpeta de una categoria, se lee, se borra, y no vuelve ni del disco
+     * ni de la categoria que el motor guarda en memoria.
+     */
+    private static void oneDownloadedDeckIsDeleted() {
+        NetDecks.Category cat = null;
+        for (final NetDecks.Category c : NetDecks.categories(GameType.Commander)) {
+            if (!c.getName().equalsIgnoreCase(SAMPLE) && c.getName().matches("[A-Za-z0-9 ]+")) {
+                cat = c;
+                break;
+            }
+        }
+        if (cat == null) {
+            check("borrar un mazo bajado", false, "no hay categorias");
+            return;
+        }
+        final java.io.File dir = new java.io.File(forge.localinstance.properties.ForgeConstants.DECK_NET_DIR + cat.getName());
+        final boolean existed = dir.isDirectory();
+        dir.mkdirs();
+        final String name = "NeoNetCheck para borrar";
+        final java.io.File file = new java.io.File(dir, "neonetcheck-borrar.dck");
+        final Deck fake = new Deck(name);
+        fake.getMain().add(forge.model.FModel.getMagicDb().getCommonCards().getCard("Sol Ring"), 1);
+        forge.deck.io.DeckSerializer.writeDeck(fake, file);
+        cat.refresh();
+        try {
+            final Deck shown = NetDecks.cached(GameType.Commander).stream()
+                    .filter(d -> name.equals(d.getName())).findFirst().orElse(null);
+            check("un mazo dejado en la carpeta sale entre los bajados", shown != null, cat.getName());
+            if (shown == null) {
+                return;
+            }
+            final boolean deleted = NetDecks.delete(GameType.Commander, shown);
+            final boolean gone = NetDecks.cached(GameType.Commander).stream().noneMatch(d -> name.equals(d.getName()));
+            check("se borra del disco y no vuelve a salir", deleted && !file.exists() && gone,
+                    "borrado=" + deleted + ", fichero=" + file.exists() + ", sigue=" + !gone);
+        } finally {
+            file.delete();
+            if (!existed) {
+                dir.delete();
+            }
+            cat.refresh();
+        }
+    }
 
     private static NetDecks.Category find(final String name) {
         for (final NetDecks.Category c : NetDecks.categories(GameType.Commander)) {

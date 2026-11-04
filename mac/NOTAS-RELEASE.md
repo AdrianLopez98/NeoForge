@@ -1,12 +1,13 @@
-**NeoForge para macOS 1.0.44 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.45 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Arreglado:** la partida podía cerrarse con un error justo después de lanzar un hechizo (lo traía la 1.0.43), y 10 de los «Otros formatos» no se abrían.
-- **Partidos al mejor de 3 o 5:** «Rendir esta partida» en la pausa, y si caes en una mesa de tres o más puedes terminarla sin ver a las IA.
-- **Constructor:** «Solo full art» en el selector de arte, y cambiar el arte de las cartas del banquillo.
-- **Quest:** los rivales pueden usar solo las expansiones de tu Quest (casilla al crearla).
-- **La IA** respeta «para cada jugador, hasta un objetivo» (Nils, Discipline Enforcer).
-- **Ascenso:** mazo de salida del mismo generador que la Quest, con mejor curva de maná.
+- **Entradas especiales** para 60 comandantes más (Frodo, Kuja, Aang, Terra, Obeka, Zaxara…).
+- **Tus propias imágenes de carta:** la carpeta `pics/own` gana a todo, también a la imagen bajada de internet.
+- **Quest:** el trofeo y la carta del rival respetan las expansiones de la Quest, y el rival sorpresa paga el doble de verdad.
+- **Escribe para filtrar** los desplegables largos (expansiones, artes, pozos).
+- **Brawl de 100 cartas** (lo trae Forge), y las reglas de la casa se pueden guardar.
+- **Preguntar si no atacas con nada** (ajuste), y borrar un mazo descargado de internet.
+- **Mazos de salida** con menos artefactos incoloros de relleno.
 
 Descarga el `.dmg` de tu Mac:
 

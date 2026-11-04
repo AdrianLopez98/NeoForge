@@ -96,10 +96,60 @@ public final class AttackCheck {
                 "la partida no termino: se corto por tiempo en el turno " + result.turns
                         + ". Es la firma del bucle de OK contra el ataque rechazado");
 
+        guard();
+
         System.out.printf(Locale.ROOT, "%n  %d bien, %d mal%n", passed, failed);
         if (failed > 0) {
             throw new IllegalStateException(failed + " comprobacion(es) del ataque obligado han fallado");
         }
+    }
+
+    /**
+     * "No has declarado ningun atacante: ¿seguro?" ({@link AttackGuard},
+     * Discord, 04-11-2026). Con un Oso que puede atacar (no esta obligado), en
+     * el momento exacto en que el motor pide atacantes: sin atacantes se
+     * avisa; con el Oso atacando, no; y el ajuste manda (apagado de fabrica).
+     * Despues se deja todo como estaba; la partida se corta por tiempo, que
+     * aqui da igual.
+     */
+    private static void guard() {
+        final List<String> base = new java.util.ArrayList<>(position().getState());
+        base.replaceAll(l -> l.startsWith("humanbattlefield=")
+                ? "humanbattlefield=Grizzly Bears|Set:8ED;" + FOREST : l);
+        final TutorialLesson lesson = new TutorialLesson("attack-guard", base, List.of());
+        final TutorialState state = new TutorialState(lesson.getState());
+        final java.util.concurrent.atomic.AtomicReference<Boolean> empty = new java.util.concurrent.atomic.AtomicReference<>();
+        final java.util.concurrent.atomic.AtomicReference<Boolean> attacking = new java.util.concurrent.atomic.AtomicReference<>();
+        final java.util.concurrent.atomic.AtomicReference<Boolean> setting = new java.util.concurrent.atomic.AtomicReference<>();
+        NeoGame.playTutorial(lesson, state, NeoMatchUI.Mode.AUTO_PLAY, 15, null, false, ui -> {
+            ui.setAutoPlayHold(() -> {
+                if (empty.get() != null || !(ui.getGameController() instanceof forge.player.PlayerControllerHuman gc)
+                        || !(gc.getInputQueue().getInput() instanceof forge.gamemodes.match.input.InputAttack)) {
+                    return false;
+                }
+                final forge.game.combat.Combat combat = gc.getGame().getCombat();
+                final Card bears = gc.getPlayer().getCardsIn(ZoneType.Battlefield).stream()
+                        .filter(c -> "Grizzly Bears".equals(c.getName())).findFirst().orElse(null);
+                empty.set(AttackGuard.wouldSkipAttack(gc));
+                setting.set(AttackGuard.shouldAsk(gc) == (forge.neo.NeoSettings.confirmNoAttack() && empty.get()));
+                if (bears != null && combat != null && !combat.getDefenders().isEmpty()) {
+                    combat.addAttacker(bears, combat.getDefenders().get(0));
+                    attacking.set(AttackGuard.wouldSkipAttack(gc));
+                    combat.removeFromCombat(bears);
+                }
+                return false;
+            });
+        });
+        check(Boolean.TRUE.equals(empty.get()),
+                "aviso de no atacar: sin atacantes y con el oso libre, se avisa",
+                empty.get() == null ? "no se llego a declarar atacantes: la prueba no prueba nada"
+                        : "sin atacantes y con el oso libre NO se avisa");
+        check(Boolean.FALSE.equals(attacking.get()),
+                "aviso de no atacar: con el oso atacando, no se avisa",
+                "con el oso atacando se avisa igual (" + attacking.get() + ")");
+        check(Boolean.TRUE.equals(setting.get()),
+                "aviso de no atacar: el ajuste manda (ahora " + (forge.neo.NeoSettings.confirmNoAttack() ? "encendido" : "apagado, como de fabrica") + ")",
+                "el ajuste no manda: se preguntaria sin el, o no con el");
     }
 
     /**

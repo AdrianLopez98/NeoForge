@@ -6033,6 +6033,44 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         return true;
     }
 
+    /**
+     * "No has declarado ningun atacante: ¿seguro?" (Discord, 04-11-2026): el
+     * gemelo de {@link #confirmNoBlockers} al atacar. Cuando preguntar lo
+     * decide {@link AttackGuard} (lo comparte Android).
+     *
+     * @return true si nos hemos quedado la pulsacion para preguntar
+     */
+    private boolean confirmNoAttackers() {
+        if (table == null || !interactive() || finished.get()) {
+            return false;
+        }
+        if (table.getOverlay().isShowing() || !AttackGuard.shouldAsk(getGameController())) {
+            return false;
+        }
+        final AtomicBoolean answered = new AtomicBoolean();
+        final ConfirmDialog dialog = new ConfirmDialog(
+                NeoText.get("attack.ask.title"),
+                NeoText.get("attack.ask.detail"),
+                List.of(NeoText.get("attack.ask.stay"), NeoText.get("attack.ask.go")),
+                0,
+                index -> {
+                    if (!answered.compareAndSet(false, true)) {
+                        return;
+                    }
+                    table.getOverlay().hide();
+                    if (index != null && index == 1) {
+                        respondLater(() -> getGameController().selectButtonOk());
+                    }
+                });
+        dialog.getStyleClass().add("phase-ask");
+        if (dialog.option(1) != null) {
+            dialog.option(1).getStyleClass().add("phase-ask-go");
+        }
+        table.getOverlay().show(dialog);
+        table.requestLayout();
+        return true;
+    }
+
     /** Lo que anyade {@code InputSelectTargets} en cuanto hay algo apuntado. */
     private static final String TARGETED_MARK = "Targeted:";
 
@@ -6518,6 +6556,10 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                         }
                         // Y antes de no bloquear con nada, si se ha pedido.
                         if (confirmNoBlockers()) {
+                            return;
+                        }
+                        // Y antes de no atacar con nada, tambien si se ha pedido.
+                        if (confirmNoAttackers()) {
                             return;
                         }
                         // Y antes de que "Auto" sacrifique una criatura tuya.
