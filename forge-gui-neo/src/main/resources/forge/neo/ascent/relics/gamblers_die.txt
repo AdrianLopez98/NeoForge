@@ -1,0 +1,9 @@
+Name:Gambler's Die
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ Phase | Phase$ Upkeep | ValidPlayer$ You | TriggerZones$ Command | Execute$ TrigFlip | TriggerDescription$ At the beginning of your upkeep, flip a coin. If you win the flip, draw a card. If you lose the flip, discard a card.
+SVar:TrigFlip:DB$ FlipCoin | WinSubAbility$ DBDraw | LoseSubAbility$ DBDiscard
+SVar:DBDraw:DB$ Draw | Defined$ You | NumCards$ 1
+SVar:DBDiscard:DB$ Discard | Defined$ You | NumCards$ 1 | Mode$ TgtChoose
+AI:RemoveDeck:All
+Oracle:At the beginning of your upkeep, flip a coin. If you win the flip, draw a card. If you lose the flip, discard a card.

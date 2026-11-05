@@ -1,0 +1,7 @@
+Name:Rusted Buckler
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ Phase | Phase$ End of Turn | ValidPlayer$ You | TriggerZones$ Command | IsPresent$ Creature.YouCtrl | PresentCompare$ EQ0 | Execute$ TrigGainLife | TriggerDescription$ At the beginning of your end step, if you control no creatures, you gain 2 life.
+SVar:TrigGainLife:DB$ GainLife | LifeAmount$ 2
+AI:RemoveDeck:All
+Oracle:At the beginning of your end step, if you control no creatures, you gain 2 life.

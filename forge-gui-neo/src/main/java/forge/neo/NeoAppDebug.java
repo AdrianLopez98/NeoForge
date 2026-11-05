@@ -819,13 +819,77 @@ final class NeoAppDebug {
      * ven en la fila de premios: ahi la caja de texto se esconde a proposito
      * (ver {@code RelicArt}), y eso tambien hay que poder mirarlo.
      */
+    /**
+     * <b>Los emblemas de las reliquias a PNG</b>, uno por {@code id}, con la
+     * tinta y el hueco de su rareza y el fondo transparente
+     * ({@code --mock-relics -Dneo.relics.export=carpeta}).
+     *
+     * <p>Es lo que lleva NeoForge Android en {@code assets/relics/}: alli no hay
+     * JavaFX para dibujarlos, y portar las 36 siluetas a Compose seria tener
+     * dos dibujos que se separan con el tiempo. Asi es el MISMO dibujo, pixel
+     * a pixel. Una reliquia nueva necesita volver a exportar y copiar (ver
+     * el plan de Ascenso); sin su PNG, Android pinta el arte generico.
+     */
+    private void exportRelicEmblems(final java.io.File dir) {
+        if (!dir.isDirectory() && !dir.mkdirs()) {
+            System.out.println("[maqueta] no se puede crear " + dir);
+            return;
+        }
+        final java.util.List<forge.neo.ascent.AscentRelic> todas =
+                new java.util.ArrayList<>(forge.neo.ascent.AscentRelics.all());
+        for (final forge.neo.ascent.AscentRun.Mode mode : forge.neo.ascent.AscentRun.Mode.values()) {
+            final forge.item.PaperCard boss = forge.neo.ascent.AscentRelics.bossPhaseCard(mode);
+            final forge.neo.ascent.AscentRelic r = boss == null ? null
+                    : forge.neo.ascent.AscentRelics.byCardName(boss.getName());
+            if (r != null) {
+                todas.add(r);
+            }
+        }
+        final int px = 384;
+        int escritas = 0;
+        for (final forge.neo.ascent.AscentRelic relic : todas) {
+            final javafx.scene.Group g = forge.neo.card.RelicEmblem.of(
+                    forge.neo.card.RelicEmblem.motifOf(relic.getId()), px * 0.9,
+                    forge.neo.card.RelicArt.inkOf(relic.getRarity()),
+                    forge.neo.card.RelicArt.holeOf(relic.getRarity()));
+            final javafx.scene.SnapshotParameters params = new javafx.scene.SnapshotParameters();
+            params.setFill(javafx.scene.paint.Color.TRANSPARENT);
+            params.setViewport(new javafx.geometry.Rectangle2D(-px / 2.0, -px / 2.0, px, px));
+            final javafx.scene.image.WritableImage img = g.snapshot(params, null);
+            final int w = (int) img.getWidth();
+            final int h = (int) img.getHeight();
+            final java.awt.image.BufferedImage out =
+                    new java.awt.image.BufferedImage(w, h, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+            final javafx.scene.image.PixelReader pr = img.getPixelReader();
+            for (int y = 0; y < h; y++) {
+                for (int x = 0; x < w; x++) {
+                    out.setRGB(x, y, pr.getArgb(x, y));
+                }
+            }
+            try {
+                javax.imageio.ImageIO.write(out, "png", new java.io.File(dir, relic.getId() + ".png"));
+                escritas++;
+            } catch (final java.io.IOException e) {
+                System.out.println("[maqueta] no se pudo escribir " + relic.getId() + ": " + e);
+            }
+        }
+        System.out.println("[maqueta] " + escritas + " emblemas exportados a " + dir);
+    }
+
     void mockRelics() {
         final int n = forge.neo.ascent.AscentRelics.install();
         final boolean small = Boolean.getBoolean("neo.relics.small");
         final double w = app.table.zoomCardWidth() * (small ? 0.18 : 0.52);
         final javafx.scene.layout.FlowPane grid = new javafx.scene.layout.FlowPane(10, 10);
         grid.setAlignment(javafx.geometry.Pos.CENTER);
-        for (final forge.neo.ascent.AscentRelic relic : forge.neo.ascent.AscentRelics.all()) {
+        // -Dneo.relics.last=N: solo las N ultimas del catalogo, que es donde
+        // entra un lote nuevo. Con 95 la rejilla no cabe y una captura no
+        // puede bajar el scroll.
+        final java.util.List<forge.neo.ascent.AscentRelic> todas = forge.neo.ascent.AscentRelics.all();
+        final int last = Integer.getInteger("neo.relics.last", 0);
+        final java.util.List<forge.neo.ascent.AscentRelic> vistas = last > 0 && last < todas.size()
+                ? todas.subList(todas.size() - last, todas.size()) : todas;
+        for (final forge.neo.ascent.AscentRelic relic : vistas) {
             final forge.item.PaperCard card = forge.neo.ascent.AscentRelics.cardOf(relic);
             if (card == null) {
                 System.out.println("[maqueta] sin carta: " + relic.getId());
@@ -840,6 +904,10 @@ final class NeoAppDebug {
                     + " (" + relic.getRarity() + ")");
         }
         System.out.println("[maqueta] " + n + " reliquias registradas");
+        final String export = System.getProperty("neo.relics.export");
+        if (export != null && !export.isBlank()) {
+            exportRelicEmblems(new java.io.File(export));
+        }
         final javafx.scene.control.ScrollPane scroll = new javafx.scene.control.ScrollPane(grid);
         scroll.setFitToWidth(true);
         scroll.getStyleClass().add("dialog");
@@ -1120,6 +1188,31 @@ final class NeoAppDebug {
      * elegir. Con {@code -Dneo.choice.search=texto} lo escribe en el buscador.
      */
     void mockCardName() {
+        // -Dneo.choice.dungeons=true: "Which dungeon do you want to venture
+        // into?" como lo manda VentureEffect (los nombres de las mazmorras en
+        // las que se puede entrar), pintadas con DungeonFaces como NeoMatchUI.
+        if (Boolean.getBoolean("neo.choice.dungeons")) {
+            final List<forge.game.card.CardFaceView> faces = new java.util.ArrayList<>();
+            for (final forge.card.CardRules r : forge.StaticData.instance().getAllTokens().getRules().values()) {
+                if (r.isEnterableDungeon()) {
+                    faces.add(new forge.game.card.CardFaceView(r.getMainPart()));
+                }
+            }
+            java.util.Collections.sort(faces);
+            System.out.println("[dungeons] " + faces + " todas=" + forge.neo.card.DungeonFaces.allDungeons(faces));
+            final List<forge.game.card.CardView> views = new java.util.ArrayList<>();
+            for (final forge.game.card.CardFaceView f : faces) {
+                final forge.game.card.CardView v = forge.neo.card.DungeonFaces.viewOf(f);
+                System.out.println("[dungeons] " + f + " -> " + (v == null ? "NULL"
+                        : v.getId() + " " + v.getCurrentState().getImageKey()));
+                views.add(v);
+            }
+            app.table.getOverlay().show(new forge.neo.ui.ChoiceDialog<>(
+                    "Which dungeon do you want to venture into?", views, 1, 1,
+                    v -> v.getCurrentState().getName(), 132,
+                    picked -> System.out.println("[dungeons] elegido: " + picked)));
+            return;
+        }
         final long t0 = System.nanoTime();
         // -Dneo.choice.types=true: los ~300 tipos de criatura, como los pide
         // Leyline of Transformation (alfabeticos: un mazo sin ninguno de ellos).

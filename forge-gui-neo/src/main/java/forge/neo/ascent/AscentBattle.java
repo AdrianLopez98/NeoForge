@@ -1120,7 +1120,12 @@ public final class AscentBattle {
             // seria darle una reliquia que no hace nada — o sea un jefe que
             // parece llevar dos y lleva una, sin que nada falle ni se vea.
             // Para TI si estan: ahi si se sabe (AscentRewards.colorsOf).
-            if (!AscentRelics.growsHand(relic) && relic.getColors() == AscentRelics.COLOURLESS) {
+            //
+            // Y desde el 05-11-2026, tampoco las MALDITAS: son un trato que
+            // eliges tu (mas fuerza a cambio de vida), no un premio para el
+            // rival. Ver AscentRelic#isCursed.
+            if (!AscentRelics.growsHand(relic) && relic.getColors() == AscentRelics.COLOURLESS
+                    && !relic.isCursed()) {
                 pool.add(relic);
             }
         }

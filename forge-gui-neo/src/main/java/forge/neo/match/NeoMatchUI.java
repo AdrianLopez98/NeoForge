@@ -3122,6 +3122,14 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             final PlayerView owner = card.getController() != null ? card.getController() : card.getOwner();
             runOnUi(() -> t.flyIn(card, fromStack, mine, owner));
         }
+        // Lo que robas vuela de la biblioteca a la mano (Discord, 04-11-2026,
+        // "just like arena"). Solo lo tuyo: lo del rival no se ve.
+        if (event instanceof GameEventCardChangeZone draw && draw.card() != null && draw.from() != null
+                && draw.to() != null && draw.from().zoneType() == ZoneType.Library
+                && draw.to().zoneType() == ZoneType.Hand && isMine(draw.card())) {
+            final CardView card = draw.card();
+            runOnUi(() -> t.flyDraw(card));
+        }
         // Juntas, nunca una tarea por aviso: ver CardPulses (una cascada de
         // contadores dejo el juego sin memoria).
         if (event instanceof forge.game.event.GameEventCardDamaged e && e.amount() > 0) {
@@ -8626,6 +8634,15 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                     return one;
                 }
             }
+            // "Which dungeon do you want to venture into?": el motor manda los
+            // NOMBRES; se ensenyan las cartas de las mazmorras, con sus salas.
+            // Ver DungeonFaces (Discord, 05-11-2026).
+            if (forge.neo.card.DungeonFaces.allDungeons(choices)) {
+                final List<T> picked = askDungeon(message, min, max, choices);
+                if (picked != null) {
+                    return picked;
+                }
+            }
             // Si es el modo de un disparo, de QUE carta habla: con tres
             // disparos de Jin Sakai, uno por atacante, las tres preguntas eran
             // identicas. Se lee aqui, en el hilo que pregunta, porque es donde
@@ -8678,6 +8695,37 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         }
         trace("getChoices(%d..%d de %d) -> %d", min, max,
                 choices == null ? 0 : choices.size(), out.size());
+        return out;
+    }
+
+    /**
+     * La eleccion de mazmorra con las cartas delante. Se pregunta con las
+     * cartas y se contesta con los nombres que mando el motor, buscando POR
+     * POSICION: las cartas de {@code getCardForUi} pueden compartir numero, y
+     * un {@code indexOf} las confundiria. Null si alguna no se pudo pintar
+     * (y entonces va por el camino de siempre, con los nombres).
+     */
+    private <T> List<T> askDungeon(final String message, final int min, final int max, final List<T> choices) {
+        final List<CardView> views = new ArrayList<>();
+        final java.util.IdentityHashMap<CardView, T> back = new java.util.IdentityHashMap<>();
+        final java.util.IdentityHashMap<CardView, String> labels = new java.util.IdentityHashMap<>();
+        for (final T c : choices) {
+            final CardView v = forge.neo.card.DungeonFaces.viewOf(c);
+            if (v == null || back.containsKey(v)) {
+                return null;
+            }
+            views.add(v);
+            back.put(v, c);
+            labels.put(v, defaultLabel(c));
+        }
+        final List<CardView> got = askChoice(TriggerSubject.titleOf(message), views, min, max, labels::get);
+        final List<T> out = new ArrayList<>();
+        for (final CardView v : got) {
+            final T c = back.get(v);
+            if (c != null) {
+                out.add(c);
+            }
+        }
         return out;
     }
 

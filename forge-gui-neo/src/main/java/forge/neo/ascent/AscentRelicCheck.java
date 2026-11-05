@@ -581,6 +581,46 @@ public final class AscentRelicCheck {
                 new Spec("earthwaker_ring").animatedLand().board("Forest"),
                 new Spec("behemoth_bestiary").onAi().byTrigger(),
 
+                // ==========================================================
+                //  El lote del 05-11-2026 (y las malditas)
+                // ==========================================================
+
+                new Spec("kindlers_flint").cannotSee(
+                        "pide lanzar un instantaneo o conjuro, y el mazo de la sonda no trae"
+                                + " ninguno (lo mismo que scholars_quill)"),
+                // Ball Lightning se sacrifica sola al final del turno: una
+                // muerte tuya sin atacar. El rival no pierde vida por nada mas
+                // (la sonda no ataca), asi que lo que pierda es de la reliquia.
+                new Spec("bone_rattle").oppLife(1)
+                        .board("Ball Lightning", "Blistering Firecat", "Spark Elemental"),
+                // Las Hadas de Bitterblossom vuelan; el oso de la sonda no, y
+                // por eso kw("Flying"): se mide sobre una que vuela.
+                new Spec("skyreef_shell").pump(1, 0).kw("Flying").board("Bitterblossom"),
+                new Spec("tinkers_gear").cannotSee(
+                        "abarata los artefactos, y un coste rebajado no deja rastro en la mesa"
+                                + " (lo mismo que echoing_cadence)"),
+                // En la IA: el humano de la sonda lleva siempre su oso en la
+                // mesa, y esta solo cura sin criaturas. La IA no tiene ninguna
+                // hasta que saca la primera, o sea su primer paso final.
+                new Spec("rusted_buckler").onAi().life(2),
+                new Spec("cracked_lens").cannotSee(
+                        "pide barajar tu biblioteca, y el humano de la sonda no busca nada;"
+                                + " ademas adivinar no lo publica el motor"),
+                new Spec("firebrand_urn").byTrigger()
+                        .board("Ball Lightning", "Blistering Firecat", "Spark Elemental"),
+                new Spec("gamblers_die").byTrigger(),
+                // The Abyss destruye en tu mantenimiento tu oso (valor de mana
+                // 2): eso es la muerte del turno Y la carta que hay que poder
+                // devolver al final. Con Ball Lightning no valdria: muere en
+                // el MISMO paso final, despues de que se mire la condicion.
+                new Spec("ghouls_lantern").byTrigger().board("The Abyss"),
+                new Spec("mossgrown_sigil").counter(1)
+                        .board("Bitterblossom", "Ophiomancer", "Verdant Force"),
+                new Spec("gilded_gear").byTrigger(),
+                new Spec("hungering_skull").draw(1),
+                new Spec("glass_wings").pump(2, 2),
+                new Spec("bloodsworn_blade").pump(3, 3),
+
                 // --- el segundo aliento del jefe (Ascension 10) ---
                 new Spec("cornered_fury").pump(2, 2).selfExiled(15),
                 new Spec("tyrants_last_stand").pump(2, 2).selfExiled(30))) {

@@ -1,13 +1,12 @@
-**NeoForge para macOS 1.0.45 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.46 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Entradas especiales** para 60 comandantes más (Frodo, Kuja, Aang, Terra, Obeka, Zaxara…).
-- **Tus propias imágenes de carta:** la carpeta `pics/own` gana a todo, también a la imagen bajada de internet.
-- **Quest:** el trofeo y la carta del rival respetan las expansiones de la Quest, y el rival sorpresa paga el doble de verdad.
-- **Escribe para filtrar** los desplegables largos (expansiones, artes, pozos).
-- **Brawl de 100 cartas** (lo trae Forge), y las reglas de la casa se pueden guardar.
-- **Preguntar si no atacas con nada** (ajuste), y borrar un mazo descargado de internet.
-- **Mazos de salida** con menos artefactos incoloros de relleno.
+- **La carta que robas vuela** de tu biblioteca a la mano, boca abajo y dándose la vuelta, como en Arena.
+- **Entradas especiales** para 40 comandantes más (Galadriel, Urza, The Scarab God, Omnath, Cosmic Spider-Man…).
+- **Ascenso:** 14 reliquias nuevas y las primeras **malditas** (pegan más y cobran vida).
+- **Elegir mazmorra viendo las mazmorras**: el diálogo enseña sus cartas, no solo los nombres.
+- **Exportar un mazo lleva el banquillo**, con encabezados que leen Moxfield y Arena.
+- **Arreglos:** el stack ya no dice «gains hidden cardname», y la etiqueta del tipo elegido (Giant Slug) se va cuando se acaba el landwalk.
 
 Descarga el `.dmg` de tu Mac:
 

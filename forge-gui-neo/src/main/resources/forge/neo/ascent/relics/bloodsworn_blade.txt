@@ -1,0 +1,8 @@
+Name:Bloodsworn Blade
+ManaCost:no cost
+Types:Enchantment
+S:Mode$ Continuous | EffectZone$ Command | Affected$ Creature.YouCtrl | AddPower$ 3 | AddToughness$ 3 | Description$ Creatures you control get +3/+3.
+T:Mode$ Phase | Phase$ Upkeep | ValidPlayer$ You | TriggerZones$ Command | Execute$ TrigLoseLife | TriggerDescription$ At the beginning of your upkeep, you lose 1 life.
+SVar:TrigLoseLife:DB$ LoseLife | Defined$ You | LifeAmount$ 1
+AI:RemoveDeck:All
+Oracle:Creatures you control get +3/+3. At the beginning of your upkeep, you lose 1 life.

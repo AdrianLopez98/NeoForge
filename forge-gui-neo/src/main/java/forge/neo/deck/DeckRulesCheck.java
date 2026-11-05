@@ -939,6 +939,29 @@ public final class DeckRulesCheck {
         check("Importar: un banquillo grande NO se toma por comandante",
                 big.deck != null && big.deck.getCommanders().isEmpty());
 
+        // EXPORTAR CON EL BANQUILLO (Discord, 05-11-2026) y volver a importarlo:
+        // el comandante, el mazo y el banquillo, cada uno en su sitio, aunque
+        // el banquillo sea de UNA carta (Moxfield la tomaria por comandante).
+        final DeckImporter.Result withSide = DeckImporter.importCommander(String.join(System.lineSeparator(),
+                "1 Sol Ring", "1 Counterspell", "", "SIDEBOARD:", "1 Yarok, the Desecrated"), "prueba");
+        if (withSide.deck != null) {
+            withSide.deck.getOrCreate(forge.deck.DeckSection.Sideboard).add(
+                    FModel.getMagicDb().getCommonCards().getCard("Negate"), 1);
+            final DeckEditor exp = new DeckEditor(forge.neo.match.NeoFormat.COMMANDER, withSide.deck);
+            final String text = exp.toText();
+            System.out.println("        (exportado: " + text.replace("\n", " | ") + ")");
+            final DeckImporter.Result back = DeckImporter.importCommander(text, "prueba");
+            check("Exportar: lleva el banquillo, y al importarlo vuelve cada cosa a su sitio"
+                            + " (comandante, mazo y una carta de banquillo)",
+                    text.contains("Sideboard") && text.contains("1 Negate")
+                            && back.deck != null && back.deck.getCommanders().size() == 1
+                            && back.deck.getCommanders().get(0).getName().equals("Yarok, the Desecrated")
+                            && back.deck.getMain().countAll() == 2
+                            && DeckImporter.sectionSize(back.deck, forge.deck.DeckSection.Sideboard) == 1);
+        } else {
+            check("Exportar: el mazo de prueba se importa", false);
+        }
+
         // Lo prohibido en Commander tambien entra (Discord, 30-10-2026: Old
         // School de 60 con 49). Lo que diga el formato, lo dice el editor.
         final String oldSchool = String.join(System.lineSeparator(),

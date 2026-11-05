@@ -20,7 +20,8 @@ public final class AscentRelic {
      * De que rareza es, que es lo que decide cuanto aparece y donde.
      *
      * <p>Las de jefe <b>no salen nunca por sorteo</b>: solo las da un jefe.
-     * Por eso son las unicas que pueden llevar contrapartida.
+     * Hasta el 05-11-2026 eran las unicas con contrapartida; desde entonces
+     * tambien las hay raras, marcadas como malditas ({@link #isCursed()}).
      */
     public enum Rarity {
         COMMON,
@@ -45,14 +46,16 @@ public final class AscentRelic {
     private final Rarity rarity;
     private final String text;
     private final byte colors;
+    private final boolean cursed;
 
     AscentRelic(final String id, final String cardName, final Rarity rarity,
-                final String text, final byte colors) {
+                final String text, final byte colors, final boolean cursed) {
         this.id = id;
         this.cardName = cardName;
         this.rarity = rarity;
         this.text = text;
         this.colors = colors;
+        this.cursed = cursed;
     }
 
     /**
@@ -124,6 +127,20 @@ public final class AscentRelic {
      */
     public boolean fitsColors(final forge.card.ColorSet deck) {
         return colors == 0 || deck == null || deck.hasAnyColor(colors);
+    }
+
+    /**
+     * Si es <b>maldita</b>: pega mas fuerte que las de su rareza y a cambio
+     * cobra algo (vida cada mantenimiento, vida por cada criatura tuya que
+     * muere). Lote del 05-11-2026.
+     *
+     * <p>Lo unico que cambia por serlo es que <b>al rival no se le da</b>
+     * ({@code AscentBattle.relicsFor}): es un trato que eliges tu, y en su
+     * asiento seria solo una reliquia fuerte mas con una pega que la IA no ha
+     * escogido. El precio va en el texto de la carta, que es lo que se lee.
+     */
+    public boolean isCursed() {
+        return cursed;
     }
 
     @Override

@@ -66,7 +66,10 @@ public final class RelicEmblem {
         CROWN, HEART, HOURGLASS, GAUNTLET, GEM, BANNER, FANG, CHALICE, RING,
         COIN, MAP, COMPASS, SHIELD, SUN, COIL, MASK, BOOK, WINGS, TOTEM, EYE,
         ANVIL, BLADE, IDOL, SEAL, FLAME, ARROW, BOOT, CLOAK, SCROLL, FONT,
-        HORN, SIGIL
+        HORN, SIGIL,
+        // El lote del 05-11-2026: en rara solo quedaban cinco libres y hacian
+        // falta siete. Cuatro formas que no se parecen a ninguna de antes.
+        DIE, LANTERN, GEAR, SKULL
     }
 
     /**
@@ -178,6 +181,22 @@ public final class RelicEmblem {
         MOTIFS.put("earthwaker_ring", Motif.RING);
         MOTIFS.put("behemoth_bestiary", Motif.BOOK);
 
+        // ---- el lote del 05-11-2026 ----
+        MOTIFS.put("kindlers_flint", Motif.GEM);
+        MOTIFS.put("bone_rattle", Motif.SKULL);
+        MOTIFS.put("skyreef_shell", Motif.COIL);
+        MOTIFS.put("tinkers_gear", Motif.GEAR);
+        MOTIFS.put("rusted_buckler", Motif.SHIELD);
+        MOTIFS.put("cracked_lens", Motif.EYE);
+        MOTIFS.put("firebrand_urn", Motif.CHALICE);
+        MOTIFS.put("gamblers_die", Motif.DIE);
+        MOTIFS.put("ghouls_lantern", Motif.LANTERN);
+        MOTIFS.put("mossgrown_sigil", Motif.SIGIL);
+        MOTIFS.put("gilded_gear", Motif.GEAR);
+        MOTIFS.put("hungering_skull", Motif.SKULL);
+        MOTIFS.put("glass_wings", Motif.WINGS);
+        MOTIFS.put("bloodsworn_blade", Motif.BLADE);
+
         // El "segundo aliento" del jefe del acto 3 (Ascension 10). No es un
         // premio y no esta en el catalogo, pero SE VE: entra en la zona de
         // mando del jefe y ahi la mesa la pinta como cualquier otra carta.
@@ -238,6 +257,10 @@ public final class RelicEmblem {
             case SCROLL:    scroll(g, size, ink, hole); break;
             case FONT:      font(g, size, ink, hole); break;
             case HORN:      horn(g, size, ink, hole); break;
+            case DIE:       die(g, size, ink, hole); break;
+            case LANTERN:   lantern(g, size, ink, hole); break;
+            case GEAR:      gear(g, size, ink, hole); break;
+            case SKULL:     skull(g, size, ink, hole); break;
             case SIGIL:
             default:        sigil(g, size, ink, hole); break;
         }
@@ -704,6 +727,83 @@ public final class RelicEmblem {
         stroke(g, h, 0.035 * s, 0.02 * s, 0.02 * s, 0.06 * s, -0.26 * s);
         // La boquilla.
         fill(g, c, -0.46 * s, 0.24 * s, -0.30 * s, 0.20 * s, -0.22 * s, 0.42 * s, -0.40 * s, 0.44 * s);
+    }
+
+    /** Dado: el cubo en perspectiva (cara, techo y lado) y sus puntos. */
+    private static void die(final Group g, final double s, final Color c, final Color h) {
+        fill(g, c, -0.36 * s, -0.12 * s, 0.12 * s, -0.12 * s, 0.12 * s, 0.36 * s, -0.36 * s, 0.36 * s);
+        fill(g, c, -0.36 * s, -0.12 * s, 0.12 * s, -0.12 * s, 0.36 * s, -0.34 * s, -0.12 * s, -0.34 * s);
+        fill(g, c, 0.12 * s, -0.12 * s, 0.36 * s, -0.34 * s, 0.36 * s, 0.14 * s, 0.12 * s, 0.36 * s);
+        // Las aristas, en el color del hueco: es lo que hace que se lea cubo y no hexagono.
+        // Sin llegar al borde: con la punta redonda, una arista hasta la
+        // esquina asoma por fuera del cubo.
+        stroke(g, h, 0.025 * s, -0.33 * s, -0.12 * s, 0.12 * s, -0.12 * s);
+        stroke(g, h, 0.025 * s, 0.12 * s, -0.12 * s, 0.12 * s, 0.33 * s);
+        stroke(g, h, 0.025 * s, 0.12 * s, -0.12 * s, 0.33 * s, -0.31 * s);
+        // El cinco en la cara, el uno arriba.
+        dot(g, h, -0.12 * s, 0.12 * s, 0.05 * s);
+        dot(g, h, -0.25 * s, -0.01 * s, 0.045 * s);
+        dot(g, h, 0.01 * s, -0.01 * s, 0.045 * s);
+        dot(g, h, -0.25 * s, 0.25 * s, 0.045 * s);
+        dot(g, h, 0.01 * s, 0.25 * s, 0.045 * s);
+        dot(g, h, 0.0, -0.23 * s, 0.045 * s);
+    }
+
+    /** Farol: el asa, el tejadillo, el cristal con su llama y la peana. */
+    private static void lantern(final Group g, final double s, final Color c, final Color h) {
+        final Circle handle = new Circle(0, -0.37 * s, 0.08 * s);
+        handle.setFill(Color.TRANSPARENT);
+        handle.setStroke(c);
+        handle.setStrokeWidth(0.05 * s);
+        g.getChildren().add(handle);
+        fill(g, c, -0.18 * s, -0.30 * s, 0.18 * s, -0.30 * s, 0.30 * s, -0.18 * s, -0.30 * s, -0.18 * s);
+        fill(g, c, -0.24 * s, -0.18 * s, 0.24 * s, -0.18 * s, 0.24 * s, 0.30 * s, -0.24 * s, 0.30 * s);
+        fill(g, h, -0.16 * s, -0.10 * s, 0.16 * s, -0.10 * s, 0.16 * s, 0.22 * s, -0.16 * s, 0.22 * s);
+        final Path flame = new Path();
+        flame.getElements().add(new MoveTo(0, -0.04 * s));
+        flame.getElements().add(new CubicCurveTo(0.12 * s, 0.06 * s, 0.10 * s, 0.18 * s, 0, 0.18 * s));
+        flame.getElements().add(new CubicCurveTo(-0.10 * s, 0.18 * s, -0.12 * s, 0.06 * s, 0, -0.04 * s));
+        flame.setFill(c);
+        g.getChildren().add(flame);
+        fill(g, c, -0.30 * s, 0.30 * s, 0.30 * s, 0.30 * s, 0.30 * s, 0.40 * s, -0.30 * s, 0.40 * s);
+    }
+
+    /** Engranaje: rueda con ocho dientes y el eje hueco. */
+    private static void gear(final Group g, final double s, final Color c, final Color h) {
+        for (int i = 0; i < 8; i++) {
+            final double a = i * Math.PI / 4;
+            final double r1 = 0.26 * s;
+            final double r2 = 0.44 * s;
+            final double w1 = 0.24;
+            final double w2 = 0.15;
+            fill(g, c,
+                    Math.cos(a - w1) * r1, Math.sin(a - w1) * r1,
+                    Math.cos(a - w2) * r2, Math.sin(a - w2) * r2,
+                    Math.cos(a + w2) * r2, Math.sin(a + w2) * r2,
+                    Math.cos(a + w1) * r1, Math.sin(a + w1) * r1);
+        }
+        dot(g, c, 0, 0, 0.32 * s);
+        dot(g, h, 0, 0, 0.12 * s);
+    }
+
+    /** Calavera: el craneo, la mandibula con sus dientes y las cuencas. */
+    private static void skull(final Group g, final double s, final Color c, final Color h) {
+        dot(g, c, 0, -0.08 * s, 0.32 * s);
+        final Rectangle jaw = new Rectangle(-0.18 * s, 0.10 * s, 0.36 * s, 0.30 * s);
+        jaw.setArcWidth(0.10 * s);
+        jaw.setArcHeight(0.10 * s);
+        jaw.setFill(c);
+        g.getChildren().add(jaw);
+        final Ellipse left = new Ellipse(-0.12 * s, -0.06 * s, 0.085 * s, 0.10 * s);
+        left.setFill(h);
+        g.getChildren().add(left);
+        final Ellipse right = new Ellipse(0.12 * s, -0.06 * s, 0.085 * s, 0.10 * s);
+        right.setFill(h);
+        g.getChildren().add(right);
+        fill(g, h, 0, 0.07 * s, -0.045 * s, 0.16 * s, 0.045 * s, 0.16 * s);
+        for (int i = -1; i <= 1; i++) {
+            stroke(g, h, 0.03 * s, i * 0.08 * s, 0.27 * s, i * 0.08 * s, 0.40 * s);
+        }
     }
 
     /**

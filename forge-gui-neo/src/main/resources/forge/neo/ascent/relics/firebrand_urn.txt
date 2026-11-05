@@ -1,0 +1,7 @@
+Name:Firebrand Urn
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ ChangesZone | Origin$ Battlefield | Destination$ Graveyard | ValidCard$ Creature.YouCtrl | TriggerZones$ Command | Execute$ TrigDamage | TriggerDescription$ Whenever a creature you control dies, CARDNAME deals 1 damage to any target.
+SVar:TrigDamage:DB$ DealDamage | ValidTgts$ Any | NumDmg$ 1
+AI:RemoveDeck:All
+Oracle:Whenever a creature you control dies, Firebrand Urn deals 1 damage to any target.

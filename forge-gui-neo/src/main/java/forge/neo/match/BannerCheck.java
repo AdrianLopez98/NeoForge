@@ -115,6 +115,19 @@ public final class BannerCheck {
                 "el objetivo dice de quien es (\"Grizzly Bears (" + you + ")\")",
                 "el objetivo no dice de quien es: " + (lines.length > 0 ? lines[lines.length - 1] : "-"));
 
+        // Y el texto roto del motor con una palabra clave oculta (Discord,
+        // 05-11-2026: Edifice of Authority). Ver EngineText.
+        final String edifice = EngineText.stackText(
+                "Archfiend of Ifnir gains hidden cardname can't attack. until end of turn.");
+        check("Archfiend of Ifnir can't attack until end of turn.".equals(edifice),
+                "\"gains hidden cardname can't attack. until end of turn.\" se lee bien: " + edifice,
+                "la palabra clave oculta sigue saliendo: " + edifice);
+        final String pump = EngineText.stackText("Grizzly Bears gets +1/+0 and gains hidden cardname can't block. until end of turn.");
+        check("Grizzly Bears gets +1/+0 and can't block until end of turn.".equals(pump),
+                "y detras de un +1/+0 tambien: " + pump, "con +1/+0 sale mal: " + pump);
+        check("Lightning Bolt deals 3 damage to you.".equals(EngineText.stackText("Lightning Bolt deals 3 damage to you.")),
+                "un texto normal no se toca", "un texto normal ha cambiado");
+
         System.out.printf(Locale.ROOT, "%n  %d bien, %d mal%n", passed, failed);
         if (failed > 0) {
             throw new IllegalStateException(failed + " comprobacion(es) del cartel han fallado");

@@ -1,0 +1,7 @@
+Name:Bone Rattle
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ ChangesZone | Origin$ Battlefield | Destination$ Graveyard | ValidCard$ Creature.YouCtrl | TriggerZones$ Command | ActivationLimit$ 1 | Execute$ TrigLoseLife | TriggerDescription$ Whenever a creature you control dies, each opponent loses 1 life. This ability triggers only once each turn.
+SVar:TrigLoseLife:DB$ LoseLife | Defined$ Player.Opponent | LifeAmount$ 1
+AI:RemoveDeck:All
+Oracle:Whenever a creature you control dies, each opponent loses 1 life. This ability triggers only once each turn.

@@ -342,6 +342,11 @@ public final class DeckImporter {
         int sideAt = -1;
         boolean anySection = false;
         boolean hasCommander = false;
+        // Con un encabezado del mazo ("Deck", "Main") el texto es de Arena o
+        // nuestro: su banquillo es un banquillo, aunque tenga una carta. La
+        // convencion de meter el comandante en el banquillo es la de Moxfield,
+        // que no lo pone (Discord, 05-11-2026: exportar con el banquillo).
+        boolean hasMain = false;
         for (int i = 0; i < lines.length; i++) {
             if (!DeckRecognizer.isDeckSectionName(lines[i].trim())) {
                 continue;
@@ -355,6 +360,8 @@ public final class DeckImporter {
                     .replaceAll("[^a-z]", "");
             if (word.contains("commander")) {
                 hasCommander = true;
+            } else if (word.equals("deck") || word.equals("main") || word.equals("maindeck")) {
+                hasMain = true;
             } else if (word.startsWith("side") || word.equals("sb")) {
                 sideAt = i;
             }
@@ -363,7 +370,7 @@ public final class DeckImporter {
             // El banquillo pasa a ser la zona de mando, y solo si es del tamanyo
             // de una: una carta, o dos si son pareja. Un banquillo de verdad
             // (sellado, draft) es mucho mas grande y se queda donde esta.
-            if (!hasCommander && sideAt >= 0 && cardLinesAfter(lines, sideAt) <= 2
+            if (!hasCommander && !hasMain && sideAt >= 0 && cardLinesAfter(lines, sideAt) <= 2
                     && cardLinesAfter(lines, sideAt) > 0) {
                 lines[sideAt] = "Commander";
                 keepCompanionInSideboard(lines, sideAt, newline);

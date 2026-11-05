@@ -99,21 +99,29 @@ public final class AscentRelics {
     private static final class Entry {
         private final AscentRelic.Rarity rarity;
         private final byte colors;
+        /** Maldita: fuerte, con un precio, y nunca para el rival (AscentRelic#isCursed). */
+        private final boolean cursed;
 
-        Entry(final AscentRelic.Rarity rarity, final byte colors) {
+        Entry(final AscentRelic.Rarity rarity, final byte colors, final boolean cursed) {
             this.rarity = rarity;
             this.colors = colors;
+            this.cursed = cursed;
         }
     }
 
     /** Atajo para las de siempre: rareza y ningun requisito de color. */
     private static void add(final String id, final AscentRelic.Rarity rarity) {
-        CATALOGUE.put(id, new Entry(rarity, COLOURLESS));
+        CATALOGUE.put(id, new Entry(rarity, COLOURLESS, false));
     }
 
     /** Una reliquia que solo se le ofrece a un mazo de esos colores. */
     private static void add(final String id, final AscentRelic.Rarity rarity, final byte colors) {
-        CATALOGUE.put(id, new Entry(rarity, colors));
+        CATALOGUE.put(id, new Entry(rarity, colors, false));
+    }
+
+    /** Una MALDITA: pega fuerte y cobra algo. Al rival no se le da nunca. */
+    private static void addCursed(final String id, final AscentRelic.Rarity rarity, final byte colors) {
+        CATALOGUE.put(id, new Entry(rarity, colors, true));
     }
 
     static {
@@ -264,6 +272,36 @@ public final class AscentRelics {
         add("predators_fang", AscentRelic.Rarity.BOSS, G);
         add("earthwaker_ring", AscentRelic.Rarity.BOSS, G);
         add("behemoth_bestiary", AscentRelic.Rarity.BOSS, G);
+
+        // ---- el lote del 05-11-2026 ----
+        //
+        // Lo que faltaba en el catalogo: rojo y negro eran los colores con
+        // menos (8 cada uno), y casi todo era para mazos de criaturas. Estas
+        // tapan hechizos, sacrificio, artefactos, contadores y voladores, y
+        // hay dos de tier bajo a proposito (Rusted Buckler, Cracked Lens):
+        // un roguelike necesita tambien premios flojos para que los buenos
+        // se noten.
+        add("kindlers_flint", AscentRelic.Rarity.COMMON, R);
+        add("bone_rattle", AscentRelic.Rarity.COMMON, B);
+        add("skyreef_shell", AscentRelic.Rarity.COMMON, U);
+        add("tinkers_gear", AscentRelic.Rarity.COMMON);
+        add("rusted_buckler", AscentRelic.Rarity.COMMON);
+        add("cracked_lens", AscentRelic.Rarity.COMMON);
+
+        add("firebrand_urn", AscentRelic.Rarity.RARE, R);
+        add("gamblers_die", AscentRelic.Rarity.RARE, R);
+        add("ghouls_lantern", AscentRelic.Rarity.RARE, B);
+        add("mossgrown_sigil", AscentRelic.Rarity.RARE, G);
+        add("gilded_gear", AscentRelic.Rarity.RARE);
+
+        // Las MALDITAS: mas fuertes que las de su rareza, con un precio que
+        // duele de verdad porque la vida se arrastra de combate en combate.
+        // Bloodsworn Blade es Crown of the Eternal (legendaria) por 1 vida
+        // cada turno; Hungering Skull es Phyrexian Arena. Al rival no se le
+        // dan (AscentBattle.relicsFor): son un trato que eliges tu.
+        addCursed("hungering_skull", AscentRelic.Rarity.RARE, B);
+        addCursed("glass_wings", AscentRelic.Rarity.RARE, COLOURLESS);
+        addCursed("bloodsworn_blade", AscentRelic.Rarity.BOSS, B);
     }
 
     /**
@@ -346,7 +384,7 @@ public final class AscentRelics {
                 FModel.getMagicDb().getCommonCards().addCard(card);
             }
             final AscentRelic relic = new AscentRelic(id, rules.getName(), e.getValue().rarity,
-                    rules.getOracleText(), e.getValue().colors);
+                    rules.getOracleText(), e.getValue().colors, e.getValue().cursed);
             LOADED.add(relic);
             BY_NAME.put(relic.getCardName(), relic);
         }
@@ -384,7 +422,7 @@ public final class AscentRelics {
             // JEFE, o sea que se ve en la mesa, y es justo la carta que hay que
             // poder leer: dice cuando y con que te va a rematar.
             BY_NAME.put(card.getName(), new AscentRelic(id, card.getName(),
-                    AscentRelic.Rarity.BOSS, rules.getOracleText(), COLOURLESS));
+                    AscentRelic.Rarity.BOSS, rules.getOracleText(), COLOURLESS, false));
         }
     }
 

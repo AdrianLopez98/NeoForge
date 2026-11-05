@@ -1,0 +1,7 @@
+Name:Cracked Lens
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ Shuffled | ValidPlayer$ You | TriggerZones$ Command | Execute$ Trig | TriggerDescription$ Whenever you shuffle your library, scry 1.
+SVar:Trig:DB$ Scry | Defined$ You | ScryNum$ 1
+AI:RemoveDeck:All
+Oracle:Whenever you shuffle your library, scry 1.

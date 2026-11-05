@@ -373,6 +373,11 @@ public class PlayerField extends Pane {
      * <p>Quien decide si se puede ver es la mesa, que es quien tiene el
      * {@code mayView} del motor. Aqui llega ya decidido: una carta, o nada.
      */
+    /** El monton de la biblioteca (solo el tuyo se ve): de ahi salen las que robas. */
+    public ZonePile libraryPile() {
+        return library;
+    }
+
     public void setLibrary(final int size, final CardView top) {
         library.setCount(size);
         library.setTopCard(top);

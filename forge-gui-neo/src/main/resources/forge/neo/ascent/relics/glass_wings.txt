@@ -1,0 +1,8 @@
+Name:Glass Wings
+ManaCost:no cost
+Types:Enchantment
+S:Mode$ Continuous | EffectZone$ Command | Affected$ Creature.YouCtrl | AddPower$ 2 | AddToughness$ 2 | Description$ Creatures you control get +2/+2.
+T:Mode$ ChangesZone | Origin$ Battlefield | Destination$ Graveyard | ValidCard$ Creature.YouCtrl | TriggerZones$ Command | Execute$ TrigLoseLife | TriggerDescription$ Whenever a creature you control dies, you lose 1 life.
+SVar:TrigLoseLife:DB$ LoseLife | Defined$ You | LifeAmount$ 1
+AI:RemoveDeck:All
+Oracle:Creatures you control get +2/+2. Whenever a creature you control dies, you lose 1 life.

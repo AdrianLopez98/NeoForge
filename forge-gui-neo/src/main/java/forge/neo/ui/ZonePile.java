@@ -100,6 +100,39 @@ public class ZonePile extends VBox {
      * que cambia es que la de arriba esta destapada, que es justo lo que pasa
      * en la mesa de verdad.
      */
+    /**
+     * <b>El dorso de una carta de este monton</b>, sin el numero ni la carta
+     * destapada: la funda si la hay, si no el dorso de siempre. Es de donde
+     * sale la carta que se roba ({@code TableScreen.flyDraw}). null si aun no
+     * se ha pintado.
+     */
+    public javafx.scene.image.Image backSnapshot() {
+        if (pile.getScene() == null || back.getWidth() <= 0) {
+            return null;
+        }
+        final boolean countWas = count.isVisible();
+        final boolean topWas = top != null && top.isVisible();
+        final boolean backWas = back.isVisible();
+        count.setVisible(false);
+        if (top != null) {
+            top.setVisible(false);
+        }
+        back.setVisible(true);
+        try {
+            final javafx.scene.SnapshotParameters params = new javafx.scene.SnapshotParameters();
+            params.setFill(Color.TRANSPARENT);
+            return pile.snapshot(params, null);
+        } catch (final RuntimeException e) {
+            return null;
+        } finally {
+            count.setVisible(countWas);
+            back.setVisible(backWas);
+            if (top != null) {
+                top.setVisible(topWas);
+            }
+        }
+    }
+
     public void setTopCard(final forge.game.card.CardView card) {
         if (card == null) {
             if (top != null) {

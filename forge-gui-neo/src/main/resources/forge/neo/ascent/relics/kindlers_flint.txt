@@ -1,0 +1,7 @@
+Name:Kindler's Flint
+ManaCost:no cost
+Types:Enchantment
+T:Mode$ SpellCast | ValidCard$ Instant,Sorcery | ValidActivatingPlayer$ You | TriggerZones$ Command | ActivationLimit$ 1 | Execute$ TrigDamage | TriggerDescription$ Whenever you cast an instant or sorcery spell, CARDNAME deals 1 damage to each opponent. This ability triggers only once each turn.
+SVar:TrigDamage:DB$ DealDamage | Defined$ Player.Opponent | NumDmg$ 1
+AI:RemoveDeck:All
+Oracle:Whenever you cast an instant or sorcery spell, Kindler's Flint deals 1 damage to each opponent. This ability triggers only once each turn.

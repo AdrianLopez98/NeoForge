@@ -291,7 +291,95 @@ public enum CommanderSignature {
     /** Magda, Brazen Outlaw: el hacha y los tesoros. */
     MAGDA_TREASURE,
     /** Obeka, Splitter of Seconds: el reloj y el tiempo partido. */
-    OBEKA_CLOCK;
+    OBEKA_CLOCK,
+
+    // La duodecima tanda de EDHREC (05-11-2026).
+    /** Marneus Calgar: los escudos de sus Astartes que se multiplican. */
+    MARNEUS_ASTARTES,
+    /** Zinnia, Valley's Voice: el canto que se multiplica (offspring) y sus plumas. */
+    ZINNIA_SONG,
+    /** Sidar Jabari of Zhalfir: los tajos del caballero volador. */
+    SIDAR_KNIGHT,
+    /** Deadpool, Trading Card: las katanas, las cartas y los corazones. */
+    DEADPOOL_CARDS,
+    /** Ezio Auditore da Firenze: el salto de fe, la hoja oculta y el humo. */
+    EZIO_LEAP,
+    /** Mendicant Core, Guidelight: la velocidad (Start your engines!). */
+    MENDICANT_SPEED,
+    /** Etali, Primal Conqueror: rocas, fuego y el dinosaurio primigenio. */
+    ETALI_PRIMAL,
+    /** Galadriel, Light of Valinor: la luz de la estrella y las hojas de oro. */
+    GALADRIEL_LIGHT,
+    /** Urza, Chief Artificer: los engranajes de sus constructos. */
+    URZA_ARTIFICE,
+    /** Kynaios and Tiro of Meletis: el sol de Theros y las cartas para todos. */
+    KYNAIOS_GIFTS,
+
+    // La decimotercera tanda de EDHREC (05-11-2026).
+    /** Morophon, the Boundless: los cinco colores girando (es de todos los tipos). */
+    MOROPHON_ALL,
+    /** Fynn, the Fangbearer: los colmillos y el veneno. */
+    FYNN_VENOM,
+    /** Tifa Lockhart: el punyetazo al suelo y la fuerza que se duplica. */
+    TIFA_FISTS,
+    /** Zada, Hedron Grinder: el hechizo que se copia en cada duende. */
+    ZADA_COPIES,
+    /** Tovolar, Dire Overlord: la luna y los zarpazos del lobo. */
+    TOVOLAR_MOON,
+    /** Captain America, First Avenger: el escudo lanzado. */
+    CAPTAIN_SHIELD,
+    /** Iroh, Grand Lotus: el loto, el fuego y el te. */
+    IROH_LOTUS,
+    /** Storm, Force of Nature: los rayos y la lluvia. */
+    STORM_WEATHER,
+    /** Be'lakor, the Dark Master: el fuego oscuro y los murcielagos. */
+    BELAKOR_DARK,
+    /** Eowyn, Shieldmaiden: el tajo de la doncella escudera. */
+    EOWYN_BLADE,
+
+    // La decimocuarta tanda de EDHREC (05-11-2026).
+    /** Brago, King Eternal: la corona y lo que parpadea. */
+    BRAGO_BLINK,
+    /** Lord of the Nazgul: los nueve anillos y la sombra. */
+    NAZGUL_RINGS,
+    /** Eshki, Temur's Roar: los zarpazos y el fuego del dragon. */
+    ESHKI_ROAR,
+    /** Magus Lucea Kane: lo que se copia (los hechizos con X). */
+    LUCEA_COPIES,
+    /** Aminatou, Veil Piercer: el ojo que atraviesa el velo. */
+    AMINATOU_VEIL,
+    /** Kibo, Uktabi Prince: la fruta y el mono. */
+    KIBO_FRUIT,
+    /** Inalla, Archmage Ritualist: los magos que se copian. */
+    INALLA_WIZARDS,
+    /** Satya, Aetherflux Genius: la energia y el eter. */
+    SATYA_AETHER,
+    /** Zimone, Mystery Unraveler: las cartas boca abajo y lo que brota. */
+    ZIMONE_MYSTERY,
+    /** Jace, Multiverse Architect: los planos que giran. */
+    JACE_MULTIVERSE,
+
+    // La decimoquinta tanda de EDHREC (05-11-2026).
+    /** Cosmic Spider-Man: el poder cosmico y los cinco colores. */
+    SPIDER_COSMIC,
+    /** Winota, Joiner of Forces: los escudos que llegan y el tajo. */
+    WINOTA_FORCES,
+    /** Satoru Umezawa: los shuriken y el humo del ninjutsu. */
+    SATORU_NINJA,
+    /** The Scarab God: los escarabajos y las almas que vuelven. */
+    SCARAB_GOD,
+    /** Eluge, the Shoreless Sea: la inundacion. */
+    ELUGE_FLOOD,
+    /** Marrow-Gnawer: las ratas que se multiplican. */
+    MARROW_RATS,
+    /** Kykar, Wind's Fury: el viento, las plumas y los espiritus. */
+    KYKAR_WIND,
+    /** Inspirit, Flagship Vessel: los engranajes y la estacion que se carga. */
+    INSPIRIT_STATION,
+    /** Temmet, Naktamun's Will: el sol de Amonkhet y los zombis que se alzan. */
+    TEMMET_EMBALM,
+    /** Omnath, Locus of All: el mana de los cinco colores que se cierra sobre el. */
+    OMNATH_ALL;
 
     /**
      * Su coreografia, para una pantalla de ese tamanyo; null en {@link #NONE}.
@@ -529,6 +617,86 @@ public enum CommanderSignature {
                 return LayeredSignature.magda(width, height);
             case OBEKA_CLOCK:
                 return LayeredSignature.obeka(width, height);
+            case MARNEUS_ASTARTES:
+                return LayeredSignature.marneus(width, height);
+            case ZINNIA_SONG:
+                return LayeredSignature.zinnia(width, height);
+            case SIDAR_KNIGHT:
+                return LayeredSignature.sidar(width, height);
+            case DEADPOOL_CARDS:
+                return LayeredSignature.deadpool(width, height);
+            case EZIO_LEAP:
+                return LayeredSignature.ezio(width, height);
+            case MENDICANT_SPEED:
+                return LayeredSignature.mendicant(width, height);
+            case ETALI_PRIMAL:
+                return LayeredSignature.etali(width, height);
+            case GALADRIEL_LIGHT:
+                return LayeredSignature.galadriel(width, height);
+            case URZA_ARTIFICE:
+                return LayeredSignature.urzaChief(width, height);
+            case KYNAIOS_GIFTS:
+                return LayeredSignature.kynaios(width, height);
+            case MOROPHON_ALL:
+                return LayeredSignature.morophon(width, height);
+            case FYNN_VENOM:
+                return LayeredSignature.fynn(width, height);
+            case TIFA_FISTS:
+                return LayeredSignature.tifa(width, height);
+            case ZADA_COPIES:
+                return LayeredSignature.zada(width, height);
+            case TOVOLAR_MOON:
+                return LayeredSignature.tovolar(width, height);
+            case CAPTAIN_SHIELD:
+                return LayeredSignature.captainAmerica(width, height);
+            case IROH_LOTUS:
+                return LayeredSignature.iroh(width, height);
+            case STORM_WEATHER:
+                return LayeredSignature.storm(width, height);
+            case BELAKOR_DARK:
+                return LayeredSignature.belakor(width, height);
+            case EOWYN_BLADE:
+                return LayeredSignature.eowyn(width, height);
+            case BRAGO_BLINK:
+                return LayeredSignature.brago(width, height);
+            case NAZGUL_RINGS:
+                return LayeredSignature.nazgul(width, height);
+            case ESHKI_ROAR:
+                return LayeredSignature.eshki(width, height);
+            case LUCEA_COPIES:
+                return LayeredSignature.lucea(width, height);
+            case AMINATOU_VEIL:
+                return LayeredSignature.aminatou(width, height);
+            case KIBO_FRUIT:
+                return LayeredSignature.kibo(width, height);
+            case INALLA_WIZARDS:
+                return LayeredSignature.inalla(width, height);
+            case SATYA_AETHER:
+                return LayeredSignature.satya(width, height);
+            case ZIMONE_MYSTERY:
+                return LayeredSignature.zimone(width, height);
+            case JACE_MULTIVERSE:
+                return LayeredSignature.jaceArchitect(width, height);
+            case SPIDER_COSMIC:
+                return LayeredSignature.cosmicSpider(width, height);
+            case WINOTA_FORCES:
+                return LayeredSignature.winota(width, height);
+            case SATORU_NINJA:
+                return LayeredSignature.satoru(width, height);
+            case SCARAB_GOD:
+                return LayeredSignature.scarabGod(width, height);
+            case ELUGE_FLOOD:
+                return LayeredSignature.eluge(width, height);
+            case MARROW_RATS:
+                return LayeredSignature.marrowGnawer(width, height);
+            case KYKAR_WIND:
+                return LayeredSignature.kykar(width, height);
+            case INSPIRIT_STATION:
+                return LayeredSignature.inspirit(width, height);
+            case TEMMET_EMBALM:
+                return LayeredSignature.temmet(width, height);
+            case OMNATH_ALL:
+                return LayeredSignature.omnathAll(width, height);
             default:
                 return null;
         }
@@ -685,6 +853,52 @@ public enum CommanderSignature {
         put(ALELA_FAERIES, "Alela, Cunning Conqueror");
         put(MAGDA_TREASURE, "Magda, Brazen Outlaw");
         put(OBEKA_CLOCK, "Obeka, Splitter of Seconds");
+        // La duodecima tanda de EDHREC (05-11-2026), y Alela, Artful Provocateur
+        // con las hadas de la otra Alela: es la misma, y tambien hace hadas.
+        put(ALELA_FAERIES, "Alela, Artful Provocateur");
+        put(MARNEUS_ASTARTES, "Marneus Calgar");
+        put(ZINNIA_SONG, "Zinnia, Valley's Voice");
+        put(SIDAR_KNIGHT, "Sidar Jabari of Zhalfir");
+        put(DEADPOOL_CARDS, "Deadpool, Trading Card");
+        put(EZIO_LEAP, "Ezio Auditore da Firenze");
+        put(MENDICANT_SPEED, "Mendicant Core, Guidelight");
+        put(ETALI_PRIMAL, "Etali, Primal Conqueror", "Etali, Primal Sickness");
+        put(GALADRIEL_LIGHT, "Galadriel, Light of Valinor");
+        put(URZA_ARTIFICE, "Urza, Chief Artificer");
+        put(KYNAIOS_GIFTS, "Kynaios and Tiro of Meletis");
+        // La decimotercera tanda de EDHREC (05-11-2026).
+        put(MOROPHON_ALL, "Morophon, the Boundless");
+        put(FYNN_VENOM, "Fynn, the Fangbearer");
+        put(TIFA_FISTS, "Tifa Lockhart");
+        put(ZADA_COPIES, "Zada, Hedron Grinder");
+        put(TOVOLAR_MOON, "Tovolar, Dire Overlord", "Tovolar, the Midnight Scourge");
+        put(CAPTAIN_SHIELD, "Captain America, First Avenger");
+        put(IROH_LOTUS, "Iroh, Grand Lotus");
+        put(STORM_WEATHER, "Storm, Force of Nature");
+        put(BELAKOR_DARK, "Be'lakor, the Dark Master");
+        put(EOWYN_BLADE, "\u00C9owyn, Shieldmaiden");
+        // La decimocuarta tanda de EDHREC (05-11-2026).
+        put(BRAGO_BLINK, "Brago, King Eternal");
+        put(NAZGUL_RINGS, "Lord of the Nazg\u00FBl");
+        put(ESHKI_ROAR, "Eshki, Temur's Roar");
+        put(LUCEA_COPIES, "Magus Lucea Kane");
+        put(AMINATOU_VEIL, "Aminatou, Veil Piercer");
+        put(KIBO_FRUIT, "Kibo, Uktabi Prince");
+        put(INALLA_WIZARDS, "Inalla, Archmage Ritualist");
+        put(SATYA_AETHER, "Satya, Aetherflux Genius");
+        put(ZIMONE_MYSTERY, "Zimone, Mystery Unraveler");
+        put(JACE_MULTIVERSE, "Jace, Multiverse Architect");
+        // La decimoquinta tanda de EDHREC (05-11-2026).
+        put(SPIDER_COSMIC, "Cosmic Spider-Man");
+        put(WINOTA_FORCES, "Winota, Joiner of Forces");
+        put(SATORU_NINJA, "Satoru Umezawa");
+        put(SCARAB_GOD, "The Scarab God");
+        put(ELUGE_FLOOD, "Eluge, the Shoreless Sea");
+        put(MARROW_RATS, "Marrow-Gnawer");
+        put(KYKAR_WIND, "Kykar, Wind's Fury");
+        put(INSPIRIT_STATION, "Inspirit, Flagship Vessel");
+        put(TEMMET_EMBALM, "Temmet, Naktamun's Will");
+        put(OMNATH_ALL, "Omnath, Locus of All");
     }
 
     private static void put(final CommanderSignature signature, final String... names) {

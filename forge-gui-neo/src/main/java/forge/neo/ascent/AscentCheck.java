@@ -2364,6 +2364,26 @@ public final class AscentCheck {
                 prohibidas.add(c.getName());
             }
         }
+        // Y las MALDITAS (05-11-2026): un trato que eliges tu, no un premio
+        // para el rival. Glass Wings es incolora y no roba, o sea que sin su
+        // marca SI pasaria el filtro: es la que hace que esto mire algo.
+        final List<String> malditas = new ArrayList<>();
+        for (final AscentRelic r : AscentRelics.all()) {
+            if (r.isCursed()) {
+                malditas.add(r.getId());
+                final PaperCard c = AscentRelics.cardOf(r);
+                if (c != null) {
+                    prohibidas.add(c.getName());
+                }
+            }
+        }
+        if (malditas.isEmpty()) {
+            fail("ia: ninguna reliquia del catalogo esta marcada como maldita — o se ha perdido"
+                    + " la marca (AscentRelics.addCursed)");
+        } else {
+            ok("ia: " + malditas.size() + " reliquias malditas, que tampoco van al rival "
+                    + malditas);
+        }
         final AscentRun run = demoRun(AscentRun.Mode.STANDARD);
         if (run == null) {
             fail("ia: no se ha podido montar la run de prueba");
@@ -2393,10 +2413,10 @@ public final class AscentCheck {
                         + " y los jefes se han quedado sin ellas");
             } else if (coladas.isEmpty()) {
                 ok("ia: en " + miradas + " reliquias repartidas al rival por tres actos no se"
-                        + " ha colado ninguna de las que llenan la mano");
+                        + " ha colado ninguna de las que llenan la mano ni de las malditas");
             } else {
-                fail("ia: se han colado " + coladas.size() + " reliquias de robar en el asiento"
-                        + " del rival: " + coladas);
+                fail("ia: se han colado " + coladas.size() + " reliquias de robar o malditas en"
+                        + " el asiento del rival: " + coladas);
             }
             // Y que quede pozo de sobra: filtrar no puede dejar al jefe sin nada.
             if (AscentRelics.all().size() - roban.size() >= 20) {

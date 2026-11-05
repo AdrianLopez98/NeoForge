@@ -3100,7 +3100,8 @@ public class TableScreen extends Pane {
      * encadenados eso es lo que hacia el panel ilegible.
      */
     private static String effectText(final StackItemView item) {
-        String text = item.getText();
+        // "gains hidden cardname can't attack." de Edifice of Authority: ver EngineText.
+        String text = forge.neo.match.EngineText.stackText(item.getText());
         if (text == null) {
             return "";
         }
@@ -4458,6 +4459,148 @@ public class TableScreen extends Pane {
             flyCard(n, from);
         });
         wait.play();
+    }
+
+    /** Cuando puede salir el siguiente vuelo de una carta robada (ms, reloj de sistema). */
+    private long nextDrawSlot;
+
+    /** Entre dos cartas robadas seguidas (la mano inicial, un Wheel). */
+    private static final int DRAW_GAP = 110;
+
+    /**
+     * <b>La carta que robas vuela de tu biblioteca a la mano</b> (Discord,
+     * 04-11-2026: <i>"an animation of the card coming from the library to the
+     * hand, just like arena"</i>). Sale boca abajo del monton de la biblioteca,
+     * se da la vuelta a medio camino y llega a su hueco del abanico, con su
+     * inclinacion. Varias seguidas salen en cascada, una cada {@link #DRAW_GAP}
+     * ms. Va con las animaciones, como {@link #flyIn}: el motor no la espera,
+     * es solo pintura.
+     */
+    public void flyDraw(final CardView card) {
+        if (card == null || !CardNode.areAnimationsEnabled()) {
+            return;
+        }
+        final ZonePile pile = selfField.libraryPile();
+        if (pile == null || pile.getScene() == null || !pile.isVisible() || pile.getWidth() <= 0) {
+            return;
+        }
+        final javafx.geometry.Bounds from = pile.localToScene(pile.getBoundsInLocal());
+        final javafx.scene.image.Image back = pile.backSnapshot();
+        final long now = System.currentTimeMillis();
+        final long start = Math.max(now, nextDrawSlot);
+        nextDrawSlot = start + DRAW_GAP;
+        flyDrawLater(card, from, back, start, 0);
+    }
+
+    private void flyDrawLater(final CardView card, final javafx.geometry.Bounds from,
+            final javafx.scene.image.Image back, final long start, final int attempt) {
+        final javafx.animation.PauseTransition wait =
+                new javafx.animation.PauseTransition(javafx.util.Duration.millis(attempt == 0 ? 20 : 60));
+        wait.setOnFinished(e -> {
+            final CardNode n = nodeOf(card);
+            if (n == null || n.getScene() == null || n.getWidth() <= 0 || !hand.getCards().contains(n)) {
+                // Hasta ~0,7 s: lo que no aparece en ese rato no vuela.
+                if (attempt < 12) {
+                    flyDrawLater(card, from, back, start, attempt + 1);
+                }
+                return;
+            }
+            // Escondida desde ya: si no, se veria en la mano mientras espera su turno.
+            n.setOpacity(0);
+            final long left = start - System.currentTimeMillis();
+            if (left > 15) {
+                final javafx.animation.PauseTransition turn =
+                        new javafx.animation.PauseTransition(javafx.util.Duration.millis(left));
+                turn.setOnFinished(x -> flyDrawCard(n, from, back));
+                turn.play();
+            } else {
+                flyDrawCard(n, from, back);
+            }
+        });
+        wait.play();
+    }
+
+    /** El vuelo en si: dorso hasta la mitad, cara despues, y la inclinacion del abanico. */
+    private void flyDrawCard(final CardNode n, final javafx.geometry.Bounds fromScene,
+            final javafx.scene.image.Image back) {
+        if (n.getScene() == null || !hand.getCards().contains(n)) {
+            n.setOpacity(1);
+            return;
+        }
+        applyCss();
+        layout();
+        // El sitio de llegada sin la rotacion: centro de la carta y su ancho de
+        // verdad (los limites de una carta inclinada son mas anchos que ella).
+        final javafx.geometry.Point2D c0 = n.localToScene(n.getWidth() / 2, n.getHeight() / 2);
+        final javafx.geometry.Point2D c1 = n.localToScene(n.getWidth(), n.getHeight() / 2);
+        final javafx.geometry.Point2D centreL = impactLayer.sceneToLocal(c0);
+        final javafx.geometry.Point2D edgeL = impactLayer.sceneToLocal(c1);
+        final javafx.geometry.Bounds fromL = impactLayer.sceneToLocal(fromScene);
+        if (centreL == null || edgeL == null || fromL == null) {
+            n.setOpacity(1);
+            return;
+        }
+        final double w = 2 * centreL.distance(edgeL);
+        final double h = w * n.getHeight() / Math.max(1, n.getWidth());
+        final javafx.scene.SnapshotParameters params = new javafx.scene.SnapshotParameters();
+        params.setFill(javafx.scene.paint.Color.TRANSPARENT);
+        final double rotate = n.getRotate();
+        final javafx.scene.image.Image face;
+        n.setRotate(0);
+        n.setOpacity(1);
+        try {
+            face = n.snapshot(params, null);
+        } catch (final RuntimeException e) {
+            return;
+        } finally {
+            n.setRotate(rotate);
+        }
+        n.setOpacity(0);
+        final javafx.scene.image.ImageView ghost = new javafx.scene.image.ImageView(back != null ? back : face);
+        ghost.setMouseTransparent(true);
+        ghost.setManaged(false);
+        ghost.setFitWidth(w);
+        ghost.setFitHeight(h);
+        ghost.relocate(centreL.getX() - w / 2, centreL.getY() - h / 2);
+        final double s0 = fromL.getWidth() / w;
+        final double dx = fromL.getCenterX() - centreL.getX();
+        final double dy = fromL.getCenterY() - centreL.getY();
+        ghost.setTranslateX(dx);
+        ghost.setTranslateY(dy);
+        ghost.setScaleX(s0);
+        ghost.setScaleY(s0);
+        ghost.setEffect(new javafx.scene.effect.DropShadow(14, javafx.scene.paint.Color.rgb(0, 0, 0, 0.6)));
+        impactLayer.getChildren().add(ghost);
+        // -Dneo.drawFlyMs: mas lento, para capturarlo a medias (la guía de pruebas).
+        final javafx.util.Duration d = javafx.util.Duration.millis(Integer.getInteger("neo.drawFlyMs", 300));
+        final javafx.util.Duration half = d.multiply(0.45);
+        final double mid = (s0 + 1) / 2;
+        final javafx.animation.Interpolator io = javafx.animation.Interpolator.EASE_BOTH;
+        final javafx.animation.Timeline t = new javafx.animation.Timeline(
+                new javafx.animation.KeyFrame(javafx.util.Duration.ZERO,
+                        new javafx.animation.KeyValue(ghost.translateXProperty(), dx),
+                        new javafx.animation.KeyValue(ghost.translateYProperty(), dy),
+                        new javafx.animation.KeyValue(ghost.scaleXProperty(), s0),
+                        new javafx.animation.KeyValue(ghost.scaleYProperty(), s0),
+                        new javafx.animation.KeyValue(ghost.rotateProperty(), 0)),
+                // A media vuelta la carta esta de canto: ahi el dorso pasa a ser la cara.
+                new javafx.animation.KeyFrame(half, x -> ghost.setImage(face),
+                        new javafx.animation.KeyValue(ghost.scaleXProperty(), 0, javafx.animation.Interpolator.EASE_IN),
+                        new javafx.animation.KeyValue(ghost.scaleYProperty(), mid, io)),
+                new javafx.animation.KeyFrame(d,
+                        new javafx.animation.KeyValue(ghost.translateXProperty(), 0, io),
+                        new javafx.animation.KeyValue(ghost.translateYProperty(), 0, io),
+                        new javafx.animation.KeyValue(ghost.scaleXProperty(), 1, javafx.animation.Interpolator.EASE_OUT),
+                        new javafx.animation.KeyValue(ghost.scaleYProperty(), 1, io),
+                        new javafx.animation.KeyValue(ghost.rotateProperty(), rotate, io)));
+        t.setOnFinished(e -> {
+            impactLayer.getChildren().remove(ghost);
+            n.setOpacity(1);
+        });
+        if (Boolean.getBoolean("neo.impact.log")) {
+            System.out.println("[robo] vuela " + (n.getCard() == null ? "?" : n.getCard().getName()));
+        }
+        t.play();
     }
 
     /** De donde sale el vuelo, como un rectangulo de carta pequenya en la escena. */

@@ -3271,6 +3271,34 @@ public final class DeckEditor {
      * comandante al final tras una linea en blanco.
      */
     public String toText() {
+        // CON EL BANQUILLO (Discord, 05-11-2026: "when exporting a deck, it
+        // doesnt export the sideboard"). Entonces con encabezados, como Arena:
+        // Commander / Deck / Sideboard, que leen Moxfield, Arena y nuestro
+        // importador sin confundir un banquillo corto con el comandante (ver
+        // DeckImporter.withSectionHeaders). Sin banquillo, como siempre.
+        final List<Map.Entry<PaperCard, Integer>> side = sideboardForExport();
+        if (!side.isEmpty()) {
+            final StringBuilder sb = new StringBuilder();
+            final List<PaperCard> cmd = commanders();
+            if (!cmd.isEmpty()) {
+                sb.append("Commander\n");
+                for (final PaperCard c : cmd) {
+                    sb.append("1 ").append(c.getName()).append('\n');
+                }
+                sb.append('\n');
+            }
+            sb.append("Deck\n");
+            for (final String group : GROUPS) {
+                for (final Map.Entry<PaperCard, Integer> e : cardsInGroup(group)) {
+                    sb.append(e.getValue()).append(' ').append(e.getKey().getName()).append('\n');
+                }
+            }
+            sb.append("\nSideboard\n");
+            for (final Map.Entry<PaperCard, Integer> e : side) {
+                sb.append(e.getValue()).append(' ').append(e.getKey().getName()).append('\n');
+            }
+            return sb.toString();
+        }
         final StringBuilder sb = new StringBuilder();
         for (final String group : GROUPS) {
             for (final Map.Entry<PaperCard, Integer> e : cardsInGroup(group)) {
@@ -3285,5 +3313,22 @@ public final class DeckEditor {
             }
         }
         return sb.toString();
+    }
+
+    /**
+     * El banquillo que se exporta: el entero, companero incluido (es donde lo
+     * busca el motor), por nombre. Vacio en limitado: ahi el banquillo es el
+     * pozo, no parte del mazo.
+     */
+    private List<Map.Entry<PaperCard, Integer>> sideboardForExport() {
+        final List<Map.Entry<PaperCard, Integer>> out = new ArrayList<>();
+        if (format.poolInSideboard() || !deck.has(DeckSection.Sideboard)) {
+            return out;
+        }
+        for (final Map.Entry<PaperCard, Integer> e : deck.get(DeckSection.Sideboard)) {
+            out.add(new java.util.AbstractMap.SimpleEntry<>(e.getKey(), e.getValue()));
+        }
+        out.sort(java.util.Comparator.comparing(e -> e.getKey().getName()));
+        return out;
     }
 }

@@ -52,8 +52,12 @@ public final class ChosenValues {
         }
         final List<Entry> out = new ArrayList<>();
         try {
-            add(out, Kind.TYPE, card.getChosenType());
-            add(out, Kind.TYPE, card.getChosenType2());
+            if (!expiredType(card, card.getChosenType())) {
+                add(out, Kind.TYPE, card.getChosenType());
+            }
+            if (!expiredType(card, card.getChosenType2())) {
+                add(out, Kind.TYPE, card.getChosenType2());
+            }
             final List<String> colors = card.getChosenColors();
             if (colors != null && !colors.isEmpty()) {
                 final StringBuilder sb = new StringBuilder();
@@ -153,6 +157,49 @@ public final class ChosenValues {
         }
         names.add(chosen.getName());
         return String.join(", ", names);
+    }
+
+    /** "...gains landwalk of the chosen type until end of turn" / "until the end of that turn". */
+    private static final java.util.regex.Pattern UNTIL_EOT = java.util.regex.Pattern.compile(
+            "of the chosen type until (the )?end of (that )?turn", java.util.regex.Pattern.CASE_INSENSITIVE);
+
+    /**
+     * Si el tipo elegido ya NO vale: era para un landwalk de un turno y la
+     * carta ya no lo tiene.
+     *
+     * <p>Discord, 05-11-2026: Giant Slug seguia con la etiqueta "Swamp" turnos
+     * despues de que se le acabara el swampwalk, y el jugador ataco creyendo
+     * que no se le podia bloquear. El motor no borra el tipo elegido nunca
+     * (sigue en el {@code CardView}); lo que caduca es la palabra clave. Asi
+     * que en las cartas cuyo texto dice que el tipo se gana <i>hasta el final
+     * del turno</i> (Giant Slug, Illusionary Presence, Barbarian Guides), el
+     * tipo solo se ensenya mientras la carta tenga un landwalk de ese tipo. Las
+     * demas (Cavern of Souls, Camato Scout, Traveler's Cloak) no cambian.
+     */
+    static boolean expiredType(final CardView card, final String type) {
+        if (type == null || type.trim().isEmpty()) {
+            return false;
+        }
+        try {
+            final CardView.CardStateView state = card.getCurrentState();
+            final String oracle = state == null ? null : state.getOracleText();
+            if (oracle == null || !UNTIL_EOT.matcher(oracle).find()) {
+                return false;
+            }
+            final String want = type.trim().toLowerCase(java.util.Locale.ROOT);
+            final forge.game.keyword.KeywordCollectionView kws = state.getKeywords();
+            if (kws != null) {
+                for (final forge.game.keyword.KeywordView k : kws.getValues(forge.game.keyword.Keyword.LANDWALK)) {
+                    final String o = k.original();
+                    if (o != null && o.toLowerCase(java.util.Locale.ROOT).contains(want)) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        } catch (final RuntimeException e) {
+            return false;
+        }
     }
 
     private static void add(final List<Entry> out, final Kind kind, final String value) {
