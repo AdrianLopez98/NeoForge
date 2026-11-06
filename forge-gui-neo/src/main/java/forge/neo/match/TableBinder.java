@@ -569,6 +569,17 @@ public class TableBinder {
     private final java.util.Map<String, java.util.Optional<javafx.scene.image.Image>> customFaces =
             new java.util.HashMap<>();
 
+    /** Las fundas importadas de los rivales, ya leidas: una por partida, como las caras. */
+    private final java.util.Map<String, java.util.Optional<javafx.scene.image.Image>> customSleeves =
+            new java.util.HashMap<>();
+
+    private javafx.scene.image.Image customSleeve(final String id) {
+        return customSleeves.computeIfAbsent(id, k -> {
+            final forge.neo.look.LookItem item = forge.neo.look.NeoLook.sleeveById(k);
+            return java.util.Optional.ofNullable(item == null ? null : item.image());
+        }).orElse(null);
+    }
+
     private javafx.scene.image.Image customFace(final String id) {
         return customFaces.computeIfAbsent(id, k -> {
             final forge.neo.look.LookItem item = forge.neo.look.NeoLook.avatarById(k);
@@ -590,6 +601,15 @@ public class TableBinder {
                 // La del MAZO con el que juegas, si lleva una; si no, la tuya
                 // de Personalizar. Ver NeoLook.sleeveInPlay().
                 return forge.neo.look.NeoLook.sleeveInPlay().image();
+            }
+            // Un rival con una funda importada (Personalizar -> Rivales): como
+            // su cara, el motor no sabe de ella y se busca por nombre.
+            final String custom = forge.neo.look.NeoPlayers.customSleeveOf(p.getName());
+            if (custom != null) {
+                final javafx.scene.image.Image image = customSleeve(custom);
+                if (image != null) {
+                    return image;
+                }
             }
             return forge.neo.look.NeoLook.builtInSleeve(p.getSleeveIndex()).image();
         } catch (final RuntimeException e) {
@@ -904,6 +924,10 @@ public class TableBinder {
         // Y si es el monarca o tiene la iniciativa: del rival no se veia (ver
         // PlayerBar.setTitles).
         bar.setTitles(PlayerTitles.of(p));
+        bar.setProtection(PlayerShield.of(p));
+        if (Boolean.getBoolean("neo.shield.debug")) {
+            System.out.println("[escudo] " + p.getName() + " palabras=" + p.getKeywords() + " -> " + PlayerShield.of(p));
+        }
         // Y cuantas ha robado este turno, si mas de una (Orcish Bowmasters y
         // compania: ver PlayerBar.setDrawnThisTurn).
         bar.setDrawnThisTurn(drawnThisTurn(p));

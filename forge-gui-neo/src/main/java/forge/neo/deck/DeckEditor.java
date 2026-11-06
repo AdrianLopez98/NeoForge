@@ -819,6 +819,14 @@ public final class DeckEditor {
      * @return cuantas cartas ha metido, o -1 si no hay comandante o el motor
      *         no ha podido generar nada
      */
+    /**
+     * Lo que devuelve {@link #generateForCommander} cuando HAY comandante pero
+     * el generador del motor no da mazo (Discord, 06-11-2026: con Nick Fury,
+     * Agent of S.H.I.E.L.D. el aviso decia "elige antes un comandante" con el
+     * comandante puesto). -1 sigue siendo "no hay comandante".
+     */
+    public static final int GENERATOR_FAILED = -2;
+
     public int generateForCommander() {
         // mainCommander() y no commanders().get(0): en Oathbreaker el hechizo
         // insignia esta en la misma zona y puede salir el primero, y generar el
@@ -827,7 +835,7 @@ public final class DeckEditor {
         if (head == null) {
             return -1;
         }
-        final Deck generated;
+        Deck generated;
         try {
             if (GeneratedDecks.picksItsOwnPartner(head, deckFormat())) {
                 // Fuera de Oathbreaker, head es commanders().get(0): el
@@ -840,10 +848,27 @@ public final class DeckEditor {
                         head, deckFormat(), false, true);
             }
         } catch (final RuntimeException e) {
-            return -1;
+            // El generador "por cartas" busca al comandante en la matriz de
+            // cartas que van juntas, que sale de mazos reales: una carta recien
+            // llegada no esta, y DeckgenUtil hace new ArrayList(null) (Discord,
+            // 06-11-2026, Nick Fury, Agent of S.H.I.E.L.D.). No se toca el
+            // motor: se le pide el mazo por colores, el de siempre de Forge.
+            System.err.println("[generar] sin datos de " + head.getName() + " (" + e
+                    + "): mazo por colores");
+            generated = null;
         }
         if (generated == null) {
-            return -1;
+            try {
+                generated = forge.deck.DeckgenUtil.generateRandomCommanderDeck(
+                        head, deckFormat(), false, false);
+            } catch (final RuntimeException e) {
+                System.err.println("[generar] el motor no ha podido con " + head.getName() + ": " + e);
+                return GENERATOR_FAILED;
+            }
+        }
+        if (generated == null) {
+            System.err.println("[generar] el motor no ha devuelto mazo para " + head.getName());
+            return GENERATOR_FAILED;
         }
         // Sin Gleemox (DeckLimit:0) y sin lo que el jugador ya tiene fuera del
         // principal: el generador solo conoce el comandante, asi que el

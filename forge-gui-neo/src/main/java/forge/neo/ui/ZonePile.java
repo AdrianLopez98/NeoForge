@@ -48,7 +48,8 @@ public class ZonePile extends VBox {
         setSpacing(2);
         setOnMouseClicked(e -> {
             // Solo el boton izquierdo: el derecho es "ampliar la carta" en toda
-            // la mesa y aqui no hay ninguna que ampliar.
+            // la mesa. Si la pila ensenya su carta de arriba, el derecho amplia
+            // ESA (lo hace TableScreen, que es quien abre la carta grande).
             if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY && onClick != null) {
                 e.consume();
                 onClick.run();

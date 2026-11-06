@@ -638,7 +638,11 @@ public class QuestScreen extends StackPane {
                     ? NeoText.get("quest.duelReward.surprise")
                     : NeoText.get("quest.duelReward", credits));
             reward.getStyleClass().add("duel-reward");
-            reward.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("quest.duelReward.tip")));
+            // El sorpresa dobla la BASE, no los extras (QuestWinLoseController
+            // .awardEventCredits): "paga el doble" prometia mas de lo que da y en
+            // total sale ~1,5 veces (Discord, 06-11-2026).
+            reward.setTooltip(new javafx.scene.control.Tooltip(NeoText.get(NeoQuest.isSurprise(duel)
+                    ? "quest.duelReward.surprise.tip" : "quest.duelReward.tip")));
             box.getChildren().add(reward);
         }
 

@@ -1444,15 +1444,22 @@ public class LobbyScreen extends BorderPane
                 && (notDealtYet || forge.neo.net.NeoNetEvent.poolsFor(
                         forge.neo.net.NeoNetEvent.activeEventId(l),
                         forge.neo.net.NeoNetEvent.conformance(l)).isEmpty());
-        final Button b = new Button(deck != null ? shorten(deck.getName())
+        final boolean random = deck != null && !limited && isRandomSeat(slot);
+        final Button b = new Button(random ? NeoText.get("lobby.randomEachGame")
+                : deck != null ? shorten(deck.getName())
                 : NeoText.get(noPoolYet ? "lobby.waitPool" : "lobby.pickDeck"));
+        if (random) {
+            // Cual le ha tocado ahora, por si se quiere saber; al empezar cambia.
+            b.setTooltip(new javafx.scene.control.Tooltip(deck.getName()));
+        }
         b.getStyleClass().add("btn-secondary");
         b.setMinWidth(Region.USE_PREF_SIZE);
         // mayEdit lo contesta el motor: en el invitado solo es true para SU
         // asiento, y en el anfitrion para todos menos los remotos.
         b.setDisable(!l.mayEdit(index) || noPoolYet);
         b.setOnAction(e -> pickDeck(index));
-        final Button crown = commanderCell(l, index, deck);
+        // Al azar no hay comandante que elegir: el mazo cambia al empezar.
+        final Button crown = random ? null : commanderCell(l, index, deck);
         if (crown == null) {
             return b;
         }
@@ -1571,6 +1578,11 @@ public class LobbyScreen extends BorderPane
      * eso quien no se haya montado uno se encuentra la lista vacia y la sala no
      * sirve de nada.
      */
+    /** Herramienta de prueba: sienta una IA como su boton (-Dneo.lobby.addAi). */
+    public void addAiForTest() {
+        addSeat(LobbySlotType.AI);
+    }
+
     /** Herramienta de prueba: el selector de mazo del asiento 0 (-Dneo.lobby.pickDeck). */
     public void pickDeckForTest() {
         pickDeck(0);
@@ -1625,9 +1637,18 @@ public class LobbyScreen extends BorderPane
                     // Antes se ignoraba y el boton no hacia nada (Discord).
                     final Deck chosen = picked != null ? picked : DeckPickerDialog.anyOf(allMine, stock);
                     if (chosen != null) {
+                        // A una IA, "Al azar" es al azar EN CADA PARTIDA; un
+                        // mazo concreto la deja fija.
+                        final LobbySlot s = lobby == null ? null : lobby.getSlot(index);
+                        if (s != null && s.getType() == LobbySlotType.AI) {
+                            if (picked == null) {
+                                randomSeats.add(s);
+                            } else {
+                                randomSeats.remove(s);
+                            }
+                        }
                         sendDeck(index, chosen);
                         // Una IA no tiene nada mas que decidir: con mazo, lista.
-                        final LobbySlot s = lobby == null ? null : lobby.getSlot(index);
                         if (s != null && s.getType() == LobbySlotType.AI && !s.isReady()) {
                             send(index, UpdateLobbyPlayerEvent.isReadyUpdate(true));
                         }
@@ -1687,6 +1708,51 @@ public class LobbyScreen extends BorderPane
     private void sendDeckAsIs(final int index, final Deck deck) {
         for (final UpdateLobbyPlayerEvent e : NeoLobby.deckEvents(deck)) {
             send(index, e);
+        }
+        // Con "su comandante" en Personalizar -> Rivales, la IA se llama como
+        // el comandante de su mazo, como en una partida normal.
+        final GameLobby l = lobby;
+        final String name = l == null ? null : NeoLobby.aiNameForDeck(l, index, deck);
+        if (name != null) {
+            send(index, UpdateLobbyPlayerEvent.nameUpdate(name));
+        }
+    }
+
+    /**
+     * Las IAs que juegan con un mazo AL AZAR EN CADA PARTIDA (Discord,
+     * 05-11-2026: "No 'Random Each Game' option for AI decks"). Se le vuelve a
+     * tirar el mazo al pulsar Empezar, asi que la revancha en la misma sala es
+     * con otro. Por identidad del asiento y no por numero: quitar un asiento
+     * corre los numeros de los de detras. Solo en el anfitrion, que es el
+     * unico que puede tocar a las IAs.
+     */
+    private final java.util.Set<LobbySlot> randomSeats =
+            java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
+
+    private boolean isRandomSeat(final LobbySlot slot) {
+        return slot != null && slot.getType() == LobbySlotType.AI && randomSeats.contains(slot);
+    }
+
+    /** Antes de empezar: mazo nuevo a las IAs "al azar" y, si toca, nombre nuevo. */
+    private void rerollAiSeats(final GameLobby l) {
+        if (!host || forge.neo.net.NeoNetEvent.isLimited(l)) {
+            return;
+        }
+        for (int i = 0; i < l.getNumberOfSlots(); i++) {
+            final LobbySlot s = l.getSlot(i);
+            if (s == null || s.getType() != LobbySlotType.AI) {
+                continue;
+            }
+            final String name = NeoLobby.rerolledAiName(l, i);
+            if (name != null) {
+                send(i, UpdateLobbyPlayerEvent.nameUpdate(name));
+            }
+            if (isRandomSeat(s) && NeoLobby.needsDeck(format)) {
+                final Deck deck = NeoLobby.randomAiDeck(format);
+                if (deck != null) {
+                    sendDeck(i, deck);
+                }
+            }
         }
     }
 
@@ -1760,6 +1826,12 @@ public class LobbyScreen extends BorderPane
             // costaba de la sala. El mazo se le cambia igual con su boton.
             final Deck deck = NeoLobby.randomAiDeck(format);
             if (deck != null) {
+                // Se sienta "al azar en cada partida": su mazo ya era al azar.
+                // Elegirle uno concreto con su boton lo deja fijo.
+                final LobbySlot seated = l.getSlot(index);
+                if (seated != null) {
+                    randomSeats.add(seated);
+                }
                 sendDeck(index, deck);
             }
             // En Momir no hay mazo que darle y aun asi esta lista: esperar uno
@@ -1789,6 +1861,10 @@ public class LobbyScreen extends BorderPane
             return;
         }
         startButton.setDisable(true);
+        // Aqui, en el hilo de interfaz y antes del hilo de fondo: en el
+        // anfitrion el cambio se aplica al instante (FServerManager.updateSlot)
+        // y startGame ya lee el mazo nuevo.
+        rerollAiSeats(l);
         final Thread t = new Thread(() -> {
             // Las DOS mitades van dentro del try, y eso no es celo: el fallo
             // real que hubo jugando (una IA sin nombre) no revienta en

@@ -1659,6 +1659,16 @@ public final class DeckRulesCheck {
         final int addedAgain = editor.generateForCommander();
         check("Generar otra vez: sustituye el mazo, no lo amontona",
                 editor.mainCount() <= 99 && addedAgain > 0);
+
+        // Discord, 06-11-2026: Nick Fury, Agent of S.H.I.E.L.D. (cinco colores
+        // solo por el coste de su habilidad, de una expansion recien llegada).
+        final DeckEditor fury = DeckEditor.createNew(NeoFormat.COMMANDER, "prueba-gen-fury");
+        final PaperCard furyCard = card("Nick Fury, Agent of S.H.I.E.L.D.");
+        if (furyCard != null && fury.setCommander(furyCard)) {
+            final int got = fury.generateForCommander();
+            System.out.printf(java.util.Locale.ROOT, "        (Generar: %d cartas para Nick Fury)%n", got);
+            check("Generar: Nick Fury, Agent of S.H.I.E.L.D. tiene mazo", got > 50);
+        }
     }
 
     /**

@@ -77,10 +77,12 @@ public final class NeoPlayers {
         if (sprite < 0 && !face.isEmpty()) {
             CUSTOM_FACES.put(name, face);
         }
-        System.out.printf(java.util.Locale.ROOT, "  Opponent %d: %s | AI %s%s%n", index + 1, name,
+        final int sleeve = sleeveFor(index, name);
+        System.out.printf(java.util.Locale.ROOT, "  Opponent %d: %s | AI %s%s%s%n", index + 1, name,
                 profile.isEmpty() ? "(Forge's)" : profile,
-                face.isEmpty() ? "" : " | face " + face);
-        return GamePlayerUtil.createAiPlayer(name, sprite >= 0 ? sprite : index, profile);
+                face.isEmpty() ? "" : " | face " + face,
+                RivalSetup.sleeve(index).isEmpty() ? "" : " | sleeve " + RivalSetup.sleeve(index));
+        return GamePlayerUtil.createAiPlayer(name, sprite >= 0 ? sprite : index, sleeve, null, profile);
     }
 
     /**
@@ -116,10 +118,42 @@ public final class NeoPlayers {
             CUSTOM_FACES.put(name, face);
         }
         System.out.printf(java.util.Locale.ROOT, "  Opponent %d: %s | HUMAN (hot seat)%n", index + 1, name);
-        return GamePlayerUtil.getGuiPlayer(name, sprite >= 0 ? sprite : index, 0, false);
+        return GamePlayerUtil.getGuiPlayer(name, sprite >= 0 ? sprite : index, sleeveFor(index, name), false);
     }
 
     private static final java.util.Random RANDOM = new java.util.Random();
+
+    /**
+     * El numero de funda que se le pasa al motor para el rival {@code index}:
+     * la de su hoja si la tiene elegida en Personalizar → Rivales; si es un
+     * PNG importado, se apunta por nombre (el motor no sabe pintarla, la
+     * pinta {@code TableBinder}) y al motor le va una cualquiera; y sin
+     * elegir, una al azar, como hizo siempre el motor.
+     */
+    private static int sleeveFor(final int index, final String name) {
+        final String id = RivalSetup.sleeve(index);
+        final int sprite = RivalSetup.sleeveSpriteIndexOf(id);
+        if (sprite >= 0) {
+            return sprite;
+        }
+        if (!id.isEmpty() && NeoLook.sleeveById(id) != null) {
+            CUSTOM_SLEEVES.put(name, id);
+        }
+        final int count = NeoLook.builtInSleeveCount();
+        return count > 0 ? RANDOM.nextInt(count) : 0;
+    }
+
+    /** Rivales con una funda importada (PNG): nombre -> id de funda. Como {@link #CUSTOM_FACES}. */
+    private static final java.util.Map<String, String> CUSTOM_SLEEVES =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * El id de la funda importada de un rival, o {@code null} si lleva una de
+     * la hoja de Forge (entonces vale {@code PlayerView.getSleeveIndex}).
+     */
+    public static String customSleeveOf(final String playerName) {
+        return playerName == null ? null : CUSTOM_SLEEVES.get(playerName);
+    }
 
     /**
      * Rivales con una cara importada (PNG): nombre -> id de avatar.
@@ -134,6 +168,7 @@ public final class NeoPlayers {
     /** Una partida nueva: las caras importadas de la anterior no valen. */
     public static void newMatch() {
         CUSTOM_FACES.clear();
+        CUSTOM_SLEEVES.clear();
         IN_GAME.clear();
     }
 
@@ -223,7 +258,8 @@ public final class NeoPlayers {
      * <p>Si el generador fallara — no deberia, es una lista en memoria — se cae
      * al "IA-N" de siempre: sin nombre no hay partida.
      */
-    private static String randomName(final int index) {
+    /** Lo usa tambien la sala en red, con el modo "al azar" de Personalizar → Rivales. */
+    public static String randomName(final int index) {
         try {
             final List<String> taken = new ArrayList<>(NeoLook.aiNames());
             taken.add(NeoLook.playerName());

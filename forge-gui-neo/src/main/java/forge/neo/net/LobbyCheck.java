@@ -324,6 +324,35 @@ public final class LobbyCheck {
                 forge.neo.NeoSettings.save();
             }
 
+            // ---- 4-bis-ter. el nombre segun Personalizar -> Rivales ----
+            //
+            // Discord, 05-11-2026: en la sala las IAs no seguian el modo de
+            // nombres. Con -Dneo.aiNames, sin tocar las preferencias.
+            final String namesBefore = System.getProperty("neo.aiNames");
+            try {
+                System.setProperty("neo.aiNames", forge.neo.NeoSettings.AI_NAMES_SAVED);
+                ok &= check("con los nombres de siempre, el mazo no cambia el nombre",
+                        NeoLobby.aiNameForDeck(lobby, aiSeat, hostDeck) == null);
+                System.setProperty("neo.aiNames", forge.neo.NeoSettings.AI_NAMES_COMMANDER);
+                final String byCommander = NeoLobby.aiNameForDeck(lobby, aiSeat, hostDeck);
+                final String expected = forge.neo.look.NeoPlayers.commanderName(hostDeck);
+                ok &= check("con \"su comandante\", la IA se llama como el de su mazo: " + byCommander,
+                        expected == null || (byCommander != null && byCommander.startsWith(expected)));
+                ok &= check("y nunca como otro asiento",
+                        byCommander == null || !byCommander.equals(lobby.getSlot(hostSeat).getName()));
+                System.setProperty("neo.aiNames", forge.neo.NeoSettings.AI_NAMES_RANDOM);
+                final String rerolled = NeoLobby.rerolledAiName(lobby, aiSeat);
+                ok &= check("con \"al azar\", nombre nuevo en cada partida: " + rerolled,
+                        rerolled != null && !rerolled.isBlank());
+                ok &= check("y el asiento humano no se toca", NeoLobby.rerolledAiName(lobby, hostSeat) == null);
+            } finally {
+                if (namesBefore == null) {
+                    System.clearProperty("neo.aiNames");
+                } else {
+                    System.setProperty("neo.aiNames", namesBefore);
+                }
+            }
+
             // ---- 4-ter. por equipos, si se pide ----
             //
             // -Dneo.lobby.check.teams=true: tu y una IA contra el invitado y

@@ -268,6 +268,35 @@ public class CardNode extends StackPane {
      * ampliarla ({@link AffectedBy}, "Provocada por X"), como pidio Ana.
      */
     private final Label goadTag = new Label("⚔");
+    /**
+     * EL TINTE DE "QUE LE VA A PASAR" (Discord, 06-11-2026: sacrifico una
+     * carta sin saber que la eleccion era para sacrificar). Encima de la carta
+     * elegible que tiene el raton, del color de la accion y con su nombre:
+     * "SACRIFICAR", "DESCARTAR"... La accion la pone {@link #setChoiceAction}.
+     */
+    private final StackPane actionTint = new StackPane() {
+        @Override
+        protected void layoutChildren() {
+            super.layoutChildren();
+            // Que el rotulo quepa en UNA linea en la carta que se VE, sea del
+            // tamanyo que sea: se baja la letra, nunca se corta. (A escala no
+            // vale: la carta va con cache y el dibujo se quedaba sin encoger.)
+            actionLabel.applyCss();
+            final double want = actionLabel.prefWidth(-1);
+            final double room = getWidth() * 0.8;
+            if (want > 0 && room > 0) {
+                final double size = Math.max(7, Math.min(ACTION_FONT, actionFont * room / want));
+                if (Math.abs(size - actionFont) > 0.5) {
+                    actionFont = size;
+                    actionLabel.setStyle(String.format(java.util.Locale.ROOT, "-fx-font-size: %.1fpx;", size));
+                }
+            }
+        }
+    };
+    /** La letra del rotulo de la accion: 14 px, o menos si no cabe. */
+    private static final double ACTION_FONT = 14;
+    private double actionFont = ACTION_FONT;
+    private final Label actionLabel = new Label();
     private int commanderTax;
 
     /**
@@ -423,6 +452,16 @@ public class CardNode extends StackPane {
         hintTag.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
         StackPane.setAlignment(hintTag, Pos.BOTTOM_CENTER);
 
+        actionLabel.getStyleClass().add("card-action-label");
+        actionLabel.setWrapText(false);
+        // Su ancho de verdad, aunque no quepa: lo encoge actionTint a escala.
+        actionLabel.setMinWidth(Region.USE_PREF_SIZE);
+        actionTint.getChildren().add(actionLabel);
+        actionTint.getStyleClass().add("card-action-tint");
+        actionTint.setVisible(false);
+        actionTint.setMouseTransparent(true);
+        hoverProperty().addListener((o, was, is) -> refreshActionTint());
+
         goadTag.getStyleClass().add("card-goad-tag");
         goadTag.setVisible(false);
         goadTag.setMouseTransparent(true);
@@ -466,7 +505,8 @@ public class CardNode extends StackPane {
         relicFace.setVisible(false);
 
         getChildren().addAll(fallback, relicFace, art, foilTint, foilShine, border,
-                counters, markers, keywords, ptRow, rankBadge, taxBadge, originTag, goadTag, hintTag);
+                counters, markers, keywords, ptRow, rankBadge, taxBadge, originTag, goadTag, hintTag,
+                actionTint);
         setClip(clip);
 
         setCardWidth(width);
@@ -1182,6 +1222,43 @@ public class CardNode extends StackPane {
     public void setSelectable(final boolean on) {
         selectable = on;
         pseudoClassStateChanged(SELECTABLE, on);
+        refreshActionTint();
+    }
+
+    /**
+     * Que le pasa a la carta que se elija ahora, o null. Una para toda la
+     * mesa: el motor solo espera una eleccion a la vez. Lo pone
+     * {@code NeoMatchUI.updateButtons} justo antes de marcar las elegibles
+     * (que es lo que repinta cada carta), asi que no hace falta que ninguna
+     * carta escuche este valor: un oyente de cada carta en algo estatico la
+     * dejaria viva para siempre (principio 11).
+     */
+    private static volatile forge.neo.match.ChoiceAction choiceAction;
+
+    /** {@code -Dneo.actionTint.all=true}: el tinte en TODAS las elegibles, sin raton. Para capturarlo. */
+    private static final boolean ACTION_TINT_ALL = Boolean.getBoolean("neo.actionTint.all");
+
+    public static void setChoiceAction(final forge.neo.match.ChoiceAction action) {
+        choiceAction = action;
+    }
+
+    /** Si el tinte de la accion esta puesto. Para las pruebas. */
+    public boolean isActionTintShown() {
+        return actionTint.isVisible();
+    }
+
+    private void refreshActionTint() {
+        final forge.neo.match.ChoiceAction a = choiceAction;
+        final boolean show = a != null && selectable && (isHover() || ACTION_TINT_ALL);
+        if (show) {
+            final int rgb = a.argb & 0xFFFFFF;
+            actionTint.setStyle(String.format(java.util.Locale.ROOT,
+                    "-fx-background-color: rgba(%d,%d,%d,0.5); -fx-border-color: %s;",
+                    (rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF, a.hex()));
+            actionLabel.setText(a.label().toUpperCase(java.util.Locale.ROOT));
+            actionTint.requestLayout();
+        }
+        actionTint.setVisible(show);
     }
 
     /**
@@ -1732,6 +1809,11 @@ public class CardNode extends StackPane {
         }
         if (t.is(CounterEnumType.LOYALTY) || t.is(CounterEnumType.DEFENSE)) {
             return String.valueOf(n);
+        }
+        // El nivel (subir de nivel), "L3": "3 LEVEL" se comia media carta
+        // (Discord, 06-11-2026). La carta impresa ya dice LEVEL en su escalera.
+        if (t.is(CounterEnumType.LEVEL)) {
+            return "L" + n;
         }
         return wide ? n + " " + t.getCounterOnCardDisplayName() : String.valueOf(n);
     }

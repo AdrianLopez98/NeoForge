@@ -583,6 +583,76 @@ public final class LookCheck {
             check("Rivales/partida: y en la partida siguiente, sin ella, se olvida",
                     NeoPlayers.customFaceOf("Tres") == null);
 
+            // La funda de cada rival (Discord, 06-11-2026: "fixed sleeves for
+            // each AI rival"): elegida, siempre la misma; sin elegir, al azar.
+            check("Rivales/funda: el numero de la hoja",
+                    RivalSetup.sleeveSpriteIndexOf("sprite:sleeve:5") == 5
+                            && RivalSetup.sleeveSpriteIndexOf("sprite:avatar:5") == -1
+                            && RivalSetup.sleeveSpriteIndexOf("file:x.png") == -1
+                            && RivalSetup.sleeveSpriteIndexOf("") == -1);
+            RivalSetup.setSleeve(1, "sprite:sleeve:5");
+            boolean fixed = true;
+            for (int i = 0; i < 20; i++) {
+                fixed &= NeoPlayers.ai(1, normal).getSleeveIndex() == 5;
+            }
+            check("Rivales/funda: con una elegida, siempre esa", fixed);
+            final java.util.Set<Integer> drawn = new java.util.HashSet<>();
+            for (int i = 0; i < 40; i++) {
+                drawn.add(NeoPlayers.ai(0, normal).getSleeveIndex());
+            }
+            check("Rivales/funda: sin elegir, al azar como siempre", drawn.size() > 1);
+            RivalSetup.setSleeve(2, "file:no-existe.png");
+            NeoPlayers.newMatch();
+            NeoPlayers.ai(2, normal);
+            check("Rivales/funda: una importada que ya no esta no se apunta",
+                    NeoPlayers.customSleeveOf("Tres") == null);
+            RivalSetup.setSleeve(1, "");
+            RivalSetup.setSleeve(2, "");
+
+            // Que le pasa a la carta que elijas (Discord, 06-11-2026): sale del
+            // texto del motor, en cualquiera de sus idiomas, y solo de la
+            // ULTIMA linea (encima va el texto de la habilidad que se paga).
+            final forge.neo.match.ChoiceAction sac = forge.neo.match.ChoiceAction.SACRIFICE;
+            check("Elegir/accion: sacrificar, en ingles, castellano y aleman",
+                    sac == forge.neo.match.ChoiceAction.of("Viscera Seer (6)\n - Sacrifice a creature: Scry 1.\n"
+                            + "Select creature to sacrifice (1 left)")
+                            && sac == forge.neo.match.ChoiceAction.of("Selecciona un Criatura para sacrificar (1 pendiente)")
+                            && sac == forge.neo.match.ChoiceAction.of("Wähle ein(e) Kreatur zum Opfern (noch 1)"));
+            check("Elegir/accion: el descarte de limpieza y exiliar",
+                    forge.neo.match.ChoiceAction.DISCARD == forge.neo.match.ChoiceAction.of(
+                            "Cleanup Phase\nSelect 2 card(s) to discard to bring your hand down to the maximum of 7 cards.")
+                            && forge.neo.match.ChoiceAction.EXILE == forge.neo.match.ChoiceAction.of("追放するには2個以上を選択してください"));
+            check("Elegir/accion: solo cuenta la pregunta, no el texto de la habilidad",
+                    forge.neo.match.ChoiceAction.of("Seer\n - Sacrifice a creature: Scry 1.\nChoose which cards to reveal") == null
+                            && forge.neo.match.ChoiceAction.of("Select targets for Doom Blade") == null
+                            && forge.neo.match.ChoiceAction.of(null) == null);
+            // El escudo del jugador protegido (Discord, 06-11-2026: Teferi's
+            // Protection). Con el texto tal cual lo da Forge a un jugador.
+            check("Escudo: proteccion contra todo, limpia",
+                    List.of("Protection from everything").equals(forge.neo.match.PlayerShield.of(List.of(
+                            "Protection from from everything (This creature can't be blocked, targeted, dealt damage,"
+                                    + " or equipped/enchanted by from everything.)"))));
+            check("Escudo: antimaleficio si, no robar no",
+                    forge.neo.match.PlayerShield.of(List.of("Hexproof", "Skip your draw step")).equals(List.of("Hexproof"))
+                            && forge.neo.match.PlayerShield.of(List.of("Skip your draw step")).isEmpty());
+            // Los simbolos de mana de Forge (itch.io, 06-11-2026): los de la
+            // hoja salen, los que Forge no dibuja ({E}) se quedan como texto.
+            check("Mana: los simbolos de siempre tienen casilla",
+                    forge.neo.card.ManaSymbols.cell("U") != null && forge.neo.card.ManaSymbols.cell("{T}") != null
+                            && forge.neo.card.ManaSymbols.cell("{W/U}") != null
+                            && forge.neo.card.ManaSymbols.cell("{U/W}") != null
+                            && forge.neo.card.ManaSymbols.cell("{2/W}") != null
+                            && forge.neo.card.ManaSymbols.cell("{G/P}") != null
+                            && forge.neo.card.ManaSymbols.cell("{C/W}") != null
+                            && forge.neo.card.ManaSymbols.cell("{15}") != null);
+            final java.util.List<forge.neo.card.ManaSymbols.Piece> pieces =
+                    forge.neo.card.ManaSymbols.split("{T}: Add {G}. Pay {E}{E}.");
+            check("Mana: el texto se parte en simbolos y texto, y {E} se queda escrito",
+                    pieces.size() == 4 && pieces.get(0).symbol != null && pieces.get(2).symbol != null
+                            && pieces.get(3).symbol == null && pieces.get(3).text.contains("{E}"));
+            check("Elegir/accion: el rotulo esta traducido",
+                    !sac.label().isBlank() && !sac.label().startsWith("choice."));
+
             // Como se llaman en la partida (Discord, 30-10-2026): el de su
             // comandante o uno al azar. Por la bandera, sin tocar preferencias.
             final forge.deck.Deck krenko = new forge.deck.Deck("prueba");

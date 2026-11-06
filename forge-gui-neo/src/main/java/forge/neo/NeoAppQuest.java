@@ -1251,6 +1251,23 @@ final class NeoAppQuest {
     /** Recompensas de mentira, para poder capturar la pantalla del botin. */
     static forge.neo.quest.NeoQuestRewards mockRewards(
             final java.util.List<forge.item.PaperCard> cards) {
+        // -Dneo.mockRewards.long=true: el de un DESAFIO, doce lineas (Discord,
+        // 06-11-2026: el boton de volver se quedaba fuera de la ventana).
+        if (Boolean.getBoolean("neo.mockRewards.long")) {
+            return forge.neo.quest.NeoQuestRewards.mock(true, java.util.List.of(
+                    "Gameplay Results",
+                    "hard opponent: 50 credits.",
+                    "Bonus for previous wins: 20 credits.",
+                    "Won by turn 15! 5 credits.",
+                    "You have not lost once! 25 credits.",
+                    "In total: 100 credits.",
+                    "Challenge Rewards for \"Trial of Ambition\"",
+                    "Challenge completed.",
+                    "Challenge bounty: 20000 credits.",
+                    "Cards Won",
+                    "You have achieved a 3 win streak and won 1 common card(s)!",
+                    forge.neo.NeoText.get("quest.prizePack", 15, 4)), cards);
+        }
         return forge.neo.quest.NeoQuestRewards.mock(true, java.util.List.of(
                 "Gameplay Results",
                 "Easy opponent: 25 credits.",

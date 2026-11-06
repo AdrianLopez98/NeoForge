@@ -194,7 +194,7 @@ public class LookScreen extends BorderPane {
 
             final Label who = caption(NeoText.get("look.rival", i + 1));
             who.setMinWidth(UiScale.px(70));
-            final HBox row = new HBox(12, who, rivalFaceButton(rival), f,
+            final HBox row = new HBox(12, who, rivalFaceButton(rival), rivalSleeveButton(rival), f,
                     caption(NeoText.get("look.rivals.ai")), rivalAiChoice(rival));
             row.setAlignment(Pos.CENTER_LEFT);
             rows.getChildren().add(row);
@@ -202,6 +202,9 @@ public class LookScreen extends BorderPane {
             // de su fila, para que se vea a quien se le esta poniendo.
             if (openFaceRival == rival) {
                 rows.getChildren().add(rivalFaceGrid(rival));
+            }
+            if (openSleeveRival == rival) {
+                rows.getChildren().add(rivalSleeveGrid(rival));
             }
         }
         content.getChildren().add(rows);
@@ -273,6 +276,7 @@ public class LookScreen extends BorderPane {
                 new javafx.scene.control.Tooltip(NeoText.get("look.rivals.face")));
         face.setOnMouseClicked(e -> {
             openFaceRival = openFaceRival == rival ? -1 : rival;
+            openSleeveRival = -1;
             select(lastTab);
         });
         return face;
@@ -332,6 +336,112 @@ public class LookScreen extends BorderPane {
         final VBox box = new VBox(6, scroll, hint);
         box.setPadding(new Insets(0, 0, 6, UiScale.px(82)));
         return box;
+    }
+
+    /**
+     * El rival cuya rejilla de fundas esta abierta, o -1. Una sola rejilla
+     * abierta a la vez, contando la de caras. {@code -Dneo.look.rivalSleeve=N}
+     * la abre de salida, para capturarla.
+     */
+    private int openSleeveRival = Integer.getInteger("neo.look.rivalSleeve", -1);
+
+    /**
+     * La funda del rival (Discord, 06-11-2026: <i>"fixed sleeves for each AI
+     * rival"</i>), con forma de carta; al clicarla se abre su rejilla. Sin
+     * elegir sale un "?": el motor le sortea una en cada partida.
+     */
+    private Region rivalSleeveButton(final int rival) {
+        final double h = UiScale.px(FACE_1080);
+        final double w = Math.round(h * 5 / 7);
+        final StackPane tile = new StackPane();
+        tile.getStyleClass().add("look-tile");
+        tile.setPrefSize(w, h);
+        tile.setMinSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+        tile.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+        tile.pseudoClassStateChanged(PICKED, openSleeveRival == rival);
+        final LookItem chosen = NeoLook.sleeveById(forge.neo.look.RivalSetup.sleeve(rival));
+        final Image image = chosen == null ? null : chosen.image();
+        if (image != null) {
+            final ImageView view = new ImageView(image);
+            view.setFitWidth(w - 4);
+            view.setFitHeight(h - 4);
+            tile.getChildren().add(view);
+        } else {
+            final Label q = new Label("?");
+            q.getStyleClass().add("home-subtitle");
+            tile.getChildren().add(q);
+        }
+        tile.setCursor(javafx.scene.Cursor.HAND);
+        javafx.scene.control.Tooltip.install(tile,
+                new javafx.scene.control.Tooltip(NeoText.get("look.rivals.sleeve")));
+        tile.setOnMouseClicked(e -> {
+            openSleeveRival = openSleeveRival == rival ? -1 : rival;
+            openFaceRival = -1;
+            select(lastTab);
+        });
+        return tile;
+    }
+
+    /** Las fundas para un rival: "al azar" y todas las de Personalizar. */
+    private Region rivalSleeveGrid(final int rival) {
+        final double h = UiScale.px(70);
+        final double w = Math.round(h * 5 / 7);
+        final FlowPane grid = new FlowPane(8, 8);
+        grid.setAlignment(Pos.TOP_LEFT);
+        final String current = forge.neo.look.RivalSetup.sleeve(rival);
+
+        final Label random = new Label(NeoText.get("look.rivals.sleeve.default"));
+        random.getStyleClass().add("home-subtitle");
+        final StackPane none = new StackPane(random);
+        none.getStyleClass().add("look-tile");
+        none.setPrefSize(w * 2, h);
+        none.setMinSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+        none.pseudoClassStateChanged(PICKED, current.isEmpty());
+        none.setCursor(javafx.scene.Cursor.HAND);
+        none.setOnMouseClicked(e -> pickRivalSleeve(rival, ""));
+        grid.getChildren().add(none);
+
+        for (final LookItem item : NeoLook.sleeves()) {
+            final StackPane tile = new StackPane();
+            tile.getStyleClass().add("look-tile");
+            tile.setPrefSize(w, h);
+            tile.setMinSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+            tile.pseudoClassStateChanged(PICKED, item.getId().equals(current));
+            final Image image = item.image();
+            if (image != null) {
+                final ImageView view = new ImageView(image);
+                view.setFitWidth(w - 6);
+                view.setFitHeight(h - 6);
+                tile.getChildren().add(view);
+            }
+            tile.setCursor(javafx.scene.Cursor.HAND);
+            tile.setOnMouseClicked(e -> pickRivalSleeve(rival, item.getId()));
+            grid.getChildren().add(tile);
+        }
+
+        final ScrollPane scroll = new ScrollPane(grid);
+        scroll.getStyleClass().add("dialog-scroll");
+        scroll.setFitToWidth(true);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroll.setPrefViewportHeight(h * 2 + 16);
+        // Sin esto la pestanya la aplasta a media fila (la de caras cabe por
+        // poco; las fundas, mas altas, no).
+        scroll.setMinHeight(Region.USE_PREF_SIZE);
+
+        final Label hint = new Label(NeoText.get("look.rivals.sleeve.hint"));
+        hint.getStyleClass().add("home-subtitle");
+        hint.setWrapText(true);
+        hint.setMaxWidth(UiScale.px(820));
+        hint.setMinHeight(Region.USE_PREF_SIZE);
+        final VBox box = new VBox(6, scroll, hint);
+        box.setPadding(new Insets(0, 0, 6, UiScale.px(82)));
+        return box;
+    }
+
+    private void pickRivalSleeve(final int rival, final String id) {
+        forge.neo.look.RivalSetup.setSleeve(rival, id);
+        openSleeveRival = -1;
+        select(lastTab);
     }
 
     private void pickRivalFace(final int rival, final String id) {

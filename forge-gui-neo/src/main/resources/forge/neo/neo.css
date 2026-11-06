@@ -1338,6 +1338,48 @@
     -fx-border-width: 1;
 }
 
+/* Cuantos de un color flotan, en la esquina del simbolo de mana de Forge
+   (itch.io, 06-11-2026): encima del dibujo no se leeria. */
+.mana-pip-count {
+    -fx-text-fill: #E6EBF2;
+    -fx-font-size: 0.75em;
+    -fx-font-weight: bold;
+    -fx-background-color: rgba(18,22,28,0.92);
+    -fx-background-radius: 3;
+    -fx-border-color: #2C3542;
+    -fx-border-radius: 3;
+    -fx-border-width: 0.5;
+    -fx-padding: 0 2 0 2;
+}
+.mana-pip-icon:hover {
+    -fx-effect: dropshadow(gaussian, rgba(74,155,224,0.9), 6, 0.4, 0, 0);
+}
+
+/* Jugador protegido (proteccion, antimaleficio, velo): atacarle o apuntarle
+   no sirve. Discord, 06-11-2026. */
+.player-counter.player-counter-shield {
+    -fx-text-fill: #E6EBF2;
+    -fx-background-color: rgba(74,155,224,0.35);
+    -fx-border-color: #4A9BE0;
+    -fx-font-weight: bold;
+}
+
+/* Que le pasa a la carta elegible bajo el raton: sacrificar, descartar...
+   (Discord, 06-11-2026). El color de fondo lo pone CardNode segun la accion. */
+.card-action-tint {
+    -fx-background-radius: 4;
+    -fx-border-radius: 4;
+    -fx-border-width: 2;
+}
+.card-action-label {
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-font-size: 14px;
+    -fx-background-color: rgba(8,11,16,0.78);
+    -fx-background-radius: 4;
+    -fx-padding: 2 6 2 6;
+}
+
 /* "El coste depende de lo que elijas": en la carta levantada de la mano. */
 .card-cost-hint {
     -fx-background-color: rgba(8,11,16,0.9);

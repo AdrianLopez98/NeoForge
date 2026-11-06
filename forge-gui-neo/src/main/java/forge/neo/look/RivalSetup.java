@@ -23,6 +23,8 @@ import forge.neo.NeoSettings;
  *   <li><b>cara</b> ({@code rivalAvatars}): el id de un avatar de Personalizar
  *       ({@code sprite:avatar:N} de la hoja de Forge, o {@code file:x.png}
  *       importado). Vacio = el de siempre;</li>
+ *   <li><b>funda</b> ({@code rivalSleeves}): igual que la cara; vacio = al
+ *       azar en cada partida;</li>
  *   <li><b>forma de jugar</b> ({@code rivalAi}): vacio = la general de la
  *       pantalla de inicio; uno de los cuatro perfiles de Forge; o
  *       {@link #RANDOM}, que sortea uno del {@linkplain #pool() pozo} en cada
@@ -61,6 +63,14 @@ public final class RivalSetup {
     public static final String NAMES = "aiNames";
     public static final String MODES = "rivalAi";
     public static final String AVATARS = "rivalAvatars";
+    /**
+     * La funda de cada rival (Discord, 06-11-2026: <i>"is there a way to set
+     * fixed sleeves for each AI rival? Every time I start a casual game they
+     * pick a random sleeve"</i>). Un id de {@code NeoLook.sleeves()}
+     * ({@code sprite:sleeve:N} o {@code file:x.png}); vacio = al azar en cada
+     * partida, que es lo que hacia siempre el motor.
+     */
+    public static final String SLEEVES = "rivalSleeves";
     public static final String POOL = "aiPool";
     /**
      * Que asientos de rival juega una PERSONA en el mismo aparato ("hot seat",
@@ -108,7 +118,10 @@ public final class RivalSetup {
      * {@code PlayerView.getAvatarIndex}.
      */
     public static int spriteIndexOf(final String id) {
-        final String prefix = "sprite:avatar:";
+        return spriteIndexOf(id, "sprite:avatar:");
+    }
+
+    private static int spriteIndexOf(final String id, final String prefix) {
         if (id == null || !id.startsWith(prefix)) {
             return -1;
         }
@@ -117,6 +130,28 @@ public final class RivalSetup {
         } catch (final NumberFormatException e) {
             return -1;
         }
+    }
+
+    // ---------------------------------------------------------------
+    // Funda
+    // ---------------------------------------------------------------
+
+    /** El id de la funda elegida para este rival, o "" si se sortea en cada partida. */
+    public static String sleeve(final int rival) {
+        return slot(SLEEVES, rival);
+    }
+
+    public static void setSleeve(final int rival, final String id) {
+        setSlot(SLEEVES, rival, id);
+    }
+
+    /**
+     * El numero de la hoja de fundas de Forge que tiene ese id, o -1 si no es
+     * una de ellas (vacio, o un PNG importado). Es lo que se le pasa al motor:
+     * {@code PlayerView.getSleeveIndex}.
+     */
+    public static int sleeveSpriteIndexOf(final String id) {
+        return spriteIndexOf(id, "sprite:sleeve:");
     }
 
     // ---------------------------------------------------------------

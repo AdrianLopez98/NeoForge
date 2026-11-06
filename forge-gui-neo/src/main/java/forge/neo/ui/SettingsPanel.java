@@ -339,6 +339,15 @@ public class SettingsPanel extends VBox {
                     }
                 }));
 
+        // --- los simbolos de mana de Forge en vez de {U}, {T}... (itch.io,
+        // 06-11-2026). Encendido de fabrica; apagado, la pastilla y el texto
+        // de siempre. Ver forge.neo.card.ManaSymbols.
+        getChildren().add(toggleRow(NeoText.get("settings.manaIcons"),
+                NeoSettings.manaIcons(), on -> {
+                    NeoSettings.setBool(NeoSettings.MANA_ICONS, on);
+                    NeoSettings.save();
+                }));
+
         // --- brillo de las foil (la auditoría del motor, apartado D5) ---
         getChildren().add(toggleRow(NeoText.get("settings.foilEffect"),
                 NeoSettings.getBool(NeoSettings.FOIL_EFFECT, true),
@@ -630,6 +639,14 @@ public class SettingsPanel extends VBox {
         getChildren().add(toggleRow(NeoText.get("settings.confirmPick"),
                 NeoSettings.confirmLastPick(), on -> {
                     NeoSettings.setBool(NeoSettings.CONFIRM_LAST_PICK, on);
+                    NeoSettings.save();
+                }));
+
+        // --- y el descarte al final del turno: este encendido de fabrica ---
+        // (Discord, 06-11-2026). No se deshace y llega pasando el turno.
+        getChildren().add(toggleRow(NeoText.get("settings.confirmDiscard"),
+                NeoSettings.confirmCleanupDiscard(), on -> {
+                    NeoSettings.setBool(NeoSettings.CONFIRM_DISCARD, on);
                     NeoSettings.save();
                 }));
 

@@ -169,6 +169,7 @@ public final class CardHaul {
         //
         // Son las lineas de creditos, rachas y logros. Van ARRIBA de las cartas
         // porque explican de donde vienen.
+        int noteLines = 0;
         if (notes != null && !notes.isEmpty()) {
             final VBox lines = new VBox(1);
             for (final String note : notes) {
@@ -188,6 +189,7 @@ public final class CardHaul {
             // preferido aunque el texto ocupe menos, y ese hueco de mas sale
             // como una franja vacia justo encima de las cartas. Solo se envuelve
             // cuando el motor se pone hablador de verdad.
+            noteLines = lines.getChildren().size();
             if (lines.getChildren().size() > MAX_PLAIN_LINES) {
                 final ScrollPane sp = new ScrollPane(lines);
                 sp.getStyleClass().add("dialog-scroll");
@@ -212,7 +214,7 @@ public final class CardHaul {
             final int columns = columnsFor(shown.size());
             final double below = extras == null ? 26 : 46;
             final double w = cardWidthFor(shown.size(), columns, minCard, availW, availH,
-                    notes != null && !notes.isEmpty(), below);
+                    noteLines, below);
 
             final GridPane grid = new GridPane();
             grid.setHgap(10);
@@ -256,7 +258,7 @@ public final class CardHaul {
             // por construccion y no hay visor; solo lo hay si gano el suelo.
             final int rows = (int) Math.ceil(shown.size() / (double) columns);
             final double gridH = rows * (w * CardNode.ASPECT + below);
-            final double room = Math.max(240, availH - chromeH(notes != null && !notes.isEmpty()));
+            final double room = Math.max(240, availH - chromeH(noteLines));
             if (gridH > room + 1) {
                 final ScrollPane sp = new ScrollPane(grid);
                 sp.getStyleClass().add("dialog-scroll");
@@ -337,17 +339,30 @@ public final class CardHaul {
     }
 
     /** Lo que ocupa todo lo que no son las cartas: titulo, lineas del motor, pie. */
-    private static double chromeH(final boolean hasNotes) {
-        return hasNotes ? 300 : 230;
+    /**
+     * Lo que ocupa todo menos las cartas: titulo, pie y LAS NOTAS, que crecen
+     * con cada linea. Era un 300 fijo con notas, que vale para las tres o
+     * cuatro de un duelo normal; un desafio de la Quest trae doce (creditos,
+     * recompensa, racha, sobre de premio) y el boton de volver se quedaba
+     * debajo de la ventana (Discord, 06-11-2026). Con mas de
+     * {@link #MAX_PLAIN_LINES} van en un visor de 180.
+     */
+    private static double chromeH(final int noteLines) {
+        if (noteLines <= 0) {
+            return 230;
+        }
+        final double notesH = noteLines > MAX_PLAIN_LINES ? UiScale.px(180)
+                : noteLines * UiScale.px(20);
+        return 230 + 10 + notesH;
     }
 
     /** El ancho de carta, medido contra el hueco de verdad. */
     private static double cardWidthFor(final int count, final int columns, final double minCard,
                                        final double availW, final double availH,
-                                       final boolean hasNotes, final double below) {
+                                       final int noteLines, final double below) {
         final int rows = (int) Math.ceil(count / (double) columns);
         final double w = Math.max(400, availW - 200) / columns - 12;
-        final double h = Math.max(240, availH - chromeH(hasNotes)) / rows - below;
+        final double h = Math.max(240, availH - chromeH(noteLines)) / rows - below;
         // Un maximo por arriba: con tres cartas no tiene sentido que ocupen
         // media pantalla cada una.
         return Math.max(minCard * 0.8,

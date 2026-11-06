@@ -1053,6 +1053,31 @@ public final class NeoSettings {
     }
 
     /**
+     * Lo mismo, pero SOLO para el descarte de la limpieza (llegar a la mano
+     * maxima). Encendido de fabrica (Discord, 06-11-2026: <i>"Many times now I
+     * have accidentally selected the wrong card to discard when I was just
+     * trying to view it"</i>): ese descarte no se deshace y llega cuando ya
+     * vas pasando el turno. Si {@link #confirmLastPick} esta puesto, ese manda
+     * y pregunta en todas. La misma clave en Android.
+     */
+    public static final String CONFIRM_DISCARD = "confirmCleanupDiscard";
+
+    public static boolean confirmCleanupDiscard() {
+        return getBool(CONFIRM_DISCARD, true);
+    }
+
+    /**
+     * Los simbolos de mana de Forge en vez de {U}, {T}... (itch.io,
+     * 06-11-2026). Encendido de fabrica; apagado, todo como antes. Ver
+     * {@code forge.neo.card.ManaSymbols}. La misma clave en Android.
+     */
+    public static final String MANA_ICONS = "manaIcons";
+
+    public static boolean manaIcons() {
+        return getBool(MANA_ICONS, true);
+    }
+
+    /**
      * Preguntar antes de que un toque en un permanente active su habilidad
      * (Discord, 11-10-2026: "back out of a tap effect"). Apagado de fabrica.
      * Ver {@code forge.neo.match.ActivateGuard}. La misma clave en Android.

@@ -1184,6 +1184,20 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             if (autoEvent != null && !autoEvent.isBlank() && net.lobbyScreen != null) {
                 net.lobbyScreen.autoEventForTest(autoEvent.trim());
             }
+            // -Dneo.lobby.addAi=N: sienta N IAs como el boton (05-11-2026), para
+            // capturar sus nombres y el "al azar en cada partida".
+            final int addAi = Integer.getInteger("neo.lobby.addAi", 0);
+            if (addAi > 0 && net.lobbyScreen != null) {
+                final forge.neo.ui.LobbyScreen screen = net.lobbyScreen;
+                final javafx.animation.PauseTransition wait =
+                        new javafx.animation.PauseTransition(javafx.util.Duration.millis(1500));
+                wait.setOnFinished(e -> {
+                    for (int i = 0; i < addAi; i++) {
+                        screen.addAiForTest();
+                    }
+                });
+                wait.play();
+            }
             // -Dneo.lobby.pickDeck=true: abre el selector de mazo de tu asiento,
             // con un respiro para que la sala este montada (11-10-2026).
             if (Boolean.getBoolean("neo.lobby.pickDeck") && net.lobbyScreen != null) {
@@ -1363,7 +1377,7 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             for (final java.util.Map.Entry<forge.item.PaperCard, Integer> e
                     : forge.neo.quest.NeoQuest.collection()) {
                 won.add(e.getKey());
-                if (++taken >= 7) {
+                if (++taken >= (Boolean.getBoolean("neo.mockRewards.long") ? 17 : 7)) {
                     break;
                 }
             }
@@ -2293,6 +2307,16 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                     table.getMenuOverlay().hide();
                     return;
                 }
+                // "@rdeck": clic DERECHO en tu mazo, por la escena, como el raton.
+                // Con su carta de arriba destapada tiene que ampliarla
+                // (Discord, 06-11-2026).
+                if (step.equals("@rdeck")) {
+                    final javafx.scene.Node deck = table.getSelfField().libraryPile();
+                    debug.fire(deck, javafx.scene.input.MouseEvent.MOUSE_PRESSED, debug.centreOf(deck),
+                            javafx.scene.input.MouseButton.SECONDARY);
+                    System.out.println("[mesa] clic derecho en tu mazo; carta grande: " + table.isZoomShowing());
+                    return;
+                }
                 if (step.equals("@pile")) {
                     final javafx.scene.Node pile = debug.firstClickablePile(scene.getRoot());
                     System.out.println("[mesa] clico la pila" + (pile == null ? ": NO HAY" : ""));
@@ -2331,6 +2355,20 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                         }
                     }
                     System.out.println("[mesa] no hay " + want + " en el dialogo (" + inDialog.size() + " cartas)");
+                    return;
+                }
+                // "@detail:Nombre": esa carta de tu mesa en el panel de la derecha,
+                // como al pasar el raton (los simbolos de mana, itch.io 06-11-2026).
+                if (step.startsWith("@detail:")) {
+                    final String want = step.substring(8);
+                    for (final CardNode n : table.selfFieldNodes()) {
+                        if (n.getCard() != null && debug.nameOf(n.getCard()).contains(want)) {
+                            table.showDetail(n.getCard());
+                            System.out.println("[mesa] detalle de " + debug.nameOf(n.getCard()));
+                            return;
+                        }
+                    }
+                    System.out.println("[mesa] no hay " + want + " en tu mesa para el detalle");
                     return;
                 }
                 if (step.startsWith("z:")) {

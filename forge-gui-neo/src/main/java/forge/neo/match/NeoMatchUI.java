@@ -6609,6 +6609,11 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                     // ANTES de marcar las elegibles: desapilar fabrica nodos
                     // nuevos, y marcadas primero se quedarian sin marcar.
                     table.setGroupingEnabled(!isSelecting());
+                    // Que le pasa a lo que elijas (sacrificar, descartar...),
+                    // para teñir la carta bajo el raton. ANTES de marcar las
+                    // elegibles, que es lo que repinta cada carta.
+                    forge.neo.card.CardNode.setChoiceAction(
+                            isSelecting() ? forge.neo.match.ChoiceAction.of(lastPrompt) : null);
                     table.setSelectable(this::isSelectable);
                     // Si no hay cartas elegibles pero si hay que contestar algo,
                     // puede que lo que se pida sea un jugador. Dejarlos clicables

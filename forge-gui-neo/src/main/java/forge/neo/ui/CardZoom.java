@@ -818,6 +818,16 @@ public final class CardZoom {
             final boolean show = !scroll.isVisible();
             scroll.setVisible(show);
             scroll.setManaged(show);
+            // Con los simbolos de mana de Forge, como el texto de la otra
+            // cara (ver plainTextBlock).
+            if (show && scroll.getContent() == body && forge.neo.card.ManaSymbols.enabled()
+                    && forge.neo.card.ManaSymbols.hasSymbols(body.getText())) {
+                body.applyCss();
+                final javafx.scene.text.TextFlow flow = new javafx.scene.text.TextFlow();
+                flow.setMaxWidth(width);
+                ManaIcons.fill(flow, body.getText(), body.getFont(), body.getTextFill());
+                scroll.setContent(flow);
+            }
             toggle.setText(NeoText.get(show ? "zoom.liveTextHide" : "zoom.liveTextShow"));
             e.consume();
         });
@@ -930,6 +940,17 @@ public final class CardZoom {
             final boolean show = !scroll.isVisible();
             scroll.setVisible(show);
             scroll.setManaged(show);
+            // Con los simbolos de mana de Forge (itch.io, 06-11-2026): ya en la
+            // escena, la etiqueta sabe su letra y su color, y el TextFlow los
+            // copia. Una vez: luego ya es el TextFlow lo que se ensenya.
+            if (show && scroll.getContent() == body && forge.neo.card.ManaSymbols.enabled()
+                    && forge.neo.card.ManaSymbols.hasSymbols(body.getText())) {
+                body.applyCss();
+                final javafx.scene.text.TextFlow flow = new javafx.scene.text.TextFlow();
+                flow.setMaxWidth(width);
+                ManaIcons.fill(flow, body.getText(), body.getFont(), body.getTextFill());
+                scroll.setContent(flow);
+            }
             toggle.setText(NeoText.get(show ? "zoom.plainTextHide" : "zoom.plainTextShow"));
             e.consume();
         });

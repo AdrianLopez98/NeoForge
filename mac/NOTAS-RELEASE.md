@@ -1,12 +1,14 @@
-**NeoForge para macOS 1.0.46 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.47 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **La carta que robas vuela** de tu biblioteca a la mano, boca abajo y dándose la vuelta, como en Arena.
-- **Entradas especiales** para 40 comandantes más (Galadriel, Urza, The Scarab God, Omnath, Cosmic Spider-Man…).
-- **Ascenso:** 14 reliquias nuevas y las primeras **malditas** (pegan más y cobran vida).
-- **Elegir mazmorra viendo las mazmorras**: el diálogo enseña sus cartas, no solo los nombres.
-- **Exportar un mazo lleva el banquillo**, con encabezados que leen Moxfield y Arena.
-- **Arreglos:** el stack ya no dice «gains hidden cardname», y la etiqueta del tipo elegido (Giant Slug) se va cuando se acaba el landwalk.
+- **Símbolos de maná de verdad** en el texto de las cartas, los costes y tu reserva (con cuántos en la esquina, hasta tres cifras). Se apaga en Ajustes.
+- **Se ve qué le pasa a la carta que elijas**: al pasar el ratón, la carta se tiñe del color de la acción con su nombre (sacrificar, descartar, exiliar, destruir).
+- **Jugador protegido**: un escudo en su barra cuando tiene protección (Teferi's Protection), antimaleficio o velo.
+- **El descarte del final del turno pregunta** antes de la última carta.
+- **Una funda fija para cada rival** en Personalizar → Rivales.
+- **Partida privada:** las IAs se llaman como dice Personalizar y pueden llevar un mazo al azar en cada partida.
+- **Clic derecho en tu mazo** amplía la carta de arriba cuando está destapada, y el nivel ocupa menos («L3»).
+- **Arreglos:** «Generar mazo» con comandantes recién llegados (Nick Fury), el botín de un desafío de la Quest que sacaba el botón de volver de la ventana, y el rival sorpresa dice lo que paga de verdad.
 
 Descarga el `.dmg` de tu Mac:
 

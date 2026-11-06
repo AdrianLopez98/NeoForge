@@ -5508,6 +5508,19 @@ public class TableScreen extends Pane {
                     // suelta, asi que hay que preguntarle a el que carta lleva.
                     card = detail.getCurrent();
                 }
+                if (card == null) {
+                    // Un monton que ensenya su carta de arriba (la de tu mazo
+                    // con Courser of Kruphix, Future Sight...): esa carta deja
+                    // pasar el raton para que el clic izquierdo abra el visor,
+                    // asi que el derecho la amplia desde la pila (Discord,
+                    // 06-11-2026: antes habia que abrir el mazo y ampliarla ahi).
+                    for (Node n = e.getTarget() instanceof Node t ? t : null; n != null; n = n.getParent()) {
+                        if (n instanceof ZonePile pile) {
+                            card = pile.getTopCard();
+                            break;
+                        }
+                    }
+                }
                 if (card != null) {
                     // En un dialogo o un visor de zona, la carta se amplia
                     // DENTRO de su lista, y la rueda o las flechas pasan a la
@@ -5518,7 +5531,9 @@ public class TableScreen extends Pane {
                             : isInside(zoomed, overlay) ? overlay
                             : isInside(zoomed, menuOverlay) ? menuOverlay : null;
                     final List<CardNode> ring = layer == null ? List.of() : ringOf(zoomed, layer);
-                    final int at = ring.indexOf(zoomed);
+                    // Sin nodo (el panel de detalle, la carta de arriba de una
+                    // pila), -1: List.of().indexOf(null) revienta.
+                    final int at = zoomed == null ? -1 : ring.indexOf(zoomed);
                     if (ring.size() > 1 && at >= 0) {
                         final List<CardView> cards = new ArrayList<>(ring.size());
                         for (final CardNode n : ring) {

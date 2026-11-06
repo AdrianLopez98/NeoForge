@@ -39,6 +39,8 @@ import forge.player.PlayerControllerHuman;
  * </ul>
  *
  * <p>Apagado de fabrica, como el del bloqueo: quien juega rapido no lo quiere.
+ * <b>Salvo el descarte de la limpieza</b>, encendido de fabrica con su propio
+ * ajuste ({@link forge.neo.NeoSettings#CONFIRM_DISCARD}, Discord 06-11-2026).
  * Ajustes → "Preguntar antes de cerrar una eleccion de cartas"
  * ({@link forge.neo.NeoSettings#CONFIRM_LAST_PICK}).
  */
@@ -50,7 +52,36 @@ public final class PickGuard {
     /** Si el ajuste esta puesto y este toque cerraria la eleccion. */
     public static boolean shouldAsk(final IGameController controller, final AbstractGuiGame gui,
                                     final CardView card) {
-        return forge.neo.NeoSettings.confirmLastPick() && wouldFinish(controller, gui, card);
+        if (forge.neo.NeoSettings.confirmLastPick()) {
+            return wouldFinish(controller, gui, card);
+        }
+        return forge.neo.NeoSettings.confirmCleanupDiscard() && isCleanupDiscard(gui)
+                && wouldFinish(controller, gui, card);
+    }
+
+    /**
+     * Si la eleccion abierta es el descarte de la limpieza: el turno esta en
+     * el paso de limpieza y lo que se elige son cartas de una mano. Es la
+     * unica eleccion de "elige N" que el motor abre ahi
+     * ({@code PlayerControllerHuman.chooseCardsToDiscardToMaximumHandSize});
+     * un disparo en la limpieza que pida elegir de la mano lo tapa tambien, y
+     * preguntar de mas ahi no hace dano.
+     */
+    public static boolean isCleanupDiscard(final AbstractGuiGame gui) {
+        final GameView gv = gui == null ? null : gui.getGameView();
+        if (gv == null || gv.getPhase() != forge.game.phase.PhaseType.CLEANUP || gv.getPlayers() == null) {
+            return false;
+        }
+        for (final PlayerView p : gv.getPlayers()) {
+            if (p.getHand() != null) {
+                for (final CardView c : p.getHand()) {
+                    if (c != null && gui.isSelectable(c)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     /** Lo mismo sin mirar el ajuste (para las pruebas). */

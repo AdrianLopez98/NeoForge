@@ -46,6 +46,14 @@ public class CardDetailPanel extends ScrollPane {
     private final Label type = new Label();
     private final Label rules = new Label();
     /**
+     * El nombre con su coste y el texto de reglas CON los simbolos de mana de
+     * Forge dentro (itch.io, 06-11-2026). Sustituyen a {@link #name} y
+     * {@link #rules} cuando el ajuste esta puesto, y copian su letra y su color
+     * (los del CSS, con el Ctrl+rueda aplicado).
+     */
+    private final javafx.scene.text.TextFlow nameFlow = new javafx.scene.text.TextFlow();
+    private final javafx.scene.text.TextFlow rulesFlow = new javafx.scene.text.TextFlow();
+    /**
      * Los contadores, escritos.
      *
      * <p>Sobre la carta caben tres pastillas; aqui caben todos y con su nombre
@@ -141,7 +149,13 @@ public class CardDetailPanel extends ScrollPane {
         affected.setMaxWidth(Double.MAX_VALUE);
         affected.setVisible(false);
         affected.setManaged(false);
-        content.getChildren().addAll(imageBox, name, type, countersText, affected, rules, hint);
+        for (final javafx.scene.text.TextFlow f : new javafx.scene.text.TextFlow[] {nameFlow, rulesFlow}) {
+            f.setMinHeight(Region.USE_PREF_SIZE);
+            f.setMaxWidth(Double.MAX_VALUE);
+            f.setVisible(false);
+            f.setManaged(false);
+        }
+        content.getChildren().addAll(imageBox, name, nameFlow, type, countersText, affected, rules, rulesFlow, hint);
         setContent(content);
 
         // Ctrl + rueda = tamano del texto. Un planeswalker tiene parrafos y
@@ -162,6 +176,8 @@ public class CardDetailPanel extends ScrollPane {
     public void setTextZoom(final double z) {
         this.textZoom = Math.max(0.8, Math.min(2.4, z));
         applyTextZoom();
+        // Los TextFlow copian la letra de las etiquetas: hay que rehacerlos.
+        refresh();
     }
 
     public double getTextZoom() {
@@ -210,6 +226,8 @@ public class CardDetailPanel extends ScrollPane {
             text = (text == null ? "" : text + "\n\n") + pt;
         }
         rules.setText(text == null ? "" : text.replace("\\n", "\n"));
+        showWithSymbols(name, nameFlow);
+        showWithSymbols(rules, rulesFlow);
 
         // Lo que OTRAS cartas le hacen (Discord, 23-10-2026), encima del texto
         // y en color de aviso: es justo lo que la carta no dice.
@@ -229,6 +247,27 @@ public class CardDetailPanel extends ScrollPane {
         big.setImage(img);
         big.setVisible(img != null);
         big.setManaged(img != null);
+    }
+
+    /**
+     * Si el texto de la etiqueta lleva simbolos de mana y el ajuste esta
+     * puesto, lo ensenya el TextFlow con los iconos (con la letra y el color
+     * de la etiqueta) y la etiqueta se esconde; si no, la etiqueta de siempre.
+     */
+    private static void showWithSymbols(final Label label, final javafx.scene.text.TextFlow flow) {
+        final String text = label.getText();
+        final boolean icons = forge.neo.card.ManaSymbols.enabled()
+                && forge.neo.card.ManaSymbols.hasSymbols(text);
+        if (icons) {
+            label.applyCss();
+            ManaIcons.fill(flow, text, label.getFont(), label.getTextFill());
+        } else {
+            flow.getChildren().clear();
+        }
+        flow.setVisible(icons);
+        flow.setManaged(icons);
+        label.setVisible(!icons);
+        label.setManaged(!icons);
     }
 
     /** "3 +1/+1, 1 STUN". Vacio si la carta no lleva ninguno. */

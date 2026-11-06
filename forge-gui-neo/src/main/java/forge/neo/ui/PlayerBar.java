@@ -1053,6 +1053,32 @@ public class PlayerBar extends HBox {
      * estaba en el texto del detalle, al pasar el raton. Va en la fila del
      * nombre ({@link #turnChips}): en la de abajo movia la mesa cada turno.
      */
+    /**
+     * El escudo de "este jugador esta protegido" (Discord, 06-11-2026: le
+     * ataco con la mesa entera en fase por Teferi's Protection y no le hizo
+     * nada, porque tenia proteccion contra todo y en la barra no lo ponia).
+     * En la fila del nombre, como las robadas; el detalle, al pasar el raton.
+     *
+     * @param shields lo de {@code forge.neo.match.PlayerShield.of}; vacia lo quita
+     */
+    public void setProtection(final java.util.List<String> shields) {
+        final String key = String.join("|", shields == null ? java.util.List.of() : shields);
+        if (key.equals(protectionKey)) {
+            return; // se llama en cada refresco: no rehacer el nodo ni su tooltip
+        }
+        protectionKey = key;
+        turnChips.getChildren().removeIf(n -> n.getStyleClass().contains("player-counter-shield"));
+        if (shields != null && !shields.isEmpty()) {
+            final Label pill = new Label("\uD83D\uDEE1 " + forge.neo.match.PlayerShield.label());
+            pill.getStyleClass().addAll("player-counter", "player-counter-shield");
+            javafx.scene.control.Tooltip.install(pill,
+                    new javafx.scene.control.Tooltip(forge.neo.match.PlayerShield.tooltip(shields)));
+            turnChips.getChildren().add(0, pill);
+        }
+    }
+
+    private String protectionKey = "";
+
     public void setDrawnThisTurn(final int drawn) {
         turnChips.getChildren().removeIf(n -> n.getStyleClass().contains("player-counter-drawn"));
         if (drawn > 1) {
@@ -1229,10 +1255,21 @@ public class PlayerBar extends HBox {
         if (amount <= 0) {
             return;
         }
-        final Label pip = new Label(amount > 1 ? String.valueOf(amount) : "");
-        pip.getStyleClass().addAll("mana-pip", "mana-" + letter.toLowerCase());
-        UiScale.fixedCircle(pip, 20);
-        pip.setAlignment(Pos.CENTER);
+        // El simbolo de Forge (itch.io, 06-11-2026), con cuantos en la esquina:
+        // dentro del dibujo el numero no se leeria. Sin el, la pastilla de
+        // color de siempre con el numero dentro.
+        final javafx.scene.Node icon = ManaIcons.pip(letter, amount, UiScale.px(20));
+        final javafx.scene.Node pip;
+        if (icon != null) {
+            pip = icon;
+            pip.getStyleClass().add("mana-pip-icon");
+        } else {
+            final Label circle = new Label(amount > 1 ? String.valueOf(amount) : "");
+            circle.getStyleClass().addAll("mana-pip", "mana-" + letter.toLowerCase());
+            UiScale.fixedCircle(circle, 20);
+            circle.setAlignment(Pos.CENTER);
+            pip = circle;
+        }
         final StackPane sp = new StackPane(pip);
         sp.setCursor(javafx.scene.Cursor.HAND);
         sp.setOnMouseClicked(e -> {

@@ -698,9 +698,21 @@ public final class NeoLobby {
         // antes. Una cara importada no viaja por el cable: los invitados no
         // tienen el fichero, asi que en red se queda la de siempre.
         final int rival = freeAiRival(lobby);
+        // El asiento recien anyadido (el ultimo, aun sin nombre) queda atado a
+        // ese rival: con los nombres "al azar" o "su comandante" el nombre ya
+        // no dice quien es, y sin esto todas las IAs serian el rival 1.
+        final LobbySlot fresh = lobby.getNumberOfSlots() == 0 ? null
+                : lobby.getSlot(lobby.getNumberOfSlots() - 1);
+        if (fresh != null && fresh.getName() == null && rival >= 0) {
+            RIVAL_OF.put(fresh, rival);
+        }
         int avatar = -1;
+        int sleeve = -1;
         String profile = null;
         if (rival >= 0) {
+            // Su funda, si es de la hoja de Forge: el indice viaja por el cable.
+            // Una importada no existe en el otro ordenador; ahi, la de siempre.
+            sleeve = forge.neo.look.RivalSetup.sleeveSpriteIndexOf(forge.neo.look.RivalSetup.sleeve(rival));
             final int sprite = forge.neo.look.RivalSetup.spriteIndexOf(forge.neo.look.RivalSetup.avatar(rival));
             if (sprite >= 0) {
                 avatar = sprite;
@@ -710,8 +722,91 @@ public final class NeoLobby {
                 profile = forge.neo.look.RivalSetup.resolve(own, rival, SEAT_RANDOM);
             }
         }
-        return UpdateLobbyPlayerEvent.create(LobbySlotType.AI, freeAiName(lobby),
-                avatar, -1, -1, false, false, java.util.Collections.emptySet(), profile);
+        // El nombre, como en una partida normal segun Personalizar -> Rivales
+        // (Discord, 05-11-2026: "AI names don't correlate with Customize").
+        // "Su comandante" se pone cuando llega el mazo (aiNameForDeck); hasta
+        // entonces, el de siempre.
+        String name = null;
+        if (forge.neo.NeoSettings.AI_NAMES_RANDOM.equals(forge.neo.NeoSettings.aiNames())) {
+            name = uniqueIn(lobby, -1, forge.neo.look.NeoPlayers.randomName(Math.max(rival, 0)));
+        }
+        return UpdateLobbyPlayerEvent.create(LobbySlotType.AI, name != null ? name
+                        : rival >= 0 ? forge.neo.look.NeoPlayers.aiName(rival) : freeAiName(lobby),
+                avatar, sleeve, -1, false, false, java.util.Collections.emptySet(), profile);
+    }
+
+    /** Que rival de Personalizar es cada asiento de IA (identidad del asiento). */
+    private static final java.util.Map<LobbySlot, Integer> RIVAL_OF =
+            java.util.Collections.synchronizedMap(new java.util.WeakHashMap<>());
+
+    /** El rival de Personalizar de este asiento: el atado al sentarlo, o el de su nombre guardado. -1 si ninguno. */
+    static int rivalOf(final LobbySlot slot) {
+        if (slot == null) {
+            return -1;
+        }
+        final Integer bound = RIVAL_OF.get(slot);
+        if (bound != null) {
+            return bound;
+        }
+        for (int i = 0; i < MAX_SEATS; i++) {
+            if (slot.getName() != null && slot.getName().equals(forge.neo.look.NeoLook.aiName(i))) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * El nombre que le toca a la IA del asiento {@code index} ahora que juega
+     * con {@code deck}, o null si no cambia. Solo con "su comandante": el
+     * nombre corto del comandante ("Krenko"), y sin comandante el de su rival.
+     * Nunca repite el de otro asiento.
+     */
+    public static String aiNameForDeck(final GameLobby lobby, final int index, final Deck deck) {
+        final LobbySlot slot = lobby.getSlot(index);
+        if (slot == null || slot.getType() != LobbySlotType.AI
+                || !forge.neo.NeoSettings.AI_NAMES_COMMANDER.equals(forge.neo.NeoSettings.aiNames())) {
+            return null;
+        }
+        String name = forge.neo.look.NeoPlayers.commanderName(deck);
+        if (name == null || name.isBlank()) {
+            final int rival = rivalOf(slot);
+            name = rival >= 0 ? forge.neo.look.NeoPlayers.aiName(rival) : slot.getName();
+        }
+        if (name == null || name.isBlank()) {
+            return null;
+        }
+        final String unique = uniqueIn(lobby, index, name);
+        return unique.equals(slot.getName()) ? null : unique;
+    }
+
+    /**
+     * Un nombre nuevo al azar para la IA del asiento {@code index}, al empezar
+     * cada partida, o null si el modo no es "al azar en cada partida".
+     */
+    public static String rerolledAiName(final GameLobby lobby, final int index) {
+        final LobbySlot slot = lobby.getSlot(index);
+        if (slot == null || slot.getType() != LobbySlotType.AI
+                || !forge.neo.NeoSettings.AI_NAMES_RANDOM.equals(forge.neo.NeoSettings.aiNames())) {
+            return null;
+        }
+        return uniqueIn(lobby, index, forge.neo.look.NeoPlayers.randomName(Math.max(rivalOf(slot), 0)));
+    }
+
+    /** {@code name}, o "name 2", "name 3"... si ya lo lleva otro asiento distinto de {@code index}. */
+    private static String uniqueIn(final GameLobby lobby, final int index, final String name) {
+        final List<String> taken = new ArrayList<>();
+        for (int i = 0; i < lobby.getNumberOfSlots(); i++) {
+            final LobbySlot s = lobby.getSlot(i);
+            if (i != index && s != null && s.getName() != null) {
+                taken.add(s.getName());
+            }
+        }
+        String unique = name;
+        for (int n = 2; taken.contains(unique); n++) {
+            unique = name + " " + n;
+        }
+        return unique;
     }
 
     private static final java.util.Random SEAT_RANDOM = new java.util.Random();
@@ -722,15 +817,20 @@ public final class NeoLobby {
      */
     public static int freeAiRival(final GameLobby lobby) {
         final List<String> taken = new ArrayList<>();
+        final List<Integer> bound = new ArrayList<>();
         for (int i = 0; i < lobby.getNumberOfSlots(); i++) {
             final LobbySlot s = lobby.getSlot(i);
             if (s != null && s.getName() != null) {
                 taken.add(s.getName());
+                final Integer r = RIVAL_OF.get(s);
+                if (r != null) {
+                    bound.add(r);
+                }
             }
         }
         for (int i = 0; i < MAX_SEATS; i++) {
             final String candidate = forge.neo.look.NeoPlayers.aiName(i);
-            if (candidate != null && !candidate.isBlank() && !taken.contains(candidate)) {
+            if (candidate != null && !candidate.isBlank() && !taken.contains(candidate) && !bound.contains(i)) {
                 return i;
             }
         }

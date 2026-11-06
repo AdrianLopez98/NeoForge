@@ -455,4 +455,21 @@ public final class NeoLook {
         }
         return null;
     }
+
+    /**
+     * La funda con ese id, o {@code null} si ya no esta. Como
+     * {@link #avatarById}: para la funda de un rival, "no esta" significa "al
+     * azar", no la primera que haya.
+     */
+    public static LookItem sleeveById(final String id) {
+        if (id == null || id.isEmpty()) {
+            return null;
+        }
+        for (final LookItem item : sleeves()) {
+            if (item.getId().equals(id)) {
+                return item;
+            }
+        }
+        return null;
+    }
 }
