@@ -826,6 +826,11 @@ public final class CardZoom {
             // cara (ver plainTextBlock).
             if (show && scroll.getContent() == body && forge.neo.card.ManaSymbols.enabled()
                     && forge.neo.card.ManaSymbols.hasSymbols(body.getText())) {
+                // Primero el ScrollPane: hasta que crea su piel, la etiqueta no
+                // cuelga de la escena y su applyCss no ve la hoja de estilos:
+                // copiaba el NEGRO de fabrica al abrir la ampliacion con el texto
+                // ya desplegado (Discord, 08-11-2026).
+                scroll.applyCss();
                 body.applyCss();
                 final javafx.scene.text.TextFlow flow = new javafx.scene.text.TextFlow();
                 flow.setMaxWidth(width);
@@ -950,6 +955,11 @@ public final class CardZoom {
             // copia. Una vez: luego ya es el TextFlow lo que se ensenya.
             if (show && scroll.getContent() == body && forge.neo.card.ManaSymbols.enabled()
                     && forge.neo.card.ManaSymbols.hasSymbols(body.getText())) {
+                // Primero el ScrollPane: hasta que crea su piel, la etiqueta no
+                // cuelga de la escena y su applyCss no ve la hoja de estilos:
+                // copiaba el NEGRO de fabrica al abrir la ampliacion con el texto
+                // ya desplegado (Discord, 08-11-2026).
+                scroll.applyCss();
                 body.applyCss();
                 final javafx.scene.text.TextFlow flow = new javafx.scene.text.TextFlow();
                 flow.setMaxWidth(width);
