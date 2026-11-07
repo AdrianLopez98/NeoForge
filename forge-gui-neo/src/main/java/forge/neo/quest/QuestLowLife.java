@@ -60,7 +60,9 @@ public final class QuestLowLife {
         final File f = fileOf(questName);
         try {
             if (on) {
-                Files.writeString(f.toPath(), "15/30\n");
+                // Files.write y no writeString: writeString no existe en Android
+                // por debajo de la API 33 (NoSuchMethodError, Discord 07-11-2026).
+                Files.write(f.toPath(), "15/30\n".getBytes(java.nio.charset.StandardCharsets.UTF_8));
             } else {
                 Files.deleteIfExists(f.toPath());
             }
