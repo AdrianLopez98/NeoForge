@@ -107,9 +107,6 @@ public final class NeoBoot {
         forge.neo.look.AiProfiles.install();
         // Tu lista de prohibidas de cada formato, sobre la oficial (BanList).
         forge.neo.deck.BanList.applyAll();
-        // "La juega Flat MC" con memoria: sin ella el generador de mazos no
-        // acababa en Android (FlatMcKeptCache).
-        forge.neo.deck.FlatMcKeptCache.install();
         // Las Nazgul y los Teferi de otra ilustracion, en sus sobres, antes del
         // primer sobre (AltArtsInPacks).
         forge.neo.card.AltArtsInPacks.install();

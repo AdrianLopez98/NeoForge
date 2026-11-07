@@ -1117,9 +1117,11 @@ public final class DeckRulesCheck {
 
         // Una carta que existe, con una edicion que Forge no tiene (Discord,
         // 31-10-2026: "Comet Storm [P10]"): entra por su nombre. Una que Forge
-        // aun no ha programado sigue sin reconocerse.
+        // aun no ha programado sigue sin reconocerse. Una INVENTADA: la de
+        // antes (Galvanizing Tenor, TRC) la programo Forge el 07-11-2026 y la
+        // prueba se puso roja sin que el importador hiciera nada mal.
         final DeckImporter.Result promo = DeckImporter.importCommander(String.join(System.lineSeparator(),
-                "Comet Storm [P10]", "1 Sol Ring", "1 Galvanizing Tenor (TRC) 67"), "prueba");
+                "Comet Storm [P10]", "1 Sol Ring", "1 Neoforge Imaginary Testcard (TRC) 67"), "prueba");
         System.out.printf(java.util.Locale.ROOT, "        (promo: principal=%d desconocidas=%d %s)%n",
                 promo.deck == null ? -1 : promo.deck.getMain().countAll(), promo.unknown, promo.problems);
         check("Importar: una edicion que Forge no tiene no tira la carta (Comet Storm [P10])",
@@ -1765,58 +1767,26 @@ public final class DeckRulesCheck {
             check("Generar: Nick Fury, Agent of S.H.I.E.L.D. tiene mazo", got > 50);
         }
 
-        // FlatMcKeptCache (07-11-2026): la respuesta rapida tiene que ser LA MISMA
-        // que la de Forge, carta a carta, o los mazos generados cambiarian.
-        int compared = 0;
-        int differ = 0;
-        int kept = 0;
-        String firstDiff = null;
-        for (final PaperCard pc : forge.model.FModel.getMagicDb().getCommonCards().getUniqueCards()) {
-            final String name = pc.getName();
-            final boolean theirs = forge.ai.simulation.AiCardLists.isFlatMcPlayable(name);
-            final boolean ours = FlatMcKeptCache.playable(name);
-            compared++;
-            if (theirs) {
-                kept++;
-            }
-            if (theirs != ours) {
-                differ++;
-                if (firstDiff == null) {
-                    firstDiff = name;
-                }
-            }
-        }
-        System.out.printf(java.util.Locale.ROOT, "        (Flat MC: %d cartas, %d que la IA juega, %d distintas%s)%n",
-                compared, kept, differ, firstDiff == null ? "" : ", la primera " + firstDiff);
-        check("Flat MC: nuestra respuesta es la de Forge en TODAS las cartas", compared > 20000 && kept > 0 && differ == 0);
-
-        // Y la prueba de las semillas: el MISMO mazo con la misma semilla, con el
-        // filtro original de Forge y con el nuestro (retos del dia, codigos).
-        final java.util.function.Predicate<String> forgeFilter = name -> forge.model.FModel.getPreferences()
-                .getPrefBoolean(forge.localinstance.properties.ForgePreferences.FPref.MATCH_AI_FLAT_MONTE_CARLO)
-                && forge.ai.simulation.AiCardLists.isFlatMcPlayable(name);
+        // LAS SEMILLAS (07-11-2026): el mismo mazo con la misma semilla (retos
+        // del dia, codigos de Ascenso). Con el filtro "la juega Flat MC" de
+        // Forge, que desde el 07-11-2026 ya es rapido (precalcula la lista y
+        // normaliza sin expresiones regulares): el nuestro con memoria
+        // (FlatMcKeptCache, por el cuelgue de Ascenso en Android) sobraba.
         final java.util.Random previous = forge.util.MyRandom.getRandom();
-        String deckForge;
-        String deckOurs;
-        long msForge;
-        long msOurs;
+        String first;
+        String second;
+        long ms;
         try {
-            forge.card.CardAiHints.setKeptForFlatMc(forgeFilter);
-            long t0 = System.nanoTime();
-            deckForge = seededDecks();
-            msForge = (System.nanoTime() - t0) / 1_000_000L;
-            FlatMcKeptCache.install();
-            t0 = System.nanoTime();
-            deckOurs = seededDecks();
-            msOurs = (System.nanoTime() - t0) / 1_000_000L;
+            final long t0 = System.nanoTime();
+            first = seededDecks();
+            ms = (System.nanoTime() - t0) / 1_000_000L;
+            second = seededDecks();
         } finally {
-            FlatMcKeptCache.install();
             forge.util.MyRandom.setRandom(previous);
         }
-        System.out.printf(java.util.Locale.ROOT, "        (Semillas: con el filtro de Forge %d ms, con el nuestro %d ms)%n",
-                msForge, msOurs);
-        check("Flat MC: con la misma semilla salen LOS MISMOS mazos (blanco-azul y Commander)",
-                !deckForge.isEmpty() && deckForge.equals(deckOurs));
+        System.out.printf(java.util.Locale.ROOT, "        (Semillas: tres mazos en %d ms)%n", ms);
+        check("Semillas: con la misma semilla salen LOS MISMOS mazos (blanco-azul y Commander)",
+                !first.isEmpty() && first.equals(second));
     }
 
     /** Tres mazos sembrados (dos por colores y uno de Commander), en texto, para comparar. */
