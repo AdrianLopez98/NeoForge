@@ -146,6 +146,7 @@ public class PromptBanner extends VBox {
         text.getStyleClass().add("prompt-banner-text");
         text.setWrapText(true);
         text.setMaxWidth(UiScale.px(420));
+        ManaIcons.decorate(text);
         text.setMinHeight(Region.USE_PREF_SIZE);
 
         ok.getStyleClass().addAll("btn-primary", "prompt-banner-btn");

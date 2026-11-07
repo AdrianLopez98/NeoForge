@@ -1,14 +1,14 @@
-**NeoForge para macOS 1.0.47 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.48 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Símbolos de maná de verdad** en el texto de las cartas, los costes y tu reserva (con cuántos en la esquina, hasta tres cifras). Se apaga en Ajustes.
-- **Se ve qué le pasa a la carta que elijas**: al pasar el ratón, la carta se tiñe del color de la acción con su nombre (sacrificar, descartar, exiliar, destruir).
-- **Jugador protegido**: un escudo en su barra cuando tiene protección (Teferi's Protection), antimaleficio o velo.
-- **El descarte del final del turno pregunta** antes de la última carta.
-- **Una funda fija para cada rival** en Personalizar → Rivales.
-- **Partida privada:** las IAs se llaman como dice Personalizar y pueden llevar un mazo al azar en cada partida.
-- **Clic derecho en tu mazo** amplía la carta de arriba cuando está destapada, y el nivel ocupa menos («L3»).
-- **Arreglos:** «Generar mazo» con comandantes recién llegados (Nick Fury), el botín de un desafío de la Quest que sacaba el botón de volver de la ventana, y el rival sorpresa dice lo que paga de verdad.
+- **Fuerza/resistencia como en las cartas de Magic** (ajuste, apagado de fábrica): la caja de la carta impresa, del color de la carta.
+- **Se ve qué le pasa a la carta también al elegir objetivo** (Swords to Plowshares: «exiliar»), con un tinte más suave, y se puede apagar.
+- **Símbolos de maná también en los textos del motor**: menús de habilidades, avisos de pago y diálogos.
+- **Costes con varias partes, una sola pregunta y antes de pagar nada** (Lion's Eye Diamond).
+- **La carta sin imagen** lleva el icono de su subtipo y el color de la carta, con marco dorado si es legendaria.
+- **Exportar el mazo con edición y número de coleccionista**, **hojas de pegatinas** de Unfinity y **mazo de Atracciones** en el constructor.
+- **Tu biblioteca al acabar, también si pierdes**, y **precios reales** en la tienda de la Quest.
+- **Arreglos:** Black Lotus ya no te pasa el turno, sin Arcane Signet ni Command Tower con un comandante incoloro, sobres Jumpstart de Avatar que salían vacíos, y rivales del Torneo y el Coliseo de la Quest de tus expansiones.
 
 Descarga el `.dmg` de tu Mac:
 

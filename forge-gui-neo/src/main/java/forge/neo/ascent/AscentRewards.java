@@ -558,6 +558,11 @@ public final class AscentRewards {
             if (!id.hasNoColorsExcept(allowed)) {
                 continue;
             }
+            // Arcane Signet y compania no dan nada sin colores (Discord,
+            // 07-11-2026, Molecule Man). Ver GeneratedDecks.deadWithoutColours.
+            if (allowed.isColorless() && forge.neo.deck.GeneratedDecks.deadWithoutColours(c)) {
+                continue;
+            }
             // Dual o triple, o buena de verdad. Una tierra infrecuente que solo
             // produce un color y entra girada no es un premio, es un hueco.
             if (id.countColors() < 2
@@ -967,6 +972,11 @@ public final class AscentRewards {
             }
             final ColorSet id = c.getRules().getColorIdentity();
             if (!id.hasNoColorsExcept(allowed)) {
+                continue;
+            }
+            // Arcane Signet y compania no dan nada sin colores (Discord,
+            // 07-11-2026, Molecule Man). Ver GeneratedDecks.deadWithoutColours.
+            if (allowed.isColorless() && forge.neo.deck.GeneratedDecks.deadWithoutColours(c)) {
                 continue;
             }
             // Un gamechanger va a SU cubo y solo a ese: si estuviera ademas en

@@ -173,6 +173,42 @@ public final class CardKeywords {
     }
 
     /**
+     * EL ICONO DE FORGE de cada palabra de {@link #combat}: titulo -> nombre del
+     * {@code FSkinProp} ({@code IMG_ABILITY_FLYING}...), solo las que Forge
+     * dibuja. Lo decide el propio Forge ({@code FSkinProp.iconFromKeyword}, que
+     * ya sabe de antimaleficio "de" un color y demas), como los iconos de la
+     * mesa del escritorio ({@link KeywordIcon}). Lo usa Android (decision 642;
+     * Discord, 06-11-2026: iconos en vez de "DT").
+     */
+    public static java.util.Map<String, String> combatIcons(final CardView card) {
+        final java.util.Map<String, String> out = new java.util.LinkedHashMap<>();
+        for (final KeywordView k : of(card)) {
+            final String t = k.title();
+            if (t == null) {
+                continue;
+            }
+            for (final String importante : COMBAT) {
+                if (out.containsKey(importante)) {
+                    continue;
+                }
+                if (t.equalsIgnoreCase(importante) || t.regionMatches(true, 0, importante, 0, importante.length())) {
+                    try {
+                        final forge.localinstance.skin.FSkinProp icon =
+                                forge.localinstance.skin.FSkinProp.iconFromKeyword(k);
+                        if (icon != null) {
+                            out.put(importante, icon.name());
+                        }
+                    } catch (final RuntimeException e) {
+                        // sin icono, la letra de siempre
+                    }
+                    break;
+                }
+            }
+        }
+        return out;
+    }
+
+    /**
      * El orden es el de lo que mas cambia una decision de combate.
      *
      * <p>Volar y alcance primero porque deciden <b>si se puede bloquear</b>;

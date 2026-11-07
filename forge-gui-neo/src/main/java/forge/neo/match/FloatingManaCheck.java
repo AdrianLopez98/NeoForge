@@ -49,6 +49,11 @@ public final class FloatingManaCheck {
         check(Boolean.FALSE.equals(r), "sin mana flotante se paga solo (" + r + ")");
         r = probe("R flotando + Isla, {U}{U}", "R", ISLAND, "U U");
         check(Boolean.FALSE.equals(r), "si lo flotante no sirve para el coste, se paga solo (" + r + ")");
+        // itch.io, 07-11-2026 (Hypnotic Specter): con lo justo no hay nada que elegir.
+        r = probe("C flotando + 2 Pantanos, {1}{B}{B}", "C", "Swamp|Set:M21;Swamp|Set:M21", "1 B B");
+        check(Boolean.FALSE.equals(r), "con lo justo (flotante + fuentes = coste) se paga solo (" + r + ")");
+        r = probe("C flotando + 3 Pantanos, {1}{B}{B}", "C", "Swamp|Set:M21;Swamp|Set:M21;Swamp|Set:M21", "1 B B");
+        check(Boolean.TRUE.equals(r), "si sobra uno, se para para elegir (" + r + ")");
         System.out.printf(Locale.ROOT, "%n  %d bien, %d mal%n", passed, failed);
         if (failed > 0) {
             throw new IllegalStateException(failed + " comprobacion(es) del mana flotante han fallado");

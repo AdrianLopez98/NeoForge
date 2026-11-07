@@ -824,7 +824,14 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                     // (Marvin, Murderous Mimic).
                     final int many = Integer.getInteger("neo.abilities.count", 0);
                     final List<String> labels = new ArrayList<>();
-                    if (many > 0) {
+                    if (Boolean.getBoolean("neo.abilities.symbols")) {
+                        // Todos los simbolos dentro del texto del motor (itch.io, 07-11-2026).
+                        labels.add("Kestia, the Cultivator - Creature 4 / 4");
+                        labels.add("Bestow {3}{G}{W}{U} (If you cast this card for its bestow cost, it's an Aura spell"
+                                + " with enchant creature. It becomes a creature again if it's not attached to a creature.)");
+                        labels.add("{T}, Pay {X}{B}{R}{C}{S}: hybrid {W/U}{2/B}{G/P}{R/G/P} and {E}{Q}.");
+                        table.setPrompt("Pay Mana Cost: {3}{G}{G}{W/U}{B/P}{X}\nCreeping Renaissance (56) - Machado chooses a card type.");
+                    } else if (many > 0) {
                         for (int k = 1; k <= many; k++) {
                             labels.add("{" + k + "}, {T}: Habilidad prestada numero " + k
                                     + " de otra criatura que controlas.");
@@ -837,7 +844,7 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                     }
                     final boolean[] can = new boolean[labels.size()];
                     java.util.Arrays.fill(can, true);
-                    if (many <= 0) {
+                    if (many <= 0 && !Boolean.getBoolean("neo.abilities.symbols")) {
                         can[1] = false;
                     }
                     table.getOverlay().show(new forge.neo.ui.AbilityMenu(

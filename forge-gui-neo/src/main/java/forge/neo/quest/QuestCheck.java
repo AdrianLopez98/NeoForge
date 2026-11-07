@@ -114,6 +114,7 @@ public final class QuestCheck {
         ok &= checkLowLife();
         ok &= checkRivalSets();
         ok &= checkRivalSetsEveryDuel();
+        ok &= checkTableRivalSets();
         ok &= checkRename();
         ok &= checkKept();
         ok &= checkUpgradeLevels();
@@ -866,6 +867,23 @@ public final class QuestCheck {
         System.out.printf(Locale.ROOT, "  Sobres Jumpstart: %d; el de Avatar con %d temas%n",
                 jProducts.size(), avatar == null ? 0 : avatar.themes.size());
         ok &= jProducts.size() >= 8 && avatar != null && avatar.themes.size() >= 50;
+        // NINGUN TEMA VACIO (07-11-2026): el sobre trae uno al azar, y uno que
+        // no se puede abrir dejaba la compra en nada sin decir por que. El
+        // sorteo va con la semilla de la prueba, asi que un tema roto solo
+        // salia cuando algo de antes movia el sorteo.
+        for (final NeoJumpstart.Product p : jProducts) {
+            final java.util.List<String> empty = new java.util.ArrayList<>();
+            for (final NeoJumpstart.Theme t : p.themes) {
+                if (t.contents().isEmpty()) {
+                    empty.add(t.name());
+                }
+            }
+            if (!empty.isEmpty()) {
+                System.out.printf(Locale.ROOT, "  Jumpstart %s: %d de %d temas VACIOS: %s (MAL)%n",
+                        p.name, empty.size(), p.themes.size(), empty);
+                ok = false;
+            }
+        }
         if (avatar != null) {
             final int ap = NeoQuestShop.jumpstartPrice(avatar);
             NeoQuest.engine().getAssets().addCredits(ap);
@@ -1050,7 +1068,11 @@ public final class QuestCheck {
         final forge.neo.quest.QuestDeckContext ctx = new forge.neo.quest.QuestDeckContext();
         PaperCard sample = null;
         for (final PaperCard c : ctx.pool()) {
-            if (forge.model.FModel.getMagicDb().getCommonCards().getAllCards(c.getName()).size() > 2) {
+            // Y de la que NO tengas todas: si el azar de la tienda te dio las
+            // tres impresiones de la primera que salga (07-11-2026), la prueba
+            // no demuestra nada y fallaba sin que el juego hiciera nada mal.
+            final int all = forge.model.FModel.getMagicDb().getCommonCards().getAllCards(c.getName()).size();
+            if (all > 2 && ctx.printingsOf(c).size() < all) {
                 sample = c;
                 break;
             }
@@ -3738,6 +3760,52 @@ public final class QuestCheck {
         final boolean ok = total > 100 && bad == 0;
         System.out.printf(Locale.ROOT, "  [%s] %d duelos, %d mal (%d s)%n", ok ? "OK " : "MAL", total, bad,
                 (System.nanoTime() - t0) / 1_000_000_000L);
+        return ok;
+    }
+
+    /**
+     * El torneo y el Coliseo sientan comandantes de las expansiones de la
+     * Quest (QuestRivalSets.tableCommanders, Discord 07-11-2026: salian de
+     * expansiones sin desbloquear), y con la marca sus mazos se convierten.
+     */
+    private static boolean checkTableRivalSets() {
+        System.out.println("  --- Torneo y Coliseo con las expansiones de la Quest ---");
+        final String name = "neo-questcheck-mesa";
+        NeoQuest.delete(name);
+        final java.util.List<String> codes = java.util.List.of("DOM");
+        final java.util.Set<String> allowed = new java.util.HashSet<>(codes);
+        boolean ok;
+        try {
+            NeoQuest.start(name, NeoQuest.Modalidad.COMMANDER, NeoQuest.Dificultad.NORMAL, null,
+                    null, forge.neo.ascent.AscentPool.sets(codes));
+            final List<PaperCard> seated = QuestRivalSets.tableCommanders("");
+            final List<String> firstOut = new java.util.ArrayList<>();
+            int inside = 0;
+            for (final PaperCard c : seated) {
+                if (inSets(c, allowed)) {
+                    inside++;
+                } else if (firstOut.size() < 3) {
+                    firstOut.add(c.getName());
+                }
+            }
+            // Los de dentro, todos delante.
+            boolean ordered = true;
+            for (int i = 0; i < Math.min(inside, seated.size()); i++) {
+                ordered &= inSets(seated.get(i), allowed);
+            }
+            QuestRivalSets.set(name, true);
+            final PaperCard first = seated.isEmpty() ? null : seated.get(0);
+            final Deck built = first == null ? null
+                    : NeoCommanderDuels.deckForTable(first, forge.gamemodes.quest.QuestEventDifficulty.EASY);
+            final Deck played = QuestRivalSets.limitDeck(first == null ? "" : first.getName(), built);
+            final List<String> outside = played == null ? List.of("sin mazo") : outsideSets(played, allowed);
+            ok = inside >= 10 && ordered && seated.size() >= 63 && outside.isEmpty();
+            System.out.printf(Locale.ROOT, "  [%s] %d comandantes, %d de %s delante (%s); despues: %s; mazo de %s con la marca, fuera: %s%n",
+                    ok ? "OK " : "MAL", seated.size(), inside, codes, ordered, firstOut,
+                    first == null ? "-" : first.getName(), outside.isEmpty() ? "ninguna" : outside);
+        } finally {
+            NeoQuest.delete(name);
+        }
         return ok;
     }
 

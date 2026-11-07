@@ -1,37 +1,359 @@
-2026-10-31	The Bloodbile Swarm
+2026-11-04	Ezri Dax, Newly Joined
+2026-11-03	Worf, Still Not Merry
+2026-11-03	Wesley Crusher, Starfleet Cadet
+2026-11-03	Vulcan Mind-Meld
+2026-11-03	Voq, Torchbearer
+2026-11-03	Vic Fontaine, One Night Only
+2026-11-03	U.S.S. Stargazer, Here and There
+2026-11-03	U.S.S. Prometheus, Prototype
+2026-11-03	U.S.S. Farragut, Bold Explorer
+2026-11-03	U.S.S. Cerritos, Following Up
+2026-11-03	Type-03 Borg Vessel
+2026-11-03	Troi, Winging It
+2026-11-03	Transporter Malfunction
+2026-11-03	Tom Paris, Risk-Taker
+2026-11-03	The Naked Time
+2026-11-03	The Measure of a Man
+2026-11-03	The Guardian of Forever
+2026-11-03	The Beacon of Kahless
+2026-11-03	Tenacious Drone
+2026-11-03	Temporal Anomaly
+2026-11-03	Tal Shiar Operative
+2026-11-03	Tal Shiar Analyst
+2026-11-03	T'Pring, Never Parted
+2026-11-03	Sulu, Space Swashbuckler
+2026-11-03	Stray from History
+2026-11-03	Starfleet Spanner Jockey
+2026-11-03	Starfleet Security
+2026-11-03	Spock, Voice of Reason
+2026-11-03	Sickbay
+2026-11-03	Shuttlecraft Galileo
+2026-11-03	Sela, Tal Shiar Paradox
+2026-11-03	Savvy Profiteer
+2026-11-03	Sarek, Federation Ambassador
+2026-11-03	Sarcophagus, Ship of the Dead
+2026-11-03	Sam Kirk, Xenoanthropologist
+2026-11-03	S.S. Botany Bay
+2026-11-03	Rules of Acquisition
+2026-11-03	Ro Laren, Double Agent
+2026-11-03	Right of Vengeance
+2026-11-03	Reg Barclay, Fidgety Fantasist
+2026-11-03	Red Alert!
+2026-11-03	Q Continuum
+2026-11-03	Planet Killer
+2026-11-03	Photosynthetic Physician
+2026-11-03	Pavel Chekov, First Posting
+2026-11-03	Pattern Buffer Preservation
+2026-11-03	Own the Day
+2026-11-03	Oberth-Class Starship
+2026-11-03	Nog, Ambitious Cadet
+2026-11-03	Neelix, Moral Support
+2026-11-03	Merciful Mandate
+2026-11-03	Melkotian Adjudicator
+2026-11-03	McCoy, Not a Bricklayer
+2026-11-03	Martok, Hero of the Empire
+2026-11-03	MACO Strike Team
+2026-11-03	Lt. Arex, Ever-Adapting
+2026-11-03	Lieutenant Hikaru Sulu
+2026-11-03	H.M.S. Bounty, Unlikely Timeship
+2026-11-01	Opulent Clomper
+2026-11-01	La Forge, Thoughtful as Ever
+2026-11-01	Kurn, Son of Mogh
+2026-11-01	Kor, Cause of Vengeance
+2026-11-01	Kang, Suspicious Captain
+2026-11-01	Jefferies Tube
+2026-11-01	Jean-Luc, Mon Capitaine
+2026-11-01	Isolinear Processor
+2026-11-01	I.K.S. Negh'Var, Imperial Flagship
+2026-11-01	Gul Dukat, Colonial Prefect
+2026-11-01	Grilka, Widowed Warrior
+2026-11-01	Glory to the Empire!
+2026-11-01	Ghost of Illyria
+2026-11-01	Galvanizing Tenor
+2026-11-01	Gagh Slinger
+2026-11-01	Fugitive Listener
+2026-11-01	Fleet Captain Christopher Pike
+2026-11-01	Encounter the Unknown
+2026-11-01	Dr. Pulaski, Cynical Clinician
+2026-11-01	Dr. Leonard "Bones" McCoy
+2026-10-31	Warp Speed
+2026-10-31	The Promise of Kahless
+2026-10-31	The Destruction of Praxis
+2026-10-31	Suus Mahna Practitioner
+2026-10-31	Stable Wormhole
+2026-10-31	Species 8472
+2026-10-31	Sins of the Father
+2026-10-31	Qo'noS Quartermaster
+2026-10-31	Moonshae Pixie
+2026-10-31	Kes, Evolving Telepath
+2026-10-31	K'Vort-Class Raider
+2026-10-31	Giant Space Amoeba
+2026-10-31	Genesis Device
+2026-10-31	Dominion Assault Force
+2026-10-31	Data, Exploring Humanity
+2026-10-31	Culber and Stamets, Star-Crossed
+2026-10-31	Combadge
+2026-10-31	Colossal Clone Master
+2026-10-31	Collation Trimatrix
+2026-10-31	Cmdr. Troi, Outgoing Empath
+2026-10-31	Class-F Shuttlecraft
+2026-10-31	Chief Montgomery Scott
+2026-10-31	Chief Kyle, Transporter Tech
+2026-10-31	Chekov and McCoy
 2026-10-31	Change the Narrative
+2026-10-31	Chancellor Gorkon
+2026-10-31	Boarding Action
+2026-10-31	Blood-Sport Champion
+2026-10-31	Balance of Terror
+2026-10-31	B'Elanna Torres, Scrapper
+2026-10-31	Astute Terraformer
+2026-10-31	Artificial Anomaly
+2026-10-31	Amanda Grayson, Logic's Link
+2026-10-31	Alexander, Ship's Fool
+2026-10-31	Academy Instructor
+2026-10-30	U.S.S. Voyager, Lone Wanderer
+2026-10-30	U.S.S. Enterprise-E, Sovereign
+2026-10-30	U.S.S. Defiant, Mirror Migrant
+2026-10-30	Tribble Cluster
+2026-10-30	Temporal Tribulation
+2026-10-30	Sparks Ablaze
+2026-10-30	Salvaged Imitations
+2026-10-30	Rootha, Ardent Artisan
+2026-10-30	Prophet of the Planeswalker
+2026-10-30	Paradox Kraken
+2026-10-30	Ni'Var Science Academy
+2026-10-30	M'Ress, Crew Coordinator
+2026-10-30	Lieutenant Nyota Uhura
+2026-10-30	Korok, Liberated Rage
+2026-10-30	Killian, Spotlight Chaser
+2026-10-30	K't'inga-Class Battle Cruiser
+2026-10-30	Janice Rand, Essential Aide
+2026-10-30	Gnarling Targ
+2026-10-30	Gaseous Anomaly
+2026-10-30	Ferocious Colonist
+2026-10-30	Federation Resupply
+2026-10-30	Emergency Holographic Crew
+2026-10-30	Dominion Infiltration
+2026-10-30	Diabolic Formula
+2026-10-30	Commander William Riker
+2026-10-30	Boisterous Clique
+2026-10-30	Bend Mortal Limits
+2026-10-30	Banescale Serpent
+2026-10-30	Asymmetry Sage
+2026-10-30	Andromedan Automatons
+2026-10-30	Ambassador K'Ehleyr
+2026-10-29	Worf, Son of Mogh
+2026-10-29	Vengeance Mission
+2026-10-29	Uhura, Xenolinguist
+2026-10-29	U.S.S. Defiant, Tough Little Ship
+2026-10-29	Test of Identity
+2026-10-29	Tasha Yar, Out of Time
+2026-10-29	Rom and Leeta, Unlikely Pair
+2026-10-29	Rok-Tahk, Budding Scientist
+2026-10-29	Rite of Ascension
+2026-10-29	Q, Your Illustrious Host
+2026-10-29	Kirk, Man of Action
+2026-10-29	Indelicate Healer
+2026-10-29	Imperial Hullbreachers
+2026-10-29	David and Carol Marcus, Creators
+2026-10-29	Curzon Dax, Bound by Blood
+2026-10-29	Cloak and Phaser
+2026-10-29	Brazen Bluff
+2026-10-28	Unification
+2026-10-28	U.S.S. Enterprise-C, Time-Tossed
+2026-10-28	Tuvok, Chief Tactical Officer
 2026-10-28	Sulu, Heroic Helmsman
+2026-10-28	Subspace Anomaly
+2026-10-28	Stratagem Emulator
+2026-10-28	Seven of Nine, Tertiary Adjunct
+2026-10-28	Scotty, Chief Engineer
+2026-10-28	Saru, Unthreatened
+2026-10-28	On the Shoulders of Giants
+2026-10-28	Julian Bashir, Frontier Doctor
+2026-10-28	Jett Reno, Problem Solver
+2026-10-28	Holo-Engineer
+2026-10-28	Gwyndala, the Progeny
+2026-10-28	Grand Nagus Zek
+2026-10-28	Gift of Perfection
+2026-10-28	Genesis Effect
+2026-10-28	Ensign Harry Kim, Operations
+2026-10-28	De-evolve
+2026-10-28	Dathon, His Heart Open
+2026-10-28	Data, Professor of Humanities
+2026-10-28	Collective Override
+2026-10-28	Captain Janeway, Endgame
+2026-10-28	Beverly Crusher, Ship's Doctor
+2026-10-28	Ambulatory Reactor
+2026-10-27	Will Riker, First in the Field
+2026-10-27	Võx, Child of the Collective
+2026-10-27	U.S.S. Excelsior, Cutting Edge
+2026-10-27	The Needs of the Many
+2026-10-27	The Best of Both Worlds
+2026-10-27	Targ Wrangler
+2026-10-27	Supplementation Node
+2026-10-27	Reconnaissance Partition
+2026-10-27	Reclamation Specialist
+2026-10-27	Queen's Diamond
+2026-10-27	Planetary Bombardment
+2026-10-27	Pah-Wraith
+2026-10-27	Optimization Annex
+2026-10-27	One, Borg Evolved
+2026-10-27	Maturation Chamber
+2026-10-27	Make It So
+2026-10-27	Khan, Despot by Design
+2026-10-27	Jurati, Cordial Queen
+2026-10-27	Hugh, First of Many
+2026-10-27	Hologram Janeway
+2026-10-27	Gabriel Lorca, Mirror Menace
+2026-10-27	Final Frontier
+2026-10-27	Enterprise NX-01
+2026-10-27	Emergency Regeneration
+2026-10-27	Deliver from Chaos
+2026-10-27	Deanna Troi, Psychic Counsel
+2026-10-27	Co-Option Adjutant
+2026-10-27	Class-4 Tactical Cube
+2026-10-27	Chief Miles O'Brien
+2026-10-27	Borg Scout Sphere
+2026-10-27	Borg Incursion
+2026-10-27	Battle of Wolf 359
+2026-10-27	Assimilation Assessor
+2026-10-27	Assimilate the Wounded
+2026-10-26	Transwarp Hub
+2026-10-26	Shore Leave Planet
+2026-10-26	Overflow Submatrix
+2026-10-26	Extraction Integrant
+2026-10-26	Commander Raffi Musiker
+2026-10-26	Assembly Specialist
+2026-10-26	Anthropological Mission
 2026-10-25	The Caretaker
+2026-10-25	Test of Priorities
+2026-10-25	Sylvia Tilly, Joy of Discovery
 2026-10-25	Scotty, Miracle Worker
+2026-10-25	Lwaxana Troi, Charming Guest
+2026-10-25	Jadzia Dax, Living Legacy
+2026-10-25	Geordi La Forge, Innovator
 2026-10-25	Captain Benjamin Sisko
+2026-10-25	Branching Timeline
+2026-10-24	Zefram Cochrane, Warp Pioneer
+2026-10-24	Year of Hell
+2026-10-24	Warp Core
 2026-10-24	Vulcan
 2026-10-24	Vash, Freelance Archaeologist
+2026-10-24	Unexplored Territory
 2026-10-24	U.S.S. Enterprise-A, Free Spirit
 2026-10-24	Troubling Tribbles
+2026-10-24	There's Coffee in that Nebula
+2026-10-24	Test of Loyalty
+2026-10-24	Tell Me What You See
+2026-10-24	Subcommander T'Pol
+2026-10-24	Storied Veteran
 2026-10-24	Spot, Felis catus
+2026-10-24	Spock, Always Your Friend
+2026-10-24	Spatial Anomaly
+2026-10-24	Rutherford, Upgraded Ensign
 2026-10-24	Romulus
 2026-10-24	Romulan Bird-of-Prey
+2026-10-24	Ravenous Cosmozoan
 2026-10-24	Q, Stacking the Deck
+2026-10-24	Primary Unimatrix Adjunct
+2026-10-24	Pet Sehlat
 2026-10-24	Lt. Cmdr. Geordi La Forge
 2026-10-24	Locutus, the One Who Speaks
 2026-10-24	Koloth, Tribble Hunter
+2026-10-24	Kira Nerys, Firebrand
 2026-10-24	Khan, Vengeful Heart
+2026-10-24	Kai Winn, Faithless Leader
+2026-10-24	Jake Sisko, War Correspondent
+2026-10-24	Infinite Diversity
+2026-10-24	Impossible Choice
+2026-10-24	Gowron, Eager for Battle
+2026-10-24	Exploratory Mission
+2026-10-24	Erica Ortegas, Plucky Pilot
+2026-10-24	Ensign Pavel Chekov
 2026-10-24	Constable Odo
+2026-10-24	Armus, Skin of Evil
 2026-10-24	Andoria
 2026-10-24	All Good Things . . .
+2026-10-24	Adversary by Algorithm
+2026-10-23	Zero, Incorporeal Sensate
+2026-10-23	Worf, Intelligence Contractor
 2026-10-23	Worf, Defiant Commander
+2026-10-23	Una Chin-Riley, Number One
+2026-10-23	U.S.S. Discovery, at Black Alert
+2026-10-23	Type-2 Phaser
+2026-10-23	Those Old Scientists
+2026-10-23	The Inner Light
 2026-10-23	The Duras Sisters
+2026-10-23	The Doctor, EMH
 2026-10-23	The Borg Queen
+2026-10-23	Test of Courage
+2026-10-23	Tea, Earl Grey, Hot
+2026-10-23	Suurok-Class Science Vessel
+2026-10-23	Starship Enterprise
 2026-10-23	Quark's Bar
+2026-10-23	Qo'noS
 2026-10-23	Peace in Our Time
+2026-10-23	Obsidian Order Operative
+2026-10-23	Nyota Uhura, Communications
+2026-10-23	Mirror Universe Intrusion
+2026-10-23	Lieutenant Commander Data
 2026-10-23	Kobayashi Maru Scenario
+2026-10-23	Interstellar Effigy
 2026-10-23	Hemmer, Fixing What Is Broken
 2026-10-23	Gray and Adira, Forever Joined
 2026-10-23	Ferenginar
 2026-10-23	Federation Outpost
+2026-10-23	Excalbian Gamemaster
+2026-10-23	Energize
+2026-10-23	Elim Garak, Simple Tailor
+2026-10-23	Dr. Joseph M'Benga
+2026-10-23	Data, New Life
+2026-10-23	Daniels, Temporal Agent
 2026-10-23	Dal R'El, Augment Orphan
+2026-10-23	Dahar Master
 2026-10-23	D'Vana Tendi, Optimistic Ensign
+2026-10-23	Conquest Mission
+2026-10-23	Command Subadjunct
+2026-10-23	Cleveland Booker, Empath
+2026-10-23	Cetacean Ops
 2026-10-23	Captain Pike, Fullness of Time
+2026-10-23	Captain Jonathan Archer
+2026-10-23	Blastoneuron
+2026-10-23	Antagonist Incorporator
+2026-10-22	Worf, Honor-Bound Warrior
+2026-10-22	Vexing Drone
+2026-10-22	U.S.S. Reliant, From Hell's Heart
+2026-10-22	The Unicomplex
+2026-10-22	The Traveler
+2026-10-22	The Sword of Kahless
+2026-10-22	The Holodeck
+2026-10-22	Test of Conviction
+2026-10-22	Temporal Conqueror
+2026-10-22	Risa
+2026-10-22	Replicator
+2026-10-22	Quark, Humble Proprietor
+2026-10-22	Pure Energy
+2026-10-22	Phlox, Unorthodox Doctor
+2026-10-22	Orion
+2026-10-22	Mr. Spock, Science Officer
+2026-10-22	Miles O'Brien, Transporter Ops
+2026-10-22	Locutus of Borg
+2026-10-22	Live Long and Prosper
+2026-10-22	L'Rell, Fierce Visionary
+2026-10-22	Jean-Luc Picard, Luminary
+2026-10-22	Hologram Stalker
+2026-10-22	Hit It!
+2026-10-22	Guinan, Ancient Advisor
+2026-10-22	Georgiou, Terran Emperor
+2026-10-22	Earth, Sector 001
+2026-10-22	Dr. McCoy, Surly Surgeon
+2026-10-22	Deep Space Scan
+2026-10-22	Deep Space 9
+2026-10-22	Death Is Irrelevant
+2026-10-22	D-7 Battle Cruiser
+2026-10-22	D'Ghor Bloodletter
+2026-10-22	Cardassia Prime
+2026-10-22	Bajor
 2026-10-21	The Wrath of Khan
 2026-10-21	Starfleet Academy
 2026-10-21	Seven of Nine, Unassimilated
@@ -45,6 +367,16 @@
 2026-10-20	Borg Queen, Perfection Manifest
 2026-10-16	Doctor Strange, Master of Magic
 2026-10-16	Beta Ray Bill
+2026-10-13	Zimone the Calculating
+2026-10-13	The Bloodbile Swarm
+2026-10-13	Selfless Germinator
+2026-10-13	Searing Soloist
+2026-10-13	Quintorius, Fate Splitter
+2026-10-13	Potential Horizon
+2026-10-13	Oko, Lord of the Fae
+2026-10-13	Jace's Saga
+2026-10-13	Dina, Flesh Sower
+2026-10-13	Avoided Stairwurm
 2026-10-12	Hela, Mistress of Darkness
 2026-10-11	Summitfest Closing Ceremony
 2026-10-10	The Darkhold
@@ -10314,7 +10646,6 @@
 2022-07-07	Zellix, Sanity Flayer
 2022-07-07	Wilson, Refined Grizzly
 2022-07-07	Myrkul's Edict
-2022-07-07	Moonshae Pixie
 2022-07-07	Gluntch, the Bestower
 2022-07-07	Elminster
 2022-07-07	Draconic Lore

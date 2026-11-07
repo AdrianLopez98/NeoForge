@@ -195,8 +195,9 @@ public final class HiddenMana {
                 final int[] real = chosenColorAmount(c, ma);
                 if (real == null) {
                     normal = Math.max(normal, 1);
-                    if (!counted.contains(c)) {
-                        // Una fuente que el motor no cuenta: con lo que da.
+                    if (!counted.contains(c) || aiHoldsBack(ma)) {
+                        // Una fuente que el motor no cuenta (o que la IA se
+                        // guarda, ver aiHoldsBack): con lo que da.
                         final int net = plainAmount(c, ma) - activationMana(ma);
                         if (net > 0) {
                             isHidden = true;
@@ -239,6 +240,21 @@ public final class HiddenMana {
             }
         }
         return new Verdict(List.copyOf(hidden), budget, null);
+    }
+
+    /**
+     * <b>Black Lotus y familia</b> (Discord, 07-11-2026: <i>"the game
+     * immediately advanced to my opponent's turn"</i>, con Demonic Tutor,
+     * Ancestral Recall y Sol Ring en la mano y solo el Lotus en la mesa).
+     * {@code AILogic$ BlackLotus} hace que la IA NO lo gaste en nada de coste
+     * menor que 4 ({@code SpecialCardAi.BlackLotus}): es su estrategia, pero
+     * {@code AvailableActions} pregunta con esa misma estimacion por el
+     * jugador humano, y le salia que no podia pagar nada. Black Lotus,
+     * Blacker Lotus, Black Tulip, Lotus Bloom, Lotus Ring, Mirrored Lotus.
+     */
+    private static boolean aiHoldsBack(final SpellAbility ma) {
+        final String logic = ma.getParam("AILogic");
+        return logic != null && logic.startsWith("BlackLotus");
     }
 
     /** Se puede activar ahora: enderezada, sin mareo si es criatura, y permitida. */

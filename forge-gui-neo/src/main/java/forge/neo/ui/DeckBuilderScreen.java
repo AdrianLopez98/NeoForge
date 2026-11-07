@@ -2504,6 +2504,22 @@ public class DeckBuilderScreen extends StackPane {
                 deckList.getChildren().add(heading);
                 deckList.getChildren().addAll(rows);
             }
+            // Y LOS MAZOS APARTE, Atracciones y Contraptions (Discord,
+            // 07-11-2026, con Myra the Magnificent). Las filas son las del
+            // principal: el editor sabe en que mazo esta cada una.
+            for (final forge.deck.DeckSection section : DeckEditor.EXTRA_SECTIONS) {
+                final List<Map.Entry<PaperCard, Integer>> extra = editor.extraCards(section);
+                if (extra.isEmpty()) {
+                    continue;
+                }
+                final Label heading = new Label(DeckEditor.extraSectionLabel(section)
+                        + "  (" + editor.extraCount(section) + ")");
+                heading.getStyleClass().add("deck-group");
+                deckList.getChildren().add(heading);
+                for (final Map.Entry<PaperCard, Integer> e : extra) {
+                    deckList.getChildren().add(deckRow(e.getKey(), e.getValue()));
+                }
+            }
         }
         if (filtering) {
             deckCount.setText(NeoText.get("count.cards", main) + "  ·  "
@@ -3696,10 +3712,19 @@ public class DeckBuilderScreen extends StackPane {
      * <p>No se escribe a un fichero: se deja en un cuadro seleccionable, que es
      * lo que hace falta para pegarlo en Moxfield.
      */
+    /** Ajuste: exportar con "(SET) 123" en cada linea. */
+    static final String EXPORT_PRINTINGS = "deckExportPrintings";
+
     private void exportList() {
-        overlay.show(TextDialog.block(NeoText.get("deck.export.title"),
+        // Con edicion y numero de coleccionista si se pide (Discord,
+        // 07-11-2026); la casilla se recuerda.
+        overlay.show(TextDialog.blockWithOption(NeoText.get("deck.export.title"),
                 NeoText.get("deck.export.hint"),
-                editor.toText(), NeoText.get("deck.export.copy"),
+                NeoText.get("deck.export.printings"),
+                forge.neo.NeoSettings.getBool(EXPORT_PRINTINGS, false),
+                editor::toText,
+                on -> forge.neo.NeoSettings.setBool(EXPORT_PRINTINGS, on),
+                NeoText.get("deck.export.copy"),
                 text -> {
                     final javafx.scene.input.ClipboardContent content =
                             new javafx.scene.input.ClipboardContent();

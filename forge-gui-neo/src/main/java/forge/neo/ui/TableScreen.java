@@ -3465,7 +3465,8 @@ public class TableScreen extends Pane {
             return;
         }
         final List<CardView> cards = new ArrayList<>();
-        final var view = owner.getCards(zone);
+        final var view = zone == forge.game.zone.ZoneType.Library && librarySource != null
+                ? librarySource.apply(owner) : owner.getCards(zone);
         if (view != null) {
             for (final CardView cv : view) {
                 cards.add(cv);
@@ -3638,6 +3639,17 @@ public class TableScreen extends Pane {
     }
 
     private Predicate<CardView> mayView = c -> true;
+
+    /**
+     * De donde sale la biblioteca al abrirla: la partida la cambia por la de
+     * antes de perder al acabar (NeoMatchUI.libraryToShow). Null = la del motor.
+     */
+    public void setLibrarySource(
+            final java.util.function.Function<PlayerView, Iterable<CardView>> source) {
+        this.librarySource = source;
+    }
+
+    private java.util.function.Function<PlayerView, Iterable<CardView>> librarySource;
 
     /** La capa del menu de pausa, por encima de los dialogos del motor. */
     public Overlay getMenuOverlay() {

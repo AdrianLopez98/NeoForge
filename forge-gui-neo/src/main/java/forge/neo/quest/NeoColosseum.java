@@ -175,15 +175,8 @@ public final class NeoColosseum {
     }
 
     private static List<PaperCard> draw() {
-        final List<PaperCard> pool = new ArrayList<>();
-        final String mine = myCommanderName();
-        for (final PaperCard c : forge.neo.ascent.AscentSeedDeck.commanderPool()) {
-            if (forge.neo.ascent.AscentSynergy.knows(c) && !c.getName().equals(mine)
-                    && NeoCommanderDuels.fitsTable(c)) {
-                pool.add(c);
-            }
-        }
-        Collections.shuffle(pool, MyRandom.getRandom());
+        // Primero los de las expansiones de la Quest (QuestRivalSets).
+        final List<PaperCard> pool = QuestRivalSets.tableCommanders(myCommanderName());
         return Collections.unmodifiableList(new ArrayList<>(pool.subList(0, Math.min(RIVALS, pool.size()))));
     }
 
@@ -317,7 +310,7 @@ public final class NeoColosseum {
                 }
             }
             if (d != null) {
-                out.add(d);
+                out.add(QuestRivalSets.limitDeck(cmd.getName(), d));
             }
         }
         return out;

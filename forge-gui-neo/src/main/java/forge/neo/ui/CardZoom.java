@@ -52,6 +52,10 @@ import javafx.scene.paint.Color;
  */
 public final class CardZoom {
 
+    /** Si "Ver el texto de la carta" se abre solo (lo ultimo que hizo el jugador). */
+    static final String PLAIN_TEXT_OPEN = "zoomPlainTextOpen";
+
+
     private CardZoom() {
     }
 
@@ -932,6 +936,7 @@ public final class CardZoom {
         scroll.setVisible(false);
         scroll.setManaged(false);
 
+        final boolean[] opening = {false};
         final javafx.scene.control.Button toggle =
                 new javafx.scene.control.Button(NeoText.get("zoom.plainTextShow"));
         toggle.getStyleClass().add("zoom-live-toggle");
@@ -952,11 +957,35 @@ public final class CardZoom {
                 scroll.setContent(flow);
             }
             toggle.setText(NeoText.get(show ? "zoom.plainTextHide" : "zoom.plainTextShow"));
+            // Se recuerda (Discord, 07-11-2026: "add toggable option to show
+            // text by default"), como la vista de texto de Android: quien lo
+            // abre una vez lo tiene abierto en las siguientes.
+            if (!opening[0]) {
+                forge.neo.NeoSettings.setBool(PLAIN_TEXT_OPEN, show);
+                forge.neo.NeoSettings.save();
+            }
             e.consume();
         });
 
         final VBox box = new VBox(6, toggle, scroll);
         box.setAlignment(Pos.TOP_LEFT);
+        if (forge.neo.NeoSettings.getBool(PLAIN_TEXT_OPEN, false)) {
+            // Ya en la escena: el TextFlow con simbolos copia la letra del CSS.
+            box.sceneProperty().addListener(new javafx.beans.value.ChangeListener<>() {
+                @Override
+                public void changed(final javafx.beans.value.ObservableValue<? extends javafx.scene.Scene> o,
+                                    final javafx.scene.Scene was, final javafx.scene.Scene now) {
+                    if (now != null) {
+                        box.sceneProperty().removeListener(this);
+                        if (!scroll.isVisible()) {
+                            opening[0] = true;
+                            toggle.fire();
+                            opening[0] = false;
+                        }
+                    }
+                }
+            });
+        }
         return box;
     }
 

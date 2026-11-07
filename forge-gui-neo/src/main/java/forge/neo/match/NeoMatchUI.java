@@ -747,6 +747,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             // El visor de zonas ensenya cada carta solo si el motor lo permite:
             // la biblioteca es informacion oculta.
             table.setCardVisibility(this::mayView);
+            table.setLibrarySource(this::libraryToShow);
             // "Equipar" desde la carta ampliada. Ver equipLabel.
             table.setEquipAction(this::equipLabel, this::equipFromZoom);
             table.setOnCardDropped(this::onCardDropped);
@@ -4052,7 +4053,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
      * de invitado: ahi el motor no te manda sus cartas.
      */
     private boolean libraryOpenAfterGame(final CardView c) {
-        if (c == null || c.getZone() != forge.game.zone.ZoneType.Library) {
+        if (c == null) {
             return false;
         }
         final GameView gv = getGameView();
@@ -4060,7 +4061,72 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             return false;
         }
         final PlayerView me = localPlayerView();
-        return me != null && me.equals(c.getOwner());
+        if (me == null || !me.equals(c.getOwner())) {
+            return false;
+        }
+        if (c.getZone() == forge.game.zone.ZoneType.Library) {
+            return true;
+        }
+        // La que se enseña de antes de perder: esas cartas ya no estan en
+        // ninguna zona (ver libraryToShow).
+        return showsLibraryBeforeLoss(me) && libraryBeforeLoss instanceof java.util.Collection<?> col
+                && col.contains(c);
+    }
+
+    // ------------------------------------------------------------------
+    // TU BIBLIOTECA, AUNQUE PIERDAS (Discord, 07-11-2026: "Viewing post-game
+    // deck also applies if you lose"). A varios, quien pierde SE VA de la
+    // partida con todas sus cartas (regla 800.4a): al acabar, su biblioteca
+    // ya no existe y no hay nada que abrir.
+    //
+    // Sin coste: el motor crea una lista NUEVA cada vez que tu biblioteca
+    // cambia (PlayerView.updateZone -> CardView.getCollection), asi que basta
+    // con quedarse con la ultima que se vio mientras seguias vivo. Es guardar
+    // una referencia en cada refresco de la mesa, nada de copiar cartas.
+    // ------------------------------------------------------------------
+
+    private volatile Iterable<CardView> libraryBeforeLoss;
+
+    /** Lo llama la mesa en cada refresco de TU asiento. Una asignacion. */
+    void noteLibrary(final PlayerView p) {
+        if (p == null || p.getHasLost() || isNetGuest()) {
+            return;
+        }
+        final GameView gv = getGameView();
+        if (gv != null && gv.isGameOver()) {
+            return;
+        }
+        final Iterable<CardView> lib = p.getCards(forge.game.zone.ZoneType.Library);
+        if (lib != null) {
+            libraryBeforeLoss = lib;
+        }
+    }
+
+    /** Si de esta biblioteca se ensenya la de antes de perder. */
+    private boolean showsLibraryBeforeLoss(final PlayerView p) {
+        if (p == null || libraryBeforeLoss == null || p.getZoneSize(forge.game.zone.ZoneType.Library) > 0) {
+            return false;
+        }
+        final GameView gv = getGameView();
+        return gv != null && gv.isGameOver() && !isNetGuest() && p.equals(localPlayerView());
+    }
+
+    /** La biblioteca que se ensenya de ese jugador: la de ahora, o la de antes de perder. */
+    public Iterable<CardView> libraryToShow(final PlayerView p) {
+        return showsLibraryBeforeLoss(p) ? libraryBeforeLoss : p == null ? null
+                : p.getCards(forge.game.zone.ZoneType.Library);
+    }
+
+    /** Cuantas cartas tiene la biblioteca que se ensenya. */
+    public int librarySizeToShow(final PlayerView p) {
+        if (!showsLibraryBeforeLoss(p)) {
+            return p == null ? 0 : p.getZoneSize(forge.game.zone.ZoneType.Library);
+        }
+        int n = 0;
+        for (final CardView ignored : libraryBeforeLoss) {
+            n++;
+        }
+        return n;
     }
 
     @Override
@@ -4942,7 +5008,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         // acabar ya se ve boca arriba (libraryOpenAfterGame). Para capturarlo.
         if (Boolean.getBoolean("neo.over.library")) {
             final PlayerView me = localPlayerView();
-            final var library = me == null ? null : me.getCards(forge.game.zone.ZoneType.Library);
+            final var library = me == null ? null : libraryToShow(me);
             if (library != null) {
                 int n = 0;
                 for (final CardView cv : library) {
@@ -6612,8 +6678,14 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                     // Que le pasa a lo que elijas (sacrificar, descartar...),
                     // para teñir la carta bajo el raton. ANTES de marcar las
                     // elegibles, que es lo que repinta cada carta.
-                    forge.neo.card.CardNode.setChoiceAction(
-                            isSelecting() ? forge.neo.match.ChoiceAction.of(lastPrompt) : null);
+                    // Y al elegir OBJETIVO, lo que dice la habilidad (Swords
+                    // to Plowshares: exiliar), si dice una sola cosa.
+                    forge.neo.card.CardNode.setChoiceAction(isSelecting()
+                            && forge.neo.NeoSettings.getBool(forge.neo.match.ChoiceAction.SETTING, true)
+                            ? forge.neo.match.ChoiceAction.forPrompt(lastPrompt,
+                                    pendingInput(getGameController())
+                                            instanceof forge.gamemodes.match.input.InputSelectTargets)
+                            : null);
                     table.setSelectable(this::isSelectable);
                     // Si no hay cartas elegibles pero si hay que contestar algo,
                     // puede que lo que se pida sea un jugador. Dejarlos clicables

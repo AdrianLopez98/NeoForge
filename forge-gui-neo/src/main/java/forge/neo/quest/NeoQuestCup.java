@@ -391,9 +391,9 @@ public final class NeoQuestCup {
             return out;
         }
         for (final int s : seats) {
-            final Deck d = c.terms.commander
+            final Deck d = QuestRivalSets.limitDeck(c.seats.get(s), c.terms.commander
                     ? commanderDeck(c.seats.get(s), c.terms.rivalTier())
-                    : duelDeck(c.seats.get(s));
+                    : duelDeck(c.seats.get(s)));
             if (d != null) {
                 out.add(d);
             }
@@ -477,9 +477,9 @@ public final class NeoQuestCup {
             return out;
         }
         for (final int s : rivals) {
-            final Deck d = c.terms.commander
+            final Deck d = QuestRivalSets.limitDeck(c.seats.get(s), c.terms.commander
                     ? commanderDeck(c.seats.get(s), c.terms.rivalTier())
-                    : duelDeck(c.seats.get(s));
+                    : duelDeck(c.seats.get(s)));
             if (d != null) {
                 out.add(d);
             }
@@ -769,16 +769,8 @@ public final class NeoQuestCup {
     // Los rivales
 
     private static List<String> drawCommanders(final int n) {
-        final List<PaperCard> pool = new ArrayList<>();
-        final String mine = myCommanderName();
-        for (final PaperCard c : forge.neo.ascent.AscentSeedDeck.commanderPool()) {
-            // Sin comandantes de fichas: a cuatro hunden la partida (TokenDecks).
-            if (forge.neo.ascent.AscentSynergy.knows(c) && !c.getName().equals(mine)
-                    && NeoCommanderDuels.fitsTable(c)) {
-                pool.add(c);
-            }
-        }
-        Collections.shuffle(pool, MyRandom.getRandom());
+        // Primero los de las expansiones de la Quest (QuestRivalSets).
+        final List<PaperCard> pool = QuestRivalSets.tableCommanders(myCommanderName());
         final List<String> out = new ArrayList<>();
         for (final PaperCard c : pool.subList(0, Math.min(n, pool.size()))) {
             out.add(c.getName());

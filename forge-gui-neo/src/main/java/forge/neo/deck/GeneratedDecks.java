@@ -305,6 +305,7 @@ public final class GeneratedDecks {
         final Map<String, Integer> outside = countByNormalizedName(outsideMain);
         final Set<String> seen = new HashSet<>();
         final List<String> removed = new ArrayList<>();
+        final boolean colourless = colourlessCommander(deck, outsideMain);
         int total = 0;
         for (final Map.Entry<PaperCard, Integer> e : entries(main)) {
             final String name = e.getKey().getName();
@@ -314,7 +315,8 @@ public final class GeneratedDecks {
             final int inMain = main.countByName(name);
             final int alsoOutside = DeckFormat.canHaveSpecificNumberInDeck(e.getKey()) == null
                     ? outside.getOrDefault(normalized(name), 0) : 0;
-            final int max = notForDecks(e.getKey()) ? 0 : format.getMaxCardCopies(e.getKey());
+            final int max = notForDecks(e.getKey()) || colourless && deadWithoutColours(e.getKey())
+                    ? 0 : format.getMaxCardCopies(e.getKey());
             final int excess = Math.min(inMain, inMain + alsoOutside - max);
             if (excess <= 0) {
                 continue;
@@ -325,6 +327,58 @@ public final class GeneratedDecks {
         }
         refill(deck, format, total, removed);
         return total;
+    }
+
+    /**
+     * <b>Maná que con un comandante incoloro no da nada</b> (Discord,
+     * 07-11-2026, Ascenso con Molecule Man: <i>"since he is colorless any mana
+     * stone that produces color of his identity will basically be a dull
+     * card"</i>). Arcane Signet, Commander's Sphere, Command Tower, Path of
+     * Ancestry, Hidden Hideout: TODAS sus habilidades de mana son "de un color
+     * de la identidad de tu comandante", y sin colores eso no produce nada.
+     * Opal Palace no: tambien da {C}. Se lee del script
+     * ({@code Produced$ Combo ColorIdentity}), asi que las que salgan valen solas.
+     */
+    public static boolean deadWithoutColours(final PaperCard card) {
+        if (card == null || card.getRules() == null) {
+            return false;
+        }
+        boolean identityMana = false;
+        for (final String a : card.getRules().getMainPart().getAbilities()) {
+            if (!a.contains("AB$ Mana")) {
+                continue;
+            }
+            if (!a.contains("Produced$ Combo ColorIdentity")) {
+                return false;
+            }
+            identityMana = true;
+        }
+        return identityMana;
+    }
+
+    /**
+     * Si el comandante (o los dos) no tiene ningun color. Del mazo, o si el
+     * generador solo dio el principal, de lo que va fuera de el.
+     */
+    private static boolean colourlessCommander(final Deck deck, final CardPool outsideMain) {
+        java.util.List<PaperCard> cmds = deck.getCommanders();
+        if (cmds.isEmpty() && outsideMain != null) {
+            cmds = new ArrayList<>();
+            for (final Map.Entry<PaperCard, Integer> e : outsideMain) {
+                if (e.getKey().getRules() != null && e.getKey().getRules().canBeCommander()) {
+                    cmds.add(e.getKey());
+                }
+            }
+        }
+        if (cmds.isEmpty()) {
+            return false;
+        }
+        for (final PaperCard c : cmds) {
+            if (c.getRules() == null || !c.getRules().getColorIdentity().isColorless()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

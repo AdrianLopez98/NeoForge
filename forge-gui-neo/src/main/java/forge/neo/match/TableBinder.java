@@ -903,9 +903,17 @@ public class TableBinder {
                     mock != null ? mock[0] : ui == null ? 0 : RevealedHand.visible(p, ui::mayView),
                     mock != null ? mock[1] : ui == null ? 0 : RevealedHand.castable(p, ui::isPlayableOutside));
         }
+        // Tu biblioteca: si al acabar ya no existe por haber perdido, la de
+        // antes (NeoMatchUI.libraryToShow). Guardarla es una asignacion.
+        final NeoMatchUI libUi = matchUi;
+        if (!opponent && libUi != null) {
+            libUi.noteLibrary(p);
+        }
+        final int librarySize = !opponent && libUi != null
+                ? libUi.librarySizeToShow(p) : p.getZoneSize(ZoneType.Library);
         bar.setZones(
                 p.getZoneSize(ZoneType.Hand),
-                p.getZoneSize(ZoneType.Library),
+                librarySize,
                 p.getZoneSize(ZoneType.Graveyard),
                 p.getZoneSize(ZoneType.Exile),
                 p.getZoneSize(ZoneType.Command));
@@ -984,7 +992,7 @@ public class TableBinder {
             // Citadel y familia). Quien decide si se ve es el motor; aqui solo
             // se manda la de arriba y la mesa pregunta. Ver
             // TableScreen.setSelfLibraryPile.
-            table.setSelfLibraryPile(p.getZoneSize(ZoneType.Library), topOfLibrary(p));
+            table.setSelfLibraryPile(librarySize, topOfLibrary(libUi, p));
             table.setSelfZonePiles(p.getZoneSize(ZoneType.Graveyard),
                     p.getZoneSize(ZoneType.Exile),
                     hasPlayable(p, ZoneType.Graveyard), hasPlayable(p, ZoneType.Exile));
@@ -1018,8 +1026,8 @@ public class TableBinder {
      * el motor no manda las cartas de esa zona — que es lo normal para un
      * rival — aqui no hay nada que devolver.
      */
-    private static CardView topOfLibrary(final PlayerView p) {
-        final var library = p == null ? null : p.getCards(ZoneType.Library);
+    private static CardView topOfLibrary(final NeoMatchUI ui, final PlayerView p) {
+        final var library = p == null ? null : ui != null ? ui.libraryToShow(p) : p.getCards(ZoneType.Library);
         if (library == null) {
             return null;
         }

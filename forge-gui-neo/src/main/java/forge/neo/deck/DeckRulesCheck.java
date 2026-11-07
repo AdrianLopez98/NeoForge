@@ -34,6 +34,7 @@ public final class DeckRulesCheck {
         failed = 0;
 
         commanderIsSingleton();
+        attractionsGoApart();
         deckCoverIsChosenAndSaved();
         houseRulesArePerDeck();
         commanderColourIdentity();
@@ -536,6 +537,51 @@ public final class DeckRulesCheck {
                 editor.rejectionReason(solRing) != null);
     }
 
+    /**
+     * Las Atracciones van a su mazo aparte, no al principal (Discord,
+     * 07-11-2026: Myra the Magnificent). Y el motor las valida alli.
+     */
+    private static void attractionsGoApart() {
+        final DeckEditor editor = DeckEditor.createNew(NeoFormat.COMMANDER, "prueba");
+        final PaperCard balloon = card("Balloon Stand");
+        check("Atracciones: Balloon Stand es de su mazo aparte",
+                DeckEditor.extraSectionOf(balloon) == forge.deck.DeckSection.Attractions);
+        check("Atracciones: Sol Ring no", DeckEditor.extraSectionOf(card("Sol Ring")) == null);
+        boolean inCatalogue = false;
+        final CardIndex index = CardIndex.get();
+        for (int i = 0; i < index.size() && !inCatalogue; i++) {
+            inCatalogue = "Balloon Stand".equals(index.cardAt(i).getName());
+        }
+        check("Atracciones: salen en el catalogo", inCatalogue);
+        check("Atracciones: entra", editor.add(balloon, 1) == 1);
+        check("Atracciones: y no cuenta en el principal", editor.mainCount() == 0
+                && editor.extraCount(forge.deck.DeckSection.Attractions) == 1);
+        check("Atracciones: una de cada", editor.add(balloon, 1) == 0);
+        check("Atracciones: con una sola, el motor pide diez",
+                String.valueOf(forge.deck.DeckFormat.Commander.getAttractionDeckConformanceProblem(
+                        editor.getDeck())).contains("10"));
+        editor.remove(balloon, 1);
+        check("Atracciones: se quita de su mazo", editor.extraCount(forge.deck.DeckSection.Attractions) == 0);
+
+        // Y las hojas de pegatinas (Discord, 07-11-2026: "_____ Goblin").
+        final PaperCard sheet = card("Ancestral Hot Dog Minotaur");
+        check("Pegatinas: una hoja es de su mazo aparte",
+                DeckEditor.extraSectionOf(sheet) == forge.deck.DeckSection.Stickers);
+        boolean sheetInCatalogue = false;
+        for (int i = 0; i < index.size() && !sheetInCatalogue; i++) {
+            sheetInCatalogue = "Ancestral Hot Dog Minotaur".equals(index.cardAt(i).getName());
+        }
+        check("Pegatinas: salen en el catalogo", sheetInCatalogue);
+        check("Pegatinas: entra, y no cuenta en el principal", editor.add(sheet, 1) == 1
+                && editor.mainCount() == 0 && editor.extraCount(forge.deck.DeckSection.Stickers) == 1);
+        check("Pegatinas: una de cada", editor.add(sheet, 1) == 0);
+        check("Pegatinas: con una sola, el motor pide diez",
+                String.valueOf(forge.deck.DeckFormat.Commander.getStickerSheetConformanceProblem(
+                        editor.getDeck())).contains("10"));
+        editor.remove(sheet, 1);
+        check("Pegatinas: se quita de su mazo", editor.extraCount(forge.deck.DeckSection.Stickers) == 0);
+    }
+
     /** Con comandante puesto, lo que no encaje en su identidad se rechaza. */
     private static void commanderColourIdentity() {
         final DeckEditor editor = DeckEditor.createNew(NeoFormat.COMMANDER, "prueba");
@@ -960,6 +1006,55 @@ public final class DeckRulesCheck {
                             && DeckImporter.sectionSize(back.deck, forge.deck.DeckSection.Sideboard) == 1);
         } else {
             check("Exportar: el mazo de prueba se importa", false);
+        }
+
+        // EXPORTAR CON EDICION Y NUMERO (Discord, 07-11-2026): "1 Sol Ring
+        // (C21) 263", y al importarlo vuelve LA MISMA impresion, no la de
+        // fabrica. Con dos cartas en una impresion que no es la primera.
+        {
+            final forge.deck.Deck d = new forge.deck.Deck("prueba");
+            final List<PaperCard> picked = new ArrayList<>();
+            for (final String name : new String[] {"Sol Ring", "Counterspell", "Yarok, the Desecrated"}) {
+                final List<PaperCard> all = new ArrayList<>(
+                        FModel.getMagicDb().getCommonCards().getAllCards(name));
+                all.removeIf(c -> c.getCollectorNumber() == null
+                        || forge.item.IPaperCard.NO_COLLECTOR_NUMBER.equals(c.getCollectorNumber()));
+                final PaperCard pc = all.isEmpty() ? null : all.get(all.size() / 2);
+                if (pc != null) {
+                    picked.add(pc);
+                }
+            }
+            if (picked.size() == 3) {
+                d.getMain().add(picked.get(0), 1);
+                d.getMain().add(picked.get(1), 1);
+                d.getOrCreate(forge.deck.DeckSection.Commander).add(picked.get(2), 1);
+                final DeckEditor exp = new DeckEditor(forge.neo.match.NeoFormat.COMMANDER, d);
+                final String plain = exp.toText(false);
+                final String text = exp.toText(true);
+                System.out.println("        (exportado con edicion: " + text.replace("\n", " | ") + ")");
+                final DeckImporter.Result back = DeckImporter.importCommander(text, "prueba");
+                boolean same = back.deck != null && back.deck.getCommanders().size() == 1
+                        && back.deck.getMain().countAll() == 2;
+                if (same) {
+                    final List<PaperCard> got = new ArrayList<>();
+                    got.addAll(back.deck.getCommanders());
+                    for (final java.util.Map.Entry<PaperCard, Integer> e : back.deck.getMain()) {
+                        got.add(e.getKey());
+                    }
+                    for (final PaperCard want : picked) {
+                        same &= got.stream().anyMatch(c -> c.getName().equals(want.getName())
+                                && c.getEdition().equals(want.getEdition())
+                                && c.getCollectorNumber().equals(want.getCollectorNumber()));
+                    }
+                }
+                check("Exportar con edicion: cada linea lleva (SET) y numero, y la de siempre no",
+                        text.contains("1 " + picked.get(0).getName() + " (" + picked.get(0).getEdition() + ") "
+                                + picked.get(0).getCollectorNumber())
+                                && !plain.contains("(" + picked.get(0).getEdition() + ")"));
+                check("Exportar con edicion: al importarlo vuelve la misma impresion de cada carta", same);
+            } else {
+                check("Exportar con edicion: hay impresiones de prueba", false);
+            }
         }
 
         // Lo prohibido en Commander tambien entra (Discord, 30-10-2026: Old
@@ -1669,6 +1764,89 @@ public final class DeckRulesCheck {
             System.out.printf(java.util.Locale.ROOT, "        (Generar: %d cartas para Nick Fury)%n", got);
             check("Generar: Nick Fury, Agent of S.H.I.E.L.D. tiene mazo", got > 50);
         }
+
+        // FlatMcKeptCache (07-11-2026): la respuesta rapida tiene que ser LA MISMA
+        // que la de Forge, carta a carta, o los mazos generados cambiarian.
+        int compared = 0;
+        int differ = 0;
+        int kept = 0;
+        String firstDiff = null;
+        for (final PaperCard pc : forge.model.FModel.getMagicDb().getCommonCards().getUniqueCards()) {
+            final String name = pc.getName();
+            final boolean theirs = forge.ai.simulation.AiCardLists.isFlatMcPlayable(name);
+            final boolean ours = FlatMcKeptCache.playable(name);
+            compared++;
+            if (theirs) {
+                kept++;
+            }
+            if (theirs != ours) {
+                differ++;
+                if (firstDiff == null) {
+                    firstDiff = name;
+                }
+            }
+        }
+        System.out.printf(java.util.Locale.ROOT, "        (Flat MC: %d cartas, %d que la IA juega, %d distintas%s)%n",
+                compared, kept, differ, firstDiff == null ? "" : ", la primera " + firstDiff);
+        check("Flat MC: nuestra respuesta es la de Forge en TODAS las cartas", compared > 20000 && kept > 0 && differ == 0);
+
+        // Y la prueba de las semillas: el MISMO mazo con la misma semilla, con el
+        // filtro original de Forge y con el nuestro (retos del dia, codigos).
+        final java.util.function.Predicate<String> forgeFilter = name -> forge.model.FModel.getPreferences()
+                .getPrefBoolean(forge.localinstance.properties.ForgePreferences.FPref.MATCH_AI_FLAT_MONTE_CARLO)
+                && forge.ai.simulation.AiCardLists.isFlatMcPlayable(name);
+        final java.util.Random previous = forge.util.MyRandom.getRandom();
+        String deckForge;
+        String deckOurs;
+        long msForge;
+        long msOurs;
+        try {
+            forge.card.CardAiHints.setKeptForFlatMc(forgeFilter);
+            long t0 = System.nanoTime();
+            deckForge = seededDecks();
+            msForge = (System.nanoTime() - t0) / 1_000_000L;
+            FlatMcKeptCache.install();
+            t0 = System.nanoTime();
+            deckOurs = seededDecks();
+            msOurs = (System.nanoTime() - t0) / 1_000_000L;
+        } finally {
+            FlatMcKeptCache.install();
+            forge.util.MyRandom.setRandom(previous);
+        }
+        System.out.printf(java.util.Locale.ROOT, "        (Semillas: con el filtro de Forge %d ms, con el nuestro %d ms)%n",
+                msForge, msOurs);
+        check("Flat MC: con la misma semilla salen LOS MISMOS mazos (blanco-azul y Commander)",
+                !deckForge.isEmpty() && deckForge.equals(deckOurs));
+    }
+
+    /** Tres mazos sembrados (dos por colores y uno de Commander), en texto, para comparar. */
+    private static String seededDecks() {
+        final StringBuilder out = new StringBuilder();
+        for (final long seed : new long[] {12345L, 777L}) {
+            forge.util.MyRandom.setRandom(new java.util.Random(seed));
+            out.append(listOf(forge.deck.DeckgenUtil.buildColorDeck(
+                    java.util.List.of("White", "Blue"), null, false))).append('|');
+        }
+        final PaperCard cmd = card("Atraxa, Praetors' Voice");
+        if (cmd != null) {
+            forge.util.MyRandom.setRandom(new java.util.Random(99L));
+            out.append(listOf(forge.deck.DeckgenUtil.generateRandomCommanderDeck(
+                    cmd, forge.deck.DeckFormat.Commander, true, false)));
+        }
+        return out.toString();
+    }
+
+    /** Las cartas del mazo con su edicion y copias, en orden: la huella para comparar. */
+    private static String listOf(final forge.deck.Deck d) {
+        if (d == null) {
+            return "null";
+        }
+        final java.util.List<String> rows = new java.util.ArrayList<>();
+        for (final java.util.Map.Entry<PaperCard, Integer> e : d.getMain()) {
+            rows.add(e.getKey().getName() + "@" + e.getKey().getEdition() + "x" + e.getValue());
+        }
+        java.util.Collections.sort(rows);
+        return String.join(";", rows);
     }
 
     /**
@@ -2006,6 +2184,34 @@ public final class DeckRulesCheck {
         check("Gleemox: un mazo sin nada de mas no se toca",
                 GeneratedDecks.fixCopyLimits(deck, forge.deck.DeckFormat.Commander) == 0
                         && deck.getMain().countAll() == size);
+
+        // MANA DE LA IDENTIDAD CON UN COMANDANTE INCOLORO (Discord, 07-11-2026,
+        // Ascenso con Molecule Man): Arcane Signet y compania no dan nada.
+        check("Sin colores: Arcane Signet, Commander's Sphere y Command Tower no dan nada; Opal Palace y Sol Ring si",
+                GeneratedDecks.deadWithoutColours(card("Arcane Signet"))
+                        && GeneratedDecks.deadWithoutColours(card("Commander's Sphere"))
+                        && GeneratedDecks.deadWithoutColours(card("Command Tower"))
+                        && !GeneratedDecks.deadWithoutColours(card("Opal Palace"))
+                        && !GeneratedDecks.deadWithoutColours(card("Sol Ring")));
+        for (final String cmdName : new String[] {"Kozilek, the Great Distortion", "Krenko, Mob Boss"}) {
+            final Deck d = new Deck("prueba");
+            d.getOrCreate(forge.deck.DeckSection.Commander).add(card(cmdName), 1);
+            for (final String n : new String[] {"Arcane Signet", "Commander's Sphere", "Command Tower",
+                    "Opal Palace", "Sol Ring"}) {
+                d.getMain().add(card(n), 1);
+            }
+            final boolean colourless = cmdName.startsWith("Kozilek");
+            final int out = GeneratedDecks.fixCopyLimits(d, forge.deck.DeckFormat.Commander);
+            check("Sin colores: con " + cmdName + (colourless
+                            ? " salen las tres y entran basicas (quedan Opal Palace y Sol Ring)"
+                            : " no se toca nada"),
+                    d.getMain().countAll() == 5 && (colourless
+                            ? out == 3 && d.getMain().countByName("Arcane Signet") == 0
+                                    && d.getMain().countByName("Command Tower") == 0
+                                    && d.getMain().countByName("Opal Palace") == 1
+                                    && d.getMain().countByName("Sol Ring") == 1
+                            : out == 0 && d.getMain().countByName("Arcane Signet") == 1));
+        }
     }
 
     private static String commanderProblem(final Deck deck) {
@@ -2818,7 +3024,11 @@ public final class DeckRulesCheck {
     }
 
     private static PaperCard card(final String name) {
-        final PaperCard c = FModel.getMagicDb().getCommonCards().getCard(name);
+        PaperCard c = FModel.getMagicDb().getCommonCards().getCard(name);
+        if (c == null) {
+            // Las Atracciones viven con las cartas variantes.
+            c = FModel.getMagicDb().getVariantCards().getCard(name);
+        }
         if (c == null) {
             throw new IllegalStateException("No existe la carta de prueba: " + name);
         }

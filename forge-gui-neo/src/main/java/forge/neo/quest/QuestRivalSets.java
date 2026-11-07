@@ -84,9 +84,16 @@ public final class QuestRivalSets {
      * limite o no esta marcado.
      */
     public static Set<String> sets() {
-        if (!isOn()) {
-            return null;
-        }
+        return isOn() ? questSets() : null;
+    }
+
+    /**
+     * Las expansiones de la Quest AHORA (las del mundo si tiene, si no las de
+     * la Quest con lo desbloqueado), esten o no marcados los rivales; null si
+     * no hay limite. Para elegir QUIEN se sienta en el torneo y el Coliseo
+     * ({@link #tableCommanders}): eso no cambia ninguna carta, solo la cara.
+     */
+    public static Set<String> questSets() {
         try {
             final forge.gamemodes.quest.QuestController q = FModel.getQuest();
             for (final forge.gamemodes.quest.data.GameFormatQuest f
@@ -141,6 +148,71 @@ public final class QuestRivalSets {
     /** Si los rivales juegan con un pozo limitado (para no ensenyar cartas de fuera). */
     public static boolean limited() {
         return sets() != null;
+    }
+
+    /**
+     * <b>Los comandantes para sentar en una mesa de la Quest</b> (el torneo y
+     * el Coliseo), ya barajados: primero los de las expansiones de la Quest
+     * (Discord, 07-11-2026: <i>"the Championship suggests opponents from sets
+     * you haven't unlocked yet"</i>), con la impresion de ahi. Dentro, los que
+     * conoce la matriz y luego los demas (su mazo sale de su tema,
+     * {@code CommanderTheme}); si con eso no llega (un torneo pide 63), se
+     * completa con los de fuera que conoce la matriz, como antes. Sin limite
+     * en la Quest, lo de siempre. Nunca los de fichas ni {@code exclude}.
+     */
+    public static java.util.List<forge.item.PaperCard> tableCommanders(final String exclude) {
+        final Set<String> codes = questSets();
+        final forge.neo.ascent.AscentPool pool = codes == null ? null : forge.neo.ascent.AscentPool.sets(codes);
+        final java.util.List<forge.item.PaperCard> known = new java.util.ArrayList<>();
+        final java.util.List<forge.item.PaperCard> theme = new java.util.ArrayList<>();
+        final java.util.List<forge.item.PaperCard> outside = new java.util.ArrayList<>();
+        for (final forge.item.PaperCard c : forge.neo.ascent.AscentSeedDeck.commanderPool()) {
+            if (c.getName().equals(exclude) || !NeoCommanderDuels.fitsTable(c)) {
+                continue;
+            }
+            final boolean knows = forge.neo.ascent.AscentSynergy.knows(c);
+            if (pool == null || pool.allows(c)) {
+                (knows ? known : theme).add(pool == null ? c : pool.printing(c));
+            } else if (knows) {
+                outside.add(c);
+            }
+        }
+        final Random rnd = forge.util.MyRandom.getRandom();
+        java.util.Collections.shuffle(known, rnd);
+        java.util.Collections.shuffle(theme, rnd);
+        java.util.Collections.shuffle(outside, rnd);
+        final java.util.List<forge.item.PaperCard> out = new java.util.ArrayList<>(known);
+        if (pool != null) {
+            out.addAll(theme);
+            out.addAll(outside);
+        }
+        return out;
+    }
+
+    /**
+     * El mazo de un rival de mesa (torneo, Coliseo) con las expansiones de la
+     * Quest si los rivales estan marcados, como en los duelos de siempre; si
+     * no, el mismo. Determinista por {@code key} y expansiones.
+     */
+    public static Deck limitDeck(final String key, final Deck original) {
+        final Set<String> codes = original == null ? null : sets();
+        if (codes == null) {
+            return original;
+        }
+        try {
+            final boolean commander = original.has(forge.deck.DeckSection.Commander);
+            final Deck converted = forge.neo.ascent.AscentPool.sets(codes).restrict(original,
+                    commander ? forge.neo.ascent.AscentRun.Mode.COMMANDER : forge.neo.ascent.AscentRun.Mode.STANDARD,
+                    new Random((String.valueOf(key) + codes).hashCode()));
+            if (converted == null || converted.getMain().isEmpty()) {
+                return original;
+            }
+            converted.setName(original.getName());
+            return converted;
+        } catch (final RuntimeException e) {
+            System.err.println("[quest] no se ha podido convertir el rival " + key + ": " + e);
+            return original;
+        }
     }
 
     private static Deck safeDeck(final QuestEvent event) {

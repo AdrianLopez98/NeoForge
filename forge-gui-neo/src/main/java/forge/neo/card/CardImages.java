@@ -219,15 +219,18 @@ public final class CardImages {
      * respaldo se ha cambiado por la imagen buena (ver alli).
      */
     public static Image peek(final String imageKey) {
-        return imageKey == null || imageKey.isEmpty() ? null : CACHE.getIfPresent(imageKey);
+        return NONE_FOR_TEST || imageKey == null || imageKey.isEmpty() ? null : CACHE.getIfPresent(imageKey);
     }
+
+    /** Solo pruebas: como si no hubiera ninguna imagen (la carta sin imagen, TypeIcons). */
+    private static final boolean NONE_FOR_TEST = Boolean.getBoolean("neo.images.none");
 
     /**
      * Imagen ya disponible para esta clave, o {@code null}.
      * Si no esta, dispara la carga/descarga en segundo plano.
      */
     public static Image get(final String imageKey) {
-        if (imageKey == null || imageKey.isEmpty()) {
+        if (NONE_FOR_TEST || imageKey == null || imageKey.isEmpty()) {
             return null;
         }
         final Image cached = CACHE.getIfPresent(imageKey);

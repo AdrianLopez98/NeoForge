@@ -348,6 +348,37 @@ public class SettingsPanel extends VBox {
                     NeoSettings.save();
                 }));
 
+        // --- que le pasa a la carta que eliges (sacrificar, exiliar...) ---
+        //
+        // Discord, 06 y 07-11-2026. Encendido de fabrica; apagado no se pinta
+        // nunca. Ver forge.neo.match.ChoiceAction.
+        getChildren().add(toggleRow(NeoText.get("settings.choiceActionTint"),
+                NeoSettings.getBool(forge.neo.match.ChoiceAction.SETTING, true), on -> {
+                    NeoSettings.setBool(forge.neo.match.ChoiceAction.SETTING, on);
+                    NeoSettings.save();
+                }));
+
+        // --- la fuerza/resistencia como en las cartas de Magic ---
+        //
+        // Discord, 07-11-2026, con maqueta: la caja de la carta impresa, del
+        // color de la carta (forge.neo.card.PtBox). Apagado de fabrica: la
+        // pastilla negra se lee mejor. Se nota en el siguiente refresco.
+        getChildren().add(toggleRow(NeoText.get("settings.ptCardStyle"),
+                NeoSettings.getBool(forge.neo.card.PtBoxStyle.CARD_STYLE, false), on -> {
+                    NeoSettings.setBool(forge.neo.card.PtBoxStyle.CARD_STYLE, on);
+                    NeoSettings.save();
+                }));
+
+        // --- el icono de la carta sin imagen: de su color o en gris ---
+        //
+        // Discord, 07-11-2026 ("may be grayscale or card's color, or
+        // optionable"). De su color de fabrica. Ver forge.neo.card.TypeIcons.
+        getChildren().add(toggleRow(NeoText.get("settings.typeIconColoured"),
+                NeoSettings.getBool(forge.neo.card.TypeIcons.COLOURED, true), on -> {
+                    NeoSettings.setBool(forge.neo.card.TypeIcons.COLOURED, on);
+                    NeoSettings.save();
+                }));
+
         // --- brillo de las foil (la auditoría del motor, apartado D5) ---
         getChildren().add(toggleRow(NeoText.get("settings.foilEffect"),
                 NeoSettings.getBool(NeoSettings.FOIL_EFFECT, true),
@@ -1312,6 +1343,48 @@ public class SettingsPanel extends VBox {
                     NeoSettings.setBool(forge.neo.quest.NeoQuestShop.ALCHEMY, on);
                     NeoSettings.save();
                 }));
+
+        // --- precios reales en la tienda (Quest) ---
+        //
+        // Apagado de fabrica (Discord, 07-11-2026). Encender BAJA la lista de
+        // precios de Forge (una vez, con tope); apagar la borra. Ver QuestPrices.
+        final Label pricesNote = new Label();
+        pricesNote.getStyleClass().add("settings-note");
+        pricesNote.setWrapText(true);
+        pricesNote.setVisible(false);
+        pricesNote.setManaged(false);
+        final HBox[] pricesRow = new HBox[1];
+        pricesRow[0] = toggleRow(NeoText.get("settings.questPrices"),
+                forge.neo.quest.QuestPrices.isOn(),
+                on -> {
+                    pricesNote.setVisible(true);
+                    pricesNote.setManaged(true);
+                    if (!on) {
+                        forge.neo.quest.QuestPrices.remove();
+                        pricesNote.setText(NeoText.get("settings.questPrices.off"));
+                        return;
+                    }
+                    pricesNote.setText(NeoText.get("settings.questPrices.downloading"));
+                    final Thread t = new Thread(() -> {
+                        final boolean ok = forge.neo.quest.QuestPrices.download();
+                        javafx.application.Platform.runLater(() -> {
+                            pricesNote.setText(NeoText.get(ok ? "settings.questPrices.on"
+                                    : "settings.questPrices.failed"));
+                            if (!ok) {
+                                // Sin lista no hay precios reales: el interruptor vuelve a "No".
+                                final String no = NeoText.get("common.no");
+                                for (final javafx.scene.Node n : pricesRow[0].lookupAll(".segment")) {
+                                    if (n instanceof Button b) {
+                                        b.pseudoClassStateChanged(SELECTED, no.equals(b.getText()));
+                                    }
+                                }
+                            }
+                        });
+                    }, "neo-quest-prices");
+                    t.setDaemon(true);
+                    t.start();
+                });
+        getChildren().addAll(pricesRow[0], pricesNote);
 
         // --- rating de pick en el draft ---
         //

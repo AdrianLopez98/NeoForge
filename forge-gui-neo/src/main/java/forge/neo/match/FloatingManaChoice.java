@@ -25,7 +25,8 @@ import forge.gamemodes.match.input.NeoPaymentPeek;
  * Entonces el pago automatico se para (como con Phyrexian Tower, ver
  * {@link AutoPaySacrifice}) y pagas tu: los pips, tus tierras, o "Auto". Sin
  * mana flotante, o sin otra fuente con la que pagar, no hay nada que decidir y
- * se paga solo como siempre. Es prudente a proposito: una fuente sin girar
+ * se paga solo como siempre. Y tampoco si no sobra nada: con lo justo
+ * (flotante mas fuentes igual a lo que falta) se gasta todo igual. Es prudente a proposito: una fuente sin girar
  * que no sirva para este coste cuenta igual, y el precio de un aviso de mas es
  * un clic en "Auto".
  *
@@ -59,12 +60,28 @@ public final class FloatingManaChoice {
             if (pool.isEmpty() || !usable(pool, cost)) {
                 return false;
             }
+            // SOLO SI SOBRA (itch.io, 07-11-2026, con video: Hypnotic Specter
+            // {1}{B}{B}, uno incoloro flotando y dos Pantanos sin girar; el pago
+            // automatico se paraba y habia que girarlos a mano). Si lo
+            // flotante y todo lo que pueden dar tus fuentes no pasa de lo que
+            // falta, se va a gastar todo de todas formas: no hay nada que
+            // elegir. Cada fuente cuenta lo que mas da (Sol Ring, dos): mejor
+            // un aviso de mas que quedarse sin poder guardar lo flotante.
+            int sources = 0;
             for (final Card c : player.getCardsIn(ZoneType.Battlefield)) {
                 if (!c.isTapped() && !c.getManaAbilities().isEmpty()) {
-                    return true;
+                    int most = 1;
+                    for (final forge.game.spellability.SpellAbility ma : c.getManaAbilities()) {
+                        try {
+                            most = Math.max(most, ma.amountOfManaGenerated(true));
+                        } catch (final RuntimeException e) {
+                            // una cantidad que no se calcula cuenta como una
+                        }
+                    }
+                    sources += most;
                 }
             }
-            return false;
+            return sources > 0 && pool.totalMana() + sources > cost.getConvertedManaCost();
         } catch (final RuntimeException e) {
             // Ante la duda, como antes: se paga solo.
             return false;

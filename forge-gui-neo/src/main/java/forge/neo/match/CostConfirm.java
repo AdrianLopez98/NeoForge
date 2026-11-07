@@ -132,7 +132,11 @@ public final class CostConfirm {
         public boolean confirmPayment(final CostPart costPart, final String question, final SpellAbility sa) {
             final NeoMatchUI ui = NeoMatchUI.of(getGui());
             final CardView card = sa == null ? null : sa.getCardView();
-            if (ui == null || card == null || question == null || macros().isReplaying()) {
+            if (card == null || question == null || macros().isReplaying()) {
+                return super.confirmPayment(costPart, question, sa);
+            }
+            final boolean fabricateFirst = isFabricate(sa);
+            if (ui == null && fabricateFirst) {
                 return super.confirmPayment(costPart, question, sa);
             }
             if (askingGame != getGame()) {
@@ -140,9 +144,35 @@ public final class CostConfirm {
                 noMoreAsking.clear();
                 askingGame = getGame();
             }
-            final boolean fabricate = isFabricate(sa);
+            final boolean fabricate = fabricateFirst;
+            // EL COSTE ENTERO, ANTES DE PAGAR NADA (Discord, 07-11-2026, Lion's
+            // Eye Diamond: "I discarded my entire hand but didn't get LED
+            // sac"). Forge pregunta parte a parte y en su orden: primero
+            // descartar la mano y DESPUES sacrificar; un "No" en la segunda
+            // cancela la activacion, pero la mano ya no vuelve (el descarte no
+            // tiene reembolso). Con dos o mas partes que no se deshacen, se
+            // pregunta una vez por todo en la primera, y las demas de esa
+            // misma activacion ya van contestadas.
+            final List<CostPart> heavy = fabricate ? List.of() : heavyParts(sa);
+            if (heavy.size() >= 2 && sameActivation(sa, wholeSa) && removeSame(wholePending, costPart)) {
+                macros().addRememberedAction(new PayCostAction(card));
+                return true;
+            }
+            wholeSa = null;
+            wholePending.clear();
+            final boolean whole = heavy.size() >= 2;
             final String key = (fabricate ? "kw:FABRICATE" : sa.getHostCard().getName()) + "|"
-                    + (costPart == null ? "" : costPart.getClass().getSimpleName());
+                    + (whole ? "whole" : costPart == null ? "" : costPart.getClass().getSimpleName());
+            final String asked = whole ? NeoText.get("cost.confirm.whole",
+                    forge.neo.card.CardText.nameOf(card.getCurrentState()), wholeCost(sa)) : question;
+            if (ui == null) {
+                // Sin nuestra mesa (Android, el otro lado de una partida en
+                // red): la pregunta de Forge de siempre, pero con el coste
+                // entero si toca. Forge apunta el "Si" para las macros.
+                final boolean yes = super.confirmPayment(costPart, asked, sa);
+                rememberWhole(yes && whole, sa, heavy, costPart);
+                return yes;
+            }
             final Boolean remembered = noMoreAsking.get(key);
             boolean yes;
             if (remembered != null) {
@@ -154,7 +184,7 @@ public final class CostConfirm {
                                 NeoText.get("cost.confirm.always"), NeoText.get("cost.confirm.neverAgain"))
                         : List.of(loc.getMessage("lblYes"), loc.getMessage("lblNo"),
                                 NeoText.get("cost.confirm.always"));
-                final int picked = ui.askWithCard(card, question.replace("\n", " "), options, 0);
+                final int picked = ui.askWithCard(card, asked.replace("\n", " "), options, 0);
                 yes = picked != 1 && picked != 3;
                 if (picked == 2 || picked == 3) {
                     noMoreAsking.put(key, yes);
@@ -164,7 +194,82 @@ public final class CostConfirm {
                 // Lo mismo que apunta Forge al contestar "Si": las macros lo graban.
                 macros().addRememberedAction(new PayCostAction(card));
             }
+            rememberWhole(yes && whole, sa, heavy, costPart);
             return yes;
         }
+
+        /** Contestado el coste entero: lo que queda de esa activacion ya no se pregunta. */
+        private void rememberWhole(final boolean on, final SpellAbility sa, final List<CostPart> heavy,
+                                   final CostPart answered) {
+            if (!on) {
+                return;
+            }
+            wholeSa = sa;
+            wholePending.addAll(heavy);
+            // La contestada fuera (por tipo y texto: puede ser una copia). Si
+            // se quedara, la siguiente activacion empezaria contestada.
+            removeSame(wholePending, answered);
+        }
+
+        /** La activacion cuyo coste entero ya se ha contestado, y lo que le queda por confirmar. */
+        private SpellAbility wholeSa;
+        private final List<CostPart> wholePending = new java.util.ArrayList<>();
+
+        /**
+         * La misma activacion. ⚠️ No por identidad: Forge paga con una COPIA
+         * del coste (y a veces de la habilidad), asi que la parte que llega
+         * en la segunda pregunta no es el objeto de {@code getPayCosts()}.
+         * Visto con Lion's Eye Diamond: descartaba y volvia a preguntar.
+         */
+        private static boolean sameActivation(final SpellAbility a, final SpellAbility b) {
+            if (a == null || b == null) {
+                return false;
+            }
+            return a == b || a.getHostCard() == b.getHostCard()
+                    && String.valueOf(a.getPayCosts()).equals(String.valueOf(b.getPayCosts()));
+        }
+
+        private static boolean removeSame(final List<CostPart> parts, final CostPart part) {
+            for (int i = 0; i < parts.size(); i++) {
+                if (parts.get(i) == part || part != null && parts.get(i).getClass() == part.getClass()
+                        && String.valueOf(parts.get(i)).equals(String.valueOf(part))) {
+                    parts.remove(i);
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
+    /**
+     * Las partes del coste que no se deshacen: todo menos el mana y girar o
+     * enderezar (eso Forge lo devuelve si se cancela).
+     */
+    static List<CostPart> heavyParts(final SpellAbility sa) {
+        final List<CostPart> out = new java.util.ArrayList<>();
+        final forge.game.cost.Cost cost = sa == null ? null : sa.getPayCosts();
+        if (cost == null) {
+            return out;
+        }
+        for (final CostPart p : cost.getCostParts()) {
+            if (!(p instanceof forge.game.cost.CostPartMana) && !(p instanceof forge.game.cost.CostTap)
+                    && !(p instanceof forge.game.cost.CostUntap)) {
+                out.add(p);
+            }
+        }
+        return out;
+    }
+
+    /** El coste entero en una linea («Sacrifice Lion's Eye Diamond, Discard your hand»). */
+    static String wholeCost(final SpellAbility sa) {
+        final List<String> bits = new java.util.ArrayList<>();
+        for (final CostPart p : heavyParts(sa)) {
+            String t = String.valueOf(p);
+            if (sa.getHostCard() != null) {
+                t = t.replace("CARDNAME", sa.getHostCard().getName());
+            }
+            bits.add(t.trim());
+        }
+        return String.join(", ", bits);
     }
 }

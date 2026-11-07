@@ -41,6 +41,13 @@ public enum ChoiceAction {
     DESTROY(0xFFB03A48,
             "destroy", "destru", "zerstör", "détrui", "distrugg", "уничтож", "破壊", "파괴", "消灭", "摧毁");
 
+    /**
+     * Ajuste: pintar la accion sobre las cartas (encendido de fabrica). Con
+     * los objetivos (07-11-2026) Ana lo quiso apagable: al que no le guste,
+     * que no le salga nunca.
+     */
+    public static final String SETTING = "choiceActionTint";
+
     /** El color de la accion, ARGB opaco. Se pinta con transparencia encima de la carta. */
     public final int argb;
     private final String[] stems;
@@ -93,5 +100,58 @@ public enum ChoiceAction {
             }
         }
         return best;
+    }
+
+    /**
+     * Lo que pintan las dos interfaces: la pregunta, y si no dice nada y lo
+     * que se elige es un OBJETIVO, {@link #ofTarget}.
+     *
+     * @param targeting si lo que espera el motor es {@code InputSelectTargets}
+     */
+    public static ChoiceAction forPrompt(final String prompt, final boolean targeting) {
+        final ChoiceAction a = of(prompt);
+        return a != null || !targeting ? a : ofTarget(prompt);
+    }
+
+    /**
+     * <b>Lo que le pasa al OBJETIVO</b> (Discord, 07-11-2026: <i>"when i use
+     * Swords to Plowshares to exile the overlay seems to be missing"</i>).
+     *
+     * <p>Al elegir objetivo la pregunta no lleva el verbo ("Select target
+     * creature"): lo lleva el renglon de encima, que {@code InputSelectTargets}
+     * monta como {@code "<carta> - <texto de la habilidad>"} ("Swords to
+     * Plowshares (68) - Exile target creature. Its controller gains life...").
+     *
+     * <p>Mas prudente que {@link #of}: solo si en ese texto sale UNA accion de
+     * las cuatro. Con dos ("Destroy target creature unless its controller
+     * sacrifices...") no se sabe cual le toca al objetivo, y no se pinta.
+     */
+    public static ChoiceAction ofTarget(final String prompt) {
+        if (prompt == null || prompt.isBlank()) {
+            return null;
+        }
+        for (final String line : prompt.split("\\R")) {
+            final int dash = line.indexOf(" - ");
+            if (dash < 0 || dash + 3 >= line.length()) {
+                continue;
+            }
+            final String text = line.substring(dash + 3).toLowerCase(Locale.ROOT);
+            ChoiceAction found = null;
+            for (final ChoiceAction a : values()) {
+                for (final String stem : a.stems) {
+                    if (text.contains(stem)) {
+                        if (found != null && found != a) {
+                            return null;
+                        }
+                        found = a;
+                        break;
+                    }
+                }
+            }
+            // El primer renglon "carta - texto" es el de la habilidad; los de
+            // debajo son la pregunta y lo ya elegido.
+            return found;
+        }
+        return null;
     }
 }

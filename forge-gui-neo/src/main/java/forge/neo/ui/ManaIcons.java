@@ -41,7 +41,7 @@ public final class ManaIcons {
         return icon(ManaSymbols.cell(token));
     }
 
-    static Image icon(final ManaSymbols.Cell cell) {
+    public static Image icon(final ManaSymbols.Cell cell) {
         if (cell == null) {
             return null;
         }
@@ -140,4 +140,94 @@ public final class ManaIcons {
             }
         }
     }
+
+    /**
+     * <b>Los simbolos dentro de una etiqueta o un boton cuyo texto viene del
+     * motor</b> (itch.io, 07-11-2026: el menu de habilidades — «Bestow
+     * {3}{G}{W}{U}» —, «Pay Mana Cost: {3}{G}{G}» y los dialogos de elegir).
+     * El texto NO se toca: sigue siendo el del {@code Labeled} (lo leen las
+     * teclas, la busqueda y los comprobadores); solo se pinta como un
+     * {@code TextFlow} con iconos puesto de grafico, con la letra y el color
+     * que le da el CSS. Lo que ya llevase de grafico (el numero de la tecla)
+     * va delante. Sin simbolos, o con el ajuste apagado, se queda como estaba.
+     *
+     * <p>Llamar DESPUES de ponerle el grafico. Se rehace solo al cambiar el
+     * texto, la letra, el color o el ancho (el {@code TextFlow} parte las
+     * lineas al ancho de la etiqueta: un {@code Labeled} pide a su grafico el
+     * alto sin ancho, y sin esto el parrafo salia en una linea cortada).
+     */
+    public static void decorate(final javafx.scene.control.Labeled l) {
+        if (l == null || l.getProperties().containsKey(DECORATED)) {
+            return;
+        }
+        l.getProperties().put(DECORATED, Boolean.TRUE);
+        final Node lead = l.getGraphic();
+        final javafx.scene.control.ContentDisplay plain = l.getContentDisplay();
+        final double[] wrap = {-1};
+        final TextFlow flow = new TextFlow() {
+            @Override
+            protected double computePrefWidth(final double height) {
+                final double natural = super.computePrefWidth(height);
+                return wrap[0] > 0 ? Math.min(natural, wrap[0]) : natural;
+            }
+
+            @Override
+            protected double computePrefHeight(final double width) {
+                return super.computePrefHeight(width < 0 && wrap[0] > 0 ? wrap[0] : width);
+            }
+        };
+        flow.setMouseTransparent(true);
+        final javafx.scene.layout.HBox box = lead == null ? null : new javafx.scene.layout.HBox();
+        if (box != null) {
+            box.setAlignment(Pos.CENTER_LEFT);
+            box.setMouseTransparent(true);
+        }
+        final Runnable measure = () -> {
+            double w = l.getWidth() > 0 ? l.getWidth()
+                    : l.getMaxWidth() > 0 && l.getMaxWidth() < 1e5 ? l.getMaxWidth() : -1;
+            if (w > 0) {
+                w -= l.snappedLeftInset() + l.snappedRightInset();
+                if (lead != null) {
+                    w -= lead.prefWidth(-1) + l.getGraphicTextGap();
+                }
+            }
+            final double next = w > 8 ? w : -1;
+            if (next != wrap[0]) {
+                wrap[0] = next;
+                flow.requestLayout();
+                l.requestLayout();
+            }
+        };
+        final Runnable refresh = () -> {
+            final String text = l.getText();
+            if (!ManaSymbols.enabled() || !ManaSymbols.hasSymbols(text)) {
+                if (l.getGraphic() != lead) {
+                    if (box != null) {
+                        box.getChildren().clear();
+                    }
+                    l.setGraphic(lead);
+                    l.setContentDisplay(plain);
+                }
+                return;
+            }
+            fill(flow, text, l.getFont(), l.getTextFill());
+            flow.setTextAlignment(l.getTextAlignment());
+            if (box != null) {
+                box.setSpacing(l.getGraphicTextGap());
+                box.getChildren().setAll(lead, flow);
+                l.setGraphic(box);
+            } else {
+                l.setGraphic(flow);
+            }
+            l.setContentDisplay(javafx.scene.control.ContentDisplay.GRAPHIC_ONLY);
+            measure.run();
+        };
+        l.textProperty().addListener((o, a, b) -> refresh.run());
+        l.fontProperty().addListener((o, a, b) -> refresh.run());
+        l.textFillProperty().addListener((o, a, b) -> refresh.run());
+        l.widthProperty().addListener((o, a, b) -> measure.run());
+        refresh.run();
+    }
+
+    private static final String DECORATED = "neo.manaIcons.decorated";
 }

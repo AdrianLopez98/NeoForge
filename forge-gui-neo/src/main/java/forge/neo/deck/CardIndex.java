@@ -114,8 +114,18 @@ final class CardIndex {
 
     static synchronized CardIndex get() {
         if (instance == null) {
-            instance = new CardIndex(
-                    FModel.getMagicDb().getCommonCards().getUniqueCards());
+            // Y las Atracciones y Contraptions, que el motor guarda con las
+            // cartas "variantes" (planos, esquemas...) y no en la base comun:
+            // sin ellas no se podia montar su mazo aparte (Discord, 07-11-2026,
+            // Myra the Magnificent). Los planos y los esquemas no: no van en un
+            // mazo que se monte aqui.
+            final List<PaperCard> all = new ArrayList<>(FModel.getMagicDb().getCommonCards().getUniqueCards());
+            for (final PaperCard c : FModel.getMagicDb().getVariantCards().getUniqueCards()) {
+                if (DeckEditor.extraSectionOf(c) != null) {
+                    all.add(c);
+                }
+            }
+            instance = new CardIndex(all);
         }
         return instance;
     }

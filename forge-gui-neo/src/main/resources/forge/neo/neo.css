@@ -165,6 +165,24 @@
     -fx-font-style: italic;
 }
 
+/* La carta sin imagen, del color de la carta (CardNode.colourClass; Discord,
+ * 07-11-2026). Oscuros a proposito: el texto encima es el claro de siempre. */
+.card-fallback.card-fb-w { -fx-background-color: linear-gradient(to bottom, #6F6852 0%, #35322A 100%); -fx-border-color: #A89E7E; }
+.card-fallback.card-fb-u { -fx-background-color: linear-gradient(to bottom, #2B5682 0%, #172A40 100%); -fx-border-color: #4A86C0; }
+.card-fallback.card-fb-b { -fx-background-color: linear-gradient(to bottom, #4A3E52 0%, #1C1820 100%); -fx-border-color: #7A6A86; }
+.card-fallback.card-fb-r { -fx-background-color: linear-gradient(to bottom, #86392C 0%, #3E1C17 100%); -fx-border-color: #C25A45; }
+.card-fallback.card-fb-g { -fx-background-color: linear-gradient(to bottom, #2E6A44 0%, #163222 100%); -fx-border-color: #4FA06A; }
+.card-fallback.card-fb-m { -fx-background-color: linear-gradient(to bottom, #86702E 0%, #3E3417 100%); -fx-border-color: #C9A84A; }
+.card-fallback.card-fb-c { -fx-background-color: linear-gradient(to bottom, #56606C 0%, #262C34 100%); -fx-border-color: #7C8896; }
+/* Las legendarias sin imagen: marco dorado doble con brillo (Discord, 07-11-2026). */
+.card-fallback.card-fb-legend {
+    -fx-border-color: #F2D27A, #8A6A1E;
+    -fx-border-width: 2, 1;
+    -fx-border-insets: 0, 3;
+    -fx-border-radius: 5, 3;
+    -fx-effect: innershadow(gaussian, rgba(242, 210, 122, 0.55), 10, 0.2, 0, 0);
+}
+
 .card-fb-name {
     -fx-text-fill: -neo-text;
     -fx-font-weight: bold;
@@ -193,6 +211,9 @@
     -fx-translate-y: -4;
 }
 
+/* La pastilla de F/R de fabrica. La caja como la de las cartas de Magic la
+   dibuja forge.neo.card.PtBox, si se activa en Ajustes
+   (PtBoxStyle.CARD_STYLE; Discord, 07-11-2026). */
 .card-pt {
     -fx-background-color: rgba(8,11,16,0.95);
     -fx-text-fill: -neo-text;

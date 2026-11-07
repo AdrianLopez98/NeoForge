@@ -106,6 +106,28 @@ public final class ManaSymbols {
         return new Cell(file, c[0], c[1], c[2], c[3]);
     }
 
+    /**
+     * La casilla de CUALQUIER icono de las hojas de Forge, por el nombre de su
+     * {@code FSkinProp} ("IMG_ABILITY_FLYING"), o null. Para los iconos de
+     * habilidad de Android (decision 642).
+     */
+    public static Cell ofProp(final String propName) {
+        try {
+            final FSkinProp prop = FSkinProp.valueOf(propName);
+            if (prop.getType() == null || prop.getType().getFilename() == null) {
+                return null;
+            }
+            final File file = new File(ForgeConstants.DEFAULT_SKINS_DIR, prop.getType().getFilename());
+            if (!file.isFile()) {
+                return null;
+            }
+            final int[] c = prop.getCoords();
+            return new Cell(file, c[0], c[1], c[2], c[3]);
+        } catch (final RuntimeException e) {
+            return null;
+        }
+    }
+
     /** La casilla del mana flotante de un color: "W", "U", "B", "R", "G" o "C". */
     public static Cell ofColor(final String letter) {
         return cell(letter);

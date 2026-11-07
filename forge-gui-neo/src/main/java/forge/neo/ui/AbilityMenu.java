@@ -165,6 +165,7 @@ public class AbilityMenu extends VBox implements NumberedChoice {
             if (i < 9) {
                 b.setGraphic(NumberedChoice.hint(i + 1));
             }
+            ManaIcons.decorate(b);
             items.add(b);
             list.getChildren().add(b);
         }

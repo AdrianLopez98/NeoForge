@@ -626,6 +626,23 @@ public final class LookCheck {
                     forge.neo.match.ChoiceAction.of("Seer\n - Sacrifice a creature: Scry 1.\nChoose which cards to reveal") == null
                             && forge.neo.match.ChoiceAction.of("Select targets for Doom Blade") == null
                             && forge.neo.match.ChoiceAction.of(null) == null);
+            // Y al elegir OBJETIVO (Discord, 07-11-2026: Swords to Plowshares),
+            // lo que dice la habilidad, solo si dice UNA cosa.
+            final String swords = "Swords to Plowshares (68) - Exile target creature. Its controller gains life"
+                    + " equal to its power.\n\nSelect target creature";
+            check("Elegir/objetivo: Swords exilia, Doom Blade y Beast Within destruyen",
+                    forge.neo.match.ChoiceAction.EXILE == forge.neo.match.ChoiceAction.forPrompt(swords, true)
+                            && forge.neo.match.ChoiceAction.DESTROY == forge.neo.match.ChoiceAction.forPrompt(
+                                    "Doom Blade (12) - Destroy target nonblack creature.\n\nSelect target nonblack creature", true)
+                            && forge.neo.match.ChoiceAction.DESTROY == forge.neo.match.ChoiceAction.forPrompt(
+                                    "Beast Within (3) - Destroy target permanent. Its controller creates a 3/3 green"
+                                            + " Beast creature token.\n\nSelect target permanent\nTargeted: Sol Ring (5)", true));
+            check("Elegir/objetivo: con dos acciones, o ninguna, o sin ser objetivo, nada",
+                    forge.neo.match.ChoiceAction.forPrompt("Hidden Strings (9) - Destroy target creature unless its"
+                            + " controller sacrifices a land.\n\nSelect target creature", true) == null
+                            && forge.neo.match.ChoiceAction.forPrompt("Lightning Bolt (4) - Lightning Bolt deals 3"
+                                    + " damage to any target.\n\nSelect any target", true) == null
+                            && forge.neo.match.ChoiceAction.forPrompt(swords, false) == null);
             // El escudo del jugador protegido (Discord, 06-11-2026: Teferi's
             // Protection). Con el texto tal cual lo da Forge a un jugador.
             check("Escudo: proteccion contra todo, limpia",
@@ -650,6 +667,23 @@ public final class LookCheck {
             check("Mana: el texto se parte en simbolos y texto, y {E} se queda escrito",
                     pieces.size() == 4 && pieces.get(0).symbol != null && pieces.get(2).symbol != null
                             && pieces.get(3).symbol == null && pieces.get(3).text.contains("{E}"));
+            check("Habilidad: los iconos de Forge tienen casilla (volar, toque mortal)",
+                    forge.neo.card.ManaSymbols.ofProp("IMG_ABILITY_FLYING") != null
+                            && forge.neo.card.ManaSymbols.ofProp("IMG_ABILITY_DEATHTOUCH") != null
+                            && forge.neo.card.ManaSymbols.ofProp("NO_EXISTE") == null);
+            // La carta sin imagen (TypeIcons, Discord 07-11-2026): su subtipo manda, luego el tipo.
+            final forge.card.CardType birdType = forge.card.CardType.parse("Creature Bird", false);
+            final forge.card.CardType plainsType = forge.card.CardType.parse("Basic Land Plains", false);
+            final forge.card.CardType rockType = forge.card.CardType.parse("Artifact", false);
+            final String bird = forge.neo.card.TypeIcons.pathFor(birdType);
+            final String plains = forge.neo.card.TypeIcons.pathFor(plainsType);
+            final String rock = forge.neo.card.TypeIcons.pathFor(rockType);
+            check("Sin imagen: icono por subtipo (Bird, Plains) y por tipo (Artifact), todos distintos",
+                    bird != null && plains != null && rock != null && !bird.equals(plains) && !plains.equals(rock)
+                            && bird.startsWith("M"));
+            check("Sin imagen: el icono gris o del color de la carta",
+                    forge.neo.card.TypeIcons.colourOf(forge.card.MagicColor.GREEN, false) == 0xFFC8CDD4
+                            && forge.neo.card.TypeIcons.colourOf(forge.card.MagicColor.GREEN, true) != 0xFFC8CDD4);
             check("Elegir/accion: el rotulo esta traducido",
                     !sac.label().isBlank() && !sac.label().startsWith("choice."));
 

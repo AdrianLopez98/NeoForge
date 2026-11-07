@@ -251,6 +251,7 @@ public class ChoiceDialog<T> extends VBox implements NumberedChoice {
         heading.getStyleClass().add("dialog-title");
         heading.setWrapText(true);
         heading.setMaxWidth(UiScale.px(760));
+        ManaIcons.decorate(heading);
 
         items = new FlowPane(10, 10);
         items.setAlignment(Pos.CENTER);
@@ -305,6 +306,10 @@ public class ChoiceDialog<T> extends VBox implements NumberedChoice {
             // Su tecla, delante (solo las de texto: una carta ya se distingue).
             if (!readOnly && node instanceof Button nb && nodesInOrder.size() <= 9 && options.size() > 1) {
                 nb.setGraphic(NumberedChoice.hint(nodesInOrder.size()));
+            }
+            // Los simbolos de mana en el texto de la opcion («Pay {2}»).
+            if (node instanceof Button nb2) {
+                ManaIcons.decorate(nb2);
             }
             if (card0) {
                 cardBoxes.add(box);

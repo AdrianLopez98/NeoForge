@@ -59,6 +59,7 @@ public class ConfirmDialog extends VBox implements NumberedChoice {
         msg.setWrapText(true);
         msg.setMaxWidth(UiScale.px(560));
         msg.setMinHeight(Region.USE_PREF_SIZE);
+        ManaIcons.decorate(msg);
         getChildren().add(wrapIfLong(msg));
 
         final FlowPane buttons = new FlowPane(8, 8);
@@ -72,6 +73,7 @@ public class ConfirmDialog extends VBox implements NumberedChoice {
             if (options.size() > 1 && i < 9) {
                 b.setGraphic(NumberedChoice.hint(i + 1));
             }
+            ManaIcons.decorate(b);
             buttons.getChildren().add(b);
             this.options.add(b);
         }

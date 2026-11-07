@@ -138,6 +138,8 @@ public class ActionBar extends VBox {
         prompt.setWrapText(true);
         prompt.setMaxWidth(Double.MAX_VALUE);
         prompt.setMinHeight(Region.USE_PREF_SIZE);
+        // «Pay Mana Cost: {3}{G}{G}» con los simbolos (itch.io, 07-11-2026).
+        ManaIcons.decorate(prompt);
 
         ok.getStyleClass().add("btn-primary");
         ok.setMaxWidth(Double.MAX_VALUE);

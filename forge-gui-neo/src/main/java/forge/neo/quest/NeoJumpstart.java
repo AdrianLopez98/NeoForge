@@ -46,13 +46,17 @@ public final class NeoJumpstart {
         /** La expansion a la que va (la de las tierras del bloque): TLA. */
         public final String setCode;
         final SealedTemplate template;
+        /** El nombre de su sobre y de su hoja de cartas: "TLA Hei Bai 1". */
+        final String key;
         private List<PaperCard> contents;
 
-        Theme(final String product, final String label, final String setCode, final SealedTemplate template) {
+        Theme(final String product, final String label, final String setCode, final SealedTemplate template,
+              final String key) {
             this.product = product;
             this.label = label;
             this.setCode = setCode;
             this.template = template;
+            this.key = key;
         }
 
         /** "Avatar: The Last Airbender Jumpstart · Hei Bai 1". */
@@ -70,7 +74,16 @@ public final class NeoJumpstart {
                 try {
                     got = new UnOpenedProduct(template).get();
                 } catch (final RuntimeException e) {
+                    System.err.println("[jumpstart] " + name() + " no se abre como sobre: " + e);
                     got = Collections.emptyList();
+                }
+                // DOS TEMAS DE AVATAR VACIOS (07-11-2026, questcheck): en
+                // blocks.txt de Forge van como "JTLE Soaring 1" y "JLTA Azula"
+                // en vez de "TLA ...", y abrirlos como sobre falla. Pero su
+                // hoja existe y esta bien, y un tema es eso: la hoja entera
+                // (wholeSheet). Se lee directamente. Sin tocar Forge.
+                if (got == null || got.isEmpty()) {
+                    got = wholeSheet(key);
                 }
                 contents = Collections.unmodifiableList(new ArrayList<>(got));
             }
@@ -273,7 +286,17 @@ public final class NeoJumpstart {
         } catch (final RuntimeException e) {
             return null;
         }
-        return template == null ? null : new Theme(product, label, setCode, template);
+        return template == null ? null : new Theme(product, label, setCode, template, key);
+    }
+
+    /** Las cartas de una hoja de Forge, todas con sus copias; vacio si no existe. */
+    private static List<PaperCard> wholeSheet(final String sheet) {
+        try {
+            final forge.card.PrintSheet ps = FModel.getMagicDb().getPrintSheets().get(sheet);
+            return ps == null ? Collections.emptyList() : ps.toFlatList();
+        } catch (final RuntimeException e) {
+            return Collections.emptyList();
+        }
     }
 
     private static int rank(final CardRarity r) {

@@ -1432,7 +1432,7 @@ public final class DeckEditor {
         if (fit <= 0) {
             return 0;
         }
-        deck.getOrCreate(DeckSection.Main).add(card, fit);
+        deck.getOrCreate(sectionFor(card)).add(card, fit);
         takeFromPool(card, fit);
         dirty = true;
         return fit;
@@ -1462,7 +1462,7 @@ public final class DeckEditor {
             return 0;
         }
         final PaperCard card = ownedArt(imported);
-        deck.getOrCreate(DeckSection.Main).add(card, amount);
+        deck.getOrCreate(sectionFor(card)).add(card, amount);
         takeFromPool(card, amount);
         dirty = true;
         return amount;
@@ -1472,10 +1472,83 @@ public final class DeckEditor {
         if (card == null || amount <= 0) {
             return;
         }
-        final int had = deck.getMain().count(card);
-        deck.getMain().remove(card, amount);
+        // Una Atraccion se quita de su mazo aparte, que es donde la puso add.
+        final DeckSection extra = extraSectionOf(card);
+        final CardPool from = extra != null && deck.has(extra) && deck.get(extra).count(card) > 0
+                ? deck.get(extra) : deck.getMain();
+        final int had = from.count(card);
+        from.remove(card, amount);
         backToPool(card, Math.min(amount, had));
         dirty = true;
+    }
+
+    // ---------------------------------------------------------------
+    // ATRACCIONES (y Contraptions)
+    // ---------------------------------------------------------------
+    //
+    // Discord, 07-11-2026: "is there one for attractions in commander?", con
+    // Myra the Magnificent. Unfinity (Atracciones) y Unstable (Contraptions)
+    // juegan con un mazo APARTE que no es el principal ni el banquillo. El
+    // motor ya lo sabe todo: RegisteredPlayer lo lleva a su zona al empezar y
+    // DeckFormat lo valida (10 o mas, una de cada; en limitado, 3 y sin tope).
+    // Lo unico que faltaba era poder meterlas ahi: anyadir una Atraccion la
+    // ponia en el principal, contando como una de las 99.
+    //
+    // Asi que no hay un boton nuevo: la carta va SOLA a su mazo, como en el
+    // editor de Forge (DeckSection.matchingSection), y la lista del mazo lo
+    // ensenya debajo del banquillo.
+
+    // Y las HOJAS DE PEGATINAS de Unfinity (Discord, 07-11-2026: "_____
+    // Goblin" y compania). Lo mismo: su mazo aparte, que el motor valida (10
+    // o mas, una de cada; en limitado, 3 como mucho) y reparte al empezar.
+
+    /** Las secciones que van aparte, en el orden en que se ensenyan. */
+    public static final DeckSection[] EXTRA_SECTIONS =
+            {DeckSection.Attractions, DeckSection.Contraptions, DeckSection.Stickers};
+
+    /** El mazo aparte al que va esta carta (Atracciones o Contraptions), o null. */
+    public static DeckSection extraSectionOf(final PaperCard card) {
+        if (card == null) {
+            return null;
+        }
+        for (final DeckSection s : EXTRA_SECTIONS) {
+            if (s.validate(card)) {
+                return s;
+            }
+        }
+        return null;
+    }
+
+    /** Donde cae esta carta al anyadirla: su mazo aparte, o el principal. */
+    private DeckSection sectionFor(final PaperCard card) {
+        final DeckSection extra = extraSectionOf(card);
+        return extra != null && !format.poolInSideboard() ? extra : DeckSection.Main;
+    }
+
+    /** Las cartas de ese mazo aparte, por nombre; vacio si no hay. */
+    public List<Map.Entry<PaperCard, Integer>> extraCards(final DeckSection section) {
+        final List<Map.Entry<PaperCard, Integer>> out = new ArrayList<>();
+        if (section == null || !deck.has(section)) {
+            return out;
+        }
+        for (final Map.Entry<PaperCard, Integer> e : deck.get(section)) {
+            out.add(new java.util.AbstractMap.SimpleEntry<>(e.getKey(), e.getValue()));
+        }
+        out.sort(Comparator.comparing((Map.Entry<PaperCard, Integer> e) -> sortName(e.getKey())));
+        return out;
+    }
+
+    /** "Atracciones", "Contraptions" u "Hojas de pegatinas", sin el numero (cada interfaz pone el suyo). */
+    public static String extraSectionLabel(final DeckSection section) {
+        if (section == DeckSection.Attractions) {
+            return forge.neo.NeoText.get("deck.attractions");
+        }
+        return forge.neo.NeoText.get(section == DeckSection.Stickers ? "deck.stickers" : "deck.contraptions");
+    }
+
+    /** Cuantas cartas hay en ese mazo aparte. */
+    public int extraCount(final DeckSection section) {
+        return section == null || !deck.has(section) ? 0 : deck.get(section).countAll();
     }
 
     /**
@@ -3296,8 +3369,19 @@ public final class DeckEditor {
      * comandante al final tras una linea en blanco.
      */
     public String toText() {
-        // CON EL BANQUILLO (Discord, 05-11-2026: "when exporting a deck, it
-        // doesnt export the sideboard"). Entonces con encabezados, como Arena:
+        return toText(false);
+    }
+
+    /**
+     * Igual, y con {@code printings} cada linea lleva ademas la impresion que
+     * tienes puesta, como Moxfield y Arena: {@code 1 Sol Ring (C21) 263}
+     * (Discord, 07-11-2026: <i>"an option on deck export to include the
+     * edition and collector id"</i>). Es lo que ya lee {@link DeckImporter}
+     * (el {@code DeckRecognizer} de Forge), asi que exportar e importar
+     * devuelve el mismo arte.
+     */
+    public String toText(final boolean printings) {
+        // CON EL BANQUILLO (Discord, 05-11-2026: "when exporting a deck, it\n        // doesnt export the sideboard"). Entonces con encabezados, como Arena:
         // Commander / Deck / Sideboard, que leen Moxfield, Arena y nuestro
         // importador sin confundir un banquillo corto con el comandante (ver
         // DeckImporter.withSectionHeaders). Sin banquillo, como siempre.
@@ -3308,36 +3392,56 @@ public final class DeckEditor {
             if (!cmd.isEmpty()) {
                 sb.append("Commander\n");
                 for (final PaperCard c : cmd) {
-                    sb.append("1 ").append(c.getName()).append('\n');
+                    appendLine(sb, 1, c, printings);
                 }
                 sb.append('\n');
             }
             sb.append("Deck\n");
             for (final String group : GROUPS) {
                 for (final Map.Entry<PaperCard, Integer> e : cardsInGroup(group)) {
-                    sb.append(e.getValue()).append(' ').append(e.getKey().getName()).append('\n');
+                    appendLine(sb, e.getValue(), e.getKey(), printings);
                 }
             }
             sb.append("\nSideboard\n");
             for (final Map.Entry<PaperCard, Integer> e : side) {
-                sb.append(e.getValue()).append(' ').append(e.getKey().getName()).append('\n');
+                appendLine(sb, e.getValue(), e.getKey(), printings);
             }
             return sb.toString();
         }
         final StringBuilder sb = new StringBuilder();
         for (final String group : GROUPS) {
             for (final Map.Entry<PaperCard, Integer> e : cardsInGroup(group)) {
-                sb.append(e.getValue()).append(' ').append(e.getKey().getName()).append('\n');
+                appendLine(sb, e.getValue(), e.getKey(), printings);
             }
         }
         final List<PaperCard> cmd = commanders();
         if (!cmd.isEmpty()) {
             sb.append('\n');
             for (final PaperCard c : cmd) {
-                sb.append("1 ").append(c.getName()).append('\n');
+                appendLine(sb, 1, c, printings);
             }
         }
         return sb.toString();
+    }
+
+    /**
+     * Una linea de la lista: "4 Nombre", o "4 Nombre (SET) 123". Sin numero de\n     * coleccionista (Forge pone "N.A."), solo la edicion.
+     */
+    static void appendLine(final StringBuilder sb, final int count, final PaperCard card,
+                           final boolean printings) {
+        sb.append(count).append(' ').append(card.getName());
+        if (printings) {
+            final String set = card.getEdition();
+            if (set != null && !set.isBlank()) {
+                sb.append(" (").append(set).append(')');
+                final String num = card.getCollectorNumber();
+                if (num != null && !num.isBlank()
+                        && !forge.item.IPaperCard.NO_COLLECTOR_NUMBER.equals(num)) {
+                    sb.append(' ').append(num);
+                }
+            }
+        }
+        sb.append('\n');
     }
 
     /**

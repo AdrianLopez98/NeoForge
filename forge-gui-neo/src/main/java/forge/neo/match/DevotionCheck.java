@@ -57,6 +57,9 @@ public final class DevotionCheck {
     private static final String LED = "Lion's Eye Diamond|Set:MIR";
     private static final String BREACH = "Underworld Breach|Set:THB";
     private static final String BRAIN_FREEZE = "Brain Freeze|Set:SCG";
+    private static final String BLACK_LOTUS = "Black Lotus|Set:LEA";
+    private static final String ANCESTRAL = "Ancestral Recall|Set:LEA";
+    private static final String TUTOR = "Demonic Tutor|Set:LEA";
 
     /** Lo que dura cada mesa: basta con la primera prioridad. */
     private static final int SECONDS = 15;
@@ -114,6 +117,23 @@ public final class DevotionCheck {
         table("LED sin nada que lanzar", LED, "", "", false);
         final HiddenMana.Verdict alone = HiddenMana.first();
         check(alone != null && !alone.holds(), "un LED sin nada que lanzar no te para (" + alone + ")");
+
+        // 6. Black Lotus sin tierras, con hechizos baratos (Discord,
+        // 07-11-2026): la IA "no gasta un Lotus en algo de menos de 4"
+        // (AILogic$ BlackLotus) y esa estimacion decidia que no podias pagar
+        // Ancestral Recall ni Demonic Tutor: pasaba sola y perdias el turno.
+        table("Black Lotus con hechizos baratos", BLACK_LOTUS, ANCESTRAL + ";" + TUTOR, "", true);
+        final HiddenMana.Verdict lotus = HiddenMana.first();
+        final Boolean lotusEngine = HiddenMana.engineSawActions();
+        check(lotus != null && lotus.hidden().stream().anyMatch(s -> s.startsWith("Black Lotus")),
+                "se ve el Black Lotus como fuente que el motor infravalora (" + lotus + ")");
+        check(lotus != null && lotus.holds(), "y se para: hay algo que lanzar con su mana");
+        if (Boolean.TRUE.equals(lotusEngine)) {
+            System.out.println("  NOTA el motor YA ve la accion con el Black Lotus: esta parte de HiddenMana sobra");
+        } else {
+            check(Boolean.FALSE.equals(lotusEngine),
+                    "el motor, en cambio, dice que no hay acciones (" + lotusEngine + ")");
+        }
 
         System.out.printf(Locale.ROOT, "%n  %d bien, %d mal%n", passed, failed);
         if (failed > 0) {

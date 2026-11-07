@@ -246,9 +246,22 @@ public class CardNode extends StackPane {
     private final VBox fallback = new VBox(2);
     private final Label fbName = new Label();
     private final Label fbCost = new Label();
+    /**
+     * El icono de su tipo, en medio de la carta sin imagen (Discord, 07-11-2026):
+     * la silueta de game-icons.net que da {@link TypeIcons}, a escala.
+     */
+    private final javafx.scene.shape.SVGPath fbIcon = new javafx.scene.shape.SVGPath();
+    private String fbIconPath;
+    private String fbColour;
     private final Label fbType = new Label();
     private final Label fbPt = new Label();
-    private final Label ptBadge = new Label();
+    /** La caja de F/R como la de una carta impresa, si el ajuste la pide. Ver {@link PtBox}. */
+    private final PtBox ptBadge = new PtBox();
+    private static final javafx.css.PseudoClass PT_BUFFED = javafx.css.PseudoClass.getPseudoClass("buffed");
+    private static final javafx.css.PseudoClass PT_WEAKENED = javafx.css.PseudoClass.getPseudoClass("weakened");
+    private static final javafx.css.PseudoClass PT_LETHAL = javafx.css.PseudoClass.getPseudoClass("lethal");
+    /** La pastilla negra de siempre, la de fabrica (la otra, con {@link PtBoxStyle#CARD_STYLE}). */
+    private final Label ptClassic = new Label();
     private final Label damageBadge = new Label();
     private final Label rankBadge = new Label();
     /** El impuesto de comandante, en la zona de mando. Ver {@link #setCommanderTax}. */
@@ -324,7 +337,7 @@ public class CardNode extends StackPane {
     private String shownKeywords = "";
 
     /** Danyo marcado y P/T, en la misma esquina y en este orden. */
-    private final HBox ptRow = new HBox(3, damageBadge, ptBadge);
+    private final HBox ptRow = new HBox(3, damageBadge, ptBadge, ptClassic);
 
     private final DropShadow lift = new DropShadow(18, Color.rgb(0, 0, 0, 0.65));
 
@@ -414,12 +427,22 @@ public class CardNode extends StackPane {
         fbType.getStyleClass().add("card-fb-type");
         fbType.setWrapText(true);
         fbPt.getStyleClass().add("card-fb-pt");
-        final Region spacer = new Region();
+        // El hueco de en medio lleva el icono del tipo (TypeIcons): sin imagen
+        // la carta era un rectangulo gris con letras, y se miraba como vacia.
+        fbIcon.setOpacity(0.75);
+        fbIcon.setMouseTransparent(true);
+        // En un Group: la escala cuenta para el tamanyo, y el StackPane lo centra.
+        final StackPane spacer = new StackPane(new javafx.scene.Group(fbIcon));
+        spacer.setMinHeight(0);
         VBox.setVgrow(spacer, javafx.scene.layout.Priority.ALWAYS);
         fallback.getChildren().addAll(fbName, fbCost, fbType, spacer, fbPt);
 
-        ptBadge.getStyleClass().add("card-pt");
         ptBadge.setVisible(false);
+        ptClassic.getStyleClass().add("card-pt");
+        ptClassic.setVisible(false);
+        // La que no se ve no ocupa sitio en la fila.
+        ptBadge.managedProperty().bind(ptBadge.visibleProperty());
+        ptClassic.managedProperty().bind(ptClassic.visibleProperty());
 
         damageBadge.getStyleClass().add("card-damage");
         damageBadge.setVisible(false);
@@ -759,6 +782,9 @@ public class CardNode extends StackPane {
         fbType.setPrefWidth(textWidth);
         fbCost.setMaxWidth(textWidth);
         fbPt.setMaxWidth(textWidth);
+        final double iconScale = w * 0.46 / TypeIcons.BOX;
+        fbIcon.setScaleX(iconScale);
+        fbIcon.setScaleY(iconScale);
         final double fs = Math.max(7, w * 0.085);
         fbName.setStyle("-fx-font-size:" + fs + "px;");
         fbCost.setStyle("-fx-font-size:" + (fs * 0.85) + "px;");
@@ -766,7 +792,8 @@ public class CardNode extends StackPane {
         fbPt.setStyle("-fx-font-size:" + (fs * 1.05) + "px;");
         // La P/T es el numero que mas se mira de la mesa: va mas grande que
         // cualquier otra pastilla.
-        ptBadge.setStyle("-fx-font-size:" + (fs * 1.2) + "px;");
+        ptBadge.setFontSize(fs * 1.2);
+        ptClassic.setStyle("-fx-font-size:" + (fs * 1.2) + "px;");
         damageBadge.setStyle("-fx-font-size:" + (fs * 1.05) + "px;");
         rankBadge.setStyle("-fx-font-size:" + (fs * 1.05) + "px;");
         taxBadge.setStyle("-fx-font-size:" + (fs * 1.15) + "px;");
@@ -1121,6 +1148,30 @@ public class CardNode extends StackPane {
                     ? "" : st.getManaCost().toString());
             fbType.setText(CardText.typeOf(st));
             fbPt.setText(st.isCreature() ? st.getPower() + " / " + st.getToughness() : "");
+            // Su tipo en grande y su color de fondo (Discord, 07-11-2026).
+            final String iconPath = TypeIcons.pathFor(st.getType());
+            if (iconPath == null) {
+                fbIcon.setVisible(false);
+            } else {
+                if (!iconPath.equals(fbIconPath)) {
+                    fbIcon.setContent(iconPath);
+                    fbIconPath = iconPath;
+                }
+                fbIcon.setVisible(true);
+                fbIcon.setFill(javafx.scene.paint.Color.web(String.format("#%06X",
+                        TypeIcons.colourOf(st.getColors(), forge.neo.NeoSettings.getBool(TypeIcons.COLOURED, true))
+                                & 0xFFFFFF)));
+            }
+            setFallbackColour(colourClass(st.getColors()));
+            // Las legendarias, con su marco dorado (Discord, 07-11-2026).
+            final boolean legend = st.getType() != null && st.getType().isLegendary();
+            if (legend != fallback.getStyleClass().contains("card-fb-legend")) {
+                if (legend) {
+                    fallback.getStyleClass().add("card-fb-legend");
+                } else {
+                    fallback.getStyleClass().remove("card-fb-legend");
+                }
+            }
             showKeywordCard(st);
         }
 
@@ -1134,26 +1185,32 @@ public class CardNode extends StackPane {
         if (st != null && st.isCreature() && badgesVisible) {
             final int pow = st.getPower();
             final int tou = st.getToughness();
-            ptBadge.setText(pow + "/" + tou);
-            ptBadge.setVisible(hasArt);
+            final boolean cardStyle = forge.neo.NeoSettings.getBool(PtBoxStyle.CARD_STYLE, false);
+            ptBadge.setVisible(hasArt && cardStyle);
+            ptClassic.setVisible(hasArt && !cardStyle);
 
-            // Verde si esta mejorada, rojo si esta empeorada: es lo que dice de
-            // un golpe "esto ya no es la carta que pone ahi impresa".
+            // Cifra a cifra, como en la carta de la maqueta: verde la que esta
+            // por encima de lo impreso, roja la que esta por debajo. Y la caja
+            // entera en rojo cuando el danyo marcado ya la mata: ahi no hay
+            // que hacer ninguna resta de cabeza.
             final int[] printed = printedPt(st);
+            final int powInk = printed == null || pow == printed[0] ? PtBoxStyle.INK
+                    : pow > printed[0] ? PtBoxStyle.UP : PtBoxStyle.DOWN;
+            final int touInk = printed == null || tou == printed[1] ? PtBoxStyle.INK
+                    : tou > printed[1] ? PtBoxStyle.UP : PtBoxStyle.DOWN;
+            final int lethal = card.getLethalDamage();
+            ptBadge.setValues(pow, tou, powInk, touInk, PtBoxStyle.panel(st.getColors()),
+                    dmg > 0 && lethal <= 0);
+            // La de siempre: el texto entero de un color.
+            ptClassic.setText(pow + "/" + tou);
             final boolean up = printed != null && (pow > printed[0] || tou > printed[1]);
             final boolean down = printed != null && (pow < printed[0] || tou < printed[1]);
-            ptBadge.pseudoClassStateChanged(BUFFED, up && !down);
-            ptBadge.pseudoClassStateChanged(WEAKENED, down);
-
-            // Y en rojo entero cuando el danyo marcado ya la mata: ahi no hay
-            // que hacer ninguna resta de cabeza.
-            final int lethal = card.getLethalDamage();
-            ptBadge.pseudoClassStateChanged(LETHAL, dmg > 0 && lethal <= 0);
+            ptClassic.pseudoClassStateChanged(PT_BUFFED, up && !down);
+            ptClassic.pseudoClassStateChanged(PT_WEAKENED, down);
+            ptClassic.pseudoClassStateChanged(PT_LETHAL, dmg > 0 && lethal <= 0);
         } else {
             ptBadge.setVisible(false);
-            ptBadge.pseudoClassStateChanged(BUFFED, false);
-            ptBadge.pseudoClassStateChanged(WEAKENED, false);
-            ptBadge.pseudoClassStateChanged(LETHAL, false);
+            ptClassic.setVisible(false);
         }
 
         // --- daño marcado, pegado a la P/T ---
@@ -1163,7 +1220,7 @@ public class CardNode extends StackPane {
         } else {
             damageBadge.setVisible(false);
         }
-        ptRow.setVisible(ptBadge.isVisible() || damageBadge.isVisible());
+        ptRow.setVisible(ptBadge.isVisible() || ptClassic.isVisible() || damageBadge.isVisible());
 
         // --- contadores (y la lealtad, que es un contador mas) ---
         refreshCounters();
@@ -1253,7 +1310,7 @@ public class CardNode extends StackPane {
         if (show) {
             final int rgb = a.argb & 0xFFFFFF;
             actionTint.setStyle(String.format(java.util.Locale.ROOT,
-                    "-fx-background-color: rgba(%d,%d,%d,0.5); -fx-border-color: %s;",
+                    "-fx-background-color: rgba(%d,%d,%d,0.3); -fx-border-color: %s;",
                     (rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF, a.hex()));
             actionLabel.setText(a.label().toUpperCase(java.util.Locale.ROOT));
             actionTint.requestLayout();
@@ -1359,12 +1416,6 @@ public class CardNode extends StackPane {
         applyAdvance(true);
     }
 
-    private static final javafx.css.PseudoClass BUFFED =
-            javafx.css.PseudoClass.getPseudoClass("buffed");
-    private static final javafx.css.PseudoClass WEAKENED =
-            javafx.css.PseudoClass.getPseudoClass("weakened");
-    private static final javafx.css.PseudoClass LETHAL =
-            javafx.css.PseudoClass.getPseudoClass("lethal");
 
     /** El nombre que le pone el motor ({@code Player.getKeywordCard}). */
     private static final String KEYWORD_CARD = "Keyword Effects";
@@ -1382,6 +1433,37 @@ public class CardNode extends StackPane {
      * propio motor para el detalle del jugador. Las vacias ni salen
      * ({@code CommandZone.isSilentEffect}).
      */
+    /** La clase de color del respaldo: una letra, "m" multicolor o "c" incolora. */
+    private static String colourClass(final forge.card.ColorSet colours) {
+        if (colours == null || colours.isColorless()) {
+            return "card-fb-c";
+        }
+        if (colours.isMulticolor()) {
+            return "card-fb-m";
+        }
+        if (colours.hasWhite()) {
+            return "card-fb-w";
+        }
+        if (colours.hasBlue()) {
+            return "card-fb-u";
+        }
+        if (colours.hasBlack()) {
+            return "card-fb-b";
+        }
+        return colours.hasRed() ? "card-fb-r" : "card-fb-g";
+    }
+
+    private void setFallbackColour(final String cls) {
+        if (cls.equals(fbColour)) {
+            return;
+        }
+        if (fbColour != null) {
+            fallback.getStyleClass().remove(fbColour);
+        }
+        fbColour = cls;
+        fallback.getStyleClass().add(cls);
+    }
+
     private void showKeywordCard(final CardStateView st) {
         if (card == null || !card.isImmutable() || !KEYWORD_CARD.equals(st.getName())) {
             return;

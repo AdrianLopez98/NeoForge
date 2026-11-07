@@ -93,6 +93,45 @@ public final class TextDialog {
         return box;
     }
 
+    /**
+     * Un bloque con una casilla que cambia el texto: exportar el mazo con o
+     * sin edicion y numero de coleccionista (Discord, 07-11-2026). La casilla
+     * va a la izquierda del pie; al marcarla se rehace el texto con
+     * {@code textFor} y se vuelve a dejar seleccionado.
+     */
+    public static Region blockWithOption(final String title, final String prompt,
+                                         final String optionLabel, final boolean optionOn,
+                                         final java.util.function.Function<Boolean, String> textFor,
+                                         final Consumer<Boolean> onOptionChanged,
+                                         final String acceptLabel,
+                                         final Consumer<String> onAccept, final Runnable onCancel) {
+        final TextArea area = new TextArea(textFor.apply(optionOn));
+        area.getStyleClass().add("text-input");
+        area.setPrefRowCount(16);
+        area.setPrefColumnCount(46);
+        area.setWrapText(false);
+
+        final javafx.scene.control.CheckBox option = new javafx.scene.control.CheckBox(optionLabel);
+        option.getStyleClass().add("dialog-text");
+        option.setSelected(optionOn);
+        option.selectedProperty().addListener((obs, was, now) -> {
+            area.setText(textFor.apply(now));
+            area.requestFocus();
+            area.selectAll();
+            if (onOptionChanged != null) {
+                onOptionChanged.accept(now);
+            }
+        });
+
+        final Region box = wrap(title, prompt, area,
+                () -> accept(area.getText(), onAccept), onCancel, acceptLabel, null, option);
+        javafx.application.Platform.runLater(() -> {
+            area.requestFocus();
+            area.selectAll();
+        });
+        return box;
+    }
+
     private static void accept(final String text, final Consumer<String> onAccept) {
         if (onAccept != null) {
             onAccept.accept(text);
@@ -109,6 +148,14 @@ public final class TextDialog {
                                final Runnable onAccept, final Runnable onCancel,
                                final String acceptLabel,
                                final javafx.beans.value.ObservableValue<Boolean> disableAccept) {
+        return wrap(title, prompt, input, onAccept, onCancel, acceptLabel, disableAccept, null);
+    }
+
+    private static Region wrap(final String title, final String prompt, final Region input,
+                               final Runnable onAccept, final Runnable onCancel,
+                               final String acceptLabel,
+                               final javafx.beans.value.ObservableValue<Boolean> disableAccept,
+                               final javafx.scene.Node footerLeft) {
         final Label heading = new Label(title);
         heading.getStyleClass().add("dialog-title");
 
@@ -131,7 +178,9 @@ public final class TextDialog {
 
         final Region gap = new Region();
         HBox.setHgrow(gap, Priority.ALWAYS);
-        final HBox footer = new HBox(10, gap, cancel, ok);
+        final HBox footer = footerLeft == null
+                ? new HBox(10, gap, cancel, ok)
+                : new HBox(10, footerLeft, gap, cancel, ok);
         footer.setAlignment(Pos.CENTER_RIGHT);
 
         final VBox box = new VBox(12, heading, hint, input, footer);

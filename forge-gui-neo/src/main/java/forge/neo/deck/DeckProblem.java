@@ -87,6 +87,18 @@ public final class DeckProblem {
     private static final String MISSING_SIGNATURE = "is missing a signature spell";
 
     /**
+     * El mazo de Atracciones (Discord, 07-11-2026): "must contain at least 10
+     * attractions, or none at all" (3 en limitado) y "contains more than 1 copy
+     * of the attraction Balloon Stand".
+     */
+    private static final Pattern ATTRACTIONS_MIN = Pattern.compile(
+            "^must contain at least (\\d+) attractions, or none at all$");
+
+    /** @see #ATTRACTIONS_MIN */
+    private static final Pattern ATTRACTIONS_COPY = Pattern.compile(
+            "^contains more than 1 copy of the attraction (.+)$", Pattern.DOTALL);
+
+    /**
      * El texto del motor, traducido si lo reconocemos.
      *
      * @param engine lo que devolvió {@code getDeckConformanceProblem}, o null
@@ -134,6 +146,16 @@ public final class DeckProblem {
         m = POOL_RESTRICTED.matcher(s);
         if (m.matches()) {
             return NeoText.get("deck.problem.poolRestricted") + m.group(1);
+        }
+
+        m = ATTRACTIONS_MIN.matcher(s);
+        if (m.matches()) {
+            return NeoText.get("deck.problem.attractionsMin", m.group(1));
+        }
+
+        m = ATTRACTIONS_COPY.matcher(s);
+        if (m.matches()) {
+            return NeoText.get("deck.problem.attractionsCopy", m.group(1));
         }
 
         return engine;

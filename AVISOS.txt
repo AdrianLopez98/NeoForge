@@ -50,3 +50,14 @@ Heavens as One, son el contorno de la letra Yuji Boku
 Authors, bajo la SIL Open Font License 1.1. La letra no viene dentro: solo esos
 dos contornos. El texto de la licencia esta en forge/neo/fonts/YujiBoku-OFL.txt
 dentro de app\neo.jar.
+
+LOS ICONOS DE LAS CARTAS SIN IMAGEN
+-----------------------------------
+
+Los iconos que salen en una carta cuando no hay imagen (los de cada tipo de
+criatura, tierra, artefacto o encantamiento) son de game-icons.net
+(https://game-icons.net), bajo la licencia Creative Commons Attribution 3.0
+(CC BY 3.0, https://creativecommons.org/licenses/by/3.0/). Sus autores:
+Lorc, Delapouite, Skoll, Carl Olsen, Caro Asercion, Cathelineau, DarkZaitzev
+y Sbed. Van dentro de app\neo.jar como trazados (forge/neo/card/type-icons.txt),
+sin modificar salvo el color con que se pintan.
