@@ -370,6 +370,8 @@ public class DuelScene extends ForgeScene {
             changeStartCards += data.changeStartCards;
             startCards.addAll(data.startBattleWithCards());
             startCardsInCommandZone.addAll(data.startBattleWithCardsInCommandZone());
+            if (data.startBattleScript != null)
+                player.addStartGameScript(Arrays.asList(data.startBattleScript));
             extraManaShards += data.extraManaShards;
         }
         player.addExtraCardsOnBattlefield(startCards);
@@ -806,18 +808,19 @@ public class DuelScene extends ForgeScene {
         //1. Validate command section.
         List<PaperCard> removals = new ArrayList<>();
         List<PaperCard> commanders = playerDeck.getCommanders(); //ordered flat list
+        boolean enforceLegality = FModel.getPreferences().getPrefBoolean(ForgePreferences.FPref.ENFORCE_DECK_LEGALITY);
         if (commanders.size() > 2) {
             removals.addAll(commanders.subList(2, commanders.size()));
             commanders = commanders.subList(0, 2);
         }
         if (!commanders.isEmpty()) {
             PaperCard mainCommander = commanders.get(0);
-            if (!format.isLegalCommander(mainCommander.getRules()))
+            if (!format.isAllowedCommander(mainCommander.getRules(), enforceLegality))
                 removals.add(mainCommander);
             if (commanders.size() > 1) {
                 PaperCard partnerCommander = commanders.get(1);
                 if (removals.contains(mainCommander)) {
-                    if (!format.isLegalCommander(partnerCommander.getRules()))
+                    if (!format.isAllowedCommander(partnerCommander.getRules(), enforceLegality))
                         removals.add(partnerCommander); //Main is invalid but partner is valid.
                 } else if (!mainCommander.getRules().canBePartnerCommanders(partnerCommander.getRules()))
                     removals.add(partnerCommander); //Invalid partnership.
