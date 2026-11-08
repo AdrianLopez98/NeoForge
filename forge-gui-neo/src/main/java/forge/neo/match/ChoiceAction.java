@@ -109,22 +109,73 @@ public enum ChoiceAction {
      * @param targeting si lo que espera el motor es {@code InputSelectTargets}
      */
     public static ChoiceAction forPrompt(final String prompt, final boolean targeting) {
-        final ChoiceAction a = of(prompt);
-        return a != null || !targeting ? a : ofTarget(prompt);
+        if (!targeting) {
+            return of(prompt);
+        }
+        // Con objetivo, el renglon "carta - texto" puede ir el ULTIMO (Rocco,
+        // Discord 08-11-2026) y of() lo tomaba por la pregunta: ahi solo
+        // cuentan los renglones de pregunta, y el texto lo juzga ofTarget.
+        final StringBuilder question = new StringBuilder();
+        for (final String line : prompt == null ? new String[0] : prompt.split("\\R")) {
+            if (!line.contains(" - ") && !line.isBlank()) {
+                question.append(line).append('\n');
+            }
+        }
+        final ChoiceAction a = of(question.toString());
+        if (a != null) {
+            return a;
+        }
+        // Lo que dice el MOTOR de la habilidad que se esta apuntando, si lo
+        // sabemos: no depende del idioma ni de como este escrita (ver
+        // targetingStarted). El texto, solo si no hay eso.
+        if (engineTargeting) {
+            return engineAction;
+        }
+        return ofTarget(prompt);
+    }
+
+    // ---------------------------------------------------------------
+    // Lo que se le hace al objetivo, segun el motor
+    // ---------------------------------------------------------------
+
+    private static volatile boolean engineTargeting;
+    private static volatile ChoiceAction engineAction;
+
+    /**
+     * El controlador ({@code SafeActions.Guarded.chooseTargetsFor}) avisa de
+     * que empieza a elegir objetivos para una habilidad cuyo efecto conoce:
+     * {@code Destroy} es DESTRUIR, {@code ChangeZone} al exilio es EXILIAR, y
+     * cualquier otra cosa es {@code null} (no se pinta). Por todos los caminos
+     * pasa por ahi: hechizos, disparos y habilidades.
+     *
+     * <p>Discord, 08-11-2026: leer el texto daba rotulos falsos en cientos de
+     * cartas — "gains indestructible" salia DESTRUIR, "the sacrificed
+     * creature's power to any target" SACRIFICAR, Rocco "from exile" EXILIAR —
+     * y ademas Forge lo traduce a ocho idiomas.
+     */
+    public static void targetingStarted(final ChoiceAction action) {
+        engineAction = action;
+        engineTargeting = true;
+    }
+
+    public static void targetingEnded() {
+        engineTargeting = false;
+        engineAction = null;
     }
 
     /**
-     * <b>Lo que le pasa al OBJETIVO</b> (Discord, 07-11-2026: <i>"when i use
-     * Swords to Plowshares to exile the overlay seems to be missing"</i>).
+     * <b>Lo que le pasa al OBJETIVO</b>, leyendo el texto: solo cuando el
+     * motor no lo ha dicho ({@link #targetingStarted}; en red, por ejemplo).
      *
      * <p>Al elegir objetivo la pregunta no lleva el verbo ("Select target
-     * creature"): lo lleva el renglon de encima, que {@code InputSelectTargets}
-     * monta como {@code "<carta> - <texto de la habilidad>"} ("Swords to
-     * Plowshares (68) - Exile target creature. Its controller gains life...").
-     *
-     * <p>Mas prudente que {@link #of}: solo si en ese texto sale UNA accion de
-     * las cuatro. Con dos ("Destroy target creature unless its controller
-     * sacrifices...") no se sabe cual le toca al objetivo, y no se pinta.
+     * creature"): lo lleva el renglon "carta - texto de la habilidad" que monta
+     * {@code InputSelectTargets}. Regla estricta (Discord, 08-11-2026, tras
+     * pasarla por las 33.000 cartas): el verbo tiene que ir PEGADO al objetivo
+     * — "exile target", "destroy up to one other target", "exile two target"
+     * —, y solo si sale una accion. Asi no cuentan "gains indestructible", "the
+     * sacrificed creature", "from exile", el nombre de la carta ni "target
+     * player discards". Solo en ingles: traducido no se pinta, que es mejor que
+     * pintar mal.
      */
     public static ChoiceAction ofTarget(final String prompt) {
         if (prompt == null || prompt.isBlank()) {
@@ -135,18 +186,14 @@ public enum ChoiceAction {
             if (dash < 0 || dash + 3 >= line.length()) {
                 continue;
             }
-            final String text = line.substring(dash + 3).toLowerCase(Locale.ROOT);
+            final java.util.regex.Matcher m = DIRECT.matcher(line.substring(dash + 3));
             ChoiceAction found = null;
-            for (final ChoiceAction a : values()) {
-                for (final String stem : a.stems) {
-                    if (text.contains(stem)) {
-                        if (found != null && found != a) {
-                            return null;
-                        }
-                        found = a;
-                        break;
-                    }
+            while (m.find()) {
+                final ChoiceAction a = m.group(1).toLowerCase(Locale.ROOT).startsWith("exile") ? EXILE : DESTROY;
+                if (found != null && found != a) {
+                    return null;
                 }
+                found = a;
             }
             // El primer renglon "carta - texto" es el de la habilidad; los de
             // debajo son la pregunta y lo ya elegido.
@@ -154,4 +201,10 @@ public enum ChoiceAction {
         }
         return null;
     }
+
+    /** "Exile target", "destroy up to one other target", "exile two target"... */
+    private static final java.util.regex.Pattern DIRECT = java.util.regex.Pattern.compile(
+            "\\b(exile|destroy)\\s+(?:up to (?:one|two|three|four|five|x|any number of)\\s+)?"
+                    + "(?:(?:one|two|three|four|five|x|any number of)\\s+)?(?:another\\s+|other\\s+)?target\\b",
+            java.util.regex.Pattern.CASE_INSENSITIVE);
 }

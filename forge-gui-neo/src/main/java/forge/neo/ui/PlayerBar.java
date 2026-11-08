@@ -253,7 +253,7 @@ public class PlayerBar extends HBox {
                 zone(NeoText.get("zone.library"), library, forge.game.zone.ZoneType.Library),
                 zone(NeoText.get("zone.graveyard"), graveyard, forge.game.zone.ZoneType.Graveyard),
                 zone(NeoText.get("zone.exile"), exile, forge.game.zone.ZoneType.Exile),
-                zone(NeoText.get("zone.command"), command, forge.game.zone.ZoneType.Command));
+                commandBox = zone(NeoText.get("zone.command"), command, forge.game.zone.ZoneType.Command));
         zones.setAlignment(Pos.CENTER_LEFT);
 
         playerCounters.setAlignment(Pos.CENTER_LEFT);
@@ -889,6 +889,8 @@ public class PlayerBar extends HBox {
 
     /** El contador de la mano, para marcarlo cuando se puede ver (setHandRevealed). */
     private Region handBox;
+    /** El "CMD" de la barra: fuera de Commander y vacio, no se pinta (ver setZones). */
+    private Region commandBox;
 
     private static final javafx.css.PseudoClass REVEALED =
             javafx.css.PseudoClass.getPseudoClass("revealed");
@@ -927,6 +929,19 @@ public class PlayerBar extends HBox {
         graveyard.setText(String.valueOf(graveSize));
         exile.setText(String.valueOf(exileSize));
         command.setText(String.valueOf(commandSize));
+    }
+
+    /**
+     * Si se ensenya el "CMD". Fuera de Commander la zona de mando casi nunca
+     * tiene nada (itch.io, 08-11-2026: <i>"The Commander zone is displayed in
+     * Constructed mode"</i>), pero un emblema, un plano o una mazmorra van ahi:
+     * en cuanto hay algo, vuelve.
+     */
+    public void setCommandShown(final boolean shown) {
+        if (commandBox != null && commandBox.isVisible() != shown) {
+            commandBox.setVisible(shown);
+            commandBox.setManaged(shown);
+        }
     }
 
     /**

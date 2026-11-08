@@ -720,7 +720,7 @@ et}) y no se tocan.
             Deck loaded = null;
             String failure = null;
             try {
-                loaded = forge.deck.DeckUrlLoader.load(url).getDeck();
+                loaded = forge.deck.NeoDeckUrlLoader.load(url);
             } catch (final java.io.IOException | RuntimeException e) {
                 failure = forge.neo.deck.DeckUrlFailure.explain(url, e.getMessage());
             }

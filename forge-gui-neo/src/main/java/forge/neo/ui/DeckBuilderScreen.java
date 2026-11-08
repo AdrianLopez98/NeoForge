@@ -3517,7 +3517,7 @@ public class DeckBuilderScreen extends StackPane {
             Deck deck = null;
             String failure = null;
             try {
-                deck = forge.deck.DeckUrlLoader.load(url).getDeck();
+                deck = forge.deck.NeoDeckUrlLoader.load(url);
             } catch (final java.io.IOException | RuntimeException e) {
                 failure = explainUrlFailure(url, e.getMessage());
             }

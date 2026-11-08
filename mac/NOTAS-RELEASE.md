@@ -1,14 +1,12 @@
-**NeoForge para macOS 1.0.48 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.49 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Fuerza/resistencia como en las cartas de Magic** (ajuste, apagado de fábrica): la caja de la carta impresa, del color de la carta.
-- **Se ve qué le pasa a la carta también al elegir objetivo** (Swords to Plowshares: «exiliar»), con un tinte más suave, y se puede apagar.
-- **Símbolos de maná también en los textos del motor**: menús de habilidades, avisos de pago y diálogos.
-- **Costes con varias partes, una sola pregunta y antes de pagar nada** (Lion's Eye Diamond).
-- **La carta sin imagen** lleva el icono de su subtipo y el color de la carta, con marco dorado si es legendaria.
-- **Exportar el mazo con edición y número de coleccionista**, **hojas de pegatinas** de Unfinity y **mazo de Atracciones** en el constructor.
-- **Tu biblioteca al acabar, también si pierdes**, y **precios reales** en la tienda de la Quest.
-- **Arreglos:** Black Lotus ya no te pasa el turno, sin Arcane Signet ni Command Tower con un comandante incoloro, sobres Jumpstart de Avatar que salían vacíos, y rivales del Torneo y el Coliseo de la Quest de tus expansiones.
+- **Not of This World ya no se queda sin usar**: si un rival apunta a un permanente tuyo y tienes un instantáneo cuya rebaja depende del objetivo, te llega la prioridad.
+- **El rótulo del objetivo lo decide el motor** (destruir, exiliar), no el texto de la carta: fuera los rótulos falsos (Rocco, Street Chef salía «exiliar»).
+- **Pasar el ratón por el stack** actualiza también la carta de la columna derecha.
+- **Fuera de Commander, la zona de mando vacía no ocupa sitio** al lado de la mano.
+- **Mazos de Moxfield con impresiones del World Championship** (WC00-WC04) ya se importan.
+- Al día con Forge (22 cartas nuevas o corregidas).
 
 Descarga el `.dmg` de tu Mac:
 

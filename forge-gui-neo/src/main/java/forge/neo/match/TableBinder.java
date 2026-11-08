@@ -917,6 +917,7 @@ public class TableBinder {
                 p.getZoneSize(ZoneType.Graveyard),
                 p.getZoneSize(ZoneType.Exile),
                 p.getZoneSize(ZoneType.Command));
+        bar.setCommandShown(gv == null || gv.isCommander() || p.getZoneSize(ZoneType.Command) > 0);
 
         // Contadores del jugador: veneno, energia, experiencia, radiacion,
         // entradas... y los fragmentos de mana, que no son un contador.
@@ -1003,7 +1004,8 @@ public class TableBinder {
             table.setHandOutside(forge.neo.NeoSettings.handShowsOutside()
                     ? castableOutsideForHand(p) : java.util.List.of());
             table.setHand(toList(p.getHand()));
-            table.setCommandZone(toList(p.getCommand()), p);
+            table.setCommandZone(toList(p.getCommand()), p,
+                    gv == null || gv.isCommander());
         }
     }
 

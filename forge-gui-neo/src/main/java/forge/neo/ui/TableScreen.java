@@ -969,7 +969,8 @@ public class TableScreen extends Pane {
         // emblemas o efectos que haya en la zona de mando no puede llevarse
         // media mesa. Reportado jugando: once efectos identicos y la mano
         // fuera de la pantalla.
-        final double cmdW = Math.min(contentW * 0.34, commandZone.preferredWidth() + 16);
+        final double cmdPref = commandZone.preferredWidth();
+        final double cmdW = cmdPref <= 0 ? 0 : Math.min(contentW * 0.34, cmdPref + 16);
         if (barBesideHand) {
             // La ficha, pegada abajo como la mano, y la mano a su derecha.
             final double cy = y + Math.max(0, handArea - cardH - PAD);
@@ -1913,6 +1914,17 @@ public class TableScreen extends Pane {
     /** Cartas en la zona de mando (el comandante). */
     public void setCommandZone(final List<CardView> command,
                                final PlayerView owner) {
+        setCommandZone(command, owner, true);
+    }
+
+    /**
+     * @param keepSlot si se le guarda el sitio aunque este vacia: en Commander
+     *                 si (el comandante vuelve), fuera no — vacia le quitaba
+     *                 a la mano el ancho de una carta (itch.io, 08-11-2026).
+     */
+    public void setCommandZone(final List<CardView> command,
+                               final PlayerView owner, final boolean keepSlot) {
+        commandZone.setKeepSlotWhenEmpty(keepSlot);
         commandZone.setCards(command, owner);
         reindex();
     }
@@ -2973,6 +2985,13 @@ public class TableScreen extends Pane {
             hoveredStackId = item.getId();
             applyStackTargets();
             showBigCard(row, item.getSourceCard());
+            // Y el detalle de la columna, como cualquier carta de la mesa
+            // (itch.io, 08-11-2026: "hovering over the cards on the stack
+            // doesn't update the one on the right column").
+            if (item.getSourceCard() != null) {
+                applyDetailSetting();
+                detail.show(item.getSourceCard());
+            }
         });
         row.setOnMouseExited(e -> {
             if (hoveredStackId == item.getId()) {

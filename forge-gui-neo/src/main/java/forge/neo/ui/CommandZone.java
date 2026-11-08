@@ -89,8 +89,18 @@ public class CommandZone extends Pane {
         requestLayout();
     }
 
-    /** Cuantas cartas caben; sirve para reservarle sitio en la mesa. */
+    /** Si vacia se le guarda el sitio de una carta (Commander) o no ocupa nada. */
+    private boolean keepSlotWhenEmpty = true;
+
+    public void setKeepSlotWhenEmpty(final boolean keep) {
+        this.keepSlotWhenEmpty = keep;
+    }
+
+    /** Cuantas cartas caben; sirve para reservarle sitio en la mesa. 0 = no se pinta. */
     public double preferredWidth() {
+        if (piles.isEmpty() && !keepSlotWhenEmpty) {
+            return 0;
+        }
         final int n = Math.min(MAX_COLUMNS, Math.max(1, piles.size()));
         return n * cardWidth + (n - 1) * GAP;
     }
@@ -213,6 +223,8 @@ public class CommandZone extends Pane {
             }
         }
         setViewOrder(hoveredCount > 0 ? -1 : 0);
+        // Sin sitio, ni el rotulo "CMD": se saldria por el borde.
+        setVisible(preferredWidth() > 0);
         requestLayout();
     }
 

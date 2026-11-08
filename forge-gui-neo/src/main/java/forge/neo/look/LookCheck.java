@@ -637,12 +637,34 @@ public final class LookCheck {
                             && forge.neo.match.ChoiceAction.DESTROY == forge.neo.match.ChoiceAction.forPrompt(
                                     "Beast Within (3) - Destroy target permanent. Its controller creates a 3/3 green"
                                             + " Beast creature token.\n\nSelect target permanent\nTargeted: Sol Ring (5)", true));
-            check("Elegir/objetivo: con dos acciones, o ninguna, o sin ser objetivo, nada",
-                    forge.neo.match.ChoiceAction.forPrompt("Hidden Strings (9) - Destroy target creature unless its"
-                            + " controller sacrifices a land.\n\nSelect target creature", true) == null
-                            && forge.neo.match.ChoiceAction.forPrompt("Lightning Bolt (4) - Lightning Bolt deals 3"
+            check("Elegir/objetivo: sin verbo pegado al objetivo, o sin ser objetivo, nada",
+                    forge.neo.match.ChoiceAction.forPrompt("Lightning Bolt (4) - Lightning Bolt deals 3"
                                     + " damage to any target.\n\nSelect any target", true) == null
+                            && forge.neo.match.ChoiceAction.forPrompt("Adamant Will (3) - Target creature gets +2/+2 and"
+                                    + " gains indestructible until end of turn.\n\nSelect target creature", true) == null
+                            && forge.neo.match.ChoiceAction.forPrompt("Airdrop Condor (7) - Airdrop Condor deals damage equal"
+                                    + " to the sacrificed creature's power to any target.\n\nSelect any target", true) == null
+                            && forge.neo.match.ChoiceAction.forPrompt("Beacon of Destruction (5) - Beacon of Destruction deals"
+                                    + " 5 damage to any target.\n\nSelect any target", true) == null
                             && forge.neo.match.ChoiceAction.forPrompt(swords, false) == null);
+            // Y lo que dice el MOTOR manda sobre el texto (y vale en cualquier idioma).
+            forge.neo.match.ChoiceAction.targetingStarted(forge.neo.match.ChoiceAction.EXILE);
+            final boolean engineWins = forge.neo.match.ChoiceAction.EXILE == forge.neo.match.ChoiceAction.forPrompt(
+                    "Espadas en rejas de arado (68) - Exilia la criatura objetivo.\n\nSelecciona criatura objetivo", true);
+            forge.neo.match.ChoiceAction.targetingStarted(null);
+            final boolean engineSilent = forge.neo.match.ChoiceAction.forPrompt(swords, true) == null;
+            forge.neo.match.ChoiceAction.targetingEnded();
+            check("Elegir/objetivo: lo que dice el motor manda (tambien traducido, y su null tambien)",
+                    engineWins && engineSilent);
+            // Discord, 08-11-2026: el "exile" de Rocco es una zona de la
+            // condicion, no lo que le pasa al objetivo (salia EXILIAR).
+            check("Elegir/objetivo: 'from exile' en la condicion no es exiliar",
+                    forge.neo.match.ChoiceAction.forPrompt("Select target creature\nRocco, Street Chef (15) - Whenever"
+                            + " a player plays a land from exile or casts a spell from exile, you put a +1/+1 counter on"
+                            + " target creature and create a Food token.", true) == null
+                            && forge.neo.match.ChoiceAction.EXILE == forge.neo.match.ChoiceAction.forPrompt(
+                                    "Path to Exile (2) - Exile target creature. Its controller may search their library"
+                                            + " for a basic land card.\n\nSelect target creature", true));
             // El escudo del jugador protegido (Discord, 06-11-2026: Teferi's
             // Protection). Con el texto tal cual lo da Forge a un jugador.
             check("Escudo: proteccion contra todo, limpia",

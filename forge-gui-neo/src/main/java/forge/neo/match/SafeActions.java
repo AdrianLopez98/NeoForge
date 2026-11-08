@@ -320,6 +320,50 @@ public final class SafeActions {
         }
 
         /**
+         * Mientras eliges objetivos, lo que la habilidad le va a HACER al
+         * objetivo, sacado de su efecto y no de su texto ({@link ChoiceAction#targetingStarted}).
+         * Todos los objetivos pasan por aqui: hechizos, disparos y habilidades
+         * ({@code SpellAbility.setupTargets}).
+         */
+        @Override
+        public boolean chooseTargetsFor(final SpellAbility currentAbility) {
+            ChoiceAction.targetingStarted(targetAction(currentAbility));
+            try {
+                return super.chooseTargetsFor(currentAbility);
+            } finally {
+                ChoiceAction.targetingEnded();
+            }
+        }
+
+        /** DESTRUIR o EXILIAR si eso es lo que le pasa a lo que apuntas; si no, null. */
+        static ChoiceAction targetAction(final SpellAbility sa) {
+            try {
+                if (sa == null || sa.getApi() == null || sa.hasParam("Defined")) {
+                    // Con Defined el efecto va a otra cosa, no al objetivo.
+                    return null;
+                }
+                // Si se apunta a un JUGADOR ("Target opponent exiles two cards",
+                // "Search target player's library ... exile"), lo que se exilia
+                // no es lo que eliges ahora.
+                final String valid = sa.getParamOrDefault("ValidTgts", "");
+                if (valid.contains("Player") || valid.contains("Opponent")) {
+                    return null;
+                }
+                switch (sa.getApi()) {
+                    case Destroy:
+                        return ChoiceAction.DESTROY;
+                    case ChangeZone:
+                        return "Exile".equals(sa.getParam("Destination")) && !sa.hasParam("Hidden")
+                                ? ChoiceAction.EXILE : null;
+                    default:
+                        return null;
+                }
+            } catch (final RuntimeException e) {
+                return null;
+            }
+        }
+
+        /**
          * Elegir X: antes de preguntar, cuanta X puedes pagar, para que la
          * lista de botones llegue hasta ahi y no siempre hasta 9. Ver
          * {@link AffordableX}. Con el control total de "empezar a pagar sin
@@ -421,6 +465,8 @@ public final class SafeActions {
             hiddenMana = "true".equalsIgnoreCase(autoPass)
                     && (HiddenMana.evaluate(getPlayer()).holds()
                         || XTargets.evaluate(getPlayer()).holds()
+                        // Y la rebaja que depende del objetivo (Not of This World).
+                        || TargetedRebate.evaluate(getPlayer()).holds()
                         || (tap != null && tap.holds())
                         || !filtered.isEmpty());
             try {

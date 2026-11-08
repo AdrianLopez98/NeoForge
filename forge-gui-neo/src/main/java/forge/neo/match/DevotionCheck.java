@@ -135,6 +135,18 @@ public final class DevotionCheck {
                     "el motor, en cambio, dice que no hay acciones (" + lotusEngine + ")");
         }
 
+        // 7. Not of This World (Discord, 08-11-2026, repeticion de Ascenso):
+        // gratis si apunta a algo que apunta a tu criatura de fuerza 7+, pero
+        // el motor la cuenta SIN objetivo, a {7}, y pasaba solo mientras el
+        // rival le quitaba el comandante al jugador (TargetedRebate).
+        stack("Unlicensed Disintegration contra Zhulodok", "Not of This World|Set:ROE");
+        final TargetedRebate.Verdict rebate = TargetedRebate.first();
+        check(rebate != null && rebate.holds() && TargetedRebate.holds() > 0,
+                "con Not of This World en la mano, el removal del rival te para (" + rebate + ")");
+        stack("el mismo removal, sin nada que responder", "");
+        check(TargetedRebate.first() == null && TargetedRebate.holds() == 0,
+                "sin la carta no hay nada que parar (" + TargetedRebate.first() + ")");
+
         System.out.printf(Locale.ROOT, "%n  %d bien, %d mal%n", passed, failed);
         if (failed > 0) {
             throw new IllegalStateException(failed + " comprobacion(es) del mana oculto han fallado");
@@ -155,6 +167,26 @@ public final class DevotionCheck {
                 "aibattlefield=" + BEARS, "aihand=",
                 "ailibrary=" + (SWAMP + ";").repeat(6) + SWAMP,
                 "aigraveyard=", "aiexile=", "aicommand="), List.of());
+        NeoGame.playTutorial(lesson, new TutorialState(lesson.getState()),
+                NeoMatchUI.Mode.AUTO_PLAY, SECONDS, null, false, null);
+    }
+
+    /** El rival con un removal en el stack contra la criatura de fuerza 7 del jugador. */
+    private static void stack(final String title, final String hand) {
+        System.out.println("  Mesa: " + title);
+        HiddenMana.resetForTest(false);
+        TargetedRebate.resetForTest();
+        final TutorialLesson lesson = new TutorialLesson("devotion", Arrays.asList(
+                "turn=3", "activeplayer=ai", "activephase=MAIN1",
+                "humanlife=20", "ailife=20",
+                "humanbattlefield=Zhulodok, Void Gorger|Id:64",
+                "humanhand=" + hand,
+                "humanlibrary=" + (SWAMP + ";").repeat(6) + SWAMP,
+                "humangraveyard=", "humanexile=", "humancommand=",
+                "aibattlefield=" + BEARS, "aihand=",
+                "ailibrary=" + (SWAMP + ";").repeat(6) + SWAMP,
+                "aigraveyard=", "aiexile=", "aicommand=",
+                "aiputonstack=Unlicensed Disintegration->64"), List.of());
         NeoGame.playTutorial(lesson, new TutorialState(lesson.getState()),
                 NeoMatchUI.Mode.AUTO_PLAY, SECONDS, null, false, null);
     }

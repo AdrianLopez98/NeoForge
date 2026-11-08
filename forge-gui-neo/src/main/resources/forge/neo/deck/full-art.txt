@@ -1014,6 +1014,7 @@ slc	75
 slc	78
 slc	8
 slc	83
+slc	84
 sld	1088
 sld	1089
 sld	1090
@@ -1440,6 +1441,7 @@ sld	705
 sld	706
 sld	7115
 sld	7165
+sld	7179
 sld	7191
 sld	740
 sld	740★
