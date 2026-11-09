@@ -103,23 +103,31 @@ public final class AscentSeed {
          * asi que los de antes siguen diciendo lo mismo.
          */
         public final boolean melee;
+        /**
+         * <b>Mazo de salida drafteado de sobres</b> (solo Estandar, Discord,
+         * 08-11-2026: <i>"an option for ascent to draft a starting deck from
+         * boosters"</i>). Va en el codigo como {@code DR}: los sobres salen de la
+         * semilla ({@link #draftRandom}), asi que el mismo codigo da los mismos
+         * sobres. Ver {@link AscentDraft}.
+         */
+        public final boolean draft;
 
         public Recipe(final AscentRun.Mode mode, final int ascension, final byte colours,
                       final String commander, final AscentPool pool, final long seed,
                       final String version) {
-            this(mode, ascension, colours, commander, null, null, null, pool, seed, version, false);
+            this(mode, ascension, colours, commander, null, null, null, pool, seed, version, false, false);
         }
 
         public Recipe(final AscentRun.Mode mode, final int ascension, final byte colours,
                       final String commander, final String partner, final AscentPool pool,
                       final long seed, final String version) {
-            this(mode, ascension, colours, commander, null, partner, null, pool, seed, version, false);
+            this(mode, ascension, colours, commander, null, partner, null, pool, seed, version, false, false);
         }
 
         Recipe(final AscentRun.Mode mode, final int ascension, final byte colours,
                final String commander, final String commanderHash, final String partner,
                final String partnerHash, final AscentPool pool, final long seed, final String version,
-               final boolean melee) {
+               final boolean melee, final boolean draft) {
             this.mode = mode == null ? AscentRun.Mode.STANDARD : mode;
             this.ascension = Math.max(0, ascension);
             this.colours = this.mode == AscentRun.Mode.STANDARD ? colours : AscentSeedDeck.NO_COLOURS;
@@ -134,12 +142,20 @@ public final class AscentSeed {
             this.version = version == null || version.isEmpty() ? currentVersion() : version;
             // Las mesas son de Commander: en Estandar no hay partidas a cuatro.
             this.melee = this.mode == AscentRun.Mode.COMMANDER && melee;
+            // El draft es de Estandar, y los colores salen de lo que se coja.
+            this.draft = this.mode == AscentRun.Mode.STANDARD && draft;
         }
 
         /** La misma receta, con o sin mesas de cuatro. */
         public Recipe withMelee(final boolean on) {
             return new Recipe(mode, ascension, colours, commander, commanderHash, partner, partnerHash,
-                    pool, seed, version, on);
+                    pool, seed, version, on, draft);
+        }
+
+        /** La misma receta, con el mazo de salida drafteado o generado (solo Estandar). */
+        public Recipe withDraft(final boolean on) {
+            return new Recipe(mode, ascension, on ? AscentSeedDeck.NO_COLOURS : colours, commander, commanderHash,
+                    partner, partnerHash, pool, seed, version, melee, on);
         }
 
         /** El comandante va en el codigo (el jugador lo eligio, no lo sorteo la semilla). */
@@ -170,8 +186,8 @@ public final class AscentSeed {
 
         /** Igual, con companero de mando. */
         public Recipe withDeck(final byte ownColours, final String ownCommander, final String ownPartner) {
-            return new Recipe(mode, ascension, ownColours, ownCommander, null, ownPartner, null, pool, seed, version,
-                    melee);
+            return new Recipe(mode, ascension, draft ? AscentSeedDeck.NO_COLOURS : ownColours, ownCommander, null,
+                    ownPartner, null, pool, seed, version, melee, draft);
         }
 
         /** Hecho con la misma version que esta jugando. */
@@ -361,6 +377,11 @@ public final class AscentSeed {
         return new Random(mix(seed ^ 0x5EEDDECCL));
     }
 
+    /** El azar de los sobres del draft de salida ({@link AscentDraft}), aparte de todo lo demas. */
+    public static Random draftRandom(final long seed) {
+        return new Random(mix(seed ^ 0xD4AF7B00L));
+    }
+
     // ------------------------------------------------------------------
     //  Escribir y leer
     // ------------------------------------------------------------------
@@ -373,6 +394,10 @@ public final class AscentSeed {
             // Dos letras y no cuatro: parse() toma cualquier trozo de cuatro
             // como media semilla.
             parts.add("4P");
+        }
+        if (r.draft) {
+            // Igual: dos letras, y ninguna de WUBRG en las dos.
+            parts.add("DR");
         }
         if (r.mode == AscentRun.Mode.STANDARD && r.colours != AscentSeedDeck.NO_COLOURS) {
             parts.add(colourLetters(r.colours));
@@ -436,6 +461,7 @@ public final class AscentSeed {
         String version = null;
         Long seed = null;
         boolean melee = false;
+        boolean draft = false;
         final StringBuilder halves = new StringBuilder();
         for (final String token : text.split("-")) {
             if (token.isEmpty()) {
@@ -448,6 +474,8 @@ public final class AscentSeed {
                 mode = AscentRun.Mode.COMMANDER;
             } else if ("4P".equals(up)) {
                 melee = true;
+            } else if ("DR".equals(up)) {
+                draft = true;
             } else if (up.matches("A\\d{1,2}")) {
                 ascension = Integer.parseInt(up.substring(1));
             } else if (up.startsWith("@") && up.length() > 1) {
@@ -494,7 +522,7 @@ public final class AscentSeed {
             return new Parsed(null, "ascent.seed.err.bad");
         }
         return new Parsed(new Recipe(mode, ascension, colours, null, hash, null, partnerHash, pool, seed, version,
-                melee), null);
+                melee, draft), null);
     }
 
     /** Ocho letras de base 32. */

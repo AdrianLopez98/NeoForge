@@ -88,6 +88,13 @@ public class AscentSetupScreen extends StackPane {
             start(mode, commander, partner, ascension, colours, pool);
         }
 
+        /**
+         * Draftear el mazo de salida y empezar la run (Estandar, {@link forge.neo.ascent.AscentDraft}).
+         * La run no existe hasta acabar el draft: salirse no cuesta nada.
+         */
+        default void startDraft(final AscentSeed.Recipe recipe) {
+        }
+
         /** Empezar la run de un codigo o del reto de la semana ({@link AscentSeed}). */
         default void startRecipe(final AscentSeed.Recipe recipe) {
         }
@@ -126,6 +133,15 @@ public class AscentSetupScreen extends StackPane {
      */
     private boolean melee = forge.neo.NeoSettings.getBool(MELEE_SETTING, false)
             || Boolean.getBoolean("neo.ascent.setupMelee");
+    /** Donde se recuerda si el mazo de salida se draftea. */
+    private static final String DRAFT_SETTING = "ascentSetup.draft";
+
+    /**
+     * Mazo de salida drafteado de sobres (solo Estandar).
+     * {@code -Dneo.ascent.setupDraft=true} lo deja puesto para capturarlo.
+     */
+    private boolean draftStart = forge.neo.NeoSettings.getBool(DRAFT_SETTING, false)
+            || Boolean.getBoolean("neo.ascent.setupDraft");
     private PaperCard commander;
     /**
      * Su companero de mando (Discord, 21-10-2026: <i>"is there a way to select a
@@ -384,7 +400,10 @@ public class AscentSetupScreen extends StackPane {
 
     /** Empezar con lo que haya puesto: la semilla, o lo elegido en la pantalla. */
     private void startNow() {
-        if (seedSource == SeedSource.RANDOM) {
+        if (seedSource == SeedSource.RANDOM && mode == AscentRun.Mode.STANDARD && draftStart) {
+            actions.startDraft(AscentSeed.fresh(mode, ascension, AscentSeedDeck.NO_COLOURS, null, pool())
+                    .withDraft(true));
+        } else if (seedSource == SeedSource.RANDOM) {
             actions.start(mode, commander, commander == null ? null : partner, ascension, colours, pool(),
                     mode == AscentRun.Mode.COMMANDER && melee);
         } else {
@@ -536,6 +555,8 @@ public class AscentSetupScreen extends StackPane {
                             : NeoText.get("ascent.setup.chosenPair", forge.neo.card.CardText.nameOf(cmd),
                                     forge.neo.card.CardText.nameOf(mate)))
                     : NeoText.get("ascent.seed.sum.commanderRandom")));
+        } else if (r.draft) {
+            box.getChildren().add(line(NeoText.get("ascent.seed.sum.draft")));
         } else {
             box.getChildren().add(line(r.colours == AscentSeedDeck.NO_COLOURS
                     ? NeoText.get("ascent.seed.sum.coloursRandom") : coloursCaption(r.colours)));
@@ -748,7 +769,8 @@ public class AscentSetupScreen extends StackPane {
             content.getChildren().add(challengeBox());
             content.getChildren().add(recipeBox());
             final AscentSeed.Recipe r = recipe();
-            if (seedSource == SeedSource.CODE && r != null) {
+            // Con draft no hay mazo que elegir: los sobres son los del codigo.
+            if (seedSource == SeedSource.CODE && r != null && !r.draft) {
                 content.getChildren().addAll(label("ascent.seed.deck"), deckChoice());
                 if (ownDeck) {
                     if (r.mode == AscentRun.Mode.COMMANDER) {
@@ -778,7 +800,11 @@ public class AscentSetupScreen extends StackPane {
             // Commander, y despues de elegir con quien se juega.
             content.getChildren().addAll(label("ascent.setup.melee"), meleeRow());
         } else {
-            content.getChildren().addAll(label("ascent.setup.colours"), coloursBox());
+            // Primero COMO se monta el mazo; los colores solo si lo genera el juego.
+            content.getChildren().addAll(label("ascent.setup.start"), draftRow());
+            if (!draftStart) {
+                content.getChildren().addAll(label("ascent.setup.colours"), coloursBox());
+            }
         }
 
         if (AscentUnlocks.maxAscension() > 0) {
@@ -817,6 +843,34 @@ public class AscentSetupScreen extends StackPane {
                 : "ascent.setup.melee.off.desc")));
         box.setAlignment(Pos.CENTER);
         return box;
+    }
+
+    /**
+     * <b>Mazo de salida: generado / drafteado de sobres</b> (Discord,
+     * 08-11-2026). Apagado de fabrica; se recuerda la ultima eleccion.
+     */
+    private Region draftRow() {
+        final HBox row = new HBox(12);
+        row.setAlignment(Pos.CENTER);
+        final Button off = choice(NeoText.get("ascent.setup.start.generated"), !draftStart);
+        off.setOnAction(e -> setDraftStart(false));
+        final Button on = choice(NeoText.get("ascent.setup.start.draft"), draftStart);
+        on.setId("ascent-draft-on");
+        on.setOnAction(e -> setDraftStart(true));
+        row.getChildren().addAll(off, on);
+        final VBox box = new VBox(6, row, line(draftStart
+                ? NeoText.get("ascent.setup.start.draft.desc", forge.neo.ascent.AscentDraft.PACKS,
+                        forge.neo.ascent.AscentDraft.PACK_SIZE, forge.neo.ascent.AscentDraft.PICKS_PER_PACK)
+                : NeoText.get("ascent.setup.start.generated.desc")));
+        box.setAlignment(Pos.CENTER);
+        return box;
+    }
+
+    private void setDraftStart(final boolean on) {
+        draftStart = on;
+        forge.neo.NeoSettings.setBool(DRAFT_SETTING, on);
+        forge.neo.NeoSettings.save();
+        rebuild();
     }
 
     private void setMelee(final boolean on) {

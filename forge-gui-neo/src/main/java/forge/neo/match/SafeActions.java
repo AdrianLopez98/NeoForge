@@ -586,6 +586,9 @@ public final class SafeActions {
                 out = rescue(this, e, "getActionableCards",
                         () -> super.getActionableCards(paymentMode, emphasized));
             }
+            // Las tierras que el motor da por jugables sin permiso (Grenzo,
+            // Crooked Jailer): fuera de la luz. Ver PhantomLandPlay.
+            out = withoutPhantomLands(out);
             // Al lado de lo del motor: la luz de lo que se paga girando. Pagando
             // no — ahi lo que se ilumina es el mana.
             if (getGui() instanceof OverlookedSink ui) {
@@ -593,6 +596,46 @@ public final class SafeActions {
                         .getBoolPref(FPref.UI_SHOW_ACTIONABLE_HIGHLIGHTS) ? overlooked : List.of());
             }
             return out;
+        }
+
+        private List<CardView> withoutPhantomLands(final List<CardView> cards) {
+            if (cards == null || cards.isEmpty() || !PhantomLandPlay.ON) {
+                return cards;
+            }
+            try {
+                final forge.game.Game game = getGame();
+                List<CardView> kept = null;
+                for (int i = 0; i < cards.size(); i++) {
+                    final CardView cv = cards.get(i);
+                    final forge.game.card.Card c = cv == null || game == null ? null : game.findById(cv.getId());
+                    if (PhantomLandPlay.phantom(c, getPlayer())) {
+                        if (kept == null) {
+                            kept = new java.util.ArrayList<>(cards.subList(0, i));
+                        }
+                    } else if (kept != null) {
+                        kept.add(cv);
+                    }
+                }
+                return kept == null ? cards : kept;
+            } catch (final RuntimeException e) {
+                return cards;
+            }
+        }
+
+        /**
+         * Clicar una tierra que el motor deja jugar sin permiso (Grenzo,
+         * Crooked Jailer, con las tierras del cementerio rival) no la juega.
+         * Ver {@link PhantomLandPlay}.
+         */
+        @Override
+        public SpellAbility getAbilityToPlay(final forge.game.card.Card hostCard,
+                                             final List<SpellAbility> abilities,
+                                             final forge.util.ITriggerEvent triggerEvent) {
+            final List<SpellAbility> legal = PhantomLandPlay.strip(abilities, getPlayer());
+            if (legal != abilities && (legal == null || legal.isEmpty())) {
+                return null;
+            }
+            return super.getAbilityToPlay(hostCard, legal, triggerEvent);
         }
 
         /** Y las dos puertas de {@code tryAutoPassNow}, que barre igual. */

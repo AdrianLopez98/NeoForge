@@ -197,6 +197,26 @@ public final class NeoMain {
         System.out.println("[1/2] IGuiBase registered -> NeoGuiBase ("
                 + (windowed ? "JavaFX thread" : "dedicated thread") + ")");
 
+        // Actualizar desde dentro: el cambio y su marcha atras, sobre una
+        // instalacion de mentira. Sin motor, pero con GuiBase (los textos lo
+        // necesitan). Ver forge.neo.update.SelfUpdateCheck.
+        // El modo streamer: que tape las IP (tambien en el chat, que necesita los
+        // textos y por eso va despues de GuiBase) y nada mas. Sin motor ni red.
+        if ("streamercheck".equals(cmd)) {
+            banner("Modo streamer: las IP no salen en pantalla");
+            forge.neo.net.StreamerCheck.run();
+            System.exit(0);
+        }
+        if ("selfupdatecheck".equals(cmd)) {
+            banner("Actualizar desde dentro: cambiar de version sin perder datos");
+            try {
+                forge.neo.update.SelfUpdateCheck.run();
+            } catch (final Exception e) {
+                throw new IllegalStateException(e);
+            }
+            System.exit(0);
+        }
+
         // 2. Motor: base de cartas, ediciones, mazos, preferencias.
         //
         // ⚠️ CON VENTANA NO SE CARGA AQUI. Son once segundos largos, y hacerlos
@@ -322,6 +342,14 @@ public final class NeoMain {
                 banner("Elegir comandante para la proxima partida");
                 forge.neo.deck.CommanderCheck.run();
                 break;
+            case "phantomlandcheck":
+                banner("Grenzo: las tierras del cementerio rival no se juegan");
+                forge.neo.match.PhantomLandCheck.run();
+                break;
+            case "chaosorbcheck":
+                banner("Chaos Orb: la errata de Old School, solo en Old School");
+                forge.neo.match.ChaosOrbCheck.run();
+                break;
             case "lifegaincheck":
                 banner("Spike Feeder y Light of Promise");
                 forge.neo.match.LifeGainCheck.run();
@@ -399,6 +427,10 @@ public final class NeoMain {
                 // convocar: la IA no cuenta lo que se gira. Ver TapToPay.
                 banner("Auto-pass: improvisar y convocar");
                 forge.neo.match.ImproviseCheck.run();
+                break;
+            case "ascentdraftcheck":
+                banner("Ascenso: el mazo de salida drafteado de sobres");
+                forge.neo.ascent.AscentDraftCheck.run();
                 break;
             case "seedcheck":
                 // La misma semilla, la misma run: en este proceso y en otro.

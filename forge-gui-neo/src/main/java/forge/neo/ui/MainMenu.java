@@ -362,6 +362,8 @@ public class MainMenu extends BorderPane {
             // campo es un tercio mas grande y la fecha salia cortada.
             copiable.setPrefWidth(new javafx.scene.text.Text(engine)
                     .getLayoutBounds().getWidth() * UiScale.growth() + UiScale.px(18));
+            // Tampoco se encoge: lo que cede es el aviso de version.
+            copiable.setMinWidth(Region.USE_PREF_SIZE);
             footer.getChildren().add(copiable);
         }
         // El aviso de version nueva, justo al lado del numero que dice cual
@@ -373,6 +375,14 @@ public class MainMenu extends BorderPane {
         update.setAlignment(Pos.CENTER_LEFT);
         showUpdate(update, itchButton, itchDot);
         forge.neo.update.NeoUpdate.whenKnown(() -> showUpdate(update, itchButton, itchDot));
+        // La descarga de "Actualizar ahora" sigue aunque se salga del menu; el
+        // que se ensenye la recoge. Se suelta al salir de la escena (principio 11).
+        forge.neo.update.UpdateFlow.listen(() -> showUpdate(update, itchButton, itchDot));
+        update.sceneProperty().addListener((o, was, is) -> {
+            if (is == null) {
+                forge.neo.update.UpdateFlow.listen(null);
+            }
+        });
         footer.getChildren().add(update);
         // Ordenar el menu, en el pie con lo demas que no es jugar. Mientras se
         // ordena, el mismo boton dice "Listo" (y se marca), y a su izquierda
@@ -387,6 +397,12 @@ public class MainMenu extends BorderPane {
             relayout();
         });
         footer.getChildren().addAll(gap, resetButton, editButton, replays, settings, quit);
+        // Los botones del pie no se encogen nunca hasta "...": si falta sitio,
+        // cede el aviso de version, que parte su texto en lineas (el de un fallo
+        // al actualizar es largo).
+        for (final Button b : new Button[] {resetButton, editButton, replays, settings, quit}) {
+            b.setMinWidth(Region.USE_PREF_SIZE);
+        }
         footer.getStyleClass().add("home-footer");
         footer.setPadding(new Insets(12, 30, 16, 30));
         footer.setAlignment(Pos.CENTER_RIGHT);
@@ -865,6 +881,12 @@ public class MainMenu extends BorderPane {
         itch.setAccessibleText(tip);
 
         box.getChildren().clear();
+        box.getStyleClass().remove("update-done");
+        if (showSelfUpdate(box, itch, dot, offer)) {
+            box.setVisible(true);
+            box.setManaged(true);
+            return;
+        }
         box.setVisible(offer != null);
         box.setManaged(offer != null);
         if (offer == null) {
@@ -884,7 +906,95 @@ public class MainMenu extends BorderPane {
             forge.neo.update.NeoUpdate.dismiss(offer);
             showUpdate(box, itch, dot);
         });
-        box.getChildren().addAll(text, open, later);
+        if (forge.neo.update.UpdateFlow.available()) {
+            // Actualizar desde dentro: solo Windows y el paquete del .exe.
+            final Button install = new Button(NeoText.get("update.install"));
+            install.getStyleClass().add("update-install");
+            install.setMinWidth(Region.USE_PREF_SIZE);
+            install.setOnAction(e -> forge.neo.update.UpdateFlow.start(offer));
+            box.getChildren().addAll(text, install, open, later);
+        } else {
+            box.getChildren().addAll(text, open, later);
+        }
+    }
+
+    /**
+     * El aviso mientras "Actualizar ahora" esta en marcha, listo, fallado o
+     * recien hecho ({@link forge.neo.update.UpdateFlow}). Devuelve si lo ha
+     * pintado; si no, va el aviso de siempre.
+     */
+    private static boolean showSelfUpdate(final HBox box, final Button itch,
+                                          final javafx.scene.shape.Circle dot, final String offer) {
+        final forge.neo.update.UpdateFlow.State st = forge.neo.update.UpdateFlow.state();
+        if (st == forge.neo.update.UpdateFlow.State.IDLE) {
+            return false;
+        }
+        final Label text = new Label(forge.neo.update.UpdateFlow.text());
+        text.getStyleClass().add("update-banner-text");
+        text.setMinWidth(0);
+        // Un fallo se explica en una frase larga ("no se ha cambiado nada,
+        // tus datos estan bien, bajalo de itch.io"): se parte en lineas en vez
+        // de cortarse con "..." (principio 5).
+        text.setWrapText(true);
+        text.setMaxWidth(UiScale.px(520));
+        box.getChildren().add(text);
+        switch (st) {
+            case WORKING -> {
+                final javafx.scene.control.ProgressBar bar =
+                        new javafx.scene.control.ProgressBar(forge.neo.update.UpdateFlow.fraction());
+                bar.getStyleClass().add("update-progress");
+                final Button cancel = new Button(NeoText.get("update.cancel"));
+                cancel.getStyleClass().add("update-later");
+                cancel.setMinWidth(Region.USE_PREF_SIZE);
+                cancel.setOnAction(e -> forge.neo.update.UpdateFlow.cancel());
+                box.getChildren().addAll(bar, cancel);
+            }
+            case READY -> {
+                if (forge.neo.update.UpdateFlow.isRestarting()) {
+                    break;
+                }
+                final Button restart = new Button(NeoText.get("update.restart"));
+                restart.getStyleClass().add("update-install");
+                restart.setMinWidth(Region.USE_PREF_SIZE);
+                restart.setOnAction(e -> forge.neo.update.UpdateFlow.restart());
+                box.getChildren().add(restart);
+            }
+            case FAILED, DONE -> {
+                if (st == forge.neo.update.UpdateFlow.State.DONE) {
+                    box.getStyleClass().add("update-done");
+                } else {
+                    // Para que nos lo puedan pasar (Ana): el informe al
+                    // portapapeles, listo para pegarlo en Discord.
+                    final String details = forge.neo.update.UpdateFlow.details();
+                    if (details != null) {
+                        final Button copy = new Button(NeoText.get("update.copyDetails"));
+                        copy.getStyleClass().add("update-later");
+                        copy.setMinWidth(Region.USE_PREF_SIZE);
+                        copy.setOnAction(e -> {
+                            forge.gui.GuiBase.getInterface().copyToClipboard(details);
+                            copy.setText(NeoText.get("update.copied"));
+                        });
+                        box.getChildren().add(copy);
+                    }
+                    final Button open = new Button(NeoText.get("update.open"));
+                    open.getStyleClass().add("update-open");
+                    open.setMinWidth(Region.USE_PREF_SIZE);
+                    open.setOnAction(e -> openItch());
+                    box.getChildren().add(open);
+                }
+                final Button ok = new Button(NeoText.get("common.accept"));
+                ok.getStyleClass().add("update-later");
+                ok.setMinWidth(Region.USE_PREF_SIZE);
+                ok.setOnAction(e -> {
+                    forge.neo.update.UpdateFlow.reset();
+                    showUpdate(box, itch, dot);
+                });
+                box.getChildren().add(ok);
+            }
+            default -> {
+            }
+        }
+        return true;
     }
 
     /**

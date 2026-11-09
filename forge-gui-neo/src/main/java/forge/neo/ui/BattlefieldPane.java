@@ -375,6 +375,17 @@ public class BattlefieldPane extends Pane {
         }
         lastIds.clear();
         lastIds.addAll(nowIds);
+        // Cambia QUIEN esta en la fila: el siguiente layout desliza a los que
+        // se quedan en vez de soltarlos de golpe en su sitio nuevo.
+        final List<CardStackNode> nowNodes = new ArrayList<>();
+        for (final Entry e : entries) {
+            nowNodes.add(e.node);
+        }
+        if (!nowNodes.equals(laidOut)) {
+            slideNext = !quiet;
+            laidOut.clear();
+            laidOut.addAll(nowNodes);
+        }
         shown.add(previous);
         shown.add(next);
         // Y SOLO si cambia algo. Esto se llama en cada repintado de la mesa, y
@@ -398,6 +409,24 @@ public class BattlefieldPane extends Pane {
      * falta para que se entienda cual ha muerto.
      */
     private final List<CardStackNode> ghosts = new ArrayList<>();
+
+    /**
+     * <b>Los que se quedan esperan a que se vaya el que se va</b> (itch.io,
+     * 09-11-2026: <i>"you can see the rival's left card adjusting its position
+     * before the card that will be exiled leaves the screen, causing a quick
+     * overlap"</i>). Al cambiar quien esta en la fila, cada carta que sigue
+     * arranca desde donde se veia, espera a que acaben los fantasmas y se
+     * desliza a su sitio nuevo ({@link #slideTo}). Solo entonces: un
+     * desplazamiento con las flechas o cambiar el tamano de la ventana no
+     * cambia quien esta, y eso sigue colocandose al momento. Y solo con los
+     * efectos de hechizo encendidos ({@link ImpactLayer#isEnabled}): apagados,
+     * todo al momento como siempre.
+     */
+    private final List<CardStackNode> laidOut = new ArrayList<>();
+    private boolean slideNext;
+    private static final String SLIDE_KEY = "neo.bf.slide";
+    private static final String X_KEY = "neo.bf.x";
+    private static final double SLIDE_MS = 220;
 
     /**
      * La carta de delante de la pila que lleva esa carta DENTRO (el "xN"). La
@@ -976,6 +1005,48 @@ public class BattlefieldPane extends Pane {
         return out;
     }
 
+    /** Cuanto falta para que el ultimo fantasma acabe de irse. */
+    private double ghostWaitMs() {
+        double wait = 0;
+        for (final CardStackNode g : ghosts) {
+            final CardView cv = g.getFront().getCard();
+            final long held = cv == null ? 0 : GhostHold.remainingMs(cv.getId());
+            wait = Math.max(wait, held + 230);
+        }
+        return wait;
+    }
+
+    /**
+     * Pone la carta en {@code x} pero la deja VER donde estaba (translateX) y,
+     * tras {@code waitMs}, la desliza hasta alli. Una que no tenia sitio
+     * todavia (acaba de llegar) va directa: su entrada ya es {@link Anim#enter}.
+     */
+    private void slideTo(final CardStackNode node, final double x, final double waitMs) {
+        final Object before = node.getProperties().get(X_KEY);
+        node.getProperties().put(X_KEY, x);
+        final Object running = node.getProperties().remove(SLIDE_KEY);
+        double seen = before instanceof Double d ? d + node.getTranslateX() : x;
+        if (running instanceof javafx.animation.Timeline t) {
+            t.stop();
+        }
+        node.setLayoutX(x);
+        final double from = seen - x;
+        if (before == null || Math.abs(from) < 1) {
+            node.setTranslateX(0);
+            return;
+        }
+        node.setTranslateX(from);
+        final javafx.animation.Timeline t = new javafx.animation.Timeline(
+                new javafx.animation.KeyFrame(javafx.util.Duration.millis(waitMs),
+                        new javafx.animation.KeyValue(node.translateXProperty(), from)),
+                new javafx.animation.KeyFrame(javafx.util.Duration.millis(waitMs + SLIDE_MS),
+                        new javafx.animation.KeyValue(node.translateXProperty(), 0,
+                                javafx.animation.Interpolator.EASE_BOTH)));
+        t.setOnFinished(e -> node.getProperties().remove(SLIDE_KEY));
+        node.getProperties().put(SLIDE_KEY, t);
+        t.play();
+    }
+
     // ---------------------------------------------------------------
     // Layout responsivo
     // ---------------------------------------------------------------
@@ -1012,13 +1083,24 @@ public class BattlefieldPane extends Pane {
         scrollMax = Math.max(0, content - availW);
         scrollX = Math.max(0, Math.min(scrollX, scrollMax));
         final double x0 = Math.max(0, (availW - content) / 2);
+        // Solo con los efectos de hechizo encendidos (Ana, 09-11-2026): quien
+        // los apaga quiere la mesa al momento, sin esperas.
+        final boolean slide = slideNext && CardNode.areAnimationsEnabled() && ImpactLayer.isEnabled();
+        slideNext = false;
+        final double waitMs = slide ? ghostWaitMs() : 0;
         double shift = 0;
         for (int i = 0; i < n; i++) {
             final CardStackNode node = entries.get(i).node;
             final boolean tapped = node.getFront().isTapped();
             node.setCardWidth(cardW);
             node.resize(cardW, cardH);
-            node.setLayoutX(x0 + i * step + shift + (tapped ? extra / 2 : 0) - scrollX);
+            final double x = x0 + i * step + shift + (tapped ? extra / 2 : 0) - scrollX;
+            if (slide) {
+                slideTo(node, x, waitMs);
+            } else {
+                node.setLayoutX(x);
+                node.getProperties().put(X_KEY, x);
+            }
             if (tapped) {
                 shift += extra;
             }

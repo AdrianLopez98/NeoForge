@@ -1447,6 +1447,18 @@ public class SettingsPanel extends VBox {
         afkNote.setMinHeight(Region.USE_PREF_SIZE);
         getChildren().add(afkNote);
 
+        // Modo streamer (Discord, 09-11-2026): AQUI, ademas de en la pantalla de
+        // red, porque alli la IP ya sale al entrar, antes de poder marcarlo.
+        getChildren().add(toggleRow(NeoText.get("streamer.toggle"),
+                forge.neo.net.StreamerMode.on(),
+                on -> forge.neo.net.StreamerMode.set(on)));
+        final Label streamerNote = new Label(NeoText.get("streamer.note"));
+        streamerNote.getStyleClass().add("home-subtitle");
+        streamerNote.setWrapText(true);
+        streamerNote.setMaxWidth(UiScale.px(560));
+        streamerNote.setMinHeight(Region.USE_PREF_SIZE);
+        getChildren().add(streamerNote);
+
         // --- Registro detallado ---
         //
         // Discord, 13-10-2026: un registro con TODO (paradas de fase, objetivos,
@@ -1551,6 +1563,15 @@ public class SettingsPanel extends VBox {
                     NeoSettings.save();
                     forge.neo.update.NeoUpdate.enabledChanged(on);
                 }));
+        // Actualizar desde dentro: solo donde se puede (Windows, el .exe).
+        if (forge.neo.update.SelfUpdate.supported() || Boolean.getBoolean("neo.selfupdate.fake")) {
+            getChildren().add(toggleRow(NeoText.get("settings.update.self"),
+                    NeoSettings.selfUpdate(),
+                    on -> {
+                        NeoSettings.setBool(NeoSettings.SELF_UPDATE, on);
+                        NeoSettings.save();
+                    }));
+        }
 
         tab(Tab.SOUND);
 

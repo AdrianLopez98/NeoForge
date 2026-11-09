@@ -41,6 +41,12 @@ public class OnlineMenu extends BorderPane {
         void back();
     }
 
+    /** La direccion de la tarjeta de crear, para taparla o no (modo streamer). */
+    private Label hostAddress;
+    /** El campo de unirse, en claro y en contrasenya: el mismo texto, se ensenya uno. */
+    private TextField joinPlain;
+    private javafx.scene.control.PasswordField joinSecret;
+
     public OnlineMenu(final Actions actions) {
         getStyleClass().addAll("table-root", "home");
 
@@ -72,11 +78,31 @@ public class OnlineMenu extends BorderPane {
         // en el router de su casa. Ver NetHelp.
         // Volver, abajo a la derecha y junto a la accion principal: el mismo
         // sitio en todas las pantallas (las notas de diseño, principio 12).
-        final HBox footer = new HBox(10, NetHelp.button(), gap, back);
+        // Modo streamer: las IP no salen en pantalla (Discord, 09-11-2026). Aqui
+        // y en la sala, donde hace falta, sin tener que ir a Ajustes.
+        final CheckBox streamer = new CheckBox(NeoText.get("streamer.toggle"));
+        streamer.getStyleClass().add("neo-check");
+        streamer.setSelected(forge.neo.net.StreamerMode.on());
+        streamer.setOnAction(e -> {
+            forge.neo.net.StreamerMode.set(streamer.isSelected());
+            applyStreamer();
+        });
+        final HBox footer = new HBox(14, NetHelp.button(), streamer, gap, back);
         footer.getStyleClass().add("home-footer");
         footer.setPadding(new Insets(16, 30, 22, 30));
         footer.setAlignment(Pos.CENTER_LEFT);
         setBottom(footer);
+        applyStreamer();
+    }
+
+    /** Tapa o ensenya la IP segun el modo streamer. */
+    private void applyStreamer() {
+        final boolean on = forge.neo.net.StreamerMode.on();
+        hostAddress.setText(forge.neo.net.StreamerMode.hide(NeoText.get("lobby.address", NeoOnline.shareAddress())));
+        joinPlain.setVisible(!on);
+        joinPlain.setManaged(!on);
+        joinSecret.setVisible(on);
+        joinSecret.setManaged(on);
     }
 
     /**
@@ -96,7 +122,8 @@ public class OnlineMenu extends BorderPane {
         desc.setMaxWidth(UiScale.px(300));
         desc.setMinHeight(Region.USE_PREF_SIZE);
 
-        final Label addr = new Label(NeoText.get("lobby.address", NeoOnline.shareAddress()));
+        final Label addr = new Label();
+        hostAddress = addr;
         addr.getStyleClass().add("mode-tile-note");
         addr.setWrapText(true);
         addr.setMaxWidth(UiScale.px(300));
@@ -151,6 +178,12 @@ public class OnlineMenu extends BorderPane {
 
         final TextField field = new TextField();
         field.setPromptText(NeoText.get("lobby.joinHint"));
+        // En modo streamer, la IP del amigo tampoco se ve al escribirla.
+        final javafx.scene.control.PasswordField secret = new javafx.scene.control.PasswordField();
+        secret.setPromptText(NeoText.get("lobby.joinHint"));
+        secret.textProperty().bindBidirectional(field.textProperty());
+        joinPlain = field;
+        joinSecret = secret;
 
         final Button go = new Button(NeoText.get("lobby.join"));
         go.getStyleClass().add("btn-primary");
@@ -167,8 +200,11 @@ public class OnlineMenu extends BorderPane {
         };
         go.setOnAction(e -> join.run());
         field.setOnAction(e -> join.run());
+        secret.setOnAction(e -> join.run());
+        final javafx.scene.layout.StackPane input = new javafx.scene.layout.StackPane(field, secret);
+        input.setAlignment(Pos.CENTER_LEFT);
 
-        final VBox box = new VBox(10, name, desc, field, go);
+        final VBox box = new VBox(10, name, desc, input, go);
         box.getStyleClass().add("mode-tile");
         box.setAlignment(Pos.TOP_LEFT);
         box.setPadding(new Insets(20, 22, 18, 22));

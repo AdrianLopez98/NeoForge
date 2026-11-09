@@ -263,7 +263,7 @@ public class DraftScreen extends BorderPane {
                 seats.getChildren().add(l);
             }
             progress.setText(NeoText.get("draft.progress",
-                    draft.round(), draft.pickNumber(), draft.cardsLeft()));
+                    draft.round(), draft.pickNumber(), draft.cardsLeft(), draft.packs()));
             refreshPicked();
             return;
         }
@@ -284,7 +284,7 @@ public class DraftScreen extends BorderPane {
         final boolean opening = draft.pickNumber() == 1;
 
         progress.setText(NeoText.get("draft.progress",
-                draft.round(), draft.pickNumber(), draft.cardsLeft()));
+                draft.round(), draft.pickNumber(), draft.cardsLeft(), draft.packs()));
 
         pack.getChildren().clear();
         final boolean showRanking = NeoSettings.showDraftRanking();

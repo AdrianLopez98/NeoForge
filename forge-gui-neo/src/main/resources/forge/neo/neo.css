@@ -2042,6 +2042,22 @@
     -fx-cursor: hand;
 }
 .update-later:hover { -fx-text-fill: -neo-text; }
+/* Actualizar desde dentro (SelfUpdate): el boton, en el acento, y la barra. */
+.update-install {
+    -fx-background-color: -neo-accent;
+    -fx-background-radius: 4;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-font-size: 0.9em;
+    -fx-padding: 4 12;
+    -fx-cursor: hand;
+}
+.update-install:hover { -fx-background-color: derive(-neo-accent, 15%); }
+.update-progress { -fx-pref-width: 9em; -fx-accent: -neo-accent; }
+.update-banner.update-done {
+    -fx-background-color: rgba(79,180,119,0.12);
+    -fx-border-color: -neo-valid;
+}
 
 .home-footer {
     -fx-background-color: rgba(11,14,19,0.75);

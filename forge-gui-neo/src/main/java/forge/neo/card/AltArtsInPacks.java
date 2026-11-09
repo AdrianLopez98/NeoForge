@@ -31,6 +31,15 @@ import forge.item.PaperCard;
  * <p>Toca la hoja en memoria y una sola vez, al arrancar y antes del primer
  * sobre: {@code BoosterGenerator} guarda en cache las hojas que saca de ella.
  * Sin JavaFX: lo llama tambien Android.
+ *
+ * <p><b>En un hilo aparte, nunca en el arranque</b> ({@link #installInBackground},
+ * 09-11-2026, itch.io: <i>"a longer startup time on android (around 30
+ * seconds) in the recent versions"</i>). Pedir {@code getPrintSheets()} no es
+ * leer dos hojas: Forge monta en ese momento las de las ~680 ediciones, cosa
+ * que antes hacia al abrir el primer sobre. En el PC eran 1,75 s pegados al
+ * arranque y en un movil, muchos mas, con la pantalla diciendo "Loading
+ * decks...". Si alguien abre un sobre de LTR o M21 antes de que acabe, ese
+ * sobre sale como antes de la 1.0.42: sin la alternativa, nada peor.
  */
 public final class AltArtsInPacks {
 
@@ -41,6 +50,14 @@ public final class AltArtsInPacks {
     static final String[] EDITIONS = {"LTR", "M21"};
 
     private static boolean installed;
+
+    /** {@link #install} en un hilo de fondo, para no alargar el arranque. */
+    public static void installInBackground() {
+        final Thread t = new Thread(AltArtsInPacks::install, "neo-altarts");
+        t.setDaemon(true);
+        t.setPriority(Thread.MIN_PRIORITY);
+        t.start();
+    }
 
     /** Lo anyade, una vez. Nunca lanza: un sobre sin la alternativa es lo de antes. */
     public static synchronized int install() {

@@ -175,7 +175,8 @@ final class NeoAppNet {
                     screen.failed(NeoText.get("lobby.hostFailed",
                             String.valueOf(forge.neo.net.NeoLobby.port())));
                 } else {
-                    screen.failed(NeoText.get("lobby.failed", String.valueOf(e)));
+                    // Su detalle suele llevar la IP y el puerto: modo streamer.
+                    screen.failed(forge.neo.net.StreamerMode.hide(NeoText.get("lobby.failed", String.valueOf(e))));
                 }
             }
         }, "neo-lobby-connect");
@@ -387,7 +388,8 @@ final class NeoAppNet {
             final String detail = text.substring(ForgeConstants.CONN_ERROR_PREFIX.length()).trim();
             screen.setNotice(detail);
             final int nl = detail.indexOf('\n');
-            screen.failed(NeoText.get("lobby.failed", nl < 0 ? detail : detail.substring(0, nl)));
+            screen.failed(forge.neo.net.StreamerMode.hide(
+                    NeoText.get("lobby.failed", nl < 0 ? detail : detail.substring(0, nl))));
             return;
         }
         screen.setNotice(text);

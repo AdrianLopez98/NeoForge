@@ -42,6 +42,9 @@ public final class PackContentsCheck {
     public static void run() {
         passed = 0;
         failed = 0;
+        // Las alternativas se anyaden de fondo al arrancar (AltArtsInPacks);
+        // aqui se espera a que esten, antes del primer sobre.
+        forge.neo.card.AltArtsInPacks.install();
         final List<CardEdition> editions = NeoQuestShop.editions();
         final List<CardEdition> collector = NeoQuestShop.collectorEditions();
 

@@ -983,8 +983,25 @@ public class LobbyScreen extends BorderPane
      * tres cosas distintas presentadas como una lista, o sea una pregunta
      * disfrazada de informacion.
      */
+    /**
+     * Como volver a pintar cada renglon de direccion al cambiar el modo
+     * streamer. De la pantalla: vive lo que ella (principio 11).
+     */
+    private final List<Runnable> ipRefreshers = new ArrayList<>();
+
     private Region addressRow() {
         final VBox rows = new VBox(4);
+        // Modo streamer: las IP no salen en pantalla (Discord, 09-11-2026). Aqui
+        // mismo, que es donde se ve la direccion, sin salir de la sala.
+        final javafx.scene.control.CheckBox streamer =
+                new javafx.scene.control.CheckBox(NeoText.get("streamer.toggle"));
+        streamer.getStyleClass().add("neo-check");
+        streamer.setSelected(forge.neo.net.StreamerMode.on());
+        streamer.setOnAction(e -> {
+            forge.neo.net.StreamerMode.set(streamer.isSelected());
+            ipRefreshers.forEach(Runnable::run);
+        });
+        rows.getChildren().add(streamer);
         final List<String[]> local = NeoOnline.localAddresses();
         if (local.isEmpty()) {
             rows.getChildren().add(addressLine(
@@ -1187,8 +1204,32 @@ public class LobbyScreen extends BorderPane
      * es la de casa) y un icono hay que aprenderselo.
      */
     private Region addressLine(final String text, final String address, final boolean best) {
-        final Label label = new Label(text);
+        final Label label = new Label();
         label.getStyleClass().add(best ? "lobby-best" : "mode-tile-note");
+
+        // Modo streamer: tapada, con su "Mostrar" por si quieres mirarla fuera
+        // de camara. "Copiar" copia SIEMPRE la de verdad: es como se pasa por
+        // privado sin que se vea.
+        final boolean[] revealed = {false};
+        final Button show = new Button();
+        show.getStyleClass().add("btn-secondary");
+        show.setMinWidth(Region.USE_PREF_SIZE);
+        final Runnable paint = () -> {
+            final boolean on = forge.neo.net.StreamerMode.on();
+            if (!on) {
+                revealed[0] = false;
+            }
+            label.setText(on && !revealed[0] ? forge.neo.net.StreamerMode.mask(text) : text);
+            show.setText(NeoText.get(revealed[0] ? "streamer.hide" : "streamer.show"));
+            show.setVisible(on);
+            show.setManaged(on);
+        };
+        show.setOnAction(e -> {
+            revealed[0] = !revealed[0];
+            paint.run();
+        });
+        ipRefreshers.add(paint);
+        paint.run();
 
         final Button copy = new Button(NeoText.get("lobby.copy"));
         copy.getStyleClass().add("btn-secondary");
@@ -1198,7 +1239,7 @@ public class LobbyScreen extends BorderPane
             addChatLine(NeoText.get("lobby.copied"));
         });
 
-        final HBox row = new HBox(10, label, copy);
+        final HBox row = new HBox(10, label, show, copy);
         row.setAlignment(Pos.CENTER_LEFT);
         return row;
     }

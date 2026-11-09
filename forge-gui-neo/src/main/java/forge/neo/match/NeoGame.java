@@ -358,6 +358,8 @@ public final class NeoGame {
             // El menu de pausa necesita poder decirle "sal de aqui".
             binder.setMatchUi(gui);
         }
+        // Chaos Orb con la errata de Old School, solo en Old School (ChaosOrbErrata).
+        ChaosOrbErrata.forFormat(format);
         final HostedMatch match = new HostedMatch();
         final CountDownLatch over = new CountDownLatch(1);
 
@@ -569,6 +571,7 @@ public final class NeoGame {
             binder.setMatchUi(gui);
         }
 
+        ChaosOrbErrata.forFormat(null); // no es Old School: Chaos Orb del Oracle
         final HostedMatch match = new HostedMatch();
         final CountDownLatch over = new CountDownLatch(1);
         match.setOnMatchOver(over::countDown);
@@ -677,6 +680,7 @@ public final class NeoGame {
             onReady.accept(gui);
         }
 
+        ChaosOrbErrata.forFormat(null); // no es Old School: Chaos Orb del Oracle
         final HostedMatch match = new HostedMatch();
         final CountDownLatch over = new CountDownLatch(1);
         match.setOnMatchOver(over::countDown);

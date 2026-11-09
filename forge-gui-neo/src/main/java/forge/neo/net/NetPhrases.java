@@ -93,6 +93,14 @@ public final class NetPhrases {
      *               nunca, aunque se parezca a un aviso.
      */
     public static Phrase read(final String source, final String message) {
+        // Modo streamer: ninguna IP llega al chat. Forge manda a TODOS el aviso
+        // "/1.2.3.4:51234 timed out..." de una conexion que se cae antes de
+        // presentarse (FServerManager), y alguien puede escribir una por error.
+        final Phrase p = readRaw(source, message);
+        return StreamerMode.on() ? new Phrase(p.kind(), StreamerMode.mask(p.text()), p.who()) : p;
+    }
+
+    private static Phrase readRaw(final String source, final String message) {
         final String msg = message == null ? "" : message;
         if (source != null && !source.isBlank()) {
             return new Phrase(Kind.PLAIN, source + ": " + msg, null);

@@ -52,6 +52,11 @@ public interface PackSource {
     /** Sobre 1, 2 o 3. */
     int round();
 
+    /** Cuantos sobres hay en total: 3 en un draft, mas en el de salida de Ascenso. */
+    default int packs() {
+        return 3;
+    }
+
     /** Que pick es este dentro del sobre, empezando por 1. */
     int pickNumber();
 

@@ -1,12 +1,13 @@
-**NeoForge para macOS 1.0.49 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.50 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Not of This World ya no se queda sin usar**: si un rival apunta a un permanente tuyo y tienes un instantáneo cuya rebaja depende del objetivo, te llega la prioridad.
-- **El rótulo del objetivo lo decide el motor** (destruir, exiliar), no el texto de la carta: fuera los rótulos falsos (Rocco, Street Chef salía «exiliar»).
-- **Pasar el ratón por el stack** actualiza también la carta de la columna derecha.
-- **Fuera de Commander, la zona de mando vacía no ocupa sitio** al lado de la mano.
-- **Mazos de Moxfield con impresiones del World Championship** (WC00-WC04) ya se importan.
-- Al día con Forge (22 cartas nuevas o corregidas).
+- **Ascenso: el mazo de salida drafteado de sobres** (Estándar): 6 sobres de 12, te quedas 4 de cada uno y montas un mazo de 30 con básicas gratis (o «Montar solo»).
+- **Old School 93/94: Chaos Orb con la errata del formato**: destruye un permanente de los que toca, no todos. Solo en Old School.
+- **Modo streamer**: oculta las IP en las partidas privadas (Ajustes → Partida).
+- **Grenzo, Crooked Jailer** ya no deja jugar las tierras del cementerio rival.
+- **Cuando una carta se va de la mesa**, las de al lado esperan a que se vaya y se deslizan a su sitio.
+- **Arranca antes**: unos 2 s menos en el PC.
+- Al día con Forge (18 cartas nuevas o corregidas).
 
 Descarga el `.dmg` de tu Mac:
 

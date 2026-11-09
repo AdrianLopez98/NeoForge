@@ -188,6 +188,29 @@ final class NeoAppAscent {
      */
     void showSetup() {
         AscentRelics.install();
+        // -Dneo.ascent.draftNow=true: directo a la pantalla de picks del draft
+        // de salida, para capturarla. No crea ninguna run hasta acabar.
+        // -Dneo.ascent.draftBuildNow=true: el draft hecho solo (el primero de
+        // cada sobre) y directo al constructor, para capturarlo.
+        if (Boolean.getBoolean("neo.ascent.draftBuildNow")) {
+            System.clearProperty("neo.ascent.draftBuildNow");
+            final forge.neo.ascent.AscentSeed.Recipe r = forge.neo.ascent.AscentSeed.fresh(AscentRun.Mode.STANDARD,
+                    0, forge.neo.ascent.AscentSeedDeck.NO_COLOURS, null, forge.neo.ascent.AscentPool.ALL)
+                    .withDraft(true);
+            final forge.neo.ascent.AscentDraft d = new forge.neo.ascent.AscentDraft(r);
+            while (!d.isDone()) {
+                d.pick(d.currentCards().get(0));
+            }
+            showDraftBuild(r, d.picked(), false);
+            return;
+        }
+        if (Boolean.getBoolean("neo.ascent.draftNow")) {
+            System.clearProperty("neo.ascent.draftNow");
+            showDraft(forge.neo.ascent.AscentSeed.fresh(AscentRun.Mode.STANDARD, 0,
+                    forge.neo.ascent.AscentSeedDeck.NO_COLOURS, null, forge.neo.ascent.AscentPool.ALL)
+                    .withDraft(true), false);
+            return;
+        }
         app.scene.setRoot(new AscentSetupScreen(app.cardWidth, AscentRun.current() != null,
                 new AscentSetupScreen.Actions() {
                     @Override
@@ -220,7 +243,17 @@ final class NeoAppAscent {
                     }
 
                     @Override
+                    public void startDraft(final forge.neo.ascent.AscentSeed.Recipe recipe) {
+                        showDraft(recipe, false);
+                    }
+
+                    @Override
                     public void startRecipe(final forge.neo.ascent.AscentSeed.Recipe recipe) {
+                        if (recipe.draft) {
+                            // Un codigo o un reto con draft: los mismos sobres para todos.
+                            showDraft(recipe, true);
+                            return;
+                        }
                         final AscentRun previous = AscentRun.current();
                         if (previous != null) {
                             previous.discard();
@@ -233,6 +266,55 @@ final class NeoAppAscent {
                         app.showMainMenu();
                     }
                 }));
+        app.applyScale();
+    }
+
+    /**
+     * <b>Draftear el mazo de salida</b> ({@link forge.neo.ascent.AscentDraft}):
+     * la pantalla de picks del draft de siempre, y al acabar la run empieza con
+     * lo cogido. Hasta entonces no existe: salirse vuelve al montaje y la run a
+     * medias que hubiera sigue intacta.
+     */
+    void showDraft(final forge.neo.ascent.AscentSeed.Recipe recipe, final boolean fromCode) {
+        final forge.neo.ascent.AscentDraft draft = new forge.neo.ascent.AscentDraft(recipe);
+        app.scene.setRoot(new forge.neo.ui.DraftScreen(draft, app.cardWidth,
+                done -> showDraftBuild(recipe, draft.picked(), fromCode), this::showSetup));
+        app.applyScale();
+    }
+
+    /**
+     * <b>Montar el mazo con el pool del draft</b>: el constructor de limitado
+     * de siempre ({@link forge.neo.draft.AscentPoolContext}). Guardar un mazo
+     * de 30 empieza la run; volver sin guardarlo vuelve al montaje y el draft
+     * se pierde (la run aun no existe).
+     */
+    void showDraftBuild(final forge.neo.ascent.AscentSeed.Recipe recipe,
+                        final java.util.List<forge.item.PaperCard> picks, final boolean fromCode) {
+        final boolean[] started = {false};
+        final forge.neo.draft.AscentPoolContext context = new forge.neo.draft.AscentPoolContext(picks,
+                forge.neo.NeoText.get("ascent.draft.deckName"), deck -> {
+                    if (started[0]) {
+                        return;
+                    }
+                    started[0] = true;
+                    // Despues del guardado: el constructor aun esta ensenyando su aviso.
+                    javafx.application.Platform.runLater(() -> {
+                        app.builder = null;
+                        final AscentRun previous = AscentRun.current();
+                        if (previous != null) {
+                            previous.discard();
+                        }
+                        showMap(AscentRun.beginDrafted(recipe, deck, fromCode));
+                    });
+                });
+        final forge.neo.deck.DeckEditor editor = new forge.neo.deck.DeckEditor(context, context.startingDeck());
+        app.builder = new forge.neo.ui.DeckBuilderScreen(editor, app.cardWidth, () -> {
+            app.builder = null;
+            if (!started[0]) {
+                showSetup();
+            }
+        });
+        app.scene.setRoot(app.builder);
         app.applyScale();
     }
 

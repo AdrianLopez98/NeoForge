@@ -364,6 +364,15 @@ public class NeoApp extends Application implements SettingsPanel.Host {
         if (snapshotPath == null || System.getProperty("neo.update.fake") != null) {
             forge.neo.update.NeoUpdate.start();
         }
+        // Si se acaba de actualizar desde dentro (o quedo una bajada sin poner),
+        // el menu lo dice. Lee un fichero de .neo-update y limpia de fondo.
+        // Ver forge.neo.update.SelfUpdate.
+        // Es adorno: pase lo que pase aqui, el juego arranca igual.
+        try {
+            forge.neo.update.UpdateFlow.atStartup();
+        } catch (final Throwable e) {
+            System.err.println("[neo] actualizar: " + e);
+        }
 
         // En un Mac, Ctrl+clic es el clic derecho. Fuera de un Mac no hace nada.
         forge.neo.platform.NeoOs.installMacMouse(scene);

@@ -388,6 +388,32 @@ public final class AscentRun {
 
     /** @param fromCode empezada desde un codigo o un reto: no sube la Ascension ({@link #isFromCode}) */
     private static AscentRun begin(final AscentSeed.Recipe recipe, final int maxLife, final boolean fromCode) {
+        return begin(recipe, maxLife, fromCode, null);
+    }
+
+    /**
+     * <b>Una run de Estandar con el mazo de salida drafteado</b>
+     * ({@link AscentDraft}): los hechizos que se cogieron en los sobres, en vez
+     * del generador. Todo lo demas sale de la receta igual que siempre.
+     *
+     * @param deck     el mazo montado en el constructor con el pool del draft
+     *                 ({@code AscentPoolContext}): sus 30 cartas del principal
+     * @param fromCode empezada desde un codigo o un reto: no sube la Ascension
+     */
+    public static AscentRun beginDrafted(final AscentSeed.Recipe recipe, final forge.deck.Deck deck,
+                                         final boolean fromCode) {
+        return begin(recipe, recipe.mode == Mode.COMMANDER ? 40 : 20, fromCode, deck);
+    }
+
+    private static AscentRun begin(final AscentSeed.Recipe recipe, final int maxLife, final boolean fromCode,
+                                   final forge.deck.Deck drafted) {
+        if (drafted != null) {
+            final String name = deckNameFor(recipe.mode);
+            final forge.deck.Deck named = new forge.deck.Deck(name);
+            named.getMain().addAll(drafted.getMain());
+            AscentDecks.save(AscentDraft.finish(named, recipe.ascension, recipe.pool));
+            return started(recipe, maxLife, fromCode, name);
+        }
         final forge.item.PaperCard commander = AscentSeedDeck.commanderFor(recipe);
         if (recipe.hasCommander() && commander == null) {
             throw new IllegalStateException("el comandante del codigo no esta: " + recipe.code());
@@ -407,6 +433,12 @@ public final class AscentRun {
             forge.util.MyRandom.setRandom(previous);
         }
         AscentDecks.save(deck);
+        return started(recipe, maxLife, fromCode, name);
+    }
+
+    /** La run, con su mazo ya guardado. */
+    private static AscentRun started(final AscentSeed.Recipe recipe, final int maxLife, final boolean fromCode,
+                                     final String name) {
         final AscentRun run = start(recipe.mode, recipe.ascension, maxLife, name, recipe.pool,
                 recipe.seed);
         run.code = recipe.code();

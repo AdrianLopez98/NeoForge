@@ -291,7 +291,7 @@ public final class AscentSeedDeck {
      * vale igual en un Estandar mono-color que en cualquier identidad de
      * Commander, sin tener que elegir una version por color.
      */
-    private static void curse(final Deck deck) {
+    static void curse(final Deck deck) {
         final PaperCard cursed = FModel.getMagicDb().getCommonCards().getCard(CURSED_CARD);
         if (cursed == null) {
             return; // no deberia faltar nunca; mejor un mazo sin maldicion que uno roto

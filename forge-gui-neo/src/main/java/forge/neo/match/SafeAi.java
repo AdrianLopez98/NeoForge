@@ -277,6 +277,11 @@ public final class SafeAi {
             }
             final List<SpellAbility> out = new java.util.ArrayList<>(chosen.size());
             for (final SpellAbility sa : chosen) {
+                // Una tierra que el motor deja jugar sin permiso (Grenzo con las
+                // del cementerio rival): no se juega. Ver PhantomLandPlay.
+                if (PhantomLandPlay.illegal(sa, getPlayer())) {
+                    continue;
+                }
                 if (sa != null && sa.isSpell() && !sa.isCopied() && !mayCast(sa)) {
                     getAi().noteFailedCast(forge.ai.AiController.castKey(sa));
                     continue;

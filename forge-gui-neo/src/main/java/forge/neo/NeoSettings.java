@@ -745,6 +745,27 @@ public final class NeoSettings {
     }
 
     /**
+     * El boton "Actualizar ahora" del aviso de version nueva (09-11-2026,
+     * {@code forge.neo.update.SelfUpdate}): solo en Windows y en el paquete
+     * del {@code .exe}. Encendido de fabrica; en Ajustes, como experimental.
+     */
+    public static final String SELF_UPDATE = "selfUpdate";
+
+    /**
+     * Modo streamer: las IP de las partidas en red no salen en pantalla
+     * ({@code forge.neo.net.StreamerMode}). Apagado de fabrica.
+     */
+    public static final String STREAMER_MODE = "streamerMode";
+
+    public static boolean streamerMode() {
+        return getBool(STREAMER_MODE, false);
+    }
+
+    public static boolean selfUpdate() {
+        return getBool(SELF_UPDATE, true);
+    }
+
+    /**
      * Si el panel de detalle esta encendido.
      *
      * <p>{@code -Dneo.hoverDetail=true} lo enciende sin escribir en las

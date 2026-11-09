@@ -168,6 +168,8 @@ public class NeoGuiBase implements IGuiBase {
         // Si la partida sale de nuestra sala de red, con nuestras reglas: el
         // lobby de Forge las sacaria de SUS preferencias (al mejor de tres,
         // entre otras). Ver NetHostedMatch.
+        // Ninguna de estas es Old School: Chaos Orb del Oracle (ChaosOrbErrata).
+        forge.neo.match.ChaosOrbErrata.forFormat(null);
         final HostedMatch match = forge.neo.net.NeoLobby.isHostingLobby()
                 ? new forge.neo.net.NetHostedMatch() : new HostedMatch();
         // Un fallo de la IA mata el bucle de la partida y deja a todo el mundo
