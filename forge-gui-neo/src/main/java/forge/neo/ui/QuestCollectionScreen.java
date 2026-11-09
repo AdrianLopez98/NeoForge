@@ -292,6 +292,8 @@ public class QuestCollectionScreen extends StackPane {
         node.setCard(CardView.getCardForUi(entry.card));
 
         final StackPane box = new StackPane(node);
+        // El "xN" y el precio, delante de la carta aunque se levante (Discord, 09-11-2026).
+        DeckBuilderScreen.overlaysOverCard(box, node);
         box.getStyleClass().add("catalogue-tile");
         // La ampliada por encima de las vecinas: las de la derecha y la fila de
         // abajo se pintan despues y le tapaban el borde.

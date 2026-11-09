@@ -1158,6 +1158,8 @@ public class QuestShopScreen extends StackPane {
         node.setCard(forge.game.card.CardView.getCardForUi(card));
         // Las copias de mas, en una pastilla abajo a la derecha (como Arena).
         final StackPane face = new StackPane(node);
+        // El "xN", "tienes N" y "te falta", delante de la carta aunque se levante.
+        DeckBuilderScreen.overlaysOverCard(face, node);
         // Del tamanyo calculado, para que la cuenta de fitSingles case.
         final double faceH = w * CardNode.ASPECT;
         face.setMinSize(w, faceH);

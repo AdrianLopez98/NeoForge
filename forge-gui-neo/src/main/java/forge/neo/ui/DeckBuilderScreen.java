@@ -2191,6 +2191,8 @@ public class DeckBuilderScreen extends StackPane {
         final StackPane box = new StackPane(node, count);
         StackPane.setAlignment(count, Pos.TOP_RIGHT);
         StackPane.setMargin(count, countMargin(displayWidth));
+        // Delante de la carta aunque se levante al pasar el raton (ver deckTile).
+        overlaysOverCard(box, node);
         box.getStyleClass().add("catalogue-tile");
         box.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
 
@@ -2455,6 +2457,7 @@ public class DeckBuilderScreen extends StackPane {
         // filas haria pensar que faltan nueve.
         final boolean filtering = deckFilterActive();
         int shown = 0;
+        gridTiles = 0;
         deckList.getChildren().clear();
         for (final Map.Entry<String, Integer> group : editor.typeCounts().entrySet()) {
             final List<Region> rows = new ArrayList<>();
@@ -2636,6 +2639,40 @@ public class DeckBuilderScreen extends StackPane {
      * clic la amplia, clic derecho abre su menu, y al pasar el raton salen el
      * "-" y el "+". Varias copias, una carta con su "xN".
      */
+    /**
+     * El orden de pintado de lo que va encima de una carta en una casilla (el
+     * "xN", el "-"/"+"): por delante de la carta incluso levantada, que se pone
+     * a -1 (CardNode.lift).
+     */
+    static final double OVER_CARD = -10;
+
+    /** Cuantas casillas lleva la cuadricula en este repintado (para -Dneo.builder.gridHover). */
+    private int gridTiles;
+
+    /**
+     * Todo lo que se pone encima de {@code card} en esta casilla (el "xN", el
+     * "-"/"+", el precio, "tienes N"), por delante de ella aunque se levante:
+     * lo de ahora y lo que se anyada despues. Lo usan el constructor, la
+     * coleccion y la tienda de la Quest. "Ver el mazo" y la estrella de
+     * favoritas ya lo hacian a mano (DeckStackView, FavoriteStar).
+     */
+    static void overlaysOverCard(final StackPane box, final javafx.scene.Node card) {
+        for (final javafx.scene.Node n : box.getChildren()) {
+            if (n != card) {
+                n.setViewOrder(OVER_CARD);
+            }
+        }
+        box.getChildren().addListener((javafx.collections.ListChangeListener<javafx.scene.Node>) c -> {
+            while (c.next()) {
+                for (final javafx.scene.Node n : c.getAddedSubList()) {
+                    if (n != card) {
+                        n.setViewOrder(OVER_CARD);
+                    }
+                }
+            }
+        });
+    }
+
     private Region deckTile(final PaperCard card, final int amount) {
         // Pequenya: en el panel del mazo tienen que caber unas cuatro por fila.
         final double w = UiScale.px(78);
@@ -2668,6 +2705,24 @@ public class DeckBuilderScreen extends StackPane {
         StackPane.setAlignment(steps, Pos.BOTTOM_CENTER);
         StackPane.setMargin(steps, new Insets(0, 0, 4, 0));
         tile.hoverProperty().addListener((o, a, b) -> steps.setVisible(b));
+        // Lo que va ENCIMA de la carta, siempre delante de ella (Discord,
+        // 09-11-2026: el "-" y el "+" se quedaban detras). Al pasar el raton,
+        // CardNode se levanta y se pone por delante de sus hermanas
+        // (setViewOrder -1, ver CardNode.lift) — y sus hermanas en este
+        // StackPane son justo estos rotulos. Solo se veian en el mismo borde
+        // de la casilla, donde la carta aun no se levanta.
+        overlaysOverCard(tile, node);
+        // -Dneo.builder.gridHover=N (con -Dneo.builder.grid=true): la casilla N,
+        // como con el raton encima — carta levantada y su "-"/"+" — para verla
+        // en una captura, que no tiene raton.
+        final Integer probe = Integer.getInteger("neo.builder.gridHover");
+        if (probe != null && probe == gridTiles) {
+            javafx.application.Platform.runLater(() -> javafx.application.Platform.runLater(() -> {
+                node.hoverForTest();
+                steps.setVisible(true);
+            }));
+        }
+        gridTiles++;
         javafx.scene.control.Tooltip.install(tile, new javafx.scene.control.Tooltip(CardText.nameOf(card)));
         tile.setOnMouseClicked(e -> {
             if (e.getButton() == MouseButton.SECONDARY) {
