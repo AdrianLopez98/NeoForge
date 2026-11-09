@@ -122,7 +122,14 @@ public final class PhantomLandCheck {
                 : "[info] el motor YA NO ofrece el Island del rival: Card-Forge lo ha arreglado, PhantomLandPlay sobra\n");
         check(PhantomLandPlay.strip(offered, me).stream().noneMatch(SpellAbility::isLandAbility),
                 "PhantomLandPlay quita la jugada del Island", good, bad, notes);
-        check(PhantomLandPlay.phantom(island, me), "el Island del rival cuenta como tierra sin permiso", good, bad, notes);
+        // Desde el 09-11-2026 Forge lo arregla rio arriba (#12770): el motor ya no
+        // ofrece esa jugada, y entonces no hay "tierra fantasma" que detectar (el
+        // envoltorio deja de saltar, como dice las notas de diseño). Mientras el motor la
+        // siga ofreciendo, tiene que detectarla. Lo que ve el jugador se mira abajo.
+        check(!engineBug || PhantomLandPlay.phantom(island, me),
+                engineBug ? "el Island del rival cuenta como tierra sin permiso"
+                        : "el motor ya no ofrece el Island del rival (Forge #12770): nada que detectar",
+                good, bad, notes);
         check(!PhantomLandPlay.phantom(forest, me), "el Forest de tu mano no", good, bad, notes);
 
         final List<CardView> lit = seat.getActionableCards(false, null);
