@@ -107,6 +107,7 @@ public final class AscentCheck {
             reliquiasQueLaIaPuedeLlevar();
             descanso();
             tienda();
+            escudo();
             eventos();
             planos();
             resumen();
@@ -524,7 +525,9 @@ public final class AscentCheck {
             if (reemplazo && !script.contains("ActiveZones$ Command")) {
                 mal.add(r.getId() + " (reemplazo sin ActiveZones$ Command)");
             }
-            if (!estatica && !disparo && !reemplazo) {
+            // El escudo NO actua en la partida: actua en la run, al perder
+            // (AscentRelics#SHIELD). Lo comprueba escudo().
+            if (!estatica && !disparo && !reemplazo && !AscentRelics.isShield(r)) {
                 mal.add(r.getId() + " (ni estatica ni disparo: no hace nada)");
             }
         }
@@ -3600,7 +3603,10 @@ public final class AscentCheck {
                 if (i.getKind() == AscentShop.Kind.CARD) {
                     cartas++;
                 } else if (i.getKind() == AscentShop.Kind.RELIC) {
-                    reliquias++;
+                    // El escudo va APARTE de la reliquia de la tienda (a veces).
+                    if (!AscentRelics.isShield(i.getRelic())) {
+                        reliquias++;
+                    }
                 } else {
                     borrados++;
                 }
@@ -4142,6 +4148,99 @@ public final class AscentCheck {
     /** Cuantas cartas tiene el principal de ese mazo. */
     private static int size(final Deck deck) {
         return deck == null ? 0 : deck.getMain().countAll();
+    }
+
+    /**
+     * <b>El escudo</b> ({@link AscentRelics#SHIELD}, Discord 10-11-2026): una
+     * derrota que no acaba la run. Lo que no se ve jugando es justo lo que
+     * importa: que no salve de un jefe ni de rendirse, que no salga en premios
+     * ni al rival, y que al romperse se vaya del todo.
+     */
+    private static void escudo() {
+        final AscentRelic shield = AscentRelics.byId(AscentRelics.SHIELD);
+        if (shield == null) {
+            fail("escudo: no esta en el catalogo");
+            return;
+        }
+        ok("escudo: registrado (" + shield.getCardName() + ", " + shield.getRarity() + ")");
+        final AscentRun run = demoRun(AscentRun.Mode.STANDARD);
+        if (run == null) {
+            fail("escudo: no se ha podido montar la run de prueba");
+            return;
+        }
+        try {
+            // Fuera del sorteo de premios: cien premios raros, ninguno es el escudo.
+            boolean enPremios = false;
+            boolean enEventos = false;
+            for (int i = 0; i < 300; i++) {
+                if (AscentRelics.isShield(AscentRewards.relic(run, AscentRelic.Rarity.RARE, new Random(i)))) {
+                    enPremios = true;
+                }
+                for (final AscentRelic r : AscentRewards.relics(run, AscentRelic.Rarity.BOSS, 3, new Random(i))) {
+                    if (AscentRelics.isShield(r)) {
+                        enPremios = true;
+                    }
+                }
+                if (AscentRelics.isShield(AscentRewards.relic(run, AscentRelic.Rarity.RARE, new Random(i), true))) {
+                    enEventos = true;
+                }
+            }
+            check(!enPremios, "escudo: no sale en los premios de nodo (300 sorteos)");
+            check(enEventos, "escudo: si puede salir en los eventos que dan una rara");
+
+            // Las tiendas lo ofrecen a veces, y solo con la tienda de siempre.
+            int tiendas = 0;
+            int conEscudo = 0;
+            for (int fila = 0; fila < AscentMap.ROWS; fila++) {
+                for (final AscentNode nodo : run.map().row(fila)) {
+                    tiendas++;
+                    for (final AscentShop.Item it : AscentShop.stock(run, nodo)) {
+                        if (it.getKind() == AscentShop.Kind.RELIC && AscentRelics.isShield(it.getRelic())) {
+                            conEscudo++;
+                        }
+                    }
+                }
+            }
+            check(conEscudo > 0 && conEscudo < tiendas,
+                    "escudo: sale en algunas tiendas y no en todas (" + conEscudo + " de " + tiendas + " nodos)");
+
+            AscentNode normal = firstOfKind(run, AscentNode.Kind.COMBAT);
+            if (normal == null) {
+                normal = firstOfKind(run, AscentNode.Kind.ELITE);
+            }
+            final AscentNode jefe = run.map().boss();
+            check(!AscentBattle.shieldSaves(run, normal, true, false), "escudo: sin llevarlo, no salva");
+
+            run.addRelic(shield);
+            check(AscentBattle.shieldSaves(run, normal, true, false), "escudo: lo llevas y pierdes un duelo: salva");
+            check(!AscentBattle.shieldSaves(run, jefe, true, false), "escudo: contra el JEFE del piso no salva");
+            check(!AscentBattle.shieldSaves(run, normal, true, true), "escudo: si te rindes (o sales) no salva");
+            check(!AscentBattle.shieldSaves(run, normal, false, false), "escudo: una partida colgada no salva");
+            check(!AscentRewards.shieldAvailable(run), "escudo: llevandolo, no se vuelve a ofrecer");
+
+            run.recordLife(0);
+            final int life = AscentBattle.breakShield(run);
+            boolean lleva = false;
+            for (final AscentRelic r : run.relics()) {
+                lleva |= AscentRelics.isShield(r);
+            }
+            check(!lleva, "escudo: al romperse sale de tus reliquias");
+            check(life == (int) Math.ceil(run.getMaxLife() / 2.0) && run.getLife() == life,
+                    "escudo: sigues con la mitad de tu vida maxima (" + life + " de " + run.getMaxLife() + ")");
+            check(run.getShieldsBroken() == 1, "escudo: queda apuntado que se rompio");
+            check(!AscentRewards.shieldAvailable(run), "escudo: roto, no se vuelve a ofrecer en la run");
+            check(!AscentBattle.shieldSaves(run, normal, true, false), "escudo: roto, la siguiente derrota ya acaba la run");
+        } finally {
+            run.discard();
+        }
+    }
+
+    private static void check(final boolean good, final String msg) {
+        if (good) {
+            ok(msg);
+        } else {
+            fail(msg);
+        }
     }
 
     private static AscentRun demoRun(final AscentRun.Mode mode) {

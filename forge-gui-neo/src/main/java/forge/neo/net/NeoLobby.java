@@ -354,8 +354,13 @@ public final class NeoLobby {
         // la lleva: se apunta antes y se vuelve a poner si el modo nuevo la admite.
         final Archenemy keep = archenemyOf(lobby);
         final boolean again = keep != Archenemy.OFF && archenemyAllowed(format);
+        // Planechase igual: va encima del modo y clearVariants se lo lleva.
+        final boolean planes = planechaseOn(lobby) && planechaseAllowed(format);
         clearDecksAndReady(lobby);
         lobby.clearVariants();
+        if (planes) {
+            addVariantQuietly(lobby, GameType.Planechase);
+        }
         if (again) {
             // En el MISMO reparto que el modo, sin repartir antes: si fuera
             // detras, el invitado veria un momento "ya no hay archienemigo" y
@@ -376,7 +381,90 @@ public final class NeoLobby {
             // Si la variante no se pudo poner sin repartir, se pone ahora.
             setArchenemy(lobby, keep);
         }
+        if (planes && !planechaseOn(lobby)) {
+            setPlanechase(lobby, true);
+        }
     }
+
+    // ------------------------------------------------------------------
+    // Planechase en la sala (10-11-2026, Discord)
+    // ------------------------------------------------------------------
+
+    /**
+     * <b>Planechase en red</b> (Discord, 10-11-2026: <i>"planechase
+     * online?"</i>), despues de tenerlo en local
+     * ({@code forge.neo.match.Planechase}).
+     *
+     * <p>Como Archenemy, el lobby de Forge ya lo hace entero:
+     * {@code GameType.Planechase} es una variante de la sala (la casilla
+     * "Planechase" de su VLobby, en local y en red) y {@code startGame} le da a
+     * cada asiento <b>la seccion de planos de su mazo</b>. Lo que faltaba es lo
+     * mismo que con los esquemas: casi nadie tiene planos en el mazo, y sin
+     * ellos el motor se niega ("should have at least 10 planes") o empieza sin
+     * planos. {@link #preparePlanes} le da a cada uno un mazo planar al azar,
+     * como en local.
+     *
+     * <p>Un mazo por jugador, que es lo que hace la sala de Forge: el "mazo
+     * comun" del modo local ({@code Planechase.Shared}) no entra aqui.
+     */
+    public static boolean planechaseOn(final GameLobby lobby) {
+        return variants(lobby).contains(GameType.Planechase);
+    }
+
+    /**
+     * Los construidos, como Archenemy. En Momir y MoJhoSto no: el mazo lo
+     * genera el motor al empezar y no llevaria planos.
+     */
+    public static boolean planechaseAllowed(final NeoFormat format) {
+        return format != null && needsDeck(format)
+                && forge.neo.match.Planechase.appliesTo(format.getGameType());
+    }
+
+    /** Pone o quita Planechase. <b>Solo el anfitrion.</b> */
+    public static void setPlanechase(final GameLobby lobby, final boolean on) {
+        if (on) {
+            lobby.applyVariant(GameType.Planechase);
+        } else {
+            lobby.removeVariant(GameType.Planechase);
+        }
+    }
+
+    /**
+     * Justo antes de empezar, <b>en el anfitrion</b>: un mazo planar al azar
+     * para cada jugador que no traiga uno valido (lo mismo que
+     * {@code Planechase.seat} en local). Se le cambia el mazo por una COPIA,
+     * como en {@link #prepareSchemes}: el suyo no se toca.
+     *
+     * @return a cuantos se les ha dado un mazo planar
+     */
+    public static int preparePlanes(final GameLobby lobby) {
+        if (!planechaseOn(lobby) || NeoNetEvent.isLimited(lobby)) {
+            return 0;
+        }
+        int n = 0;
+        for (final LobbySlot s : activeSlots(lobby)) {
+            final Deck deck = s.getDeck();
+            if (deck == null) {
+                continue;
+            }
+            final forge.deck.CardPool own = deck.get(forge.deck.DeckSection.Planes);
+            // Los suyos se respetan; los que le dimos nosotros, se vuelven a
+            // sortear en cada partida.
+            if (own != null && !own.isEmpty() && !deck.getTags().contains(RANDOM_PLANES_TAG)
+                    && forge.deck.DeckFormat.getPlaneSectionConformanceProblem(own) == null) {
+                continue;
+            }
+            final Deck copy = new Deck(deck, deck.getName());
+            copy.getTags().add(RANDOM_PLANES_TAG);
+            copy.putSection(forge.deck.DeckSection.Planes, forge.deck.DeckgenUtil.generatePlanarPool());
+            s.setDeck(copy);
+            n++;
+        }
+        return n;
+    }
+
+    /** La marca de las copias con planos al azar (ver {@link #preparePlanes}). */
+    private static final String RANDOM_PLANES_TAG = "neo-random-planes";
 
     /**
      * Anyade una variante SIN repartir el estado: {@code getAppliedVariants}

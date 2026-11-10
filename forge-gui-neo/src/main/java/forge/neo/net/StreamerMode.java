@@ -54,6 +54,40 @@ public final class StreamerMode {
         NeoSettings.save();
     }
 
+    /**
+     * Como {@link #hide}, y ademas tapa la direccion que se escribio para
+     * unirse aunque no sea una IP (un nombre como {@code micasa.duckdns.org}
+     * dice lo mismo). Es lo que hace falta para el "Connected to X:puerto" que
+     * Forge escribe en el chat de la sala del invitado (Discord, 09-11-2026:
+     * la sala seguia ensenyando la IP del anfitrion).
+     */
+    public static String hide(final String text, final String address) {
+        if (!on() || text == null) {
+            return text;
+        }
+        String out = text;
+        final String host = hostOf(address);
+        if (host != null && host.length() >= 3) {
+            out = out.replace(host, MASK);
+        }
+        return mask(out);
+    }
+
+    /** La parte de maquina de "maquina:puerto", "[ipv6]:puerto" o "maquina". */
+    static String hostOf(final String address) {
+        if (address == null) {
+            return null;
+        }
+        final String a = address.trim();
+        if (a.startsWith("[")) {
+            final int end = a.indexOf(']');
+            return end > 1 ? a.substring(1, end) : null;
+        }
+        final int colon = a.indexOf(':');
+        // Una sola ":" es el puerto; varias, una IPv6 sin corchetes (entera).
+        return colon > 0 && colon == a.lastIndexOf(':') ? a.substring(0, colon) : a;
+    }
+
     /** El texto con las IP tapadas si el modo esta puesto; si no, tal cual. */
     public static String hide(final String text) {
         return on() ? mask(text) : text;

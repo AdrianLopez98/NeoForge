@@ -413,6 +413,17 @@ public final class LobbyCheck {
                             s.getName(), s.isArchenemy(), s.getTeam(), pool == null ? 0 : pool.countAll());
                 }
             }
+            // -Dneo.lobby.check.planechase=true (10-11-2026, Discord): la sala
+            // con Planechase, y que cada jugador llega a la mesa con planos.
+            final boolean planechase = Boolean.getBoolean("neo.lobby.check.planechase");
+            if (planechase) {
+                NeoLobby.setPlanechase(lobby, true);
+                ok &= check("Planechase puesto en la sala", NeoLobby.planechaseOn(lobby));
+                final int given = NeoLobby.preparePlanes(lobby);
+                ok &= check("mazo planar al azar para cada jugador (" + given + " de "
+                        + NeoLobby.activeSlots(lobby).size() + ")",
+                        given == NeoLobby.activeSlots(lobby).size());
+            }
 
             System.out.printf(Locale.ROOT, "  Lobby listo: %s%n", NeoLobby.describe(lobby));
             ok &= check("todos listos", lobby.findFirstUnreadySlot() == null);
@@ -443,6 +454,9 @@ public final class LobbyCheck {
             if (archenemy != NeoLobby.Archenemy.OFF) {
                 ok &= checkArchenemyReachedGame(hostUi, archenemy,
                         lobby.getSlot(guestSeat).getName(), format == NeoFormat.COMMANDER);
+            }
+            if (planechase) {
+                ok &= checkPlanechaseReachedGame(hostUi);
             }
 
             // AQUI y no al final: GameLobby.onMatchOver() vacia el mapa de
@@ -532,6 +546,7 @@ public final class LobbyCheck {
             ok &= checkSeatRemoval();
             ok &= checkFormats();
             ok &= checkArchenemyRules();
+            ok &= checkPlanechaseRules();
             ok &= checkServerPhrases();
             ok &= checkBuildStamp();
             ok &= checkHostChatHasAName();
@@ -687,6 +702,71 @@ public final class LobbyCheck {
         ok &= check("la partida siguiente se vuelven a sortear (no se repiten los mismos)",
                 l.getSlot(0).getDeck() != given);
         NeoLobby.setArchenemy(l, NeoLobby.Archenemy.OFF);
+        return ok;
+    }
+
+    /**
+     * <b>Planechase en la sala, en frio</b> (10-11-2026): que se pone y se
+     * quita, que cambiar de modo lo conserva, que en Momir y en limitado no
+     * hay, y que el mazo planar al azar va en una COPIA y es legal.
+     */
+    private static boolean checkPlanechaseRules() {
+        final ServerGameLobby l = new ServerGameLobby();
+        l.getSlot(1).setType(LobbySlotType.AI);
+        NeoLobby.setFormat(l, NeoFormat.COMMANDER);
+        boolean ok = check("Planechase: apagado de salida", !NeoLobby.planechaseOn(l));
+        NeoLobby.setPlanechase(l, true);
+        ok &= check("Planechase: se enciende", NeoLobby.planechaseOn(l));
+        NeoLobby.setArchenemy(l, NeoLobby.Archenemy.ALL);
+        ok &= check("Planechase y Archenemy a la vez",
+                NeoLobby.planechaseOn(l) && NeoLobby.archenemyOf(l) == NeoLobby.Archenemy.ALL);
+        NeoLobby.setArchenemy(l, NeoLobby.Archenemy.OFF);
+        NeoLobby.setFormat(l, NeoFormat.ESTANDAR);
+        ok &= check("cambiar de modo lo conserva", NeoLobby.planechaseOn(l)
+                && NeoLobby.formatOf(l) == NeoFormat.ESTANDAR);
+        NeoLobby.setFormat(l, NeoFormat.MOMIR);
+        ok &= check("en Momir no hay Planechase", !NeoLobby.planechaseOn(l)
+                && !NeoLobby.planechaseAllowed(NeoFormat.MOMIR));
+
+        NeoLobby.setFormat(l, NeoFormat.COMMANDER);
+        NeoLobby.setPlanechase(l, true);
+        final Deck original = new Deck("sin planos");
+        l.getSlot(0).setDeck(original);
+        l.setLimitedMode(true);
+        ok &= check("en limitado no se dan planos", NeoLobby.preparePlanes(l) == 0);
+        l.setLimitedMode(false);
+        ok &= check("fuera de limitado, si", NeoLobby.preparePlanes(l) == 1);
+        final Deck given = l.getSlot(0).getDeck();
+        final forge.deck.CardPool planes = given.get(forge.deck.DeckSection.Planes);
+        ok &= check("un mazo planar legal, en una COPIA del mazo",
+                planes != null && forge.deck.DeckFormat.getPlaneSectionConformanceProblem(planes) == null
+                        && given != original && original.get(forge.deck.DeckSection.Planes) == null);
+        NeoLobby.preparePlanes(l);
+        ok &= check("la partida siguiente se vuelve a sortear", l.getSlot(0).getDeck() != given);
+        NeoLobby.setPlanechase(l, false);
+        ok &= check("Planechase: se apaga", !NeoLobby.planechaseOn(l));
+        return ok;
+    }
+
+    /** Que la partida montada por la sala lleva Planechase y un mazo planar por jugador. */
+    private static boolean checkPlanechaseReachedGame(final NeoMatchUI hostUi) {
+        final forge.game.GameView gv = hostUi.getGameView();
+        final forge.game.Game g = gv == null ? null : gv.getGame();
+        if (g == null) {
+            return check("hay partida para mirar el Planechase", false);
+        }
+        waitUntil(() -> g.getPhaseHandler().getTurn() >= 1, 60_000L);
+        boolean ok = check("la variante Planechase esta en las reglas de la partida",
+                g.getRules().hasAppliedVariant(forge.game.GameType.Planechase));
+        boolean all = true;
+        for (final forge.game.player.Player p : g.getPlayers()) {
+            final int planes = p.getZone(forge.game.zone.ZoneType.PlanarDeck).size()
+                    + (int) p.getCardsIn(forge.game.zone.ZoneType.Command).stream()
+                            .filter(c -> c.isPlane() || c.isPhenomenon()).count();
+            System.out.printf(Locale.ROOT, "  %s: %d cartas planares%n", p.getName(), planes);
+            all &= planes >= 10;
+        }
+        ok &= check("cada jugador tiene su mazo planar en la mesa", all);
         return ok;
     }
 

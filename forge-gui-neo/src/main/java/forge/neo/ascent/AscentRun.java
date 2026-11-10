@@ -497,6 +497,20 @@ public final class AscentRun {
         return java.util.Collections.unmodifiableSet(relicsGone);
     }
 
+    /**
+     * Cuantas veces se ha roto el escudo en esta run (0 o 1: solo se ofrece
+     * uno). Lo leen el resumen y {@code ascentcheck}.
+     */
+    public int getShieldsBroken() {
+        return NeoSettings.getInt(PREFIX + "shieldsBroken", 0);
+    }
+
+    /** Apunta que el escudo se ha roto. Lo llama {@code AscentBattle.breakShield}. */
+    void noteShieldBroke() {
+        NeoSettings.set(PREFIX + "shieldsBroken", Integer.toString(getShieldsBroken() + 1));
+        NeoSettings.save();
+    }
+
     /** Apunta que esa reliquia se ha vendido, y guarda. Lo llama {@code AscentShop.sellRelic}. */
     void noteRelicGone(final String id) {
         if (id != null && !id.isEmpty() && relicsGone.add(id)) {

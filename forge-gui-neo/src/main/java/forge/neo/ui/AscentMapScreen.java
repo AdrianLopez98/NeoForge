@@ -375,6 +375,40 @@ public class AscentMapScreen extends StackPane {
     }
 
     /**
+     * <b>El escudo se ha roto</b> ({@code AscentRelics.SHIELD}): perdiste el
+     * duelo y la run sigue. Se dice al volver al mapa, una vez, con cuanta vida
+     * sigues y que ese nodo no da premio — si no, volver al mapa tras perder
+     * parece un fallo. Un clic, o clicar fuera, lo cierra.
+     */
+    public void showShieldBroke(final int life) {
+        final VBox box = new VBox(12);
+        box.getStyleClass().add("ascent-info");
+        box.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+        box.setAlignment(Pos.CENTER);
+        box.setId("ascent-shield-broke");
+
+        final Label q = new Label(NeoText.get("ascent.shield.broke.title"));
+        q.getStyleClass().add("ascent-info-title");
+        final Label d = new Label(NeoText.get("ascent.shield.broke.text", life));
+        d.getStyleClass().add("ascent-info-text");
+        d.setWrapText(true);
+        d.setMaxWidth(UiScale.px(420));
+        final Button ok = new Button(NeoText.get("banner.understood"));
+        ok.getStyleClass().addAll("ascent-button", "btn-primary");
+        box.getChildren().addAll(q, d, ok);
+
+        final StackPane layer = new StackPane(box);
+        layer.getStyleClass().add("overlay-dim");
+        ok.setOnAction(e -> getChildren().remove(layer));
+        layer.setOnMouseClicked(e -> {
+            if (e.getTarget() == layer) {
+                getChildren().remove(layer);
+            }
+        });
+        getChildren().add(layer);
+    }
+
+    /**
      * Pregunta antes de tirar la run. No se puede deshacer (principio 6): el
      * boton solo decia que preguntaba, pero llamaba a {@code actions.abandon()}
      * directo. Mismo patron que {@code AscentSetupScreen.confirmOverwrite}.

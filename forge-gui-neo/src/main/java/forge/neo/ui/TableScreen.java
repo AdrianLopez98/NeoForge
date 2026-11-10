@@ -3493,7 +3493,8 @@ public class TableScreen extends Pane {
         }
         menuOverlay.show(new ZoneViewer(forge.neo.match.PlayerName.of(owner), zone, cards,
                 mayView, cardWidth * 1.15, selectable, playableOutside, this::pickedInZone,
-                menuOverlay::hide).letTry(tryOutside, this::pickedInZone));
+                menuOverlay::hide).letTry(tryOutside, this::pickedInZone)
+                .markPicked(cv -> highlighted != null && highlighted.test(cv)));
         gesture(Gesture.ZONE_OPEN);
     }
 

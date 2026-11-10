@@ -553,7 +553,7 @@ public final class AscentEvent {
                         (run, rnd) -> {
                             run.spend(SMITH_PRICE);
                             final AscentRelic relic = AscentRewards.relic(run,
-                                    AscentRelic.Rarity.RARE, rnd);
+                                    AscentRelic.Rarity.RARE, rnd, true);
                             if (relic == null || !run.addRelic(relic)) {
                                 run.addCredits(SMITH_PRICE);
                                 return new Outcome("ascent.event.res.nothing", Extra.NONE);
@@ -620,7 +620,7 @@ public final class AscentEvent {
                         "ascent.event.needMaxLife",
                         (run, rnd) -> {
                             final AscentRelic relic = AscentRewards.relic(run,
-                                    AscentRelic.Rarity.RARE, rnd);
+                                    AscentRelic.Rarity.RARE, rnd, true);
                             if (relic == null || !run.addRelic(relic)) {
                                 return new Outcome("ascent.event.res.nothing", Extra.NONE);
                             }

@@ -160,7 +160,7 @@ final class NeoAppNet {
             try {
                 final forge.gamemodes.net.ChatMessage msg = asHost ? o.host(upnp) : o.join(address);
                 if (msg != null) {
-                    reportConnect(screen, msg.getMessage());
+                    reportConnect(screen, msg.getMessage(), asHost ? null : address);
                 }
             } catch (final Exception e) {
                 System.out.println("[lobby] fallo al " + (asHost ? "hospedar" : "conectar")
@@ -176,7 +176,7 @@ final class NeoAppNet {
                             String.valueOf(forge.neo.net.NeoLobby.port())));
                 } else {
                     // Su detalle suele llevar la IP y el puerto: modo streamer.
-                    screen.failed(forge.neo.net.StreamerMode.hide(NeoText.get("lobby.failed", String.valueOf(e))));
+                    screen.failed(forge.neo.net.StreamerMode.hide(NeoText.get("lobby.failed", String.valueOf(e)), address));
                 }
             }
         }, "neo-lobby-connect");
@@ -376,7 +376,12 @@ final class NeoAppNet {
      * una direccion mal escrita salia como {@code <<_TSOH_DILAVNI_<<} en el
      * chat, y la cabecera seguia en "Conectando..." para siempre.
      */
-    private static void reportConnect(final forge.neo.ui.LobbyScreen screen, final String text) {
+    private static void reportConnect(final forge.neo.ui.LobbyScreen screen, final String raw,
+                                      final String address) {
+        // Modo streamer: "Connected to 1.2.3.4:36743" iba tal cual al chat de
+        // la sala del invitado (Discord, 09-11-2026). Todo lo que sale de aqui
+        // lleva la direccion que se escribio, asi que se tapa al entrar.
+        final String text = forge.neo.net.StreamerMode.hide(raw, address);
         if (text == null || text.isBlank()) {
             return;
         }

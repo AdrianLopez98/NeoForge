@@ -1,0 +1,5 @@
+Name:Shattering Ward
+ManaCost:no cost
+Types:Enchantment
+AI:RemoveDeck:All
+Oracle:If you would lose a fight in this run, you survive with half your maximum life instead, but get no reward for that fight. Then this relic breaks. It doesn't work against the boss of a floor, or if you concede.

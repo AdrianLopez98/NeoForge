@@ -2140,6 +2140,26 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                             + table.getOverlay().isShowing() + ")");
                     return;
                 }
+                // "z:Nombre": clica esa carta DENTRO del visor de zona abierto
+                // (elegir varios del cementerio, Nethroi: Discord 10-11-2026).
+                if (step.startsWith("z:")) {
+                    final String want = step.substring(2);
+                    for (final javafx.scene.Node n : table.getMenuOverlay().lookupAll(".card")) {
+                        if (n instanceof CardNode cn && cn.getCard() != null
+                                && want.equalsIgnoreCase(cn.getCard().getName())
+                                && cn.getOnMouseClicked() != null) {
+                            System.out.println("[mesa] clic en " + want + " dentro de la zona");
+                            javafx.event.Event.fireEvent(cn, new javafx.scene.input.MouseEvent(
+                                    javafx.scene.input.MouseEvent.MOUSE_CLICKED, 0, 0, 0, 0,
+                                    javafx.scene.input.MouseButton.PRIMARY, 1,
+                                    false, false, false, false, true, false, false, true, false, true, null));
+                            return;
+                        }
+                    }
+                    System.out.println("[mesa] " + want + " no esta en ningun visor de zona abierto ("
+                            + (table.getMenuOverlay().isShowing() ? "hay uno" : "no hay ninguno") + ")");
+                    return;
+                }
                 if (step.equals("@ok")) {
                     System.out.println("[mesa] pulso el boton grande");
                     table.getActionBar().pressPrimary();

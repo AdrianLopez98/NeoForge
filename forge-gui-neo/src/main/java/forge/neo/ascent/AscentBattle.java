@@ -802,7 +802,65 @@ public final class AscentBattle {
                 System.out.println("[ascenso] mesa ganada: +" + healed + " vidas");
             }
         }
+        if (!(won && alive) && shieldSaves(run, node, result)) {
+            final int life = breakShield(run);
+            System.out.println("[ascenso] el escudo se rompe: sigues con " + life + " vidas");
+            return new Outcome(false, true, result.exit, true);
+        }
         return new Outcome(won, won && alive, result.exit);
+    }
+
+    /**
+     * Si <b>el escudo</b> ({@link AscentRelics#SHIELD}) te salva de esta
+     * derrota. Las cuatro condiciones, y cada una cierra una trampa:
+     *
+     * <ul>
+     *   <li><b>Lo llevas.</b></li>
+     *   <li><b>No es el jefe de un piso</b> (Ana, al proponerlo): el jefe es
+     *       la prueba del piso, y saltarselo seria pasar de piso sin pasarla.</li>
+     *   <li><b>La partida acabo de verdad</b> ({@code completed}): una colgada
+     *       o cerrada no es una derrota que salvar, y el juego ya la trata
+     *       aparte.</li>
+     *   <li><b>No te rendiste</b> ({@code youConceded}): si no, rendirse ante
+     *       un rival dificil seria saltarse el nodo gratis.</li>
+     * </ul>
+     */
+    static boolean shieldSaves(final AscentRun run, final AscentNode node, final NeoGame.Result result) {
+        return result != null && result.exit != NeoMatchUI.Exit.RESTART
+                && shieldSaves(run, node, result.completed, result.youConceded);
+    }
+
+    /**
+     * Lo mismo con los datos sueltos: Android no juega por {@link #fight} (ver
+     * su {@code AscentMatch}) y lee el resultado por su cuenta.
+     */
+    public static boolean shieldSaves(final AscentRun run, final AscentNode node,
+                                      final boolean completed, final boolean conceded) {
+        if (run == null || node == null || node.getKind() == AscentNode.Kind.BOSS
+                || !completed || conceded) {
+            return false;
+        }
+        for (final AscentRelic r : run.relics()) {
+            if (AscentRelics.isShield(r)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Rompe el escudo: fuera de tus reliquias, apuntado como ido (no se te
+     * vuelve a ofrecer en esta run) y la vida a la mitad del maximo.
+     *
+     * @return con cuanta vida sigues
+     */
+    public static int breakShield(final AscentRun run) {
+        final AscentRelic shield = AscentRelics.byId(AscentRelics.SHIELD);
+        run.removeRelic(shield);
+        run.noteRelicGone(AscentRelics.SHIELD);
+        run.noteShieldBroke();
+        run.recordLife((int) Math.ceil(run.getMaxLife() / 2.0));
+        return run.getLife();
     }
 
     /** Como acabo el nodo. */
@@ -813,11 +871,22 @@ public final class AscentBattle {
         public final boolean alive;
         /** Que pidio el jugador al salir (volver al menu, reiniciar...). */
         public final NeoMatchUI.Exit exit;
+        /**
+         * Perdiste, pero <b>el escudo te ha salvado</b> y se ha roto
+         * ({@link AscentRelics#SHIELD}): el nodo cuenta como pasado y SIN
+         * premio. {@code alive} es {@code true} y {@code won}, {@code false}.
+         */
+        public final boolean shieldBroke;
 
         Outcome(final boolean won, final boolean alive, final NeoMatchUI.Exit exit) {
+            this(won, alive, exit, false);
+        }
+
+        Outcome(final boolean won, final boolean alive, final NeoMatchUI.Exit exit, final boolean shieldBroke) {
             this.won = won;
             this.alive = alive;
             this.exit = exit;
+            this.shieldBroke = shieldBroke;
         }
     }
 
@@ -1124,8 +1193,9 @@ public final class AscentBattle {
             // Y desde el 05-11-2026, tampoco las MALDITAS: son un trato que
             // eliges tu (mas fuerza a cambio de vida), no un premio para el
             // rival. Ver AscentRelic#isCursed.
+            // Ni el ESCUDO: actua en tu run, no en la partida (AscentRelics#SHIELD).
             if (!AscentRelics.growsHand(relic) && relic.getColors() == AscentRelics.COLOURLESS
-                    && !relic.isCursed()) {
+                    && !relic.isCursed() && !AscentRelics.isShield(relic)) {
                 pool.add(relic);
             }
         }

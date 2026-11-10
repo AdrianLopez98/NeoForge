@@ -1,13 +1,13 @@
-**NeoForge para macOS 1.0.50 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.51 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Ascenso: el mazo de salida drafteado de sobres** (Estándar): 6 sobres de 12, te quedas 4 de cada uno y montas un mazo de 30 con básicas gratis (o «Montar solo»).
-- **Old School 93/94: Chaos Orb con la errata del formato**: destruye un permanente de los que toca, no todos. Solo en Old School.
-- **Modo streamer**: oculta las IP en las partidas privadas (Ajustes → Partida).
-- **Grenzo, Crooked Jailer** ya no deja jugar las tierras del cementerio rival.
-- **Cuando una carta se va de la mesa**, las de al lado esperan a que se vaya y se deslizan a su sitio.
-- **Arranca antes**: unos 2 s menos en el PC.
-- Al día con Forge (18 cartas nuevas o corregidas).
+- **Constructor de mazos: vista en Columnas** al lado del catálogo: ves el mazo en pilas mientras añades.
+- **Ascenso: el escudo, *Shattering Ward***: una reliquia rara que te salva de una derrota una vez.
+- **Momir Basic y MoJhoSto contra 1, 2 o 3 rivales.**
+- **Planechase en las partidas privadas**, junto a Archenemy.
+- **Elegir varios objetivos del cementerio** (Nethroi, Fight On!...): la ventana ya no se cierra tras el primero.
+- **Modo streamer**: tampoco se ve la IP del anfitrión en el chat de la sala.
+- Al día con Forge.
 
 Descarga el `.dmg` de tu Mac:
 

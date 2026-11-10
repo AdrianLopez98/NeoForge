@@ -64,6 +64,13 @@ public final class NeoGame {
          * al mejor de 3. Para {@code bo3check}.
          */
         public final int games;
+        /**
+         * Si la ultima partida la perdiste <b>rindiendote</b> (o saliendo, que
+         * en el motor es lo mismo: {@code GameLossReason.Conceded}). Lo pide el
+         * escudo de Ascenso, que salva de una derrota pero no de rendirse: si
+         * no, rendirse ante un rival dificil seria saltarse el nodo gratis.
+         */
+        public boolean youConceded;
 
         Result(final boolean completed, final int turns, final int decisions, final String winner,
                final NeoMatchUI.Exit exit, final int yourLife) {
@@ -86,6 +93,30 @@ public final class NeoGame {
             this.yourLife = yourLife;
             this.matchWinner = matchWinner;
         }
+    }
+
+    /**
+     * Si ese asiento perdio la ULTIMA partida del partido <b>rindiendose</b>
+     * ({@code GameLossReason.Conceded}: salir a medias tambien es eso). Lo usa
+     * el escudo de Ascenso, en el PC ({@link Result#youConceded}) y en Android.
+     */
+    public static boolean conceded(final forge.game.Match m, final RegisteredPlayer seat) {
+        if (m == null || seat == null) {
+            return false;
+        }
+        forge.game.GameOutcome last = null;
+        for (final forge.game.GameOutcome o : m.getOutcomes()) {
+            last = o;
+        }
+        if (last == null) {
+            return false;
+        }
+        for (final java.util.Map.Entry<RegisteredPlayer, forge.game.player.PlayerStatistics> e : last) {
+            if (e.getKey() == seat && e.getValue() != null && e.getValue().getOutcome() != null) {
+                return e.getValue().getOutcome().lossState == forge.game.player.GameLossReason.Conceded;
+            }
+        }
+        return false;
     }
 
     /**
@@ -524,8 +555,12 @@ public final class NeoGame {
         final int yourLife = me == null ? -1 : me.getLife();
         String matchWinner = null;
         int games = 1;
+        boolean conceded = false;
         try {
             final forge.game.Match m = match.getMatch();
+            // Como perdiste la ULTIMA partida: rendirte no es perder (el
+            // escudo de Ascenso lo distingue).
+            conceded = conceded(m, humanSeat);
             games = m == null ? 1 : Math.max(1, com.google.common.collect.Iterables.size(m.getOutcomes()));
             final RegisteredPlayer champ = m == null ? null : m.getWinner();
             matchWinner = champ == null || champ.getPlayer() == null ? null : champ.getPlayer().getName();
@@ -536,7 +571,10 @@ public final class NeoGame {
         // Se acabo el mazo en juego: si se dejara puesto, el siguiente puzzle o
         // el siguiente duelo de la aventura heredarian su funda.
         forge.neo.look.NeoLook.setDeckInPlay(null);
-        return new Result(completed, turns, gui.getDecisionCount(), winner, exit, yourLife, matchWinner, games);
+        final Result out = new Result(completed, turns, gui.getDecisionCount(), winner, exit, yourLife,
+                matchWinner, games);
+        out.youConceded = conceded;
+        return out;
     }
 
     /**

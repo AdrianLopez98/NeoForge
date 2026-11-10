@@ -51,6 +51,7 @@ public class DeckStackView extends ScrollPane {
      */
     private double zoom;
     private static final String ZOOM_KEY = "deck.visual.zoom";
+    private final String zoomKey;
     private static final double ZOOM_MIN = 0.5;
     private static final double ZOOM_MAX = 2.5;
     private static final double ZOOM_STEP = 1.1;
@@ -101,9 +102,28 @@ public class DeckStackView extends ScrollPane {
 
     private final HBox columns = new HBox(16);
 
+    /**
+     * Metida en el panel del mazo del constructor, al lado del catalogo (la
+     * vista "Columnas", Discord 09-11-2026), y no a pantalla completa. Cambia
+     * cuatro cosas: sin buscador (el panel ya tiene su filtro del mazo), con
+     * cartas mas pequenyas y su propio tamanyo recordado (el sitio es otro), y
+     * con un minimo de cartas por columna: el panel tiene poco alto, y en 1080
+     * cabia UNA carta por columna — treinta criaturas eran treinta columnas.
+     * Mejor una columna que baja con la rueda que un mazo que solo se ve de
+     * lado.
+     */
+    private final boolean compact;
+
     public DeckStackView(final DeckEditor editor, final double cardWidth,
                          final CardActions actions) {
+        this(editor, cardWidth, actions, false);
+    }
+
+    public DeckStackView(final DeckEditor editor, final double cardWidth,
+                         final CardActions actions, final boolean compact) {
         this.editor = editor;
+        this.compact = compact;
+        this.zoomKey = compact ? "deck.columns.zoom" : ZOOM_KEY;
         // Mas pequenya que en la mesa: aqui lo que importa es cuantas caben,
         // y el nombre se sigue leyendo.
         //
@@ -115,8 +135,9 @@ public class DeckStackView extends ScrollPane {
         // (UiScale.cardWidth) los dos numeros coinciden casi al pixel; el
         // minimo se queda de red. Lee el alto de UiScale y no de Screen para
         // que -Dneo.win lo mueva igual que al resto.
-        this.baseWidth = Math.max(cardWidth * 0.85, UiScale.screenHeight() * 0.14);
-        this.zoom = clampZoom(NeoSettings.getDouble(ZOOM_KEY, 1));
+        this.baseWidth = compact ? Math.min(cardWidth * 0.5, UiScale.screenHeight() * 0.12)
+                : Math.max(cardWidth * 0.85, UiScale.screenHeight() * 0.14);
+        this.zoom = clampZoom(NeoSettings.getDouble(zoomKey, 1));
         sizeCards();
         this.actions = actions;
 
@@ -124,7 +145,8 @@ public class DeckStackView extends ScrollPane {
         setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
 
-        columns.setPadding(new Insets(4, 26, 26, 26));
+        final double side = compact ? 4 : 26;
+        columns.setPadding(new Insets(4, side, compact ? 8 : 26, side));
         columns.setAlignment(Pos.TOP_LEFT);
 
         // El aviso de que se puede cambiar el tamanyo: sin el, quien tiene las
@@ -168,9 +190,12 @@ public class DeckStackView extends ScrollPane {
         search.textProperty().addListener((o, a, b) -> refresh());
         final Region hintGap = new Region();
         HBox.setHgrow(hintGap, javafx.scene.layout.Priority.ALWAYS);
-        final HBox hintRow = new HBox(10, groupBox, search, hintGap, zoomHint);
+        final HBox hintRow = compact ? new HBox(10, groupBox, hintGap, zoomHint)
+                : new HBox(10, groupBox, search, hintGap, zoomHint);
+        // En el panel puede no caber entero: el aviso del zoom es lo que cede.
+        zoomHint.setMinWidth(0);
         hintRow.setAlignment(Pos.CENTER_LEFT);
-        hintRow.setPadding(new Insets(8, 26, 0, 26));
+        hintRow.setPadding(new Insets(8, side, 0, side));
         hintRow.setMinHeight(UiScale.px(HINT_SPACE));
         hintRow.setPrefHeight(UiScale.px(HINT_SPACE));
         final VBox content = new VBox(hintRow, columns);
@@ -236,6 +261,13 @@ public class DeckStackView extends ScrollPane {
 
     /** Cuantas cartas caben apiladas en una columna de este alto. */
     private int fitsPerColumn(final double viewportHeight) {
+        return Math.max(compact ? COMPACT_MIN_PER_COLUMN : 1, fitsInHeight(viewportHeight));
+    }
+
+    /** En el panel del constructor, nunca menos cartas que estas por columna. */
+    private static final int COMPACT_MIN_PER_COLUMN = 8;
+
+    private int fitsInHeight(final double viewportHeight) {
         final double usable = viewportHeight - UiScale.px(HEADING_SPACE + HINT_SPACE) - 40;
         if (usable < cardHeight) {
             return 1;
@@ -291,7 +323,7 @@ public class DeckStackView extends ScrollPane {
 
         zoom = z;
         sizeCards();
-        NeoSettings.setDouble(ZOOM_KEY, zoom);
+        NeoSettings.setDouble(zoomKey, zoom);
         NeoSettings.save();
         updateHint();
         perColumn = fitsPerColumn(getViewportBounds().getHeight());

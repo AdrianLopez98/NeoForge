@@ -69,7 +69,11 @@ public final class RelicEmblem {
         HORN, SIGIL,
         // El lote del 05-11-2026: en rara solo quedaban cinco libres y hacian
         // falta siete. Cuatro formas que no se parecen a ninguna de antes.
-        DIE, LANTERN, GEAR, SKULL
+        DIE, LANTERN, GEAR, SKULL,
+        // El escudo que se rompe (10-11-2026): un escudo con su grieta. El
+        // SHIELD a secas ya lo llevan cuatro, y en rara solo quedaban la
+        // flecha y la bota.
+        WARD
     }
 
     /**
@@ -192,6 +196,7 @@ public final class RelicEmblem {
         MOTIFS.put("gamblers_die", Motif.DIE);
         MOTIFS.put("ghouls_lantern", Motif.LANTERN);
         MOTIFS.put("mossgrown_sigil", Motif.SIGIL);
+        MOTIFS.put("shattering_ward", Motif.WARD);
         MOTIFS.put("gilded_gear", Motif.GEAR);
         MOTIFS.put("hungering_skull", Motif.SKULL);
         MOTIFS.put("glass_wings", Motif.WINGS);
@@ -261,6 +266,7 @@ public final class RelicEmblem {
             case LANTERN:   lantern(g, size, ink, hole); break;
             case GEAR:      gear(g, size, ink, hole); break;
             case SKULL:     skull(g, size, ink, hole); break;
+            case WARD:      ward(g, size, ink, hole); break;
             case SIGIL:
             default:        sigil(g, size, ink, hole); break;
         }
@@ -471,6 +477,22 @@ public final class RelicEmblem {
                 0, 0.42 * s, -0.34 * s, 0.06 * s);
         stroke(g, h, 0.04 * s, 0, -0.26 * s, 0, 0.26 * s);
         stroke(g, h, 0.04 * s, -0.20 * s, -0.16 * s, 0.20 * s, -0.16 * s);
+    }
+
+    /**
+     * Escudo agrietado: la silueta del escudo, mas ancha y sin la cruz, con una
+     * grieta en zigzag de arriba abajo. Que se lea "escudo que se va a romper"
+     * y no se confunda con los cuatro escudos enteros.
+     */
+    private static void ward(final Group g, final double s, final Color c, final Color h) {
+        fill(g, c, -0.38 * s, -0.38 * s, 0.38 * s, -0.38 * s, 0.38 * s, 0.04 * s,
+                0, 0.44 * s, -0.38 * s, 0.04 * s);
+        final double[] crack = {0.04, -0.31, -0.08, -0.15, 0.07, -0.01, -0.06, 0.14, 0.03, 0.29};
+        for (int i = 0; i + 3 < crack.length; i += 2) {
+            stroke(g, h, 0.06 * s, crack[i] * s, crack[i + 1] * s, crack[i + 2] * s, crack[i + 3] * s);
+        }
+        // Una esquirla suelta, a un lado.
+        fill(g, h, 0.16 * s, -0.20 * s, 0.24 * s, -0.12 * s, 0.15 * s, -0.08 * s);
     }
 
     /** Sol: disco y ocho rayos. */

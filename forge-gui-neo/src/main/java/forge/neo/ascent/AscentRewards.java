@@ -1185,7 +1185,23 @@ public final class AscentRewards {
      */
     public static AscentRelic relic(final AscentRun run, final AscentRelic.Rarity rarity,
                                     final Random rnd) {
-        return pickRelic(owned(run), colorsOf(run), rollRarity(rarity, rnd), rnd);
+        return relic(run, rarity, rnd, false);
+    }
+
+    /**
+     * Igual, y con {@code shield} el escudo entra en el sorteo
+     * ({@link AscentRelics#SHIELD}): lo piden los eventos que dan una rara.
+     * Los premios de nodo no lo piden nunca.
+     */
+    public static AscentRelic relic(final AscentRun run, final AscentRelic.Rarity rarity,
+                                    final Random rnd, final boolean shield) {
+        return pickRelic(owned(run), colorsOf(run), rollRarity(rarity, rnd), rnd, shield);
+    }
+
+    /** Si el escudo se le puede ofrecer todavia: ni lo llevas, ni se rompio, ni lo vendiste. */
+    public static boolean shieldAvailable(final AscentRun run) {
+        return AscentRelics.byId(AscentRelics.SHIELD) != null
+                && !owned(run).contains(AscentRelics.SHIELD);
     }
 
     /**
@@ -1273,7 +1289,7 @@ public final class AscentRewards {
         // cuando una de ellas es legendaria. Tirarla una sola vez daria tres
         // legendarias juntas o ninguna, que son los dos extremos malos.
         while (out.size() < howMany) {
-            final AscentRelic pick = pickRelic(taken, mios, rollRarity(rarity, rnd), rnd);
+            final AscentRelic pick = pickRelic(taken, mios, rollRarity(rarity, rnd), rnd, false);
             if (pick == null) {
                 break;
             }
@@ -1307,11 +1323,13 @@ public final class AscentRewards {
      * menos. Por eso tampoco hace falta red por si no encaja ninguna.
      */
     private static AscentRelic pickRelic(final Set<String> taken, final ColorSet colors,
-                                         final AscentRelic.Rarity rarity, final Random rnd) {
+                                         final AscentRelic.Rarity rarity, final Random rnd,
+                                         final boolean shield) {
         for (final AscentRelic.Rarity tier : tiersFrom(rarity)) {
             final List<AscentRelic> pool = new ArrayList<>();
             for (final AscentRelic r : AscentRelics.all()) {
-                if (r.getRarity() == tier && !taken.contains(r.getId()) && r.fitsColors(colors)) {
+                if (r.getRarity() == tier && !taken.contains(r.getId()) && r.fitsColors(colors)
+                        && (shield || !AscentRelics.isShield(r))) {
                     pool.add(r);
                 }
             }

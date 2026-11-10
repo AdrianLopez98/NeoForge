@@ -62,6 +62,8 @@ public final class AscentShop {
     /** Lo que cuesta una reliquia, por rareza. */
     private static final int RELIC_COMMON = 90;
     private static final int RELIC_RARE = 160;
+    /** Cuantas veces de cada cien sale el escudo en una tienda (AscentRelics#SHIELD). */
+    static final int SHIELD_CHANCE = 25;
 
     /**
      * <b>Lo que te dan por vender una reliquia</b>, por rareza: comun, rara, de
@@ -207,6 +209,14 @@ public final class AscentShop {
             out.add(new Item(Kind.RELIC, null, relic,
                     jitter(relic.getRarity() == AscentRelic.Rarity.COMMON
                             ? RELIC_COMMON : RELIC_RARE, rnd, run)));
+        }
+        // EL ESCUDO (AscentRelics#SHIELD), aparte: a veces, y al precio de una
+        // rara. Con su propio sorteo, sembrado igual pero sin tocar `rnd`, para
+        // que el resto de la tienda de una semilla siga saliendo igual.
+        final Random shieldRnd = new Random(run.getSeed() * 7919L + node.key().hashCode() * 31L + act);
+        if (AscentRewards.shieldAvailable(run) && shieldRnd.nextInt(100) < SHIELD_CHANCE) {
+            final AscentRelic shield = AscentRelics.byId(AscentRelics.SHIELD);
+            out.add(new Item(Kind.RELIC, null, shield, jitter(RELIC_RARE, shieldRnd, run)));
         }
 
         final Item removal = new Item(Kind.REMOVE, null, null,

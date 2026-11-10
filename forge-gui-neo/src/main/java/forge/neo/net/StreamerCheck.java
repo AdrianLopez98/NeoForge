@@ -43,6 +43,21 @@ public final class StreamerCheck {
         } finally {
             System.clearProperty("neo.streamer");
         }
+        // El "Connected to X:puerto" que Forge escribe en la sala del INVITADO
+        // (Discord, 09-11-2026), con IP y con nombre de maquina.
+        System.setProperty("neo.streamer", "true");
+        try {
+            final String byIp = StreamerMode.hide("Connected to 83.45.120.7:36743", "83.45.120.7:36743");
+            check(!byIp.contains("83.45") && byIp.contains(m), "la sala del invitado, por IP: \"" + byIp + "\"");
+            final String byName = StreamerMode.hide("Connected to micasa.duckdns.org:36743", "micasa.duckdns.org");
+            check(!byName.contains("duckdns"), "la sala del invitado, por nombre: \"" + byName + "\"");
+            final String v6 = StreamerMode.hide("Connected to 2a02:9130::12:36743", "[2a02:9130::12]:36743");
+            check(!v6.contains("2a02"), "la sala del invitado, IPv6: \"" + v6 + "\"");
+        } finally {
+            System.clearProperty("neo.streamer");
+        }
+        check(StreamerMode.on() || StreamerMode.hide("Connected to micasa.duckdns.org:1", "micasa.duckdns.org")
+                .contains("duckdns"), "con el modo apagado, la sala del invitado se queda como esta");
         final String off = NetPhrases.read("Paige", "my ip is 192.168.1.20").text();
         check(off.contains("192.168.1.20") || StreamerMode.on(), "con el modo apagado, el chat se queda como esta");
         // Lo que NO es una IP se queda como esta.

@@ -398,12 +398,33 @@ public class DeckBuilderScreen extends StackPane {
         row.getStyleClass().add("builder-columns");
         left.setMinWidth(0);
         HBox.setHgrow(left, Priority.ALWAYS);
-        // El mazo tiene ancho fijo: es una lista de texto y no gana nada con mas
-        // sitio, mientras que el catalogo siempre agradece una columna mas.
-        right.prefWidthProperty().bind(widthProperty().multiply(.28).add(18));
-        right.setMinWidth(UiScale.px(310));
-        right.setMaxWidth(UiScale.px(430));
+        deckPanelBox = right;
+        sizeDeckPanel();
         return row;
+    }
+
+    private Region deckPanelBox;
+
+    /**
+     * El ancho del panel del mazo. En lista y cuadricula, fijo: es una lista
+     * de texto y no gana nada con mas sitio, mientras que el catalogo siempre
+     * agradece una columna mas. En columnas, al reves: las pilas necesitan
+     * ancho y el catalogo se queda con lo justo para buscar.
+     */
+    private void sizeDeckPanel() {
+        if (deckPanelBox == null) {
+            return;
+        }
+        deckPanelBox.prefWidthProperty().unbind();
+        if (deckView == DeckView.COLUMNS) {
+            deckPanelBox.prefWidthProperty().bind(widthProperty().multiply(.56));
+            deckPanelBox.setMinWidth(UiScale.px(420));
+            deckPanelBox.setMaxWidth(Double.MAX_VALUE);
+        } else {
+            deckPanelBox.prefWidthProperty().bind(widthProperty().multiply(.28).add(18));
+            deckPanelBox.setMinWidth(UiScale.px(310));
+            deckPanelBox.setMaxWidth(UiScale.px(430));
+        }
     }
 
     /** La columna de la izquierda: buscar entre todas las cartas de Magic. */
@@ -615,6 +636,14 @@ public class DeckBuilderScreen extends StackPane {
         results.setPadding(new Insets(16, 4, 16, 0));
         results.setHgap(10);
         results.setVgap(16);
+        // En Columnas el tamanyo de carta sale del ancho (columnsCatalogueWidth):
+        // si cambia la ventana, o tras el primer layout, se repinta.
+        results.widthProperty().addListener((o, was, is) -> {
+            if (deckView == DeckView.COLUMNS
+                    && Math.abs(columnsCatalogueWidth() - columnsCatalogueShown) > 1) {
+                javafx.application.Platform.runLater(this::fillResults);
+            }
+        });
 
         basics.setAlignment(Pos.CENTER_LEFT);
         basicsCaption.getStyleClass().add("caption");
@@ -1460,20 +1489,33 @@ public class DeckBuilderScreen extends StackPane {
         // son la misma pregunta: como quiero ver el mazo.
         final Region gap3 = new Region();
         HBox.setHgrow(gap3, Priority.ALWAYS);
-        // Lista o cuadricula (Discord, 24-10-2026). Se recuerda.
-        deckGridToggle.setId("builder-deck-grid");
-        deckGridToggle.getStyleClass().add("segment");
-        deckGridToggle.setMinWidth(Region.USE_PREF_SIZE);
-        deckGridToggle.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("deck.gridView.tip")));
-        deckGridToggle.setOnAction(e -> {
-            deckGrid = !deckGrid;
-            forge.neo.NeoSettings.setBool(DECK_GRID_KEY, deckGrid);
-            forge.neo.NeoSettings.save();
-            refreshDeckGridToggle();
-            refreshDeck();
+        // Lista o cuadricula (Discord, 24-10-2026), y columnas como "Ver el
+        // mazo" al lado del catalogo (Discord, 09-11-2026). Se recuerda.
+        final javafx.scene.control.ComboBox<DeckView> viewBox = new javafx.scene.control.ComboBox<>();
+        viewBox.setId("builder-deck-view");
+        viewBox.getStyleClass().add("builder-sort");
+        viewBox.getItems().addAll(DeckView.values());
+        viewBox.setConverter(new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(final DeckView v) {
+                return v == null ? "" : NeoText.get(v.key);
+            }
+
+            @Override
+            public DeckView fromString(final String t) {
+                return null;
+            }
         });
-        refreshDeckGridToggle();
-        final HBox view = new HBox(6, deckSortBox(), deckSortDirection, gap3, deckGridToggle, deckFilterToggle);
+        viewBox.setValue(deckView);
+        viewBox.setMinWidth(Region.USE_PREF_SIZE);
+        viewBox.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("deck.view.tip")));
+        viewBox.valueProperty().addListener((o, was, is) -> {
+            if (is != null && is != deckView) {
+                setDeckView(is);
+            }
+        });
+        deckViewBox = viewBox;
+        final HBox view = new HBox(6, deckSortBox(), deckSortDirection, gap3, viewBox, deckFilterToggle);
         view.setAlignment(Pos.CENTER_LEFT);
         final VBox heading = new VBox(6, title, view);
         deckFilterRow = deckFilterRow();
@@ -1483,9 +1525,20 @@ public class DeckBuilderScreen extends StackPane {
         details.setAnimated(false);
         details.getStyleClass().add("builder-statistics");
         companionRow.setAlignment(Pos.CENTER_LEFT);
+        deckScroll = scroll;
+        deckSideNote.getStyleClass().add("home-subtitle");
+        deckSideNote.setWrapText(true);
+        deckSideNote.setCursor(javafx.scene.Cursor.HAND);
+        deckSideNote.setOnMouseClicked(e -> deckViewBox.setValue(DeckView.LIST));
+        deckSideNote.setVisible(false);
+        deckSideNote.setManaged(false);
         final VBox box = new VBox(8, heading, deckFilterRow, commanderRow, companionRow, scroll,
-                curve, details);
+                deckSideNote, curve, details);
+        deckPanelVBox = box;
         scroll.setMinHeight(UiScale.px(60));
+        if (deckView == DeckView.COLUMNS) {
+            showDeckBody();
+        }
         box.setId("builder-deck-panel");
         box.getStyleClass().add("deck-panel");
         box.setPadding(new Insets(12, 14, 12, 14));
@@ -1550,14 +1603,93 @@ public class DeckBuilderScreen extends StackPane {
     private final TextField deckSearch = new TextField();
     private final Button deckFilterToggle = new Button();
 
-    /** El mazo en cuadricula y no en lista. Se recuerda; -Dneo.builder.grid=true lo fuerza. */
-    private boolean deckGrid = Boolean.getBoolean("neo.builder.grid")
-            || forge.neo.NeoSettings.getBool(DECK_GRID_KEY, false);
-    private static final String DECK_GRID_KEY = "deck.gridView";
-    private final Button deckGridToggle = new Button();
+    /** Como se ve el mazo en el panel de la derecha. */
+    enum DeckView {
+        LIST("deck.listView"), GRID("deck.gridView"), COLUMNS("deck.columnsView");
 
-    private void refreshDeckGridToggle() {
-        deckGridToggle.setText(NeoText.get(deckGrid ? "deck.listView" : "deck.gridView"));
+        final String key;
+
+        DeckView(final String key) {
+            this.key = key;
+        }
+    }
+
+    /**
+     * Se recuerda. -Dneo.builder.grid=true fuerza la cuadricula y
+     * -Dneo.builder.columns=true las columnas. La clave vieja ("deck.gridView",
+     * un si/no) se sigue leyendo para quien ya tenia puesta la cuadricula.
+     */
+    private DeckView deckView = startingDeckView();
+    private static final String DECK_GRID_KEY = "deck.gridView";
+    private static final String DECK_VIEW_KEY = "deck.view";
+    private javafx.scene.control.ComboBox<DeckView> deckViewBox;
+    private ScrollPane deckScroll;
+    private VBox deckPanelVBox;
+    /** Las columnas del panel: se crean la primera vez que se eligen. */
+    private DeckStackView deckColumns;
+    /** "Banquillo (N): se ve en la Lista", debajo de las columnas, que no lo ensenyan. */
+    private final Label deckSideNote = new Label();
+
+    private static DeckView startingDeckView() {
+        if (Boolean.getBoolean("neo.builder.columns")) {
+            return DeckView.COLUMNS;
+        }
+        if (Boolean.getBoolean("neo.builder.grid")) {
+            return DeckView.GRID;
+        }
+        try {
+            final String v = forge.neo.NeoSettings.get(DECK_VIEW_KEY, null);
+            if (v != null) {
+                return DeckView.valueOf(v);
+            }
+        } catch (final IllegalArgumentException e) {
+            // un valor de otra version: el de siempre
+        }
+        return forge.neo.NeoSettings.getBool(DECK_GRID_KEY, false) ? DeckView.GRID : DeckView.LIST;
+    }
+
+    private void setDeckView(final DeckView v) {
+        deckView = v;
+        forge.neo.NeoSettings.set(DECK_VIEW_KEY, v.name());
+        forge.neo.NeoSettings.save();
+        sizeDeckPanel();
+        showDeckBody();
+        refreshDeck();
+        // Las cartas del catalogo cambian de tamanyo con la vista.
+        fillResults();
+    }
+
+    /** Pone en el panel la lista (lista o cuadricula) o las columnas. */
+    private void showDeckBody() {
+        if (deckPanelVBox == null) {
+            return;
+        }
+        final javafx.scene.Node want;
+        if (deckView == DeckView.COLUMNS) {
+            if (deckColumns == null) {
+                deckColumns = new DeckStackView(editor, cardWidth, deckCardActions(), true);
+                deckColumns.setId("builder-deck-columns");
+                deckColumns.setMinHeight(UiScale.px(60));
+                VBox.setVgrow(deckColumns, Priority.ALWAYS);
+            }
+            want = deckColumns;
+        } else {
+            want = deckScroll;
+        }
+        final javafx.scene.Node other = want == deckScroll ? deckColumns : deckScroll;
+        final int at = deckPanelVBox.getChildren().indexOf(other);
+        if (at >= 0) {
+            deckPanelVBox.getChildren().set(at, want);
+        }
+        if (want == deckScroll) {
+            deckSideNote.setVisible(false);
+            deckSideNote.setManaged(false);
+        }
+        // En columnas el comandante es la primera columna: la franja de encima
+        // sobra y se come el alto que las pilas necesitan.
+        final boolean banner = editor.usesCommander() && deckView != DeckView.COLUMNS;
+        commanderRow.setVisible(banner);
+        commanderRow.setManaged(banner);
     }
     private VBox deckFilterRow;
     /**
@@ -2074,6 +2206,7 @@ public class DeckBuilderScreen extends StackPane {
             }
         }
         String lastGroup = null;
+        columnsCatalogueShown = deckView == DeckView.COLUMNS ? columnsCatalogueWidth() : 0;
         for (int i = pager.from(); i < pager.to(); i++) {
             final PaperCard c = catalogueHits.get(i);
             if (grouped) {
@@ -2145,8 +2278,36 @@ public class DeckBuilderScreen extends StackPane {
      * derecha a comprobarlo.
      */
     private Region catalogueTile(final PaperCard card) {
-        return catalogueTile(card, cardWidth);
+        // En Columnas el catalogo se queda con menos de la mitad del ancho: a
+        // tamanyo normal cabian dos cartas por fila. Mas pequenyas, cinco
+        // (la carta grande al pasar el raton sigue ahi para leerlas).
+        return catalogueTile(card, deckView == DeckView.COLUMNS ? columnsCatalogueWidth() : cardWidth);
     }
+
+    /** Cuantas cartas por fila en el catalogo con el mazo en Columnas. */
+    private static final int COLUMNS_PER_ROW = 5;
+
+    /**
+     * El ancho de carta del catalogo en Columnas: el que hace caber
+     * {@link #COLUMNS_PER_ROW} justas en el ancho que tiene ahora (con un
+     * tamanyo fijo sobraba un hueco a la derecha o faltaba sitio para la
+     * quinta, segun la pantalla). Con tope por arriba y por abajo, y antes
+     * del primer layout, la mitad de la normal.
+     */
+    private double columnsCatalogueWidth() {
+        final double w = results.getWidth();
+        if (w <= 0) {
+            return cardWidth * 0.5;
+        }
+        final double tilePad = 2 * 3 + 2;  // .catalogue-tile: -fx-padding 3, y redondeo
+        final double usable = w - results.getPadding().getLeft() - results.getPadding().getRight()
+                - results.getHgap() * (COLUMNS_PER_ROW - 1);
+        final double each = Math.floor(usable / COLUMNS_PER_ROW - tilePad);
+        return Math.max(cardWidth * 0.34, Math.min(cardWidth * 0.62, each));
+    }
+
+    /** El ancho con el que se pinto el catalogo en Columnas, para repintar solo si cambia. */
+    private double columnsCatalogueShown;
 
     /**
      * Donde va el "1/1" de una carta: arriba a la derecha pero sobre el ARTE,
@@ -2324,6 +2485,50 @@ public class DeckBuilderScreen extends StackPane {
      * <p>La vista visual necesita la pantalla entera, asi que sustituye a las
      * dos columnas en vez de meterse en la de la derecha, que es estrecha.
      */
+    /**
+     * Lo que se puede hacer con una carta del mazo en columnas: lo mismo que en
+     * la lista, sea a pantalla completa ("Ver el mazo") o en el panel.
+     */
+    private DeckStackView.CardActions deckCardActions() {
+        return new DeckStackView.CardActions() {
+            @Override
+            public void zoom(final PaperCard card) {
+                DeckBuilderScreen.this.zoom(card);
+            }
+
+            @Override
+            public void menu(final PaperCard card, final Region anchor,
+                             final double screenX, final double screenY,
+                             final boolean isCommander) {
+                if (isCommander) {
+                    commanderMenu(card, anchor, screenX, screenY);
+                } else {
+                    cardMenu(card, anchor, screenX, screenY);
+                }
+            }
+
+            @Override
+            public boolean canEdit() {
+                return true;
+            }
+
+            @Override
+            public void add(final PaperCard card) {
+                addOne(card);
+            }
+
+            @Override
+            public void remove(final PaperCard card) {
+                removeOne(card);
+            }
+
+            @Override
+            public boolean accepts(final PaperCard card) {
+                return !deckFilterActive() || deckFilterAccepts(card);
+            }
+        };
+    }
+
     private void setVisualMode(final boolean on) {
         if (visualMode == on) {
             return;
@@ -2331,43 +2536,7 @@ public class DeckBuilderScreen extends StackPane {
         visualMode = on;
         if (on) {
             if (stackView == null) {
-                stackView = new DeckStackView(editor, cardWidth, new DeckStackView.CardActions() {
-                    @Override
-                    public void zoom(final PaperCard card) {
-                        DeckBuilderScreen.this.zoom(card);
-                    }
-
-                    @Override
-                    public void menu(final PaperCard card, final Region anchor,
-                                     final double screenX, final double screenY,
-                                     final boolean isCommander) {
-                        if (isCommander) {
-                            commanderMenu(card, anchor, screenX, screenY);
-                        } else {
-                            cardMenu(card, anchor, screenX, screenY);
-                        }
-                    }
-
-                    @Override
-                    public boolean canEdit() {
-                        return true;
-                    }
-
-                    @Override
-                    public void add(final PaperCard card) {
-                        addOne(card);
-                    }
-
-                    @Override
-                    public void remove(final PaperCard card) {
-                        removeOne(card);
-                    }
-
-                    @Override
-                    public boolean accepts(final PaperCard card) {
-                        return !deckFilterActive() || deckFilterAccepts(card);
-                    }
-                });
+                stackView = new DeckStackView(editor, cardWidth, deckCardActions());
             } else {
                 stackView.refresh();
             }
@@ -2459,14 +2628,41 @@ public class DeckBuilderScreen extends StackPane {
         int shown = 0;
         gridTiles = 0;
         deckList.getChildren().clear();
-        for (final Map.Entry<String, Integer> group : editor.typeCounts().entrySet()) {
+        final boolean inColumns = deckView == DeckView.COLUMNS;
+        if (inColumns) {
+            // Las columnas se pintan solas; aqui solo se cuenta lo que se ve.
+            for (final Map.Entry<String, Integer> group : editor.typeCounts().entrySet()) {
+                for (final Map.Entry<PaperCard, Integer> e : editor.cardsInGroup(group.getKey())) {
+                    if (!filtering || deckFilterAccepts(e.getKey())) {
+                        shown += e.getValue();
+                    }
+                }
+            }
+            if (deckColumns != null) {
+                deckColumns.refresh();
+            }
+            // El banquillo y los mazos aparte no salen en las columnas: que se
+            // sepa que estan y como llegar (principio 5).
+            int inSide = 0;
+            for (final Map.Entry<PaperCard, Integer> e : editor.sideboardCards()) {
+                inSide += e.getValue();
+            }
+            for (final forge.deck.DeckSection section : DeckEditor.EXTRA_SECTIONS) {
+                inSide += editor.extraCount(section);
+            }
+            deckSideNote.setText(NeoText.get("deck.columns.sideboard", inSide));
+            deckSideNote.setVisible(inSide > 0);
+            deckSideNote.setManaged(inSide > 0);
+        }
+        for (final Map.Entry<String, Integer> group : inColumns ? Map.<String, Integer>of().entrySet()
+                : editor.typeCounts().entrySet()) {
             final List<Region> rows = new ArrayList<>();
             int inGroup = 0;
             for (final Map.Entry<PaperCard, Integer> e : editor.cardsInGroup(group.getKey())) {
                 if (filtering && !deckFilterAccepts(e.getKey())) {
                     continue;
                 }
-                final Region row = deckGrid ? deckTile(e.getKey(), e.getValue())
+                final Region row = deckView == DeckView.GRID ? deckTile(e.getKey(), e.getValue())
                         : deckRow(e.getKey(), e.getValue());
                 row.pseudoClassStateChanged(INVALID, illegal.contains(e.getKey().getName()));
                 rows.add(row);
@@ -2480,7 +2676,7 @@ public class DeckBuilderScreen extends StackPane {
                     + "  (" + (filtering ? inGroup : group.getValue()) + ")");
             heading.getStyleClass().add("deck-group");
             deckList.getChildren().add(heading);
-            if (deckGrid) {
+            if (deckView == DeckView.GRID) {
                 final javafx.scene.layout.FlowPane grid = new javafx.scene.layout.FlowPane(6, 6);
                 grid.getStyleClass().add("deck-grid");
                 grid.getChildren().addAll(rows);
@@ -2492,7 +2688,7 @@ public class DeckBuilderScreen extends StackPane {
         // EL BANQUILLO, al final (Ana, 06-10-2026: no se podia consultar). Un
         // mazo importado de Moxfield lo trae con el "maybeboard", y sin verlo
         // no habia forma de saber por que el mazo no valia.
-        if (!filtering) {
+        if (!filtering && !inColumns) {
             final List<Map.Entry<PaperCard, Integer>> side = editor.sideboardCards();
             if (!side.isEmpty()) {
                 int inSide = 0;
@@ -2529,7 +2725,7 @@ public class DeckBuilderScreen extends StackPane {
                     + NeoText.get("deck.filterDeck.showing", shown));
         }
         refreshDeckFilterToggle();
-        if (deckList.getChildren().isEmpty()) {
+        if (deckList.getChildren().isEmpty() && !inColumns) {
             final Label empty = new Label(NeoText.get(filtering && main > 0
                     ? "deck.filterDeck.none" : "deck.empty"));
             empty.getStyleClass().add("home-subtitle");

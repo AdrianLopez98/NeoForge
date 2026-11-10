@@ -162,6 +162,13 @@ public class LobbyScreen extends BorderPane
     private NeoLobby.Archenemy lastArchenemy = NeoLobby.Archenemy.OFF;
     private int lastArchenemySeat = -1;
 
+    /** La fila de Planechase (ver {@link #planechaseRow}), igual que la de Archenemy. */
+    private final Button planechaseOff = new Button(NeoText.get("lobby.archenemy.off"));
+    private final Button planechaseOn = new Button(NeoText.get("lobby.planechase.on"));
+    private final Label planechaseNote = new Label();
+    private final VBox planechaseBox = new VBox(6);
+    private boolean lastPlanechase;
+
     private final VBox seatBox = new VBox(8);
     private final VBox chatLines = new VBox(2);
     private final ScrollPane chatScroll = new ScrollPane(chatLines);
@@ -215,7 +222,11 @@ public class LobbyScreen extends BorderPane
 
         final VBox words = new VBox(2, title, status);
 
-        final VBox box = new VBox(10, words, formatRow(), archenemyRow(), eventRow());
+        // Archenemy y Planechase lado a lado: la cabecera no tiene scroll y
+        // cada fila de mas aprieta los asientos.
+        final HBox variants = new HBox(36, archenemyRow(), planechaseRow());
+        variants.setAlignment(Pos.TOP_LEFT);
+        final VBox box = new VBox(10, words, formatRow(), variants, eventRow());
         if (host) {
             box.getChildren().add(addressRow());
         }
@@ -315,6 +326,71 @@ public class LobbyScreen extends BorderPane
         }
         archenemyBox.getChildren().setAll(caption, picks, archenemyNote);
         return archenemyBox;
+    }
+
+    /**
+     * <b>Planechase</b> (Discord, 10-11-2026), encima del modo como Archenemy:
+     * si o no. Manda el anfitrion y el invitado lo lee. Lo que hace de verdad
+     * vive en {@link NeoLobby#setPlanechase} y {@link NeoLobby#preparePlanes}.
+     */
+    private Region planechaseRow() {
+        final Label caption = new Label(NeoText.get("home.planechase"));
+        caption.getStyleClass().add("caption");
+        planechaseNote.getStyleClass().add("mode-tile-note");
+        planechaseNote.setWrapText(true);
+        planechaseNote.setMaxWidth(UiScale.px(420));
+        planechaseNote.setMinHeight(Region.USE_PREF_SIZE);
+        planechaseNote.setText(NeoText.get("lobby.planechase.note"));
+        if (!host) {
+            planechaseBox.getChildren().setAll(caption, planechaseNote);
+            return planechaseBox;
+        }
+        final HBox picks = new HBox(6);
+        picks.setAlignment(Pos.CENTER_LEFT);
+        for (final Button b : new Button[] {planechaseOff, planechaseOn}) {
+            final boolean on = b == planechaseOn;
+            b.getStyleClass().add("segment");
+            b.setMinWidth(Region.USE_PREF_SIZE);
+            if (on) {
+                b.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("home.planechase.tip")));
+            }
+            b.setOnAction(e -> {
+                final GameLobby l = lobby;
+                if (l != null && !l.isMatchActive() && NeoLobby.planechaseOn(l) != on) {
+                    NeoLobby.setPlanechase(l, on);
+                    refresh();
+                }
+            });
+            picks.getChildren().add(b);
+        }
+        planechaseBox.getChildren().setAll(caption, picks, planechaseNote);
+        return planechaseBox;
+    }
+
+    /** Pone al dia la fila de Planechase. Hilo de JavaFX. Como {@link #showArchenemy}. */
+    private void showPlanechase(final GameLobby l) {
+        final boolean on = NeoLobby.planechaseOn(l);
+        final boolean allowed = !forge.neo.net.NeoNetEvent.isLimited(l) && NeoLobby.planechaseAllowed(format);
+        final boolean show = allowed && (host || on);
+        planechaseBox.setVisible(show);
+        planechaseBox.setManaged(show);
+        planechaseOff.pseudoClassStateChanged(SELECTED, !on);
+        planechaseOn.pseudoClassStateChanged(SELECTED, on);
+        planechaseOff.setDisable(failed || l.isMatchActive());
+        planechaseOn.setDisable(failed || l.isMatchActive());
+        planechaseNote.setVisible(on);
+        planechaseNote.setManaged(on);
+    }
+
+    /** Lo que se anuncia en el chat cuando cambia, en el idioma de cada lado. */
+    private void announcePlanechase(final GameLobby l) {
+        final boolean on = NeoLobby.planechaseOn(l);
+        final boolean changed = on != lastPlanechase;
+        lastPlanechase = on;
+        if (!changed || first || forge.neo.net.NeoNetEvent.isLimited(l)) {
+            return;
+        }
+        addChatLine(NeoText.get(on ? "lobby.planechase.changed.on" : "lobby.planechase.changed.off"));
     }
 
     private static String archenemyLabel(final NeoLobby.Archenemy a) {
@@ -751,6 +827,7 @@ public class LobbyScreen extends BorderPane
         // Archenemy no va con un draft: la partida es la del pool, y en
         // limitado su fila ni se ve (no habria forma de quitarlo).
         NeoLobby.setArchenemy(l, NeoLobby.Archenemy.OFF);
+        NeoLobby.setPlanechase(l, false);
         server.setLimitedMode(true);
     }
 
@@ -1921,6 +1998,11 @@ public class LobbyScreen extends BorderPane
                 if (schemes > 0) {
                     System.out.println("[lobby] esquemas al azar para " + schemes + " archienemigo(s)");
                 }
+                // Planechase: lo mismo con el mazo planar de cada uno.
+                final int planes = NeoLobby.preparePlanes(l);
+                if (planes > 0) {
+                    System.out.println("[lobby] mazo planar al azar para " + planes + " jugador(es)");
+                }
                 final Runnable go = l.startGame();
                 if (go == null) {
                     // startGame() ya ha dicho por que con su propio aviso.
@@ -1956,6 +2038,10 @@ public class LobbyScreen extends BorderPane
             if (!archenemy.isBlank()) {
                 NeoLobby.setArchenemy(lobby, "all".equalsIgnoreCase(archenemy.trim())
                         ? NeoLobby.Archenemy.ALL : NeoLobby.Archenemy.ONE);
+            }
+            // -Dneo.lobby.planechase=true: lo mismo con Planechase.
+            if (Boolean.getBoolean("neo.lobby.planechase")) {
+                NeoLobby.setPlanechase(lobby, true);
             }
         }
         refresh();
@@ -2029,6 +2115,7 @@ public class LobbyScreen extends BorderPane
                 addChatLine(NeoText.get("lobby.format.changed", format.getLabel()));
             }
             announceArchenemy(l);
+            announcePlanechase(l);
             // Hasta que no hay asientos, lo que se esta leyendo no es el modo
             // de la sala: es el lobby vacio del invitado, que nace sin
             // variantes (o sea "Estandar") y se rellena cuando llega el primer
@@ -2037,6 +2124,7 @@ public class LobbyScreen extends BorderPane
             first = l.getNumberOfSlots() == 0;
             showFormat(l);
             showArchenemy(l);
+            showPlanechase(l);
             showEvent(l);
             rebuildSeats();
             status.setText(statusText(l));

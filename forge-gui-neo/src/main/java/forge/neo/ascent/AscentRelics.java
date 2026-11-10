@@ -177,6 +177,10 @@ public final class AscentRelics {
         add("the_infinite_tome", AscentRelic.Rarity.LEGENDARY);
         add("heart_of_the_mountain", AscentRelic.Rarity.LEGENDARY);
         add("aegis_eternal", AscentRelic.Rarity.LEGENDARY);
+
+        // EL ESCUDO (Discord, 10-11-2026). No es una carta que haga algo en la
+        // partida: actua en la RUN, al perder. Ver #SHIELD.
+        add("shattering_ward", AscentRelic.Rarity.RARE);
         add("wings_of_the_ascended", AscentRelic.Rarity.LEGENDARY);
 
         // ---- las de COLOR (22-09-2026) ----
@@ -582,6 +586,26 @@ public final class AscentRelics {
         }
         final String oracle = card.getRules().getOracleText();
         return oracle != null && oracle.toLowerCase(java.util.Locale.ROOT).contains("draw");
+    }
+
+    /**
+     * <b>El escudo</b> (<i>Shattering Ward</i>, Discord 10-11-2026, tras el
+     * draft de salida: <i>"3 lives in Ascent draft"</i>). Una derrota que no
+     * sea contra el jefe de un piso, y sin haberte rendido, no acaba la run:
+     * sigues con la mitad de tu vida maxima, sin premio de ese nodo, y el
+     * escudo se rompe ({@code AscentBattle.fight}).
+     *
+     * <p>Es la primera reliquia que no actua dentro de la partida: su carta
+     * va a la zona de mando como las demas, pero en blanco, para que se lea.
+     * Por eso <b>no sale por sorteo</b> (ni en premios ni al rival): solo en
+     * la tienda ({@code AscentShop}) y en los eventos que dan una rara. En un
+     * premio normal seria lo que todo el mundo coge siempre.
+     */
+    public static final String SHIELD = "shattering_ward";
+
+    /** Si es el escudo. */
+    public static boolean isShield(final AscentRelic relic) {
+        return relic != null && SHIELD.equals(relic.getId());
     }
 
     /** La reliquia con ese id, o {@code null} si no existe. */

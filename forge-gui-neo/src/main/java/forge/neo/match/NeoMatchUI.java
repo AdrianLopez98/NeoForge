@@ -7502,6 +7502,18 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             } else {
                 selectionStarted(selection.cards(), selection.min(), selection.max());
             }
+        } else if (!selection.cards().isEmpty() && pickedOffBoard(prev, selection)) {
+            // ELECCION DE VARIOS FUERA DE LA MESA (Nethroi, Discord
+            // 10-11-2026: "can't pick multiple creatures to return from
+            // graveyard"). Clicar una carta en el visor de zona lo cierra
+            // (TableScreen.pickedInZone), y la eleccion seguia abierta sin que
+            // nada lo dijera: para el segundo habia que volver a abrir el
+            // cementerio a mano. Si lo que acaba de cambiar es de una zona
+            // escondida y aun se puede elegir, se vuelve a abrir, con lo ya
+            // elegido marcado (ZoneViewer.markPicked).
+            if (showSelectionZone(selection.cards())) {
+                selectionZoneShown.set(true);
+            }
         }
         // La marca es la respuesta del motor al clic del piloto. Ver pilotClicks.
         if (!pilotClicks.isEmpty()) {
@@ -7592,6 +7604,21 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         }, "neo-stack-targets");
         t.setDaemon(true);
         t.start();
+    }
+
+    /** Si entre las dos lo elegido ha cambiado en una carta de fuera de la mesa (cementerio, exilio...). */
+    private static boolean pickedOffBoard(final forge.gamemodes.match.Selection prev,
+                                          final forge.gamemodes.match.Selection now) {
+        for (final forge.trackable.TrackableObject e : com.google.common.collect.Sets.symmetricDifference(
+                new java.util.HashSet<>(prev.chosen()), new java.util.HashSet<>(now.chosen()))) {
+            if (e instanceof CardView cv) {
+                final ZoneType z = cv.getZone();
+                if (z != null && z != ZoneType.Battlefield && z != ZoneType.Hand && z != ZoneType.Stack) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /** Empieza una eleccion de cartas (lo que antes era {@code setSelectables}). */

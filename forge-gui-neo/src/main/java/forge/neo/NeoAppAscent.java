@@ -383,6 +383,10 @@ final class NeoAppAscent {
             }
         }));
         app.applyScale();
+        // Solo capturas: -Dneo.ascent.shieldBroke=true, el aviso del escudo roto.
+        if (Boolean.getBoolean("neo.ascent.shieldBroke") && app.scene.getRoot() instanceof AscentMapScreen) {
+            ((AscentMapScreen) app.scene.getRoot()).showShieldBroke(run.getLife());
+        }
     }
 
     /**
@@ -691,6 +695,15 @@ final class NeoAppAscent {
                     }
                     // Se marca resuelto AL GANARLO, nunca al entrar.
                     run.clear(node);
+                    if (got.shieldBroke) {
+                        // Perdido, pero el escudo te ha salvado: sin premio, y
+                        // se dice al volver al mapa (AscentRelics.SHIELD).
+                        showMap(run);
+                        if (app.scene.getRoot() instanceof AscentMapScreen) {
+                            ((AscentMapScreen) app.scene.getRoot()).showShieldBroke(run.getLife());
+                        }
+                        return;
+                    }
                     reward(run, node);
                 });
             }

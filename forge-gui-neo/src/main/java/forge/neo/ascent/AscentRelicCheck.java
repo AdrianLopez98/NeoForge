@@ -672,7 +672,10 @@ public final class AscentRelicCheck {
         //    es exactamente el agujero que este comprobador viene a tapar.
         final List<String> sinSpec = new ArrayList<>();
         for (final AscentRelic r : AscentRelics.all()) {
-            if (!specs.containsKey(r.getId())) {
+            // El escudo no hace nada en la partida, asi que no hay partida que
+            // jugarle: actua en la run, al perder, y lo comprueba ascentcheck
+            // (AscentCheck.escudo).
+            if (!specs.containsKey(r.getId()) && !AscentRelics.isShield(r)) {
                 sinSpec.add(r.getId());
             }
         }

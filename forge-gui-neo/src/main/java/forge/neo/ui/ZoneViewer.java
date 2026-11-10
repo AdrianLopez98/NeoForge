@@ -154,6 +154,23 @@ public class ZoneViewer extends VBox {
         return this;
     }
 
+    /**
+     * Marca lo que ya llevas elegido en una eleccion de varias (Nethroi,
+     * Discord 10-11-2026): sin esto, al volver a abrir la zona la carta
+     * escogida era igual que las demas y no se sabia cual iba ya.
+     */
+    public ZoneViewer markPicked(final Predicate<CardView> picked) {
+        if (grid == null || picked == null) {
+            return this;
+        }
+        for (final javafx.scene.Node n : grid.getChildren()) {
+            if (n instanceof CardNode node && node.getCard() != null) {
+                node.setHighlighted(picked.test(node.getCard()));
+            }
+        }
+        return this;
+    }
+
     /** Cambia el titulo por uno ya escrito. */
     public void setHeading(final String text) {
         if (heading != null && text != null) {
