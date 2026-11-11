@@ -772,7 +772,7 @@ public class LobbyScreen extends BorderPane
             final Integer pod = forge.gui.util.SGuiChoose.oneOrNone(
                     NeoText.get("net.event.wizard.pod"), pods,
                     pods.contains(recommended) ? recommended : pods.get(0),
-                    n -> forge.gamemodes.net.NetworkEvent.markSetDefault(
+                    n -> forge.gamemodes.limited.BoosterDraft.markSetDefault(
                             forge.gamemodes.net.NetworkEvent.podSizeLabel(n), n == recommended));
             if (pod == null) {
                 return;
@@ -780,12 +780,12 @@ public class LobbyScreen extends BorderPane
             draft.setPodSize(pod);
 
             final forge.card.DraftOptions.DoublePick byDefault =
-                    forge.gamemodes.net.NetworkEvent.defaultPicksFor(draft, pod);
+                    draft.getDefaultPicks(pod);
             final forge.card.DraftOptions.DoublePick picks = forge.gui.util.SGuiChoose.oneOrNone(
                     NeoText.get("net.event.wizard.picks"),
                     forge.neo.net.NeoNetEvent.pickRules(), byDefault,
-                    rule -> forge.gamemodes.net.NetworkEvent.markSetDefault(
-                            forge.gamemodes.net.NetworkEvent.picksLabel(rule), rule == byDefault));
+                    rule -> forge.gamemodes.limited.BoosterDraft.markSetDefault(
+                            forge.gamemodes.limited.BoosterDraft.picksLabel(rule), rule == byDefault));
             if (picks == null) {
                 return;
             }

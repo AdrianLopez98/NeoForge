@@ -76,6 +76,42 @@ public final class CardKeywords {
     }
 
     /**
+     * EL TITULO DE LA PASTILLA, con el nombre de la carta puesto (Discord,
+     * 11-11-2026: «Ward—Pay life equal to CARDNAME's power»). El motor escribe
+     * {@code CARDNAME} en el titulo y en la explicacion de las palabras clave
+     * que hablan de la propia carta, y lo sustituye el que lo pinta: el Forge de
+     * siempre lo hace en su texto de reglas, y aqui nadie lo hacia.
+     */
+    public static String title(final KeywordView k, final CardView card) {
+        return k == null ? "" : named(k.title(), card);
+    }
+
+    /** La explicacion de la palabra clave, con el nombre puesto. Ver {@link #title}. */
+    public static String text(final KeywordView k, final CardView card) {
+        return k == null ? "" : named(k.reminderText(), card);
+    }
+
+    private static String named(final String s, final CardView card) {
+        if (s == null || (!s.contains("CARDNAME") && !s.contains("NICKNAME"))) {
+            return s == null ? "" : s;
+        }
+        String name = null;
+        try {
+            final CardStateView st = card == null ? null : card.getCurrentState();
+            name = st == null ? null : st.getName();
+            if (name != null && !name.isEmpty()) {
+                name = forge.util.CardTranslation.getTranslatedName(name);
+            }
+        } catch (final RuntimeException ignored) {
+            // sin nombre se queda como esta
+        }
+        if (name == null || name.isEmpty()) {
+            return s;
+        }
+        return s.replace("CARDNAME", name).replace("NICKNAME", name);
+    }
+
+    /**
      * De donde salen: del motor, y si no, de la carta en papel.
      *
      * <p>Dentro de una partida el motor las publica y son las de VERDAD. Fuera

@@ -69,6 +69,11 @@ public final class NeoTutorial {
     /** El tutorial ya se ha ofrecido: no volver a saltar solo. */
     public static void markSeen() {
         NeoSettings.setBool(SEEN, true);
+        // Quien llega nuevo no tiene "novedades" que leer: se da por vista la
+        // version con la que empieza (ver forge.neo.update.PatchNotes).
+        if (NeoSettings.get(forge.neo.update.PatchNotes.SEEN_KEY, "").isBlank()) {
+            NeoSettings.set(forge.neo.update.PatchNotes.SEEN_KEY, forge.neo.NeoVersion.neoVersion());
+        }
         NeoSettings.save();
     }
 

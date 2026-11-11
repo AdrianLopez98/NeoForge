@@ -428,6 +428,22 @@ public final class NeoMain {
                 banner("Auto-pass: improvisar y convocar");
                 forge.neo.match.ImproviseCheck.run();
                 break;
+            case "aistallcheck":
+                // El vigia de la IA atascada pensando. Ver AiStallWatch.
+                banner("La IA atascada: el vigia avisa una vez");
+                try {
+                    forge.neo.match.AiStallCheck.run();
+                } catch (final InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(e);
+                }
+                break;
+            case "anytypecheck":
+                // Lo robado con "mana de cualquier tipo" (Gonti, Black Cat)
+                // brilla cuando llega el mana. Ver AnyTypeMana.
+                banner("Mana de cualquier tipo: lo robado brilla");
+                forge.neo.match.AnyTypeCheck.run();
+                break;
             case "ascentdraftcheck":
                 banner("Ascenso: el mazo de salida drafteado de sobres");
                 forge.neo.ascent.AscentDraftCheck.run();

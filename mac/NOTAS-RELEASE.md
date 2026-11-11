@@ -1,12 +1,13 @@
-**NeoForge para macOS 1.0.51 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.52 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Constructor de mazos: vista en Columnas** al lado del catálogo: ves el mazo en pilas mientras añades.
-- **Ascenso: el escudo, *Shattering Ward***: una reliquia rara que te salva de una derrota una vez.
-- **Momir Basic y MoJhoSto contra 1, 2 o 3 rivales.**
-- **Planechase en las partidas privadas**, junto a Archenemy.
-- **Elegir varios objetivos del cementerio** (Nethroi, Fight On!...): la ventana ya no se cierra tras el primero.
-- **Modo streamer**: tampoco se ve la IP del anfitrión en el chat de la sala.
+- **Las novedades al abrir una versión nueva**, con un botón para apoyar el proyecto en Ko-fi.
+- **Partida en red: se acabaron las cartas grises** y las flechas de ataque que no salían al atacar como invitado.
+- **Lo robado con Gonti o Black Cat brilla** cuando llega el maná, sea del color que sea.
+- **El spellbook de las cartas de Arena** (Dragon Typhoon, Tovolar…) a la vista al ampliarlas.
+- **Ordenar cientos de disparos** ya no se atasca en 120.
+- **Si la IA se atasca pensando**, se apunta en qué para poder arreglarlo.
+- Sin imagen, el texto de la carta sale abierto al ampliarla; y las palabras clave con el nombre de la carta.
 - Al día con Forge.
 
 Descarga el `.dmg` de tu Mac:

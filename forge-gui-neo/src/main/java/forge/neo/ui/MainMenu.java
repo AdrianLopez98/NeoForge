@@ -384,6 +384,13 @@ public class MainMenu extends BorderPane {
             }
         });
         footer.getChildren().add(update);
+        // Las notas del parche al abrir una version nueva, con "Apoya el
+        // proyecto" (Ana, 11-11-2026). Una vez por arranque. Ver PatchNotes.
+        update.sceneProperty().addListener((o, was, is) -> {
+            if (is != null) {
+                javafx.application.Platform.runLater(this::maybePatchNotes);
+            }
+        });
         // Ordenar el menu, en el pie con lo demas que no es jugar. Mientras se
         // ordena, el mismo boton dice "Listo" (y se marca), y a su izquierda
         // sale "Restaurar": lo que deshace todo va lejos de la inercia del Listo.
@@ -746,6 +753,86 @@ public class MainMenu extends BorderPane {
             }
         });
         return b;
+    }
+
+    /** Las notas se miran una vez por arranque, aunque se vuelva al menu. */
+    private static boolean patchNotesChecked;
+
+    /** En las capturas (--snapshot) no se piden: una prueba no sale a la red. */
+    public static void skipPatchNotes() {
+        patchNotesChecked = System.getProperty("neo.patchnotes.version") == null;
+    }
+
+    /**
+     * Si esta version es mas nueva que la ultima cuyas notas se vieron, se piden
+     * a GitHub (una vez, en su hilo) y se ensenyan con "Apoya el proyecto".
+     * Sin marca y sin ser la primera vez = quien ya jugaba antes de que esto
+     * existiera: tambien se le ensenyan. {@code -Dneo.patchnotes.version=X}
+     * fuerza las de X (para capturarlo).
+     */
+    private void maybePatchNotes() {
+        if (patchNotesChecked) {
+            return;
+        }
+        patchNotesChecked = true;
+        final String forced = System.getProperty("neo.patchnotes.version");
+        final String current = forced != null ? forced : forge.neo.NeoVersion.neoVersion();
+        final String seen = forge.neo.NeoSettings.get(forge.neo.update.PatchNotes.SEEN_KEY, "");
+        if (forced == null) {
+            if (seen.isBlank() && forge.neo.tutorial.NeoTutorial.isFirstRun()) {
+                return; // el tutorial lo apuntara
+            }
+            if (!seen.isBlank() && !forge.neo.update.PatchNotes.shouldShow(current, seen)) {
+                return;
+            }
+        }
+        forge.neo.update.PatchNotes.fetch(current, notes -> {
+            if (notes != null) {
+                javafx.application.Platform.runLater(() -> showPatchNotes(current, notes));
+            }
+        });
+    }
+
+    private void showPatchNotes(final String version, final String notes) {
+        if (getScene() == null) {
+            return;
+        }
+        // Dentro del propio menu, encima de todo y fuera de su reparto: un
+        // Popup seria otra ventana (ni la captura ni el CSS de la escena lo ven).
+        final javafx.scene.layout.StackPane shade = new javafx.scene.layout.StackPane();
+        final Runnable done = () -> {
+            getChildren().remove(shade);
+            forge.neo.NeoSettings.set(forge.neo.update.PatchNotes.SEEN_KEY, version);
+            forge.neo.NeoSettings.save();
+        };
+        final ConfirmDialog dialog = new ConfirmDialog(
+                NeoText.get("update.notes.title", version),
+                notes + System.lineSeparator() + System.lineSeparator() + NeoText.get("update.notes.support"),
+                java.util.List.of(NeoText.get("update.notes.kofi"), NeoText.get("common.close")), 1,
+                i -> {
+                    if (i == 0) {
+                        try {
+                            forge.gui.GuiBase.getInterface().browseToUrl(KOFI_URL);
+                        } catch (final Exception e) {
+                            System.err.println("[neo] no se pudo abrir Ko-fi: " + e);
+                        }
+                    }
+                    done.run();
+                });
+        shade.getChildren().add(dialog);
+        shade.setStyle("-fx-background-color: rgba(0,0,0,0.6);");
+        shade.setManaged(false);
+        // Apoyar, con los colores de Ko-fi como su boton del menu: que se vea.
+        // El de por defecto sigue siendo Cerrar (un Intro por inercia no abre
+        // el navegador).
+        dialog.option(0).setStyle("-fx-background-color: #29abe0; -fx-text-fill: white;"
+                + " -fx-font-weight: bold;");
+        final Runnable fit = () -> shade.resizeRelocate(0, 0, getWidth(), getHeight());
+        widthProperty().addListener((o, a, b) -> fit.run());
+        heightProperty().addListener((o, a, b) -> fit.run());
+        getChildren().add(shade);
+        fit.run();
+        System.out.println("[neo] notas del parche de " + version + " a la vista");
     }
 
     /** La pagina de Ko-fi de Neo Forge, donde se dona. */

@@ -199,7 +199,8 @@ public final class CardZoom {
                 || !forge.neo.card.ChosenValues.of(card).isEmpty()
                 || related(card) != null || canReadLiveText(card)
                 || !keywordsOf(card).isEmpty() || hasPlainText(card)
-                || !tokensOf(card).isEmpty() || !forge.neo.card.AffectedBy.of(card).isEmpty();
+                || !tokensOf(card).isEmpty() || !spellbookOf(card).isEmpty()
+                || !forge.neo.card.AffectedBy.of(card).isEmpty();
         double w = bigWidth;
         if (side) {
             w = Math.min(w, sceneWidth * 0.9 / (1 + SIDE_RATIO));
@@ -510,6 +511,11 @@ public final class CardZoom {
         if (tokens != null) {
             box.getChildren().add(tokens);
         }
+        // Y su spellbook, si es de Arena (Discord, 11-11-2026). Ver CardSpellbook.
+        final Region spellbook = cardsBlock(spellbookOf(card), "zoom.spellbook", width);
+        if (spellbook != null) {
+            box.getChildren().add(spellbook);
+        }
         return box;
     }
 
@@ -539,12 +545,29 @@ public final class CardZoom {
         }
     };
 
+    /** El spellbook de la carta, fuera de una partida, como las fichas. Ver {@link forge.neo.card.CardSpellbook}. */
+    private static java.util.List<CardView> spellbookOf(final CardView card) {
+        if (card == null || card.getZone() != null || card.isToken() || card.getCurrentState() == null) {
+            return java.util.List.of();
+        }
+        final forge.item.PaperCard pc = TOKENS_PAPER.apply(card);
+        return pc == null ? java.util.List.of() : SPELLBOOKS.computeIfAbsent(pc, forge.neo.card.CardSpellbook::of);
+    }
+
+    private static final java.util.Map<forge.item.PaperCard, java.util.List<CardView>> SPELLBOOKS =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
     private static Region tokensBlock(final CardView card, final double width) {
-        final java.util.List<CardView> tokens = tokensOf(card);
+        return cardsBlock(tokensOf(card), "zoom.tokens", width);
+    }
+
+    /** Una fila de cartas con su titulo, cada una ampliable: las fichas, el spellbook. */
+    private static Region cardsBlock(final java.util.List<CardView> tokens, final String titleKey,
+                                     final double width) {
         if (tokens.isEmpty()) {
             return null;
         }
-        final Label title = new Label(NeoText.get("zoom.tokens"));
+        final Label title = new Label(NeoText.get(titleKey) + (tokens.size() > 1 ? " (" + tokens.size() + ")" : ""));
         title.getStyleClass().add("zoom-head");
         UiScale.fixedFont(title, 12);
         final javafx.scene.layout.FlowPane row = new javafx.scene.layout.FlowPane(8, 8);
@@ -707,6 +730,9 @@ public final class CardZoom {
         explain.setMinHeight(Region.USE_PREF_SIZE);
         explain.setVisible(false);
         explain.setManaged(false);
+        // Los simbolos de mana como iconos («Prototype {1}{B}{B}»), igual que
+        // el texto de la carta de al lado (Discord, 11-11-2026).
+        ManaIcons.decorate(explain);
 
         // El elegido, en una casilla: el manejador de cada pastilla necesita
         // apagar la anterior, y de la anterior solo se sabe cuando ya se ha
@@ -716,9 +742,10 @@ public final class CardZoom {
         final FlowPane chips = new FlowPane(6, 5);
         chips.setMaxWidth(width);
         for (final KeywordView k : words) {
-            final Label chip = new Label(k.title());
+            final Label chip = new Label(forge.neo.card.CardKeywords.title(k, card));
             chip.getStyleClass().add("keyword-chip");
             chip.setCursor(javafx.scene.Cursor.HAND);
+            ManaIcons.decorate(chip);
             chip.setOnMouseClicked(e -> {
                 e.consume();
                 if (picked[0] == chip) {
@@ -733,7 +760,7 @@ public final class CardZoom {
                 }
                 chip.pseudoClassStateChanged(KEYWORD_ON, true);
                 picked[0] = chip;
-                explain.setText(k.reminderText());
+                explain.setText(forge.neo.card.CardKeywords.text(k, card));
                 explain.setVisible(true);
                 explain.setManaged(true);
             });
@@ -744,7 +771,7 @@ public final class CardZoom {
             final Label only = (Label) chips.getChildren().get(0);
             only.pseudoClassStateChanged(KEYWORD_ON, true);
             picked[0] = only;
-            explain.setText(words.get(0).reminderText());
+            explain.setText(forge.neo.card.CardKeywords.text(words.get(0), card));
             explain.setVisible(true);
             explain.setManaged(true);
         }
@@ -843,7 +870,55 @@ public final class CardZoom {
 
         final VBox box = new VBox(6, toggle, scroll);
         box.setAlignment(Pos.TOP_LEFT);
+        // Sin imagen, abierto: la carta grande no dice nada que leer (Discord,
+        // 11-11-2026, una Room sin arte).
+        if (noArt(card)) {
+            openWhenShown(box, scroll, toggle, null);
+        }
         return box;
+    }
+
+    /**
+     * Si la carta no tiene imagen (ni en memoria ni en el disco): entonces lo
+     * que se ve es el respaldo, con nombre, coste y tipo pero sin texto, y el
+     * texto de la carta se abre solo (Discord, 11-11-2026: «View card text for
+     * Room cards if the art has not loaded»).
+     */
+    static boolean noArt(final CardView card) {
+        if (Boolean.getBoolean("neo.images.none")) {
+            return card != null;
+        }
+        try {
+            final CardStateView st = card == null ? null : card.getCurrentState();
+            final String key = st == null ? null : st.getImageKey(null);
+            return key != null && !key.isEmpty() && forge.neo.card.CardImages.peek(key) == null
+                    && !forge.neo.card.CardImages.hasImageOnDisk(key);
+        } catch (final RuntimeException e) {
+            return false;
+        }
+    }
+
+    /** Abre el bloque (pulsa su boton) en cuanto este en la escena. */
+    private static void openWhenShown(final VBox box, final javafx.scene.Node scroll,
+                                      final javafx.scene.control.Button toggle, final boolean[] opening) {
+        box.sceneProperty().addListener(new javafx.beans.value.ChangeListener<>() {
+            @Override
+            public void changed(final javafx.beans.value.ObservableValue<? extends javafx.scene.Scene> o,
+                                final javafx.scene.Scene was, final javafx.scene.Scene now) {
+                if (now != null) {
+                    box.sceneProperty().removeListener(this);
+                    if (!scroll.isVisible()) {
+                        if (opening != null) {
+                            opening[0] = true;
+                        }
+                        toggle.fire();
+                        if (opening != null) {
+                            opening[0] = false;
+                        }
+                    }
+                }
+            }
+        });
     }
 
     /** Si hay texto impreso que ofrecer en plano: casi siempre que sí. */
@@ -979,22 +1054,11 @@ public final class CardZoom {
 
         final VBox box = new VBox(6, toggle, scroll);
         box.setAlignment(Pos.TOP_LEFT);
-        if (forge.neo.NeoSettings.getBool(PLAIN_TEXT_OPEN, false)) {
-            // Ya en la escena: el TextFlow con simbolos copia la letra del CSS.
-            box.sceneProperty().addListener(new javafx.beans.value.ChangeListener<>() {
-                @Override
-                public void changed(final javafx.beans.value.ObservableValue<? extends javafx.scene.Scene> o,
-                                    final javafx.scene.Scene was, final javafx.scene.Scene now) {
-                    if (now != null) {
-                        box.sceneProperty().removeListener(this);
-                        if (!scroll.isVisible()) {
-                            opening[0] = true;
-                            toggle.fire();
-                            opening[0] = false;
-                        }
-                    }
-                }
-            });
+        // Abierto si se dejo abierto la ultima vez, o si la carta no tiene
+        // imagen (Discord, 11-11-2026): ya en la escena, que el TextFlow con
+        // simbolos copia la letra del CSS. Abrirlo solo no cambia el ajuste.
+        if (forge.neo.NeoSettings.getBool(PLAIN_TEXT_OPEN, false) || noArt(card)) {
+            openWhenShown(box, scroll, toggle, opening);
         }
         return box;
     }

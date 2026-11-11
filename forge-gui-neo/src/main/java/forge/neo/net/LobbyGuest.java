@@ -70,9 +70,55 @@ public final class LobbyGuest {
         private final AtomicInteger maxLive = new AtomicInteger();
         private final AtomicInteger maxRaw = new AtomicInteger();
 
+        /**
+         * Cuantas veces un delta trae como NUEVA la cara de una carta que ya
+         * existe: {@code NetworkGuiGame.applyDelta} la VACIA
+         * ({@code csv.getProps().clear()}) y la rellena despues. Lo que se
+         * pinte entre medias sale sin nombre ni imagen.
+         */
+        private final AtomicInteger csvClears = new AtomicInteger();
+        /** El paquete con mas objetos "nuevos", y en que fase llego. */
+        private final AtomicInteger maxNew = new AtomicInteger();
+        private volatile String maxNewWhen = "-";
+        /** Jugadores que llegan como "nuevos" ya existiendo: el anfitrion los ha reemplazado. */
+        private final AtomicInteger replacedPlayers = new AtomicInteger();
+
+        private void countCsvClears(final DeltaPacket packet) {
+            final forge.game.GameView gv = getGameView();
+            if (gv == null || gv.getTracker() == null || packet == null) {
+                return;
+            }
+            final int news = packet.getNewObjects().size();
+            if (news > maxNew.get()) {
+                maxNew.set(news);
+                maxNewWhen = gv.getTurn() + "/" + gv.getPhase();
+            }
+            for (final Integer key : packet.getNewObjects().keySet()) {
+                if (DeltaPacket.getTypeFromDeltaKey(key) == DeltaPacket.getTypeFromDeltaKey(
+                        DeltaPacket.makeDeltaKey(gv.getPlayers().iterator().next()))
+                        && gv.getTracker().getObj(forge.trackable.TrackableTypes.PlayerViewType,
+                                DeltaPacket.getIdFromDeltaKey(key)) != null) {
+                    replacedPlayers.incrementAndGet();
+                }
+            }
+            for (final Integer key : packet.getNewObjects().keySet()) {
+                if (DeltaPacket.getTypeFromDeltaKey(key) != DeltaPacket.TYPE_CSV) {
+                    continue;
+                }
+                final int encoded = DeltaPacket.getIdFromDeltaKey(key);
+                final forge.game.card.CardView parent = gv.getTracker().getObj(
+                        forge.trackable.TrackableTypes.CardViewType, encoded / 16);
+                if (parent != null && parent.getCurrentState() != null
+                        && parent.getCurrentState().getState().ordinal() == encoded % 16) {
+                    csvClears.incrementAndGet();
+                }
+            }
+        }
+
         @Override
         public void applyDelta(final DeltaPacket packet) {
             deltas.incrementAndGet();
+            countCsvClears(packet);
             super.applyDelta(packet);
             // Se mide AQUI, con la partida en marcha, y no al final: cuando un
             // jugador pierde se lleva sus cartas fuera de la partida (CR
@@ -80,6 +126,68 @@ public final class LobbyGuest {
             // la medida no diria nada.
             sample(maxLive, liveSeat());
             sample(maxRaw, seatFromOpenView);
+            sampleBlank();
+        }
+
+        /**
+         * CARTAS EN GRIS (Discord, 11-11-2026): el invitado ve permanentes sin
+         * arte ni nombre al declarar ataques, y el anfitrion los ve bien. Se
+         * cuentan aqui, tras cada delta: una carta de la mesa que no esta boca
+         * abajo y cuya cara no trae nombre o imagen es lo que se pinta como un
+         * marco vacio. Y aparte, las boca abajo, por si es el dorso.
+         */
+        private final AtomicInteger maxBlank = new AtomicInteger();
+        private final AtomicInteger maxFaceDown = new AtomicInteger();
+        private final java.util.Set<String> blankSeen =
+                java.util.Collections.synchronizedSet(new java.util.LinkedHashSet<>());
+
+        private void sampleBlank() {
+            final forge.game.GameView gv = getGameView();
+            if (gv == null || gv.getPlayers() == null) {
+                return;
+            }
+            int blank = 0;
+            int down = 0;
+            for (final PlayerView p : gv.getPlayers()) {
+                final Iterable<forge.game.card.CardView> field = p.getBattlefield();
+                if (field == null) {
+                    continue;
+                }
+                for (final forge.game.card.CardView cv : field) {
+                    if (cv == null) {
+                        continue;
+                    }
+                    final forge.game.card.CardView.CardStateView st = cv.getCurrentState();
+                    if (cv.isFaceDown()) {
+                        down++;
+                        if (blankSeen.size() < 12) {
+                            blankSeen.add("abajo:" + cv.getId() + "/" + cv.getName());
+                        }
+                        continue;
+                    }
+                    final boolean noName = st == null || st.getName() == null || st.getName().isEmpty();
+                    // La imagen VISTA DESDE EL INVITADO: sin decir quien mira,
+                    // getImageKey nunca la esconde y la sonda no veia nada.
+                    final PlayerView me = liveSeat();
+                    final String key = st == null ? null
+                            : st.getImageKey(me == null ? null : java.util.List.of(me));
+                    final boolean noImage = key == null || key.isEmpty()
+                            || key.equals(forge.ImageKeys.getTokenKey(forge.ImageKeys.HIDDEN_CARD));
+                    final boolean wrongZone = cv.getZone() != forge.game.zone.ZoneType.Battlefield;
+                    if (noName || noImage || wrongZone) {
+                        blank++;
+                        if (blankSeen.size() < 12) {
+                            blankSeen.add(cv.getId() + "/" + cv.getName() + "/"
+                                    + (st == null ? "sinCara" : st.getState() + (noName ? ",sinNombre" : "")
+                                    + (noImage ? ",sinImagen" : "")
+                                    + (wrongZone ? ",zona=" + cv.getZone() : ""))
+                                    + (cv.isAttacking() ? ",ataca" : ""));
+                        }
+                    }
+                }
+            }
+            maxBlank.accumulateAndGet(blank, Math::max);
+            maxFaceDown.accumulateAndGet(down, Math::max);
         }
 
         private static void sample(final AtomicInteger best, final PlayerView p) {
@@ -229,7 +337,8 @@ public final class LobbyGuest {
             final PlayerView live = gui.liveSeat();
             System.out.printf(Locale.ROOT,
                     "%sok=%s deltas=%d decisiones=%d turnos=%d miMazo=%d miMazoCrudo=%d"
-                            + " miNombre=%s rivalNombre=%s fin=%s finishGame=%s registro=%d motivo=%s%n",
+                            + " miNombre=%s rivalNombre=%s fin=%s finishGame=%s registro=%d"
+                            + " grises=%d bocaAbajo=%d carasVaciadas=%d maxNuevos=%d(%s) jugadoresReemplazados=%d motivo=%s%n",
                     RESULT_PREFIX, ok, gui.deltas.get(), gui.getDecisionCount(), turns,
                     gui.maxLive.get(), gui.maxRaw.get(),
                     forge.neo.match.PlayerName.of(live),
@@ -238,7 +347,12 @@ public final class LobbyGuest {
                     gui.finishGameCalled(),
                     gui.getGameView() == null || gui.getGameView().getGameLog() == null ? -1
                             : gui.getGameView().getGameLog().getAllEntries().size(),
+                    gui.maxBlank.get(), gui.maxFaceDown.get(),
+                    gui.csvClears.get(), gui.maxNew.get(), gui.maxNewWhen, gui.replacedPlayers.get(),
                     why.isEmpty() ? "-" : why);
+            if (!gui.blankSeen.isEmpty()) {
+                System.out.println("[invitado] cartas en gris: " + gui.blankSeen);
+            }
             System.out.flush();
             if (guest != null) {
                 guest.close();

@@ -64,6 +64,7 @@ public final class UpdateCheck {
         textsInEveryLanguage();
         liveIfOnline();
         System.out.println();
+        patchNotes();
         System.out.printf(Locale.ROOT, "  %d bien, %d mal%n", passed, failed);
         if (failed > 0) {
             throw new IllegalStateException(failed + " comprobacion(es) del aviso de version han fallado");
@@ -278,6 +279,33 @@ public final class UpdateCheck {
             return null;
         }
         return p;
+    }
+
+    /** Las notas del parche (PatchNotes): cuando salen y como se dejan en limpio. */
+    private static void patchNotes() {
+        System.out.println("  Notas del parche:");
+        check(PatchNotes.shouldShow("1.0.52", "1.0.51"), "una version mas nueva que la vista: salen");
+        check(!PatchNotes.shouldShow("1.0.52", "1.0.52"), "la misma: no");
+        check(!PatchNotes.shouldShow("1.0.51", "1.0.52"), "una mas vieja (vuelta atras): no");
+        check(!PatchNotes.shouldShow("1.0.52", ""), "sin nada visto (instalacion nueva): no");
+        final String md = String.join("\n",
+                "Neo Forge 1.0.52: the same version.",
+                "",
+                "- **Deck builder**: [Columns](https://x.y) view",
+                "* `code` here",
+                "## Heading",
+                "",
+                "Android: this release works with Obtainium for automatic updates.",
+                "So `releases/latest/download/NeoForge-android.apk` always gets it.");
+        final String plain = PatchNotes.plain(md);
+        check(plain.contains("• Deck builder: Columns view"), "vinetas, negritas y enlaces en limpio: " + plain.lines().skip(2).findFirst().orElse(""));
+        check(plain.contains("• code here") && plain.lines().anyMatch("Heading"::equals),
+                "codigo y titulos sin marcas");
+        check(!plain.contains("Obtainium") && !plain.contains("releases/latest"), "fuera lo de Obtainium y los scripts");
+        check(PatchNotes.body("{\"body\":\"hola\",\"draft\":false}").equals("hola"), "el body de la release");
+        check(PatchNotes.body("{\"body\":\"hola\",\"draft\":true}") == null, "un borrador no cuenta");
+        check(PatchNotes.body("{\"errors\":[]}") == null && PatchNotes.body("no es json") == null,
+                "una respuesta rara no es una nota");
     }
 
     private static void check(final boolean ok, final String what) {

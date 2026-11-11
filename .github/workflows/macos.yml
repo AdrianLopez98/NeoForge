@@ -15,7 +15,7 @@ on:
 env:
   # El commit de Forge sobre el que se ha probado este codigo. Se sube a la vez
   # que se rebasa el arbol de trabajo.
-  FORGE_REF: dd8586c1cc8d6f7e8b6b3b0e831439071f9bc3f5
+  FORGE_REF: f85f7b6717cc28a4f2d57476743ae1241a66cfad
   # La version NO va aqui: mac/empaquetar.sh la lee de <neo.version> del pom.
 
 jobs:

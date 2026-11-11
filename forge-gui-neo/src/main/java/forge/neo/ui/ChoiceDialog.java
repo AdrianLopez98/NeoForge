@@ -138,6 +138,8 @@ public class ChoiceDialog<T> extends VBox implements NumberedChoice {
     static final int SEARCH_FROM = 60;
     /** Cuantas coincidencias se pintan a la vez. */
     static final int SHOWN = 120;
+    /** El boton "Mostrar mas" de la lista: no es una opcion. */
+    private static final String MORE_CLASS = "choice-show-more";
     /**
      * Cuantas se pintan ahora: {@link #SHOWN} y, con "Mostrar mas", otras
      * tantas cada vez (Discord, 30-10-2026: <i>"Leyline of Transformation is
@@ -675,8 +677,15 @@ public class ChoiceDialog<T> extends VBox implements NumberedChoice {
             cn.setSelectable(on);
         }
         updateState();
+        // Todas las opciones a la vista ya marcadas: se esconden para que suban
+        // las siguientes. El boton "Mostrar mas" no es una opcion y no cuenta:
+        // con el, esto no se cumplia NUNCA y pasadas las primeras 120 no se
+        // podia marcar ninguna mas (Discord, 11-11-2026: 684 disparos de Scute
+        // Swarm con Scapeshift, atascado en el dialogo de ordenar).
         if (searchMode && on && selected.size() < allOptions.size()
-                && items.getChildren().stream().allMatch(selected::containsKey)) {
+                && items.getChildren().stream()
+                        .filter(n -> !n.getStyleClass().contains(MORE_CLASS))
+                        .allMatch(selected::containsKey)) {
             hideChosen = true;
             refilter();
         }
@@ -870,7 +879,7 @@ public class ChoiceDialog<T> extends VBox implements NumberedChoice {
             // es donde se busca lo que falta.
             final javafx.scene.control.Button more = new javafx.scene.control.Button(
                     NeoText.get("choice.search.showMore", Math.min(SHOWN, left), left));
-            more.getStyleClass().add("btn-secondary");
+            more.getStyleClass().addAll("btn-secondary", MORE_CLASS);
             more.setMaxWidth(Double.MAX_VALUE);
             more.setOnAction(e -> {
                 pageLimit += SHOWN;

@@ -364,6 +364,11 @@ public class NeoApp extends Application implements SettingsPanel.Host {
         if (snapshotPath == null || System.getProperty("neo.update.fake") != null) {
             forge.neo.update.NeoUpdate.start();
         }
+        // Y las notas del parche, igual: en una captura no se piden (salvo
+        // forzadas con -Dneo.patchnotes.version, que es para capturarlas).
+        if (snapshotPath != null) {
+            forge.neo.ui.MainMenu.skipPatchNotes();
+        }
         // Si se acaba de actualizar desde dentro (o quedo una bajada sin poner),
         // el menu lo dice. Lee un fichero de .neo-update y limpia de fondo.
         // Ver forge.neo.update.SelfUpdate.

@@ -1065,13 +1065,14 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         final PlayerView chosen = attackPlayerFor(card);
         if (chosen != null) {
             lastClicked = card;
-            respondLater(() -> {
-                // Revalidate when the queued input runs: a phase/turn may have changed.
-                if (!chosen.equals(attackPlayerFor(card))) return;
-                getGameController().selectPlayer(chosen, null);
-                if (!isHighlighted(chosen)) return; // engine rejected this defender
-                getGameController().selectCard(card, null, null);
-            });
+            // Revalidate when the queued input runs: a phase/turn may have changed.
+            respondInTwoSteps(() -> {
+                if (chosen.equals(attackPlayerFor(card))) {
+                    getGameController().selectPlayer(chosen, null);
+                }
+            }, () -> chosen.equals(attackPlayerFor(card))
+                    && isHighlighted(chosen), // engine rejected this defender
+                    () -> getGameController().selectCard(card, null, null));
             return;
         }
 
@@ -1110,9 +1111,11 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         final CardView blocked = attackerToSelectFirst(card);
         if (blocked != null) {
             clickTrace(card, "quitar bloqueo");
-            respondLater(() -> getGameController().selectCard(blocked, null, null));
             lastClicked = card;
-            respondLater(() -> getGameController().selectCard(card, null, null));
+            // Dos ordenes: en red, la segunda espera a la respuesta de la primera.
+            respondInTwoSteps(() -> getGameController().selectCard(blocked, null, null),
+                    () -> true,
+                    () -> getGameController().selectCard(card, null, null));
             return;
         }
 
@@ -2310,18 +2313,14 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         }
         if (target instanceof PlayerView player) {
             rememberAttackPlayer(player);
-            respondLater(() -> {
-                getGameController().selectPlayer(player, null);
-                if (attacking && !isHighlighted(player)) return;
-                getGameController().selectCard(source, null, null);
-            });
+            respondInTwoSteps(() -> getGameController().selectPlayer(player, null),
+                    () -> !attacking || isHighlighted(player),
+                    () -> getGameController().selectCard(source, null, null));
         } else if (target instanceof CardView card && card.getId() != source.getId()) {
             if (isDeclaringAttackers()) chosenAttackPlayer = null;
-            respondLater(() -> {
-                getGameController().selectCard(card, null, null);
-                if (attacking && !isHighlighted(card)) return;
-                getGameController().selectCard(source, null, null);
-            });
+            respondInTwoSteps(() -> getGameController().selectCard(card, null, null),
+                    () -> !attacking || isHighlighted(card),
+                    () -> getGameController().selectCard(source, null, null));
         }
     }
 
@@ -4189,7 +4188,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
      * Decide el motor al clicar (ZoneViewer.letTry; Discord, 31-10-2026).
      */
     public boolean mayTryOutside(final CardView card) {
-        if (card == null || !interactive() || finished.get() || card.isFaceDown()) {
+        if (card == null || !interactive() || finished.get()) {
             return false;
         }
         final forge.game.zone.ZoneType zone = card.getZone();
@@ -4197,6 +4196,20 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             return false;
         }
         final PlayerView me = localPlayer();
+        // LO QUE EL MOTOR DICE QUE PUEDES JUGAR desde fuera, aunque sea del rival
+        // y este boca abajo: lo robado por Gonti o Black Cat (Discord,
+        // 11-11-2026: «al clicarla no pasaba nada»). La lista es la del motor,
+        // asi que no se deja intentar nada que no te haya dado permiso.
+        if (me != null && me.getFlashback() != null) {
+            for (final CardView cv : me.getFlashback()) {
+                if (cv != null && cv.getId() == card.getId()) {
+                    return true;
+                }
+            }
+        }
+        if (card.isFaceDown()) {
+            return false;
+        }
         final boolean mine = me != null && card.getOwner() != null && card.getOwner().getId() == me.getId();
         if (mine && !isPlayableOutside(card)) {
             explainNotPlayable(card, me);
@@ -4625,6 +4638,15 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         // (itch.io, 27-10-2026). Ver CircledColors.
         if (ending != Ending.REPLAY && getGameView() != null) {
             CircledColors.watch(getGameView().getGame());
+            // La IA atascada pensando (Discord, 11-11-2026, Teval): se apunta
+            // en que se queda y se avisa en la mesa. Ver AiStallWatch.
+            final forge.game.Game watched = getGameView().getGame();
+            final forge.neo.ui.TableScreen t = table;
+            AiStallWatch.watch(() -> AiStallWatch.gameLine(watched), report -> {
+                if (t != null) {
+                    uiRunLater(() -> t.showNotice(NeoText.get("match.aiStalled")));
+                }
+            });
         }
         // En una mesa de cuatro de Ascenso, si caes se acaba la partida: Forge
         // la seguiria entre las IA. Ver AscentTableEnd. Y en las de la Quest
@@ -4930,6 +4952,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
     public void afterGameEnd() {
         super.afterGameEnd();
         finished.set(true);
+        AiStallWatch.stop();
         // La marca se pone SIEMPRE, aunque nadie escuche: es tambien lo que
         // mira el vigilante de "salir" para saber si la partida se cerro de
         // verdad.
@@ -6399,6 +6422,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
     @Override
     public void updateButtons(final PlayerView owner, final String okLabel, final String cancelLabel,
                               final boolean okEnabled, final boolean cancelEnabled, final boolean focusOk) {
+        hostReplies.incrementAndGet();
         if (isReplay()) {
             replayButtons(okLabel, cancelLabel, okEnabled, cancelEnabled);
             return;
@@ -6451,14 +6475,15 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                 pendingBlocker = null;
                 pendingBlockAttacker = null;
                 lastClicked = blockWith;
-                respondLater(() -> {
-                    // Primero el atacante (InputBlock lo hace "el actual"),
-                    // luego el bloqueador: el mismo orden que el arrastre.
-                    if (against != null) {
-                        getGameController().selectCard(against, null, null);
-                    }
-                    getGameController().selectCard(blockWith, null, null);
-                });
+                // Primero el atacante (InputBlock lo hace "el actual"),
+                // luego el bloqueador: el mismo orden que el arrastre.
+                if (against != null) {
+                    respondInTwoSteps(() -> getGameController().selectCard(against, null, null),
+                            () -> true,
+                            () -> getGameController().selectCard(blockWith, null, null));
+                } else {
+                    respondLater(() -> getGameController().selectCard(blockWith, null, null));
+                }
             } else if (pruneView != null && pruneView.getPhase() != PhaseType.COMBAT_DECLARE_ATTACKERS
                     && pruneView.getPhase() != PhaseType.COMBAT_DECLARE_BLOCKERS) {
                 pendingBlocker = null;
@@ -7493,6 +7518,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
      */
     @Override
     public void setSelection(final forge.gamemodes.match.Selection selection) {
+        hostReplies.incrementAndGet();
         final forge.gamemodes.match.Selection prev = getSelection();
         super.setSelection(selection);
         actionableChanged();
@@ -7924,6 +7950,67 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
      */
     /** Cuantas respuestas han reventado en el motor en esta partida (para el registro). */
     private final AtomicInteger droppedResponses = new AtomicInteger();
+
+    /** Cuantas veces ha contestado el motor (botones o seleccion): ver {@link #respondInTwoSteps}. */
+    private final java.util.concurrent.atomic.AtomicInteger hostReplies = new java.util.concurrent.atomic.AtomicInteger();
+
+    /**
+     * DOS ORDENES SEGUIDAS AL MOTOR (elegir a quien atacas y luego la criatura;
+     * el atacante y luego el bloqueador). En local van una detras de otra, como
+     * siempre.
+     *
+     * <p><b>Como invitado en red, la segunda espera a que el anfitrion conteste
+     * a la primera</b> (Discord, 11-11-2026, con los registros de los dos: cartas
+     * grises y flechas de ataque que no salian al declarar ataques en red). El
+     * anfitrion atiende cada orden del invitado en un hilo de fondo
+     * ({@code GameProtocolHandler} → {@code FThreads.invokeInBackgroundThread}),
+     * asi que dos mandadas con 1 ms de diferencia corrian A LA VEZ: las dos
+     * sincronizaban la mesa con el invitado al mismo tiempo, el registro de "lo
+     * que ya tiene" reventaba ({@code ConcurrentModificationException} en
+     * {@code DeltaSyncManager.collectDeltas}, 46 veces en una partida) y el
+     * siguiente envio le mandaba la partida entera como nueva: cartas en gris
+     * mientras se rellenaban, sumas de control que no cuadraban y la partida
+     * entera pedida otra vez. Y {@code stillWanted} (el brillo del defensor) se
+     * miraba antes de que el anfitrion lo hubiera puesto, asi que a veces la
+     * segunda ni se mandaba: la flecha que no salia.
+     */
+    private void respondInTwoSteps(final Runnable first, final java.util.function.BooleanSupplier stillWanted,
+                                   final Runnable second) {
+        if (!isNetGuest()) {
+            respondLater(() -> {
+                first.run();
+                if (stillWanted.getAsBoolean()) {
+                    second.run();
+                }
+            });
+            return;
+        }
+        respondLater(() -> {
+            final int before = hostReplies.get();
+            first.run();
+            final Thread wait = new Thread(() -> {
+                final long until = System.currentTimeMillis() + 1500;
+                try {
+                    while (hostReplies.get() == before && System.currentTimeMillis() < until) {
+                        Thread.sleep(20);
+                    }
+                    // Lo que el anfitrion manda detras (la seleccion, el combate)
+                    // llega en el mismo instante: un respiro para que entre todo.
+                    Thread.sleep(120);
+                } catch (final InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+                respondLater(() -> {
+                    if (stillWanted.getAsBoolean()) {
+                        second.run();
+                    }
+                });
+            }, "neo-two-steps");
+            wait.setDaemon(true);
+            wait.start();
+        });
+    }
 
     private void respondLater(final Runnable action) {
         decisions.incrementAndGet();

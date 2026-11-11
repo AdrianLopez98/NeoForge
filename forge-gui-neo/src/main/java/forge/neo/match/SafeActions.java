@@ -455,12 +455,16 @@ public final class SafeActions {
             // Y el cuarto: lo que solo se paga filtrando mana (Prophetic Prism,
             // Conduit Pylons), que la IA tampoco sabe contar (FilterCast).
             final List<CardView> filtered = tap == null ? List.of() : FilterCast.evaluate(getPlayer());
-            if (filtered.isEmpty()) {
+            // Y el quinto: lo robado con "mana de cualquier tipo" (Gonti, Black
+            // Cat), que la IA solo aplica al mana que ya flota (AnyTypeMana).
+            final List<CardView> anyType = tap == null ? List.of() : AnyTypeMana.evaluate(getPlayer());
+            if (filtered.isEmpty() && anyType.isEmpty()) {
                 overlooked = tap == null ? List.of() : tap.cards();
             } else {
-                final java.util.LinkedHashSet<CardView> both = new java.util.LinkedHashSet<>(tap.cards());
-                both.addAll(filtered);
-                overlooked = List.copyOf(both);
+                final java.util.LinkedHashSet<CardView> all = new java.util.LinkedHashSet<>(tap.cards());
+                all.addAll(filtered);
+                all.addAll(anyType);
+                overlooked = List.copyOf(all);
             }
             hiddenMana = "true".equalsIgnoreCase(autoPass)
                     && (HiddenMana.evaluate(getPlayer()).holds()
@@ -468,7 +472,8 @@ public final class SafeActions {
                         // Y la rebaja que depende del objetivo (Not of This World).
                         || TargetedRebate.evaluate(getPlayer()).holds()
                         || (tap != null && tap.holds())
-                        || !filtered.isEmpty());
+                        || !filtered.isEmpty()
+                        || !anyType.isEmpty());
             try {
                 return super.chooseSpellAbilityToPlay();
             } catch (final RuntimeException e) {
