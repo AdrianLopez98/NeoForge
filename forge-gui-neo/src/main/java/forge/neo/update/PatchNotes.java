@@ -56,6 +56,27 @@ public final class PatchNotes {
     }
 
     /**
+     * Si al arrancar toca ensenyar las notas de {@code current}: la misma regla
+     * en PC y en Android. Sin marca de vistas, salen salvo en la primerisima vez
+     * (quien juega desde antes de que existieran las notas no tiene marca, y si
+     * le tocan); un jugador nuevo las tiene marcadas por el tutorial
+     * ({@code NeoTutorial.markSeen}).
+     */
+    public static boolean due(final String current) {
+        final String seen = forge.neo.NeoSettings.get(SEEN_KEY, "");
+        if (seen.isBlank()) {
+            return !forge.neo.tutorial.NeoTutorial.isFirstRun();
+        }
+        return shouldShow(current, seen);
+    }
+
+    /** Las notas de {@code version} ya se han ensenyado. */
+    public static void markSeen(final String version) {
+        forge.neo.NeoSettings.set(SEEN_KEY, version);
+        forge.neo.NeoSettings.save();
+    }
+
+    /**
      * Pide las notas de {@code version} en un hilo aparte y avisa con el texto
      * ya en limpio, o con null si no se han podido leer (sin red, sin release,
      * GitHub ocupado, respuesta rara). Nunca lanza.

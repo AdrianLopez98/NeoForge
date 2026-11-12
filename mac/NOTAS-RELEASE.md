@@ -1,14 +1,9 @@
-**NeoForge para macOS 1.0.52 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.53 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Las novedades al abrir una versión nueva**, con un botón para apoyar el proyecto en Ko-fi.
-- **Partida en red: se acabaron las cartas grises** y las flechas de ataque que no salían al atacar como invitado.
-- **Lo robado con Gonti o Black Cat brilla** cuando llega el maná, sea del color que sea.
-- **El spellbook de las cartas de Arena** (Dragon Typhoon, Tovolar…) a la vista al ampliarlas.
-- **Ordenar cientos de disparos** ya no se atasca en 120.
-- **Si la IA se atasca pensando**, se apunta en qué para poder arreglarlo.
-- Sin imagen, el texto de la carta sale abierto al ampliarla; y las palabras clave con el nombre de la carta.
-- Al día con Forge.
+- **Filtrar comandantes por color, como en Arena** (Ascenso y Quest): marca verde y salen todos los que llevan verde, los monoverdes primero.
+- **Cuántos colores, de tanto a tanto**: 2–3, solo incoloros, nunca cinco… Y «Que elija el juego» sortea entre los que dejan los filtros de color.
+- Al día con Forge: cartas corregidas y los efectos de bioma y de plano de la Aventura.
 
 Descarga el `.dmg` de tu Mac:
 

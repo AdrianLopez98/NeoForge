@@ -251,8 +251,17 @@ public class QuestSetupScreen extends BorderPane {
             } else if (fromCommander) {
                 // "Al azar" se sortea aqui, del mismo pozo que ensenya la
                 // rejilla: asi el que llama recibe siempre un comandante.
-                final PaperCard cmd = commander != null ? commander
-                        : AscentSeedDeck.randomCommander(pool);
+                // Con filtros de color, de los que dejan (Discord, 12-11-2026).
+                PaperCard cmd = commander;
+                if (cmd == null) {
+                    if (allCommanders == null) {
+                        allCommanders = AscentSeedDeck.commanderPool(pool);
+                    }
+                    cmd = colourFilter.pickRandom(allCommanders);
+                }
+                if (cmd == null) {
+                    cmd = AscentSeedDeck.randomCommander(pool);
+                }
                 // Montar el mazo tarda un momento (la primera vez carga la
                 // matriz): que se vea que ha pillado el clic, y que no se
                 // pueda tocar nada mas — start() ya se ha llevado los valores,
@@ -736,7 +745,9 @@ public class QuestSetupScreen extends BorderPane {
         if (fromColours) {
             chosen.setText(NeoText.get("questNew.chosenColours", AscentSetupScreen.coloursCaption(colours)));
         } else if (fromCommander) {
-            chosen.setText(commander == null ? NeoText.get("questNew.chosenCommanderRandom")
+            chosen.setText(commander == null && colourFilter.active() && allCommanders != null
+                    ? NeoText.get("ascent.setup.chosenRandomColours", colourFilter.apply(allCommanders).size())
+                    : commander == null ? NeoText.get("questNew.chosenCommanderRandom")
                     : NeoText.get("questNew.chosenCommander",
                             forge.neo.card.CardText.nameOf(commander)));
         } else {
@@ -882,6 +893,9 @@ public class QuestSetupScreen extends BorderPane {
 
         final HBox tools = new HBox(10, cmdSearch, random, cmdFavorites);
         tools.setAlignment(Pos.CENTER_LEFT);
+        // Los filtros de color, los mismos que en Ascenso (Discord, 12-11-2026).
+        colourRow.setAlignment(Pos.CENTER_LEFT);
+        colourRow.getChildren().setAll(colourFilter.build());
 
         final Label hint = new Label(NeoText.get("questNew.cmdHint"));
         hint.getStyleClass().add("home-subtitle");
@@ -897,8 +911,19 @@ public class QuestSetupScreen extends BorderPane {
         sp.setPrefHeight(cardWidth * 0.85 * 1.4 * 2 + UiScale.px(40));
         cmdPager.fitTo(sp, cmdGrid, cardWidth * 0.85, cardWidth * 0.85 * 1.4, 4);
 
-        return new VBox(8, tools, hint, sp, cmdPager);
+        return new VBox(8, tools, colourRow, hint, sp, cmdPager);
     }
+
+    /**
+     * Que colores y cuantos (Discord, 12-11-2026), como en Ascenso: ver
+     * CommanderColourFilter. "Al azar" sortea entre los que deja.
+     */
+    private final HBox colourRow = new HBox();
+    private final CommanderColourFilter colourFilter = new CommanderColourFilter("home-subtitle", () -> {
+        colourRow.getChildren().setAll(this.colourFilter.build());
+        reloadCommanders();
+        syncChosen();
+    });
 
     /** "Solo favoritos" en el selector de comandante. */
     private boolean onlyFavorites;
@@ -921,8 +946,9 @@ public class QuestSetupScreen extends BorderPane {
         final String q = cmdSearch.getText() == null ? ""
                 : cmdSearch.getText().trim().toLowerCase(Locale.ROOT);
         cmdFiltered = new ArrayList<>();
-        final List<PaperCard> base = onlyFavorites ? forge.neo.ascent.AscentFavorites.only(allCommanders)
-                : forge.neo.ascent.AscentFavorites.favoritesFirst(allCommanders);
+        final List<PaperCard> base = colourFilter.apply(onlyFavorites
+                ? forge.neo.ascent.AscentFavorites.only(allCommanders)
+                : forge.neo.ascent.AscentFavorites.favoritesFirst(allCommanders));
         for (final PaperCard c : base) {
             // Por el nombre en ingles y por el traducido.
             if (q.isEmpty() || c.getName().toLowerCase(Locale.ROOT).contains(q)

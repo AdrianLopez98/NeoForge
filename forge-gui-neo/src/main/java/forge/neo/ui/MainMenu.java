@@ -777,14 +777,9 @@ public class MainMenu extends BorderPane {
         patchNotesChecked = true;
         final String forced = System.getProperty("neo.patchnotes.version");
         final String current = forced != null ? forced : forge.neo.NeoVersion.neoVersion();
-        final String seen = forge.neo.NeoSettings.get(forge.neo.update.PatchNotes.SEEN_KEY, "");
-        if (forced == null) {
-            if (seen.isBlank() && forge.neo.tutorial.NeoTutorial.isFirstRun()) {
-                return; // el tutorial lo apuntara
-            }
-            if (!seen.isBlank() && !forge.neo.update.PatchNotes.shouldShow(current, seen)) {
-                return;
-            }
+        // La regla, la misma que Android: PatchNotes.due.
+        if (forced == null && !forge.neo.update.PatchNotes.due(current)) {
+            return;
         }
         forge.neo.update.PatchNotes.fetch(current, notes -> {
             if (notes != null) {
@@ -802,8 +797,7 @@ public class MainMenu extends BorderPane {
         final javafx.scene.layout.StackPane shade = new javafx.scene.layout.StackPane();
         final Runnable done = () -> {
             getChildren().remove(shade);
-            forge.neo.NeoSettings.set(forge.neo.update.PatchNotes.SEEN_KEY, version);
-            forge.neo.NeoSettings.save();
+            forge.neo.update.PatchNotes.markSeen(version);
         };
         final ConfirmDialog dialog = new ConfirmDialog(
                 NeoText.get("update.notes.title", version),

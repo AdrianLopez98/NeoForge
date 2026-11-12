@@ -404,7 +404,13 @@ public class AscentSetupScreen extends StackPane {
             actions.startDraft(AscentSeed.fresh(mode, ascension, AscentSeedDeck.NO_COLOURS, null, pool())
                     .withDraft(true));
         } else if (seedSource == SeedSource.RANDOM) {
-            actions.start(mode, commander, commander == null ? null : partner, ascension, colours, pool(),
+            // "Que elija el juego" con filtros de color: uno de los que dejan
+            // (Discord, 12-11-2026). Sin filtros, como siempre: lo sortea la run.
+            PaperCard picked = commander;
+            if (picked == null && mode == AscentRun.Mode.COMMANDER) {
+                picked = colourFilter.pickRandom(commanders());
+            }
+            actions.start(mode, picked, commander == null ? null : partner, ascension, colours, pool(),
                     mode == AscentRun.Mode.COMMANDER && melee);
         } else {
             final AscentSeed.Recipe r = recipe();
@@ -1017,8 +1023,14 @@ public class AscentSetupScreen extends StackPane {
         // Eligiendo companero, "al azar" y "favoritos" son de los comandantes:
         // fuera, que no se mezclen las dos preguntas.
         final HBox tools = pickingPartner ? new HBox(12, field)
-                : new HBox(12, field, random, favorites, tuned);
+                : new HBox(12, field, colourFilter.build(), random, favorites, tuned);
         tools.setAlignment(Pos.CENTER);
+        // Con las pastillas la fila es mas larga: si no cabe, encoge el
+        // buscador, no los botones (que salian cortados: «Favori...»).
+        field.setMinWidth(UiScale.px(150));
+        for (final Button b : new Button[] {random, favorites, tuned}) {
+            b.setMinWidth(Region.USE_PREF_SIZE);
+        }
 
         grid.getChildren().clear();
         grid.setAlignment(Pos.CENTER);
@@ -1027,7 +1039,9 @@ public class AscentSetupScreen extends StackPane {
         // Lo que esta elegido, por escrito: el cerco no se ve si pasas de
         // pagina o buscas otra cosa, y esto si.
         final Label chosen = new Label(commander == null
-                ? NeoText.get("ascent.setup.chosenRandom")
+                ? colourFilter.active()
+                        ? NeoText.get("ascent.setup.chosenRandomColours", colourFilter.apply(commanders()).size())
+                        : NeoText.get("ascent.setup.chosenRandom")
                 : partner == null
                 ? NeoText.get("ascent.setup.chosen", forge.neo.card.CardText.nameOf(commander))
                 : NeoText.get("ascent.setup.chosenPair", forge.neo.card.CardText.nameOf(commander),
@@ -1112,6 +1126,15 @@ public class AscentSetupScreen extends StackPane {
     /** El filtro de "solo favoritos" del selector de comandante. */
     private boolean onlyFavorites = Boolean.getBoolean("neo.ascent.onlyFavorites");
 
+    /**
+     * Los filtros de color del selector (Discord, 12-11-2026): que colores y
+     * cuantos. Compartido con la Quest: ver CommanderColourFilter.
+     */
+    private final CommanderColourFilter colourFilter = new CommanderColourFilter("ascent-info-title", () -> {
+        page = 0;
+        rebuild();
+    });
+
     /** El filtro de "con mazo montado": solo los que conoce la matriz de Forge. */
     private boolean onlyTuned = Boolean.getBoolean("neo.ascent.onlyTuned");
 
@@ -1179,6 +1202,12 @@ public class AscentSetupScreen extends StackPane {
                 : forge.neo.ascent.AscentFavorites.favoritesFirst(commanders());
         if (onlyTuned && !pickingPartner) {
             all = forge.neo.ascent.AscentSynergy.knownOnly(all);
+        }
+        // El filtro de color, como Arena (Discord, 12-11-2026): los que llevan
+        // esos colores, primero los de justo esos, y cuantos. Orden estable:
+        // los favoritos siguen delante dentro de cada grupo.
+        if (!pickingPartner) {
+            all = colourFilter.apply(all);
         }
         if (search == null || search.isBlank()) {
             return all;

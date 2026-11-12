@@ -53,6 +53,75 @@ public final class CommanderSearch {
     private static final Pattern MARKS = Pattern.compile("\\p{M}+");
     private static final Pattern SPACES = Pattern.compile("\\s+");
 
+    /** Sin filtro de identidad: todas. Ver {@link #identityMatches}. */
+    public static final int ANY_IDENTITY = -1;
+
+    /**
+     * FILTRO DE COLOR COMO EL DE ARENA (Discord, 12-11-2026: «any easy way to
+     * search for mono color commanders?»; el buscador de palabras sacaba los de
+     * varios colores que llevan «green» en el texto). Marcar verde da TODOS los
+     * que llevan verde en su identidad, y {@link #identityExtra} los ordena:
+     * primero los monoverdes, luego los que anyaden un color, etc. (Ana: un
+     * filtro de verde no puede esconder un verde-blanco). Verde y blanco: los
+     * Selesnya primero y luego los que anyaden mas. {@code 0} = incoloros (solo
+     * ellos); {@link #ANY_IDENTITY} = todos. Lo usan el PC y Android.
+     */
+    public static boolean identityMatches(final PaperCard card, final int identity) {
+        if (identity == ANY_IDENTITY) {
+            return true;
+        }
+        if (card == null || card.getRules() == null) {
+            return false;
+        }
+        final int id = card.getRules().getColorIdentity().getColor() & 0x1F;
+        return identity == 0 ? id == 0 : (id & identity) == identity;
+    }
+
+    /**
+     * Cuantos colores tiene la carta de MAS sobre los marcados: 0 = justo esos
+     * (van primero). Para ordenar de forma estable lo que deja
+     * {@link #identityMatches}.
+     */
+    public static int identityExtra(final PaperCard card, final int identity) {
+        if (identity == ANY_IDENTITY || card == null || card.getRules() == null) {
+            return 0;
+        }
+        final int id = card.getRules().getColorIdentity().getColor() & 0x1F;
+        return Integer.bitCount(id) - Integer.bitCount(identity & 0x1F);
+    }
+
+    /**
+     * CUANTOS COLORES, DE {@code min} A {@code max} (Discord, 12-11-2026: «maybe
+     * I am in the mood for 2 or 3 colors ... maybe I hate five color»). Cuenta
+     * los de la identidad: incoloro = 0. {@code 0..5} = todos.
+     */
+    public static boolean colourCountIn(final PaperCard card, final int min, final int max) {
+        if (min <= 0 && max >= 5) {
+            return true;
+        }
+        if (card == null || card.getRules() == null) {
+            return false;
+        }
+        final int n = Integer.bitCount(card.getRules().getColorIdentity().getColor() & 0x1F);
+        return n >= min && n <= max;
+    }
+
+    /**
+     * Pulsar una pastilla de identidad: {@code colour} es uno de los cinco
+     * colores, o {@code 0} para incoloro (que no se mezcla con los colores).
+     * Quitar la ultima vuelve a {@link #ANY_IDENTITY}.
+     */
+    public static int toggleIdentity(final int current, final int colour) {
+        if (colour == 0) {
+            return current == 0 ? ANY_IDENTITY : 0;
+        }
+        if (current == ANY_IDENTITY || current == 0) {
+            return colour;
+        }
+        final int next = current ^ colour;
+        return next == 0 ? ANY_IDENTITY : next;
+    }
+
     /** Si la carta casa con lo buscado. Sin nada escrito, todas. */
     public static boolean matches(final PaperCard card, final String query) {
         if (card == null) {
