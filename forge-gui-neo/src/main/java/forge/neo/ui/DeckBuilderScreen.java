@@ -3432,7 +3432,10 @@ public class DeckBuilderScreen extends StackPane {
         // mainCommander() y no !cmd.isEmpty(): en Oathbreaker la zona puede
         // tener solo el hechizo, y generar el mazo "para" un instantaneo no
         // sale de ningun sitio.
-        final boolean canGenerate = editor.usesCommander() && editor.mainCommander() != null;
+        // Y nunca en limitado (Commander Draft): genera con TODAS las cartas,
+        // y ahi el mazo se monta con lo draftado.
+        final boolean canGenerate = editor.usesCommander() && editor.mainCommander() != null
+                && !editor.getFormat().poolInSideboard();
         generate.setVisible(canGenerate);
         generate.setManaged(canGenerate);
         if (cmd.isEmpty()) {

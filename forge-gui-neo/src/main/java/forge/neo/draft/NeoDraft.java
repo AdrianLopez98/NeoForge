@@ -435,6 +435,17 @@ public final class NeoDraft implements PackSource {
                 mine.getMain().add(card, 1);
             }
         }
+        // COMMANDER DRAFT, como Forge (CEditorDraftingProcess): los sobres de
+        // Commander Legends y compania ya se draftean "de dos en dos" y los
+        // rivales montan mazo de Commander; el humano lleva la marca y su
+        // comandante gratis, que es lo que lee DraftDeckContext y la partida.
+        if (draft instanceof forge.gamemodes.limited.BoosterDraft bd && bd.isCommanderDraft()) {
+            mine.getTags().add(CommanderDraft.TAG);
+            final String free = bd.getFreeCommanderName();
+            if (free != null && !free.isEmpty()) {
+                mine.getTags().add(CommanderDraft.FREE_TAG + free);
+            }
+        }
         final DeckGroup group = new DeckGroup(name);
         group.setHumanDeck(mine);
         group.addAiDecks(ai);

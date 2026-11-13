@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import forge.game.card.CardView;
-import forge.gamemodes.limited.CardRanker;
 import forge.item.PaperCard;
 import forge.neo.NeoSettings;
 import forge.neo.card.CardNode;
@@ -128,6 +127,16 @@ public class DraftScreen extends BorderPane {
         pack.setHgap(12);
         pack.setVgap(12);
         pack.setPadding(new Insets(6, 20, 6, 20));
+        // ⚠️ El hueco del sobre lo da la VENTANA, no sus cartas (13-11-2026).
+        // layoutChildren mide las cartas con el alto de esta rejilla, y una
+        // GridPane mide de minimo y de maximo lo que piden sus cartas: el alto
+        // salia de las cartas y las cartas del alto. En cuanto alguien le daba
+        // mas sitio una vez (la capa de la carta ampliada, o abrir a 1080p o 2K)
+        // crecian, la rejilla con ellas y ya no volvian: sin cabecera, sin la
+        // tira de lo cogido y la tercera fila cortada. Con minimo 0 y maximo
+        // sin tope ocupa siempre el hueco que queda, y las cartas se ajustan.
+        pack.setMinSize(0, 0);
+        pack.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
 
         // En red hay ratos SIN sobre en la mano — el de al lado esta pensando y
         // su sobre todavia no ha llegado. Una rejilla vacia y muda es
@@ -141,7 +150,9 @@ public class DraftScreen extends BorderPane {
         waitingBox.setAlignment(Pos.CENTER);
         waitingBox.setVisible(false);
         waitingBox.setMouseTransparent(true);
-        setCenter(new javafx.scene.layout.StackPane(pack, waitingBox));
+        final javafx.scene.layout.StackPane center = new javafx.scene.layout.StackPane(pack, waitingBox);
+        center.setMinSize(0, 0);
+        setCenter(center);
 
         detail = new CardDetailPanel(cardWidth * 1.9);
         setRight(detail);
@@ -158,11 +169,11 @@ public class DraftScreen extends BorderPane {
         pickedStrip.getChildren().setAll(deckBox, sideBox);
         pickedStrip.setAlignment(Pos.CENTER_LEFT);
         pickedStrip.setPadding(new Insets(4, 10, 4, 10));
-        final ScrollPane pickedScroll = new ScrollPane(pickedStrip);
+        pickedScroll = new ScrollPane(pickedStrip);
         pickedScroll.getStyleClass().add("dialog-scroll");
         pickedScroll.setFitToHeight(true);
         pickedScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        pickedScroll.setPrefHeight(cardWidth * CardNode.ASPECT * 0.62 + 40);
+        pickedScroll.setPrefHeight(stripHeight());
 
         pickedLabel.getStyleClass().add("caption");
         stats.getStyleClass().add("caption");
@@ -204,19 +215,74 @@ public class DraftScreen extends BorderPane {
      * proporciones a ojo, en una pantalla ancha las cartas salen ridiculas y en
      * una estrecha se salen.
      */
+    /** La tira de lo cogido (mazo y banquillo). */
+    private ScrollPane pickedScroll;
+
+    /** El alto de la ventana con el que se midio la tira por ultima vez. */
+    private double stripFor = -1;
+
+    /**
+     * El alto de la tira: sus cartitas (0,62 de la carta) mas los rotulos, con
+     * TOPE en un quinto de la ventana. La carta base crece con el ANCHO de la
+     * pantalla y no con el alto: a 2K o 4K la tira se comia media pantalla y el
+     * sobre, apretado en lo que quedaba, se montaba encima de la cabecera.
+     */
+    private double stripHeight() {
+        final double wanted = baseCardWidth * CardNode.ASPECT * 0.62 + 40;
+        final double h = getHeight();
+        return h > 0 ? Math.min(wanted, h * 0.20) : wanted;
+    }
+
+    /** El ancho de las cartitas de la tira, para que quepan en su alto. */
+    private double miniWidth() {
+        return Math.max(24, Math.min(baseCardWidth * 0.62, (stripHeight() - 40) / CardNode.ASPECT));
+    }
+
     @Override
     protected void layoutChildren() {
+        if (pickedScroll != null && getHeight() > 0 && Math.abs(getHeight() - stripFor) >= 1) {
+            final double before = miniWidth();
+            stripFor = getHeight();
+            pickedScroll.setPrefHeight(stripHeight());
+            if (Math.abs(miniWidth() - before) >= 1) {
+                refreshPicked();
+            }
+        }
         super.layoutChildren();
-        final double h = pack.getHeight() - pack.getPadding().getTop()
-                - pack.getPadding().getBottom() - VGAP * (ROWS - 1);
-        final double w = pack.getWidth() - pack.getPadding().getLeft()
-                - pack.getPadding().getRight() - HGAP * (COLUMNS - 1);
+        final double h = pack.getHeight() - pack.getPadding().getTop() - pack.getPadding().getBottom();
+        final double w = pack.getWidth() - pack.getPadding().getLeft() - pack.getPadding().getRight();
         if (h <= 0 || w <= 0) {
             return;
         }
-        final double target = Math.max(64, Math.min(baseCardWidth * 1.9,
-                Math.min(h / ROWS / CardNode.ASPECT, w / COLUMNS)));
+        // CUANTAS COLUMNAS: las que dejen la carta mas grande en el hueco que
+        // hay (Ana, 13-11-2026: «alarga las filas, queda ancho sin usar»).
+        // Con cinco fijas, en una pantalla ancha sobraba media mesa a los lados.
+        // Las cartas a contar son las del sobre entero de la ronda, para que no
+        // cambie la rejilla pick a pick.
+        final int cards = Math.max(Math.max(pack.getChildren().size(), biggestPack), 1);
+        int bestCols = columns;
+        double best = -1;
+        for (int cols = MIN_COLUMNS; cols <= MAX_COLUMNS; cols++) {
+            final int rows = Math.max(1, (cards + cols - 1) / cols);
+            final double byWidth = (w - HGAP * (cols - 1)) / cols;
+            final double byHeight = (h - VGAP * (rows - 1)) / rows / CardNode.ASPECT;
+            final double size = Math.min(byWidth, byHeight);
+            if (size > best + 0.5) {
+                best = size;
+                bestCols = cols;
+            }
+        }
+        if (bestCols != columns) {
+            columns = bestCols;
+            int i = 0;
+            for (final javafx.scene.Node n : pack.getChildren()) {
+                GridPane.setConstraints(n, i % columns, i / columns);
+                i++;
+            }
+        }
+        final double target = Math.max(64, Math.min(baseCardWidth * 1.9, best));
         if (Math.abs(target - packCardWidth) < 1) {
+            super.layoutChildren();
             return;
         }
         packCardWidth = target;
@@ -226,7 +292,14 @@ public class DraftScreen extends BorderPane {
         super.layoutChildren();
     }
 
-    private static final int ROWS = 3;
+    /**
+     * El sobre mas grande de esta ronda: la rejilla se mide con el, no con lo
+     * que queda (si no, las cartas crecerian pick a pick). Y el de Commander
+     * Legends trae 20 cartas: con tres filas fijas la cuarta se salia por
+     * arriba (13-11-2026).
+     */
+    private int biggestPack;
+    private int biggestPackRound = -1;
     private static final double HGAP = 12;
     private static final double VGAP = 12;
 
@@ -287,6 +360,11 @@ public class DraftScreen extends BorderPane {
                 draft.round(), draft.pickNumber(), draft.cardsLeft(), draft.packs()));
 
         pack.getChildren().clear();
+        if (draft.round() != biggestPackRound) {
+            biggestPackRound = draft.round();
+            biggestPack = 0;
+        }
+        biggestPack = Math.max(biggestPack, draft.currentCards().size());
         final boolean showRanking = NeoSettings.showDraftRanking();
         int i = 0;
         // Como en Arena: por rareza, y la tierra basica al final (PackOrder).
@@ -296,8 +374,8 @@ public class DraftScreen extends BorderPane {
             node.setCard(view);
             // Detras de casilla en Ajustes (NeoSettings.DRAFT_RANKING): a quien
             // ya sabe draftear el numero le da la respuesta antes de pensarla.
-            node.setDraftRank(showRanking ? (int) Math.round(
-                    Math.max(0, Math.min(99, CardRanker.getRawScore(pc)))) : null);
+            // Sin dato de Forge, sin pastilla (DraftRank): un 0 parecia "la peor".
+            node.setDraftRank(showRanking ? forge.neo.draft.DraftRank.of(pc) : null);
             node.hoverProperty().addListener((o, was, is) -> {
                 if (is) {
                     detail.show(view);
@@ -308,15 +386,18 @@ public class DraftScreen extends BorderPane {
                     take(pc, node);
                 }
             });
-            pack.add(node, i % COLUMNS, i / COLUMNS);
-            Anim.dealIn(node, i, COLUMNS, opening);
+            pack.add(node, i % columns, i / columns);
+            Anim.dealIn(node, i, columns, opening);
             i++;
         }
 
         refreshPicked();
     }
 
-    private static final int COLUMNS = 5;
+    /** Las columnas de ahora: las elige layoutChildren segun el hueco. */
+    private int columns = 5;
+    private static final int MIN_COLUMNS = 4;
+    private static final int MAX_COLUMNS = 12;
 
     private static final javafx.css.PseudoClass HURRY =
             javafx.css.PseudoClass.getPseudoClass("hurry");
@@ -387,7 +468,7 @@ public class DraftScreen extends BorderPane {
 
         deckRow.getChildren().clear();
         sideRow.getChildren().clear();
-        final double w = baseCardWidth * 0.62;
+        final double w = miniWidth();
         final List<PaperCard> main = new java.util.ArrayList<>();
         for (final int i : order) {
             final PaperCard pc = mine.get(i);
@@ -620,8 +701,7 @@ public class DraftScreen extends BorderPane {
             if (i >= cards.size()) {
                 break;
             }
-            ((CardNode) n).setDraftRank(showRanking ? (int) Math.round(
-                    Math.max(0, Math.min(99, CardRanker.getRawScore(cards.get(i))))) : null);
+            ((CardNode) n).setDraftRank(showRanking ? forge.neo.draft.DraftRank.of(cards.get(i)) : null);
             i++;
         }
     }

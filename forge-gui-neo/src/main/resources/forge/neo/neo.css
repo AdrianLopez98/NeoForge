@@ -4245,6 +4245,13 @@
 }
 .table-root .action-bar .btn-primary:hover { -fx-background-color: #f2c77c; }
 .table-root .action-bar .btn-primary:disabled { -fx-opacity: .4; -fx-effect: null; }
+/* Te toca a ti (ActionBar.AWAITING, Discord 12-11-2026): el motor espera algo
+   tuyo. Rojo porque lo pidio el jugador y porque el ambar ya es el borde de
+   siempre de esta barra: no se distinguiria. */
+.action-bar:awaiting, .table-root .action-bar:awaiting, .action-bar:inline:awaiting {
+    -fx-border-color: #D9534F; -fx-border-width: 2;
+    -fx-effect: dropshadow(gaussian, rgba(217,83,79,.55), 16, .25, 0, 0);
+}
 .table-root .hand-area {
     -fx-background-color: linear-gradient(to top, rgba(5,9,14,.98), rgba(12,22,30,.55), transparent);
 }

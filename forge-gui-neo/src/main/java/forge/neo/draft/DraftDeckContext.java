@@ -98,11 +98,53 @@ public final class DraftDeckContext implements DeckContext {
 
         count(deck.get(DeckSection.Sideboard));
         count(deck.getMain());
+        commanderDraft = CommanderDraft.is(deck);
+        if (commanderDraft) {
+            // El comandante elegido sigue contando como tuyo, y los gratis
+            // (el de la expansion, The Prismatic Piper, Faceless One) se pueden
+            // poner de comandante sin haberlos draftado, como en Forge.
+            count(deck.get(DeckSection.Commander));
+            for (final PaperCard free : CommanderDraft.freeCommanders(deck)) {
+                if (ownedByName.getOrDefault(normalizedName(free.getName()), 0) == 0) {
+                    freeOnly.add(normalizedName(free.getName()));
+                    owned.put(free, 1);
+                    ownedByName.put(normalizedName(free.getName()), 1);
+                    printings.computeIfAbsent(free.getName(), k -> new ArrayList<>()).add(free);
+                }
+            }
+        }
 
         pool.addAll(owned.keySet());
         pool.sort(java.util.Comparator.comparing(PaperCard::getName)
                 .thenComparing(PaperCard::getEdition));
         pool.addAll(basics(deck));
+    }
+
+    /** Si es un Commander Draft (ver {@link CommanderDraft}). */
+    private boolean commanderDraft;
+
+    /** Los comandantes gratis que NO has draftado: no estan en el pool. */
+    private final java.util.Set<String> freeOnly = new java.util.HashSet<>();
+
+    @Override
+    public boolean isFreeCommander(final PaperCard card) {
+        return card != null && freeOnly.contains(normalizedName(card.getName()));
+    }
+
+    public boolean isCommanderDraft() {
+        return commanderDraft;
+    }
+
+    /**
+     * En un Commander Draft el pool sin usar sigue en la banda y no se juega:
+     * la legalidad se mira sin el ({@link CommanderDraft#problem}).
+     */
+    @Override
+    public String conformanceProblem(final Deck deck) {
+        if (commanderDraft && deck != null) {
+            return CommanderDraft.problem(deck);
+        }
+        return DeckContext.super.conformanceProblem(deck);
     }
 
     private void count(final CardPool section) {
@@ -226,6 +268,9 @@ public final class DraftDeckContext implements DeckContext {
 
     @Override
     public String getLabel() {
+        if (commanderDraft) {
+            return forge.neo.NeoText.get("draft.commanderDraft");
+        }
         return (sealed() ? forge.neo.match.NeoFormat.SELLADO
                 : forge.neo.match.NeoFormat.DRAFT).getLabel();
     }
@@ -238,6 +283,10 @@ public final class DraftDeckContext implements DeckContext {
      */
     @Override
     public DeckFormat deckFormat() {
+        if (commanderDraft) {
+            // 60 cartas contando el comandante, zona de mando e identidad.
+            return forge.game.GameType.CommanderDraft.getDeckFormat();
+        }
         return (sealed() ? forge.game.GameType.Sealed
                 : forge.game.GameType.Draft).getDeckFormat();
     }
@@ -293,7 +342,124 @@ public final class DraftDeckContext implements DeckContext {
 
     @Override
     public boolean canAutoBuild() {
+        // En un Commander Draft lo monta autoBuildDeck (el constructor de
+        // Commander Draft de Forge); en el resto, el SealedDeckBuilder de 40.
         return true;
+    }
+
+    /**
+     * "Montar solo" en un COMMANDER DRAFT (Ana, 13-11-2026: «lo normal es que
+     * se monten el mazo, pero si no saben, que lo haga el build, un mazo que
+     * puedan jugar»). Forge no lo ofrece al humano, pero es el mismo
+     * constructor que monta los mazos de sus siete rivales
+     * ({@code CommanderLimitedPlayerAI} → {@code CommanderDraftDeckBuilder}):
+     * con el comandante puesto, 59 cartas de su identidad (24 tierras); sin el,
+     * lo elige de tu pool, o el gratis de la expansion.
+     */
+    /**
+     * El comandante que mejor encaja con lo draftado (o uno gratis), o null.
+     * La cuenta es la de Forge ({@code CommanderDraftDeckBuilder.scoreCommanderFit}):
+     * la mitad de la nota de cada carta del pool que cabe en su identidad, mas el
+     * doble de la suya. Pero esa cuenta premia siempre la identidad mas ancha (en
+     * cinco colores cabe todo) y un pool de draft no da para la mana de cinco:
+     * se miran primero los de hasta tres colores, y los de cuatro o cinco solo si
+     * no hay otros.
+     */
+    private PaperCard bestCommander(final List<PaperCard> drafted, final Deck deck) {
+        final List<PaperCard> candidates = new ArrayList<>();
+        for (final PaperCard c : drafted) {
+            if (c.getRules() != null && c.getRules().canBeCommander() && !c.getRules().canBeBackground()
+                    && !candidates.contains(c)) {
+                candidates.add(c);
+            }
+        }
+        candidates.addAll(CommanderDraft.freeCommanders(deck));
+        final List<PaperCard> narrow = new ArrayList<>();
+        for (final PaperCard c : candidates) {
+            if (c.getRules().getColorIdentity().countColors() <= 3) {
+                narrow.add(c);
+            }
+        }
+        final List<PaperCard> look = narrow.isEmpty() ? candidates : narrow;
+        PaperCard best = null;
+        double bestScore = Double.NEGATIVE_INFINITY;
+        for (final PaperCard c : look) {
+            final forge.card.ColorSet identity = c.getRules().getColorIdentity();
+            double score = 0;
+            for (final PaperCard other : drafted) {
+                if (other != c && other.getRules() != null
+                        && other.getRules().getColorIdentity().hasNoColorsExcept(identity)) {
+                    score += Math.max(0, forge.gamemodes.limited.CardRanker.getRawScore(other)) / 2.0;
+                }
+            }
+            score += Math.max(0, forge.gamemodes.limited.CardRanker.getRawScore(c)) * 2.0;
+            if (score > bestScore) {
+                bestScore = score;
+                best = c;
+            }
+        }
+        return best;
+    }
+
+    @Override
+    public Deck autoBuildDeck(final List<PaperCard> cards, final List<PaperCard> commanders) {
+        if (!commanderDraft) {
+            return null;
+        }
+        final Deck deck = humanDeck();
+        final String lands = deck == null ? null : landSet(deck);
+        final List<PaperCard> drafted = new ArrayList<>(cards);
+        try {
+            final forge.gamemodes.limited.CommanderDraftDeckBuilder builder;
+            if (commanders != null && !commanders.isEmpty()) {
+                for (final PaperCard c : commanders) {
+                    drafted.remove(c);
+                }
+                builder = new forge.gamemodes.limited.CommanderDraftDeckBuilder(drafted,
+                        new forge.gamemodes.limited.CommanderDeckColors(), commanders.get(0),
+                        commanders.size() > 1 ? commanders.get(1) : null);
+            } else {
+                // Sin comandante: se elige aqui y se le pasa ya elegido. El
+                // constructor sabe elegirlo solo, pero ese camino (el que los
+                // rivales no usan nunca: a ellos se les da elegido) revienta con
+                // "Add Lands to empty deck list!". La idea es la de Forge
+                // (scoreCommanderFit): cuantas cartas del pool caben en su
+                // identidad, y su nota de draft para desempatar.
+                final PaperCard pick = bestCommander(drafted, deck);
+                if (pick == null) {
+                    return null;
+                }
+                drafted.remove(pick);
+                builder = new forge.gamemodes.limited.CommanderDraftDeckBuilder(drafted,
+                        new forge.gamemodes.limited.CommanderDeckColors(), pick, null);
+            }
+            Deck built = builder.buildDeck(lands);
+            if (built == null || !built.has(DeckSection.Commander) || built.get(DeckSection.Commander).isEmpty()) {
+                return null;
+            }
+            // El constructor empareja dos comandantes de un color o menos (la
+            // regla de Commander Draft de su editor), pero la legalidad del
+            // mazo (DeckFormat) solo acepta companeros de verdad: con una
+            // pareja asi el mazo no se podria jugar. Se rehace con uno solo.
+            final List<PaperCard> cmds = built.get(DeckSection.Commander).toFlatList();
+            if (cmds.size() > 1 && !cmds.get(0).getRules().canBePartnerCommanders(cmds.get(1).getRules())) {
+                final List<PaperCard> again = new ArrayList<>(cards);
+                again.remove(cmds.get(0));
+                // Sin companero de verdad: el constructor, si no le das uno,
+                // lo busca solo (selectPartner); aqui se le dice que no.
+                built = new forge.gamemodes.limited.CommanderDraftDeckBuilder(again,
+                        new forge.gamemodes.limited.CommanderDeckColors(), cmds.get(0), null) {
+                    @Override
+                    public void selectPartner() {
+                        // uno solo
+                    }
+                }.buildDeck(lands);
+            }
+            return built;
+        } catch (final RuntimeException e) {
+            System.err.println("[neo] montar el Commander Draft ha fallado: " + e);
+            return null;
+        }
     }
 
     @Override

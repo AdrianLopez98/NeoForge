@@ -626,6 +626,17 @@ public final class NeoSettings {
     /** La carta grande al pasar el raton EN EL CONSTRUCTOR (itch.io, 23-10-2026). Encendido de fabrica. */
     public static final String BUILDER_HOVER_CARD = "builderHoverCard";
 
+    /**
+     * La barra de botones en rojo cuando el motor espera algo tuyo (Discord,
+     * 12-11-2026). Encendido de fabrica; Ana: «que quien quiera lo pueda
+     * quitar». Ver {@code ActionBar.AWAITING}. Se lee en el acto.
+     */
+    public static final String AWAITING_HIGHLIGHT = "awaitingHighlight";
+
+    public static boolean awaitingHighlight() {
+        return getBool(AWAITING_HIGHLIGHT, true);
+    }
+
     public static boolean bigHoverCard() {
         return Boolean.getBoolean("neo.bigHoverCard") || getBool(BIG_HOVER_CARD, false);
     }

@@ -438,6 +438,22 @@ public final class NeoMain {
                     throw new IllegalStateException(e);
                 }
                 break;
+            case "cmddraftcheck":
+                // Un Commander Draft de punta a punta. Ver CommanderDraft.
+                banner("Commander Draft: draft, editor y partida");
+                forge.neo.draft.CommanderDraftCheck.run();
+                break;
+            case "copycheck":
+                // Una copia en la mesa dice que carta hay debajo. Ver CopyOf.
+                banner("Copias: la carta de verdad debajo");
+                forge.neo.card.CopyOfCheck.run();
+                break;
+            case "sacoutletcheck":
+                // Un altar de sacrificio te deja la prioridad con algo del rival
+                // en el stack. Ver SacOutlets.
+                banner("Altar de sacrificio: responder en el turno del rival");
+                forge.neo.match.SacOutletCheck.run();
+                break;
             case "anytypecheck":
                 // Lo robado con "mana de cualquier tipo" (Gonti, Black Cat)
                 // brilla cuando llega el mana. Ver AnyTypeMana.

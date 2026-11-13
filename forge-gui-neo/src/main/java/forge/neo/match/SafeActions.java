@@ -471,6 +471,9 @@ public final class SafeActions {
                         || XTargets.evaluate(getPlayer()).holds()
                         // Y la rebaja que depende del objetivo (Not of This World).
                         || TargetedRebate.evaluate(getPlayer()).holds()
+                        // Y sacrificar en respuesta con un altar (Ashnod's Altar):
+                        // las habilidades de mana no cuentan para Forge (SacOutlets).
+                        || SacOutlets.evaluate(getPlayer())
                         || (tap != null && tap.holds())
                         || !filtered.isEmpty()
                         || !anyType.isEmpty());

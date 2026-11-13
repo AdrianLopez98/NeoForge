@@ -306,6 +306,9 @@ public class TableBinder {
         }
         final int room = table.maxOpponentSeats();
         final boolean fits = wanted && room >= seated.size();
+        // El boton de cambiar la vista: con dos o mas rivales en pie, y si
+        // caben todos (si no, "todos" no haria nada visible).
+        table.setViewToggle(standing.size() > 1 && room >= standing.size(), multiBoard(), this::requestRefresh);
         final int seats = fits ? seated.size() : 1;
         table.setOpponentSeats(seats);
 

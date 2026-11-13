@@ -474,7 +474,11 @@ final class NeoAppDraft {
         // Bo3 es un ajuste del PROXIMO partido (la auditoría del motor, apartado C5), leido justo
         // aqui: cambiarlo desde el marcador solo afecta a partidos que
         // arrancan despues, nunca al que ya esta en curso.
-        final int gamesPerMatch = NeoSettings.bo3() && rivals.size() == 1 ? 3 : 1;
+        // Commander Draft (ver forge.neo.draft.CommanderDraft): reglas de
+        // Commander y GameType.CommanderDraft, como CSubmenuDraft. Sin Bo3:
+        // en Commander no hay banquillo con el que jugarlo.
+        final boolean commanderDraft = forge.neo.draft.CommanderDraft.is(mine);
+        final int gamesPerMatch = NeoSettings.bo3() && rivals.size() == 1 && !commanderDraft ? 3 : 1;
         app.table.setPrompt(forge.neo.NeoText.get("app.preparing"));
 
         final Thread engine = new Thread(() -> {
@@ -482,7 +486,8 @@ final class NeoAppDraft {
             try {
                 final NeoGame.Result r = NeoGame.play(mine, rivals.size(), NeoMatchUI.Mode.HUMAN,
                         3600, false, liveBinder, forge.neo.look.AiProfiles.orDefault(NeoSettings.get(NeoSettings.AI_PROFILE, null)),
-                        autoMana, format, rivals, gamesPerMatch);
+                        autoMana, format, rivals, gamesPerMatch,
+                        commanderDraft ? forge.neo.draft.CommanderDraft.seating() : null);
                 // El ganador del PARTIDO: rendirse a mitad de un al mejor de
                 // tres no puede contar como victoria (revision del 13-10-2026).
                 won = r.matchWinner != null && r.matchWinner.equals(

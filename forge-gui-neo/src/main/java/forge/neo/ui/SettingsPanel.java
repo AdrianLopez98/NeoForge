@@ -1183,6 +1183,22 @@ public class SettingsPanel extends VBox {
                     NeoSettings.save();
                 }));
 
+        // --- la barra en rojo cuando te toca (Discord, 12-11-2026) ---
+        //
+        // Encendido de fabrica; Ana: que quien quiera lo pueda quitar.
+        getChildren().add(toggleRow(NeoText.get("settings.awaitingHighlight"),
+                NeoSettings.awaitingHighlight(),
+                on -> {
+                    NeoSettings.setBool(NeoSettings.AWAITING_HIGHLIGHT, on);
+                    NeoSettings.save();
+                }));
+        final Label awaitNote = new Label(NeoText.get("settings.awaitingHighlight.note"));
+        awaitNote.getStyleClass().add("settings-note");
+        awaitNote.setWrapText(true);
+        awaitNote.setMaxWidth(UiScale.px(560));
+        awaitNote.setMinHeight(Region.USE_PREF_SIZE);
+        getChildren().add(awaitNote);
+
         // --- la carta GRANDE al pasar el raton, como en Forge ---
         //
         // Discord, 07-10-2026: "i really want the large card on hover ... like

@@ -5370,6 +5370,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         }
         final boolean showCancel = cancelLabel != null && !cancelLabel.isBlank();
         ui.runLater(() -> {
+            table.getActionBar().setAwaitingHighlight(false);
             table.getActionBar().setButtons(ReplayText.label(okLabel),
                     showCancel ? ReplayText.label(cancelLabel) : " ", okEnabled, cancelEnabled && showCancel);
             table.getActionBar().setPlayerChoices(null);

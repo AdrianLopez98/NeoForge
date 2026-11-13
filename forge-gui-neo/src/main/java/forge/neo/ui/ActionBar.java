@@ -241,6 +241,55 @@ public class ActionBar extends VBox {
             javafx.css.PseudoClass.getPseudoClass("info");
 
     /**
+     * <b>Te toca a ti</b> (Discord, 12-11-2026: «the amount of time I've sat
+     * there thinking it was the AI thinking and it wasn't»). La barra se marca
+     * en rojo cuando el motor espera algo TUYO: OK o Cancelar encendidos, o
+     * botones de jugador. Mientras piensa la IA los dos vienen apagados.
+     * Con {@link #AWAIT_DELAY_MS} de espera, para que el auto-pass (que
+     * contesta en milisegundos) no la haga parpadear. Las repeticiones la
+     * apagan ({@link #setAwaitingHighlight}).
+     */
+    private static final javafx.css.PseudoClass AWAITING =
+            javafx.css.PseudoClass.getPseudoClass("awaiting");
+    static final int AWAIT_DELAY_MS = Integer.getInteger("neo.awaitDelayMs", 600);
+    private boolean awaitingHighlight = true;
+    private boolean awaiting;
+    private final javafx.animation.PauseTransition awaitDelay =
+            new javafx.animation.PauseTransition(javafx.util.Duration.millis(AWAIT_DELAY_MS));
+
+    /** Encender o apagar el rojo de "te toca" (las repeticiones no esperan a nadie). */
+    public void setAwaitingHighlight(final boolean on) {
+        awaitingHighlight = on;
+        syncAwaiting();
+    }
+
+    /** Si la barra esta marcada como "te toca". Para pruebas. */
+    public boolean isAwaiting() {
+        return awaiting;
+    }
+
+    private boolean wantsAwaiting() {
+        return awaitingHighlight && forge.neo.NeoSettings.awaitingHighlight() && (!ok.isDisabled() || !cancel.isDisabled() || players.isVisible());
+    }
+
+    private void syncAwaiting() {
+        if (!wantsAwaiting()) {
+            awaitDelay.stop();
+            awaiting = false;
+            pseudoClassStateChanged(AWAITING, false);
+            return;
+        }
+        if (awaiting || awaitDelay.getStatus() == javafx.animation.Animation.Status.RUNNING) {
+            return;
+        }
+        awaitDelay.setOnFinished(e -> {
+            awaiting = wantsAwaiting();
+            pseudoClassStateChanged(AWAITING, awaiting);
+        });
+        awaitDelay.playFromStart();
+    }
+
+    /**
      * Estado de los botones tal y como lo pide el motor.
      * Las etiquetas vienen de {@code IGuiGame.updateButtons}.
      */
@@ -251,6 +300,7 @@ public class ActionBar extends VBox {
                 ? NeoText.get("common.cancel") : cancelLabel);
         ok.setDisable(!okEnabled);
         cancel.setDisable(!cancelEnabled);
+        syncAwaiting();
     }
 
     /**
@@ -289,6 +339,7 @@ public class ActionBar extends VBox {
         }
         players.setVisible(show);
         players.setManaged(show);
+        syncAwaiting();
     }
 
     /**

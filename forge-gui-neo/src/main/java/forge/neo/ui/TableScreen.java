@@ -138,6 +138,26 @@ public class TableScreen extends Pane {
     private final Button turnButton = new Button(NeoText.get("turnStats.button"));
 
     /**
+     * Ver UN rival o TODOS, sin ir a Ajustes (Discord, 13-11-2026: «a quick
+     * button to switch 1v1 and all players view»). El mismo ajuste
+     * ({@code NeoSettings.ALL_BOARDS}); solo sale con dos o mas rivales en pie
+     * (lo enciende {@code TableBinder}), en la columna de la esquina muerta
+     * de abajo a la izquierda: no le quita sitio a nada.
+     */
+    private final Button viewButton = new Button();
+    private Runnable onViewToggled = () -> { };
+
+    /** Lo llama el binder en cada repintado: si se ofrece el boton y que dice. */
+    public void setViewToggle(final boolean available, final boolean allNow, final Runnable afterToggle) {
+        onViewToggled = afterToggle == null ? () -> { } : afterToggle;
+        viewButton.setText(NeoText.get(allNow ? "table.view.one" : "table.view.all"));
+        if (viewButton.isVisible() != available) {
+            viewButton.setVisible(available);
+            requestLayout();
+        }
+    }
+
+    /**
      * El boton de la pausa, <b>apagado de fabrica</b>.
      *
      * <p>En una partida normal no sale: Escape abre la pausa y eso lo ensenya
@@ -428,6 +448,16 @@ public class TableScreen extends Pane {
         turnButton.getStyleClass().add("log-button");
         turnButton.setFocusTraversable(false);
         turnButton.setVisible(false);
+        viewButton.getStyleClass().add("log-button");
+        viewButton.setFocusTraversable(false);
+        viewButton.setVisible(false);
+        viewButton.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("table.view.tip")));
+        viewButton.setOnAction(e -> {
+            forge.neo.NeoSettings.setBool(forge.neo.NeoSettings.ALL_BOARDS,
+                    !forge.neo.NeoSettings.getBool(forge.neo.NeoSettings.ALL_BOARDS, false));
+            forge.neo.NeoSettings.save();
+            onViewToggled.run();
+        });
         chatButton.setFocusTraversable(false);
         chatButton.setVisible(false);
         chatButton.setOnAction(e -> openChat());
@@ -492,7 +522,7 @@ public class TableScreen extends Pane {
         spotlight.setFill(javafx.scene.paint.Color.TRANSPARENT);
 
         getChildren().addAll(opponentTabs, opponentBar, viewport,
-                selfBar, hand, commandZone, phaseRail, side, combatOverlay, impactLayer, logButton, turnButton, menuButton, chatButton, macroRecordButton, macroPlayButton, cooldownBadge,
+                selfBar, hand, commandZone, phaseRail, side, combatOverlay, impactLayer, logButton, turnButton, viewButton, menuButton, chatButton, macroRecordButton, macroPlayButton, cooldownBadge,
                 stackChip, promptBanner, notices, turnBanner, coinFlip, diceRoll, playerDetails, zoomBadge, macroBadge, spotlight,
                 handPeek, overlay, menuOverlay, zoomOverlay, curtain);
         curtain.getStyleClass().add("hotseat-curtain");
@@ -548,7 +578,7 @@ public class TableScreen extends Pane {
             }
             final Object t = e.getTarget();
             if (isInside(t, overlay) || isInside(t, menuOverlay) || isInside(t, zoomOverlay)
-                    || isInside(t, logButton) || isInside(t, turnButton) || isInside(t, menuButton)
+                    || isInside(t, logButton) || isInside(t, turnButton) || isInside(t, viewButton) || isInside(t, menuButton)
                     || isInside(t, chatButton) || isInside(t, opponentTabs)
                     || isZoneOpener(t)) {
                 return;
@@ -758,12 +788,15 @@ public class TableScreen extends Pane {
         if (turnButton.isVisible()) {
             mbW = Math.max(mbW, turnButton.prefWidth(-1));
         }
+        if (viewButton.isVisible()) {
+            mbW = Math.max(mbW, viewButton.prefWidth(-1));
+        }
         // El de la pausa solo cuenta si esta puesto: si no, su texto ensancharia
         // la columna en los modos donde ni siquiera sale.
         if (menuButton.isVisible()) {
             mbW = Math.max(mbW, menuButton.prefWidth(-1));
         }
-        for (final Button b : List.of(turnButton, menuButton, chatButton, macroRecordButton, macroPlayButton)) {
+        for (final Button b : List.of(turnButton, viewButton, menuButton, chatButton, macroRecordButton, macroPlayButton)) {
             if (b.isVisible()) {
                 final double bh = b.prefHeight(mbW);
                 cornerTop -= bh + 4;

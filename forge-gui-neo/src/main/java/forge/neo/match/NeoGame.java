@@ -259,6 +259,15 @@ public final class NeoGame {
         /** Las variantes de la partida. Van a las reglas Y a {@code forVariants}. */
         EnumSet<GameType> variants();
 
+        /**
+         * El {@code GameType} de las reglas, o null para el del formato. El
+         * Commander Draft lo pide: se juega como {@code GameType.CommanderDraft}
+         * con las variantes de Commander, como en Forge.
+         */
+        default GameType gameType() {
+            return null;
+        }
+
         /** El asiento del humano, con su mazo. */
         RegisteredPlayer human(Deck deck, int seats);
 
@@ -474,7 +483,8 @@ public final class NeoGame {
         // jugar un Bo3. Solo el evento de draft/sellado pide 3 (la auditoría del motor
         // C5). (getDefaultRules de HostedMatch es privado, asi que
         // construimos las reglas aqui.)
-        final GameRules rules = new GameRules(format.getGameType());
+        final GameRules rules = new GameRules(seating != null && seating.gameType() != null
+                ? seating.gameType() : format.getGameType());
         rules.setGamesPerMatch(gamesPerMatch);
 
         // ---- ESTO ES LO QUE HACE QUE COMMANDER SEA COMMANDER ----

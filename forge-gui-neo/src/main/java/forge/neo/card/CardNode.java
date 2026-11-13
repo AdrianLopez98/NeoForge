@@ -1747,6 +1747,13 @@ public class CardNode extends StackPane {
         if (card != null && card.isRingBearer()) {
             lines.add(0, NeoText.get("marker.ringBearer"));
         }
+        // UNA COPIA, y de que carta de verdad (Discord, 13-11-2026: Sculpting
+        // Steel, True Polymorph). Se ve igual que la copiada: sin esto, con dos
+        // iguales en la mesa no se sabia cual era cual. Ver CopyOf.
+        final String realName = CopyOf.originalName(card);
+        if (realName != null) {
+            lines.add(0, NeoText.get("marker.copy", realName));
+        }
         // A quien va, si no es a quien la controla: una maldicion encanta a un
         // jugador y una batalla la protege otro (Discord, 03-10-2026). Estan
         // en la mesa de su controlador, como dicen las reglas, y sin esto no

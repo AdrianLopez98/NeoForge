@@ -64,6 +64,24 @@ public interface DeckContext {
      * pool de 60; quitas una carta, guardas, y quedan 39 y 60. Noventa y nueve
      * donde había cien, sin ningún error.
      */
+    /**
+     * Si esta carta se puede poner de comandante SIN tenerla en el pool: los
+     * comandantes gratis del Commander Draft. No vuelve a la banda al quitarla.
+     */
+    default boolean isFreeCommander(PaperCard card) {
+        return false;
+    }
+
+    /**
+     * "Montar solo" con COMANDANTE (Commander Draft): el mazo entero, zona de
+     * mando y principal, o null si este contexto no lo hace (entonces vale
+     * {@link #autoBuild}). {@code commanders} son los que ya hay puestos, que
+     * se respetan; vacio = que lo elija el constructor.
+     */
+    default forge.deck.Deck autoBuildDeck(List<PaperCard> pool, List<PaperCard> commanders) {
+        return null;
+    }
+
     default boolean poolInSideboard() {
         return false;
     }

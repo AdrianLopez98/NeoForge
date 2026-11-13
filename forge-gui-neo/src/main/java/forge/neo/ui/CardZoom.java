@@ -497,6 +497,12 @@ public final class CardZoom {
             box.getChildren().add(rel);
         }
 
+        // Y si es una copia, la carta de verdad que hay debajo (CopyOf).
+        final Region real = originalBlock(card, width);
+        if (real != null) {
+            box.getChildren().add(real);
+        }
+
         final Region live = liveTextBlock(card, width);
         if (live != null) {
             box.getChildren().add(live);
@@ -1103,6 +1109,33 @@ public final class CardZoom {
         return null;
     }
 
+    /**
+     * La carta de verdad debajo de una copia (Discord, 13-11-2026): la de
+     * Sculpting Steel o True Polymorph, que es la que vuelve si vuelve del
+     * cementerio. Ver {@link forge.neo.card.CopyOf}.
+     */
+    private static Region originalBlock(final CardView card, final double width) {
+        final CardView real = forge.neo.card.CopyOf.original(card);
+        if (real == null) {
+            return null;
+        }
+        final Label title = new Label(NeoText.get("zoom.realCard"));
+        title.getStyleClass().add("zoom-head");
+        UiScale.fixedFont(title, 12);
+        final CardNode node = new CardNode(width * 0.66);
+        node.setRotationEnabled(false);
+        node.setHoverEnabled(false);
+        node.setCard(real);
+        final Label name = new Label(CardText.nameOf(real.getCurrentState()));
+        name.getStyleClass().addAll("zoom-line", "zoom-dim");
+        UiScale.fixedFont(name, 13);
+        name.setWrapText(true);
+        name.setMaxWidth(width);
+        final VBox box = new VBox(6, title, node, name);
+        box.setAlignment(Pos.TOP_LEFT);
+        return box;
+    }
+
     private static Region relatedBlock(final CardView card, final double width) {
         final Object[] rel = related(card);
         if (rel == null) {
@@ -1548,6 +1581,21 @@ public final class CardZoom {
         private final Scene scene;
         private final Parent previous;
         private final Overlay overlay = new Overlay();
+
+        /**
+         * La pantalla de debajo, del tamanyo de la ventana, como cuando era la
+         * raiz. Un {@code StackPane} respeta el alto MINIMO de sus hijos, y la
+         * del draft (el sobre mas la tira de lo que llevas) pide mas que la
+         * ventana: se centraba y se salia por arriba y por abajo, sin cabecera
+         * ni botones, y su scroll se quedaba movido al cerrar (13-11-2026,
+         * clic derecho en una carta del draft). La escena, en cambio, fuerza a
+         * su raiz al tamanyo de la ventana sin mirar el minimo.
+         */
+        @Override
+        protected void layoutChildren() {
+            super.layoutChildren();
+            previous.resizeRelocate(0, 0, getWidth(), getHeight());
+        }
 
         Layer(final Scene scene, final Parent previous) {
             this.scene = scene;

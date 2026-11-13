@@ -300,6 +300,12 @@ public class AscentRewardScreen extends StackPane {
             final CardNode node = new CardNode(cardWidth * 1.35);
             node.setRotationEnabled(false);
             node.setCard(CardView.getCardForUi(card));
+            // La nota de draft de Forge, como en la pantalla de picks (Discord,
+            // 13-11-2026: «a card rating filter when drafting» en Ascenso). El
+            // mismo ajuste, apagado de fabrica (NeoSettings.DRAFT_RANKING).
+            if (forge.neo.NeoSettings.showDraftRanking()) {
+                node.setDraftRank(forge.neo.draft.DraftRank.of(card));
+            }
             node.setCursor(javafx.scene.Cursor.HAND);
             node.setOnMouseClicked(e -> {
                 // Solo el boton izquierdo elige. El derecho es para leerla

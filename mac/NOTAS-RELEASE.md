@@ -1,9 +1,13 @@
-**NeoForge para macOS 1.0.53 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.54 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Filtrar comandantes por color, como en Arena** (Ascenso y Quest): marca verde y salen todos los que llevan verde, los monoverdes primero.
-- **Cuántos colores, de tanto a tanto**: 2–3, solo incoloros, nunca cinco… Y «Que elija el juego» sortea entre los que dejan los filtros de color.
-- Al día con Forge: cartas corregidas y los efectos de bioma y de plano de la Aventura.
+- **Commander Draft entero, como Forge**: elige comandante de lo que draftaste, mazo de 60 y reglas de Commander. Y «Montar solo» te lo monta, comandante incluido.
+- **Las copias dicen qué carta hay debajo** (Sculpting Steel, True Polymorph…), en la mesa y al ampliar.
+- **La barra de botones en rojo cuando te toca a ti** (se puede apagar en Ajustes → Mesa).
+- **Ashnod's Altar y compañía en el turno del rival**: con algo en el stack, la partida te deja sacrificar en respuesta.
+- **Un botón para ver un rival o todos** en partidas de más de dos.
+- **La nota de draft** también en los premios de Ascenso, y la pantalla de picks ya no se descoloca.
+- Al día con Forge.
 
 Descarga el `.dmg` de tu Mac:
 

@@ -1619,6 +1619,30 @@ public final class DeckEditor {
                 }
             }
         }
+        // Commander Draft: el mazo entero, comandante incluido (DeckContext.autoBuildDeck).
+        final List<PaperCard> chosen = commanders();
+        final List<PaperCard> withCommanders = new ArrayList<>(pool);
+        withCommanders.addAll(chosen);
+        final forge.deck.Deck whole = format.autoBuildDeck(withCommanders, chosen);
+        if (whole != null) {
+            clearToPool();
+            for (final PaperCard old : new ArrayList<>(chosen)) {
+                removeCommander(old);
+            }
+            final List<PaperCard> cmds = whole.get(DeckSection.Commander).toFlatList();
+            setCommander(cmds.get(0));
+            if (cmds.size() > 1 && !acceptsPartner(cmds.get(1))) {
+                addSecondCommander(cmds.get(1));
+            } else if (cmds.size() > 1) {
+                setCommander(cmds.get(1));
+            }
+            int added = 0;
+            for (final Map.Entry<PaperCard, Integer> e : whole.getMain()) {
+                added += addAnyway(e.getKey(), e.getValue());
+            }
+            dirty = true;
+            return added;
+        }
         final CardPool built = format.autoBuild(pool);
         if (built == null) {
             return -1;
@@ -1806,9 +1830,31 @@ public final class DeckEditor {
             return false;
         }
         deck.getMain().remove(card, deck.getMain().count(card));
+        fromPool(card);
         deck.getOrCreate(DeckSection.Commander).add(card, 1);
         dirty = true;
         return true;
+    }
+
+    /**
+     * En limitado ({@link DeckContext#poolInSideboard}) el pool es la banda, y
+     * el comandante SALE de ella al ponerlo y VUELVE al quitarlo, como en el
+     * editor de Commander Draft de Forge ({@code CEditorCommanderDraftLimited}).
+     * Si no, la misma carta contaba dos veces: en la zona de mando y en el pool.
+     * Los comandantes gratis no estan en la banda: no se toca nada.
+     */
+    private void fromPool(final PaperCard card) {
+        if (format.poolInSideboard() && deck.has(DeckSection.Sideboard)
+                && deck.get(DeckSection.Sideboard).count(card) > 0) {
+            deck.get(DeckSection.Sideboard).remove(card, 1);
+        }
+    }
+
+    private void backToPool(final PaperCard card) {
+        if (format.poolInSideboard() && ownedCap(card) != Integer.MAX_VALUE
+                && !format.isFreeCommander(card)) {
+            deck.getOrCreate(DeckSection.Sideboard).add(card, 1);
+        }
     }
 
     public boolean setCommander(final PaperCard picked) {
@@ -1866,8 +1912,12 @@ public final class DeckEditor {
             // companeros; de las parejas ya sabe el motor, asi que se deja
             // anyadir un segundo solo si el mazo sigue siendo conforme con los
             // dos.
+            for (final PaperCard old : pool.toFlatList()) {
+                backToPool(old);
+            }
             pool.clear();
         }
+        fromPool(card);
         pool.add(card, 1);
         dirty = true;
         return true;
@@ -2144,7 +2194,10 @@ public final class DeckEditor {
         if (card == null) {
             return;
         }
-        commanderPool().remove(card, 1);
+        if (commanderPool().count(card) > 0) {
+            commanderPool().remove(card, 1);
+            backToPool(card);
+        }
         dirty = true;
     }
 
