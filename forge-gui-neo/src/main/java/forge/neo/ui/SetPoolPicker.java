@@ -34,6 +34,9 @@ public final class SetPoolPicker extends VBox {
     private String from;
     private String to;
     private final List<String> sets = new ArrayList<>();
+    /** Cuantas pone el boton de "N al azar" (itch.io, 14-11-2026). */
+    private int randomCount = 5;
+    private static final int RANDOM_MAX = 30;
 
     private final Consumer<AscentPool> onChange;
     private final Function<AscentPool, String[]> describe;
@@ -82,6 +85,21 @@ public final class SetPoolPicker extends VBox {
         if (kind != AscentPool.Kind.ALL) {
             kind = AscentPool.Kind.ALL;
             rebuild();
+        }
+    }
+
+    /**
+     * Pone N expansiones al azar en "Elegir expansiones" y avisa, como el
+     * boton. Publico para la captura ({@code -Dneo.quest.setupRandom=N}).
+     */
+    public void drawRandom(final int count) {
+        randomCount = Math.max(1, Math.min(RANDOM_MAX, count));
+        final List<String> drawn = AscentPool.randomSets(randomCount, forge.util.MyRandom.getRandom());
+        if (!drawn.isEmpty()) {
+            kind = AscentPool.Kind.SET;
+            sets.clear();
+            sets.addAll(drawn);
+            changed();
         }
     }
 
@@ -141,7 +159,32 @@ public final class SetPoolPicker extends VBox {
                 }
             });
             adder.setPromptText(NeoText.get("ascent.pool.add"));
-            getChildren().add(adder);
+            // N AL AZAR (itch.io, 14-11-2026: "a button to pick an X number of
+            // random sets"): cambia la lista entera; otro clic, otras. El numero
+            // con - y +, que un Spinner no casa con los botones oscuros.
+            final Button less = new Button("−");
+            final Button more = new Button("+");
+            final Button random = new Button(NeoText.get("ascent.pool.randomMany", randomCount));
+            for (final Button x : new Button[] {less, more, random}) {
+                x.getStyleClass().add("btn-secondary");
+                x.setMinWidth(Button.USE_PREF_SIZE);
+            }
+            less.setDisable(randomCount <= 1);
+            more.setDisable(randomCount >= RANDOM_MAX);
+            less.setOnAction(e -> {
+                randomCount = Math.max(1, randomCount - 1);
+                rebuild();
+            });
+            more.setOnAction(e -> {
+                randomCount = Math.min(RANDOM_MAX, randomCount + 1);
+                rebuild();
+            });
+            random.setTooltip(new javafx.scene.control.Tooltip(
+                    NeoText.get("ascent.pool.randomMany.tip", randomCount)));
+            random.setOnAction(e -> drawRandom(randomCount));
+            final HBox addRow = new HBox(10, adder, less, random, more);
+            addRow.setAlignment(Pos.CENTER_LEFT);
+            getChildren().add(addRow);
             final List<String> chosen = pool().sets;
             if (!chosen.isEmpty()) {
                 final FlowPane chips = new FlowPane(6, 6);

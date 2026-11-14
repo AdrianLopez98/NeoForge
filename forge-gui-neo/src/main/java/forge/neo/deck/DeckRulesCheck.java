@@ -63,6 +63,7 @@ public final class DeckRulesCheck {
         oldSchool();
         generatesADeckForTheCommander();
         generatedDeckSkipsWhatIsAlreadyInTheDeck();
+        completeKeepsWhatYouPut();
         generatedDeckFitsTheCommandZone();
         generatesARandomOpponentDeck();
         unfinishedDecksAreNotRivals();
@@ -1221,6 +1222,39 @@ public final class DeckRulesCheck {
         check("Importar: ni jugar", !editor.isPlayable());
         check("Importar: y se puede quitar de golpe", editor.removeIllegal() == 1);
         check("Importar: despues ya se puede guardar", editor.blockingProblem() == null);
+
+        // El banquillo de una lista pegada (Discord, 14-11-2026): entraba solo
+        // el principal y lo de "Sideboard" se perdia sin decirlo.
+        final DeckEditor std = DeckEditor.createNew(NeoFormat.ESTANDAR, "banquillo");
+        check("Importar: el banquillo pegado entra en el banquillo",
+                std.addSideboardAnyway(card("Red Elemental Blast"), 3) == 3
+                        && std.getDeck().get(DeckSection.Sideboard).count(card("Red Elemental Blast")) == 3
+                        && std.getDeck().getMain().countAll() == 0);
+        check("Importar: en Commander no hay banquillo y no se mete nada",
+                DeckEditor.createNew(NeoFormat.COMMANDER, "sin-banquillo").addSideboardAnyway(card("Shatter"), 1) == 0
+                        || DeckEditor.createNew(NeoFormat.COMMANDER, "sin-banquillo").hasSideboard());
+
+        // Y el lector de Android en Estandar (DeckImportBridge.parsearDecklist,
+        // lo mismo): la lista del video empezaba por "Sideboard" y el lector la
+        // deja en su seccion. Lo que fallaba era meterla en el editor.
+        final Deck parsed = androidParse("Sideboard\n3 Red Elemental Blast\n2 Storm World\n1 Shatter\n");
+        check("Importar (Android, Estandar): 'Sideboard' arriba deja las cartas en el banquillo",
+                parsed != null && parsed.getMain().countAll() == 0
+                        && parsed.has(DeckSection.Sideboard) && parsed.get(DeckSection.Sideboard).countAll() == 6);
+    }
+
+    /** Lo mismo que DeckImportBridge.parsearDecklist de Android para un formato sin comandante. */
+    private static Deck androidParse(final String text) {
+        final forge.deck.DeckImportController controller = new forge.deck.DeckImportController(
+                new HeadlessWidgets.CheckBox(false),
+                new HeadlessWidgets.ComboBox<String>(),
+                new HeadlessWidgets.ComboBox<Integer>(),
+                false);
+        controller.setGameFormat(NeoFormat.ESTANDAR.getGameType());
+        controller.setAllowedSections(new java.util.ArrayList<>(NeoFormat.ESTANDAR.deckFormat().getPrimaryDeckSections()));
+        controller.importBannedAndRestrictedCards(true);
+        controller.parseInput(text);
+        return controller.accept("prueba");
     }
 
     /**
@@ -1836,6 +1870,81 @@ public final class DeckRulesCheck {
      * cada 5 mazos trayendolo, seis seguidos limpios sin el arreglo saldrian
      * un 0,4% de las veces.
      */
+    /**
+     * "Completar" (Discord, 14-11-2026): lo que has puesto se queda, y el
+     * motor rellena hasta el minimo del formato sin pasarse ni colar nada que
+     * no quepa.
+     */
+    private static void completeKeepsWhatYouPut() {
+        final DeckEditor cmd = DeckEditor.createNew(NeoFormat.COMMANDER, "completar");
+        check("Completar: sin comandante no se ofrece en Commander", !cmd.canComplete());
+        cmd.setCommander(card("Krenko, Mob Boss"));
+        check("Completar: con comandante, si", cmd.canComplete());
+        final String[] mine = {"Goblin Bushwhacker", "Goblin Chieftain", "Skirk Prospector", "Goblin Matron",
+            "Lightning Bolt", "Sol Ring"};
+        for (final String n : mine) {
+            cmd.add(card(n), 1);
+        }
+        cmd.add(card("Mountain"), 14);
+        final int before = cmd.mainCount();
+        final int added = cmd.completeDeck();
+        boolean kept = cmd.getDeck().getMain().countByName("Mountain") >= 14;
+        for (final String n : mine) {
+            kept &= cmd.getDeck().getMain().countByName(n) == 1;
+        }
+        int lands = 0;
+        for (final java.util.Map.Entry<PaperCard, Integer> e : cmd.getDeck().getMain()) {
+            if (e.getKey().getRules().getType().isLand()) {
+                lands += e.getValue();
+            }
+        }
+        System.out.println("  [completar] Commander: " + before + " + " + added + " = " + cmd.mainCount()
+                + " (tierras " + lands + ")");
+        check("Completar (Commander): llega a 99 sin quitar nada", cmd.mainCount() == 99 && kept && added == 99 - before);
+        check("Completar (Commander): nada fuera de la identidad ni repetido", cmd.illegalCards().isEmpty()
+                && cmd.problem() == null);
+        check("Completar (Commander): una proporcion de tierras normal (30-45)", lands >= 30 && lands <= 45);
+        check("Completar: un mazo ya completo no cambia", cmd.completeDeck() == 0 && cmd.mainCount() == 99);
+
+        final DeckEditor std = DeckEditor.createNew(NeoFormat.ESTANDAR, "completar-60");
+        check("Completar (60): sin cartas no hay colores de donde tirar",
+                std.completeDeck() == DeckEditor.COMPLETE_NO_SOURCE);
+        final List<PaperCard> legal = new ArrayList<>();
+        for (final PaperCard c : FModel.getMagicDb().getCommonCards().getUniqueCards()) {
+            if (legal.size() >= 3) {
+                break;
+            }
+            if (c.getRules().getColor().isMonoColor() && c.getRules().getColor().hasRed()
+                    && c.getRules().getType().isCreature() && std.rejectionReason(c) == null) {
+                legal.add(c);
+            }
+        }
+        for (final PaperCard c : legal) {
+            std.add(c, 4);
+        }
+        final int stdBefore = std.mainCount();
+        final int stdAdded = std.completeDeck();
+        System.out.println("  [completar] Estandar: " + stdBefore + " + " + stdAdded + " = " + std.mainCount());
+        boolean stdKept = true;
+        for (final PaperCard c : legal) {
+            stdKept &= std.getDeck().getMain().count(c) == 4;
+        }
+        check("Completar (Estandar): llega a 60 con lo tuyo dentro",
+                legal.size() == 3 && std.mainCount() == 60 && stdKept);
+        check("Completar (Estandar): todo legal", std.illegalCards().isEmpty() && std.problem() == null);
+
+        // Alrededor de UNA carta (la idea de la Quest): 4 Lightning Bolt y nada
+        // mas. Sale en las tablas de sinergia de Forge, asi que el resto lo
+        // eligen mazos de verdad, no solo el color.
+        final DeckEditor bolt = DeckEditor.createNew(NeoFormat.ESTANDAR, "completar-bolt");
+        bolt.add(card("Lightning Bolt"), 4);
+        final int boltAdded = bolt.completeDeck();
+        System.out.println("  [completar] alrededor de Lightning Bolt: 4 + " + boltAdded + " = " + bolt.mainCount());
+        check("Completar alrededor de una carta: 60, legal y con los 4 Bolt",
+                bolt.mainCount() == 60 && bolt.problem() == null
+                        && bolt.getDeck().getMain().countByName("Lightning Bolt") == 4);
+    }
+
     private static void generatedDeckSkipsWhatIsAlreadyInTheDeck() {
         final PaperCard arlinn = card("Arlinn Kord");
         // El hechizo que mas se juega con ella: el que mas le sale al generador.

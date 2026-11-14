@@ -1833,6 +1833,14 @@
     -fx-background-color: rgba(74,155,224,0.18);
 }
 
+/* El reloj de la partida, junto a "TU TURNO": secundario y en cifras de ancho fijo. */
+.game-clock {
+    -fx-font-size: 0.75em;
+    -fx-text-fill: -neo-text-dim;
+    -fx-font-family: "Consolas", "Menlo", monospace;
+    -fx-padding: 0 0 0 6;
+}
+
 /* El orden de turnos, debajo de "TURNO DE ...": el que juega, encendido. */
 .turn-order-caption,
 .turn-order-arrow,

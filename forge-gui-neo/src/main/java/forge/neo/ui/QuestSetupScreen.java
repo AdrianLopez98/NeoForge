@@ -220,6 +220,11 @@ public class QuestSetupScreen extends BorderPane {
             poolPicker.preset(preset);
             poolChanged(preset);
         }
+        // run.cmd ui --quest-new -Dneo.quest.setupRandom=10: el boton de "N al azar".
+        final Integer drawn = Integer.getInteger("neo.quest.setupRandom");
+        if (drawn != null) {
+            poolPicker.drawRandom(drawn);
+        }
 
         // --- pie ---
         final TextField name = new TextField(suggestName());

@@ -4695,6 +4695,18 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         // anterior seria un dialogo fantasma sobre la mesa nueva.
         uiRunLater(() -> table.forgetEngineDialogs());
         gameOverShowing = false;
+        // Y el "he pedido salir" de la anterior (Discord, 14-11-2026: en red,
+        // el invitado solo veia el resultado de la PRIMERA partida). El
+        // invitado usa UN NeoMatchUI para toda la sesion (el cliente de Forge
+        // lo crea una vez); al dar "Volver" en la pantalla de fin quedaba
+        // exitAction = MENU, y en la partida siguiente finishGame lo tomaba
+        // por "ya se ha ido" y cerraba sin ensenyar nada. Al anfitrion no le
+        // pasa: NetHostedMatch le hace uno nuevo en cada partida.
+        exitAction = null;
+        // El reloj de la partida (Discord, 14-11-2026), desde cero en cada una.
+        // En una repeticion no: seria el tiempo que llevas mirandola.
+        final boolean clockOn = !isReplay() && forge.neo.NeoSettings.gameClock();
+        uiRunLater(() -> table.getPhaseRail().startClock(clockOn));
         closeDeferred = false;
         // El aviso de "el motor se ha muerto" es de un solo uso: si no se
         // rearma aqui, la segunda partida se rompe en silencio.

@@ -1,13 +1,12 @@
-**NeoForge para macOS 1.0.54 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.55 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Commander Draft entero, como Forge**: elige comandante de lo que draftaste, mazo de 60 y reglas de Commander. Y «Montar solo» te lo monta, comandante incluido.
-- **Las copias dicen qué carta hay debajo** (Sculpting Steel, True Polymorph…), en la mesa y al ampliar.
-- **La barra de botones en rojo cuando te toca a ti** (se puede apagar en Ajustes → Mesa).
-- **Ashnod's Altar y compañía en el turno del rival**: con algo en el stack, la partida te deja sacrificar en respuesta.
-- **Un botón para ver un rival o todos** en partidas de más de dos.
-- **La nota de draft** también en los premios de Ascenso, y la pantalla de picks ya no se descoloca.
-- Al día con Forge.
+- **«Completar» el mazo**: lo que has puesto se queda y se rellena el resto alrededor de tus cartas (en Commander, por tu comandante).
+- **Quest nueva con N expansiones al azar**: «5 al azar» con − y +, y otro clic, otras.
+- **El reloj de la partida** junto a «TU TURNO» (se quita en Ajustes).
+- **«Añadir mazo a este» mete también el banquillo** al pegar una lista.
+- **En red, el invitado ve el resultado de cada partida**, no solo de la primera.
+- Al día con Forge (Paul Atreides y Reverend Mother Jessica del Secret Lair de Dune).
 
 Descarga el `.dmg` de tu Mac:
 

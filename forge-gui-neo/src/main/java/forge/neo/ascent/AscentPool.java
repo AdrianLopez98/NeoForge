@@ -262,6 +262,38 @@ public final class AscentPool {
         return null;
     }
 
+    /**
+     * <b>Varias expansiones al azar</b>, para la Quest nueva (itch.io,
+     * 14-11-2026: <i>"a button to pick an X number of random sets? Like 5 or
+     * 10"</i>). De las mismas que {@link #randomSet} —basicas y expansiones de
+     * verdad, ya publicadas y con cartas de sobra—, sin mirar si dan para una
+     * run: con varias juntas siempre da, y si no, lo dice el texto de debajo
+     * del selector como con las elegidas a mano.
+     *
+     * <p>Compartida con Android: nada de API que no tenga en la 26.
+     *
+     * @return sus codigos, de la mas vieja a la mas nueva (menos si no hay tantas)
+     */
+    public static List<String> randomSets(final int count, final java.util.Random rnd) {
+        final List<CardEdition> candidates = new ArrayList<>();
+        final Date now = new Date();
+        for (final CardEdition ed : editions()) {
+            if ((ed.getType() == CardEdition.Type.CORE || ed.getType() == CardEdition.Type.EXPANSION)
+                    && !ed.getDate().after(now) && ed.getAllCardsInSet().size() >= MIN_CARDS) {
+                candidates.add(ed);
+            }
+        }
+        Collections.shuffle(candidates, rnd);
+        final List<CardEdition> picked = new ArrayList<>(
+                candidates.subList(0, Math.max(0, Math.min(count, candidates.size()))));
+        picked.sort(Comparator.comparing(CardEdition::getDate).thenComparing(CardEdition::getCode));
+        final List<String> out = new ArrayList<>();
+        for (final CardEdition ed : picked) {
+            out.add(ed.getCode());
+        }
+        return out;
+    }
+
     /** Cuantas se prueban como mucho: cada una recorre las cartas. */
     private static final int RANDOM_TRIES = 30;
 

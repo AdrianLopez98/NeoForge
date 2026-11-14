@@ -1199,6 +1199,14 @@ public class SettingsPanel extends VBox {
         awaitNote.setMinHeight(Region.USE_PREF_SIZE);
         getChildren().add(awaitNote);
 
+        // --- el reloj de la partida (Discord, 14-11-2026) ---
+        getChildren().add(toggleRow(NeoText.get("settings.gameClock"),
+                NeoSettings.gameClock(),
+                on -> {
+                    NeoSettings.setBool(NeoSettings.GAME_CLOCK, on);
+                    NeoSettings.save();
+                }));
+
         // --- la carta GRANDE al pasar el raton, como en Forge ---
         //
         // Discord, 07-10-2026: "i really want the large card on hover ... like

@@ -633,6 +633,13 @@ public final class NeoSettings {
      */
     public static final String AWAITING_HIGHLIGHT = "awaitingHighlight";
 
+    /** El reloj de la partida en la cabecera del rail (Discord, 14-11-2026). Encendido. */
+    public static final String GAME_CLOCK = "gameClock";
+
+    public static boolean gameClock() {
+        return getBool(GAME_CLOCK, true);
+    }
+
     public static boolean awaitingHighlight() {
         return getBool(AWAITING_HIGHLIGHT, true);
     }

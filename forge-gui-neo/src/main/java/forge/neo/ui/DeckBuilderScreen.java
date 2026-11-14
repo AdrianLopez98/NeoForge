@@ -10,6 +10,7 @@ import java.util.function.Predicate;
 
 import forge.card.MagicColor;
 import forge.deck.Deck;
+import forge.deck.DeckSection;
 import forge.game.card.CardView;
 import forge.item.PaperCard;
 import forge.neo.card.CardNode;
@@ -146,6 +147,8 @@ public class DeckBuilderScreen extends StackPane {
      * opcion, no una imposicion. Solo existen donde el pool es la banda.
      */
     private final Button autoBuild = new Button(NeoText.get("deck.autoBuild"));
+    /** "Completar": rellena lo que falta sin quitar nada (Discord, 14-11-2026). */
+    private final Button complete = new Button(NeoText.get("deck.complete"));
     private final Button clearMain = new Button(NeoText.get("deck.clearMain"));
 
     /** Filtros de la barra: colores marcados y "solo lo que cabe". */
@@ -1905,6 +1908,9 @@ public class DeckBuilderScreen extends StackPane {
         // cuando cambia el comandante.
         generate.getStyleClass().add("btn-secondary");
         generate.setOnAction(e -> generateDeck());
+        complete.getStyleClass().add("btn-secondary");
+        complete.setOnAction(e -> completeDeck());
+        complete.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("deck.complete.tip")));
 
         importer.getStyleClass().add("btn-secondary");
         importer.setOnAction(e -> importList());
@@ -1968,12 +1974,12 @@ public class DeckBuilderScreen extends StackPane {
         // Ningun boton se encoge por debajo de su texto: cuando la fila no cabe,
         // JavaFX lo corta con puntos suspensivos y queda un pie ilegible.
         for (final Button b : new Button[] {back, cleanup, removeMissing, exportMissing, clearSide, commander, spellButton, generate,
-                autoBuild, clearMain, importer, updateFromUrl, export, save}) {
+                complete, autoBuild, clearMain, importer, updateFromUrl, export, save}) {
             b.setMinWidth(Region.USE_PREF_SIZE);
         }
 
         final FlowPane actions =
-                new FlowPane(8, 8, cleanup, removeMissing, exportMissing, clearSide, commander, spellButton, generate, autoBuild,
+                new FlowPane(8, 8, cleanup, removeMissing, exportMissing, clearSide, commander, spellButton, generate, complete, autoBuild,
                         clearMain, importer, updateFromUrl, export);
         actions.setAlignment(Pos.CENTER_RIGHT);
         actions.setMinWidth(0);
@@ -3438,6 +3444,10 @@ public class DeckBuilderScreen extends StackPane {
                 && !editor.getFormat().poolInSideboard();
         generate.setVisible(canGenerate);
         generate.setManaged(canGenerate);
+        // Y "Completar", con la misma fuente que "Generar" o "Montar solo".
+        final boolean canComplete = editor.canComplete();
+        complete.setVisible(canComplete);
+        complete.setManaged(canComplete);
         if (cmd.isEmpty()) {
             if (editor.usesCommander()) {
                 final Label none = new Label(NeoText.get("deck.noCommanderYet"));
@@ -3660,6 +3670,14 @@ public class DeckBuilderScreen extends StackPane {
         for (final Map.Entry<PaperCard, Integer> e : deck.getMain()) {
             added += editor.addAnyway(e.getKey(), e.getValue());
         }
+        // Y el banquillo, menos el companero (va por su sitio, aqui abajo).
+        if (deck.has(DeckSection.Sideboard)) {
+            for (final Map.Entry<PaperCard, Integer> e : deck.get(DeckSection.Sideboard)) {
+                if (!companions.contains(e.getKey())) {
+                    added += editor.addSideboardAnyway(e.getKey(), e.getValue());
+                }
+            }
+        }
         // Despues del principal: setCompanion saca la carta del principal si
         // estaba, y al reves se colaria dos veces. Se queda el primero que valga.
         final List<String> badCompanions = new ArrayList<>();
@@ -3880,6 +3898,31 @@ public class DeckBuilderScreen extends StackPane {
         if (added < 0) {
             message(NeoText.get("deck.generate.failed.title"),
                     NeoText.get("deck.generate.failed.body"));
+        }
+    }
+
+    /**
+     * "Completar": tus cartas se quedan y el motor rellena el resto hasta un
+     * mazo legal (DeckEditor.completeDeck). No quita nada, asi que no pregunta;
+     * si no ha podido llenarlo entero, lo dice.
+     */
+    private void completeDeck() {
+        final int before = editor.mainCount();
+        final int target = editor.mainTarget();
+        if (before >= target) {
+            message(NeoText.get("deck.complete"), NeoText.get("deck.complete.full", target));
+            return;
+        }
+        final int added = editor.completeDeck();
+        refreshDeck();
+        refreshCatalogue();
+        if (added == forge.neo.deck.DeckEditor.COMPLETE_NO_SOURCE) {
+            message(NeoText.get("deck.complete"), NeoText.get("deck.complete.noSource"));
+        } else if (added < 0) {
+            message(NeoText.get("deck.generate.failed.title"), NeoText.get("deck.complete.failed"));
+        } else if (before + added < target) {
+            message(NeoText.get("deck.complete"),
+                    NeoText.get("deck.complete.short", added, target - before - added));
         }
     }
 

@@ -835,6 +835,37 @@ public final class DeckEditor {
         if (head == null) {
             return -1;
         }
+        final Deck generated = generatedForCommander(head);
+        if (generated == null) {
+            return GENERATOR_FAILED;
+        }
+        deck.getOrCreate(DeckSection.Main).clear();
+        // En la Quest con "Mis cartas", solo lo que TIENES: el generador tira
+        // de todo Magic. Antes lo que no tenias salia ilegal y "Limpiar" lo
+        // quitaba; con la lista de deseos (que no es ilegal) se quedaba entero
+        // y el mazo generado no se podia jugar. Con "Todas", el mazo entero,
+        // como lista de deseos: es lo que se ha pedido.
+        final boolean onlyOwned = format.allowsMissing() && !format.showsAllCards();
+        int added = 0;
+        for (final Map.Entry<PaperCard, Integer> e : generated.getMain()) {
+            int n = e.getValue();
+            if (onlyOwned) {
+                n = Math.min(n, ownedRoom(e.getKey()));
+            }
+            if (n > 0) {
+                added += addAnyway(e.getKey(), n);
+            }
+        }
+        dirty = true;
+        return added;
+    }
+
+    /**
+     * El mazo que genera el motor para este comandante, sin tocar el del
+     * editor: lo usan "Generar mazo" (que sustituye) y "Completar" (que solo
+     * rellena). null si el motor no da mazo.
+     */
+    private Deck generatedForCommander(final PaperCard head) {
         Deck generated;
         try {
             if (GeneratedDecks.picksItsOwnPartner(head, deckFormat())) {
@@ -863,12 +894,12 @@ public final class DeckEditor {
                         head, deckFormat(), false, false);
             } catch (final RuntimeException e) {
                 System.err.println("[generar] el motor no ha podido con " + head.getName() + ": " + e);
-                return GENERATOR_FAILED;
+                return null;
             }
         }
         if (generated == null) {
             System.err.println("[generar] el motor no ha devuelto mazo para " + head.getName());
-            return GENERATOR_FAILED;
+            return null;
         }
         // Sin Gleemox (DeckLimit:0) y sin lo que el jugador ya tiene fuera del
         // principal: el generador solo conoce el comandante, asi que el
@@ -876,25 +907,7 @@ public final class DeckEditor {
         // GeneratedDecks). Si se colaran, addAnyway los meteria y el mazo
         // recien generado saldria ya sin poderse guardar.
         GeneratedDecks.fixCopyLimits(generated, deckFormat(), outsideMain());
-        deck.getOrCreate(DeckSection.Main).clear();
-        // En la Quest con "Mis cartas", solo lo que TIENES: el generador tira
-        // de todo Magic. Antes lo que no tenias salia ilegal y "Limpiar" lo
-        // quitaba; con la lista de deseos (que no es ilegal) se quedaba entero
-        // y el mazo generado no se podia jugar. Con "Todas", el mazo entero,
-        // como lista de deseos: es lo que se ha pedido.
-        final boolean onlyOwned = format.allowsMissing() && !format.showsAllCards();
-        int added = 0;
-        for (final Map.Entry<PaperCard, Integer> e : generated.getMain()) {
-            int n = e.getValue();
-            if (onlyOwned) {
-                n = Math.min(n, ownedRoom(e.getKey()));
-            }
-            if (n > 0) {
-                added += addAnyway(e.getKey(), n);
-            }
-        }
-        dirty = true;
-        return added;
+        return generated;
     }
 
     /**
@@ -1656,6 +1669,286 @@ public final class DeckEditor {
         return added;
     }
 
+    // ---------------------------------------------------------------
+    // COMPLETAR EL MAZO (Discord, 14-11-2026: "some sort of auto fill to an
+    // uncompleted deck ... with a little human guidance")
+    // ---------------------------------------------------------------
+    //
+    // "Generar mazo" y "Montar solo" SUSTITUYEN el mazo. Completar no quita
+    // nada: lo que has puesto manda, y el motor solo rellena el hueco hasta el
+    // tamanyo minimo del formato. La fuente es la misma que la de esos dos
+    // botones (el generador de Commander, el constructor de limitado) y, en un
+    // mazo de 60 sin comandante, el generador por colores de Forge con los
+    // colores de lo que ya hay. De esa sugerencia se coge lo que no tienes,
+    // primero hechizos y luego tierras, con la proporcion de tierras de la
+    // sugerencia: asi un mazo a medio hacer no acaba con 30 tierras ni con 5.
+
+    /** {@link #completeDeck}: no hay de donde sacar sugerencia (sin comandante, o sin colores). */
+    public static final int COMPLETE_NO_SOURCE = -1;
+
+    /** Las cartas que tiene que tener el principal para ser legal (el minimo). */
+    public int mainTarget() {
+        int min = deckFormat().getMainRange().getMinimum();
+        // Dos comandantes = 98 (DeckFormat.getDeckConformanceProblem).
+        if (usesCommander() && !usesSignatureSpell() && commanders().size() == 2) {
+            min--;
+        }
+        return min;
+    }
+
+    /** Si este editor ofrece "Completar": hay de donde sacar una sugerencia. */
+    public boolean canComplete() {
+        if (format.poolInSideboard()) {
+            // En Commander Draft hace falta el comandante: es quien manda.
+            return canAutoBuild() && (!usesCommander() || mainCommander() != null);
+        }
+        if (usesCommander()) {
+            return mainCommander() != null;
+        }
+        return deckFormat().getMainRange().getMinimum() > 0;
+    }
+
+    /**
+     * Rellena el principal hasta {@link #mainTarget} sin quitar nada.
+     *
+     * @return cuantas ha metido (0 si ya estaba completo), {@link #COMPLETE_NO_SOURCE}
+     *         si no hay de donde sugerir, o {@link #GENERATOR_FAILED}
+     */
+    public int completeDeck() {
+        final int need = mainTarget() - mainCount();
+        if (need <= 0) {
+            return 0;
+        }
+        final CardPool suggestion;
+        if (format.poolInSideboard()) {
+            if (!canComplete()) {
+                return COMPLETE_NO_SOURCE;
+            }
+            suggestion = limitedSuggestion();
+        } else if (usesCommander()) {
+            final PaperCard head = mainCommander();
+            if (head == null) {
+                return COMPLETE_NO_SOURCE;
+            }
+            final Deck generated = generatedForCommander(head);
+            suggestion = generated == null ? null : generated.getMain();
+        } else {
+            return completeAroundKeyCards(need);
+        }
+        if (suggestion == null || suggestion.isEmpty()) {
+            return GENERATOR_FAILED;
+        }
+        return fillFrom(suggestion, need);
+    }
+
+    /**
+     * Sin comandante: ALREDEDOR DE TUS CARTAS (Discord, 14-11-2026, en la
+     * Quest: <i>"suggest a card and have you recommend other cards that could
+     * complement it"</i>). Primero el generador por sinergia de Forge
+     * ({@code DeckgenUtil.buildLDACardGenDeck}: las cartas que salen junto a
+     * esa en mazos de verdad, con un arquetipo al azar cada vez), empezando
+     * por la carta de la que mas copias has puesto; y lo que falte, por
+     * colores. Lo que no tienes, en una coleccion con "Mis cartas", no entra.
+     */
+    private int completeAroundKeyCards(final int need) {
+        int added = 0;
+        final CardPool around = keyCardSuggestion();
+        if (around != null && !around.isEmpty()) {
+            added += fillFrom(around, need);
+        }
+        if (added < need) {
+            final List<String> colours = mainColours();
+            if (colours.isEmpty()) {
+                return added > 0 ? added : COMPLETE_NO_SOURCE;
+            }
+            final CardPool byColour = colourSuggestion(colours);
+            if (byColour != null) {
+                added += fillFrom(byColour, need - added);
+            } else if (added == 0) {
+                return GENERATOR_FAILED;
+            }
+        }
+        return added;
+    }
+
+    /** El mazo que monta Forge alrededor de la primera de tus cartas que sale en sus tablas. */
+    private CardPool keyCardSuggestion() {
+        final List<Map.Entry<PaperCard, Integer>> keys = new ArrayList<>();
+        for (final Map.Entry<PaperCard, Integer> e : entries(deck.getMain())) {
+            if (e.getKey().getRules() != null && !e.getKey().getRules().getType().isLand()) {
+                keys.add(e);
+            }
+        }
+        // La que mas copias tiene manda (la que has elegido a proposito).
+        keys.sort((a, b) -> Integer.compare(b.getValue(), a.getValue()));
+        final java.util.Map<String, java.util.Map<String, List<List<org.apache.commons.lang3.tuple.Pair<String, Double>>>>> lda =
+                forge.deck.CardArchetypeLDAGenerator.ldaPools;
+        for (final Map.Entry<PaperCard, Integer> k : keys) {
+            final String name = k.getKey().getName();
+            for (final String f : new ArrayList<>(lda.keySet())) {
+                final java.util.Map<String, ?> table = lda.get(f);
+                if (table == null || !table.containsKey(name)) {
+                    continue;
+                }
+                final forge.game.GameFormat gf = forge.model.FModel.getFormats().get(f);
+                if (gf == null) {
+                    continue;
+                }
+                try {
+                    final Deck built = forge.deck.DeckgenUtil.buildLDACardGenDeck(k.getKey(), gf, false);
+                    if (built != null && !built.getMain().isEmpty()) {
+                        return built.getMain();
+                    }
+                } catch (final RuntimeException e) {
+                    System.err.println("[completar] " + name + " en " + f + ": " + e);
+                }
+            }
+        }
+        return null;
+    }
+
+    /** El mazo que montaria "Montar solo" con el pool entero, sin tocar el editor. */
+    private CardPool limitedSuggestion() {
+        final List<PaperCard> pool = new ArrayList<>();
+        for (final CardPool section : new CardPool[] {deck.get(DeckSection.Sideboard), deck.getMain()}) {
+            if (section == null) {
+                continue;
+            }
+            for (final Map.Entry<PaperCard, Integer> e : section) {
+                if (e.getKey().getRules() != null && e.getKey().getRules().getType().isBasicLand()) {
+                    continue;
+                }
+                for (int i = 0; i < e.getValue(); i++) {
+                    pool.add(e.getKey());
+                }
+            }
+        }
+        final List<PaperCard> chosen = commanders();
+        if (!chosen.isEmpty()) {
+            final List<PaperCard> withCommanders = new ArrayList<>(pool);
+            withCommanders.addAll(chosen);
+            final forge.deck.Deck whole = format.autoBuildDeck(withCommanders, chosen);
+            if (whole != null) {
+                return whole.getMain();
+            }
+        }
+        return format.autoBuild(pool);
+    }
+
+    /** Los colores de lo que ya hay en el principal, por su nombre largo ("white"...). */
+    private List<String> mainColours() {
+        byte mask = 0;
+        for (final Map.Entry<PaperCard, Integer> e : deck.getMain()) {
+            if (e.getKey().getRules() != null) {
+                mask |= e.getKey().getRules().getColor().getColor();
+            }
+        }
+        final List<String> out = new ArrayList<>();
+        for (final byte c : forge.card.MagicColor.WUBRG) {
+            if ((mask & c) != 0) {
+                out.add(forge.card.MagicColor.toLongString(c));
+            }
+        }
+        return out;
+    }
+
+    /** Un mazo de 60 de esos colores, del generador de Forge, solo con lo que cabe aqui. */
+    private CardPool colourSuggestion(final List<String> colours) {
+        final forge.card.CardDb db = forge.StaticData.instance().getCommonCards();
+        // Y en una coleccion con "Mis cartas", solo lo que tienes: si no, el
+        // generador elegiria cartas que luego no entran y el mazo se quedaria corto.
+        final boolean onlyOwned = format.allowsMissing() && !format.showsAllCards();
+        final java.util.function.Predicate<PaperCard> fits = c -> rejectionReason(c) == null
+                && (!onlyOwned || ownedRoom(c) > 0);
+        final DeckFormat df = DeckFormat.Constructed;
+        try {
+            final forge.deck.generation.DeckGeneratorBase gen;
+            if (colours.size() == 1) {
+                gen = new forge.deck.generation.DeckGeneratorMonoColor(db, df, fits, colours.get(0));
+            } else if (colours.size() == 2) {
+                gen = new forge.deck.generation.DeckGenerator2Color(db, df, fits, colours.get(0), colours.get(1));
+            } else if (colours.size() == 3) {
+                gen = new forge.deck.generation.DeckGenerator3Color(db, df, fits,
+                        colours.get(0), colours.get(1), colours.get(2));
+            } else {
+                gen = new forge.deck.generation.DeckGenerator5Color(db, df, fits);
+            }
+            return gen.getDeck(Math.max(60, mainTarget()), false);
+        } catch (final RuntimeException e) {
+            System.err.println("[completar] el generador por colores ha fallado: " + e);
+            return null;
+        }
+    }
+
+    /**
+     * Mete de la sugerencia lo que falta: primero hechizos, luego tierras,
+     * con la proporcion de tierras de la sugerencia. Nada que no quepa
+     * ({@link #rejectionReason}, {@link #roomFor}) ni, en una coleccion con
+     * "Mis cartas", que no tengas.
+     */
+    private int fillFrom(final CardPool suggestion, final int need) {
+        final boolean onlyOwned = format.allowsMissing() && !format.showsAllCards();
+        final List<Map.Entry<PaperCard, Integer>> spells = new ArrayList<>();
+        final List<Map.Entry<PaperCard, Integer>> lands = new ArrayList<>();
+        int suggestedLands = 0;
+        for (final Map.Entry<PaperCard, Integer> e : entries(suggestion)) {
+            final boolean land = e.getKey().getRules() != null && e.getKey().getRules().getType().isLand();
+            if (land) {
+                suggestedLands += e.getValue();
+                // Las que no son basicas, antes: las basicas rellenan al final.
+                if (e.getKey().getRules().getType().isBasicLand()) {
+                    lands.add(e);
+                } else {
+                    lands.add(0, e);
+                }
+            } else {
+                spells.add(e);
+            }
+        }
+        int currentLands = 0;
+        for (final Map.Entry<PaperCard, Integer> e : deck.getMain()) {
+            if (e.getKey().getRules() != null && e.getKey().getRules().getType().isLand()) {
+                currentLands += e.getValue();
+            }
+        }
+        final int total = Math.max(1, suggestion.countAll());
+        final int wantedLands = Math.round((float) suggestedLands * mainTarget() / total);
+        final int landsToAdd = Math.max(0, Math.min(need, wantedLands - currentLands));
+
+        int added = addSome(spells, need - landsToAdd, onlyOwned);
+        added += addSome(lands, need - added, onlyOwned);
+        // Si faltaban hechizos que meter, el hueco lo tapan tierras, y al reves.
+        if (added < need) {
+            added += addSome(spells, need - added, onlyOwned);
+        }
+        if (added > 0) {
+            dirty = true;
+        }
+        return added;
+    }
+
+    private int addSome(final List<Map.Entry<PaperCard, Integer>> from, final int wanted, final boolean onlyOwned) {
+        int added = 0;
+        for (final Map.Entry<PaperCard, Integer> e : from) {
+            if (added >= wanted) {
+                break;
+            }
+            final PaperCard c = e.getKey();
+            if (rejectionReason(c) != null) {
+                continue;
+            }
+            int n = Math.min(e.getValue(), roomFor(c));
+            if (onlyOwned) {
+                n = Math.min(n, ownedRoom(c));
+            }
+            n = Math.min(n, wanted - added);
+            if (n > 0) {
+                added += addAnyway(c, n);
+            }
+        }
+        return added;
+    }
+
     /**
      * Lo que ENTRA en el mazo sale de la banda, cuando la banda es el pozo.
      *
@@ -2395,6 +2688,27 @@ public final class DeckEditor {
         deck.getOrCreate(DeckSection.Sideboard).add(card, 1);
         dirty = true;
         return null;
+    }
+
+    /**
+     * <b>El banquillo de una lista pegada</b> (Discord, 14-11-2026: "I am
+     * trying to add sideboard cards to my deck... they are not being added").
+     * Al meter un mazo dentro del editor solo entraba el principal: lo que
+     * venia bajo "Sideboard" se perdia sin decirlo. Entra como el principal en
+     * {@link #addAnyway}: ENTERO, quepa o no — lo que no cabe se marca y no
+     * deja guardar.
+     *
+     * @return cuantas ha metido (0 si este mazo no tiene banquillo)
+     */
+    public int addSideboardAnyway(final PaperCard imported, final int amount) {
+        if (imported == null || amount <= 0 || !hasSideboard()) {
+            return 0;
+        }
+        final PaperCard card = ownedArt(imported);
+        deck.getOrCreate(DeckSection.Sideboard).add(card, amount);
+        takeFromPool(card, amount);
+        dirty = true;
+        return amount;
     }
 
     /** Cuantas cartas hay en el banquillo, sin contar al companero. */

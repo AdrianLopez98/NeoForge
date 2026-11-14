@@ -119,7 +119,26 @@ public class PhaseRail extends VBox {
             });
         }
         header.setAlignment(Pos.CENTER_LEFT);
-        header.getChildren().addAll(title, spacer, mineTab, theirTab);
+        // El reloj de la partida, pegado al "TU TURNO": discreto y sin quitar sitio.
+        clock.getStyleClass().add("game-clock");
+        clock.setMinWidth(Label.USE_PREF_SIZE);
+        clock.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("phase.clock.tip")));
+        clock.setVisible(false);
+        clock.setManaged(false);
+        // Principio 11: el latido no puede seguir vivo cuando la mesa se va.
+        // Al volver a la escena (la ampliacion de una carta la saca y la mete)
+        // sigue, porque el tiempo se cuenta desde el inicio y no por latidos.
+        sceneProperty().addListener((o, was, now) -> {
+            if (now == null) {
+                if (clockTick != null) {
+                    clockTick.stop();
+                }
+            } else if (clockStart > 0 && clockTick != null) {
+                paintClock();
+                clockTick.play();
+            }
+        });
+        header.getChildren().addAll(title, clock, spacer, mineTab, theirTab);
         getChildren().add(header);
         setEditingMine(true);
 
@@ -269,6 +288,45 @@ public class PhaseRail extends VBox {
             }
         }
     }
+
+    /**
+     * <b>El reloj de la partida</b> (Discord, 14-11-2026, jugando en red: <i>"A
+     * game timer would be nice. Doesn't even have to stop at game over as long
+     * as it always counts up from the start of the game"</i>). Cuenta desde que
+     * empieza la partida en ESTE ordenador y no se para. Se apaga en Ajustes.
+     *
+     * @param on false lo esconde (ajuste apagado, o una repeticion)
+     */
+    public void startClock(final boolean on) {
+        if (clockTick != null) {
+            clockTick.stop();
+            clockTick = null;
+        }
+        clockStart = on ? System.currentTimeMillis() : 0;
+        clock.setVisible(on);
+        clock.setManaged(on);
+        if (!on) {
+            return;
+        }
+        paintClock();
+        clockTick = new javafx.animation.Timeline(new javafx.animation.KeyFrame(
+                javafx.util.Duration.seconds(1), e -> paintClock()));
+        clockTick.setCycleCount(javafx.animation.Animation.INDEFINITE);
+        if (getScene() != null) {
+            clockTick.play();
+        }
+    }
+
+    private void paintClock() {
+        final long s = Math.max(0, (System.currentTimeMillis() - clockStart) / 1000);
+        final long h = s / 3600;
+        final long m = s / 60 % 60;
+        clock.setText(h > 0 ? String.format("%d:%02d:%02d", h, m, s % 60) : String.format("%d:%02d", m, s % 60));
+    }
+
+    private final Label clock = new Label();
+    private long clockStart;
+    private javafx.animation.Timeline clockTick;
 
     private final javafx.scene.layout.FlowPane turnOrder = new javafx.scene.layout.FlowPane();
     private final java.util.List<Label> orderPlayers = new java.util.ArrayList<>();
