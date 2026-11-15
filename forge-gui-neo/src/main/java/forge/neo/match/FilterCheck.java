@@ -110,11 +110,16 @@ public final class FilterCheck {
                 "y no senyala una tierra normal (encontro: " + control.blind + ")");
 
         check(prism.seen && short2.seen, "las dos mesas del Prisma arrancaron");
-        check(prism.filtered.contains(BLUE_NAME),
-                "FilterCast ilumina Divination con tres Wastes y Prophetic Prism (encontro: "
-                + prism.filtered + "; el motor la pagaba: " + prism.canPay + ")");
-        check(!short2.filtered.contains(BLUE_NAME),
-                "y no con dos Wastes, que no llegan (encontro: " + short2.filtered + ")");
+        // Card-Forge lo arreglo el 15-11-2026 (#12894, "AI mana payment: use
+        // abilities that fix color (e.g. Chromatic Star)"): desde entonces el
+        // motor ya la paga y la ilumina el solo, y FilterCast no tiene nada que
+        // anyadir. Lo que se vigila es que SE VEA jugable, la ponga quien la ponga.
+        check(prism.canPay || prism.filtered.contains(BLUE_NAME),
+                "Divination se ve jugable con tres Wastes y Prophetic Prism (el motor la paga: "
+                + prism.canPay + "; FilterCast: " + prism.filtered + ")");
+        check(!short2.filtered.contains(BLUE_NAME) && !short2.canPay,
+                "y no con dos Wastes, que no llegan (FilterCast: " + short2.filtered
+                + "; el motor la paga: " + short2.canPay + ")");
 
         System.out.printf(Locale.ROOT, "%n  %d bien, %d mal%n", passed, failed);
         if (failed > 0) {
