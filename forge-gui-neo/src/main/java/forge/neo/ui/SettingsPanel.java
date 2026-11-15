@@ -1207,6 +1207,28 @@ public class SettingsPanel extends VBox {
                     NeoSettings.save();
                 }));
 
+        // --- la barra del jugador al que le toca, encendida (Discord, 15-11-2026) ---
+        getChildren().add(toggleRow(NeoText.get("settings.turnBarGlow"),
+                NeoSettings.turnBarGlow(),
+                on -> {
+                    NeoSettings.setBool(NeoSettings.TURN_BAR_GLOW, on);
+                    NeoSettings.save();
+                }));
+
+        // --- el modo desarrollador (Discord, 15-11-2026), apagado ---
+        getChildren().add(toggleRow(NeoText.get("settings.devMode"),
+                NeoSettings.devMode(),
+                on -> {
+                    NeoSettings.setBool(NeoSettings.DEV_MODE, on);
+                    NeoSettings.save();
+                }));
+        final Label devNote = new Label(NeoText.get("settings.devMode.note"));
+        devNote.getStyleClass().add("settings-note");
+        devNote.setWrapText(true);
+        devNote.setMaxWidth(UiScale.px(560));
+        devNote.setMinHeight(Region.USE_PREF_SIZE);
+        getChildren().add(devNote);
+
         // --- la carta GRANDE al pasar el raton, como en Forge ---
         //
         // Discord, 07-10-2026: "i really want the large card on hover ... like

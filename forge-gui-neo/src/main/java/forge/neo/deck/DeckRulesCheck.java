@@ -1943,6 +1943,24 @@ public final class DeckRulesCheck {
         check("Completar alrededor de una carta: 60, legal y con los 4 Bolt",
                 bolt.mainCount() == 60 && bolt.problem() == null
                         && bolt.getDeck().getMain().countByName("Lightning Bolt") == 4);
+
+        // La Quest: Forge deja 40 (DeckFormat.QuestDeck), y Completar pregunta
+        // si hasta 40 o hasta 60, como los rivales (Discord, 15-11-2026).
+        final DeckEditor quest = new DeckEditor(new DeckContext() {
+            @Override public String getLabel() { return "Quest"; }
+            @Override public forge.deck.DeckFormat deckFormat() { return forge.game.GameType.Quest.getDeckFormat(); }
+            @Override public forge.util.storage.IStorage<Deck> storage() {
+                return new forge.util.storage.StorageBase<>("quest", "quest", new java.util.HashMap<>());
+            }
+        }, new Deck("completar-quest"));
+        check("Completar (Quest): se elige entre 40 y 60",
+                java.util.Arrays.equals(quest.completeSizes(), new int[] {40, 60}) && quest.mainTarget() == 40);
+        quest.add(card("Lightning Bolt"), 4);
+        final int questAdded = quest.completeDeck(60);
+        System.out.println("  [completar] Quest: 4 + " + questAdded + " = " + quest.mainCount());
+        check("Completar (Quest): con 60 llega a 60 con los 4 Bolt", quest.mainCount() == 60
+                && quest.getDeck().getMain().countByName("Lightning Bolt") == 4 && quest.mainTarget() == 40);
+        check("Completar: fuera de la Quest no se pregunta", std.completeSizes().length == 1);
     }
 
     private static void generatedDeckSkipsWhatIsAlreadyInTheDeck() {

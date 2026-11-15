@@ -616,6 +616,11 @@ public final class NeoMain {
                 banner("Las cartas prohibidas, editables");
                 forge.neo.deck.BanListCheck.run();
                 break;
+            case "devmodecheck":
+                // El modo desarrollador: las trampas de Forge, desde el menu Dev.
+                banner("Modo desarrollador: las trampas de Forge");
+                forge.neo.match.DevModeCheck.run();
+                break;
             case "destroysoundcheck":
                 // Destruir suena segun el tipo de carta (Discord: el Sol Ring gritaba).
                 banner("Destruir: el sonido segun el tipo");

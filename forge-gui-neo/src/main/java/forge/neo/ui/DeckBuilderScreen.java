@@ -3903,17 +3903,39 @@ public class DeckBuilderScreen extends StackPane {
 
     /**
      * "Completar": tus cartas se quedan y el motor rellena el resto hasta un
-     * mazo legal (DeckEditor.completeDeck). No quita nada, asi que no pregunta;
-     * si no ha podido llenarlo entero, lo dice.
+     * mazo legal (DeckEditor.completeDeck). No quita nada, asi que no pregunta
+     * si seguir; si no ha podido llenarlo entero, lo dice. En la Quest pregunta
+     * HASTA CUANTAS, 40 o 60 (Discord, 15-11-2026: los rivales juegan con 60).
      */
     private void completeDeck() {
+        final int[] sizes = editor.completeSizes();
+        if (sizes.length < 2) {
+            completeDeckTo(sizes[0]);
+            return;
+        }
+        final List<String> options = new ArrayList<>();
+        for (final int s : sizes) {
+            options.add(NeoText.get("deck.complete.size", s));
+        }
+        options.add(NeoText.get("common.cancel"));
+        overlay.setOnBackgroundClick(null);
+        overlay.show(new ConfirmDialog(NeoText.get("deck.complete"),
+                NeoText.get("deck.complete.ask", sizes[0], sizes[sizes.length - 1]), options,
+                sizes.length - 1, choice -> {
+                    overlay.hide();
+                    if (choice >= 0 && choice < sizes.length) {
+                        completeDeckTo(sizes[choice]);
+                    }
+                }));
+    }
+
+    private void completeDeckTo(final int target) {
         final int before = editor.mainCount();
-        final int target = editor.mainTarget();
         if (before >= target) {
             message(NeoText.get("deck.complete"), NeoText.get("deck.complete.full", target));
             return;
         }
-        final int added = editor.completeDeck();
+        final int added = editor.completeDeck(target);
         refreshDeck();
         refreshCatalogue();
         if (added == forge.neo.deck.DeckEditor.COMPLETE_NO_SOURCE) {

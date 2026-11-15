@@ -1693,7 +1693,39 @@ public final class DeckEditor {
         if (usesCommander() && !usesSignatureSpell() && commanders().size() == 2) {
             min--;
         }
+        // Completar hasta otro tamanyo que el minimo (la Quest a 60): ver completeSizes.
+        if (completingTo > 0) {
+            return completingTo;
+        }
         return min;
+    }
+
+    /** Mientras {@link #completeDeck(int)} rellena: hasta cuantas. */
+    private int completingTo = 0;
+
+    /**
+     * A que tamanyos puede "Completar" este mazo: uno solo (el minimo) o, en la
+     * QUEST sin comandante, 40 o 60 a elegir (Discord, 15-11-2026: <i>"the
+     * opponents always have 60 cards, and ... having 20 fewer cards gives you
+     * an advantage"</i>). Forge deja jugarla con 40 ({@code DeckFormat.QuestDeck})
+     * y eso no se toca; lo que se pregunta es hasta donde rellenar.
+     */
+    public int[] completeSizes() {
+        final int min = mainTarget();
+        if (!usesCommander() && deckFormat() == forge.deck.DeckFormat.QuestDeck && min < 60) {
+            return new int[] {min, 60};
+        }
+        return new int[] {min};
+    }
+
+    /** {@link #completeDeck()} hasta {@code size} cartas (uno de {@link #completeSizes}). */
+    public int completeDeck(final int size) {
+        completingTo = size;
+        try {
+            return completeDeck();
+        } finally {
+            completingTo = 0;
+        }
     }
 
     /** Si este editor ofrece "Completar": hay de donde sacar una sugerencia. */

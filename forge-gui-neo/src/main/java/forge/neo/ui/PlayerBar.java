@@ -872,10 +872,14 @@ public class PlayerBar extends HBox {
     public void setActiveTurn(final boolean active) {
         turnMark.setVisible(active);
         pseudoClassStateChanged(ACTIVE, active);
+        // La barra entera encendida, si se ha pedido (NeoSettings.TURN_BAR_GLOW).
+        pseudoClassStateChanged(TURN_GLOW, active && forge.neo.NeoSettings.turnBarGlow());
     }
 
     private static final javafx.css.PseudoClass ACTIVE =
             javafx.css.PseudoClass.getPseudoClass("active");
+    private static final javafx.css.PseudoClass TURN_GLOW =
+            javafx.css.PseudoClass.getPseudoClass("turn-glow");
 
     /** Si este jugador juega de tu lado. Ver {@link #allyMark}. */
     public void setAlly(final boolean ally) {

@@ -640,6 +640,34 @@ public final class NeoSettings {
         return getBool(GAME_CLOCK, true);
     }
 
+    /**
+     * MODO DESARROLLADOR (Discord, 15-11-2026: "a Dev mode that lets you add
+     * mana, untap, etc for single player"). Apagado de fabrica. Con el, el menu
+     * de pausa de una partida SUELTA contra la IA trae "Dev" con las trampas que
+     * ya tiene Forge ({@code IGameController.cheat()}). Nunca en Ascenso, Quest,
+     * Aventura, draft, torneo, puzzles ni red: ahi ni sale (NeoApp.casualBinder).
+     * En neo.properties: el {@code DEV_MODE_ENABLED} de Forge no se toca.
+     */
+    public static final String DEV_MODE = "devMode";
+
+    /**
+     * LA BARRA DEL JUGADOR AL QUE LE TOCA, ENCENDIDA ENTERA (Discord, 15-11-2026:
+     * "If the player banner could be highlighted instead of just the word turn,
+     * it would be a lot easier to see in my peripheral vision"). Apagado de
+     * fabrica: es la marca :active de siempre (PlayerBar.setActiveTurn), pintada
+     * mucho mas fuerte, para pantallas grandes.
+     */
+    public static final String TURN_BAR_GLOW = "turnBarGlow";
+
+    public static boolean turnBarGlow() {
+        // -Dneo.turnGlow=true: encendido para capturarlo, sin tocar los ajustes.
+        return getBool(TURN_BAR_GLOW, false) || Boolean.getBoolean("neo.turnGlow");
+    }
+
+    public static boolean devMode() {
+        return getBool(DEV_MODE, false);
+    }
+
     public static boolean awaitingHighlight() {
         return getBool(AWAITING_HIGHLIGHT, true);
     }

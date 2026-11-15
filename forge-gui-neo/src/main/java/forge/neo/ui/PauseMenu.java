@@ -56,6 +56,15 @@ public class PauseMenu extends StackPane {
         /** Rinde esta partida y sigue el partido ({@code NeoMatchUI.concedeGame}). */
         default void concedeGame() {
         }
+
+        /**
+         * Las trampas de Forge si esta partida admite el modo desarrollador
+         * (ajuste encendido y partida suelta contra la IA), o null: entonces
+         * "Dev" ni sale. Ver {@code NeoSettings.DEV_MODE}.
+         */
+        default forge.interfaces.IDevModeCheats devCheats() {
+            return null;
+        }
     }
 
     private final VBox root = new VBox(10);
@@ -211,6 +220,11 @@ public class PauseMenu extends StackPane {
                     }));
         }
 
+        // EL MODO DESARROLLADOR: solo si la partida lo admite (Actions.devCheats).
+        if (!replay && actions.devCheats() != null) {
+            root.getChildren().add(item(NeoText.get("pause.dev"), "btn-secondary", this::showDev));
+        }
+
         if (actions.hasSavedOrders()) {
             root.getChildren().add(item(NeoText.get("pause.forgetOrders"), "btn-secondary", () -> {
                 actions.forgetSavedOrders();
@@ -276,6 +290,122 @@ public class PauseMenu extends StackPane {
                 NeoText.get(runAtStake ? "pause.quit.run.detail" : "pause.quit.detail"),
                 NeoText.get(runAtStake ? "pause.quit.run.yes" : "pause.quit.yes"),
                 actions::quitToMenu);
+    }
+
+    /**
+     * Lo que esta encendido de las dos trampas que son interruptores (tierras sin
+     * limite y ver todas las cartas), por partida: Forge no deja leerlo, asi que
+     * se apunta aqui con el objeto de trampas de esa partida como clave.
+     */
+    private static final java.util.Map<forge.interfaces.IDevModeCheats, boolean[]> DEV_TOGGLES =
+            java.util.Collections.synchronizedMap(new java.util.WeakHashMap<>());
+
+    /**
+     * EL MENU "DEV": las trampas de Forge ({@code IDevModeCheats}), como el menu
+     * Dev de la GUI Swing. Cada una cierra el menu y corre en SU PROPIO HILO, ni
+     * el de JavaFX ni el del motor: casi todas preguntan algo (que carta, que
+     * jugador) con los dialogos de siempre, que bloquean a quien llama hasta la
+     * respuesta (las notas de diseño). Lo que cambia la partida lo pasa Forge a su hilo
+     * ({@code GameAction.invoke}).
+     */
+    private void showDev() {
+        final forge.interfaces.IDevModeCheats cheats = actions.devCheats();
+        if (cheats == null) {
+            showMain();
+            return;
+        }
+        final boolean[] toggles = DEV_TOGGLES.computeIfAbsent(cheats, k -> new boolean[2]);
+        final VBox box = new VBox(10);
+        box.getStyleClass().addAll("dialog", "pause-menu");
+        box.setPadding(new Insets(22, 26, 18, 26));
+        box.setAlignment(Pos.CENTER);
+        box.setMaxWidth(Region.USE_PREF_SIZE);
+        box.setMaxHeight(Region.USE_PREF_SIZE);
+
+        final Label title = new Label(NeoText.get("pause.dev"));
+        title.getStyleClass().add("dialog-title");
+        final Label sub = new Label(NeoText.get("dev.note"));
+        sub.getStyleClass().add("home-subtitle");
+        sub.setWrapText(true);
+        sub.setMaxWidth(UiScale.px(460));
+
+        // Dos columnas: un GridPane (un TilePane dentro del scroll se quedaba en una).
+        final javafx.scene.layout.GridPane grid = new javafx.scene.layout.GridPane();
+        grid.setHgap(8);
+        grid.setVgap(8);
+        final java.util.List<Button> buttons = new java.util.ArrayList<>();
+        final Object[][] all = {
+            {"dev.mana", (Runnable) cheats::generateMana},
+            {"dev.untap", (Runnable) cheats::untapPermanents},
+            {"dev.tap", (Runnable) cheats::tapPermanents},
+            {"dev.life", (Runnable) cheats::setPlayerLife},
+            {"dev.addCounters", (Runnable) cheats::addCountersToPermanent},
+            {"dev.removeCounters", (Runnable) cheats::removeCountersFromPermanent},
+            {"dev.tutor", (Runnable) cheats::tutorForCard},
+            {"dev.toHand", (Runnable) cheats::addCardToHand},
+            {"dev.toBattlefield", (Runnable) cheats::addCardToBattlefield},
+            {"dev.token", (Runnable) cheats::addTokenToBattlefield},
+            {"dev.toLibrary", (Runnable) cheats::addCardToLibrary},
+            {"dev.toGraveyard", (Runnable) cheats::addCardToGraveyard},
+            {"dev.toExile", (Runnable) cheats::addCardToExile},
+            {"dev.cast", (Runnable) cheats::castASpell},
+            {"dev.repeat", (Runnable) cheats::repeatLastAddition},
+            {"dev.exileHand", (Runnable) cheats::exileCardsFromHand},
+            {"dev.exileBattlefield", (Runnable) cheats::exileCardsFromBattlefield},
+            {"dev.removeFromGame", (Runnable) cheats::removeCardsFromGame},
+            {"dev.win", (Runnable) cheats::winGame},
+        };
+        for (final Object[] a : all) {
+            buttons.add(devButton(NeoText.get((String) a[0]), (Runnable) a[1]));
+        }
+        // Los dos interruptores: dicen como estan.
+        buttons.add(devButton(NeoText.get(toggles[0] ? "dev.lands.on" : "dev.lands.off"), () -> {
+            toggles[0] = !toggles[0];
+            cheats.setCanPlayUnlimitedLands(toggles[0]);
+        }));
+        buttons.add(devButton(NeoText.get(toggles[1] ? "dev.viewAll.on" : "dev.viewAll.off"), () -> {
+            toggles[1] = !toggles[1];
+            cheats.setViewAllCards(toggles[1]);
+        }));
+        for (int i = 0; i < buttons.size(); i++) {
+            buttons.get(i).setPrefWidth(UiScale.px(230));
+            grid.add(buttons.get(i), i % 2, i / 2);
+        }
+        final javafx.scene.control.ScrollPane scroll = new javafx.scene.control.ScrollPane(grid);
+        scroll.getStyleClass().add("dialog-scroll");
+        scroll.setFitToWidth(true);
+        scroll.setHbarPolicy(javafx.scene.control.ScrollPane.ScrollBarPolicy.NEVER);
+        scroll.setMaxHeight(UiScale.px(520));
+
+        box.getChildren().addAll(title, sub, scroll,
+                item(NeoText.get("common.back"), "btn-primary", this::showMain));
+        getChildren().setAll(box);
+    }
+
+    /** Para la captura: abre el menu Dev (NeoApp, --mock-pause -Dneo.dev.open=true). */
+    public void showDevForTest() {
+        showDev();
+    }
+
+    /** Un boton de trampa: cierra el menu y la lanza en su hilo. */
+    private Button devButton(final String text, final Runnable cheat) {
+        final Button b = new Button(text);
+        b.getStyleClass().addAll("btn-secondary", "pause-item");
+        b.setMaxWidth(Double.MAX_VALUE);
+        b.setOnAction(e -> {
+            actions.resume();
+            final Thread t = new Thread(() -> {
+                try {
+                    cheat.run();
+                } catch (final RuntimeException ex) {
+                    System.err.println("[neo] modo desarrollador: " + ex);
+                    ex.printStackTrace();
+                }
+            }, "neo-dev-cheat");
+            t.setDaemon(true);
+            t.start();
+        });
+        return b;
     }
 
     /** Quien se entera de los gestos de este menu. Lo usa el tutorial. */

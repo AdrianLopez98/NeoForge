@@ -353,6 +353,16 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             } catch (final RuntimeException e) {
                 System.err.println("[neo] Discord: " + e);
             }
+            // AL SALIR DE LA MESA, LA MUSICA DE LOS MENUS (Discord, 15-11-2026:
+            // "When you finish a game and go back to the menu, the battle music
+            // playlist continues to play ... Only way to fix is to restart").
+            // La de partida la pone el motor (HostedMatch.startMatch) y nadie la
+            // quitaba: solo se pedia la de menus al arrancar. Aqui, el sitio por
+            // el que pasa toda salida de la mesa (principio 8). Un Bo3 no cambia
+            // de raiz entre partidas, y pedir la misma lista otra vez no hace nada.
+            if (old instanceof forge.neo.ui.TableScreen && !(root instanceof forge.neo.ui.TableScreen)) {
+                forge.neo.look.NeoMusic.playMenus();
+            }
         });
 
         // Si hay una version nueva en itch.io (pedido el 28-09-2026). En su
@@ -768,7 +778,11 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                     debug.mockMultiBoard(deck);
                 }
                 if (args.contains("--mock-pause")) {
-                    togglePauseMenu();
+                    final PauseMenu mockMenu = openPauseMenu(true);
+                    // -Dneo.dev.open=true (con -Dneo.dev.mock=true): ya dentro de "Dev".
+                    if (Boolean.getBoolean("neo.dev.open") && mockMenu != null) {
+                        mockMenu.showDevForTest();
+                    }
                 }
                 if (args.contains("--mock-log")) {
                     // El registro con cartas (Discord, 17-10-2026): lineas de
@@ -3437,6 +3451,9 @@ public class NeoApp extends Application implements SettingsPanel.Host {
      * <p>Va en su propia capa, encima de la de los dialogos: si el motor estaba
      * esperando una respuesta, su dialogo sigue ahi al cerrar el menu.
      */
+    /** La partida suelta en curso (startLiveGame), o null: ver devCheats. */
+    private TableBinder casualBinder;
+
     private void togglePauseMenu() {
         if (table.getMenuOverlay().isShowing()) {
             table.getMenuOverlay().hide();
@@ -3490,6 +3507,20 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             public boolean hasSavedOrders() {
                 final forge.neo.match.NeoMatchUI ui = binder == null ? null : binder.getMatchUi();
                 return ui != null && ui.hasSavedOrders();
+            }
+
+            @Override
+            public forge.interfaces.IDevModeCheats devCheats() {
+                // -Dneo.dev.mock=true: con --mock-pause, el menu Dev con trampas que no hacen nada.
+                if (Boolean.getBoolean("neo.dev.mock")) {
+                    return forge.interfaces.IDevModeCheats.NO_CHEAT;
+                }
+                if (!NeoSettings.devMode() || binder == null || binder != casualBinder) {
+                    return null;
+                }
+                final forge.neo.match.NeoMatchUI ui = binder.getMatchUi();
+                final forge.interfaces.IGameController c = ui == null ? null : ui.getGameController();
+                return c == null ? null : c.cheat();
             }
 
             @Override
@@ -4992,6 +5023,10 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                                final boolean backToHome) {
         final TableBinder liveBinder = new TableBinder(table);
         this.binder = liveBinder;
+        // La partida SUELTA jugada por ti: la unica en la que el menu de pausa
+        // ofrece el modo desarrollador. Ascenso, Quest, draft, torneo, puzzles y
+        // red no pasan por aqui (ver NeoSettings.DEV_MODE).
+        casualBinder = mode == NeoMatchUI.Mode.HUMAN ? liveBinder : null;
         final boolean autoMana = NeoSettings.autoPayMana() || Boolean.getBoolean("neo.autoPay");
         final NeoFormat format = lastFormat;
         table.setPrompt(forge.neo.NeoText.get("app.preparing"));
@@ -5039,6 +5074,11 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                 e.printStackTrace();
             } finally {
                 forge.neo.match.FriendlyAttacks.disarm();
+                Platform.runLater(() -> {
+                    if (casualBinder == liveBinder) {
+                        casualBinder = null;
+                    }
+                });
                 // play() no vuelve hasta que el match se cierra de verdad: al
                 // ganar o perder, o al salir desde el menu de pausa.
                 if (backToHome) {

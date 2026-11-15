@@ -1,12 +1,12 @@
-**NeoForge para macOS 1.0.55 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.56 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **«Completar» el mazo**: lo que has puesto se queda y se rellena el resto alrededor de tus cartas (en Commander, por tu comandante).
-- **Quest nueva con N expansiones al azar**: «5 al azar» con − y +, y otro clic, otras.
-- **El reloj de la partida** junto a «TU TURNO» (se quita en Ajustes).
-- **«Añadir mazo a este» mete también el banquillo** al pegar una lista.
-- **En red, el invitado ve el resultado de cada partida**, no solo de la primera.
-- Al día con Forge (Paul Atreides y Reverend Mother Jessica del Secret Lair de Dune).
+- **Modo desarrollador** (Ajustes, apagado): en las partidas sueltas, «Dev» en el menú de pausa con las herramientas de Forge para probar combos: maná, enderezar, vidas, cartas a cualquier zona...
+- **«Completar» en la Quest pregunta**: hasta 40 o hasta 60 cartas.
+- **El reparto de daño con muchos bloqueadores** va en filas con barra: los botones siempre se ven.
+- **Al salir de una partida vuelve la música de los menús.**
+- **La barra del jugador al que le toca, encendida entera** (ajuste, apagado).
+- Al día con Forge.
 
 Descarga el `.dmg` de tu Mac:
 

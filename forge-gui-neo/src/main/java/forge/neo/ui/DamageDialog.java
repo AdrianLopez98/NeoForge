@@ -16,7 +16,9 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.input.MouseButton;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -103,9 +105,14 @@ public class DamageDialog extends VBox {
         final VBox attackerBox = new VBox(6, attackerNode, totalLabel);
         attackerBox.setAlignment(Pos.CENTER);
 
-        // --- objetivos en fila ---
-        final HBox row = new HBox(12);
+        // --- objetivos: en filas que caben en la ventana ---
+        // Discord, 15-11-2026: "Mass blocks could use a scroll bar ... I cant get
+        // to the buttons": con una fila sola, nueve bloqueadores sacaban el
+        // dialogo de la pantalla y con el el Aceptar. Ahora envuelven al ancho
+        // que hay (layoutChildren) y, si aun asi no caben, sale la barra
+        // vertical: el pie con los botones se ve siempre.
         row.setAlignment(Pos.CENTER);
+        row.setPadding(new Insets(4));
         if (blockers != null) {
             for (final CardView blocker : blockers) {
                 row.getChildren().add(addTarget(blocker, cardWidth));
@@ -117,7 +124,13 @@ public class DamageDialog extends VBox {
             row.getChildren().add(addTarget(null, cardWidth));
         }
 
-        final HBox board = new HBox(28, attackerBox, row);
+        targetsScroll.setContent(row);
+        targetsScroll.getStyleClass().add("dialog-scroll");
+        targetsScroll.setFitToWidth(true);
+        targetsScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        targetsScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        this.attackerBox = attackerBox;
+        final HBox board = new HBox(28, attackerBox, targetsScroll);
         board.setAlignment(Pos.CENTER_LEFT);
 
         remaining.getStyleClass().add("dialog-counter");
@@ -163,6 +176,34 @@ public class DamageDialog extends VBox {
         }
         rules = DamageRules.combat(damage, lethal, isDefender, overrideOrder);
         autoAssign();
+    }
+
+    /** Los bloqueadores (y el defensor con arrollar), envolviendo. */
+    private final FlowPane row = new FlowPane(12, 12);
+    private final ScrollPane targetsScroll = new ScrollPane();
+    private VBox attackerBox;
+
+    /**
+     * El ancho y el alto de los objetivos salen de la ventana: aqui ya hay
+     * escena (en el constructor no). Lo mismo que hace {@code ChoiceDialog}.
+     */
+    @Override
+    protected void layoutChildren() {
+        final javafx.scene.Scene scene = getScene();
+        if (scene != null && scene.getWidth() > 0 && attackerBox != null) {
+            final double side = attackerBox.prefWidth(-1) + 28 + getPadding().getLeft()
+                    + getPadding().getRight() + 24;
+            final double one = row.getChildren().isEmpty() ? 0 : row.getChildren().get(0).prefWidth(-1);
+            final double all = row.getChildren().isEmpty() ? 0
+                    : row.getChildren().size() * (one + row.getHgap()) - row.getHgap() + 8;
+            final double wrap = Math.max(one + 8, Math.min(all, scene.getWidth() * 0.92 - side));
+            row.setPrefWrapLength(wrap);
+            targetsScroll.setPrefViewportWidth(wrap + 2);
+            final double needed = row.prefHeight(wrap) + 2;
+            final double room = Math.max(160, scene.getHeight() * 0.62);
+            targetsScroll.setPrefViewportHeight(Math.min(needed, room));
+        }
+        super.layoutChildren();
     }
 
     /** Una carta objetivo con su contador de dano debajo. */

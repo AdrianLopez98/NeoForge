@@ -1833,13 +1833,25 @@ final class NeoAppDebug {
      * levanta con cartas cualesquiera para poder verlo.
      */
     void mockDamage() {
-        final List<CardView> creatures = app.table.selfCreatureViews();
+        // Las de los dos lados: la maqueta de la mesa ya no trae tres propias.
+        final List<CardView> creatures = new java.util.ArrayList<>(app.table.selfCreatureViews());
+        creatures.addAll(app.table.opponentCreatureViews());
         if (creatures.size() < 3) {
             System.out.println("[maqueta] no hay criaturas suficientes para el reparto de dano");
             return;
         }
         final CardView attacker = creatures.get(0);
-        final List<CardView> blockers = creatures.subList(1, Math.min(4, creatures.size()));
+        List<CardView> blockers = creatures.subList(1, Math.min(4, creatures.size()));
+        // -Dneo.damage.blockers=12: un bloqueo en masa (Discord, 15-11-2026), repitiendo
+        // las que hay; tiene que salir en filas y con los botones a la vista.
+        final int many = Integer.getInteger("neo.damage.blockers", 0);
+        if (many > blockers.size()) {
+            final List<CardView> more = new java.util.ArrayList<>();
+            for (int i = 0; i < many; i++) {
+                more.add(blockers.get(i % blockers.size()));
+            }
+            blockers = more;
+        }
         app.table.getOverlay().show(new forge.neo.ui.DamageDialog(
                 attacker, blockers, 7, app.table.getOpponentBar().getPlayer(),
                 false, true, false, 10, 132,

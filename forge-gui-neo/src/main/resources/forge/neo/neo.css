@@ -4206,6 +4206,14 @@
     -fx-border-color: #66bde8 transparent transparent transparent;
     -fx-border-width: 2 0 0 0;
 }
+/* LA BARRA DEL JUGADOR AL QUE LE TOCA, ENTERA (NeoSettings.TURN_BAR_GLOW,
+   apagado): para verla de reojo en una pantalla grande. Va antes de .avatar y
+   encadenada (:active:turn-glow) para ganar a las dos reglas de arriba. */
+.table-root .player-bar:active:turn-glow {
+    -fx-background-color: linear-gradient(to right, rgba(74,155,224,.62), rgba(74,155,224,.40), rgba(74,155,224,.26));
+    -fx-border-color: #66bde8;
+    -fx-border-width: 2;
+}
 .table-root .player-bar:active .avatar {
     -fx-stroke: #ebc482;
     -fx-effect: dropshadow(gaussian, rgba(236,187,107,.4), 15, .2, 0, 0);
