@@ -497,6 +497,18 @@ public final class NeoMain {
                 banner("Archenemy: quien es, sus esquemas y los equipos");
                 forge.neo.match.ArchenemyCheck.run();
                 break;
+            case "twoheadedcheck":
+                // Two-Headed Giant: los asientos (vidas y equipos) y una partida
+                // a cuatro con la vida compartida vigilada. Ver TwoHeadedGiant.
+                banner("Two-Headed Giant: equipos, turno y vida compartidos");
+                forge.neo.match.TwoHeadedGiantCheck.run();
+                break;
+            case "themedeckcheck":
+                // El mazo de un comandante que Forge no conoce: con el tema de
+                // su carta, no solo sus colores. Ver GeneratedDecks.themed.
+                banner("Mazo con tema para comandantes sin matriz");
+                forge.neo.deck.ThemeDeckCheck.run();
+                break;
             case "twopilescheck":
                 // Las pilas con varios rivales (Curator of Destinies): quien
                 // decide, por botones, y el efecto resuelto. Ver PlayerPick.

@@ -715,10 +715,16 @@ public class LookScreen extends BorderPane {
         // ponga el ajuste: sin ajuste puesto NeoLook se cae al primero de la
         // lista, y si aqui no se marcaba nadie la pantalla decia que no habias
         // elegido cuando si tenias uno puesto.
-        final String current = (NeoLook.PLAYMAT.equals(key) ? NeoLook.currentPlaymat()
+        final boolean random = !NeoLook.AVATAR.equals(key) && NeoLook.isRandom(key);
+        final String current = random ? NeoLook.RANDOM
+                : (NeoLook.PLAYMAT.equals(key) ? NeoLook.currentPlaymat()
                 : NeoLook.SLEEVE.equals(key) ? NeoLook.currentSleeve()
                 : NeoLook.currentAvatar()).getId();
 
+        // "Al azar" (itch.io, 16-11-2026), el primero: uno distinto cada partida.
+        if (NeoLook.PLAYMAT.equals(key) || NeoLook.SLEEVE.equals(key)) {
+            grid.getChildren().add(randomTile(key, random, tile));
+        }
         for (final LookItem item : items) {
             grid.getChildren().add(tile(item, key, current, tile, round, dir));
         }
@@ -760,6 +766,36 @@ public class LookScreen extends BorderPane {
         final VBox box = new VBox(10, scroll, footer);
         VBox.setVgrow(box, Priority.ALWAYS);
         return box;
+    }
+
+    /** La casilla "Al azar": el ajuste guarda NeoLook.RANDOM. */
+    private Region randomTile(final String key, final boolean picked, final double size) {
+        final StackPane face = new StackPane();
+        face.getStyleClass().add("look-tile");
+        face.setPrefSize(size, size * 1.2);
+        face.setMinSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+        face.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+        face.pseudoClassStateChanged(PICKED, picked);
+        final Label label = new Label(NeoText.get("look.random"));
+        label.getStyleClass().add("home-subtitle");
+        label.setWrapText(true);
+        label.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
+        label.setAlignment(Pos.CENTER);
+        label.setMaxWidth(size - 12);
+        face.getChildren().add(label);
+        face.setCursor(javafx.scene.Cursor.HAND);
+        face.setId("look-random-" + key);
+        face.setOnMouseClicked(e -> {
+            if (e.getButton() != javafx.scene.input.MouseButton.PRIMARY) {
+                return;
+            }
+            forge.neo.NeoSettings.set(key, NeoLook.RANDOM);
+            forge.neo.NeoSettings.save();
+            NeoLook.newGameDraw();
+            changed();
+            select(lastTab);
+        });
+        return face;
     }
 
     /** Una casilla de la rejilla. */

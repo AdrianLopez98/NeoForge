@@ -409,20 +409,42 @@ public class TableBinder {
         final List<String> order = new ArrayList<>();
         int you = -1;
         int priority = -1;
+        // En Two-Headed Giant se juega por equipos: un turno por equipo, con
+        // los dos nombres juntos ("A + B"). Sin 2HG cada uno es su equipo.
+        final java.util.Set<PlayerView> listed = new java.util.HashSet<>();
+        boolean youTeam = false;
         for (int i = 0; start >= 0 && i < seats.size(); i++) {
             final PlayerView p = seats.get((start + i) % seats.size());
-            if (p.getHasLost()) {
+            if (p.getHasLost() || listed.contains(p)) {
                 continue;
             }
-            if (you < 0 && p.equals(me)) {
-                you = order.size();
+            final List<PlayerView> team = new ArrayList<>();
+            for (int j = 0; j < seats.size(); j++) {
+                final PlayerView q = seats.get((start + i + j) % seats.size());
+                if (!q.getHasLost() && !listed.contains(q) && p.sharesTeamWith(q)) {
+                    team.add(q);
+                }
             }
-            if (priority < 0 && p.getHasPriority()) {
-                priority = order.size();
+            final StringBuilder name = new StringBuilder();
+            for (final PlayerView q : team) {
+                listed.add(q);
+                if (you < 0 && q.equals(me)) {
+                    you = order.size();
+                    youTeam = team.size() > 1;
+                }
+                if (priority < 0 && q.getHasPriority()) {
+                    priority = order.size();
+                }
+                if (name.length() > 0) {
+                    name.append(" + ");
+                }
+                // Tu equipo: "Tu + Paige" (solo, el rail ya pone "Tu").
+                name.append(team.size() > 1 && q.equals(me)
+                        ? forge.neo.NeoText.get("phase.stops.mine") : PlayerName.of(q));
             }
-            order.add(PlayerName.of(p));
+            order.add(name.toString());
         }
-        table.getPhaseRail().setTurnOrder(order, you, priority);
+        table.getPhaseRail().setTurnOrder(order, you, priority, youTeam);
     }
 
     static List<CardView> activePlanes(final GameView gv) {
@@ -890,7 +912,8 @@ public class TableBinder {
         bar.setPlayerName(PlayerName.of(p));
         bar.setCommanderNames(commanderNames(p));
         bar.setLife(p.getLife());
-        bar.setActiveTurn(p.equals(gv.getPlayerTurn()));
+        // En Two-Headed Giant el turno es del equipo: se encienden los dos.
+        bar.setActiveTurn(p.sharesTeamWith(gv.getPlayerTurn()));
         // Por equipos, el de tu lado se sienta arriba como un rival mas: la
         // marca es lo unico que dice que no hay que atacarle. Lo decide el
         // motor (NeoTeams.isAlly); en todos contra todos no sale nunca.

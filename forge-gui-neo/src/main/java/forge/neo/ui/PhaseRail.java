@@ -233,13 +233,23 @@ public class PhaseRail extends VBox {
      * @param priority cual de ellos tiene la prioridad, o -1
      */
     public void setTurnOrder(final java.util.List<String> names, final int you, final int priority) {
+        setTurnOrder(names, you, priority, false);
+    }
+
+    /**
+     * @param youTeam si tu hueco es un equipo de Two-Headed Giant ya escrito
+     *                entero ("Tu + Paige"): entonces no se cambia por "Tu"
+     */
+    public void setTurnOrder(final java.util.List<String> names, final int you, final int priority,
+                             final boolean youTeam) {
         final boolean on = names != null && names.size() >= 2;
         turnOrder.setVisible(on);
         turnOrder.setManaged(on);
         if (!on) {
             return;
         }
-        if (!names.equals(orderShown) || you != orderYou) {
+        if (!names.equals(orderShown) || you != orderYou || youTeam != orderYouTeam) {
+            orderYouTeam = youTeam;
             orderShown = java.util.List.copyOf(names);
             orderYou = you;
             orderPlayers.clear();
@@ -252,7 +262,10 @@ public class PhaseRail extends VBox {
                     arrow.getStyleClass().add("turn-order-arrow");
                     turnOrder.getChildren().add(arrow);
                 }
-                final Label who = new Label(i == you ? NeoText.get("phase.stops.mine") : names.get(i));
+                // Un equipo de Two-Headed Giant ("Tu + Paige") ya viene escrito
+                // entero por TableBinder: no se cambia por "Tu".
+                final Label who = new Label(i == you && !youTeam
+                        ? NeoText.get("phase.stops.mine") : names.get(i));
                 who.getStyleClass().add("turn-order-player");
                 who.pseudoClassStateChanged(CURRENT, i == 0);
                 who.pseudoClassStateChanged(YOURS, i == you);
@@ -332,6 +345,7 @@ public class PhaseRail extends VBox {
     private final java.util.List<Label> orderPlayers = new java.util.ArrayList<>();
     private java.util.List<String> orderShown = java.util.List.of();
     private int orderYou = -2;
+    private boolean orderYouTeam;
     private int priorityShown = -1;
     private int priorityWanted = -1;
     private final javafx.animation.PauseTransition prioritySettle =

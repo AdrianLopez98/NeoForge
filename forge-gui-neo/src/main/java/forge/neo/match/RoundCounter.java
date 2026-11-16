@@ -61,7 +61,7 @@ public final class RoundCounter {
         final int seat = active == null ? -1 : order.indexOf(active.getId());
         if (lastTurn < 0) {
             // Primera vez que se mira: con la partida empezada, turno / jugadores.
-            final int players = Math.max(1, order.size());
+            final int players = Math.max(1, turnTakers(gv));
             round = (turn + players - 1) / players;
         } else if (turn < lastTurn) {
             // Deshacer no vuelve atras de turno; esto es otra partida.
@@ -71,7 +71,7 @@ public final class RoundCounter {
         } else if (seat >= 0 && lastSeat >= 0 && seat < lastSeat) {
             round++;
         } else if (seat < 0 || lastSeat < 0) {
-            final int players = Math.max(1, order.size());
+            final int players = Math.max(1, turnTakers(gv));
             round = Math.max(round, (turn + players - 1) / players);
         }
         lastTurn = turn;
@@ -79,6 +79,29 @@ public final class RoundCounter {
             lastSeat = seat;
         }
         return round;
+    }
+
+    /**
+     * Cuantos turnos hay en una ronda: uno por jugador, o uno por EQUIPO en
+     * Two-Headed Giant, donde los dos de un equipo juegan el mismo turno.
+     */
+    private int turnTakers(final GameView gv) {
+        if (gv.getPlayers() == null) {
+            return order.size();
+        }
+        final List<PlayerView> seen = new ArrayList<>();
+        int n = 0;
+        for (final PlayerView p : gv.getPlayers()) {
+            boolean counted = false;
+            for (final PlayerView q : seen) {
+                counted |= q.sharesTeamWith(p);
+            }
+            if (!counted) {
+                n++;
+            }
+            seen.add(p);
+        }
+        return n;
     }
 
     /**

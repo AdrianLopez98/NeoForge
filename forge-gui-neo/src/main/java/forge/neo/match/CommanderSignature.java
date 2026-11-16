@@ -379,7 +379,25 @@ public enum CommanderSignature {
     /** Temmet, Naktamun's Will: el sol de Amonkhet y los zombis que se alzan. */
     TEMMET_EMBALM,
     /** Omnath, Locus of All: el mana de los cinco colores que se cierra sobre el. */
-    OMNATH_ALL;
+    OMNATH_ALL,
+
+    // Dune (Secret Lair, 16-11-2026): DuneSignatures.
+    /** Muad'Dib, Prophet Foretold: el desierto, los gusanos de arena y la especia. */
+    MUADDIB_WORM,
+    /** Paul Atreides, Ducal Heir: las plumas del halcon de los Atreides. */
+    PAUL_HAWK,
+    /** Reverend Mother Jessica: el Agua de Vida. */
+    JESSICA_WATER,
+    /** Padishah Emperor Shaddam IV: la corona y el oro. */
+    SHADDAM_CROWN,
+    /** Baron Vladimir Harkonnen: humo negro y sangre. */
+    HARKONNEN_SMOKE,
+    /** Chani, Blade of Sietch Tabr: las dunas y los dos tajos del crys. */
+    CHANI_CRYSKNIFE,
+    /** Mohiam, Imperial Truthsayer: la biblioteca que mira y el veneno. */
+    MOHIAM_TRUTH,
+    /** Princess Irulan Corrino: las cartas que se roban y el oro de los Corrino. */
+    IRULAN_PAGES;
 
     /**
      * Su coreografia, para una pantalla de ese tamanyo; null en {@link #NONE}.
@@ -697,6 +715,22 @@ public enum CommanderSignature {
                 return LayeredSignature.temmet(width, height);
             case OMNATH_ALL:
                 return LayeredSignature.omnathAll(width, height);
+            case MUADDIB_WORM:
+                return DuneSignatures.muadDib(width, height);
+            case PAUL_HAWK:
+                return DuneSignatures.paul(width, height);
+            case JESSICA_WATER:
+                return DuneSignatures.jessica(width, height);
+            case SHADDAM_CROWN:
+                return DuneSignatures.shaddam(width, height);
+            case HARKONNEN_SMOKE:
+                return DuneSignatures.baron(width, height);
+            case CHANI_CRYSKNIFE:
+                return DuneSignatures.chani(width, height);
+            case MOHIAM_TRUTH:
+                return DuneSignatures.mohiam(width, height);
+            case IRULAN_PAGES:
+                return DuneSignatures.irulan(width, height);
             default:
                 return null;
         }
@@ -899,6 +933,15 @@ public enum CommanderSignature {
         put(INSPIRIT_STATION, "Inspirit, Flagship Vessel");
         put(TEMMET_EMBALM, "Temmet, Naktamun's Will");
         put(OMNATH_ALL, "Omnath, Locus of All");
+        // Dune (Secret Lair, 16-11-2026: "una a cada nuevo comandante de dune").
+        put(MUADDIB_WORM, "Muad'Dib, Prophet Foretold");
+        put(PAUL_HAWK, "Paul Atreides, Ducal Heir");
+        put(JESSICA_WATER, "Reverend Mother Jessica");
+        put(SHADDAM_CROWN, "Padishah Emperor Shaddam IV");
+        put(HARKONNEN_SMOKE, "Baron Vladimir Harkonnen");
+        put(CHANI_CRYSKNIFE, "Chani, Blade of Sietch Tabr");
+        put(MOHIAM_TRUTH, "Mohiam, Imperial Truthsayer");
+        put(IRULAN_PAGES, "Princess Irulan Corrino");
     }
 
     private static void put(final CommanderSignature signature, final String... names) {

@@ -38,6 +38,13 @@ import forge.model.FModel;
  *     con nombrarlos: "destroy target artifact" no es un mazo de artefactos;</li>
  * <li>"prepared" / "prepare": las cartas con hechizo de preparar
  *     ({@link CardSplitType#Prepare}).</li>
+ * <li><b>las mecanicas de su texto</b> ({@link #MECHANICS}, 16-11-2026, Ana:
+ *     <i>"mete lo de las mecanicas en CommanderTheme cuando forge no reconoce
+ *     el comandante"</i>): landfall, mill, cementerio, la cima de la
+ *     biblioteca, fichas, contadores +1/+1, ganar vidas, sacrificar, hechizos,
+ *     tesoros, el monarca y robar. Muad'Dib, Prophet Foretold no daba ninguna
+ *     de las otras pistas (Human Noble Warrior son clases genericas) y salia
+ *     con cartas de sus colores sin mas.</li>
  * </ul>
  * El peso de cada carta es lo que se juega en Commander
  * ({@link AscentSynergy#popularity()}), y 1 si no sale ahi: el mismo orden al
@@ -52,6 +59,75 @@ public final class CommanderTheme {
     private static final String[] CARD_TYPES = {
             "Planeswalker", "Artifact", "Enchantment", "Equipment", "Aura", "Vehicle",
             "Saga", "Instant", "Sorcery", "Battle", "Legendary"};
+
+    /**
+     * Una mecanica: si el texto del comandante la pide ({@code wants}), van al
+     * tema las cartas cuyo texto la tiene ({@code gives}). Las dos en
+     * minusculas y sobre el oracle entero. No son sinonimos sueltos: "mill"
+     * pide cartas que muelen o que juegan con lo molido, no cualquier carta
+     * que nombre el cementerio de un rival.
+     */
+    private record Mechanic(String name, Pattern wants, Pattern gives) {
+        Mechanic(final String name, final String wants, final String gives) {
+            this(name, Pattern.compile(wants), Pattern.compile(gives));
+        }
+    }
+
+    private static final List<Mechanic> MECHANICS = List.of(
+            new Mechanic("landfall",
+                    "landfall|whenever a land (?:you control )?enters|play an additional land",
+                    "landfall|whenever a land (?:you control )?enters|play an additional land"
+                            + "|search your library for [^.]*\\blands?\\b[^.]*onto the battlefield"
+                            + "|land cards? from your hand onto the battlefield|lands? from your graveyard"),
+            new Mechanic("mill",
+                    "\\byou (?:may )?mill\\b|mill (?:a|one|two|three|x) cards?\\b(?! target)",
+                    "\\bmills?\\b|\\bsurveil\\b|\\bdredge\\b|put the top [^.]* into your graveyard"),
+            new Mechanic("graveyard",
+                    "delirium|threshold|card types among cards in your graveyard|from your graveyard"
+                            + "|cards? in your graveyard|\\bflashback\\b|\\bescape\\b|\\bdescend",
+                    "delirium|threshold|from your graveyard|cards? in your graveyard|\\bflashback\\b"
+                            + "|\\bescape\\b|\\bunearth\\b|\\bdredge\\b|\\bdescend|\\bsurveil\\b"),
+            new Mechanic("top",
+                    "top card of your library",
+                    "top card of your library|\\bscry\\b|\\bsurveil\\b|look at the top"),
+            new Mechanic("tokens",
+                    "create[^.]*\\btokens?\\b|tokens you control|\\bpopulate\\b",
+                    "create[^.]*\\btokens?\\b|tokens you control|\\bpopulate\\b"),
+            new Mechanic("counters",
+                    "\\+1/\\+1 counters?|\\bproliferate\\b",
+                    "\\+1/\\+1 counters?|\\bproliferate\\b"),
+            new Mechanic("lifegain",
+                    "whenever you gain life|you gain (?:\\d+|x|that much) life|\\blifelink\\b",
+                    "whenever you gain life|gain (?:\\d+|x|that much) life|\\blifelink\\b"),
+            new Mechanic("sacrifice",
+                    "sacrifice (?:another|a creature|an artifact|a permanent)|sacrifices a"
+                            + "|whenever (?:another |a )?(?:nontoken )?creatures?[^.]* dies",
+                    "sacrifice (?:another|a creature|an artifact|a permanent)"
+                            + "|whenever (?:another |a )?(?:nontoken )?creatures?[^.]* dies"),
+            new Mechanic("spells",
+                    "\\bprowess\\b|\\bmagecraft\\b|noncreature spell",
+                    "\\bprowess\\b|\\bmagecraft\\b|noncreature spell"),
+            new Mechanic("treasure",
+                    "\\btreasures?\\b",
+                    "\\btreasures?\\b"),
+            new Mechanic("monarch",
+                    "\\bmonarch\\b",
+                    "\\bmonarch\\b"),
+            new Mechanic("draw",
+                    "second card each turn|whenever (?:you|a player|an opponent) draws|each draw two",
+                    "second card each turn|whenever (?:you|a player|an opponent) draws|each player draws"
+                            + "|draw two cards"));
+
+    /** Las mecanicas que pide este texto (en minusculas). */
+    private static List<Mechanic> mechanicsOf(final String lower) {
+        final List<Mechanic> out = new ArrayList<>();
+        for (final Mechanic m : MECHANICS) {
+            if (m.wants().matcher(lower).find()) {
+                out.add(m);
+            }
+        }
+        return out;
+    }
 
     private static final Map<String, List<Map.Entry<PaperCard, Integer>>> CACHE = new HashMap<>();
 
@@ -136,7 +212,8 @@ public final class CommanderTheme {
                 : rules.getOracleText().toLowerCase(Locale.ROOT);
         final DeckHints hints = rules.getAiHints().getDeckHints();
         final DeckHints needs = rules.getAiHints().getDeckNeeds();
-        if (hints != null && hints.isValid() || needs != null && needs.isValid() || prepares(lower)) {
+        if (hints != null && hints.isValid() || needs != null && needs.isValid() || prepares(lower)
+                || !mechanicsOf(lower).isEmpty()) {
             return true;
         }
         for (final String type : CARD_TYPES) {
@@ -207,6 +284,17 @@ public final class CommanderTheme {
                     any.add(r -> r.getType().hasStringType(type));
                 }
             }
+        }
+
+        // Las mecanicas, solo si la carta no ha dado ya una pista mas fuerte
+        // (sus DeckHints, preparar o un tipo que pide como suyo): son la red
+        // de los que no dan ninguna. Tam pide planeswalkers y nombra los
+        // +1/+1 de pasada; con las dos, las de contadores le quitaban el
+        // sitio a los planeswalkers (ascentcheck, 16-11-2026).
+        for (final Mechanic m : any.isEmpty() ? mechanicsOf(lower) : List.<Mechanic>of()) {
+            clues.add(m.name());
+            any.add(r -> r.getOracleText() != null
+                    && m.gives().matcher(r.getOracleText().toLowerCase(Locale.ROOT)).find());
         }
 
         // Las tribus, con la regla de Ascenso: las que nombra y las suyas que

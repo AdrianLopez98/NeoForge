@@ -872,8 +872,16 @@ public final class DeckEditor {
                 // Fuera de Oathbreaker, head es commanders().get(0): el
                 // segundo, si lo hay, es su companero.
                 final List<PaperCard> zone = commanders();
-                generated = GeneratedDecks.forCommandZone(head,
-                        zone.size() > 1 ? zone.get(1) : null, deckFormat(), outsideMain());
+                final PaperCard partner = zone.size() > 1 ? zone.get(1) : null;
+                generated = GeneratedDecks.forCommandZone(head, partner, deckFormat(), outsideMain());
+                if (generated == null) {
+                    // La matriz no conoce a ninguno de los dos: su tema.
+                    generated = GeneratedDecks.themed(head, partner, deckFormat(), outsideMain(), false);
+                }
+            } else if (!forge.neo.ascent.AscentSynergy.knows(head)) {
+                // Un comandante que Forge no conoce (uno recien llegado): el
+                // tema de su carta antes que sus colores sin mas (16-11-2026).
+                generated = GeneratedDecks.themed(head, null, deckFormat(), outsideMain(), false);
             } else {
                 generated = forge.deck.DeckgenUtil.generateRandomCommanderDeck(
                         head, deckFormat(), false, true);

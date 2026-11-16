@@ -8,8 +8,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.TreeSet;
 
+import forge.card.CardRules;
+import forge.card.ColorSet;
 import forge.deck.CardPool;
 import forge.deck.CommanderBracketCalculator;
 import forge.deck.Deck;
@@ -17,11 +20,14 @@ import forge.deck.DeckFormat;
 import forge.deck.DeckSection;
 import forge.deck.DeckgenUtil;
 import forge.game.GameType;
+import forge.deck.generation.DeckGeneratorBase;
 import forge.gamemodes.limited.CardThemedCommanderDeckBuilder;
+import forge.gamemodes.limited.CardThemedDeckBuilder;
 import forge.item.PaperCard;
 import forge.localinstance.properties.ForgePreferences.FPref;
 import forge.model.FModel;
 import forge.neo.ascent.AscentSynergy;
+import forge.neo.ascent.CommanderTheme;
 import forge.util.MyRandom;
 
 /**
@@ -97,11 +103,167 @@ public final class GeneratedDecks {
      * el selector de rival, el torneo y la sala en red.
      */
     public static Deck commanderDeck(final boolean forAi, final GameType type) {
-        final Deck deck = DeckgenUtil.generateCommanderDeck(forAi, type);
+        final Deck deck = type == GameType.Commander ? randomCommanderDeck(forAi, type.getDeckFormat())
+                : DeckgenUtil.generateCommanderDeck(forAi, type);
         if (deck != null) {
             fixCopyLimits(deck, type.getDeckFormat());
         }
         return deck;
+    }
+
+    /**
+     * Lo de {@code DeckgenUtil.generateCommanderDeck} (un comandante legal al
+     * azar, con la misma criba), pero el mazo con {@link #forCommander}: Forge
+     * lo montaba siempre por colores, aunque conociera al comandante
+     * (16-11-2026). Los que admiten companero siguen con el generador, que les
+     * busca uno.
+     */
+    private static Deck randomCommanderDeck(final boolean forAi, final DeckFormat format) {
+        final Predicate<CardRules> canPlay = forAi ? DeckGeneratorBase.AI_CAN_PLAY
+                : forge.card.CardRulesPredicates.IS_KEPT_IN_RANDOM_DECKS;
+        final List<PaperCard> legal = new ArrayList<>();
+        for (final PaperCard c : FModel.getMagicDb().getCommonCards().getUniqueCards()) {
+            if (format.isLegalCard(c) && format.isLegalCommander(c.getRules()) && canPlay.test(c.getRules())) {
+                legal.add(c);
+            }
+        }
+        if (legal.isEmpty()) {
+            return DeckgenUtil.generateCommanderDeck(forAi, GameType.Commander);
+        }
+        final PaperCard commander = legal.get(MyRandom.getRandom().nextInt(legal.size()));
+        if (commander.getRules().canBePartnerCommander()) {
+            return DeckgenUtil.generateRandomCommanderDeck(commander, format, forAi,
+                    AscentSynergy.knows(commander));
+        }
+        return forCommander(commander, format, forAi);
+    }
+
+    /** Cuantas cartas del tema van delante, como mucho: el resto es el relleno de sus colores. */
+    static final int THEMED = 35;
+
+    /**
+     * El mazo para un comandante que <b>la matriz no conoce</b>, con el tema
+     * leido de su carta ({@link CommanderTheme}: sus pistas, los tipos que pide,
+     * tribus y mecanicas como landfall, mill o cementerio). 16-11-2026, Ana:
+     * <i>"cuando forge no reconoce el comandante, en vez de hacer uno solo con
+     * los colores correctos pero sin sinergia"</i>. Lo que hacia Forge
+     * ({@code isCardGen=false}) eran 400 cartas al azar de su identidad.
+     *
+     * <p>Aqui van primero hasta {@link #THEMED} cartas del tema (en orden al
+     * azar con peso, lo mas jugado antes) y detras el relleno de sus colores,
+     * tambien con el peso de lo que se juega en Commander
+     * ({@link AscentSynergy#popularity()}): ramp, robo y quitar que de verdad se
+     * usan, y no una carta cualquiera. Lo monta <b>el mismo montador</b> que el
+     * generador ({@code CardThemedCommanderDeckBuilder}: curva, tierras y
+     * colores), que recorre la lista en orden; el tope de bracket, el de las
+     * preferencias.
+     *
+     * <p>Solo en Commander y Tiny Leaders: Oathbreaker necesita su hechizo
+     * insignia y Brawl sale de otra matriz; ahi sigue el de siempre.
+     *
+     * @param partner     el segundo comandante del jugador, o null
+     * @param outsideMain lo que ya va fuera del principal, para no repetirlo
+     * @return el mazo, o null si la carta no da ninguna pista (y entonces el de
+     *         siempre de Forge) o el formato no es de los de arriba
+     */
+    public static Deck themed(final PaperCard commander, final PaperCard partner, final DeckFormat format,
+                              final CardPool outsideMain, final boolean forAi) {
+        if (commander == null || !(format.equals(DeckFormat.Commander) || format.equals(DeckFormat.TinyLeaders))) {
+            return null;
+        }
+        final Map<String, Map.Entry<PaperCard, Integer>> theme = new LinkedHashMap<>();
+        for (final PaperCard cmd : partner == null ? List.of(commander) : List.of(commander, partner)) {
+            for (final Map.Entry<PaperCard, Integer> e : CommanderTheme.poolOf(cmd)) {
+                theme.merge(e.getKey().getName(), e, (a, b) -> a);
+            }
+        }
+        if (theme.isEmpty()) {
+            return null;
+        }
+        final ColorSet identity = ColorSet.fromMask(commander.getRules().getColorIdentity().getColor()
+                | (partner == null ? 0 : partner.getRules().getColorIdentity().getColor()));
+        final Predicate<CardRules> colours = new CardThemedDeckBuilder.MatchColorIdentity(identity)
+                .or(DeckGeneratorBase.COLORLESS_CARDS);
+        final Set<String> taken = new HashSet<>(countByNormalizedName(outsideMain).keySet());
+        taken.add(normalized(commander.getName()));
+        if (partner != null) {
+            taken.add(normalized(partner.getName()));
+        }
+        final Predicate<PaperCard> fits = c -> format.isLegalCard(c) && colours.test(c.getRules())
+                && !c.getRules().getType().isBasicLand() && !notForDecks(c)
+                && (!forAi || DeckGeneratorBase.AI_CAN_PLAY.test(c.getRules()))
+                && !taken.contains(normalized(c.getName()));
+
+        final List<PaperCard> candidates = new ArrayList<>();
+        final Set<String> seen = new HashSet<>();
+        for (final PaperCard c : weightedOrder(new ArrayList<>(theme.values()))) {
+            if (candidates.size() >= THEMED) {
+                break;
+            }
+            if (fits.test(c) && seen.add(c.getName())) {
+                candidates.add(c);
+            }
+        }
+        if (candidates.isEmpty()) {
+            return null;
+        }
+        final int themed = candidates.size();
+        // El relleno: todo lo de sus colores, lo mas jugado antes.
+        final Map<String, Integer> weight = new HashMap<>();
+        for (final Map.Entry<PaperCard, Integer> e : AscentSynergy.popularity()) {
+            weight.merge(e.getKey().getName(), e.getValue(), Math::max);
+        }
+        final List<Map.Entry<PaperCard, Integer>> rest = new ArrayList<>();
+        for (final PaperCard c : FModel.getMagicDb().getCommonCards().getUniqueCards()) {
+            if (!seen.contains(c.getName()) && fits.test(c)) {
+                rest.add(Map.entry(c, weight.getOrDefault(c.getName(), 1)));
+            }
+        }
+        for (final PaperCard c : weightedOrder(rest)) {
+            if (candidates.size() >= 400) {
+                break;
+            }
+            candidates.add(c);
+        }
+        final int maxBracket = FModel.getPreferences().getPrefInt(FPref.DECKGEN_MAXIMUM_COMMANDER_BRACKET);
+        final List<PaperCard> pool = limitToBracket(candidates, commander, partner, maxBracket);
+
+        final CardThemedCommanderDeckBuilder gen =
+                new CardThemedCommanderDeckBuilder(commander, partner, pool, forAi, format);
+        gen.setSingleton(true);
+        gen.setUseArtifacts(!FModel.getPreferences().getPrefBoolean(FPref.DECKGEN_ARTIFACTS));
+        final CardPool cards = gen.getDeck(format.getMainRange().getMaximum(), forAi);
+
+        final Deck deck = new Deck("Generated " + format + " deck (" + commander.getName()
+                + (partner == null ? "" : "--" + partner.getName()) + ")");
+        deck.setDirectory("generated/commander");
+        deck.getMain().addAll(cards);
+        deck.getOrCreate(DeckSection.Commander).add(commander);
+        if (partner != null) {
+            deck.get(DeckSection.Commander).add(partner);
+        }
+        System.out.println("[tema] mazo de " + commander.getName() + ": " + CommanderTheme.clues(commander)
+                + ", " + themed + " candidatas del tema");
+        return deck;
+    }
+
+    /**
+     * El mazo para este comandante, el mejor que se sabe hacer: con la matriz
+     * de Forge si lo conoce ({@code isCardGen=true}), con su tema
+     * ({@link #themed}) si no, y si su carta tampoco da pistas, el de siempre
+     * (sus colores). Para un comandante sin companero propio: los que lo
+     * admiten van por {@link #forCommandZone}.
+     */
+    public static Deck forCommander(final PaperCard commander, final DeckFormat format, final boolean forAi) {
+        if (AscentSynergy.knows(commander)) {
+            try {
+                return DeckgenUtil.generateRandomCommanderDeck(commander, format, forAi, true);
+            } catch (final RuntimeException e) {
+                System.err.println("[generar] la matriz ha fallado con " + commander.getName() + ": " + e);
+            }
+        }
+        final Deck t = themed(commander, null, format, new CardPool(), forAi);
+        return t != null ? t : DeckgenUtil.generateRandomCommanderDeck(commander, format, forAi, false);
     }
 
     /**

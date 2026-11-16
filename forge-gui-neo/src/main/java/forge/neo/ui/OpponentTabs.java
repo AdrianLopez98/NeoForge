@@ -152,7 +152,8 @@ public class OpponentTabs extends HBox {
             tab.getStyleClass().add("opponent-tab");
             tab.pseudoClassStateChanged(ALLY, ally);
             tab.pseudoClassStateChanged(SELECTED, p.equals(selected));
-            tab.pseudoClassStateChanged(ACTIVE, p.equals(activeTurn));
+            // Two-Headed Giant: el turno es del equipo, se encienden las dos.
+            tab.pseudoClassStateChanged(ACTIVE, activeTurn != null && p.sharesTeamWith(activeTurn));
             final int[] seen = handReveal == null ? null : handReveal.apply(p);
             if (seen != null && (seen[0] > 0 || seen[1] > 0)) {
                 tab.pseudoClassStateChanged(REVEALED, seen[1] == 0);

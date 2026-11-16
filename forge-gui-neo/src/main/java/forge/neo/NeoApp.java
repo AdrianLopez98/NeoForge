@@ -4781,6 +4781,16 @@ public class NeoApp extends Application implements SettingsPanel.Host {
         home = new HomeScreen(format, format.decks(), cardWidth * 1.7,
                 this::startFromHome, this::showMainMenu, this::showDeckBuilder,
                 () -> showNetDecks(format));
+        // Un mazo importado desde el selector que no se puede guardar tal cual
+        // (cartas que no valen): al constructor, con la lista dentro y sin guardar.
+        home.setOnEditImported(editor -> {
+            builder = new DeckBuilderScreen(editor, cardWidth, () -> {
+                builder = null;
+                showHome(format);
+            });
+            scene.setRoot(builder);
+            applyScale();
+        });
         scene.setRoot(home);
         applyScale();
         // Si se acaba de apartar algun mazo que no se podia leer, se dice.
@@ -5017,6 +5027,29 @@ public class NeoApp extends Application implements SettingsPanel.Host {
      *
      * @param backToHome si al terminar hay que volver a la pantalla de inicio
      */
+    /**
+     * Los asientos de una partida suelta. Two-Headed Giant (16-11-2026) va
+     * SOLO: decide los equipos (de dos en dos) y Forge no lo junta con
+     * Planechase ni con Archenemy, asi que con el puesto esos dos se ignoran.
+     * Si no, Planechase (08-10-2026) ENCIMA de los equipos, y Archenemy
+     * (11-10-2026) entre los dos: decide los equipos, y Planechase pone los
+     * planos encima.
+     */
+    private NeoGame.Seating seatingFor(final NeoFormat format, final int opponents) {
+        if (forge.neo.match.TwoHeadedGiant.applies(NeoSettings.twoHeadedGiant(),
+                format.getGameType(), opponents)) {
+            return forge.neo.match.TwoHeadedGiant.wrap(format, null, true, opponents);
+        }
+        return forge.neo.match.Planechase.wrap(format,
+                forge.neo.match.Archenemy.wrap(format,
+                        forge.neo.match.NeoTeams.seating(format, lastTeams),
+                        // Solo a cuatro: es uno contra un equipo.
+                        NeoSettings.archenemy()
+                                && opponents >= forge.neo.match.Archenemy.MIN_OPPONENTS,
+                        NeoSettings.archenemyWho()),
+                NeoSettings.planechase(), NeoSettings.planechaseShared());
+    }
+
     private void startLiveGame(final Deck deck, final int opponents,
                                final NeoMatchUI.Mode mode, final int timeout,
                                final boolean verbose, final String aiProfile,
@@ -5055,17 +5088,8 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                         liveBinder, aiProfile, autoMana, format, lastOpponentDecks,
                         // -Dneo.bestOf=3: forzarlo para capturar (sin tocar los ajustes).
                         mode == NeoMatchUI.Mode.HUMAN ? Integer.getInteger("neo.bestOf", NeoSettings.bestOf(format)) : 1,
-                        // Planechase (08-10-2026), ENCIMA de los equipos: envuelve.
-                        // Y Archenemy (11-10-2026) entre los dos: decide los
-                        // equipos, y Planechase pone los planos encima.
-                        forge.neo.match.Planechase.wrap(format,
-                                forge.neo.match.Archenemy.wrap(format,
-                                        forge.neo.match.NeoTeams.seating(format, lastTeams),
-                                        // Solo a cuatro: es uno contra un equipo.
-                                        NeoSettings.archenemy()
-                                                && opponents >= forge.neo.match.Archenemy.MIN_OPPONENTS,
-                                        NeoSettings.archenemyWho()),
-                                NeoSettings.planechase(), NeoSettings.planechaseShared()));
+                        // Equipos, Archenemy, Planechase o Two-Headed Giant.
+                        seatingFor(format, opponents));
                 if (r.exit != null) {
                     exit = r.exit;
                 }

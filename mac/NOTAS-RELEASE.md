@@ -1,11 +1,11 @@
-**NeoForge para macOS 1.0.56 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.57 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Modo desarrollador** (Ajustes, apagado): en las partidas sueltas, «Dev» en el menú de pausa con las herramientas de Forge para probar combos: maná, enderezar, vidas, cartas a cualquier zona...
-- **«Completar» en la Quest pregunta**: hasta 40 o hasta 60 cartas.
-- **El reparto de daño con muchos bloqueadores** va en filas con barra: los botones siempre se ven.
-- **Al salir de una partida vuelve la música de los menús.**
-- **La barra del jugador al que le toca, encendida entera** (ajuste, apagado).
+- **Two-Headed Giant**: el modo por equipos de Forge, a cuatro y en Commander o un construido. Tu equipo comparte turno, vida, veneno y daño de comandante.
+- **Las cartas de Dune**, y una entrada propia para cada comandante del Secret Lair: con Muad'Dib la mesa se vuelve desierto y asoma un gusano de arena.
+- **Mazos generados con sinergia para los comandantes nuevos**: «Generar mazo» y «Genérame uno» leen las mecánicas del comandante (landfall, mill, cementerio, fichas…) cuando Forge aún no lo conoce.
+- **Importar un mazo desde el selector**, sin pasar por el editor.
+- **Tapete y funda al azar** en cada partida (en Personalizar).
 - Al día con Forge.
 
 Descarga el `.dmg` de tu Mac:

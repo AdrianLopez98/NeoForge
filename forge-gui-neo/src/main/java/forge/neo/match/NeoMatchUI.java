@@ -833,7 +833,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
     private void rememberAttackPlayer(final PlayerView player) {
         final GameView gv = getGameView();
         if (gv == null || player == null || isMe(player) || payingMana || isSelecting() || getSelectionMax() > 0
-                || !isMe(gv.getPlayerTurn()) || !player.isOpponentOf(gv.getPlayerTurn())) return;
+                || !isMyTurn(gv) || !player.isOpponentOf(gv.getPlayerTurn())) return;
         final PhaseType phase = gv.getPhase();
         if (phase != PhaseType.MAIN1 && phase != PhaseType.COMBAT_BEGIN
                 && phase != PhaseType.COMBAT_DECLARE_ATTACKERS) return;
@@ -983,7 +983,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         if (gv == null || gv.getPhase() != PhaseType.COMBAT_DECLARE_ATTACKERS) {
             return false;
         }
-        return !payingMana && !isSelecting() && getSelectionMax() <= 0 && isMe(gv.getPlayerTurn());
+        return !payingMana && !isSelecting() && getSelectionMax() <= 0 && isMyTurn(gv);
     }
 
     /**
@@ -2404,7 +2404,9 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         // isLocalPlayer lo trae AbstractGuiGame: sabe que asientos maneja esta
         // interfaz. Comparar con el jugador de la barra de abajo funcionaria casi
         // siempre y fallaria justo donde importa (espectador, varios asientos).
-        final boolean yours = isLocalPlayer(player);
+        // Two-Headed Giant: el motor anuncia a UNO del equipo (teamLead), que
+        // puede ser tu companyero; el turno de tu equipo es tuyo.
+        final boolean yours = isLocalPlayer(player) || localTeammate(player);
         final String who = nameOf(player);
         final int turn = getGameView() == null ? 0 : getGameView().getTurn();
         final int round = shownRound(getGameView());
@@ -2610,7 +2612,8 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                 // Si te paras aqui: las mismas listas que mira isUiSetToSkipPhase.
                 final PlayerView turnOf = gv.getPlayerTurn();
                 d.phase(gv, interactive() && phase != null
-                        ? (turnOf == null || isLocalPlayer(turnOf) ? stops : theirStops).contains(phase)
+                        ? (turnOf == null || isLocalPlayer(turnOf) || localTeammate(turnOf)
+                                ? stops : theirStops).contains(phase)
                         : null);
             }
             // De paso, el turno que se ensenya en Discord. Aqui y no en un
@@ -3915,6 +3918,50 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
      * o el "te toca": con dos personas, "mio" es del que tiene el turno de
      * decidir, no de cualquiera de las dos.
      */
+    /**
+     * Si el turno es TUYO. En Two-Headed Giant (16-11-2026) los dos de un
+     * equipo comparten turno y el motor publica como "del turno" solo a uno
+     * ({@code PhaseHandler.teamLead}), que puede ser tu companyero: el turno de
+     * tu equipo es tuyo (te toca atacar, la fase principal es tuya, etc.).
+     * Sin 2HG {@code sharesTeamWith} es solo uno mismo y esto es
+     * {@code isMe(gv.getPlayerTurn())}, como siempre.
+     */
+    private boolean isMyTurn(final GameView gv) {
+        final PlayerView turn = gv == null ? null : gv.getPlayerTurn();
+        if (turn == null) {
+            return false;
+        }
+        if (isMe(turn)) {
+            return true;
+        }
+        if (gv.getPlayers() == null) {
+            return false;
+        }
+        for (final PlayerView p : gv.getPlayers()) {
+            if (isMe(p) && p.sharesTeamWith(turn)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Si {@code p} juega en tu equipo de Two-Headed Giant: sus paradas de fase
+     * son las tuyas, porque su turno es el tuyo. Sin 2HG, nunca.
+     */
+    private boolean localTeammate(final PlayerView p) {
+        final GameView gv = getGameView();
+        if (p == null || gv == null || gv.getPlayers() == null) {
+            return false;
+        }
+        for (final PlayerView q : gv.getPlayers()) {
+            if (q.getId() != p.getId() && isLocalPlayer(q) && q.sharesTeamWith(p)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private boolean isMe(final PlayerView p) {
         if (p == null) {
             return false;
@@ -3978,7 +4025,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         if (!hotSeat() || asking == null) {
             return isUiSetToSkipPhase(turn, phase);
         }
-        final boolean mine = turn == null || turn.getId() == asking.getId();
+        final boolean mine = turn == null || turn.getId() == asking.getId() || asking.sharesTeamWith(turn);
         return !(mine ? stops : theirStops).contains(phase);
     }
 
@@ -4398,7 +4445,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
                 return true;
             }
             final PhaseType phase = gv.getPhase();
-            return isMe(gv.getPlayerTurn()) && phase != null && phase.isMain()
+            return isMyTurn(gv) && phase != null && phase.isMain()
                     && (gv.getStack() == null || gv.getStack().isEmpty());
         } catch (final RuntimeException e) {
             // Se lee el motor desde el hilo de interfaz: si justo esta moviendo
@@ -4472,7 +4519,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         final Integer turn = plotted.get(card.getId());
         final PhaseType phase = gv.getPhase();
         return turn != null && gv.getTurn() > turn
-                && isMe(gv.getPlayerTurn())
+                && isMyTurn(gv)
                 && phase != null && phase.isMain()
                 && (gv.getStack() == null || gv.getStack().isEmpty());
     }
@@ -5527,7 +5574,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             return "";
         }
         final PlayerView active = gv.getPlayerTurn();
-        final boolean mine = active != null && isMe(active);
+        final boolean mine = isMyTurn(gv);
 
         final StringBuilder sb = new StringBuilder();
         sb.append(mine ? NeoText.get("turn.yours")
@@ -5970,7 +6017,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         }
         final int mode = forge.neo.NeoSettings.confirmPhaseMode();
         final GameView gv = getGameView();
-        if (mode <= 0 || gv == null || !isMe(gv.getPlayerTurn())) {
+        if (mode <= 0 || gv == null || !isMyTurn(gv)) {
             return false;
         }
         final PhaseType phase = gv.getPhase();
@@ -6044,7 +6091,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         if (!toCombat && (phase != PhaseType.MAIN2 || mode < 2)) {
             return false;
         }
-        if (!isMe(gv.getPlayerTurn())) {
+        if (!isMyTurn(gv)) {
             return false;
         }
         if (payingMana || isSelecting() || getSelectionMax() > 0 || topOfStack() != null) {
@@ -9288,7 +9335,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
             return null;
         }
         final GameView gv = getGameView();
-        if (gv == null || !isMe(gv.getPlayerTurn())
+        if (gv == null || !isMyTurn(gv)
                 || (gv.getPhase() != PhaseType.MAIN1 && gv.getPhase() != PhaseType.MAIN2)
                 || (gv.getStack() != null && !gv.getStack().isEmpty())) {
             return null;
@@ -10235,7 +10282,7 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
         }
         // El motor pasa el jugador del TURNO (PlayerControllerHuman), no a quien
         // pregunta: con eso se elige la lista.
-        final boolean mine = player == null || isLocalPlayer(player);
+        final boolean mine = player == null || isLocalPlayer(player) || localTeammate(player);
         if ((mine ? stops : theirStops).contains(phase)) {
             // Con parada ya tienes prioridad: solo se apunta lo que se puede
             // lanzar desde fuera de la mano, para no parar luego por ello.

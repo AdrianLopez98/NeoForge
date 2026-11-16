@@ -726,4 +726,92 @@ public final class SignatureSprite {
     public static final SignatureSprite FAE_WING = of("faeWing",
             "M0,-20 C-20,-5 -55,-20 -52,-50 C-48,-80 -20,-70 0,-45 C20,-70 48,-80 52,-50 C55,-20 20,-5 0,-20 Z",
             null, new float[] {0f, 0.5f, 1f}, new int[] {0xCC8AD8FF, 0xCCE0C8FF, 0xCC8A5AE0}, false, 0xDDF0E8FF, 0);
+
+    // ------------------------------------------------------------------
+    // Dune (16-11-2026, Ana: "arena con spice y algun gusano"): DuneSignatures.
+
+    /** El desierto: la mesa se tine de arena, mas oscura por los bordes. */
+    public static final SignatureSprite DESERT_HAZE = of("desertHaze", "M-50,0 L-50,-100 L50,-100 L50,0 Z", null,
+            new float[] {0f, 0.55f, 1f}, new int[] {0xFFE9B873, 0xFFC98A45, 0xFF5E3414}, true, 0, 0);
+    /** Las dunas de delante, de lado a lado de la pantalla, con la cresta encendida por el sol. */
+    public static final SignatureSprite DUNES_NEAR = of("dunesNear",
+            "M-50,0 L-50,-58 C-44,-74 -34,-82 -24,-66 C-16,-54 -8,-48 2,-62 C12,-80 24,-100 36,-78 "
+                    + "C42,-66 46,-60 50,-64 L50,0 Z", null,
+            new float[] {0f, 0.45f, 1f}, new int[] {0xFFB06C30, 0xFFD89E58, 0xFF9A5A26}, false, 0xE6FFE2A8, 0);
+    /** Las de detras: mas claras, como se ve lo lejano en el desierto. */
+    public static final SignatureSprite DUNES_FAR = of("dunesFar",
+            "M-50,0 L-50,-70 C-40,-92 -28,-96 -16,-80 C-6,-66 6,-62 16,-76 C26,-90 38,-84 44,-72 "
+                    + "C47,-66 49,-64 50,-66 L50,0 Z", null,
+            new float[] {0f, 0.5f, 1f}, new int[] {0xFFD9AE78, 0xFFEBC892, 0xFFCFA06A}, false, 0xB3FFF0CC, 0);
+    /** La arena que sopla: una raya fina y tumbada. */
+    public static final SignatureSprite SAND_STREAK = of("sandStreak",
+            "M-50,-50 C-20,-54 20,-54 50,-50 C20,-47 -20,-47 -50,-50 Z", null,
+            new float[] {0f, 0.5f, 1f}, new int[] {0x00E8C08A, 0xCCF6DCAA, 0x00E8C08A}, false, 0, 0);
+    /** Una nube de arena (lo que levanta el gusano). */
+    public static final SignatureSprite SAND_PUFF = of("sandPuff", DISC, null,
+            new float[] {0f, 0.55f, 1f}, new int[] {0xF0B07A40, 0xB0804E24, 0x00583414}, true, 0, 0);
+    /** La especia: una mota naranja que brilla. */
+    public static final SignatureSprite SPICE = of("spice", DISC, null,
+            new float[] {0f, 0.4f, 1f}, new int[] {0xFFFFF4C8, 0xFFFFA43A, 0x00E0561A}, true, 0, 0);
+    /** El azul de los ojos de Ibad. */
+    public static final SignatureSprite SPARK_IBAD = spark("sparkIbad", 0xFF3D8BFF);
+    /** Un anillo del cuerpo del gusano, tumbado a lo largo; la sombra va de lado a lado. */
+    public static final SignatureSprite WORM_SEGMENT = of("wormSegment",
+            "M-42,0 C-52,-22 -52,-78 -42,-100 L42,-100 C52,-78 52,-22 42,0 Z",
+            "M-46,-92 C-20,-99 20,-99 46,-92",
+            new float[] {0f, 0.42f, 0.62f, 1f}, new int[] {0xFF22180F, 0xFF6E5238, 0xFFA8865E, 0xFF3A2A1C}, false,
+            0xCC140C06, 0xCC1A1008);
+    /** La cabeza: se abre por delante en tres petalos. */
+    public static final SignatureSprite WORM_HEAD = of("wormHead",
+            "M-40,0 C-46,-30 -52,-55 -62,-74 L-80,-100 L-40,-86 L-14,-100 L0,-92 L14,-100 L40,-86 L80,-100 "
+                    + "L62,-74 C52,-55 46,-30 40,0 Z",
+            "M-45,-28 C-20,-35 20,-35 45,-28 M-53,-56 C-20,-63 20,-63 53,-56",
+            new float[] {0f, 0.42f, 0.62f, 1f}, new int[] {0xFF22180F, 0xFF6E5238, 0xFFA8865E, 0xFF3A2A1C}, false,
+            0xCC140C06, 0xCC1A1008);
+    /** La boca, vista de frente: la garganta oscura y el anillo de dientes. */
+    public static final SignatureSprite WORM_MOUTH = of("wormMouth", DISC,
+            "M0,-88 L5,-73 L15,-85 L14,-70 L28,-77 L21,-63 L37,-65 L25,-55 L40,-50 L25,-45 L37,-35 L21,-37 L28,-23 L14,-30 L15,-15 L5,-27 L0,-12 L-5,-27 L-15,-15 L-14,-30 L-28,-23 L-21,-37 L-37,-35 L-25,-45 L-40,-50 L-25,-55 L-37,-65 L-21,-63 L-28,-77 L-14,-70 L-15,-85 L-5,-73 L-0,-88",
+            new float[] {0f, 0.55f, 0.78f, 1f}, new int[] {0xFF0E0603, 0xFF2E180C, 0xFFE9DCC0, 0xFF7A5A3C}, true,
+            0xCC201408, 0xFFF8F0DC);
+    /**
+     * El gusano grande de Muad'Dib, en cuatro dibujos que juntos dan el bulto
+     * (Ana, 16-11-2026, con dos fotos de los de Dune: "que luzca un poco mas
+     * 3d y tenga forma mas gorda y uniforme ... que siga siendo dibujado pero
+     * con las sombras consigue un efecto 3d"). Siguen siendo imagenes pintadas
+     * una vez; el volumen sale de la luz: el cuerpo es un tubo de ancho
+     * uniforme con la luz a un lado y la sombra al otro y sus anillos curvados
+     * como la boca; el labio, un rodete con su brillo; la garganta, un embudo
+     * que se va a negro con las barbas finas; y la sombra del labio en el cuerpo.
+     */
+    public static final SignatureSprite WORM_BODY = of("wormBody", "M-50,0 Q-52.4,-5.0 -50,-10.0 Q-52.4,-15.0 -50,-20.0 Q-52.4,-25.0 -50,-30.0 Q-52.4,-35.0 -50,-40.0 Q-52.4,-45.0 -50,-50.0 Q-52.4,-55.0 -50,-60.0 Q-52.4,-65.0 -50,-70.0 Q-52.4,-75.0 -50,-80.0 Q-52.4,-85.0 -50,-90.0 Q-52.4,-95.0 -50,-100.0 L50,-100 Q52.4,-95.0 50,-90.0 Q52.4,-85.0 50,-80.0 Q52.4,-75.0 50,-70.0 Q52.4,-65.0 50,-60.0 Q52.4,-55.0 50,-50.0 Q52.4,-45.0 50,-40.0 Q52.4,-35.0 50,-30.0 Q52.4,-25.0 50,-20.0 Q52.4,-15.0 50,-10.0 Q52.4,-5.0 50,0.0 Z",
+            "M-50,-20.0 C-22,4.0 22,4.0 50,-20.0 M-50,-30.0 C-22,-6.0 22,-6.0 50,-30.0 M-50,-40.0 C-22,-16.0 22,-16.0 50,-40.0 M-50,-50.0 C-22,-26.0 22,-26.0 50,-50.0 M-50,-60.0 C-22,-36.0 22,-36.0 50,-60.0 M-50,-70.0 C-22,-46.0 22,-46.0 50,-70.0 M-50,-80.0 C-22,-56.0 22,-56.0 50,-80.0 M-50,-90.0 C-22,-66.0 22,-66.0 50,-90.0",
+            new float[] {0f, 0.12f, 0.34f, 0.6f, 0.85f, 1f},
+            new int[] {0xFF1E140C, 0xFF5A4028, 0xFFC8A678, 0xFF8E6C4A, 0xFF4A3422, 0xFF1A100A}, false,
+            0xCC140C06, 0xB0241608);
+    /** El labio: un rodete carnoso, con su brillo arriba del canto y sus pliegues. */
+    public static final SignatureSprite WORM_LIP = of("wormLip", "M0.0,-98.8 Q7.3,-100.9 13.7,-96.8 Q21.4,-96.8 26.4,-91.1 Q33.7,-88.8 36.9,-82.0 Q43.2,-77.8 44.4,-70.3 Q49.3,-64.5 48.3,-56.9 Q51.4,-50.0 48.3,-43.1 Q49.3,-35.5 44.4,-29.7 Q43.2,-22.2 36.9,-18.0 Q33.7,-11.2 26.4,-8.9 Q21.4,-3.2 13.7,-3.2 Q7.3,0.9 0.0,-1.2 Q-7.3,0.9 -13.7,-3.2 Q-21.4,-3.2 -26.4,-8.9 Q-33.7,-11.2 -36.9,-18.0 Q-43.2,-22.2 -44.4,-29.7 Q-49.3,-35.5 -48.3,-43.1 Q-51.4,-50.0 -48.3,-56.9 Q-49.3,-64.5 -44.4,-70.3 Q-43.2,-77.8 -36.9,-82.0 Q-33.7,-88.8 -26.4,-91.1 Q-21.4,-96.8 -13.7,-96.8 Q-7.3,-100.9 -0.0,-98.8 Z",
+            "M0.0,-97.5 L1.2,-89.0 M7.4,-96.9 L7.6,-90.3 M14.7,-95.2 L14.5,-90.5 M21.6,-92.3 L19.2,-85.1 M27.9,-88.4 L25.7,-83.2 M33.6,-83.6 L28.4,-76.7 M38.4,-77.9 L33.9,-73.1 M42.3,-71.6 L38.9,-68.4 M45.2,-64.7 L38.4,-61.2 M46.9,-57.4 L41.7,-55.3 M47.5,-50.0 L39.0,-48.8 M46.9,-42.6 L40.3,-42.4 M45.2,-35.3 L40.5,-35.5 M42.3,-28.4 L35.1,-30.8 M38.4,-22.1 L33.2,-24.3 M33.6,-16.4 L26.7,-21.6 M27.9,-11.6 L23.1,-16.1 M21.6,-7.7 L18.4,-11.1 M14.7,-4.8 L11.2,-11.6 M7.4,-3.1 L5.3,-8.3 M0.0,-2.5 L-1.2,-11.0 M-7.4,-3.1 L-7.6,-9.7 M-14.7,-4.8 L-14.5,-9.5 M-21.6,-7.7 L-19.2,-14.9 M-27.9,-11.6 L-25.7,-16.8 M-33.6,-16.4 L-28.4,-23.3 M-38.4,-22.1 L-33.9,-26.9 M-42.3,-28.4 L-38.9,-31.6 M-45.2,-35.3 L-38.4,-38.8 M-46.9,-42.6 L-41.7,-44.7 M-47.5,-50.0 L-39.0,-51.2 M-46.9,-57.4 L-40.3,-57.6 M-45.2,-64.7 L-40.5,-64.5 M-42.3,-71.6 L-35.1,-69.2 M-38.4,-77.9 L-33.2,-75.7 M-33.6,-83.6 L-26.7,-78.4 M-27.9,-88.4 L-23.1,-83.9 M-21.6,-92.3 L-18.4,-88.9 M-14.7,-95.2 L-11.2,-88.4 M-7.4,-96.9 L-5.3,-91.7",
+            new float[] {0f, 0.6f, 0.74f, 0.86f, 0.95f, 1f},
+            new int[] {0xFF1A0E08, 0xFF3A2416, 0xFF7A5A3C, 0xFFD2B084, 0xFF8A6846, 0xFF3A2818}, true,
+            0xE6140C06, 0x66201408);
+    /** La garganta: el embudo que se va a negro, con las barbas finas hacia dentro. */
+    public static final SignatureSprite WORM_THROAT = of("wormThroat", "M0.0,-100.0 Q20.7,-100.0 35.4,-85.4 Q50.0,-70.7 50.0,-50.0 Q50.0,-29.3 35.4,-14.6 Q20.7,0.0 0.0,0.0 Q-20.7,0.0 -35.4,-14.6 Q-50.0,-29.3 -50.0,-50.0 Q-50.0,-70.7 -35.4,-85.4 Q-20.7,-100.0 -0.0,-100.0 Z",
+            "M0.0,-98.5 L1.0,-71.0 M4.2,-98.3 L4.1,-79.7 M8.4,-97.8 L5.3,-73.4 M12.6,-96.8 L10.1,-81.4 M16.6,-95.6 L10.5,-74.9 M20.5,-94.0 L16.4,-80.9 M24.2,-92.0 L12.5,-69.3 M27.8,-89.7 L19.0,-74.5 M31.2,-87.2 L17.7,-69.1 M34.3,-84.3 L25.2,-72.8 M37.2,-81.2 L17.5,-63.3 M39.7,-77.8 L24.6,-65.4 M42.0,-74.2 L18.7,-59.6 M44.0,-70.5 L27.8,-61.3 M45.6,-66.6 L22.9,-57.1 M46.8,-62.6 L32.3,-56.9 M47.8,-58.4 L26.8,-53.4 M48.3,-54.2 L35.0,-51.3 M48.5,-50.0 L23.0,-48.9 M48.3,-45.8 L30.7,-45.8 M47.8,-41.6 L25.3,-44.2 M46.8,-37.4 L32.4,-39.6 M45.6,-33.4 L20.3,-41.5 M44.0,-29.5 L25.6,-36.4 M42.0,-25.8 L17.6,-38.6 M39.7,-22.2 L23.7,-31.6 M37.2,-18.8 L17.6,-33.7 M34.3,-15.7 L22.1,-25.5 M31.2,-12.8 L16.3,-28.5 M27.8,-10.3 L18.6,-20.4 M24.3,-8.0 L10.5,-29.5 M20.5,-6.0 L11.7,-21.3 M16.6,-4.4 L7.7,-25.2 M12.6,-3.2 L7.1,-16.8 M8.4,-2.2 L2.7,-28.2 M4.2,-1.7 L1.1,-21.0 M0.0,-1.5 L-1.0,-29.0 M-4.2,-1.7 L-4.1,-20.3 M-8.4,-2.2 L-5.3,-26.6 M-12.6,-3.2 L-10.1,-18.6 M-16.6,-4.4 L-10.5,-25.1 M-20.5,-6.0 L-16.4,-19.1 M-24.3,-8.0 L-12.5,-30.7 M-27.8,-10.3 L-19.0,-25.5 M-31.2,-12.8 L-17.7,-30.9 M-34.3,-15.7 L-25.2,-27.2 M-37.2,-18.8 L-17.5,-36.7 M-39.7,-22.2 L-24.6,-34.6 M-42.0,-25.7 L-18.7,-40.4 M-44.0,-29.5 L-27.8,-38.7 M-45.6,-33.4 L-22.9,-42.9 M-46.8,-37.4 L-32.3,-43.1 M-47.8,-41.6 L-26.8,-46.6 M-48.3,-45.8 L-35.0,-48.7 M-48.5,-50.0 L-23.0,-51.1 M-48.3,-54.2 L-30.7,-54.2 M-47.8,-58.4 L-25.3,-55.8 M-46.8,-62.6 L-32.4,-60.4 M-45.6,-66.6 L-20.3,-58.5 M-44.0,-70.5 L-25.6,-63.6 M-42.0,-74.2 L-17.6,-61.4 M-39.7,-77.8 L-23.7,-68.4 M-37.2,-81.2 L-17.6,-66.3 M-34.3,-84.3 L-22.1,-74.5 M-31.2,-87.2 L-16.3,-71.5 M-27.8,-89.7 L-18.6,-79.6 M-24.2,-92.0 L-10.5,-70.5 M-20.5,-94.0 L-11.7,-78.7 M-16.6,-95.6 L-7.7,-74.8 M-12.6,-96.8 L-7.1,-83.2 M-8.4,-97.8 L-2.7,-71.8 M-4.2,-98.3 L-1.1,-79.0",
+            new float[] {0f, 0.28f, 0.6f, 0.85f, 1f},
+            new int[] {0xFF000000, 0xFF080403, 0xFF2E1A0E, 0xFF5E4028, 0xFF3A2616}, true,
+            0, 0x8CF2E4C6);
+    /** La sombra que el labio echa en el cuerpo: una mancha oscura que se deshace. */
+    public static final SignatureSprite WORM_SHADE = of("wormShade", DISC, null,
+            new float[] {0f, 0.5f, 1f}, new int[] {0xC0000000, 0x70000000, 0x00000000}, true, 0, 0);
+    /** Un monton de arena (al pie del cuello). */
+    public static final SignatureSprite SAND_MOUND = of("sandMound",
+            "M-50,0 C-42,-20 -26,-88 0,-100 C26,-88 42,-20 50,0 Z", null,
+            new float[] {0f, 0.5f, 1f}, new int[] {0xFFB06C30, 0xFFE0A85E, 0xFF9A5A26}, false, 0xE6FFE2A8, 0);
+    /** Paul Atreides: la pluma del halcon de los Atreides. */
+    public static final SignatureSprite FEATHER_HAWK = of("featherHawk", BlackFeathers.VANE, BlackFeathers.QUILL,
+            new float[] {0f, 0.5f, 0.82f, 1f}, new int[] {0xFF3A2410, 0xFF7A4A1E, 0xFFB07A3A, 0xFFE0B070}, false,
+            0x52FFE0A0, 0x80FFE8C0);
+    /** Baron Harkonnen: humo negro y rojo. */
+    public static final SignatureSprite SMOKE_BLACK = of("smokeBlack", DISC, null,
+            new float[] {0f, 0.55f, 1f}, new int[] {0xCC140606, 0x99401010, 0x00100404}, true, 0, 0);
 }

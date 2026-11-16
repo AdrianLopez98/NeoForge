@@ -500,6 +500,9 @@ public class TableScreen extends Pane {
         playmatVeil.setMouseTransparent(true);
         playmatVeil.setFill(javafx.scene.paint.Color.web("#0B0E13", 0.62));
         getChildren().addAll(arenaBackdrop, playmat, playmatVeil);
+        // Una mesa nueva es una partida nueva: lo que este "al azar" en
+        // Personalizar (tapete y funda) se sortea otra vez. Ver NeoLook.RANDOM.
+        forge.neo.look.NeoLook.newGameDraw();
         applyPlaymat();
 
         // El area de juego va dentro de un visor que se puede acercar y

@@ -55,6 +55,7 @@ public final class DeckRulesCheck {
         interfaceTextIsTranslated();
         importFindsTheCommander();
         importKeepsWhatDoesNotFit();
+        importFromTheDeckPicker();
         decksCanBeDeleted();
         renamingDoesNotLeaveACopy();
         copyKeepsArtAndFoil();
@@ -1241,6 +1242,44 @@ public final class DeckRulesCheck {
         check("Importar (Android, Estandar): 'Sideboard' arriba deja las cartas en el banquillo",
                 parsed != null && parsed.getMain().countAll() == 0
                         && parsed.has(DeckSection.Sideboard) && parsed.get(DeckSection.Sideboard).countAll() == 6);
+    }
+
+    /**
+     * "Importar" del selector de mazos (itch.io, 16-11-2026): DeckImportNew
+     * guarda lo que se puede guardar, con nombre libre, y lo que lleva cartas
+     * que no valen NO se guarda: vuelve el editor para arreglarlo.
+     */
+    private static void importFromTheDeckPicker() {
+        final NeoFormat format = NeoFormat.COMMANDER;
+        final String name = "__neocheck-importar__";
+        final String list = String.join(System.lineSeparator(),
+                "1 Sol Ring", "30 Mountain", "", "1 Krenko, Mob Boss");
+        final DeckImporter.Result parsed = DeckImporter.importCommander(list, name);
+        final DeckImportNew.Result r = parsed.deck == null ? null
+                : DeckImportNew.apply(format, parsed.deck, name, null);
+        check("Importar desde el selector: se guarda con su comandante",
+                r != null && r.saved() != null && r.editor() == null
+                        && r.saved().getCommanders().size() == 1
+                        && r.saved().getMain().countAll() == 31);
+        // Otra vez la misma: no pisa la primera, se llama "(2)".
+        final DeckImporter.Result again = DeckImporter.importCommander(list, name);
+        final DeckImportNew.Result r2 = DeckImportNew.apply(format, again.deck, name, null);
+        check("Importar desde el selector: la segunda vez no pisa la primera",
+                r2.saved() != null && r2.saved().getName().equals(name + " (2)")
+                        && format.storage().contains(name));
+        // Con una carta fuera de la identidad: nada guardado, editor de vuelta.
+        final String bad = String.join(System.lineSeparator(),
+                "1 Counterspell", "30 Mountain", "", "1 Krenko, Mob Boss");
+        final DeckImportNew.Result r3 = DeckImportNew.apply(format,
+                DeckImporter.importCommander(bad, name + "-mal").deck, name + "-mal", null);
+        check("Importar desde el selector: con algo que no vale no se guarda y se abre el editor",
+                r3.saved() == null && r3.editor() != null && r3.editor().blockingProblem() != null
+                        && !format.storage().contains(name + "-mal"));
+        check("Importar desde el selector: reconoce un enlace y no una lista",
+                DeckImportNew.looksLikeUrl("https://moxfield.com/decks/abc")
+                        && !DeckImportNew.looksLikeUrl(list));
+        format.storage().delete(name);
+        format.storage().delete(name + " (2)");
     }
 
     /** Lo mismo que DeckImportBridge.parsearDecklist de Android para un formato sin comandante. */

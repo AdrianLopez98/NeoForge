@@ -37,6 +37,7 @@ public final class LookCheck {
         rivalsPlayTheirOwnWay();
         aiProfilesComeAndGo();
         deckCarriesItsOwnSleeve();
+        randomPlaymatAndSleeve();
         hoverZoomBehaves();
 
         System.out.println();
@@ -219,6 +220,45 @@ public final class LookCheck {
         // al nombre del fichero.
         check("Funda importada: el nombre de fichero no puede traer comas",
                 !NeoLook.freeName(NeoLook.sleevesDir(), "una,funda.png").getName().contains(","));
+    }
+
+    /**
+     * Tapete y funda "al azar en cada partida" (itch.io, 16-11-2026): fijos
+     * durante la partida, nunca "ninguno", y una funda puesta en el mazo manda.
+     */
+    private static void randomPlaymatAndSleeve() {
+        final String oldMat = forge.neo.NeoSettings.get(NeoLook.PLAYMAT, null);
+        final String oldSleeve = forge.neo.NeoSettings.get(NeoLook.SLEEVE, null);
+        try {
+            forge.neo.NeoSettings.set(NeoLook.PLAYMAT, NeoLook.RANDOM);
+            forge.neo.NeoSettings.set(NeoLook.SLEEVE, NeoLook.RANDOM);
+            NeoLook.newGameDraw();
+            final LookItem mat = NeoLook.currentPlaymat();
+            final LookItem sleeve = NeoLook.currentSleeve();
+            check("Al azar: el tapete nunca es 'ninguno'", !mat.isNone());
+            check("Al azar: la funda sale de la lista", NeoLook.sleeves().stream()
+                    .anyMatch(s -> s.getId().equals(sleeve.getId())));
+            boolean same = true;
+            for (int i = 0; i < 20; i++) {
+                same &= NeoLook.currentPlaymat().getId().equals(mat.getId())
+                        && NeoLook.currentSleeve().getId().equals(sleeve.getId());
+            }
+            check("Al azar: lo mismo toda la partida", same);
+            boolean changes = false;
+            for (int i = 0; i < 40 && !changes; i++) {
+                NeoLook.newGameDraw();
+                changes = !NeoLook.currentSleeve().getId().equals(sleeve.getId());
+            }
+            check("Al azar: en otra partida puede salir otra funda", changes || NeoLook.sleeves().size() < 2);
+            final forge.deck.Deck deck = new forge.deck.Deck("azar");
+            NeoLook.setDeckSleeve(deck, "sprite:sleeve:3");
+            check("Al azar: la funda del mazo sigue mandando",
+                    "sprite:sleeve:3".equals(NeoLook.sleeveOf(deck).getId()));
+        } finally {
+            forge.neo.NeoSettings.set(NeoLook.PLAYMAT, oldMat == null ? "" : oldMat);
+            forge.neo.NeoSettings.set(NeoLook.SLEEVE, oldSleeve == null ? "" : oldSleeve);
+            NeoLook.newGameDraw();
+        }
     }
 
     /** Las listas mezclan lo de Forge con lo tuyo, y el tapete trae su "ninguno". */

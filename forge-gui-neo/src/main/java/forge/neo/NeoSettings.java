@@ -268,6 +268,22 @@ public final class NeoSettings {
     }
 
     /**
+     * Two-Headed Giant en las partidas normales (itch.io, 16-11-2026), como
+     * Archenemy: en el pie del inicio, recordado y apagado de fabrica. Solo se
+     * juega a cuatro. {@code -Dneo.2hg=true} lo fuerza. Ver
+     * {@code forge.neo.match.TwoHeadedGiant}.
+     */
+    public static final String TWO_HEADED_GIANT = "twoHeadedGiant";
+
+    public static boolean twoHeadedGiant() {
+        final String forced = System.getProperty("neo.2hg");
+        if (forced != null && !forced.isEmpty()) {
+            return Boolean.parseBoolean(forced);
+        }
+        return getBool(TWO_HEADED_GIANT, false);
+    }
+
+    /**
      * Quien es el archienemigo: "me" (tu, como Forge de fabrica), "rival" (uno
      * al azar) o "all" (Archenemy Rumble). {@code -Dneo.archenemy.who=...} lo
      * fuerza.

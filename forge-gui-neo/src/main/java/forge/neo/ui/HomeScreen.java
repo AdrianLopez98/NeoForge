@@ -636,7 +636,13 @@ et}) y no se tocan.
         updateLink.setOnAction(e -> updateFromLink());
         refreshUpdateLink();
 
-        final HBox tools = new HBox(8, newDeck, edit, updateLink);
+        // IMPORTAR directamente desde aqui (itch.io, 16-11-2026: eran siete
+        // pasos pasando por el editor; en Android, tres). Ver importDeck.
+        unshrinkable(importDeck).getStyleClass().add("btn-secondary");
+        importDeck.setId("home-import");
+        importDeck.setOnAction(e -> importDeck());
+
+        final HBox tools = new HBox(8, newDeck, importDeck, edit, updateLink);
         tools.setAlignment(Pos.CENTER_RIGHT);
 
         // Bajar mazos hechos. Solo para los formatos de los que Forge mantiene
@@ -658,6 +664,140 @@ et}) y no se tocan.
     }
 
     private final Button newDeck = new Button(NeoText.get("home.newDeck"));
+
+    /** "Importar": una lista o un enlace, guardado sin pasar por el editor. */
+    private final Button importDeck = new Button(NeoText.get("home.import"));
+
+    /** Una importacion en marcha: no se piden dos. */
+    private boolean importing;
+
+    /**
+     * Abre el constructor con un mazo importado que no se pudo guardar tal
+     * cual (cartas que no valen). Lo pone NeoApp; sin el, se avisa y punto.
+     */
+    private java.util.function.Consumer<forge.neo.deck.DeckEditor> onEditImported;
+
+    public void setOnEditImported(final java.util.function.Consumer<forge.neo.deck.DeckEditor> handler) {
+        this.onEditImported = handler;
+    }
+
+    /**
+     * <b>Importar sin pasar por el editor.</b> El mismo cuadro que "Importar
+     * lista" del constructor (una lista pegada o un enlace de Moxfield,
+     * Archidekt, TappedOut o MTGGoldfish) y el mismo reparto de cartas
+     * ({@link forge.neo.deck.DeckImportNew}). Si se puede guardar, se guarda y
+     * se queda elegido; si lleva algo que no vale, se abre el constructor con
+     * la lista dentro para arreglarlo, sin guardar.
+     */
+    private void importDeck() {
+        if (importing) {
+            return;
+        }
+        overlay.setOnBackgroundClick(null);
+        overlay.show(TextDialog.block(NeoText.get("deck.import.title"),
+                NeoText.get("deck.import.hint"), "", NeoText.get("deck.import.go"),
+                text -> {
+                    overlay.hide();
+                    if (text != null && !text.isBlank()) {
+                        runImport(text.trim());
+                    }
+                },
+                overlay::hide));
+    }
+
+    private void runImport(final String text) {
+        importing = true;
+        importDeck.setDisable(true);
+        importDeck.setText(NeoText.get("deck.import.url.working"));
+        final forge.neo.deck.DeckContext where = contextFor(null);
+        final String inCollection = showing == Tab.COLLECTION ? collection : null;
+        final boolean url = forge.neo.deck.DeckImportNew.looksLikeUrl(text);
+        final String fallback = NeoText.get("home.import.name");
+        final Thread t = new Thread(() -> {
+            forge.neo.deck.DeckImportNew.Result r = null;
+            List<String> unknown = List.of();
+            String failure = null;
+            try {
+                Deck loaded;
+                if (url) {
+                    loaded = forge.deck.NeoDeckUrlLoader.load(text);
+                } else {
+                    final forge.neo.deck.DeckImporter.Result parsed =
+                            forge.neo.deck.DeckImporter.importCommander(text, fallback);
+                    loaded = parsed.deck;
+                    unknown = parsed.problems;
+                }
+                if (loaded != null) {
+                    r = forge.neo.deck.DeckImportNew.apply(where, loaded, fallback, url ? text : null);
+                }
+            } catch (final java.io.IOException | RuntimeException e) {
+                failure = url ? forge.neo.deck.DeckUrlFailure.explain(text, e.getMessage()) : e.getMessage();
+            }
+            final forge.neo.deck.DeckImportNew.Result got = r;
+            final List<String> lost = unknown;
+            final String why = failure;
+            javafx.application.Platform.runLater(() -> {
+                importing = false;
+                importDeck.setDisable(false);
+                importDeck.setText(NeoText.get("home.import"));
+                if (got == null || (got.saved() == null && got.editor() == null)) {
+                    showProblem(NeoText.get("deck.import.failed") + "\n\n"
+                            + (why == null ? NeoText.get("deck.import.failed.detail") : why));
+                    return;
+                }
+                if (got.saved() == null) {
+                    // Lleva algo que no vale: al constructor, con la lista dentro.
+                    if (onEditImported != null) {
+                        onEditImported.accept(got.editor());
+                        Toast.show(NeoText.get("home.import.fix", got.editor().getName()));
+                    } else {
+                        showProblem(got.editor().blockingProblem());
+                    }
+                    return;
+                }
+                final Deck saved = got.saved();
+                if (inCollection != null) {
+                    collections.computeIfAbsent(inCollection, k -> new ArrayList<>()).add(saved);
+                    decks.add(saved);
+                } else {
+                    reloadMine();
+                    if (showing != Tab.MINE) {
+                        showing = Tab.MINE;
+                        collection = null;
+                        markTabs();
+                    }
+                }
+                retitleTabs();
+                pager.reset();
+                fillGrid();
+                select(findSame(saved));
+                if (lost.isEmpty()) {
+                    Toast.show(NeoText.get("home.import.done", saved.getName(), got.added()));
+                } else {
+                    final StringBuilder sb = new StringBuilder(
+                            NeoText.get("home.import.done", saved.getName(), got.added()));
+                    sb.append("\n\n").append(NeoText.get("deck.import.unknown", lost.size())).append(':');
+                    for (int i = 0; i < Math.min(15, lost.size()); i++) {
+                        sb.append("\n  ").append(lost.get(i));
+                    }
+                    showProblem(sb.toString());
+                }
+            });
+        }, "neo-home-import");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    /** El objeto de la lista que es este mazo (reloadMine los cambia por los del almacen). */
+    private Deck findSame(final Deck saved) {
+        for (final Deck d : decks) {
+            if (d == saved) {
+                return d;
+            }
+        }
+        final Deck byName = findByName(mine, saved.getName());
+        return byName != null ? byName : saved;
+    }
 
     /** "Actualizar desde el enlace" del mazo elegido. Ver {@link forge.neo.deck.DeckUpdate}. */
     private final Button updateLink = new Button(NeoText.get("deck.updateFromUrl"));
@@ -1467,6 +1607,7 @@ et}) y no se tocan.
      * hace falta un raton encima de una baldosa.
      */
     private void maybeShowDeleteTest() {
+        maybeImportTest();
         final long at = Long.getLong("neo.home.askDeleteAt", -1L);
         if (at < 0) {
             return;
@@ -1476,6 +1617,28 @@ et}) y no se tocan.
         t.setOnFinished(e -> {
             if (selected != null && canDelete(selected)) {
                 confirmDelete(selected);
+            }
+        });
+        t.play();
+    }
+
+    /**
+     * {@code -Dneo.home.import=dialog} abre el cuadro de Importar al segundo;
+     * {@code -Dneo.home.import=<lista, con | por salto>} importa esa lista como
+     * si se hubiera pegado. Para probar el boton sin teclado.
+     */
+    private void maybeImportTest() {
+        final String what = System.getProperty("neo.home.import");
+        if (what == null || what.isBlank()) {
+            return;
+        }
+        final javafx.animation.PauseTransition t =
+                new javafx.animation.PauseTransition(javafx.util.Duration.millis(1000));
+        t.setOnFinished(e -> {
+            if ("dialog".equals(what)) {
+                importDeck();
+            } else {
+                runImport(what.replace("|", System.lineSeparator()));
             }
         });
         t.play();
@@ -1608,6 +1771,7 @@ et}) y no se tocan.
                             NeoSettings.setOpponents(format, opponents);
                             resizeTeams();
                             showArchenemyChoice();
+                            showTwoHeadedChoice();
                             rebuildOpponentRow();
                             updateSummary();
                         }),
@@ -1966,6 +2130,13 @@ et}) y no se tocan.
             box.getItems().add(t);
         }
         box.setValue(seat < teams.length ? teams[seat] + 1 : seat + 1);
+        if (twoHeaded()) {
+            // Two-Headed Giant reparte el: de dos en dos por asiento, como el
+            // lobby de Forge. Se ensenya y no se toca (lo guardado se conserva
+            // para cuando se apague).
+            box.setValue(forge.neo.match.TwoHeadedGiant.teamOf(seat) + 1);
+            box.setDisable(true);
+        }
         box.setOnAction(e -> {
             final Integer picked = box.getValue();
             if (picked == null || seat >= teams.length) {
@@ -2019,12 +2190,18 @@ et}) y no se tocan.
 
     /** Si la partida va por equipos: alguien comparte equipo con alguien. */
     private boolean hasTeams() {
-        return opponents > 1 && !forge.neo.match.NeoTeams.isFreeForAll(teams);
+        return twoHeaded() || opponents > 1 && !forge.neo.match.NeoTeams.isFreeForAll(teams);
+    }
+
+    /** Si esta partida va a ser Two-Headed Giant: encendido, formato que vale y cuatro jugadores. */
+    private boolean twoHeaded() {
+        return forge.neo.match.TwoHeadedGiant.applies(NeoSettings.twoHeadedGiant(),
+                format.getGameType(), opponents);
     }
 
     /** Si el reparto no se puede jugar: todos en el mismo equipo. */
     private boolean notEnoughTeams() {
-        return opponents > 1 && !forge.neo.match.NeoTeams.isEnoughTeams(teams);
+        return !twoHeaded() && opponents > 1 && !forge.neo.match.NeoTeams.isEnoughTeams(teams);
     }
 
     /** Los nombres de los preconstruidos son largos; en un boton no caben. */
@@ -2146,9 +2323,10 @@ et}) y no se tocan.
      *
      * <p>{@code DeckgenUtil.generateCommanderDeck} ya hace las dos cosas —
      * elegir el comandante Y montarle el mazo — así que no hay nada que
-     * reinventar aquí. {@code isCardGen=true} vive dentro de esa llamada:
-     * usa los mazos genéticos de IA para que el rival tenga algo de
-     * sinergia real.
+     * reinventar aquí. Ojo: esa llamada monta el mazo con
+     * {@code isCardGen=false} (cartas de su identidad de color al azar,
+     * recortadas por curva), NO con la matriz de sinergias de Forge — eso
+     * solo lo hacen el "Generar mazo" del editor, la Quest y Ascenso.
      *
      * <p>Pasa por {@code GeneratedDecks}: el generador mete a veces Gleemox,
      * que ningun formato deja jugar, y la IA salia con ella.
@@ -2314,7 +2492,12 @@ et}) y no se tocan.
             NeoSettings.save();
             b.pseudoClassStateChanged(SELECTED, on);
             shared.setDisable(!on);
+            if (on) {
+                twoHeadedOff();
+            }
         });
+        planechaseButton = b;
+        planechaseSharedButton = shared;
         final HBox buttons = new HBox(4, b, shared);
         buttons.setAlignment(Pos.CENTER_LEFT);
         return buttons;
@@ -2328,7 +2511,7 @@ et}) y no se tocan.
     private Region variantChoice() {
         final Label label = new Label(NeoText.get("home.variant"));
         label.getStyleClass().add("caption");
-        final VBox box = new VBox(4, label, planechaseChoice(), archenemyChoice());
+        final VBox box = new VBox(4, label, planechaseChoice(), archenemyChoice(), twoHeadedChoice());
         box.setAlignment(Pos.CENTER_LEFT);
         final boolean applies = forge.neo.match.Planechase.appliesTo(format.getGameType());
         box.setVisible(applies);
@@ -2376,11 +2559,97 @@ et}) y no se tocan.
             for (final Button wb : whoButtons) {
                 wb.setDisable(!on);
             }
+            if (on) {
+                twoHeadedOff();
+            }
         });
+        archenemyButton = b;
+        archenemyWhoButtons = whoButtons;
         buttons.setAlignment(Pos.CENTER_LEFT);
         archenemyRow = buttons;
         showArchenemyChoice();
         return buttons;
+    }
+
+    /**
+     * <b>Two-Headed Giant</b> (itch.io, 16-11-2026), como Archenemy: un boton
+     * que se enciende y se apaga, solo a cuatro. Va solo, como en el lobby de
+     * Forge: encenderlo apaga Planechase y Archenemy, y al reves. Los equipos
+     * los pone el (tu y el rival 1 contra los rivales 2 y 3), asi que los
+     * desplegables de equipo se quedan fijos mientras esta puesto. Lo que hace
+     * esta en {@code forge.neo.match.TwoHeadedGiant}.
+     */
+    private Region twoHeadedChoice() {
+        final Button b = new Button(NeoText.get("home.2hg"));
+        b.setId("home-2hg");
+        b.getStyleClass().add("segment");
+        b.setMinWidth(Region.USE_PREF_SIZE);
+        b.pseudoClassStateChanged(SELECTED, NeoSettings.twoHeadedGiant());
+        b.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("home.2hg.tip")));
+        b.setOnAction(e -> {
+            final boolean on = !NeoSettings.twoHeadedGiant();
+            NeoSettings.setBool(NeoSettings.TWO_HEADED_GIANT, on);
+            if (on) {
+                NeoSettings.setBool(NeoSettings.PLANECHASE, false);
+                NeoSettings.setBool(NeoSettings.ARCHENEMY, false);
+            }
+            NeoSettings.save();
+            refreshVariantButtons();
+            rebuildOpponentRow();
+            updateSummary();
+        });
+        twoHeadedButton = b;
+        final HBox row = new HBox(4, b);
+        row.setAlignment(Pos.CENTER_LEFT);
+        twoHeadedRow = row;
+        showTwoHeadedChoice();
+        return row;
+    }
+
+    private Button twoHeadedButton;
+    private Region twoHeadedRow;
+    private Button planechaseButton;
+    private Button planechaseSharedButton;
+    private Button archenemyButton;
+    private List<Button> archenemyWhoButtons;
+
+    /** Planechase o Archenemy encendidos: Two-Headed Giant no va con ellos. */
+    private void twoHeadedOff() {
+        if (!NeoSettings.twoHeadedGiant()) {
+            return;
+        }
+        NeoSettings.setBool(NeoSettings.TWO_HEADED_GIANT, false);
+        NeoSettings.save();
+        refreshVariantButtons();
+        rebuildOpponentRow();
+        updateSummary();
+    }
+
+    /** Los botones de las variantes, segun lo guardado. */
+    private void refreshVariantButtons() {
+        if (twoHeadedButton != null) {
+            twoHeadedButton.pseudoClassStateChanged(SELECTED, NeoSettings.twoHeadedGiant());
+        }
+        if (planechaseButton != null) {
+            planechaseButton.pseudoClassStateChanged(SELECTED, NeoSettings.planechase());
+            planechaseSharedButton.setDisable(!NeoSettings.planechase());
+        }
+        if (archenemyButton != null) {
+            archenemyButton.pseudoClassStateChanged(SELECTED, NeoSettings.archenemy());
+            for (final Button wb : archenemyWhoButtons) {
+                wb.setDisable(!NeoSettings.archenemy());
+            }
+        }
+    }
+
+    /** Two-Headed Giant solo con tres rivales, y en los formatos en que vale. */
+    private void showTwoHeadedChoice() {
+        if (twoHeadedRow != null) {
+            final boolean show = opponents == forge.neo.match.TwoHeadedGiant.OPPONENTS
+                    && forge.neo.match.TwoHeadedGiant.appliesTo(format.getGameType());
+            twoHeadedRow.setVisible(show);
+            twoHeadedRow.setManaged(show);
+        }
     }
 
     /** La fila de Archenemy, para esconderla en duelo ({@link #showArchenemyChoice}). */
@@ -2514,7 +2783,9 @@ et}) y no se tocan.
             summary.setText(noTeams
                     ? forge.util.Localizer.getInstance().getMessage("lblNotEnoughTeams")
                     : NeoText.get("home.summary.random", format.getLabel(), randomPoolName(), n,
-                            opponents + 1, LookScreen.aiSummary(aiProfile, opponents)));
+                            opponents + 1, LookScreen.aiSummary(aiProfile, opponents))
+                            // Two-Headed Giant tambien con mazo al azar.
+                            + (twoHeaded() ? "  \u00b7  " + NeoText.get("home.2hg") : ""));
             summary.pseudoClassStateChanged(INVALID, n == 0 || noTeams);
             play.setDisable(n == 0 || noTeams);
             return;
@@ -2539,7 +2810,11 @@ et}) y no se tocan.
             problem = forge.util.Localizer.getInstance().getMessage("lblNotEnoughTeams");
         }
 
-        if (problem == null && hasTeams()) {
+        if (problem == null && twoHeaded()) {
+            summary.setText(NeoText.get("home.summary.2hg",
+                    format.getLabel(), selected.getName(), DeckTile.totalCards(selected),
+                    LookScreen.aiSummary(aiProfile, opponents)));
+        } else if (problem == null && hasTeams()) {
             // "2 contra 2" en vez de "partida a 4": con equipos, lo que hay que
             // saber de un vistazo es como va el reparto. El tuyo primero.
             final java.util.Map<Integer, Integer> sizes = new java.util.LinkedHashMap<>();

@@ -236,7 +236,55 @@ public final class NeoLook {
 
     /** La funda elegida en Personalizar: la tuya de siempre. Nunca null. */
     public static LookItem currentSleeve() {
+        if (isRandom(SLEEVE)) {
+            if (randomSleeve == null) {
+                randomSleeve = drawFrom(sleeves());
+            }
+            return randomSleeve;
+        }
         return pick(sleeves(), NeoSettings.get(SLEEVE, null));
+    }
+
+    // ---------------------------------------------------------------
+    // AL AZAR (itch.io, 16-11-2026: "Add a random option for both Playmat
+    // and Sleeves in the customization")
+    // ---------------------------------------------------------------
+    //
+    // El ajuste guarda RANDOM en vez de un identificador, y lo sorteado se
+    // queda fijo hasta newGameDraw(), que llama la mesa al montarse: la misma
+    // funda y el mismo tapete toda la partida (la mesa relee la funda en cada
+    // repintado), y otros en la siguiente. Una funda puesta EN EL MAZO sigue
+    // mandando (sleeveOf).
+
+    /** El valor del ajuste que significa "al azar en cada partida". */
+    public static final String RANDOM = "random";
+
+    private static LookItem randomSleeve;
+    private static LookItem randomPlaymat;
+
+    /** Si ese ajuste (SLEEVE o PLAYMAT) esta en "al azar". */
+    public static boolean isRandom(final String key) {
+        return RANDOM.equals(NeoSettings.get(key, null));
+    }
+
+    /** Partida nueva: lo que este al azar se vuelve a sortear la proxima vez que se pida. */
+    public static void newGameDraw() {
+        randomSleeve = null;
+        randomPlaymat = null;
+    }
+
+    /** Uno cualquiera, sin contar "ninguno" (al azar es querer uno). */
+    private static LookItem drawFrom(final List<LookItem> all) {
+        final List<LookItem> real = new ArrayList<>();
+        for (final LookItem item : all) {
+            if (!item.isNone()) {
+                real.add(item);
+            }
+        }
+        if (real.isEmpty()) {
+            return all.isEmpty() ? LookItem.none() : all.get(0);
+        }
+        return real.get(java.util.concurrent.ThreadLocalRandom.current().nextInt(real.size()));
     }
 
     // ---------------------------------------------------------------
@@ -319,6 +367,12 @@ public final class NeoLook {
 
     /** El tapete elegido; de fabrica, ninguno. */
     public static LookItem currentPlaymat() {
+        if (isRandom(PLAYMAT)) {
+            if (randomPlaymat == null) {
+                randomPlaymat = drawFrom(playmats());
+            }
+            return randomPlaymat;
+        }
         return pick(playmats(), NeoSettings.get(PLAYMAT, NO_PLAYMAT));
     }
 
