@@ -523,8 +523,8 @@ public final class AscentRelics {
      */
     public static int exposeInUniqueCardsForTest() {
         install();
-        FModel.getMagicDb().getCommonCards()
-                .setPreferredLanguageAvailability(languageAvailabilityLikeFModel());
+        // Siempre reindexa, tambien sin idioma preferido (Forge #12860): ver UniquePrints.reIndex.
+        forge.neo.card.UniquePrints.reIndex(FModel.getMagicDb().getCommonCards(), languageAvailabilityLikeFModel());
         return countInUniqueCards();
     }
 

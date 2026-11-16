@@ -83,8 +83,26 @@ public final class UniquePrints {
             return 0;
         }
         final BiPredicate<String, String> lang = languageAvailabilityLikeFModel();
-        data.setPreferredLanguageAvailability(lang);
+        reIndex(data.getCommonCards(), lang);
         return preferFirstPrinting(data.getCommonCards(), lang);
+    }
+
+    /**
+     * Rehace el indice de impresiones unicas de {@code db} con ese criterio de
+     * idioma, <b>siempre</b>.
+     *
+     * <p>Desde Forge #12860 (16-11-2026), {@code setPreferredLanguageAvailability}
+     * no hace nada si se le pasa el mismo criterio que ya tiene, y sin idioma
+     * preferido (las cartas en ingles, lo normal) es {@code null} antes y
+     * despues: el recalculo de arriba se quedaba sin hacer y el catalogo con las
+     * impresiones del motor (lo cazo {@code deckcheck}, por las reliquias de
+     * Ascenso, que usan el mismo camino). Sin idioma se le pasa un criterio que
+     * no da por buena ninguna impresion: para {@code getBestUniquePrint} es lo
+     * mismo que {@code null} (todas empatan en idioma), pero es otro objeto y el
+     * motor si reindexa.
+     */
+    public static void reIndex(final CardDb db, final BiPredicate<String, String> lang) {
+        db.setPreferredLanguageAvailability(lang != null ? lang : (set, number) -> false);
     }
 
     private static int preferFirstPrinting(final CardDb db, final BiPredicate<String, String> lang) {
