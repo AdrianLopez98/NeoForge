@@ -190,6 +190,58 @@ public final class CommanderDraftCheck {
         check(commanderRules[0], "con las reglas de Commander");
         check(startLife[0] == 40, "y 40 vidas (" + startLife[0] + ")");
 
+        // 6. A partidas de cuatro (Discord, 17-11-2026: "4-player combats
+        //    instead of 7 games of 1v1").
+        final DraftRun run = DraftRun.of(NAME);
+        run.restart();
+        check(run.canPlayPods() && !run.isPods(), "se puede jugar a cuatro, y de fabrica no ("
+                + run.opponents().size() + " rivales)");
+        check(run.games() == run.opponents().size(), "a uno contra uno, una partida por rival (" + run.games() + ")");
+        run.setPods(true);
+        check(run.isPods() && run.games() == 3, "a cuatro con siete rivales son tres partidas (" + run.games() + ")");
+        check(run.nextOpponentIndexes().equals(List.of(0, 1, 2)) && run.nextOpponents().size() == 3,
+                "la primera, contra los rivales 1-2-3 " + run.nextOpponentIndexes());
+        run.record(true);
+        check(run.nextOpponentIndexes().equals(List.of(3, 4, 5)), "la segunda, contra 4-5-6 " + run.nextOpponentIndexes());
+        run.record(false);
+        check(run.nextOpponentIndexes().equals(List.of(6, 0, 1)) && run.getRemaining() == 1,
+                "la tercera, el 7 con dos de los primeros " + run.nextOpponentIndexes()
+                        + ", y queda una (" + run.getRemaining() + ")");
+        run.record(true);
+        check(run.isCompleted() && run.getRemaining() == 0, "tras tres partidas la tanda se acaba");
+        run.restart();
+        final List<Deck> pod = run.nextOpponents();
+        final int[] seats = {0};
+        forge.neo.match.NeoGame.setOnUiForTest(ui -> {
+            final Thread spy = new Thread(() -> {
+                for (int i = 0; i < 200; i++) {
+                    final forge.game.GameView gv = ui.getGameView();
+                    if (gv != null && gv.getPlayers() != null && !gv.getPlayers().isEmpty()) {
+                        seats[0] = gv.getPlayers().size();
+                        return;
+                    }
+                    try {
+                        Thread.sleep(50);
+                    } catch (final InterruptedException e) {
+                        return;
+                    }
+                }
+            }, "neo-cmddraftcheck-pods");
+            spy.setDaemon(true);
+            spy.start();
+        });
+        final forge.neo.match.NeoGame.Result r4 = forge.neo.match.NeoGame.play(editor.getDeck(), pod.size(),
+                forge.neo.match.NeoMatchUI.Mode.AUTO_PLAY, 90, false, null, null, true,
+                forge.neo.match.NeoFormat.DRAFT, pod, 1, CommanderDraft.seating());
+        forge.neo.match.NeoGame.setOnUiForTest(null);
+        check(r4 != null && r4.turns > 0 && seats[0] == 4, "y la partida de cuatro se juega ("
+                + seats[0] + " jugadores, " + (r4 == null ? "-" : r4.turns + " turnos") + ")");
+        run.setPods(false);
+
+        // 7. Un CUBO como Commander Draft (Discord, 17-11-2026: "is there any
+        //    way to play a commander cube?"). Ver CommanderCubeDraft.
+        cubeAsCommander();
+
         if (Boolean.getBoolean("neo.cmddraft.keep")) {
             // Para capturar el editor: el draft se queda, con el comandante y el
             // mazo puestos, como evento en curso (run.cmd ui --draft-deck).
@@ -202,6 +254,71 @@ public final class CommanderDraftCheck {
             FModel.getDecks().getDraft().delete(NAME);
         }
         finish();
+    }
+
+    private static final String CUBE_NAME = "neo-cmdcubecheck";
+
+    private static void cubeAsCommander() {
+        final NeoDraft plain = NeoDraft.startCube("Legendary Cube");
+        check(plain != null, "el Legendary Cube arranca como draft normal");
+        if (plain != null) {
+            for (int i = 0; i < 400 && !plain.isDone(); i++) {
+                final List<PaperCard> pack = plain.currentCards();
+                if (pack.isEmpty()) {
+                    break;
+                }
+                plain.pick(pack.get(0));
+            }
+            if (FModel.getDecks().getDraft().contains(CUBE_NAME)) {
+                FModel.getDecks().getDraft().delete(CUBE_NAME);
+            }
+            final DeckGroup g = plain.save(CUBE_NAME);
+            check(!CommanderDraft.is(g.getHumanDeck()), "y sin la casilla NO es Commander Draft (como siempre)");
+            FModel.getDecks().getDraft().delete(CUBE_NAME);
+        }
+
+        final NeoDraft cube = NeoDraft.startCube("Legendary Cube", true);
+        check(cube != null, "con la casilla, el cubo arranca como Commander Draft");
+        if (cube == null) {
+            return;
+        }
+        int picks = 0;
+        while (!cube.isDone() && picks < 400) {
+            final List<PaperCard> pack = cube.currentCards();
+            if (pack.isEmpty()) {
+                break;
+            }
+            cube.pick(pack.get(0));
+            picks++;
+        }
+        check(cube.isDone(), "el draft del cubo se acaba (" + picks + " picks)");
+        if (FModel.getDecks().getDraft().contains(CUBE_NAME)) {
+            FModel.getDecks().getDraft().delete(CUBE_NAME);
+        }
+        final DeckGroup group = cube.save(CUBE_NAME);
+        final Deck mine = group.getHumanDeck();
+        check(CommanderDraft.is(mine), "tu mazo lleva la marca CommanderDraft " + mine.getTags());
+        int withCommander = 0;
+        for (final Deck ai : group.getAiDecks()) {
+            if (ai.has(DeckSection.Commander) && !ai.get(DeckSection.Commander).isEmpty()) {
+                withCommander++;
+            }
+        }
+        check(withCommander == group.getAiDecks().size() && withCommander > 0,
+                "los rivales del cubo salen con comandante (" + withCommander + " de " + group.getAiDecks().size() + ")");
+        final DraftDeckContext ctx = new DraftDeckContext(DraftRun.of(CUBE_NAME));
+        check(ctx.isCommanderDraft() && ctx.deckFormat() == forge.deck.DeckFormat.CommanderDraft,
+                "el editor lo trata como Commander Draft");
+        final DeckEditor built = new DeckEditor(ctx, new Deck(mine, CUBE_NAME));
+        built.autoBuildFromPool();
+        final String problem = ctx.conformanceProblem(built.getDeck());
+        check(!built.commanders().isEmpty() && problem == null, "«Montar solo» le pone comandante y sale legal ("
+                + built.commanders() + (problem == null ? "" : ", " + problem) + ")");
+        final forge.neo.match.NeoGame.Result r = forge.neo.match.NeoGame.play(built.getDeck(), 1,
+                forge.neo.match.NeoMatchUI.Mode.AUTO_PLAY, 60, false, null, null, true,
+                forge.neo.match.NeoFormat.DRAFT, List.of(group.getAiDecks().get(0)), 1, CommanderDraft.seating());
+        check(r != null && r.turns > 0, "y se juega una partida con el (" + (r == null ? "-" : r.turns + " turnos") + ")");
+        FModel.getDecks().getDraft().delete(CUBE_NAME);
     }
 
     private static void finish() {

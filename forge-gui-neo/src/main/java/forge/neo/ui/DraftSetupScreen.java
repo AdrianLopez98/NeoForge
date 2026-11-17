@@ -64,6 +64,11 @@ public class DraftSetupScreen extends BorderPane {
          */
         void startCube(String cubeName);
 
+        /** Un cubo como Commander Draft (ver {@code CommanderCubeDraft}). */
+        default void startCube(final String cubeName, final boolean commander) {
+            startCube(cubeName);
+        }
+
         /**
          * Empezar con sobres de VARIAS expansiones ({@link PackMix}), elegidas
          * a mano o rellenadas desde un bloque de Forge.
@@ -87,6 +92,12 @@ public class DraftSetupScreen extends BorderPane {
     private final VBox mixBox = new VBox();
     /** Importar de CubeCobra: solo con "Un cubo" (Discord, 25-10-2026). */
     private final Region cubeImport = CubeView.importBar(this::cubeImported);
+    /**
+     * Draftear el cubo como Commander Draft (Discord, 17-11-2026: "is there any
+     * way to play a commander cube?"). Solo en la pestanya de cubos.
+     */
+    private final javafx.scene.control.CheckBox cubeCommander =
+            new javafx.scene.control.CheckBox(NeoText.get("draftNew.cubeCommander"));
     private List<CardBlock> shownBlocks = new ArrayList<>();
     private Button[] modeButtons;
     private Button go;
@@ -135,11 +146,14 @@ public class DraftSetupScreen extends BorderPane {
         // La pagina es lo que quepa, no 24 fijas: ver Pager.fitTo.
         pager.fitTo(scroll, grid, UiScale.px(210), UiScale.px(50), 8);
 
-        setBox = new VBox(8, mixBox, cubeImport, search, scroll, pager);
+        cubeCommander.getStyleClass().add("caption");
+        setBox = new VBox(8, mixBox, cubeImport, cubeCommander, search, scroll, pager);
         mixBox.setVisible(false);
         mixBox.setManaged(false);
         cubeImport.setVisible(false);
         cubeImport.setManaged(false);
+        cubeCommander.setVisible(false);
+        cubeCommander.setManaged(false);
         VBox.setVgrow(setBox, Priority.ALWAYS);
 
         final VBox content = new VBox(12,
@@ -163,7 +177,7 @@ public class DraftSetupScreen extends BorderPane {
                     if (chosenCube == null) {
                         return;
                     }
-                    actions.startCube(chosenCube.getName());
+                    actions.startCube(chosenCube.getName(), cubeCommander.isSelected());
                     break;
                 case MIX:
                 case BLOCK:
@@ -282,6 +296,8 @@ public class DraftSetupScreen extends BorderPane {
         setBox.setManaged(showGrid);
         cubeImport.setVisible(mode == Mode.CUBE);
         cubeImport.setManaged(mode == Mode.CUBE);
+        cubeCommander.setVisible(mode == Mode.CUBE);
+        cubeCommander.setManaged(mode == Mode.CUBE);
         refreshMix();
         refreshChosen();
     }

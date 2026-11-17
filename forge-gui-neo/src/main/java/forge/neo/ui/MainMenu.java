@@ -821,6 +821,9 @@ public class MainMenu extends BorderPane {
         // el navegador).
         dialog.option(0).setStyle("-fx-background-color: #29abe0; -fx-text-fill: white;"
                 + " -fx-font-weight: bold;");
+        // Y con un borde fino oscuro en las letras (Ana, 17-11-2026): blanco
+        // sobre el azul de Ko-fi se leia justo. Lo pone el CSS (.kofi-option).
+        dialog.option(0).getStyleClass().add("kofi-option");
         final Runnable fit = () -> shade.resizeRelocate(0, 0, getWidth(), getHeight());
         widthProperty().addListener((o, a, b) -> fit.run());
         heightProperty().addListener((o, a, b) -> fit.run());

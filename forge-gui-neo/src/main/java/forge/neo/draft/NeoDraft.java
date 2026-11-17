@@ -226,6 +226,15 @@ public final class NeoDraft implements PackSource {
      *         producto
      */
     public static NeoDraft startCube(final String cubeName) {
+        return startCube(cubeName, false);
+    }
+
+    /**
+     * Igual, y con {@code commander} el cubo se draftea como Commander Draft
+     * ({@link CommanderCubeDraft}): los rivales buscan comandante y el evento
+     * sale con la marca, como uno de Commander Legends.
+     */
+    public static NeoDraft startCube(final String cubeName, final boolean commander) {
         forge.gamemodes.limited.CustomLimited match = null;
         for (final forge.gamemodes.limited.CustomLimited c : cubes()) {
             if (c.getName().equals(cubeName)) {
@@ -247,7 +256,8 @@ public final class NeoDraft implements PackSource {
             }
         });
         try {
-            final BoosterDraft d = BoosterDraft.createDraft(LimitedPoolType.Custom);
+            final BoosterDraft d = commander ? CommanderCubeDraft.create()
+                    : BoosterDraft.createDraft(LimitedPoolType.Custom);
             if (d == null) {
                 return null;
             }

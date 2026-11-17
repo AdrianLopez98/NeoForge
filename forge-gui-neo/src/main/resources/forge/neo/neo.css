@@ -4680,3 +4680,11 @@
 .banlist-chip > .label {
     -fx-text-fill: #E6EBF2;
 }
+
+/* El boton de Ko-fi de las notas del parche: blanco sobre azul claro, con un
+   borde fino oscuro en las letras para que se lean bien (MainMenu.showPatchNotes). */
+.kofi-option .text {
+    -fx-stroke: #0d2f40;
+    -fx-stroke-width: 0.9;
+    -fx-stroke-type: outside;
+}

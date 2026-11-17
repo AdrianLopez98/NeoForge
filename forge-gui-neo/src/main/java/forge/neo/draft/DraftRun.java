@@ -74,12 +74,22 @@ public final class DraftRun {
      */
     private boolean arena;
 
+    /**
+     * Si la tanda se juega a partidas de cuatro: tu contra tres rivales a la
+     * vez (ver {@link #isPods}). Guardado aqui por lo mismo que {@link #arena}.
+     */
+    private boolean pods;
+
+    /** Los rivales de cada partida de cuatro. */
+    public static final int POD = 3;
+
     private DraftRun(final String name, final Kind kind) {
         this.name = name;
         this.kind = kind;
         this.wins = NeoSettings.getInt(key("wins"), 0);
         this.losses = NeoSettings.getInt(key("losses"), 0);
         this.arena = NeoSettings.getBool(key("arena"), false);
+        this.pods = NeoSettings.getBool(key("pods"), false);
         splitIfNeeded();
     }
 
@@ -313,7 +323,7 @@ public final class DraftRun {
      * "quedan 7 rivales" y "ahora toca el 6 de 7" a la vez.
      */
     public int getRemaining() {
-        final int size = opponents().size();
+        final int size = games();
         return Math.max(0, isArena() ? size - wins : size - (wins + losses));
     }
 
@@ -339,6 +349,81 @@ public final class DraftRun {
         NeoSettings.save();
     }
 
+    /**
+     * Si este evento puede jugarse a partidas de cuatro: un Commander Draft
+     * (el formato es multijugador de nacimiento) con al menos tres rivales.
+     * Discord, 17-11-2026: <i>"how feasible would it be to have those games be
+     * 4-player combats instead of 7 games of 1v1?"</i>.
+     */
+    public boolean canPlayPods() {
+        return CommanderDraft.is(getDeck()) && opponents().size() >= POD;
+    }
+
+    /**
+     * Si la tanda va a partidas de cuatro. Con siete rivales son tres: los
+     * rivales 1-2-3, luego 4-5-6, y el 7 con dos de los primeros (asi te mides
+     * con todos y la tanda no se alarga). Ganar es ganar la partida. Se elige
+     * antes de la primera, como Arena.
+     */
+    public boolean isPods() {
+        return pods && canPlayPods();
+    }
+
+    public void setPods(final boolean on) {
+        if (!canChangeArena()) {
+            return;
+        }
+        pods = on;
+        NeoSettings.setBool(key("pods"), on);
+        NeoSettings.save();
+    }
+
+    /** Cuantas partidas tiene la tanda: una por rival, o una por cada tres a cuatro. */
+    public int games() {
+        final int size = opponents().size();
+        return isPods() ? (size + POD - 1) / POD : size;
+    }
+
+    /**
+     * Los rivales de la partida que toca: el de {@link #nextOpponent} solo, o
+     * en partidas de cuatro los tres de esa ronda (en el orden en que se
+     * sentaron, dando la vuelta al final).
+     */
+    public List<Deck> nextOpponents() {
+        final List<Deck> all = opponents();
+        final List<Deck> out = new ArrayList<>();
+        if (all.isEmpty()) {
+            return out;
+        }
+        if (!isPods()) {
+            out.add(nextOpponent());
+            return out;
+        }
+        final int round = Math.min(wins + losses, games() - 1);
+        for (int j = 0; j < POD; j++) {
+            out.add(all.get((round * POD + j) % all.size()));
+        }
+        return out;
+    }
+
+    /** Los numeros (desde 0) de los rivales de la partida que toca, en el mismo orden. */
+    public List<Integer> nextOpponentIndexes() {
+        final int size = opponents().size();
+        final List<Integer> out = new ArrayList<>();
+        if (size == 0) {
+            return out;
+        }
+        if (!isPods()) {
+            out.add(Math.min(wins + losses, size - 1));
+            return out;
+        }
+        final int round = Math.min(wins + losses, games() - 1);
+        for (int j = 0; j < POD; j++) {
+            out.add((round * POD + j) % size);
+        }
+        return out;
+    }
+
     public boolean isEliminated() {
         return isArena() && losses >= MAX_LOSSES;
     }
@@ -351,7 +436,7 @@ public final class DraftRun {
         if (isEliminated()) {
             return false;
         }
-        final int size = opponents().size();
+        final int size = games();
         return isArena() ? wins >= size : wins + losses >= size;
     }
 
@@ -440,6 +525,7 @@ public final class DraftRun {
         NeoSettings.set(key("losses"), null);
         NeoSettings.set(key("split"), null);
         NeoSettings.set(key("arena"), null);
+        NeoSettings.set(key("pods"), null);
         NeoSettings.set(key("label"), null);
         if (name.equals(NeoSettings.get(currentKey(kind), null))) {
             NeoSettings.set(currentKey(kind), null);

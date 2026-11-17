@@ -201,7 +201,12 @@ final class NeoAppDraft {
 
                     @Override
                     public void startCube(final String cubeName) {
-                        startNewDraftCube(cubeName);
+                        startNewDraftCube(cubeName, false);
+                    }
+
+                    @Override
+                    public void startCube(final String cubeName, final boolean commander) {
+                        startNewDraftCube(cubeName, commander);
                     }
 
                     @Override
@@ -228,8 +233,8 @@ final class NeoAppDraft {
     }
 
     /** Abre sobres de UN CUBO (la auditoría del motor, apartado C2). */
-    void startNewDraftCube(final String cubeName) {
-        final forge.neo.draft.NeoDraft draft = forge.neo.draft.NeoDraft.startCube(cubeName);
+    void startNewDraftCube(final String cubeName, final boolean commander) {
+        final forge.neo.draft.NeoDraft draft = forge.neo.draft.NeoDraft.startCube(cubeName, commander);
         if (draft == null) {
             app.showMainMenu();
             return;
@@ -439,12 +444,13 @@ final class NeoAppDraft {
      * borrar el draft; aqui solo hay que volver a ensenyar la pantalla.
      */
     void playDraftMatch(final forge.neo.draft.DraftRun run) {
-        final forge.deck.Deck rival = run.nextOpponent();
-        if (rival == null) {
+        // Uno, o los tres de la ronda si la tanda va a partidas de cuatro.
+        final List<forge.deck.Deck> rivals = run.nextOpponents();
+        if (rivals.isEmpty()) {
             showDraftRun(run);
             return;
         }
-        playEventMatch(run, List.of(rival), true);
+        playEventMatch(run, rivals, true);
     }
 
     /**

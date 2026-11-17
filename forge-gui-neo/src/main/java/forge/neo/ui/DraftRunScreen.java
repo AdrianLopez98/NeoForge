@@ -133,7 +133,7 @@ public class DraftRunScreen extends BorderPane {
         if (!eliminated && !rivals.isEmpty()) {
             // En el centro se ve el rival que toca en la tanda; al elegir otro
             // para una partida libre, ese.
-            chosenRival = Math.min(run.getWins() + run.getLosses(), rivals.size() - 1);
+            chosenRival = run.nextOpponentIndexes().isEmpty() ? 0 : run.nextOpponentIndexes().get(0);
             rivalCaption.getStyleClass().add("caption");
             rivalBox.setAlignment(Pos.CENTER);
             centre.getChildren().add(rivalBox);
@@ -165,6 +165,17 @@ public class DraftRunScreen extends BorderPane {
                 actions.reopen(run);
             });
             options.getChildren().add(arena);
+        }
+        // A partidas de cuatro (Commander Draft): tambien solo antes de empezar.
+        if (!over && run.canChangeArena() && run.canPlayPods()) {
+            final CheckBox pods = new CheckBox(NeoText.get("draft.podMode"));
+            pods.getStyleClass().add("caption");
+            pods.setSelected(run.isPods());
+            pods.setOnAction(e -> {
+                run.setPods(pods.isSelected());
+                actions.reopen(run);
+            });
+            options.getChildren().add(pods);
         }
         if (!eliminated) {
             // Bo3 es un ajuste del PROXIMO partido, no del evento entero — se
@@ -326,8 +337,10 @@ public class DraftRunScreen extends BorderPane {
     /** Pinta en el centro el rival elegido, diciendo si es el que toca. */
     private void showRival() {
         final int next = run.getWins() + run.getLosses();
-        final boolean isNext = !run.isOver() && chosenRival == next;
-        rivalCaption.setText(isNext
+        final boolean isNext = !run.isOver() && run.nextOpponentIndexes().contains(chosenRival);
+        rivalCaption.setText(isNext && run.isPods()
+                ? NeoText.get("draft.nextPodRival", chosenRival + 1, rivals.size())
+                : isNext
                 ? NeoText.get("draft.nextRival", next + 1, rivals.size())
                 : NeoText.get("draft.rivalN", chosenRival + 1, rivals.size()));
         rivalBox.getChildren().setAll(rivalCaption,
@@ -342,7 +355,7 @@ public class DraftRunScreen extends BorderPane {
      * verdad se lee son los huecos vacios.
      */
     private static Region record(final DraftRun run) {
-        final int total = Math.max(1, run.opponents().size());
+        final int total = Math.max(1, run.games());
         final HBox games = new HBox(6);
         games.setAlignment(Pos.CENTER);
         for (int i = 0; i < total; i++) {

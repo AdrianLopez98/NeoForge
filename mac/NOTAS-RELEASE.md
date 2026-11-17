@@ -1,11 +1,9 @@
-**NeoForge para macOS 1.0.57 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.58 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Two-Headed Giant**: el modo por equipos de Forge, a cuatro y en Commander o un construido. Tu equipo comparte turno, vida, veneno y daño de comandante.
-- **Las cartas de Dune**, y una entrada propia para cada comandante del Secret Lair: con Muad'Dib la mesa se vuelve desierto y asoma un gusano de arena.
-- **Mazos generados con sinergia para los comandantes nuevos**: «Generar mazo» y «Genérame uno» leen las mecánicas del comandante (landfall, mill, cementerio, fichas…) cuando Forge aún no lo conoce.
-- **Importar un mazo desde el selector**, sin pasar por el editor.
-- **Tapete y funda al azar** en cada partida (en Personalizar).
+- **Commander Draft a partidas de cuatro**: una opción del evento cambia las siete partidas uno contra uno por tres partidas a cuatro, tú contra tres rivales cada vez. El modo Arena sigue valiendo.
+- **Cubos de Commander**: casilla «Cubo de Commander» en la pestaña de cubos del draft. Cualquier cubo se draftea como Commander Draft: la IA busca comandante, eliges el tuyo de lo que draftees, mazos de 60 y reglas de Commander.
+- **Notas del parche**: el botón de apoyar el proyecto se lee mejor.
 - Al día con Forge.
 
 Descarga el `.dmg` de tu Mac:

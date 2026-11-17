@@ -1455,7 +1455,7 @@ public class NeoApp extends Application implements SettingsPanel.Host {
         } else if (optionOf(args, "--draft-cube") != null) {
             // --draft-cube=Nombre exacto: abre sobres de ESE cubo, sin pasar
             // por el menu ni por la pantalla de eleccion.
-            draft.startNewDraftCube(optionOf(args, "--draft-cube"));
+            draft.startNewDraftCube(optionOf(args, "--draft-cube"), Boolean.getBoolean("neo.draft.cubeCommander"));
         } else if (args.contains("--draft-run")) {
             // El marcador del evento en curso, si lo hay.
             final forge.neo.draft.DraftRun run = forge.neo.draft.DraftRun.current();
