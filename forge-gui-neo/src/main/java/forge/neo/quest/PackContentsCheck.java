@@ -219,7 +219,8 @@ public final class PackContentsCheck {
             }
         }
         final String mbcBad = mbc == null ? "MBC no existe" : mysteryCommanderSlotsBad(mbc, mbcNew);
-        check(mbcBad == null, "Mystery Booster Commander: 20 cartas, 1 comandante nuevo y 1 de prueba en cada sobre",
+        check(mbcBad == null, "Mystery Booster Commander: 20 cartas y 1 comandante nuevo en cada sobre"
+                + (mbc != null && mbc.hasBoosterTemplate() ? " (el sobre de Forge)" : ", y 1 de prueba (el nuestro)"),
                 String.valueOf(mbcBad));
 
         // 1c. Los sets de Commander (09-10-2026): en la tienda, con su sobre,
@@ -437,7 +438,12 @@ public final class PackContentsCheck {
                     p++;
                 }
             }
-            if (cards.size() != 20 || n != 1 || p != 1) {
+            // DESDE FORGE bba9296c1d (16-11-2026) MBC trae su sobre de verdad y
+            // el nuestro se apaga solo (NeoQuestShop.hasBuiltPack).  En el suyo
+            // la carta de prueba sale de MB2, no de CMB1: ahi solo se exige lo
+            // que dice su fichero, 20 cartas y UN comandante nuevo.
+            final boolean ours = !mbc.hasBoosterTemplate();
+            if (cards.size() != 20 || n != 1 || (ours && p != 1)) {
                 final StringBuilder list = new StringBuilder();
                 for (final PaperCard c : cards) {
                     list.append(c.getName()).append(" [").append(c.getEdition()).append(' ').append(c.getRarity()).append("]; ");
