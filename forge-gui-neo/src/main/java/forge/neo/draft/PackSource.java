@@ -81,6 +81,16 @@ public interface PackSource {
     default void planMain(final List<PaperCard> main) {
     }
 
+    /**
+     * A quien pasas el sobre y de quien lo recibes, con nombre ("Pasas a Ajani
+     * · recibes de Chandra"), o null si este draft no tiene asientos con nombre
+     * ({@link DraftSeats}). Solo el draft de siempre: la Quest, el de salida de
+     * Ascenso y el de red se quedan callados.
+     */
+    default String passNote() {
+        return null;
+    }
+
     // ------------------------------------------------------------------
     // Solo el draft en red contesta a esto
     // ------------------------------------------------------------------

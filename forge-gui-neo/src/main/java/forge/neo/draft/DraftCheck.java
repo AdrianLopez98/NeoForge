@@ -114,6 +114,7 @@ public final class DraftCheck {
         // no son siete rivales, son tres. Ver checkSetDraft.
         checkSetDraft("SPM", 3);
         checkRivals(draft, group);
+        checkSeats();
         checkEditor();
         checkOldFormat();
         checkRun();
@@ -508,6 +509,165 @@ public final class DraftCheck {
         System.out.println(ok
                 ? "  OK - cada rival juega con las cartas que drafteo, montadas por el motor"
                 : "  FALLO - hay cartas en los mazos rivales que no salieron del draft");
+    }
+
+    /**
+     * <b>Los asientos con nombre</b> ({@link DraftSeats}; Discord, 18-11-2026:
+     * <i>"knowing Ajani was to my left and Chandra was to my right"</i>).
+     *
+     * <ol>
+     *   <li><b>A quien pasas, mirado y no supuesto</b>: lo que dejas en el
+     *       sobre lo recibe un rival, que se lleva una de ESAS cartas. Se mira
+     *       que rival es, en el sobre 1 y en el 2, y tiene que ser el que dice
+     *       {@link DraftSeats#passesTo}.</li>
+     *   <li><b>El mazo del rival N sigue siendo el del asiento N al releerlo
+     *       del disco</b> ({@code ai-N.dck}), que es lo que usa el evento.</li>
+     *   <li>Los asientos: uno por rival, ninguno repetido ni con tu nombre, se
+     *       guardan con el evento y se borran con el.</li>
+     * </ol>
+     */
+    private static void checkSeats() {
+        final NeoDraft draft = NeoDraft.start(LimitedPoolType.Full);
+        if (draft == null) {
+            System.out.println("  FALLO - asientos: no se ha podido empezar el draft");
+            return;
+        }
+        final int rivals = draft.rivalPools().size();
+        boolean ok = true;
+
+        // 1. A quien pasas, en el sobre 1 y en el 2.
+        final int[] expected = {DraftSeats.passesTo(1, rivals), DraftSeats.passesTo(2, rivals)};
+        final int[] seen = {-2, -2};
+        for (int round = 1; round <= 2; round++) {
+            while (!draft.isDone() && draft.round() < round) {
+                draft.pick(draft.currentCards().get(0));
+            }
+            // Varios intentos: en un sobre de "todas las cartas" dos sobres
+            // pueden traer la misma carta, y entonces no se sabe quien la cogio.
+            for (int attempt = 0; attempt < 4 && seen[round - 1] == -2 && draft.round() == round; attempt++) {
+                final List<PaperCard> pack = draft.currentCards();
+                if (pack.size() < 3) {
+                    break;
+                }
+                final List<PaperCard> left = new java.util.ArrayList<>(pack);
+                left.remove(pack.get(0));
+                // La foto ANTES y DESPUES de un mismo pick tuyo. Los rivales
+                // eligen dentro de nextChoice, que corre al final de tu pick
+                // (BoosterDraft.setChoice pasa los sobres y NeoDraft.advance
+                // pide el siguiente): cuando tu pick vuelve, el que recibe tu
+                // sobre ya ha cogido de el.
+                final List<forge.deck.CardPool> s1 = copies(draft.rivalPools());
+                draft.pick(pack.get(0));
+                final List<forge.deck.CardPool> s2 = copies(draft.rivalPools());
+                int who = -1;
+                int matches = 0;
+                for (int k = 0; k < s2.size() && k < s1.size(); k++) {
+                    for (final java.util.Map.Entry<PaperCard, Integer> e : s2.get(k)) {
+                        if (e.getValue() > s1.get(k).count(e.getKey()) && left.contains(e.getKey())) {
+                            who = k;
+                            matches++;
+                        }
+                    }
+                }
+                if (matches == 1) {
+                    seen[round - 1] = who;
+                }
+            }
+        }
+        final boolean passOk = seen[0] == expected[0] && seen[1] == expected[1];
+        ok &= passOk;
+        System.out.printf(Locale.ROOT,
+                "  Asientos: en el sobre 1 tu sobre lo recibe el rival %d (esperado %d); en el 2, el %d (esperado %d)%n",
+                seen[0] + 1, expected[0] + 1, seen[1] + 1, expected[1] + 1);
+
+        // 3. Los asientos, antes de guardar.
+        final List<DraftSeats.Seat> seats = draft.seats();
+        final java.util.Set<String> names = new java.util.HashSet<>();
+        for (final DraftSeats.Seat s : seats) {
+            names.add(s.name);
+        }
+        final String you = forge.neo.look.NeoLook.playerName();
+        final boolean seatsOk = seats.size() == rivals && names.size() == rivals
+                && (you == null || you.isBlank() || !names.contains(you));
+        ok &= seatsOk;
+
+        // 2. Guardado y releido del disco: el rival N es el asiento N.
+        while (!draft.isDone()) {
+            final List<PaperCard> pack = draft.currentCards();
+            if (pack.isEmpty()) {
+                break;
+            }
+            draft.pick(pack.get(0));
+        }
+        final String name = "neo-draftcheck-asientos";
+        borrar(name);
+        final DeckGroup group = draft.save(name);
+        final java.io.File dir = new java.io.File(forge.localinstance.properties.ForgeConstants.DECK_DRAFT_DIR,
+                group.getBestFileName());
+        boolean orderOk = !group.getAiDecks().isEmpty();
+        for (int i = 0; i < group.getAiDecks().size(); i++) {
+            final Deck reread = forge.deck.io.DeckSerializer.fromFile(new java.io.File(dir, "ai-" + (i + 1) + ".dck"));
+            if (reread == null || !poolKey(reread.getMain()).equals(poolKey(group.getAiDecks().get(i).getMain()))) {
+                orderOk = false;
+            }
+        }
+        ok &= orderOk;
+        final List<DraftSeats.Seat> stored = DraftRun.of(name).seats();
+        boolean storedOk = stored.size() == seats.size();
+        for (int i = 0; storedOk && i < seats.size(); i++) {
+            storedOk = stored.get(i).name.equals(seats.get(i).name)
+                    && stored.get(i).face.equals(seats.get(i).face)
+                    && stored.get(i).savedRival == seats.get(i).savedRival;
+        }
+        ok &= storedOk;
+        // 4. En la partida: el rival 3 del evento se sienta con el nombre del
+        // asiento 3, sea cual sea su silla en la mesa; y donde no hay asiento,
+        // como antes (null: lo pone NeoGame).
+        final forge.neo.match.NeoGame.Seating sitting = DraftSeats.seating(null,
+                forge.neo.match.NeoFormat.DRAFT,
+                DraftSeats.chairs(stored, java.util.Arrays.asList(2, 99)),
+                (seat, profile) -> forge.player.GamePlayerUtil.createAiPlayer(seat.name, 0, 0, null, profile));
+        final forge.LobbyPlayer third = sitting.player(0, "");
+        final boolean seatedOk = stored.size() > 2 && third != null && third.getName().equals(stored.get(2).name)
+                && sitting.player(1, "") == null
+                && sitting.variants().contains(forge.neo.match.NeoFormat.DRAFT.getGameType());
+        ok &= seatedOk;
+        // Un sellado no tiene asientos, y la Quest tampoco (NeoDraft.of).
+        final boolean sealedQuiet = DraftRun.of(name, DraftRun.Kind.SEALED).seats().isEmpty();
+        ok &= sealedQuiet;
+        DraftRun.of(name).discard();
+        final boolean wiped = forge.neo.NeoSettings.get("draft." + name + ".seats", null) == null;
+        ok &= wiped;
+        borrar(name);
+
+        System.out.printf(Locale.ROOT,
+                "  Asientos: %d con nombre (%s...), distintos=%s, releidos del disco en orden=%s,"
+                        + " guardados=%s, sellado sin asientos=%s, se borran con el evento=%s, en la partida=%s%n",
+                seats.size(), seats.isEmpty() ? "-" : seats.get(0).name, seatsOk, orderOk, storedOk,
+                sealedQuiet, wiped, seatedOk);
+        System.out.println(ok
+                ? "  OK - cada rival tiene su asiento y es el mismo en los picks, el evento y el disco"
+                : "  FALLO - los asientos del draft no cuadran");
+    }
+
+    /** Un mazo como texto comparable: nombre x copias, ordenado. */
+    private static String poolKey(final forge.deck.CardPool pool) {
+        final List<String> out = new java.util.ArrayList<>();
+        for (final java.util.Map.Entry<PaperCard, Integer> e : pool) {
+            out.add(e.getKey().getName() + " x" + e.getValue());
+        }
+        java.util.Collections.sort(out);
+        return String.join("|", out);
+    }
+
+    private static List<forge.deck.CardPool> copies(final List<forge.deck.CardPool> pools) {
+        final List<forge.deck.CardPool> out = new java.util.ArrayList<>();
+        for (final forge.deck.CardPool p : pools) {
+            final forge.deck.CardPool c = new forge.deck.CardPool();
+            c.addAll(p);
+            out.add(c);
+        }
+        return out;
     }
 
     /**
@@ -944,7 +1104,7 @@ public final class DraftCheck {
         }
         // Y su marca de formato (DraftRun.markSplit): no dejar rastro en el
         // neo.properties del jugador.
-        for (final String field : new String[] {"split", "arena", "wins", "losses"}) {
+        for (final String field : new String[] {"split", "arena", "wins", "losses", "seats"}) {
             forge.neo.NeoSettings.set("draft." + name + "." + field, null);
         }
         forge.neo.NeoSettings.save();

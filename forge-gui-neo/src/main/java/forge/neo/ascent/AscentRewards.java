@@ -2,6 +2,7 @@ package forge.neo.ascent;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -362,11 +363,12 @@ public final class AscentRewards {
      *
      * <h2>La trampa del singleton</h2>
      *
-     * <p>{@link #LANDS_INSTEAD} son <b>dos</b>, y en Commander eso es ilegal
-     * para todo lo que no sea una basica: el formato es de <b>una copia</b>. Dos
-     * Tumbas Cenagosas no son un mazo arriesgado, son un mazo que el motor
-     * rechaza — y aqui eso significaria una run muerta por una opcion que el
-     * propio juego te ofrecio.
+     * <p>En Commander el formato es de <b>una copia</b> para todo lo que no sea
+     * una basica, y Ascenso lo respeta: una tierra que ya llevas no vuelve a
+     * entrar, salvo con la casilla de copias ({@link #maxCopies}). (Se creia que
+     * el motor rechazaba el mazo; comprobado el 17-11-2026 con {@code run.cmd
+     * ascenttable --copies} que no: el singleton solo lo miran el lobby de Forge
+     * y nuestro constructor.)
      *
      * <p>No se codifica la excepcion a mano ("las basicas no cuentan"): la
      * contesta <b>el motor</b>, con {@code DeckFormat.getMaxCardCopies(card)},
@@ -379,8 +381,7 @@ public final class AscentRewards {
         if (land == null) {
             return 0;
         }
-        final DeckFormat format = formatOf(run.getMode());
-        final int max = format.getMaxCardCopies(land);
+        final int max = maxCopies(run, land);
         int have = 0;
         final Deck deck = AscentDecks.load(run);
         if (deck != null) {
@@ -532,18 +533,19 @@ public final class AscentRewards {
     private static List<PaperCard> fancyLandPool(final AscentRun run, final int act) {
         final ColorSet allowed = colorsOf(run);
         final boolean singleton = run.getMode() == AscentRun.Mode.COMMANDER;
-        final Set<String> owned = new HashSet<>();
+        Owned owned = null;
         if (singleton) {
             final Deck deck = AscentDecks.load(run);
             if (deck != null) {
-                addOwned(deck, owned);
+                owned = new Owned(deck);
             }
         }
         final List<PaperCard> out = new ArrayList<>();
         for (final PaperCard raw : FModel.getMagicDb().getCommonCards().getUniqueCards()) {
             // Solo las de las expansiones de la run, y con su impresion de
-            // ahi (AscentPool). Con "todas", la carta tal cual.
-            if (!run.getPool().allows(raw)) {
+            // ahi (AscentPool). Con "todas", la carta tal cual — menos las
+            // rebalanceadas de Arena (rebalanced).
+            if (!run.getPool().allows(raw) || rebalanced(raw)) {
                 continue;
             }
             final PaperCard c = run.getPool().printing(raw);
@@ -570,7 +572,7 @@ public final class AscentRewards {
                     && c.getRarity() != CardRarity.MythicRare) {
                 continue;
             }
-            if (singleton && owned.contains(c.getName())) {
+            if (owned != null && owned.full(run, c)) {
                 continue;
             }
             out.add(c);
@@ -924,19 +926,23 @@ public final class AscentRewards {
      */
     private static Pools poolsFor(final AscentRun run) {
         final ColorSet allowed = colorsOf(run);
-        // ⚠️ En Commander no se ofrece lo que ya llevas. El formato es de UNA
-        // copia, asi que la segunda dejaria el mazo ilegal — y el premio ni
-        // siquiera pregunta: mete la carta y guarda. Salio al doblar el premio
+        // ⚠️ En Commander no se ofrece lo que ya llevas: el formato es de UNA
+        // copia y el premio ni siquiera pregunta, mete la carta y guarda (el
+        // motor no lo rechazaria al jugar: ascenttable --copies; es la regla
+        // del formato, que se salta solo con la casilla). Salio al doblar el premio
         // a 2 de 6 (§24.6), que multiplica por dos las ocasiones de que pase,
         // pero el agujero estaba desde el principio.
         // Y lo que has QUITADO tampoco (Discord, 08-10-2026: "Cut cards don't
         // appear again"), en los dos modos: si la has quitado, ya has dicho
         // que no la quieres. Ver AscentRun.noteCut.
+        // Desde el 17-11-2026 no es "lo que ya llevas" sino "lo que ya llevas
+        // TODAS LAS COPIAS QUE CABEN" (Owned.full): Relentless Rats y las
+        // demas de "any number of cards named" seguian saliendo una sola vez
+        // (Discord: "does can have any number of them in the deck exist in
+        // ascent?"). Cuantas caben lo dice el motor (maxCopies).
         final Set<String> owned = new HashSet<>(run.getCut());
         final Deck mine = run.getMode() == AscentRun.Mode.COMMANDER ? AscentDecks.load(run) : null;
-        if (mine != null) {
-            addOwned(mine, owned);
-        }
+        final Owned have = mine == null ? null : new Owned(mine);
         final Set<String> changers = gameChangerNames();
         // Lo que pega con TU comandante, segun los mazos reales que trae Forge.
         // Vacio en Estandar (no hay comandante) y vacio tambien si la matriz no
@@ -952,12 +958,13 @@ public final class AscentRewards {
         out.synergyNames.addAll(synergy);
         for (final PaperCard raw : FModel.getMagicDb().getCommonCards().getUniqueCards()) {
             // Solo las de las expansiones de la run, y con su impresion de
-            // ahi (AscentPool). Con "todas", la carta tal cual.
-            if (!run.getPool().allows(raw)) {
+            // ahi (AscentPool). Con "todas", la carta tal cual — menos las
+            // rebalanceadas de Arena (rebalanced).
+            if (!run.getPool().allows(raw) || rebalanced(raw)) {
                 continue;
             }
             final PaperCard c = run.getPool().printing(raw);
-            if (owned.contains(c.getName())) {
+            if (owned.contains(c.getName()) || (have != null && have.full(run, c))) {
                 continue;
             }
             if (c.getRules() == null || c.getRules().getType().isLand()) {
@@ -1012,14 +1019,72 @@ public final class AscentRewards {
      * cualquier comandante que sea infrecuente o mejor y entre en el pozo de
      * la run, y con mas facilidad si pega con su propia sinergia.
      */
-    private static void addOwned(final Deck deck, final Set<String> into) {
-        for (final Map.Entry<PaperCard, Integer> e : deck.getMain()) {
-            into.add(e.getKey().getName());
+    private static final class Owned {
+        /** Copias de cada carta en el principal, por NOMBRE (como cuenta el motor). */
+        private final Map<String, Integer> copies = new HashMap<>();
+        /** Los comandantes: esos no se repiten nunca. */
+        private final Set<String> commanders = new HashSet<>();
+
+        Owned(final Deck deck) {
+            for (final Map.Entry<PaperCard, Integer> e : deck.getMain()) {
+                copies.merge(e.getKey().getName(), e.getValue(), Integer::sum);
+            }
+            for (final PaperCard cmd : deck.getCommanders()) {
+                commanders.add(cmd.getName());
+            }
         }
-        for (final PaperCard cmd : deck.getCommanders()) {
-            into.add(cmd.getName());
+
+        /** Si ya no cabe otra copia de esa carta en el mazo de la run. */
+        boolean full(final AscentRun run, final PaperCard c) {
+            if (commanders.contains(c.getName())) {
+                return true;
+            }
+            // Al motor solo se le pregunta por lo que ya llevas: esto corre para
+            // las 33.000 cartas del catalogo en cada nodo.
+            final int have = copies.getOrDefault(c.getName(), 0);
+            return have > 0 && have >= maxCopies(run, c);
         }
     }
+
+    /**
+     * <b>Las rebalanceadas de Arena</b> ({@code A-algo}, las de Alchemy) no son
+     * premio. Con unas expansiones elegidas ya no entraban ({@code
+     * AscentPool.index} las quita); con "todas", {@code AscentPool.allows} deja
+     * pasar cualquier carta y se colaban: visto el 17-11-2026, una {@code
+     * A-Dungeon Descent} en el monton de tierras. Se filtra aqui y no en
+     * {@code allows}, que usan tambien los rivales de la Quest. Las dos
+     * condiciones, como el selector de comandante ({@code
+     * AscentSeedDeck.commanderPool}): {@code isRebalanced()} sola casi no casa,
+     * porque el nombre ya lleva el prefijo.
+     */
+    static boolean rebalanced(final PaperCard c) {
+        return c.isRebalanced() || c.getName().startsWith("A-");
+    }
+
+    /**
+     * <b>Cuantas copias de esa carta puede llevar el mazo de la run.</b> Lo
+     * dice el motor ({@code DeckFormat.getMaxCardCopies}): en Commander una,
+     * salvo las basicas, las de "A deck can have any number of cards named..."
+     * (Relentless Rats, Shadowborn Apostle...) y las de un numero fijo (Seven
+     * Dwarves, siete). Antes del 17-11-2026 Ascenso daba una de todo, tambien
+     * de esas: elegir un comandante de ratas no servia de nada.
+     *
+     * <p>Y con la casilla de copias ({@link AscentRun#allowsCopies}), al menos
+     * {@link #COPIES} de cualquier carta: el premio te la puede volver a
+     * ofrecer, y una tierra no basica que ya llevas tambien.
+     */
+    public static int maxCopies(final AscentRun run, final PaperCard card) {
+        final int engine = formatOf(run.getMode()).getMaxCardCopies(card);
+        return run.getMode() == AscentRun.Mode.COMMANDER && run.allowsCopies()
+                ? Math.max(engine, COPIES) : engine;
+    }
+
+    /**
+     * <b>Cuantas copias de una carta</b> con la casilla puesta. Dos y no cuatro
+     * (Ana, 17-11-2026): da el gusto de roguelike de repetir tu mejor carta
+     * sin que un mazo de Commander acabe siendo cuatro veces lo mismo.
+     */
+    public static final int COPIES = 2;
 
     /**
      * Si esa carta podria salir en un premio de esta run, a cualquier altura.

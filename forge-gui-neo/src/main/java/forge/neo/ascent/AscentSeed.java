@@ -111,23 +111,31 @@ public final class AscentSeed {
          * sobres. Ver {@link AscentDraft}.
          */
         public final boolean draft;
+        /**
+         * <b>Con copias</b> (solo Commander, {@link AscentRun#allowsCopies}).
+         * Cambia lo que ofrece el premio, asi que va en el codigo como
+         * {@code 2C}: sin la marca, la misma semilla seria otra run. Un codigo
+         * sin ella es de una copia, como todos los de antes.
+         */
+        public final boolean copies;
 
         public Recipe(final AscentRun.Mode mode, final int ascension, final byte colours,
                       final String commander, final AscentPool pool, final long seed,
                       final String version) {
-            this(mode, ascension, colours, commander, null, null, null, pool, seed, version, false, false);
+            this(mode, ascension, colours, commander, null, null, null, pool, seed, version, false, false, false);
         }
 
         public Recipe(final AscentRun.Mode mode, final int ascension, final byte colours,
                       final String commander, final String partner, final AscentPool pool,
                       final long seed, final String version) {
-            this(mode, ascension, colours, commander, null, partner, null, pool, seed, version, false, false);
+            this(mode, ascension, colours, commander, null, partner, null, pool, seed, version, false, false,
+                    false);
         }
 
         Recipe(final AscentRun.Mode mode, final int ascension, final byte colours,
                final String commander, final String commanderHash, final String partner,
                final String partnerHash, final AscentPool pool, final long seed, final String version,
-               final boolean melee, final boolean draft) {
+               final boolean melee, final boolean draft, final boolean copies) {
             this.mode = mode == null ? AscentRun.Mode.STANDARD : mode;
             this.ascension = Math.max(0, ascension);
             this.colours = this.mode == AscentRun.Mode.STANDARD ? colours : AscentSeedDeck.NO_COLOURS;
@@ -144,18 +152,26 @@ public final class AscentSeed {
             this.melee = this.mode == AscentRun.Mode.COMMANDER && melee;
             // El draft es de Estandar, y los colores salen de lo que se coja.
             this.draft = this.mode == AscentRun.Mode.STANDARD && draft;
+            // Las copias son de Commander: Estandar ya deja cuatro.
+            this.copies = this.mode == AscentRun.Mode.COMMANDER && copies;
         }
 
         /** La misma receta, con o sin mesas de cuatro. */
         public Recipe withMelee(final boolean on) {
             return new Recipe(mode, ascension, colours, commander, commanderHash, partner, partnerHash,
-                    pool, seed, version, on, draft);
+                    pool, seed, version, on, draft, copies);
+        }
+
+        /** La misma receta, con o sin copias (solo Commander). */
+        public Recipe withCopies(final boolean on) {
+            return new Recipe(mode, ascension, colours, commander, commanderHash, partner, partnerHash,
+                    pool, seed, version, melee, draft, on);
         }
 
         /** La misma receta, con el mazo de salida drafteado o generado (solo Estandar). */
         public Recipe withDraft(final boolean on) {
             return new Recipe(mode, ascension, on ? AscentSeedDeck.NO_COLOURS : colours, commander, commanderHash,
-                    partner, partnerHash, pool, seed, version, melee, on);
+                    partner, partnerHash, pool, seed, version, melee, on, copies);
         }
 
         /** El comandante va en el codigo (el jugador lo eligio, no lo sorteo la semilla). */
@@ -187,7 +203,7 @@ public final class AscentSeed {
         /** Igual, con companero de mando. */
         public Recipe withDeck(final byte ownColours, final String ownCommander, final String ownPartner) {
             return new Recipe(mode, ascension, draft ? AscentSeedDeck.NO_COLOURS : ownColours, ownCommander, null,
-                    ownPartner, null, pool, seed, version, melee, draft);
+                    ownPartner, null, pool, seed, version, melee, draft, copies);
         }
 
         /** Hecho con la misma version que esta jugando. */
@@ -399,6 +415,10 @@ public final class AscentSeed {
             // Igual: dos letras, y ninguna de WUBRG en las dos.
             parts.add("DR");
         }
+        if (r.copies) {
+            // Igual: dos letras, sin WUBRG ni forma de Ascension.
+            parts.add("2C");
+        }
         if (r.mode == AscentRun.Mode.STANDARD && r.colours != AscentSeedDeck.NO_COLOURS) {
             parts.add(colourLetters(r.colours));
         }
@@ -462,6 +482,7 @@ public final class AscentSeed {
         Long seed = null;
         boolean melee = false;
         boolean draft = false;
+        boolean copies = false;
         final StringBuilder halves = new StringBuilder();
         for (final String token : text.split("-")) {
             if (token.isEmpty()) {
@@ -476,6 +497,8 @@ public final class AscentSeed {
                 melee = true;
             } else if ("DR".equals(up)) {
                 draft = true;
+            } else if ("2C".equals(up)) {
+                copies = true;
             } else if (up.matches("A\\d{1,2}")) {
                 ascension = Integer.parseInt(up.substring(1));
             } else if (up.startsWith("@") && up.length() > 1) {
@@ -522,7 +545,7 @@ public final class AscentSeed {
             return new Parsed(null, "ascent.seed.err.bad");
         }
         return new Parsed(new Recipe(mode, ascension, colours, null, hash, null, partnerHash, pool, seed, version,
-                melee, draft), null);
+                melee, draft, copies), null);
     }
 
     /** Ocho letras de base 32. */

@@ -125,6 +125,15 @@ public final class AscentRun {
      */
     private boolean melee;
 
+    /**
+     * <b>Con copias</b> (Discord, 17-11-2026: <i>"Is there any chance to allow
+     * for duplicates in commander mode... its a roguelike so why not?"</i>):
+     * el premio te puede ofrecer otra vez una carta que ya llevas, hasta
+     * {@link AscentRewards#COPIES} copias. Solo Commander, que es el unico modo
+     * de una copia. Las runs de antes, {@code false}.
+     */
+    private boolean copies;
+
     private AscentRun() {
     }
 
@@ -264,6 +273,7 @@ public final class AscentRun {
         run.code = NeoSettings.get(PREFIX + "code", null);
         run.fromCode = NeoSettings.getBool(PREFIX + "fromCode", false);
         run.melee = run.mode == Mode.COMMANDER && NeoSettings.getBool(PREFIX + "melee", false);
+        run.copies = run.mode == Mode.COMMANDER && NeoSettings.getBool(PREFIX + "copies", false);
         return run;
     }
 
@@ -302,6 +312,7 @@ public final class AscentRun {
         NeoSettings.set(PREFIX + "code", code);
         NeoSettings.set(PREFIX + "fromCode", fromCode ? "true" : null);
         NeoSettings.set(PREFIX + "melee", melee ? "true" : null);
+        NeoSettings.set(PREFIX + "copies", copies ? "true" : null);
         NeoSettings.set(PREFIX + "fighting", fighting);
         NeoSettings.save();
     }
@@ -357,10 +368,19 @@ public final class AscentRun {
     public static AscentRun begin(final Mode mode, final int ascension, final int maxLife,
                                   final forge.item.PaperCard commander, final forge.item.PaperCard partner,
                                   final byte colours, final AscentPool pool, final boolean melee) {
+        return begin(mode, ascension, maxLife, commander, partner, colours, pool, melee, false);
+    }
+
+    /** Igual, con o sin copias (solo Commander, {@link #allowsCopies}). */
+    public static AscentRun begin(final Mode mode, final int ascension, final int maxLife,
+                                  final forge.item.PaperCard commander, final forge.item.PaperCard partner,
+                                  final byte colours, final AscentPool pool, final boolean melee,
+                                  final boolean copies) {
         // La unica entrada AL AZAR: todas las demas son de una receta dada.
         return begin(AscentSeed.fresh(mode, ascension, colours,
                 commander == null ? null : commander.getName(),
-                commander == null || partner == null ? null : partner.getName(), pool, melee), maxLife, false);
+                commander == null || partner == null ? null : partner.getName(), pool, melee)
+                .withCopies(copies), maxLife, false);
     }
 
     /** Una run desde su receta, con la vida de su modo (40 en Commander, 20 en Estandar). */
@@ -444,6 +464,7 @@ public final class AscentRun {
         run.code = recipe.code();
         run.fromCode = fromCode;
         run.melee = recipe.melee;
+        run.copies = recipe.copies;
         run.save();
         System.out.println("[ascenso] run nueva con el codigo " + run.code
                 + (fromCode ? " (de un codigo o un reto: no sube la Ascension)" : ""));
@@ -550,7 +571,7 @@ public final class AscentRun {
         }
         for (final String k : new String[]{"mode", "seed", "act", "life", "maxLife",
                 "credits", "ascension", "deck", "node", "cleared", "relics", "cut", "pool",
-                "endless", "won", "code", "fromCode", "melee", "relicsGone", "fighting"}) {
+                "endless", "won", "code", "fromCode", "melee", "copies", "relicsGone", "fighting"}) {
             NeoSettings.set(PREFIX + k, null);
         }
         NeoSettings.setBool(ACTIVE, false);
@@ -1028,6 +1049,19 @@ public final class AscentRun {
      */
     public boolean isMelee() {
         return melee;
+    }
+
+    /**
+     * Si la run deja llevar <b>mas de una copia</b> de una carta
+     * ({@link AscentRewards#maxCopies}). Solo Commander.
+     */
+    public boolean allowsCopies() {
+        return copies;
+    }
+
+    /** Solo para los comprobadores: poner o quitar las copias sin pasar por una receta. */
+    void setCopiesForTest(final boolean on) {
+        copies = mode == Mode.COMMANDER && on;
     }
 
     /** Solo para los comprobadores: poner o quitar las mesas sin pasar por una receta. */

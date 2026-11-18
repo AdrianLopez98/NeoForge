@@ -101,8 +101,8 @@ public final class DraftDeckContext implements DeckContext {
         commanderDraft = CommanderDraft.is(deck);
         if (commanderDraft) {
             // El comandante elegido sigue contando como tuyo, y los gratis
-            // (el de la expansion, The Prismatic Piper, Faceless One) se pueden
-            // poner de comandante sin haberlos draftado, como en Forge.
+            // (el de la expansion: The Prismatic Piper en Commander Legends) se
+            // pueden poner de comandante sin haberlos draftado, como en Forge.
             count(deck.get(DeckSection.Commander));
             for (final PaperCard free : CommanderDraft.freeCommanders(deck)) {
                 if (ownedByName.getOrDefault(normalizedName(free.getName()), 0) == 0) {

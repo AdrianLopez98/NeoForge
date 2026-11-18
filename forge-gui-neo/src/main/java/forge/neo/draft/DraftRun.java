@@ -99,6 +99,28 @@ public final class DraftRun {
      * <p>Lo llama quien escribe el evento ({@code NeoDraft.save}) ANTES de
      * abrir el {@code DraftRun}, para que {@link #splitIfNeeded} no lo toque.
      */
+    /**
+     * Quien se sento en cada asiento del draft ({@link DraftSeats}), guardado
+     * al guardar el draft. Solo los drafts: en un sellado no hay asientos.
+     */
+    public static void saveSeats(final String eventName, final List<DraftSeats.Seat> seats) {
+        NeoSettings.set(Kind.DRAFT.prefix() + "." + eventName + ".seats",
+                seats == null || seats.isEmpty() ? null : DraftSeats.serialize(seats));
+        NeoSettings.save();
+    }
+
+    /**
+     * Los asientos de este draft, uno por rival en el orden de {@link
+     * #opponents()}; vacio en un sellado o en un draft de antes del
+     * 18-11-2026, que siguen saliendo como "Rival N".
+     */
+    public List<DraftSeats.Seat> seats() {
+        if (kind != Kind.DRAFT) {
+            return java.util.Collections.emptyList();
+        }
+        return DraftSeats.parse(NeoSettings.get(key("seats"), null));
+    }
+
     public static void markSplit(final String eventName, final Kind kind) {
         NeoSettings.setBool(kind.prefix() + "." + eventName + ".split", true);
         NeoSettings.save();
@@ -527,6 +549,7 @@ public final class DraftRun {
         NeoSettings.set(key("arena"), null);
         NeoSettings.set(key("pods"), null);
         NeoSettings.set(key("label"), null);
+        NeoSettings.set(key("seats"), null);
         if (name.equals(NeoSettings.get(currentKey(kind), null))) {
             NeoSettings.set(currentKey(kind), null);
         }

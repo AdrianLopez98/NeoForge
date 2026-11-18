@@ -274,6 +274,9 @@ public class DraftRunScreen extends BorderPane {
             final int index = i;
             final Button b = new Button(String.valueOf(i + 1));
             b.getStyleClass().add("segment");
+            if (i < run.seats().size()) {
+                b.setTooltip(new javafx.scene.control.Tooltip(run.seats().get(i).name));
+            }
             b.setMinWidth(Region.USE_PREF_SIZE);
             b.pseudoClassStateChanged(SELECTED, i == chosenRival);
             b.setOnAction(e -> {
@@ -338,11 +341,17 @@ public class DraftRunScreen extends BorderPane {
     private void showRival() {
         final int next = run.getWins() + run.getLosses();
         final boolean isNext = !run.isOver() && run.nextOpponentIndexes().contains(chosenRival);
-        rivalCaption.setText(isNext && run.isPods()
+        final String caption = isNext && run.isPods()
                 ? NeoText.get("draft.nextPodRival", chosenRival + 1, rivals.size())
                 : isNext
                 ? NeoText.get("draft.nextRival", next + 1, rivals.size())
-                : NeoText.get("draft.rivalN", chosenRival + 1, rivals.size()));
+                : NeoText.get("draft.rivalN", chosenRival + 1, rivals.size());
+        // Con asientos (DraftSeats), quien es y donde se sento en el draft.
+        final java.util.List<forge.neo.draft.DraftSeats.Seat> seats = run.seats();
+        rivalCaption.setText(chosenRival < seats.size()
+                ? caption + "  ·  " + NeoText.get("draft.seat.who", seats.get(chosenRival).name,
+                        forge.neo.draft.DraftSeats.whereSits(chosenRival, seats.size()))
+                : caption);
         rivalBox.getChildren().setAll(rivalCaption,
                 strip(rivals.get(chosenRival), cardWidth * 0.9));
     }

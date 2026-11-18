@@ -24,6 +24,21 @@ public final class Sideways {
     private Sideways() {
     }
 
+    /**
+     * <b>Si esa cara se ensenya del reves</b>: la mitad girada de una carta flip
+     * de Kamigawa (Discord, 17-11-2026: <i>"can you fix the og kamigawa flip
+     * cards? so they turn 180 degrees?"</i>). Las dos mitades van en la MISMA
+     * imagen, una del reves, y el motor no da otra: "the rotated image is
+     * handled by graphics renderer" ({@code CardFactory}). Ensenyando la cara
+     * girada ({@code CardStateName.Flipped}), el arte se gira 180 grados, como
+     * en la GUI de Forge. La usan {@code CardNode} y, en Android, {@code
+     * CardBrief.delReves}.
+     */
+    public static boolean upsideDown(final CardView card, final CardStateView shown) {
+        return card != null && shown != null && card.isFlipCard()
+                && shown.getState() == forge.card.CardStateName.Flipped;
+    }
+
     /** Una carta de la partida (o de la interfaz, con su {@code CardView}). */
     public static boolean reads(final CardView c, final CardTypeView type) {
         if (type != null && (type.isPlane() || type.isPhenomenon() || type.isBattle())) {

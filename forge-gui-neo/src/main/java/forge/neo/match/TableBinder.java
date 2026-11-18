@@ -1095,8 +1095,15 @@ public class TableBinder {
      * desde un cementerio o un exilio. Lo mismo que enciende sus pilas
      * ({@link #hasPlayable}), carta a carta: la lista del motor (de quien sea
      * la carta: un exilio del rival que te deja jugarla) y lo que esa lista se
-     * deja en tus zonas (lo planeado, el caos). Ni el mando (ya se ve) ni la
-     * biblioteca (su primera carta ya sale en el mazo).
+     * deja en tus zonas (lo planeado, el caos). Ni el mando, que ya se ve.
+     *
+     * <p>Y LA PRIMERA DE UNA BIBLIOTECA, la tuya o la de un rival, si el motor
+     * te la deja lanzar (Future Sight, Bolas's Citadel, Xanathar; Discord,
+     * 18-11-2026: <i>"it shows there cards that are revealed from the
+     * opponent's library but not the cards that are revealed to (and most
+     * important, playable by) me"</i>). La tuya ya salia encima del mazo,
+     * pero lo que se puede lanzar se busca en la mano. Solo la que esta en la
+     * lista del motor: la biblioteca sigue oculta.
      */
     private java.util.List<CardView> castableOutsideForHand(final PlayerView me) {
         final NeoMatchUI ui = matchUi;
@@ -1105,7 +1112,8 @@ public class TableBinder {
         }
         final java.util.Map<Integer, CardView> out = new java.util.LinkedHashMap<>();
         for (final CardView cv : playableOutside()) {
-            if (cv != null && (cv.getZone() == ZoneType.Graveyard || cv.getZone() == ZoneType.Exile)
+            if (cv != null && (cv.getZone() == ZoneType.Graveyard || cv.getZone() == ZoneType.Exile
+                    || cv.getZone() == ZoneType.Library)
                     && ui.isPlayableOutside(cv)) {
                 out.putIfAbsent(cv.getId(), cv);
             }

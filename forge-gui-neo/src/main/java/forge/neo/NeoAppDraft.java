@@ -356,15 +356,26 @@ final class NeoAppDraft {
             public void playAgainst(final forge.neo.draft.DraftRun r, final int rival) {
                 final List<Deck> all = r.opponents();
                 if (rival >= 0 && rival < all.size()) {
-                    playEventMatch(r, List.of(all.get(rival)), false);
+                    playEventMatch(r, List.of(all.get(rival)), List.of(rival), false);
                 }
             }
 
             @Override
             public void playRandom(final forge.neo.draft.DraftRun r, final int count) {
-                final List<Deck> all = new java.util.ArrayList<>(r.opponents());
-                java.util.Collections.shuffle(all);
-                playEventMatch(r, new java.util.ArrayList<>(all.subList(0, Math.min(count, all.size()))), false);
+                // Se barajan los INDICES, no los mazos: cada uno se sienta con
+                // su nombre del draft (DraftSeats).
+                final List<Deck> all = r.opponents();
+                final List<Integer> picked = new java.util.ArrayList<>();
+                for (int i = 0; i < all.size(); i++) {
+                    picked.add(i);
+                }
+                java.util.Collections.shuffle(picked);
+                final List<Integer> chosen = new java.util.ArrayList<>(picked.subList(0, Math.min(count, picked.size())));
+                final List<Deck> decks = new java.util.ArrayList<>();
+                for (final int i : chosen) {
+                    decks.add(all.get(i));
+                }
+                playEventMatch(r, decks, chosen, false);
             }
 
             @Override
@@ -450,7 +461,7 @@ final class NeoAppDraft {
             showDraftRun(run);
             return;
         }
-        playEventMatch(run, rivals, true);
+        playEventMatch(run, rivals, run.nextOpponentIndexes(), true);
     }
 
     /**
@@ -462,7 +473,7 @@ final class NeoAppDraft {
      * Bo3: al mejor de tres solo tiene sentido uno contra uno.
      */
     void playEventMatch(final forge.neo.draft.DraftRun run, final List<Deck> rivals,
-                        final boolean counts) {
+                        final List<Integer> rivalIndexes, final boolean counts) {
         final forge.deck.Deck mine = run.getDeck();
         if (mine == null || rivals.isEmpty()) {
             showDraftRun(run);
@@ -486,14 +497,21 @@ final class NeoAppDraft {
         final boolean commanderDraft = forge.neo.draft.CommanderDraft.is(mine);
         final int gamesPerMatch = NeoSettings.bo3() && rivals.size() == 1 && !commanderDraft ? 3 : 1;
         app.table.setPrompt(forge.neo.NeoText.get("app.preparing"));
+        // Cada rival con el nombre y la cara de su asiento en el draft
+        // (DraftSeats). Sin asientos (un sellado, un draft de antes), como antes.
+        final forge.neo.match.NeoGame.Seating base = commanderDraft ? forge.neo.draft.CommanderDraft.seating() : null;
+        final List<forge.neo.draft.DraftSeats.Seat> seats = run.seats();
+        final forge.neo.match.NeoGame.Seating seating = seats.isEmpty() ? base
+                : forge.neo.draft.DraftSeats.seating(base, format,
+                        forge.neo.draft.DraftSeats.chairs(seats, rivalIndexes),
+                        forge.neo.look.NeoPlayers::drafter);
 
         final Thread engine = new Thread(() -> {
             boolean won = false;
             try {
                 final NeoGame.Result r = NeoGame.play(mine, rivals.size(), NeoMatchUI.Mode.HUMAN,
                         3600, false, liveBinder, forge.neo.look.AiProfiles.orDefault(NeoSettings.get(NeoSettings.AI_PROFILE, null)),
-                        autoMana, format, rivals, gamesPerMatch,
-                        commanderDraft ? forge.neo.draft.CommanderDraft.seating() : null);
+                        autoMana, format, rivals, gamesPerMatch, seating);
                 // El ganador del PARTIDO: rendirse a mitad de un al mejor de
                 // tres no puede contar como victoria (revision del 13-10-2026).
                 won = r.matchWinner != null && r.matchWinner.equals(

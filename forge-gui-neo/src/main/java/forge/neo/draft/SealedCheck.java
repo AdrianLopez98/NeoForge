@@ -344,6 +344,37 @@ public final class SealedCheck {
         if (j22 == null) {
             return false;
         }
+        // Los colores de cada tema (Discord, 18-11-2026), para la lista de
+        // temas: todos, de todos los productos, y lo que tarda (Android los
+        // retrata de una vez).  "Angels" es blanco, y casi ningun tema es
+        // incoloro (los "Lands" y algun artefacto, si acaso).
+        final long t0 = System.nanoTime();
+        int themes = 0;
+        int colorless = 0;
+        int angelsWhite = 0;
+        int angels = 0;
+        for (final Jumpstart.Product p : products) {
+            for (final Jumpstart.Theme t : p.themes) {
+                themes++;
+                final int c = Jumpstart.colors(t);
+                if (c == 0) {
+                    colorless++;
+                }
+                if (t.name.startsWith("Angels")) {
+                    angels++;
+                    if (c == forge.card.MagicColor.WHITE) {
+                        angelsWhite++;
+                    }
+                }
+            }
+        }
+        final long ms = (System.nanoTime() - t0) / 1_000_000;
+        final boolean colorsOk = themes > 0 && angels > 0 && angelsWhite == angels && colorless * 10 < themes
+                && Jumpstart.colors(Jumpstart.RANDOM) == 0;
+        System.out.printf(Locale.ROOT,
+                "  Jumpstart: colores de %d temas en %d ms, %d incoloros, Angels blancos %d de %d -> %s%n",
+                themes, ms, colorless, angelsWhite, angels, colorsOk ? "OK" : "FALLO");
+        ok &= colorsOk;
         final String name = "zz-prueba-jumpstart";
         borrar(name);
         final Jumpstart.Theme chosen = j22.themes.get(0);

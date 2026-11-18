@@ -65,6 +65,7 @@ public final class RefreshArtCheck {
         } else {
             check("una imagen en HD se vuelve a bajar", r2 == CardImages.Refresh.UPDATED);
         }
+        emptyLanguage();
         scanAll();
         System.out.println();
         System.out.println(bad == 0 ? "  TODO BIEN" : "  " + bad + " MAL");
@@ -78,6 +79,38 @@ public final class RefreshArtCheck {
      * volver a bajarse; la nueva, quedarse como esta. Luego se les devuelve
      * la fecha que tenian.
      */
+    /**
+     * El 404 con el idioma vacio (18-11-2026): Forge pide
+     * {@code .../cards/sld/2918/?format=image} y Scryfall, con las cartas
+     * recien anunciadas, solo da la imagen sin la barra.  Ver
+     * {@code NeoImageFetcher.doFetch}.
+     */
+    private static void emptyLanguage() {
+        final String api = forge.localinstance.properties.ForgeConstants.URL_PIC_SCRYFALL_DOWNLOAD;
+        check("sin idioma, se quita la barra",
+                (api + "sld/2918?format=image&version=normal").equals(
+                        forge.neo.platform.NeoImageFetcher.withoutEmptyLanguage(
+                                api + "sld/2918/?format=image&version=normal")));
+        check("con idioma, no se toca",
+                forge.neo.platform.NeoImageFetcher.withoutEmptyLanguage(
+                        api + "sld/2918/es?format=image&version=normal") == null);
+        check("fuera de la API de Scryfall, no se toca",
+                forge.neo.platform.NeoImageFetcher.withoutEmptyLanguage(
+                        "https://cards.scryfall.io/normal/front/a/b/x.jpg?1/?2") == null);
+        final PaperCard fresh = FModel.getMagicDb().getCommonCards().getCard("Muad'Dib, Prophet Foretold", "SLD");
+        if (fresh == null) {
+            System.out.println("  (Muad'Dib, Prophet Foretold SLD no esta en este Forge)");
+            return;
+        }
+        final CardImages.Refresh r = CardImages.refreshBlocking(fresh.getImageKey(false));
+        System.out.println("  recien anunciada (Muad'Dib SLD 2918): " + r);
+        if (r == CardImages.Refresh.OFFLINE || r == CardImages.Refresh.BUSY) {
+            System.out.println("  (o Scryfall no contesta, o ya no hace falta la vuelta: mirar el registro)");
+        } else {
+            check("una carta recien anunciada se baja", r == CardImages.Refresh.UPDATED);
+        }
+    }
+
     private static void scanAll() {
         check("la fecha va en el enlace de Scryfall",
                 ArtHdScan.stampOf("https://cards.scryfall.io/normal/front/a/b/x.jpg?1788003039") == 1788003039L

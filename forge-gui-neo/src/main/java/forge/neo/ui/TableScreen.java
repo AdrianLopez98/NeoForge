@@ -1654,7 +1654,8 @@ public class TableScreen extends Pane {
             return null;
         }
         return NeoText.get(z == forge.game.zone.ZoneType.Graveyard ? "hand.from.graveyard"
-                : z == forge.game.zone.ZoneType.Exile ? "hand.from.exile" : "hand.from.other");
+                : z == forge.game.zone.ZoneType.Exile ? "hand.from.exile"
+                : z == forge.game.zone.ZoneType.Library ? "zoneName.library" : "hand.from.other");
     }
 
     /** Lo que se ensenya en la mano sin estar en ella. Ver {@link #setHandOutside}. */

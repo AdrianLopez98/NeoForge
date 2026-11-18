@@ -536,6 +536,12 @@ public class SealedScreen extends BorderPane {
             protected void updateItem(final forge.neo.draft.Jumpstart.Theme t, final boolean empty) {
                 super.updateItem(t, empty);
                 setText(empty ? null : themeLabel(t));
+                // Sus colores detras del nombre (Discord, 18-11-2026), como los
+                // de los mazos: dos temas se juntan en un mazo, y de un vistazo
+                // se ve si casan.
+                setGraphic(empty ? null : themeColors(t));
+                setContentDisplay(javafx.scene.control.ContentDisplay.RIGHT);
+                setGraphicTextGap(UiScale.px(8));
             }
         };
         box.setCellFactory(cells);
@@ -547,6 +553,29 @@ public class SealedScreen extends BorderPane {
             refreshChosen();
         });
         return box;
+    }
+
+    /** Los simbolos de los colores de un tema, en orden WUBRG, o null. */
+    private static javafx.scene.Node themeColors(final forge.neo.draft.Jumpstart.Theme t) {
+        final int mask = forge.neo.draft.Jumpstart.colors(t);
+        if (mask == 0) {
+            return null;
+        }
+        final HBox pips = new HBox(UiScale.px(2));
+        pips.setAlignment(Pos.CENTER_LEFT);
+        final String[] letters = {"W", "U", "B", "R", "G"};
+        for (int i = 0; i < letters.length; i++) {
+            if ((mask & (1 << i)) != 0) {
+                final javafx.scene.image.ImageView v = ManaIcons.view(letters[i], UiScale.px(14));
+                if (v != null) {
+                    pips.getChildren().add(v);
+                } else {
+                    pips.getChildren().add(new Label(letters[i]));
+                }
+            }
+        }
+        pips.setMouseTransparent(true);
+        return pips;
     }
 
     private static String themeLabel(final forge.neo.draft.Jumpstart.Theme t) {

@@ -101,6 +101,10 @@ public final class AscentCheck {
             coloresDelMazoDeEstandar();
             comandantesSinDuplicados();
             singletonEnCommander();
+            cualquierNumeroDeCopias();
+            copiasConLaCasilla();
+            sinRebalanceadas();
+            comandanteSoloEnElMando();
             calidadDelPremio();
             sinergia();
             expansiones();
@@ -2061,9 +2065,9 @@ public final class AscentCheck {
      *       runs para sospecharlo.
      *   <li><b>Que salgan mas segun subes.</b> Es lo que se pidio, y es una
      *       probabilidad: se mide sobre muchos nodos, no sobre uno.
-     *   <li><b>El singleton de Commander.</b> Dos copias de una dual dejan el
-     *       mazo <b>ilegal</b>: eso si mata la run, y lo decidiria una opcion
-     *       que el propio juego te ofrecio.
+     *   <li><b>El singleton de Commander.</b> Dos copias de una dual van
+     *       contra el formato, y lo decidiria una opcion que el propio juego te
+     *       ofrecio (sin la casilla de copias).
      * </ul>
      */
     private static void elMontonDeTierras(final AscentRun run, final AscentRun.Mode mode,
@@ -2120,8 +2124,8 @@ public final class AscentCheck {
                     if (!l.getRules().getType().isBasicLand()) {
                         buena = true;
                         buenasPorActo[act - 1]++;
-                        // ⚠️ Lo que mata la run: en Commander una no basica es
-                        // de UNA copia. Lo contesta el motor, no nosotros.
+                        // ⚠️ En Commander una no basica es de UNA copia (sin la
+                        // casilla de copias). Lo contesta el motor, no nosotros.
                         if (mode == AscentRun.Mode.COMMANDER
                                 && AscentRewards.copiesOf(run, l) > 1) {
                             copiasMal++;
@@ -2175,10 +2179,10 @@ public final class AscentCheck {
         }
         if (copiasMal == 0) {
             ok("monton (COMMANDER): ninguna tierra no basica entraria por duplicado — el"
-                    + " formato es de una copia y dos dejarian el mazo ilegal");
+                    + " formato es de una copia");
         } else {
             fail("monton (COMMANDER): " + copiasMal + " tierras no basicas entrarian con 2"
-                    + " copias; el mazo seria ilegal y la run se perderia por eso");
+                    + " copias, y el formato es de una");
         }
     }
 
@@ -2827,9 +2831,10 @@ public final class AscentCheck {
      * <h2>Por que es grave y por que no se ve</h2>
      *
      * <p>Commander es de <b>una copia</b>. El premio no pregunta: mete la carta
-     * y guarda. Asi que ofrecer dos veces la misma carta es ofrecer un boton que
-     * deja el mazo <b>ilegal</b> — y el jugador no tiene forma de saberlo, porque
-     * en la pantalla del premio las dos veces se ven igual.
+     * y guarda. Asi que ofrecer dos veces la misma carta es saltarse el formato
+     * sin que el jugador lo haya pedido (para eso esta la casilla de copias,
+     * {@link #copiasConLaCasilla}). El motor no lo rechazaria al jugar: lo
+     * comprobo {@code run.cmd ascenttable --copies} el 17-11-2026.
      *
      * <p>El agujero estaba desde el principio; doblar el premio a 2 de 6 (§24.6)
      * solo multiplica por dos las ocasiones de tropezar con el. Se tapa en el
@@ -2867,10 +2872,10 @@ public final class AscentCheck {
             }
             if (repetidas == 0) {
                 ok("singleton: en " + miradas + " cartas ofrecidas no sale ni una de las que"
-                        + " ya llevas — dos copias dejarian el mazo ilegal");
+                        + " ya llevas — sin la casilla, una copia de cada");
             } else {
                 fail("singleton: " + repetidas + " de " + miradas + " cartas ofrecidas ya estan"
-                        + " en el mazo; cogerlas lo dejaria ilegal y la run se perderia");
+                        + " en el mazo, y sin la casilla de copias el formato es de una");
             }
 
             // Y lo mismo con las tierras no basicas, que es donde mas duele:
@@ -2893,6 +2898,264 @@ public final class AscentCheck {
         } finally {
             run.discard();
         }
+    }
+
+    /**
+     * <b>Las cartas de "any number of cards named..." siguen saliendo</b> aunque
+     * ya lleves una (Discord, 17-11-2026: <i>"does can have any number of them
+     * in the deck exist in ascent? Kinda picked a commander that had that for
+     * fun"</i>). El premio descartaba todo lo que ya llevabas, por nombre, sin
+     * preguntar al motor cuantas caben. Y una carta normal, en cambio, NO
+     * vuelve a salir: el singleton de siempre.
+     */
+    private static void cualquierNumeroDeCopias() {
+        // Una run cuyos colores dejen alguna de esas cartas en el premio: casi
+        // todas son negras o blancas, y un mazo verde no puede llevarlas.
+        AscentRun run = null;
+        PaperCard rata = null;
+        for (int i = 0; i < 12 && rata == null; i++) {
+            if (run != null) {
+                run.discard();
+            }
+            run = demoRun(AscentRun.Mode.COMMANDER);
+            if (run == null) {
+                fail("cualquier numero: no se ha podido montar la run de Commander");
+                return;
+            }
+            rata = anyNumberOffered(run);
+        }
+        try {
+            if (rata == null) {
+                fail("cualquier numero: en 12 runs ninguna ofrecia una carta de \"any number\"");
+                return;
+            }
+            final Deck deck = AscentDecks.load(run);
+            deck.getMain().add(rata, 2);
+            AscentDecks.save(deck);
+            if (AscentRewards.offerable(run, rata.getName())) {
+                ok("cualquier numero: con dos " + rata.getName() + " en el mazo, sigue saliendo en el"
+                        + " premio (el motor dice que caben las que quieras)");
+            } else {
+                fail("cualquier numero: con dos " + rata.getName() + " en el mazo ya no sale en el"
+                        + " premio, y la carta dice que caben las que quieras");
+            }
+            // Y una normal: una vez en el mazo, fuera.
+            final List<PaperCard> muestra = AscentRewards.offer(run, 2, new Random(5L), 40);
+            PaperCard normal = null;
+            for (final PaperCard c : muestra) {
+                if (forge.deck.DeckFormat.Commander.getMaxCardCopies(c) == 1) {
+                    normal = c;
+                    break;
+                }
+            }
+            if (normal == null) {
+                fail("cualquier numero: el premio no trae ninguna carta normal para comparar");
+                return;
+            }
+            final Deck conNormal = AscentDecks.load(run);
+            conNormal.getMain().add(normal, 1);
+            AscentDecks.save(conNormal);
+            if (!AscentRewards.offerable(run, normal.getName())) {
+                ok("cualquier numero: y " + normal.getName() + ", que es de una copia, ya no sale");
+            } else {
+                fail("cualquier numero: " + normal.getName() + " es de una copia, ya esta en el mazo"
+                        + " y sigue saliendo en el premio");
+            }
+        } finally {
+            if (run != null) {
+                run.discard();
+            }
+        }
+    }
+
+    /**
+     * <b>La casilla de copias</b> (Discord, 17-11-2026: <i>"Is there any chance
+     * to allow for duplicates in commander mode... its a roguelike so why
+     * not?"</i>): con ella, una carta que ya llevas puede volver a salir hasta
+     * {@link AscentRewards#COPIES} copias, y no mas; una tierra no basica que
+     * ya llevas, tambien. El codigo la lleva ({@code 2C}), solo en Commander,
+     * y los retos no. Que la partida se juega con dos copias lo prueba
+     * {@code run.cmd ascenttable --copies}, que tarda una partida entera.
+     */
+    private static void copiasConLaCasilla() {
+        // 1. El codigo.
+        final AscentSeed.Recipe cmd = AscentSeed.fresh(AscentRun.Mode.COMMANDER, 0, AscentSeedDeck.NO_COLOURS,
+                null, null, AscentPool.ALL, true).withCopies(true);
+        final AscentSeed.Parsed leido = AscentSeed.parse(cmd.code());
+        final AscentSeed.Recipe std = AscentSeed.fresh(AscentRun.Mode.STANDARD, 0, AscentSeedDeck.NO_COLOURS,
+                null, null, AscentPool.ALL, false).withCopies(true);
+        final AscentSeed.Parsed viejo = AscentSeed.parse(cmd.withCopies(false).code());
+        final java.time.LocalDate dia = java.time.LocalDate.of(2026, 11, 17);
+        if (cmd.copies && cmd.code().contains("-2C-") && leido.ok() && leido.recipe.copies && leido.recipe.melee
+                && leido.recipe.seed == cmd.seed
+                && leido.recipe.withDeck(AscentSeedDeck.NO_COLOURS, null).copies
+                && leido.recipe.withMelee(false).copies
+                && !std.copies && !std.code().contains("2C")
+                && viejo.ok() && !viejo.recipe.copies
+                && !AscentSeed.daily(dia).copies && !AscentSeed.daily(dia.plusDays(1)).copies
+                && !AscentSeed.weekly(dia).copies) {
+            ok("copias: el codigo lleva 2C (" + cmd.code() + "), se lee igual, sin la marca es de una copia,"
+                    + " y ni Estandar ni los retos la llevan");
+        } else {
+            fail("copias: el codigo no guarda la casilla (" + cmd.code() + " / " + std.code() + ")");
+        }
+
+        // 2. El premio.
+        final AscentRun run;
+        try {
+            run = AscentRun.begin(AscentRun.Mode.COMMANDER, 0, 40, null, null, AscentSeedDeck.NO_COLOURS,
+                    AscentPool.ALL, false, true);
+        } catch (final RuntimeException e) {
+            fail("copias: no se ha podido empezar la run: " + e);
+            return;
+        }
+        try {
+            if (!run.allowsCopies() || !AscentRun.current().allowsCopies()) {
+                fail("copias: la run no se queda con la casilla al guardarla y leerla");
+                return;
+            }
+            PaperCard normal = null;
+            for (final PaperCard c : AscentRewards.offer(run, 2, new Random(5L), 40)) {
+                if (forge.deck.DeckFormat.Commander.getMaxCardCopies(c) == 1) {
+                    normal = c;
+                    break;
+                }
+            }
+            if (normal == null) {
+                fail("copias: el premio no trae ninguna carta normal");
+                return;
+            }
+            final Deck una = AscentDecks.load(run);
+            una.getMain().add(normal, 1);
+            AscentDecks.save(una);
+            final boolean conUna = AscentRewards.offerable(run, normal.getName());
+            final Deck dos = AscentDecks.load(run);
+            dos.getMain().add(normal, 1);
+            AscentDecks.save(dos);
+            final boolean conDos = AscentRewards.offerable(run, normal.getName());
+            if (conUna && !conDos) {
+                ok("copias: con una " + normal.getName() + " vuelve a salir; con " + AscentRewards.COPIES
+                        + ", ya no");
+            } else {
+                fail("copias: " + normal.getName() + " con una copia sale=" + conUna + ", con dos sale=" + conDos
+                        + " (deberia: si y no)");
+            }
+            // Una tierra no basica que ya llevas sigue cabiendo (la segunda
+            // copia), y con dos, ya no.
+            PaperCard dual = null;
+            for (final PaperCard l : AscentRewards.fancyLandsFor(run, 3)) {
+                dual = l;
+                break;
+            }
+            if (dual == null) {
+                fail("copias: el monton no trae ninguna tierra no basica");
+                return;
+            }
+            final Deck conTierra = AscentDecks.load(run);
+            conTierra.getMain().add(dual, 1);
+            AscentDecks.save(conTierra);
+            final int segunda = AscentRewards.copiesOf(run, dual);
+            final boolean otraVez = AscentRewards.fancyLandsFor(run, 3).contains(dual);
+            final Deck conDosTierras = AscentDecks.load(run);
+            conDosTierras.getMain().add(dual, 1);
+            AscentDecks.save(conDosTierras);
+            final int tercera = AscentRewards.copiesOf(run, dual);
+            if (segunda == AscentRewards.LANDS_INSTEAD && otraVez && tercera == 0) {
+                ok("copias: con una " + dual.getName() + " la tierra vuelve a salir y cabe otra; con dos, no");
+            } else {
+                fail("copias: " + dual.getName() + " con una copia cabe " + segunda + " (sale=" + otraVez
+                        + "), con dos cabe " + tercera);
+            }
+        } finally {
+            run.discard();
+        }
+    }
+
+    /**
+     * <b>Ni una rebalanceada de Arena en el premio</b> ({@code A-algo}). Con
+     * "todas las expansiones" se colaban: una {@code A-Dungeon Descent} salio
+     * en el monton de tierras el 17-11-2026. Se mira en los dos modos, en las
+     * tierras de los tres actos y en una muestra grande de hechizos.
+     */
+    private static void sinRebalanceadas() {
+        for (final AscentRun.Mode mode : AscentRun.Mode.values()) {
+            final AscentRun run = demoRun(mode);
+            if (run == null) {
+                fail("rebalanceadas (" + mode + "): no se ha podido montar la run");
+                continue;
+            }
+            try {
+                int miradas = 0;
+                final List<String> malas = new ArrayList<>();
+                for (int act = 1; act <= AscentRun.ACTS; act++) {
+                    final List<PaperCard> todas = new ArrayList<>(AscentRewards.fancyLandsFor(run, act));
+                    todas.addAll(AscentRewards.offer(run, act, new Random(act * 31L), 300));
+                    for (final PaperCard c : todas) {
+                        miradas++;
+                        if (c.getName().startsWith("A-") || c.isRebalanced()) {
+                            malas.add(c.getName());
+                        }
+                    }
+                }
+                if (malas.isEmpty()) {
+                    ok("rebalanceadas (" + mode + "): ninguna A- en " + miradas + " cartas de premio y tierras");
+                } else {
+                    fail("rebalanceadas (" + mode + "): " + malas.size() + " de " + miradas + " son de Arena: "
+                            + malas.subList(0, Math.min(5, malas.size())));
+                }
+            } finally {
+                run.discard();
+            }
+        }
+    }
+
+    /**
+     * <b>El comandante no sale tambien en el principal.</b> El tema de tribu
+     * ({@link AscentTheme}) solo miraba el principal para no repetir, y un
+     * comandante de su propia tribu se colaba: Seven of Nine (Scientist,
+     * infrecuente) salia dos veces, y cambiarle el arte cambiaba la del
+     * principal y no la del mando. Cazado el 17-11-2026 con este codigo; con
+     * otras cartas o versiones puede que ya no lleve tema, pero si lo lleva,
+     * el comandante tiene que estar solo en el mando.
+     */
+    private static void comandanteSoloEnElMando() {
+        final AscentSeed.Parsed p = AscentSeed.parse("CMD-A0-V1.0.59-44VY-4PXM");
+        AscentRun run = null;
+        try {
+            run = AscentRun.begin(p.recipe);
+            final Deck deck = AscentDecks.load(run);
+            final List<String> repetidos = new ArrayList<>();
+            for (final PaperCard cmd : deck.getCommanders()) {
+                if (deck.getMain().countByName(cmd.getName()) > 0) {
+                    repetidos.add(cmd.getName());
+                }
+            }
+            if (repetidos.isEmpty()) {
+                ok("comandante solo en el mando: " + deck.getCommanders() + " no esta tambien en el principal");
+            } else {
+                fail("comandante solo en el mando: " + repetidos + " esta tambien en el principal");
+            }
+        } catch (final RuntimeException e) {
+            fail("comandante solo en el mando: no se ha podido montar la run del codigo: " + e);
+        } finally {
+            if (run != null) {
+                run.discard();
+            }
+        }
+    }
+
+    /** Una carta de "any number" que el premio de esta run puede ofrecer, o null. */
+    private static PaperCard anyNumberOffered(final AscentRun run) {
+        for (final PaperCard c : FModel.getMagicDb().getCommonCards().getUniqueCards()) {
+            if (c.getRules() == null || c.getRules().getType().isLand()
+                    || forge.deck.DeckFormat.Commander.getMaxCardCopies(c) != Integer.MAX_VALUE) {
+                continue;
+            }
+            if (AscentRewards.offerable(run, c.getName())) {
+                return c;
+            }
+        }
+        return null;
     }
 
     /**

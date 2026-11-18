@@ -124,6 +124,25 @@ public final class NeoPlayers {
     private static final java.util.Random RANDOM = new java.util.Random();
 
     /**
+     * Un rival del draft en su asiento ({@link forge.neo.draft.DraftSeats}):
+     * su nombre y su cara, y la funda del rival guardado si lo es. La forma de
+     * jugar es la del draft, no la de Personalizar.
+     */
+    public static LobbyPlayer drafter(final forge.neo.draft.DraftSeats.Seat seat, final String aiProfile) {
+        final String profile = RivalSetup.resolve(aiProfile, Math.max(0, seat.savedRival), RANDOM);
+        final int sprite = forge.neo.draft.DraftSeats.faceIndex(seat, NeoLook.builtInAvatarCount());
+        if (!seat.face.isEmpty() && RivalSetup.spriteIndexOf(seat.face) < 0) {
+            CUSTOM_FACES.put(seat.name, seat.face);
+        }
+        final int sleeves = NeoLook.builtInSleeveCount();
+        final int sleeve = seat.savedRival >= 0 ? sleeveFor(seat.savedRival, seat.name)
+                : sleeves > 0 ? RANDOM.nextInt(sleeves) : 0;
+        System.out.printf(java.util.Locale.ROOT, "  Drafter: %s | AI %s | face %d%n", seat.name,
+                profile.isEmpty() ? "(default)" : profile, sprite);
+        return GamePlayerUtil.createAiPlayer(seat.name, sprite, sleeve, null, profile);
+    }
+
+    /**
      * El numero de funda que se le pasa al motor para el rival {@code index}:
      * la de su hoja si la tiene elegida en Personalizar → Rivales; si es un
      * PNG importado, se apunta por nombre (el motor no sabe pintarla, la

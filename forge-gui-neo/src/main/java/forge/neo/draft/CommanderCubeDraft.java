@@ -1,6 +1,8 @@
 package forge.neo.draft;
 
 import forge.gamemodes.limited.BoosterDraft;
+import forge.gamemodes.limited.CommanderLimitedPlayerAI;
+import forge.gamemodes.limited.LimitedPlayer;
 import forge.gamemodes.limited.LimitedPoolType;
 
 /**
@@ -11,11 +13,18 @@ import forge.gamemodes.limited.LimitedPoolType;
  * <p>Forge solo enciende el modo Commander para las expansiones que lo llevan
  * en su fichero de edicion ({@code DraftType.Commander}: Commander Legends,
  * Baldur's Gate...); un cubo pegado se draftea siempre como uno de 40 cartas.
- * El interruptor es {@code activateCommanderDraft}, {@code protected}, igual
- * que {@code generateProduct}: con una subclase nuestra se monta el draft con
- * los mismos pasos que {@code BoosterDraft.createDraft(Custom)} y el modo
- * encendido antes de repartir los sobres, que es cuando lo pide su javadoc.
- * Sin tocar el motor.
+ * Con una subclase nuestra se monta el draft con los mismos pasos que
+ * {@code BoosterDraft.createDraft(Custom)} y el modo encendido desde el
+ * principio.  Sin tocar el motor.
+ *
+ * <p>⚠️ DESDE FORGE #12919 (18-11-2026) {@code activateCommanderDraft} es
+ * privado y el motor lo enciende solo si TODAS las cartas vienen de
+ * expansiones de Commander Draft ({@code DeckFormat.isCommanderDraft}): un
+ * cubo no lo cumple nunca.  Asi que el asiento es otro: {@code createAIPlayer}
+ * ({@code protected}), al que llama el propio constructor para cada rival.
+ * Devolviendo siempre un {@code CommanderLimitedPlayerAI}, los rivales nacen ya
+ * de Commander, y {@code isCommanderDraft} (campo {@code protected}) se pone a
+ * true en el constructor, que es lo que lee {@code NeoDraft.toGroup}.
  *
  * <p>Lo de despues ya existe: los rivales draftean buscando comandante
  * ({@code CommanderLimitedPlayerAI}, que crea el propio motor al encenderlo),
@@ -29,6 +38,17 @@ final class CommanderCubeDraft extends BoosterDraft {
 
     private CommanderCubeDraft() {
         super(LimitedPoolType.Custom);
+        isCommanderDraft = true;
+    }
+
+    /**
+     * Cada rival, de Commander.  Lo llama el constructor de {@code BoosterDraft}
+     * (antes de que corra el nuestro: no puede depender de nada de esta clase)
+     * y {@code setPodSize} si el cubo cambia cuantos se sientan.
+     */
+    @Override
+    protected LimitedPlayer createAIPlayer(final int seatingOrder) {
+        return new CommanderLimitedPlayerAI(seatingOrder, this);
     }
 
     /**
@@ -43,9 +63,6 @@ final class CommanderCubeDraft extends BoosterDraft {
         if (!d.generateProduct()) {
             return null;
         }
-        // Despues de generateProduct (que fija cuantos se sientan) y antes de
-        // repartir: cambia las IA por las de Commander.
-        d.activateCommanderDraft(null, null);
         d.initializeBoosters();
         return d;
     }

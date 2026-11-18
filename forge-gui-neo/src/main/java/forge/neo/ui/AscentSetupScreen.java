@@ -7,6 +7,7 @@ import forge.game.card.CardView;
 import forge.item.PaperCard;
 import forge.neo.NeoText;
 import forge.neo.ascent.AscentChallenges;
+import forge.neo.ascent.AscentRewards;
 import forge.neo.ascent.AscentRun;
 import forge.neo.ascent.AscentSeed;
 import forge.neo.ascent.AscentSeedDeck;
@@ -88,6 +89,13 @@ public class AscentSetupScreen extends StackPane {
             start(mode, commander, partner, ascension, colours, pool);
         }
 
+        /** Igual, con o sin copias de una carta (solo Commander, {@link AscentRun#allowsCopies}). */
+        default void start(final AscentRun.Mode mode, final PaperCard commander, final PaperCard partner,
+                           final int ascension, final byte colours, final forge.neo.ascent.AscentPool pool,
+                           final boolean melee, final boolean copies) {
+            start(mode, commander, partner, ascension, colours, pool, melee);
+        }
+
         /**
          * Draftear el mazo de salida y empezar la run (Estandar, {@link forge.neo.ascent.AscentDraft}).
          * La run no existe hasta acabar el draft: salirse no cuesta nada.
@@ -133,6 +141,15 @@ public class AscentSetupScreen extends StackPane {
      */
     private boolean melee = forge.neo.NeoSettings.getBool(MELEE_SETTING, false)
             || Boolean.getBoolean("neo.ascent.setupMelee");
+    /** Donde se recuerda la casilla de copias. Sin {@code ascent.}: eso es la run. */
+    private static final String COPIES_SETTING = "ascentSetup.copies";
+
+    /**
+     * Mas de una copia de una carta (solo Commander, Discord, 17-11-2026).
+     * {@code -Dneo.ascent.setupCopies=true} la deja puesta para capturarla.
+     */
+    private boolean copies = forge.neo.NeoSettings.getBool(COPIES_SETTING, false)
+            || Boolean.getBoolean("neo.ascent.setupCopies");
     /** Donde se recuerda si el mazo de salida se draftea. */
     private static final String DRAFT_SETTING = "ascentSetup.draft";
 
@@ -411,7 +428,7 @@ public class AscentSetupScreen extends StackPane {
                 picked = colourFilter.pickRandom(commanders());
             }
             actions.start(mode, picked, commander == null ? null : partner, ascension, colours, pool(),
-                    mode == AscentRun.Mode.COMMANDER && melee);
+                    mode == AscentRun.Mode.COMMANDER && melee, mode == AscentRun.Mode.COMMANDER && copies);
         } else {
             final AscentSeed.Recipe r = recipe();
             if (r != null && seedProblem() == null) {
@@ -548,6 +565,9 @@ public class AscentSetupScreen extends StackPane {
                 r.ascension == 0 ? NeoText.get("ascent.setup.ascension.none") : String.valueOf(r.ascension))));
         if (r.melee) {
             box.getChildren().add(line(NeoText.get("ascent.seed.sum.melee")));
+        }
+        if (r.copies) {
+            box.getChildren().add(line(NeoText.get("ascent.seed.sum.copies", AscentRewards.COPIES)));
         }
         if (seedSource == SeedSource.CODE && ownDeck) {
             // El mazo lo eliges debajo: aqui no se dice el del codigo.
@@ -805,6 +825,9 @@ public class AscentSetupScreen extends StackPane {
             // Las mesas de cuatro, debajo del comandante: es una pregunta de
             // Commander, y despues de elegir con quien se juega.
             content.getChildren().addAll(label("ascent.setup.melee"), meleeRow());
+            // Y las copias, que tambien son solo de Commander: Estandar ya
+            // deja cuatro de cada.
+            content.getChildren().add(copiesRow());
         } else {
             // Primero COMO se monta el mazo; los colores solo si lo genera el juego.
             content.getChildren().addAll(label("ascent.setup.start"), draftRow());
@@ -828,6 +851,9 @@ public class AscentSetupScreen extends StackPane {
         body.getChildren().setAll(scroll, footer());
         if (kept > 0) {
             javafx.application.Platform.runLater(() -> scroll.setVvalue(kept));
+        } else if (Boolean.getBoolean("neo.ascent.setupScrollEnd")) {
+            // Para capturar lo de abajo (las casillas de Commander) con --snapshot.
+            javafx.application.Platform.runLater(() -> scroll.setVvalue(1));
         }
     }
 
@@ -849,6 +875,28 @@ public class AscentSetupScreen extends StackPane {
                 : "ascent.setup.melee.off.desc")));
         box.setAlignment(Pos.CENTER);
         return box;
+    }
+
+    /**
+     * <b>Mas de una copia de una carta</b> (Discord, 17-11-2026: <i>"Is there
+     * any chance to allow for duplicates in commander mode... its a roguelike
+     * so why not?"</i>). Una casilla y no dos botones (Ana): es un permiso,
+     * no una forma de jugar. Apagada de fabrica; se recuerda.
+     */
+    private Region copiesRow() {
+        final javafx.scene.control.CheckBox box =
+                new javafx.scene.control.CheckBox(NeoText.get("ascent.setup.copies", AscentRewards.COPIES));
+        box.setId("ascent-copies");
+        box.getStyleClass().add("ascent-remember");
+        box.setSelected(copies);
+        box.selectedProperty().addListener((obs, was, now) -> {
+            copies = now;
+            forge.neo.NeoSettings.setBool(COPIES_SETTING, now);
+            forge.neo.NeoSettings.save();
+        });
+        final VBox out = new VBox(6, box, line(NeoText.get("ascent.setup.copies.desc", AscentRewards.COPIES)));
+        out.setAlignment(Pos.CENTER);
+        return out;
     }
 
     /**

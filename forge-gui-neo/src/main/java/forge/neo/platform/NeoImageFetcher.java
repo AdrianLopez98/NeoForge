@@ -257,6 +257,19 @@ public class NeoImageFetcher extends ImageFetcher {
         ourCooldownUntil = new Date(System.currentTimeMillis() + secs * 1000L);
     }
 
+    /**
+     * La misma url de la API de Scryfall sin el hueco del idioma vacio
+     * ({@code /cards/sld/2918/?...} → {@code /cards/sld/2918?...}), o null si
+     * no lo tiene.  Ver el 404 de {@link #doFetch}.
+     */
+    public static String withoutEmptyLanguage(final String url) {
+        if (url == null || !url.startsWith(ForgeConstants.URL_PIC_SCRYFALL_DOWNLOAD)) {
+            return null;
+        }
+        final int at = url.indexOf("/?");
+        return at < 0 ? null : url.substring(0, at) + url.substring(at + 1);
+    }
+
     private boolean doFetch(final String requested, final String requestedDest,
                             final Runnable notifyObservers) throws IOException {
         // La calidad elegida en Ajustes -> Arte (normal, alta o maxima): Forge
@@ -313,6 +326,20 @@ public class NeoImageFetcher extends ImageFetcher {
                             http.getHeaderField("Retry-After"));
                 }
                 http.disconnect();
+                // UN 404 CON EL IDIOMA VACIO, SE PRUEBA UNA VEZ SIN LA BARRA
+                // (18-11-2026, Muad'Dib, Prophet Foretold del Secret Lair de
+                // Dune, ensenyada ese dia).  Forge pide ".../cards/sld/2918/?
+                // format=image": la barra es el hueco del idioma, vacio.  Con
+                // las cartas recien anunciadas Scryfall da 404 por ahi y la
+                // imagen por ".../cards/sld/2918?format=image", que para el es
+                // la misma peticion.  Solo cuesta una peticion mas, solo tras
+                // un 404, y la segunda ya no lleva "/?" asi que no se repite.
+                if (code == HttpURLConnection.HTTP_NOT_FOUND) {
+                    final String sinIdioma = withoutEmptyLanguage(requested);
+                    if (sinIdioma != null) {
+                        return doFetch(sinIdioma, requestedDest, notifyObservers);
+                    }
+                }
                 return false;
             }
         }

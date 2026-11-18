@@ -156,6 +156,42 @@ public final class Jumpstart {
         return new UnOpenedProduct(t).get();
     }
 
+    private static final java.util.Map<String, Byte> COLORS = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * <b>Los colores de un tema</b>, como mascara de {@code MagicColor} (W=1,
+     * U=2, B=4, R=8, G=16), para pintarlos al lado de su nombre (Discord,
+     * 18-11-2026: <i>"add for each line of jumpstart deck the mana symbols of
+     * the colour/theme of that deck"</i>). Los de sus cartas que no son tierra:
+     * las tierras del sobre son las basicas de su color, y una tierra de dos
+     * colores no hace al tema de dos. 0 para "al azar" o un tema incoloro.
+     *
+     * <p>Un sobre de Jumpstart es una hoja entera ({@code wholeSheet}), o sea
+     * las mismas cartas cada vez: se abre una vez por tema y se recuerda.
+     */
+    public static int colors(final Theme theme) {
+        if (theme == null || theme.template.isEmpty()) {
+            return 0;
+        }
+        final Byte known = COLORS.get(theme.template);
+        if (known != null) {
+            return known & 0xFF;
+        }
+        byte mask = 0;
+        try {
+            for (final PaperCard c : open(theme)) {
+                if (c == null || c.getRules().getType().isLand()) {
+                    continue;
+                }
+                mask |= c.getRules().getColor().getColor();
+            }
+        } catch (final RuntimeException e) {
+            mask = 0;
+        }
+        COLORS.put(theme.template, mask);
+        return mask & 0xFF;
+    }
+
     /**
      * Los dos temas de un jugador: los elegidos, y al azar los que no (null).
      * Nunca el mismo dos veces, salvo que el producto solo tenga uno.

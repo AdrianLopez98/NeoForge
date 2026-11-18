@@ -903,6 +903,11 @@ public final class NeoMain {
                     if (!forge.neo.ascent.AscentTableProbe.fall()) {
                         throw new IllegalStateException("la mesa no se cierra al caer");
                     }
+                } else if (has(args, "--copies")) {
+                    // Que un mazo de Commander con copias se juega (la casilla de copias).
+                    if (!forge.neo.ascent.AscentTableProbe.copies()) {
+                        throw new IllegalStateException("el mazo con copias no se ha jugado");
+                    }
                 } else {
                     forge.neo.ascent.AscentTableProbe.run(Integer.parseInt(opt(args, "--games", "3")),
                             has(args, "--final"));

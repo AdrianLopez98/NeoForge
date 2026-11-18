@@ -128,6 +128,72 @@ public final class AscentTableProbe {
         }
     }
 
+    /**
+     * <b>Que un mazo con copias se juega</b> (la casilla de copias, Discord,
+     * 17-11-2026). Commander es de una copia y el motor lo sabe, pero solo lo
+     * mira quien construye el mazo (el lobby de Forge, nuestro constructor):
+     * {@code NeoGame.play} no. Esto lo demuestra en vez de suponerlo: el primer
+     * combate de una run con la casilla, con dos copias de un hechizo del mazo
+     * (en lugar de una basica), jugado entero por la IA.
+     */
+    public static boolean copies() {
+        AscentRelics.install();
+        final AscentCheckGuard prestado = new AscentCheckGuard();
+        AscentRun run = null;
+        try {
+            run = AscentRun.begin(AscentRun.Mode.COMMANDER, 0, 40, null, null, AscentSeedDeck.NO_COLOURS,
+                    AscentPool.ALL, false, true);
+            if (!run.allowsCopies()) {
+                System.out.println("  [MAL] la run no se ha quedado con la casilla de copias");
+                return false;
+            }
+            final Deck deck = AscentDecks.load(run);
+            forge.item.PaperCard twice = null;
+            forge.item.PaperCard basic = null;
+            for (final java.util.Map.Entry<forge.item.PaperCard, Integer> e : deck.getMain()) {
+                final forge.card.CardType t = e.getKey().getRules().getType();
+                if (twice == null && !t.isLand()
+                        && forge.deck.DeckFormat.Commander.getMaxCardCopies(e.getKey()) == 1) {
+                    twice = e.getKey();
+                }
+                if (basic == null && t.isBasicLand()) {
+                    basic = e.getKey();
+                }
+            }
+            if (twice == null || basic == null) {
+                System.out.println("  [MAL] el mazo no trae un hechizo de una copia y una basica");
+                return false;
+            }
+            deck.getMain().remove(basic, 1);
+            deck.getMain().add(twice, 1);
+            AscentDecks.save(deck);
+            final String problem = forge.deck.DeckFormat.Commander.getDeckConformanceProblem(deck);
+            System.out.println("  Dos " + twice.getName() + " en el mazo. Para el formato: "
+                    + (problem == null ? "legal" : problem));
+            AscentNode node = null;
+            for (final AscentNode n : run.available()) {
+                if (n.getKind() == AscentNode.Kind.COMBAT) {
+                    node = n;
+                    break;
+                }
+            }
+            if (node == null) {
+                node = run.available().get(0);
+            }
+            final AscentBattle.Plan plan = AscentBattle.plan(run, node);
+            final Stats st = measure("con copias", plan, AscentDecks.load(run), 1);
+            final boolean ok = st.played == 1 && st.turnsSum > 0;
+            System.out.println("  [" + (ok ? "ok" : "MAL") + "]   la partida con dos copias se ha jugado: "
+                    + st);
+            return ok;
+        } finally {
+            if (run != null) {
+                run.discard();
+            }
+            prestado.restore();
+        }
+    }
+
     public static void run(final int games, final boolean finalTable) {
         AscentRelics.install();
         final AscentCheckGuard prestado = new AscentCheckGuard();

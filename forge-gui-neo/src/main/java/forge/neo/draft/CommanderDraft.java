@@ -8,7 +8,6 @@ import forge.deck.Deck;
 import forge.deck.DeckSection;
 import forge.game.GameType;
 import forge.game.player.RegisteredPlayer;
-import forge.gamemodes.limited.CommanderDraftUtil;
 import forge.item.PaperCard;
 import forge.model.FModel;
 
@@ -26,8 +25,7 @@ import forge.model.FModel;
  *
  * <ul>
  * <li>La marca {@link #TAG} en tu mazo al guardar el draft
- *     ({@code CEditorDraftingProcess}), mas el comandante gratis de la
- *     expansion ({@link #FREE_TAG}).</li>
+ *     ({@code CEditorDraftingProcess}).</li>
  * <li>El editor con zona de mando, el formato {@code DeckFormat.CommanderDraft}
  *     (60 cartas contando el comandante) y como candidatos tu pool mas los
  *     comandantes gratis ({@code CEditorCommanderDraftLimited}). Ver
@@ -44,14 +42,29 @@ public final class CommanderDraft {
     /** La marca que pone Forge en el mazo humano de un Commander Draft. */
     public static final String TAG = "CommanderDraft";
 
-    /** Nuestra: el comandante gratis de la expansion, que Forge guarda en el editor. */
+    /**
+     * Nuestra, de antes de la 1.0.59: el comandante gratis de la expansion.
+     * Ya no se escribe (lo deduce Forge del pool, ver {@link #freeCommanders});
+     * se sigue leyendo por los drafts guardados.
+     */
     public static final String FREE_TAG = "CommanderDraftFree:";
 
     public static boolean is(final Deck deck) {
         return deck != null && deck.getTags().contains(TAG);
     }
 
-    /** Los comandantes que se pueden elegir sin haberlos draftado: el de la expansion y los de siempre. */
+    /**
+     * Los comandantes que se pueden elegir sin haberlos draftado.
+     *
+     * <p>⚠️ DESDE FORGE #12919 (18-11-2026) los decide el motor A PARTIR DEL
+     * POOL ({@code DeckFormat.getFreeCommanders}): el de cada expansion de
+     * Commander Draft de la que vengan las cartas (The Prismatic Piper en
+     * Commander Legends...).  Antes habia ademas dos "de siempre" para
+     * cualquier draft (The Prismatic Piper y Faceless One,
+     * {@code CommanderDraftUtil.FREE_COMMANDER_FALLBACKS}); Forge los quito a
+     * proposito (<i>"Free commanders ... now apply only in drafts of the sets
+     * that grant them"</i>) y aqui se hace lo mismo que su editor.
+     */
     public static List<PaperCard> freeCommanders(final Deck deck) {
         final List<String> names = new ArrayList<>();
         if (deck != null) {
@@ -61,9 +74,12 @@ public final class CommanderDraft {
                 }
             }
         }
-        for (final String fallback : CommanderDraftUtil.FREE_COMMANDER_FALLBACKS) {
-            if (!names.contains(fallback)) {
-                names.add(fallback);
+        if (deck != null) {
+            for (final String free : forge.deck.DeckFormat.getFreeCommanders(
+                    deck.getAllCardsInASinglePool(false, false).toFlatList())) {
+                if (!names.contains(free)) {
+                    names.add(free);
+                }
             }
         }
         final List<PaperCard> out = new ArrayList<>();

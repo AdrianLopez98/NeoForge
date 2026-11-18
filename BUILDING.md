@@ -65,7 +65,7 @@ mkdir C:\neoforge
 cd C:\neoforge
 git clone --filter=blob:none https://github.com/Card-Forge/forge.git
 cd forge
-git checkout 2f9dfd90fee7d441b4cdf8683aff98d5169e903d
+git checkout d9ae6615afc3f1a44a4f5317a49d447c927875de
 ```
 
 > That commit is the `FORGE_REF` in [`.github/workflows/macos.yml`](.github/workflows/macos.yml),
@@ -131,7 +131,7 @@ The same steps in a terminal. Pick a folder to work in, for example `~/neoforge`
 mkdir -p ~/neoforge && cd ~/neoforge
 git clone --filter=blob:none https://github.com/Card-Forge/forge.git
 cd forge
-git checkout 2f9dfd90fee7d441b4cdf8683aff98d5169e903d
+git checkout d9ae6615afc3f1a44a4f5317a49d447c927875de
 
 # 2. NeoForge's module, inside Forge
 cd ~/neoforge

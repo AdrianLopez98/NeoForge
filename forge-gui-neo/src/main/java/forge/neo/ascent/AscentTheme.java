@@ -151,6 +151,13 @@ public final class AscentTheme {
 
         // Lo que ya lleva, por nombre: ni repetir (es singleton) ni quitar lo del tema.
         final Set<String> inDeck = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        // Y el comandante, que no esta en el principal: si es de su propia
+        // tribu (Seven of Nine, Scientist infrecuente de coste 4) el tema lo
+        // metia en el principal y el mazo salia con DOS (17-11-2026, cazado
+        // por elArteSeCambia con el codigo CMD-A0-V1.0.59-44VY-4PXM).
+        for (final PaperCard cmd : commanders) {
+            inDeck.add(cmd.getName());
+        }
         final List<PaperCard> offTheme = new ArrayList<>();
         // Y los hechizos que no son criatura, para lo que pide la carta y no es
         // criatura (Discord, 03-11-2026: Tam, the Possibility salia en Ascenso

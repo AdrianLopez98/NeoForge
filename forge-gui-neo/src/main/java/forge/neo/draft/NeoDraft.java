@@ -48,7 +48,28 @@ public final class NeoDraft implements PackSource {
 
     private NeoDraft(final IBoosterDraft draft) {
         this.draft = draft;
+        // Los asientos (DraftSeats): tus rivales a tu lado y nombre para los
+        // demas. Un torneo de la Quest (of) no: alli los pone la Quest.
+        List<DraftSeats.Seat> dealt;
+        try {
+            dealt = DraftSeats.deal(draft.getOpposingPlayers().length, forge.neo.look.NeoLook.playerName());
+        } catch (final RuntimeException e) {
+            dealt = java.util.Collections.emptyList();
+        }
+        this.seats = dealt;
         advance();
+    }
+
+    /** Quien se sienta en cada asiento, uno por rival; vacio en un torneo de la Quest. */
+    private List<DraftSeats.Seat> seats;
+
+    public List<DraftSeats.Seat> seats() {
+        return seats;
+    }
+
+    @Override
+    public String passNote() {
+        return DraftSeats.passNote(seats, round());
     }
 
     /**
@@ -70,6 +91,7 @@ public final class NeoDraft implements PackSource {
         }
         final NeoDraft neo = new NeoDraft(draft);
         neo.productName = productName == null ? "" : productName;
+        neo.seats = java.util.Collections.emptyList();
         return neo;
     }
 
@@ -411,6 +433,7 @@ public final class NeoDraft implements PackSource {
         // El mazo sale VACIO: montarlo es cosa del jugador (o del boton "Montar
         // solo" del editor). Ver LimitedAutoBuild.
         DraftRun.markSplit(name, DraftRun.Kind.DRAFT);
+        DraftRun.saveSeats(name, seats);
         FModel.getDecks().getDraft().add(group);
         return group;
     }
@@ -447,14 +470,12 @@ public final class NeoDraft implements PackSource {
         }
         // COMMANDER DRAFT, como Forge (CEditorDraftingProcess): los sobres de
         // Commander Legends y compania ya se draftean "de dos en dos" y los
-        // rivales montan mazo de Commander; el humano lleva la marca y su
-        // comandante gratis, que es lo que lee DraftDeckContext y la partida.
+        // rivales montan mazo de Commander; el humano lleva la marca, que es
+        // lo que lee DraftDeckContext y la partida.  El comandante gratis ya
+        // no va en otra marca: desde Forge #12919 lo deduce el motor del pool
+        // (CommanderDraft.freeCommanders).
         if (draft instanceof forge.gamemodes.limited.BoosterDraft bd && bd.isCommanderDraft()) {
             mine.getTags().add(CommanderDraft.TAG);
-            final String free = bd.getFreeCommanderName();
-            if (free != null && !free.isEmpty()) {
-                mine.getTags().add(CommanderDraft.FREE_TAG + free);
-            }
         }
         final DeckGroup group = new DeckGroup(name);
         group.setHumanDeck(mine);

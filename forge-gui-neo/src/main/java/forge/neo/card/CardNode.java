@@ -688,6 +688,18 @@ public class CardNode extends StackPane {
         return sideways.getReadOnlyProperty();
     }
 
+    /**
+     * <b>Una carta flip girada</b> (las de Kamigawa: Bushi Tenderfoot, Erayo...,
+     * Discord, 17-11-2026: <i>"can you fix the og kamigawa flip cards? so they
+     * turn 180 degrees?"</i>). Las dos mitades van en la MISMA imagen, una del
+     * reves, y el motor no da otra: "the rotated image is handled by graphics
+     * renderer" ({@code CardFactory}). Asi que, ensenyando la cara girada
+     * ({@code CardStateName.Flipped}), el arte se gira 180 grados, como hace la
+     * GUI de Forge. Quien lo decide es {@link Sideways#upsideDown}, que comparte
+     * Android.
+     */
+    private boolean upsideDown;
+
     private final javafx.beans.property.ReadOnlyDoubleWrapper readRotation =
             new javafx.beans.property.ReadOnlyDoubleWrapper(0);
 
@@ -710,8 +722,10 @@ public class CardNode extends StackPane {
         final boolean wide = img != null && img.getWidth() > img.getHeight() * 1.15;
         final boolean on = landscapeCard && wide;
         readRotation.set(!landscapeCard || img == null ? 0 : wide ? -90 : 90);
-        if (on != sideways.get()) {
+        final boolean flipped = Sideways.upsideDown(card, st);
+        if (on != sideways.get() || flipped != upsideDown) {
             sideways.set(on);
+            upsideDown = flipped;
             fitArt();
         }
     }
@@ -723,11 +737,11 @@ public class CardNode extends StackPane {
         if (sideways.get()) {
             art.setFitWidth(h);
             art.setFitHeight(w);
-            art.setRotate(90);
+            art.setRotate(upsideDown ? 270 : 90);
         } else {
             art.setFitWidth(w);
             art.setFitHeight(h);
-            art.setRotate(0);
+            art.setRotate(upsideDown ? 180 : 0);
         }
     }
 
