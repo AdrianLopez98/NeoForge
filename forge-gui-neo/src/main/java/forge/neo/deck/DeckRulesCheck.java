@@ -79,6 +79,7 @@ public final class DeckRulesCheck {
         foilAllAtOnce();
         limitedArtsDoNotMultiply();
         ascentCardsStayOutOfGeneratedDecks();
+        bracketsMarkFilterAndRivals();
         // La ultima: mete las reliquias de Ascenso en el catalogo del motor y
         // ya no las saca. Ver su javadoc.
         ascentCardsStayOutOfTheCatalogue();
@@ -3275,6 +3276,65 @@ public final class DeckRulesCheck {
         check("Reglas de la casa: solo en las partidas libres (Commander y Estandar si; draft no)",
                 NeoFormat.COMMANDER.allowsHouseRules() && NeoFormat.ESTANDAR.allowsHouseRules()
                         && !NeoFormat.DRAFT.allowsHouseRules());
+    }
+
+    /**
+     * EL BRACKET DE COMMANDER (DeckBracket; Discord, 19-11-2026): el calculado
+     * por Forge, la marca a mano, el filtro y el orden de los rivales al azar.
+     * Deja neo.properties como estaba (marca y limite, quitados al final).
+     */
+    private static void bracketsMarkFilterAndRivals() {
+        final forge.neo.match.NeoFormat cmd = forge.neo.match.NeoFormat.COMMANDER;
+        final forge.card.CardDb db = forge.model.FModel.getMagicDb().getCommonCards();
+        final Deck plain = new Deck("neo-bracketcheck-plain");
+        plain.getOrCreate(forge.deck.DeckSection.Commander).add(db.getCard("Krenko, Mob Boss"));
+        plain.getMain().add(db.getCard("Mountain"), 99);
+        final Deck strong = new Deck("neo-bracketcheck-strong");
+        strong.getOrCreate(forge.deck.DeckSection.Commander).add(db.getCard("Krenko, Mob Boss"));
+        strong.getMain().add(db.getCard("Ancient Tomb"));
+        strong.getMain().add(db.getCard("Chrome Mox"));
+        strong.getMain().add(db.getCard("Bolas's Citadel"));
+        strong.getMain().add(db.getCard("Ad Nauseam"));
+        strong.getMain().add(db.getCard("Mountain"), 95);
+        final DeckBracket.Limit before = DeckBracket.limit(cmd);
+        try {
+            check("bracket: un mazo sin nada salta el 1 calculado", DeckBracket.calculated(plain) == 1);
+            check("bracket: con 4 Game Changers, el 4 calculado (" + DeckBracket.calculated(strong) + ")",
+                    DeckBracket.calculated(strong) == 4);
+            check("bracket: sin marca, vale el calculado y no esta marcado",
+                    DeckBracket.of(cmd, plain) == 1 && DeckBracket.marked(cmd, plain) == null);
+            DeckBracket.mark(cmd, plain, 5);
+            check("bracket: marcado a mano manda (5) y el filtro lo encuentra",
+                    DeckBracket.of(cmd, plain) == 5 && DeckBracket.matches(cmd, plain, 5)
+                            && !DeckBracket.matches(cmd, plain, 1)
+                            && !DeckBracket.matches(cmd, plain, DeckBracket.FILTER_UNMARKED));
+            check("bracket: \"sin poner\" encuentra el no marcado",
+                    DeckBracket.matches(cmd, strong, DeckBracket.FILTER_UNMARKED));
+            DeckBracket.mark(cmd, plain, null);
+            check("bracket: quitar la marca vuelve al calculado", DeckBracket.of(cmd, plain) == 1);
+
+            final java.util.List<Deck> pool = java.util.List.of(strong, plain);
+            DeckBracket.setLimit(cmd, DeckBracket.Limit.AT_MOST);
+            check("bracket: rivales como mucho el tuyo (1): el de bracket 1 primero",
+                    DeckBracket.rivalsFirst(cmd, pool, plain).get(0) == plain);
+            DeckBracket.setLimit(cmd, DeckBracket.Limit.AT_LEAST);
+            check("bracket: rivales como poco el tuyo (4): el de bracket 4 primero",
+                    DeckBracket.rivalsFirst(cmd, java.util.List.of(plain, strong), strong).get(0) == strong);
+            check("bracket: nadie se queda sin mazo (los que no encajan, detras)",
+                    DeckBracket.rivalsFirst(cmd, pool, strong).size() == 2);
+            DeckBracket.setLimit(cmd, DeckBracket.Limit.ANY);
+            check("bracket: con \"cualquiera\" la bolsa no cambia",
+                    DeckBracket.rivalsFirst(cmd, pool, plain) == pool);
+            check("bracket: fuera de Commander no aplica",
+                    !DeckBracket.appliesTo(forge.neo.match.NeoFormat.STANDARD)
+                            && DeckBracket.rivalsFirst(forge.neo.match.NeoFormat.STANDARD, pool, plain) == pool);
+            check("bracket: los textos estan (filtro corto y nombres)",
+                    !DeckBracket.shortFilterLabel(DeckBracket.FILTER_UNMARKED).startsWith("bracket.")
+                            && !DeckBracket.name(5).startsWith("bracket."));
+        } finally {
+            DeckBracket.mark(cmd, plain, null);
+            DeckBracket.setLimit(cmd, before);
+        }
     }
 
     private static void check(final String what, final boolean ok) {

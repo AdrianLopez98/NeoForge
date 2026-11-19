@@ -94,6 +94,52 @@ public final class DraftSeats {
         return list;
     }
 
+    /**
+     * QUIEN SE VA A SENTAR A TU LADO, antes de empezar (Discord, 18-11-2026:
+     * <i>"I have looked around and really cannot find where to customize the
+     * opponents in the draft"</i>).  Los rivales con nombre de Personalizar, en
+     * el asiento que les dara {@link #deal} con {@code rivals} rivales, de mas
+     * cerca a mas lejos: "Ajani a tu izquierda", "Chandra a tu derecha"...
+     * Vacia si no hay ninguno con nombre (entonces todos salen del generador).
+     * La usan la pantalla de elegir draft del PC y la de Android.
+     */
+    public static List<String> neighbors(final int rivals) {
+        final List<String> out = new ArrayList<>();
+        final Set<String> taken = new HashSet<>();
+        final List<Integer> closest = closestFirst(rivals);
+        for (int j = 0; j < closest.size() && j < RivalSetup.SEATS; j++) {
+            final String saved = RivalSetup.name(j);
+            if (saved == null || saved.isBlank() || !taken.add(saved)) {
+                continue;
+            }
+            out.add(neighbor(j, rivals, saved));
+        }
+        return out;
+    }
+
+    /**
+     * Donde se sentara el rival {@code slot} de Personalizar (0..SEATS-1) en un
+     * draft de {@code rivals} rivales: "Ajani a tu izquierda".  Null si no le
+     * toca asiento a tu lado.
+     */
+    public static String neighbor(final int slot, final int rivals, final String name) {
+        final List<Integer> closest = closestFirst(rivals);
+        if (slot < 0 || slot >= closest.size()) {
+            return null;
+        }
+        final int i = closest.get(slot);
+        return i == 0 ? NeoText.get("draft.neighbors.left", name)
+                : i == rivals - 1 ? NeoText.get("draft.neighbors.right", name)
+                : NeoText.get("draft.neighbors.away", name, Math.min(i + 1, rivals - i));
+    }
+
+    /** Una linea para la pantalla de elegir draft: "Tus vecinos: ..." o que salen al azar. */
+    public static String neighborsLine(final int rivals) {
+        final List<String> n = neighbors(rivals);
+        return n.isEmpty() ? NeoText.get("draft.neighbors.none")
+                : NeoText.get("draft.neighbors", String.join(" · ", n));
+    }
+
     /** El orden de los asientos de mas cerca a mas lejos: 0, ultimo, 1, penultimo... */
     static List<Integer> closestFirst(final int rivals) {
         final List<Integer> order = new ArrayList<>();

@@ -4909,6 +4909,21 @@ public class NeoApp extends Application implements SettingsPanel.Host {
         applyScale();
     }
 
+    /**
+     * Personalizar en UNA pestanya, volviendo a donde se estaba: los vecinos
+     * del draft (DraftSetupScreen) abren aqui los rivales.
+     */
+    void showLookTab(final int tab, final Runnable back) {
+        lookScreen = new forge.neo.ui.LookScreen(back, () -> {
+            if (table != null) {
+                table.applyPlaymat();
+            }
+        });
+        lookScreen.selectTab(tab);
+        scene.setRoot(lookScreen);
+        applyScale();
+    }
+
     DraftScreen draftScreen;
 
     /** Un nombre libre para un mazo nuevo: "Mazo nuevo", "Mazo nuevo 2"... */

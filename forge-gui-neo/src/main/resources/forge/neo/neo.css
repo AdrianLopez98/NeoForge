@@ -2124,6 +2124,30 @@
     -fx-text-fill: white;
 }
 
+/* El bracket de Commander (forge.neo.deck.DeckBracket): solo borde si es el
+   calculado por Forge, relleno si lo has puesto tu. */
+.deck-tile-bracket {
+    -fx-background-color: rgba(18,22,28,0.88);
+    -fx-background-radius: 5;
+    -fx-border-color: -neo-accent;
+    -fx-border-radius: 5;
+    -fx-border-width: 1;
+    -fx-text-fill: -neo-text;
+    -fx-font-size: 0.78em;
+    -fx-font-weight: bold;
+    -fx-padding: 2 7 2 7;
+    -fx-cursor: hand;
+}
+
+.deck-tile-bracket.deck-tile-bracket-marked {
+    -fx-background-color: -neo-accent;
+    -fx-text-fill: #12161C;
+}
+
+.deck-tile-bracket:hover {
+    -fx-border-color: white;
+}
+
 .deck-tile-name {
     -fx-font-size: 1.0em;
     -fx-font-weight: bold;

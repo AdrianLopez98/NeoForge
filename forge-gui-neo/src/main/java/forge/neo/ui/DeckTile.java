@@ -13,6 +13,7 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.text.TextAlignment;
@@ -36,9 +37,12 @@ public final class DeckTile extends VBox {
 
     private final Deck deck;
     private final CardNode cover;
+    /** El ancho de la carta, para colocar la pastilla del bracket bajo su nombre. */
+    private final double artWidth;
 
     public DeckTile(final Deck deck, final double width) {
         this.deck = deck;
+        this.artWidth = width;
         getStyleClass().add("deck-tile");
         setSpacing(8);
         setAlignment(Pos.TOP_CENTER);
@@ -183,6 +187,39 @@ public final class DeckTile extends VBox {
         if (bin == null) {
             hoverProperty().addListener((o, was, now) -> updateBin());
         }
+    }
+
+    /**
+     * EL BRACKET, en una pastilla ARRIBA a la izquierda, sobre el arte y
+     * justo debajo de la barra del nombre ({@code forge.neo.deck.DeckBracket};
+     * Discord, 19-11-2026). Rellena si lo has puesto tu, solo el borde si es
+     * el calculado. Arriba y no abajo: a 1080p la primera fila de mazos solo
+     * ensenya la mitad de arriba de la carta hasta que se baja. Por debajo de
+     * "Mover" (arriba del todo, solo al pasar o elegido) para no pisarlo; y
+     * fuera de las lineas de texto, que ya parten en dos. Al clicarla,
+     * {@code onClick} con la propia pastilla (donde se ancla el menu); el clic
+     * no llega a la carta.
+     */
+    public void setBracket(final int bracket, final boolean marked,
+                           final java.util.function.Consumer<javafx.scene.Node> onClick) {
+        if (!(getChildren().get(0) instanceof StackPane box)) {
+            return;
+        }
+        final Button pill = new Button(NeoText.get("bracket.badge", bracket));
+        pill.getStyleClass().add("deck-tile-bracket");
+        if (marked) {
+            pill.getStyleClass().add("deck-tile-bracket-marked");
+        }
+        pill.setId("deck-tile-bracket");
+        pill.setFocusTraversable(false);
+        pill.setMinSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+        pill.setTooltip(new javafx.scene.control.Tooltip(
+                NeoText.get("bracket.title") + " " + bracket + " · " + forge.neo.deck.DeckBracket.name(bracket)));
+        pill.setOnAction(e -> onClick.accept(pill));
+        pill.addEventHandler(javafx.scene.input.MouseEvent.MOUSE_CLICKED, javafx.event.Event::consume);
+        StackPane.setAlignment(pill, Pos.TOP_LEFT);
+        StackPane.setMargin(pill, new Insets(artWidth * 0.16 + 6, 0, 0, 8));
+        box.getChildren().add(pill);
     }
 
     /** Si el mazo lleva comandante de verdad, no una portada de repuesto. */

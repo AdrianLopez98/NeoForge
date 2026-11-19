@@ -76,6 +76,14 @@ public class DraftSetupScreen extends BorderPane {
         void startMix(PackMix mix);
 
         void back();
+
+        /**
+         * Abrir los rivales de Personalizar, que son los que el draft sienta a
+         * tu lado ({@code DraftSeats.neighbors}).  Sin esto, no se encontraba:
+         * Discord, 18-11-2026.
+         */
+        default void editNeighbors() {
+        }
     }
 
     /**
@@ -199,9 +207,29 @@ public class DraftSetupScreen extends BorderPane {
 
         chosenLabel.getStyleClass().add("quest-ok");
 
+        // TUS VECINOS DEL DRAFT, y donde se cambian (Discord, 18-11-2026:
+        // "I have looked around and really cannot find where to customize the
+        // opponents in the draft").  Son los rivales de Personalizar: el
+        // boton abre esa pestanya y al volver se vuelve aqui.
+        final Label neighbors = new Label(forge.neo.draft.DraftSeats.neighborsLine(7));
+        neighbors.getStyleClass().add("caption");
+        neighbors.setId("draft-neighbors");
+        neighbors.setWrapText(true);
+        final Button editNeighbors = new Button(NeoText.get("draft.neighbors.edit"));
+        editNeighbors.getStyleClass().add("segment");
+        editNeighbors.setId("draft-neighbors-edit");
+        editNeighbors.setMinWidth(Region.USE_PREF_SIZE);
+        editNeighbors.setOnAction(e -> actions.editNeighbors());
+        final HBox neighborsRow = new HBox(10, neighbors, editNeighbors);
+        neighborsRow.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(neighbors, Priority.SOMETIMES);
+        final VBox left = new VBox(4, chosenLabel, neighborsRow);
+        left.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(left, Priority.SOMETIMES);
+
         final Region gap = new Region();
         HBox.setHgrow(gap, Priority.ALWAYS);
-        final HBox footer = new HBox(12, chosenLabel, gap, back, go);
+        final HBox footer = new HBox(12, left, gap, back, go);
         footer.setAlignment(Pos.CENTER_LEFT);
         footer.setPadding(new Insets(12, 30, 22, 30));
         setBottom(footer);

@@ -98,6 +98,13 @@ public class HomeScreen extends javafx.scene.layout.StackPane {
      */
     private final javafx.scene.control.ComboBox<String> formatFilter = new javafx.scene.control.ComboBox<>();
     private final javafx.scene.control.ComboBox<String> eraFilter = new javafx.scene.control.ComboBox<>();
+    /**
+     * El filtro por bracket de Commander ({@link forge.neo.deck.DeckBracket};
+     * Discord, 19-11-2026). Solo en los formatos de comandante. Sus posiciones
+     * son {@code DeckBracket.filterValues()}.
+     */
+    private final javafx.scene.control.ComboBox<String> bracketFilter = new javafx.scene.control.ComboBox<>();
+    private static int lastBracket;
     private final List<forge.neo.match.NeoFormat> formatChoices = new ArrayList<>();
     private final List<forge.card.CardEdition> eraChoices = new ArrayList<>();
     private final double tileWidth;
@@ -966,6 +973,17 @@ et}) y no se tocan.
         final HBox right = byEra
                 ? new HBox(8, pager, randomMine, formatFilter, eraFilter, colourButtons(), search, gridCount)
                 : new HBox(8, pager, randomMine, colourButtons(), search, gridCount);
+        if (forge.neo.deck.DeckBracket.appliesTo(format)) {
+            // Con el filtro de bracket la fila es mas ancha: en la Steam Deck
+            // (1280x800 al 130%) encogia "Pagina 1 de 4" y "184 mazos" a
+            // "Pag..." y "18...". Esos dos no encogen; cede el filtro.
+            pager.setMinWidth(Region.USE_PREF_SIZE);
+            gridCount.setMinWidth(Region.USE_PREF_SIZE);
+            setUpBracketFilter();
+            // Delante de los colores; la fila ya baja a otra linea si no cabe
+            // (stackBarIfNeeded), y el combo no encoge por debajo de su texto.
+            right.getChildren().add(right.getChildren().indexOf(search) - 1, bracketFilter);
+        }
         right.setAlignment(Pos.CENTER_RIGHT);
         right.setMinWidth(Region.USE_PREF_SIZE);
         final BorderPane bar = new BorderPane();
@@ -1027,6 +1045,122 @@ et}) y no se tocan.
      * TODOS los mazos del formato (de la mas nueva a la mas vieja, con cuantos
      * hay), no solo en la pestanya: cambiar de pestanya no cambia el filtro.
      */
+    private void setUpBracketFilter() {
+        bracketFilter.getStyleClass().add("team-combo");
+        bracketFilter.setId("home-bracket-filter");
+        bracketFilter.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("bracket.help")));
+        for (final int v : forge.neo.deck.DeckBracket.filterValues()) {
+            bracketFilter.getItems().add(forge.neo.deck.DeckBracket.filterLabel(v));
+        }
+        // CERRADO, CORTO ("Bracket", "B4", "Sin poner"): con el nombre entero
+        // ("Bracket 4 · Optimized") la fila no cabia en la Steam Deck y salia
+        // "Any bra...". Abierto, la lista sale entera. Y no encoge por debajo
+        // de su texto.
+        bracketFilter.setButtonCell(new javafx.scene.control.ListCell<>() {
+            @Override
+            protected void updateItem(final String item, final boolean empty) {
+                super.updateItem(item, empty);
+                final int[] values = forge.neo.deck.DeckBracket.filterValues();
+                final int i = bracketFilter.getSelectionModel().getSelectedIndex();
+                setText(empty || i < 0 || i >= values.length ? item
+                        : forge.neo.deck.DeckBracket.shortFilterLabel(values[i]));
+            }
+        });
+        // El ComboBox pide el ancho de su opcion mas larga aunque cerrado
+        // ensenye la corta: se le da el de la corta mas larga y la flecha.
+        double widest = 0;
+        for (final int v : forge.neo.deck.DeckBracket.filterValues()) {
+            final javafx.scene.text.Text t = new javafx.scene.text.Text(
+                    forge.neo.deck.DeckBracket.shortFilterLabel(v));
+            widest = Math.max(widest, t.getLayoutBounds().getWidth());
+        }
+        bracketFilter.setPrefWidth(UiScale.px(widest * 1.15 + 64));
+        bracketFilter.setMinWidth(Region.USE_PREF_SIZE);
+        // Los otros dos filtros no encogen por debajo de su texto ("Any fo..."
+        // en la Steam Deck): cede el buscador, que es un campo y no corta nada.
+        formatFilter.setMinWidth(Region.USE_PREF_SIZE);
+        search.setMinWidth(UiScale.px(120));
+        bracketFilter.getSelectionModel().select(0);
+        bracketFilter.setOnAction(e -> {
+            pager.reset();
+            fillGrid();
+        });
+        // Para capturas: -Dneo.home.filterBracket=3 (o -1, sin marcar).
+        final Integer want = Integer.getInteger("neo.home.filterBracket");
+        if (want != null) {
+            final int[] values = forge.neo.deck.DeckBracket.filterValues();
+            for (int i = 0; i < values.length; i++) {
+                if (values[i] == want) {
+                    bracketFilter.getSelectionModel().select(i);
+                }
+            }
+        }
+    }
+
+    /** El bracket elegido en el filtro (ver {@code DeckBracket.filterValues}). */
+    private int filterBracket() {
+        if (!forge.neo.deck.DeckBracket.appliesTo(format)) {
+            return forge.neo.deck.DeckBracket.FILTER_ANY;
+        }
+        final int[] values = forge.neo.deck.DeckBracket.filterValues();
+        final int i = bracketFilter.getSelectionModel().getSelectedIndex();
+        return i < 0 || i >= values.length ? forge.neo.deck.DeckBracket.FILTER_ANY : values[i];
+    }
+
+    /**
+     * El menu de la pastilla del bracket: el calculado, el tuyo, ponerlo del
+     * 1 al 5, volver al calculado y el porque.
+     */
+    private void showBracketMenu(final Deck deck, final javafx.scene.Node anchor) {
+        final javafx.scene.control.ContextMenu menu = new javafx.scene.control.ContextMenu();
+        menu.getStyleClass().add("card-menu");
+        final int calculated = forge.neo.deck.DeckBracket.calculated(deck);
+        final Integer marked = forge.neo.deck.DeckBracket.marked(format, deck);
+
+        final javafx.scene.control.MenuItem calc = new javafx.scene.control.MenuItem(
+                NeoText.get("bracket.calculated", calculated + " · " + forge.neo.deck.DeckBracket.name(calculated)));
+        calc.setDisable(true);
+        menu.getItems().add(calc);
+        if (marked != null) {
+            final javafx.scene.control.MenuItem mine = new javafx.scene.control.MenuItem(
+                    NeoText.get("bracket.marked", marked + " · " + forge.neo.deck.DeckBracket.name(marked)));
+            mine.setDisable(true);
+            menu.getItems().add(mine);
+        }
+        menu.getItems().add(new javafx.scene.control.SeparatorMenuItem());
+        for (int b = 1; b <= forge.neo.deck.DeckBracket.MAX; b++) {
+            final int value = b;
+            final javafx.scene.control.MenuItem item = new javafx.scene.control.MenuItem(
+                    NeoText.get("bracket.filter.n", b, forge.neo.deck.DeckBracket.name(b))
+                            + (marked != null && marked == b ? "  \u2713" : ""));
+            item.setMnemonicParsing(false);
+            item.setOnAction(e -> {
+                forge.neo.deck.DeckBracket.mark(format, deck, value);
+                fillGrid();
+            });
+            menu.getItems().add(item);
+        }
+        if (marked != null) {
+            final javafx.scene.control.MenuItem unmark = new javafx.scene.control.MenuItem(
+                    NeoText.get("bracket.unmark"));
+            unmark.setOnAction(e -> {
+                forge.neo.deck.DeckBracket.mark(format, deck, null);
+                fillGrid();
+            });
+            menu.getItems().add(unmark);
+        }
+        menu.getItems().add(new javafx.scene.control.SeparatorMenuItem());
+        final javafx.scene.control.MenuItem why = new javafx.scene.control.MenuItem(NeoText.get("bracket.why"));
+        why.setOnAction(e -> {
+            overlay.setOnBackgroundClick(overlay::hide);
+            overlay.show(new ConfirmDialog(deck.getName(),
+                    forge.neo.deck.DeckBracket.explanation(deck) + "\n\n" + NeoText.get("bracket.help"),
+                    java.util.List.of(NeoText.get("common.accept")), 0, choice -> overlay.hide()));
+        });
+        menu.getItems().add(why);
+        menu.show(anchor, javafx.geometry.Side.BOTTOM, 0, 4);
+    }
+
     private void setUpEraFilters() {
         formatFilter.getStyleClass().add("team-combo");
         formatFilter.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("home.filter.format.tip")));
@@ -1098,6 +1232,12 @@ et}) y no se tocan.
                 }
             }
             search.setText(lastSearch == null ? "" : lastSearch);
+            final int[] bv = forge.neo.deck.DeckBracket.filterValues();
+            for (int i = 0; i < bv.length; i++) {
+                if (bv[i] == lastBracket) {
+                    bracketFilter.getSelectionModel().select(i);
+                }
+            }
             firstItem = lastFirstItem;
         }
         filtersRestored = true;
@@ -1505,9 +1645,11 @@ et}) y no se tocan.
 
         final forge.neo.match.NeoFormat legalIn = filterFormat();
         final forge.card.CardEdition era = filterEra();
+        final int bracket = filterBracket();
         final List<Deck> hits = new ArrayList<>();
         for (final Deck d : source) {
             if ((q.isEmpty() || matches(d, q))
+                    && forge.neo.deck.DeckBracket.matches(format, d, bracket)
                     && (legalIn == null || forge.neo.deck.DeckEra.legalIn(d, legalIn))
                     && (era == null || forge.neo.deck.DeckEra.eraOf(d) == era)
                     && (colourFilter == 0 || (coloursOf(d) & colourFilter) == colourFilter)) {
@@ -1522,6 +1664,7 @@ et}) y no se tocan.
             lastColours = colourFilter;
             lastLegalIn = legalIn;
             lastEraCode = era == null ? null : era.getCode();
+            lastBracket = bracket;
             lastFirstItem = pager.from();
         }
 
@@ -1530,6 +1673,11 @@ et}) y no se tocan.
         for (int i = pager.from(); i < pager.to(); i++) {
             final Deck deck = hits.get(i);
             final DeckTile tile = new DeckTile(deck, tileWidth);
+            if (forge.neo.deck.DeckBracket.appliesTo(format)) {
+                tile.setBracket(forge.neo.deck.DeckBracket.of(format, deck),
+                        forge.neo.deck.DeckBracket.marked(format, deck) != null,
+                        anchor -> showBracketMenu(deck, anchor));
+            }
             tile.setOnMouseClicked(e -> {
                 select(deck);
                 // Doble click = elegir y empezar, como en cualquier lanzador.
@@ -1558,7 +1706,8 @@ et}) y no se tocan.
 
         if (hits.isEmpty()) {
             // Con un filtro puesto, la lista no esta vacia: es el filtro.
-            final Label empty = new Label((legalIn != null || era != null || colourFilter != 0) && !source.isEmpty()
+            final Label empty = new Label((legalIn != null || era != null || colourFilter != 0
+                    || bracket != forge.neo.deck.DeckBracket.FILTER_ANY) && !source.isEmpty()
                     ? NeoText.get("home.filter.none")
                     : showing == Tab.MINE
                     ? NeoText.get("home.empty.mine", NeoText.get("home.newDeck"))
@@ -1608,6 +1757,28 @@ et}) y no se tocan.
      */
     private void maybeShowDeleteTest() {
         maybeImportTest();
+        // -Dneo.home.bracketMenuAt=N: abre el menu del bracket del primer mazo
+        // (o -Dneo.home.bracketWhyAt=N, el porque), para capturarlos.
+        final long menuAt = Long.getLong("neo.home.bracketMenuAt", -1L);
+        final long whyAt = Long.getLong("neo.home.bracketWhyAt", -1L);
+        if ((menuAt >= 0 || whyAt >= 0) && !tiles.isEmpty()) {
+            final javafx.animation.PauseTransition b =
+                    new javafx.animation.PauseTransition(javafx.util.Duration.millis(Math.max(menuAt, whyAt)));
+            b.setOnFinished(e -> {
+                final DeckTile first = tiles.get(0);
+                final javafx.scene.Node pill = first.lookup("#deck-tile-bracket");
+                if (menuAt >= 0 && pill != null) {
+                    showBracketMenu(first.getDeck(), pill);
+                } else if (whyAt >= 0) {
+                    overlay.setOnBackgroundClick(overlay::hide);
+                    overlay.show(new ConfirmDialog(first.getDeck().getName(),
+                            forge.neo.deck.DeckBracket.explanation(first.getDeck()) + "\n\n"
+                                    + NeoText.get("bracket.help"),
+                            java.util.List.of(NeoText.get("common.accept")), 0, c -> overlay.hide()));
+                }
+            });
+            b.play();
+        }
         final long at = Long.getLong("neo.home.askDeleteAt", -1L);
         if (at < 0) {
             return;
@@ -1792,6 +1963,7 @@ et}) y no se tocan.
                                     : NeoText.get("home.bo3").equals(v) ? 3 : 1);
                             updateSummary();
                         }),
+                bracketLimitChoice(),
                 variantChoice(),
                 scaleChoice());
         options.setAlignment(Pos.CENTER_LEFT);
@@ -2402,6 +2574,10 @@ et}) y no se tocan.
         if (!NeoSettings.getBool(NeoSettings.MODERN_RIVALS, true)) {
             java.util.Collections.shuffle(pool);
         }
+        // Por bracket, si lo has pedido: los que encajan con tu mazo, delante
+        // (forge.neo.deck.DeckBracket.rivalsFirst; nunca deja a nadie sin mazo).
+        final Deck mine = effectiveDeck();
+        final List<Deck> byBracket = forge.neo.deck.DeckBracket.rivalsFirst(format, pool, mine);
         // Los que no son legales (un mazo tuyo a medio hacer, sin tierras),
         // detras: solo salen si no queda otro (Discord, 07-10-2026). Ver
         // forge.neo.deck.RivalDecks: mirando SOLO los que van saliendo
@@ -2432,11 +2608,12 @@ et}) y no se tocan.
                 if (!modernFirst) {
                     java.util.Collections.shuffle(shuffled);
                 }
-                final Deck inPool = forge.neo.deck.RivalDecks.firstFree(shuffled, type, used, checked);
+                final Deck inPool = forge.neo.deck.RivalDecks.firstFree(
+                        forge.neo.deck.DeckBracket.rivalsFirst(format, shuffled, mine), type, used, checked);
                 out.add(inPool != null ? inPool : shuffled.get(0));
                 continue;
             }
-            Deck pick = forge.neo.deck.RivalDecks.firstFree(pool, type, used, checked);
+            Deck pick = forge.neo.deck.RivalDecks.firstFree(byBracket, type, used, checked);
             if (pick == null && !pool.isEmpty()) {
                 // Mas rivales que mazos: se repite, de los que valen.
                 final List<Deck> ready = new ArrayList<>();
@@ -2666,6 +2843,44 @@ et}) y no se tocan.
             archenemyRow.setVisible(opponents >= forge.neo.match.Archenemy.MIN_OPPONENTS);
             archenemyRow.setManaged(opponents >= forge.neo.match.Archenemy.MIN_OPPONENTS);
         }
+    }
+
+    /**
+     * RIVALES AL AZAR POR BRACKET (Discord, 19-11-2026): cualquiera, como mucho
+     * el tuyo, el mismo o como poco el tuyo. Un DESPLEGABLE con el rotulo
+     * encima, detras de "Partida": como fila de cuatro botones echaba "Escala" a
+     * una linea mas y le quitaba alto a los mazos, y al final de la fila de los
+     * rivales la partia en dos. Asi es tan estrecho como las demas opciones y
+     * cabe en la primera fila. Solo en Commander y similares.
+     */
+    private Region bracketLimitChoice() {
+        if (!forge.neo.deck.DeckBracket.appliesTo(format)) {
+            final Region none = new Region();
+            none.setManaged(false);
+            return none;
+        }
+        final forge.neo.deck.DeckBracket.Limit[] all = forge.neo.deck.DeckBracket.Limit.values();
+        final javafx.scene.control.ComboBox<String> box = new javafx.scene.control.ComboBox<>();
+        box.getStyleClass().add("team-combo");
+        box.setId("home-bracket-limit");
+        box.setMinWidth(Region.USE_PREF_SIZE);
+        for (final forge.neo.deck.DeckBracket.Limit l : all) {
+            box.getItems().add(l.label());
+        }
+        box.getSelectionModel().select(forge.neo.deck.DeckBracket.limit(format).ordinal());
+        box.setOnAction(e -> {
+            final int i = box.getSelectionModel().getSelectedIndex();
+            if (i >= 0 && i < all.length) {
+                forge.neo.deck.DeckBracket.setLimit(format, all[i]);
+            }
+        });
+        box.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("bracket.limit.tip")));
+        final Label caption = new Label(NeoText.get("bracket.limit"));
+        caption.getStyleClass().add("caption");
+        caption.setMinWidth(Region.USE_PREF_SIZE);
+        final VBox v = new VBox(4, caption, box);
+        v.setAlignment(Pos.TOP_LEFT);
+        return v;
     }
 
     private Region choice(final String caption, final String[] values, final String current,

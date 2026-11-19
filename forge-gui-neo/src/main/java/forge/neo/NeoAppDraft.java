@@ -223,6 +223,11 @@ final class NeoAppDraft {
                     public void back() {
                         backFromSetup(forge.neo.draft.DraftRun.Kind.DRAFT);
                     }
+
+                    @Override
+                    public void editNeighbors() {
+                        app.showLookTab(forge.neo.ui.LookScreen.TAB_RIVALS, () -> showDraftSetup());
+                    }
                 }));
         app.applyScale();
     }

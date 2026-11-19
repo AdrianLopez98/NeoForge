@@ -53,6 +53,14 @@ public class LookScreen extends BorderPane {
     /** Se avisa al salir por si hay que repintar la mesa (el tapete). */
     private final Runnable onChanged;
 
+    /** La pestanya de los rivales (ver {@code NeoApp.showLookTab}). */
+    public static final int TAB_RIVALS = 1;
+
+    /** Abre una pestanya concreta. */
+    public void selectTab(final int index) {
+        select(Math.min(Math.max(0, index), tabButtons.size() - 1));
+    }
+
     public LookScreen(final Runnable onBack, final Runnable onChanged) {
         this.onBack = onBack;
         this.onChanged = onChanged;

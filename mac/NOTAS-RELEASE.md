@@ -1,13 +1,9 @@
-**NeoForge para macOS 1.0.59 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.60 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Ascenso**: opción de permitir hasta 2 copias de una carta en las runs de Commander, y las cartas tipo Relentless Rats siguen saliendo en los premios.
-- **Draft**: los rivales tienen nombre y asiento (ves a quién le pasas y de quién recibes).
-- **Jumpstart**: cada tema enseña sus colores al elegirlo.
-- La carta de tu biblioteca que puedes lanzar (Future Sight...) sale al final de la mano.
-- Las cartas de Kamigawa que se giran se ven del derecho.
-- Las cartas recién anunciadas bajan su imagen el mismo día.
-- Al día con Forge (Mystery Booster Commander Edition).
+- **Brackets de Commander**: cada mazo enseña su bracket (el que calcula Forge, del 1 al 4, o el que le pongas tú, del 1 al 5), con su porqué. Filtro por bracket y rivales al azar limitados por bracket.
+- **Draft**: la pantalla de elegir draft dice quién se sentará a tu lado, con un botón para editar a esos rivales.
+- Al día con Forge (te dice por qué una criatura no puede atacar).
 
 Descarga el `.dmg` de tu Mac:
 
