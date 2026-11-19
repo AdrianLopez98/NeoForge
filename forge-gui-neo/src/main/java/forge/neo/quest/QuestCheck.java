@@ -3933,6 +3933,11 @@ public final class QuestCheck {
             return false;
         }
         final QuestEventDuel duel = duels.get(0);
+        // El mazo de verdad del rival, para devolverselo al acabar: el sorteo
+        // de duelos puede ofrecer el MISMO rival en la siguiente ronda, y
+        // entonces jugaba "a las malas" con las 20 montanyas de antes, se
+        // quedaba sin biblioteca y perdia (19-11-2026, Ala dos veces seguidas).
+        final forge.deck.Deck realDeck = duel.getEventDeck();
         if (rigWin) {
             // El piloto automatico no juega nada, asi que pierde siempre y el
             // camino de VICTORIA — creditos, subir de nivel, el sobre de
@@ -3940,6 +3945,14 @@ public final class QuestCheck {
             // montanyas: se queda sin biblioteca antes que tu y pierde.
             duel.setEventDeck(NeoQuest.tinyCopyOf(duel.getEventDeck()));
         }
+        try {
+            return playOneDuelOn(duel, rigWin);
+        } finally {
+            duel.setEventDeck(realDeck);
+        }
+    }
+
+    private static boolean playOneDuelOn(final QuestEventDuel duel, final boolean rigWin) {
         final int winsBefore = NeoQuest.wins();
         final int lossesBefore = NeoQuest.losses();
         final long creditsBefore = NeoQuest.credits();
