@@ -142,6 +142,13 @@ public final class DeckBracket {
             // Sin las listas de Forge (res/lists) o con un mazo raro: el mas bajo.
             b = 1;
         }
+        // NUNCA POR DEBAJO DE 2 (Discord, 20-11-2026: *"there are no Bracket 2
+        // deck in the premade decks, they are all classed as bracket 1 ...
+        // bracket 1 and 2 are technically the same apart from the intent"*).
+        // El calculo de Forge no puede separar el 1 del 2 - solo cambia la
+        // intencion del mazo - y da 1 a todo lo que no lleva nada; Wizards dice
+        // que los preconstruidos son 2. El 1 lo pone quien quiera, a mano.
+        b = Math.max(MIN_CALCULATED, b);
         if (CALCULATED.size() > 4000) {
             CALCULATED.clear();
         }
@@ -149,10 +156,19 @@ public final class DeckBracket {
         return b;
     }
 
-    /** El porque del calculado, en el idioma del juego (lo escribe Forge). */
+    /** El minimo que se da por calculado: ver {@link #calculated}. */
+    public static final int MIN_CALCULATED = 2;
+
+    /**
+     * El porque del calculado, en el idioma del juego (lo escribe Forge). Si
+     * Forge diria 1 ("Minimum Commander Bracket: 1") y la pastilla dice 2,
+     * delante va por que.
+     */
     public static String explanation(final Deck deck) {
         try {
-            return CommanderBracketCalculator.getExplanation(deck);
+            final String text = CommanderBracketCalculator.getExplanation(deck);
+            return CommanderBracketCalculator.getBracket(deck) < MIN_CALCULATED
+                    ? NeoText.get("bracket.floor") + "\n\n" + text : text;
         } catch (final RuntimeException e) {
             return "";
         }

@@ -3298,24 +3298,28 @@ public final class DeckRulesCheck {
         strong.getMain().add(db.getCard("Mountain"), 95);
         final DeckBracket.Limit before = DeckBracket.limit(cmd);
         try {
-            check("bracket: un mazo sin nada salta el 1 calculado", DeckBracket.calculated(plain) == 1);
+            check("bracket: un mazo sin nada sale 2 calculado, como los preconstruidos (no 1)", DeckBracket.calculated(plain) == 2);
+            check("bracket: y el porque dice por que es 2", DeckBracket.explanation(plain).startsWith(forge.neo.NeoText.get("bracket.floor")));
             check("bracket: con 4 Game Changers, el 4 calculado (" + DeckBracket.calculated(strong) + ")",
                     DeckBracket.calculated(strong) == 4);
             check("bracket: sin marca, vale el calculado y no esta marcado",
-                    DeckBracket.of(cmd, plain) == 1 && DeckBracket.marked(cmd, plain) == null);
+                    DeckBracket.of(cmd, plain) == 2 && DeckBracket.marked(cmd, plain) == null);
             DeckBracket.mark(cmd, plain, 5);
             check("bracket: marcado a mano manda (5) y el filtro lo encuentra",
                     DeckBracket.of(cmd, plain) == 5 && DeckBracket.matches(cmd, plain, 5)
-                            && !DeckBracket.matches(cmd, plain, 1)
+                            && !DeckBracket.matches(cmd, plain, 2)
                             && !DeckBracket.matches(cmd, plain, DeckBracket.FILTER_UNMARKED));
             check("bracket: \"sin poner\" encuentra el no marcado",
                     DeckBracket.matches(cmd, strong, DeckBracket.FILTER_UNMARKED));
             DeckBracket.mark(cmd, plain, null);
-            check("bracket: quitar la marca vuelve al calculado", DeckBracket.of(cmd, plain) == 1);
+            check("bracket: quitar la marca vuelve al calculado", DeckBracket.of(cmd, plain) == 2);
+            DeckBracket.mark(cmd, plain, 1);
+            check("bracket: el 1 se puede poner a mano", DeckBracket.of(cmd, plain) == 1);
+            DeckBracket.mark(cmd, plain, null);
 
             final java.util.List<Deck> pool = java.util.List.of(strong, plain);
             DeckBracket.setLimit(cmd, DeckBracket.Limit.AT_MOST);
-            check("bracket: rivales como mucho el tuyo (1): el de bracket 1 primero",
+            check("bracket: rivales como mucho el tuyo (2): el de bracket 2 primero",
                     DeckBracket.rivalsFirst(cmd, pool, plain).get(0) == plain);
             DeckBracket.setLimit(cmd, DeckBracket.Limit.AT_LEAST);
             check("bracket: rivales como poco el tuyo (4): el de bracket 4 primero",

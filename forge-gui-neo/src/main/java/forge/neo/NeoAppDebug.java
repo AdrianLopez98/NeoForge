@@ -2536,6 +2536,52 @@ final class NeoAppDebug {
     /** Si la captura de combate debe ampliar antes una carta girada. */
     boolean zoomOnCombat;
 
+    /**
+     * -Dneo.zoom.countersAt=ms (con una partida, p. ej. el puzzle
+     * tools/puzzles-prueba/ZZ_contadores.pzl): a los ms, amplia tu primera
+     * carta con contadores y hace clic en su primer contador, para capturar lo
+     * que hace (forge.neo.card.CounterHelp). Sin raton no hay otra forma.
+     */
+    void zoomFirstCounterLater() {
+        final long at = Long.getLong("neo.zoom.countersAt", -1L);
+        if (at < 0) {
+            return;
+        }
+        final javafx.animation.PauseTransition t =
+                new javafx.animation.PauseTransition(javafx.util.Duration.millis(at));
+        t.setOnFinished(e -> {
+            if (app.table == null) {
+                System.out.println("[zoom] sin mesa");
+                return;
+            }
+            for (final javafx.scene.Node n : app.table.selfFieldNodes()) {
+                final forge.neo.card.CardNode cn = (forge.neo.card.CardNode) n;
+                if (cn.getCard() != null && cn.getCard().getCounters() != null
+                        && !cn.getCard().getCounters().isEmpty()) {
+                    app.table.showZoom(cn.getCard());
+                    final javafx.animation.PauseTransition c =
+                            new javafx.animation.PauseTransition(javafx.util.Duration.millis(600));
+                    c.setOnFinished(ev -> {
+                        final javafx.scene.Node box = app.scene.getRoot().lookup("#zoom-counters");
+                        if (box instanceof javafx.scene.layout.Pane pane
+                                && pane.getChildren().get(0) instanceof javafx.scene.layout.Pane flow
+                                && !flow.getChildren().isEmpty()) {
+                            flow.getChildren().get(Integer.getInteger("neo.zoom.counterIndex", 0)).fireEvent(
+                                    new javafx.scene.input.MouseEvent(javafx.scene.input.MouseEvent.MOUSE_CLICKED,
+                                            0, 0, 0, 0, javafx.scene.input.MouseButton.PRIMARY, 1, false, false,
+                                            false, false, true, false, false, true, false, true, null));
+                            System.out.println("[zoom] contador clicado");
+                        }
+                    });
+                    c.play();
+                    return;
+                }
+            }
+            System.out.println("[zoom] ninguna carta tuya con contadores");
+        });
+        t.play();
+    }
+
     /** Esperar a que haya algo en el stack en vez de a que haya combate. */
     boolean stackNotEmpty;
 

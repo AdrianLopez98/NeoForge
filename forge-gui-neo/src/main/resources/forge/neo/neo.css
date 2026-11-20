@@ -3606,6 +3606,13 @@
     -fx-stroke-width: 2.5;
 }
 
+/* Una tierra que, jugada ahora, entraria GIRADA (EntersTapped): el mismo
+   resaltado, discontinuo. Por la forma y no por otro color: el del resaltado
+   lo elige el jugador y el ambar ya es del boton "Auto". */
+.card:actionable:enters-tapped .card-border {
+    -fx-stroke-dash-array: 9 6;
+}
+
 /* Y las que el boton "Auto" iba a tapar: el plan del motor, antes de pulsarlo */
 .card:auto-tap .card-border {
     -fx-stroke: -neo-warn;

@@ -447,7 +447,7 @@ public final class CardZoom {
             box.getChildren().add(ptBlock(card, st));
         }
 
-        final Region counters = countersBlock(card);
+        final Region counters = countersBlock(card, width);
         if (counters != null) {
             box.getChildren().add(counters);
         }
@@ -1420,25 +1420,51 @@ public final class CardZoom {
      *
      * <p>El {@code CounterType} trae los dos, asi que no hay lista fija: un
      * contador raro sale igual de bien que un +1/+1.
+     *
+     * <p>Con su NOMBRE ENTERO ("Contador +1/+1 ×1": la pastilla de la mesa
+     * dice "+1", que no se entendia) y, al hacer clic, LO QUE HACE debajo
+     * ({@code forge.neo.card.CounterHelp}; Discord, 20-11-2026: <i>"these buff
+     * words (like stun) could be selectable to show their rules text"</i>).
      */
-    private static Region countersBlock(final CardView card) {
+    private static Region countersBlock(final CardView card, final double width) {
         final Multiset<CounterType> all = card.getCounters();
         if (all == null || all.isEmpty()) {
             return null;
         }
         final FlowPane flow = new FlowPane(6, 6);
+        flow.setMaxWidth(width);
+        final Label help = new Label();
+        help.getStyleClass().add("keyword-text");
+        help.setWrapText(true);
+        help.setMaxWidth(width);
+        help.setMinHeight(Region.USE_PREF_SIZE);
+        help.setVisible(false);
+        help.setManaged(false);
+        final CounterType[] open = new CounterType[1];
         final List<CounterType> types = new ArrayList<>(all.elementSet());
         types.sort(Comparator.comparing(CounterType::getName));
         for (final CounterType t : types) {
-            final Label pill = new Label(t.getCounterOnCardDisplayName() + "  x" + all.count(t));
+            final Label pill = new Label(forge.neo.card.CounterHelp.label(t, all.count(t)));
             pill.getStyleClass().add("zoom-counter");
+            pill.setCursor(javafx.scene.Cursor.HAND);
+            pill.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("counter.tap")));
+            pill.setOnMouseClicked(e -> {
+                e.consume();
+                final boolean same = open[0] == t && help.isVisible();
+                open[0] = same ? null : t;
+                help.setText(same ? "" : forge.neo.card.CounterHelp.help(t));
+                help.setVisible(!same);
+                help.setManaged(!same);
+            });
             final Color bg = Color.rgb(t.getRed(), t.getGreen(), t.getBlue());
             pill.setStyle("-fx-background-color:" + web(bg) + ";"
                     + "-fx-text-fill:" + (luminance(bg) > 0.55 ? "#101418" : "white") + ";");
                     UiScale.fixedFont(pill, 13);
             flow.getChildren().add(pill);
         }
-        return flow;
+        final VBox box = new VBox(6, flow, help);
+        box.setId("zoom-counters");
+        return box;
     }
 
     /**

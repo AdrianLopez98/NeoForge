@@ -416,6 +416,7 @@ public class NeoApp extends Application implements SettingsPanel.Host {
         scene.setRoot(loading);
         applyScale();
         stage.show();
+        debug.zoomFirstCounterLater();
         watchScreen(stage);
         // -Dneo.fullscreen=true: pantalla completa SIN escribir el ajuste. Para
         // grabar (el trailer) sin barra de titulo ni de tareas en la imagen.
@@ -1036,6 +1037,7 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                     if (Boolean.getBoolean("neo.zoom.keyword")) {
                         javafx.application.Platform.runLater(debug::clickFirstKeyword);
                     }
+
                 }
                 if (args.contains("--mock-prompt") && !table.selfFieldNodes().isEmpty()) {
                     table.getOverlay().show(new forge.neo.ui.CardPromptDialog(

@@ -98,17 +98,51 @@ public class LimitedEventsScreen extends BorderPane {
     /** Vuelve a leer los eventos guardados. */
     private void refresh() {
         list.getChildren().clear();
-        final List<DraftRun> runs = DraftRun.saved(kind);
+        // En curso arriba y el mas nuevo primero; los terminados, juntos en un
+        // grupo plegable al final (DraftRun.sorted; Discord, 20-11-2026).
+        final List<DraftRun> runs = DraftRun.sorted(kind);
         if (runs.isEmpty()) {
             final Label empty = new Label(NeoText.get("events.empty"));
             empty.getStyleClass().add("home-subtitle");
             list.getChildren().add(empty);
             return;
         }
+        final List<DraftRun> over = new java.util.ArrayList<>();
         for (final DraftRun run : runs) {
-            list.getChildren().add(row(run));
+            if (run.isOver()) {
+                over.add(run);
+            } else {
+                list.getChildren().add(row(run));
+            }
+        }
+        if (over.isEmpty()) {
+            return;
+        }
+        // Sin ninguno en curso, abierto: si no, la pantalla saldria vacia.
+        final boolean open = showFinished || over.size() == runs.size();
+        final Button toggle = new Button((open ? "▾  " : "▸  ")
+                + NeoText.get("events.finished", over.size()));
+        toggle.getStyleClass().add("segment");
+        toggle.setId("events-finished");
+        toggle.setMinWidth(Region.USE_PREF_SIZE);
+        toggle.setOnAction(e -> {
+            showFinished = !open;
+            refresh();
+        });
+        final HBox head = new HBox(toggle);
+        // Del ancho de las filas, para que el boton quede alineado con ellas.
+        head.setMaxWidth(UiScale.px(720));
+        head.setPadding(new Insets(list.getChildren().isEmpty() ? 0 : 10, 0, 0, 0));
+        list.getChildren().add(head);
+        if (open) {
+            for (final DraftRun run : over) {
+                list.getChildren().add(row(run));
+            }
         }
     }
+
+    /** Si el grupo de terminados esta abierto; se recuerda mientras dura la sesion. */
+    private static boolean showFinished = Boolean.getBoolean("neo.events.showFinished");
 
     /**
      * Como se llama un evento a la vista: el nombre que le ha puesto el

@@ -396,6 +396,22 @@ public class CardNode extends StackPane {
         // lado. Solo esas: el recorte de arte (UI_CARD_ART_FORMAT) tambien es
         // ancho y no hay que girarlo. CardZoom gira la carta entera para leerla.
         art.imageProperty().addListener((o, was, now) -> updateSideways());
+        // LA COPIA NITIDA, TAMBIEN SI LA IMAGEN YA ESTABA EN CACHE (Discord,
+        // 20-11-2026, tienda de la Quest: "a nicer smoothing effect the first
+        // time the screen loads, but it breaks when the shop is loaded again or
+        // a different page is chosen"). sharpenArt necesita saber a cuantos
+        // pixeles se ve la carta, y eso solo se sabe en pantalla: con la imagen
+        // en cache se pintaba ANTES de entrar en la escena, se quedaba con la
+        // grande reducida por JavaFX (los dientes de sierra) y nadie volvia a
+        // pedir la nitida. La primera vez salia bien porque la imagen llegaba
+        // despues. Al entrar en escena, tras la maquetacion, se vuelve a pedir.
+        sceneProperty().addListener((o, was, now) -> {
+            // -Dneo.card.oldSharp=true lo apaga: solo para comprobar que la
+            // prueba de la tienda (-Dneo.shop.flipAt) ve el fallo de antes.
+            if (now != null && fullArt != null && !OLD_SHARP) {
+                javafx.application.Platform.runLater(this::sharpenArt);
+            }
+        });
 
         border.setFill(Color.TRANSPARENT);
         border.getStyleClass().add("card-border");
@@ -1354,6 +1370,25 @@ public class CardNode extends StackPane {
         this.actionable = strength >= 1;
         pseudoClassStateChanged(ACTIONABLE, actionable);
         pseudoClassStateChanged(AUTO_TAP, strength >= 2);
+    }
+
+    /**
+     * Una tierra que, jugada AHORA, entraria girada ({@code EntersTapped};
+     * Discord, 20-11-2026): el resaltado de "se puede jugar" en DISCONTINUO,
+     * para distinguirla por la forma y no por un color mas.
+     */
+    public void setEntersTapped(final boolean on) {
+        pseudoClassStateChanged(ENTERS_TAPPED, on);
+    }
+
+    private static final boolean OLD_SHARP = Boolean.getBoolean("neo.card.oldSharp");
+
+    private static final javafx.css.PseudoClass ENTERS_TAPPED =
+            javafx.css.PseudoClass.getPseudoClass("enters-tapped");
+
+    /** Si pinta la copia nitida y no la original reducida (o no hay arte). Para las pruebas. */
+    public boolean isArtSharp() {
+        return fullArt == null || art.getImage() != fullArt;
     }
 
     /** Si lleva el resaltado de "esto lo puedes usar". Para las pruebas. */

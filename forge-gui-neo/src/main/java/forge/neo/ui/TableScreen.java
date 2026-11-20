@@ -4787,8 +4787,18 @@ public class TableScreen extends Pane {
         this.actionable = strength;
         for (final CardNode n : everyNode()) {
             final CardView cv = n.getCard();
-            n.setActionable(cv == null || strength == null ? 0 : strength.applyAsInt(cv));
+            final int s = cv == null || strength == null ? 0 : strength.applyAsInt(cv);
+            n.setActionable(s);
+            // Una tierra jugable que entraria girada ahora mismo: discontinua.
+            n.setEntersTapped(s >= 1 && entersTapped(cv));
         }
+    }
+
+    /** Si {@code cv} es una tierra fuera del campo que, jugada ahora, entraria girada. */
+    private static boolean entersTapped(final CardView cv) {
+        return cv.getZone() != forge.game.zone.ZoneType.Battlefield
+                && cv.getCurrentState() != null && cv.getCurrentState().isLand()
+                && forge.neo.card.EntersTapped.ofId(cv.getId());
     }
 
     private java.util.function.ToIntFunction<CardView> actionable;

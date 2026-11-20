@@ -484,6 +484,47 @@ public final class DraftRun {
         return isEliminated() || isCompleted();
     }
 
+    /**
+     * LOS EVENTOS EN EL ORDEN EN QUE SE BUSCAN (Discord, 20-11-2026: <i>"store
+     * completed events together in a folder or to at least reverse the order
+     * of the list? It seems weird to scroll to the bottom of the page to get to
+     * the draft you are playing currently"</i>): primero los que estan en
+     * curso, despues los terminados, y en cada grupo el mas nuevo arriba. El
+     * almacen de Forge los daba por nombre, asi que el ultimo draft quedaba al
+     * final. Lo usan la pantalla de eventos del PC y la de Android.
+     */
+    public static List<DraftRun> sorted(final Kind kind) {
+        final List<DraftRun> out = saved(kind);
+        final java.util.Map<String, Long> made = new java.util.HashMap<>();
+        for (final DraftRun r : out) {
+            made.put(r.getName(), r.created());
+        }
+        out.sort(java.util.Comparator.comparing(DraftRun::isOver)
+                .thenComparing((DraftRun r) -> made.getOrDefault(r.getName(), 0L),
+                        java.util.Comparator.reverseOrder()));
+        return out;
+    }
+
+    /**
+     * Cuando se creo: la fecha de creacion de su carpeta en
+     * {@code decks/draft} o {@code decks/sealed} (la de modificacion cambia al
+     * retocar el mazo). 0 si no se sabe.
+     */
+    public long created() {
+        try {
+            final java.io.File dir = new java.io.File(kind == Kind.SEALED
+                    ? forge.localinstance.properties.ForgeConstants.DECK_SEALED_DIR
+                    : forge.localinstance.properties.ForgeConstants.DECK_DRAFT_DIR, name);
+            if (!dir.exists()) {
+                return 0L;
+            }
+            return java.nio.file.Files.readAttributes(dir.toPath(),
+                    java.nio.file.attribute.BasicFileAttributes.class).creationTime().toMillis();
+        } catch (final java.io.IOException | RuntimeException e) {
+            return 0L;
+        }
+    }
+
     /** Tu mazo del draft. */
     public Deck getDeck() {
         final DeckGroup g = group(name, kind);

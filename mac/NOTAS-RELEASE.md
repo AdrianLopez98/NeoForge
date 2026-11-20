@@ -1,9 +1,12 @@
-**NeoForge para macOS 1.0.60 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.61 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Brackets de Commander**: cada mazo enseña su bracket (el que calcula Forge, del 1 al 4, o el que le pongas tú, del 1 al 5), con su porqué. Filtro por bracket y rivales al azar limitados por bracket.
-- **Draft**: la pantalla de elegir draft dice quién se sentará a tu lado, con un botón para editar a esos rivales.
-- Al día con Forge (te dice por qué una criatura no puede atacar).
+- **Contadores explicados**: en la carta ampliada, cada contador con su nombre entero y, al hacer clic, lo que hace.
+- **Tierras que entrarían giradas**: su resaltado de «se puede jugar» va discontinuo.
+- **Draft y sellado**: el evento en curso arriba y los terminados en un grupo aparte.
+- **Brackets**: el calculado empieza en 2, como los preconstruidos.
+- **Tienda de la Quest**: tamaño de las sueltas con «−» y «+», y las cartas se ven nítidas al cambiar de página.
+- Al día con Forge.
 
 Descarga el `.dmg` de tu Mac:
 

@@ -244,12 +244,36 @@ public final class LanguageCheck {
         }
     }
 
+    /** Las claves de {@code ar-MA-solo-swing.txt} (ver tools/claves-solo-swing.py). */
+    private static java.util.Set<String> swingOnly() {
+        final java.util.Set<String> out = new java.util.HashSet<>();
+        try (java.io.InputStream in = LanguageCheck.class.getResourceAsStream("/forge/neo/lang/ar-MA-solo-swing.txt")) {
+            if (in == null) {
+                return out;
+            }
+            for (final String line : new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).split("\\R")) {
+                final String k = line.trim();
+                if (!k.isEmpty() && !k.startsWith("#")) {
+                    out.add(k);
+                }
+            }
+        } catch (final java.io.IOException e) {
+            // Sin la lista, se exigen todas: como antes.
+        }
+        return out;
+    }
+
     private static void arabicFileMatchesEnglish() {
         System.out.println("  El fichero del motor en arabe cuadra con el ingles");
         final Properties en = read(new File(ForgeConstants.LANG_DIR, "en-US.properties"));
         final Properties ar = resource("/" + NeoLanguage.ARABIC + ".properties");
         final TreeSet<String> missing = new TreeSet<>(en.stringPropertyNames());
         missing.removeAll(ar.stringPropertyNames());
+        // Las que SOLO usa la interfaz Swing de Forge no se exigen: NeoForge no
+        // las ensenya nunca (20-11-2026, las 251 de Swing del Rogue Commander).
+        // La lista la hace tools/claves-solo-swing.py, que dice tambien cuales
+        // SI hay que traducir.
+        missing.removeAll(swingOnly());
         final TreeSet<String> extra = new TreeSet<>(ar.stringPropertyNames());
         extra.removeAll(en.stringPropertyNames());
         check(missing.isEmpty(), "no le falta ninguna clave" + sample(missing));

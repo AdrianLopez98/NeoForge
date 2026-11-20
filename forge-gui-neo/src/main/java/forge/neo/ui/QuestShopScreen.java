@@ -566,6 +566,48 @@ public class QuestShopScreen extends StackPane {
             case SINGLES:
                 if (singlesPage == null) {
                     singlesPage = buildSinglesPage();
+                    // -Dneo.shop.flipAt=ms: a los ms pasa a la pagina 2 y vuelve a
+                    // la 1, con las imagenes ya en cache (el suavizado que se
+                    // perdia, Discord 20-11-2026).
+                    final long flip = Long.getLong("neo.shop.flipAt", -1L);
+                    if (flip >= 0) {
+                        final javafx.animation.PauseTransition t =
+                                new javafx.animation.PauseTransition(javafx.util.Duration.millis(flip));
+                        // Dos veces: la segunda, con las copias nitidas ya
+                        // hechas, es la que fallaba (sin copia que acabe no hay
+                        // repintado que lo tape).
+                        final Runnable flipBack = () -> {
+                            singlePager.goToItem(singlePager.getPageSize());
+                            paintSingles();
+                            singlePager.goToItem(0);
+                            paintSingles();
+                            System.out.println("[shop] pagina 2 y vuelta a la 1");
+                        };
+                        t.setOnFinished(e -> {
+                            flipBack.run();
+                            final javafx.animation.PauseTransition again =
+                                    new javafx.animation.PauseTransition(javafx.util.Duration.millis(3000));
+                            again.setOnFinished(e2 -> flipBack.run());
+                            again.play();
+                            final javafx.animation.PauseTransition c =
+                                    new javafx.animation.PauseTransition(javafx.util.Duration.millis(5500));
+                            c.setOnFinished(ev -> {
+                                int sharp = 0;
+                                int all = 0;
+                                for (final javafx.scene.Node n : singleGrid.lookupAll(".card")) {
+                                    if (n instanceof forge.neo.card.CardNode cn) {
+                                        all++;
+                                        if (cn.isArtSharp()) {
+                                            sharp++;
+                                        }
+                                    }
+                                }
+                                System.out.println("[shop] nitidas " + sharp + " de " + all);
+                            });
+                            c.play();
+                        });
+                        t.play();
+                    }
                 }
                 page.getChildren().setAll(singlesPage);
                 reloadSingles();
@@ -747,7 +789,16 @@ public class QuestShopScreen extends StackPane {
         });
         final HBox singleSortBox = new HBox(6, new Label(NeoText.get("sort.caption")), singleSort);
         singleSortBox.setAlignment(Pos.CENTER_LEFT);
-        tools.getChildren().addAll(singleSearch, singleColourRow(), singleTypeRow(), singleOwnedRow(), singleSortBox);
+        // EL TAMANYO DE LAS CARTAS, como en la enciclopedia (Discord,
+        // 20-11-2026: "The cards are unreadable, it would be nice to have the
+        // size + - controls"). Por defecto, lo que quepa (fitSingles); cada
+        // paso agranda la carta y caben menos por pagina. Se recuerda.
+        final HBox singleSizeBox = new HBox(4, new Label(NeoText.get("library.size")),
+                singleSizeButton("\u2212", -1), singleSizeButton("+", 1));
+        singleSizeBox.setAlignment(Pos.CENTER_LEFT);
+        singleSizeBox.setId("shop-singles-size");
+        tools.getChildren().addAll(singleSearch, singleColourRow(), singleTypeRow(), singleOwnedRow(), singleSortBox,
+                singleSizeBox);
 
         singleGrid.setAlignment(Pos.TOP_LEFT);
         final ScrollPane scroll = singleScroll;
@@ -1134,6 +1185,15 @@ public class QuestShopScreen extends StackPane {
                 break;
             }
         }
+        // MAS GRANDE SI SE HA PEDIDO: cada paso, una fila menos, y la carta
+        // crece hasta llenar el alto que queda. Un multiplicador fijo dejaba
+        // media pantalla vacia (a 1080p solo caben dos filas normales).
+        final int step = singleSizeStep();
+        if (step > 0) {
+            rows = Math.max(1, rows - step);
+            w = ((height - gap * (rows - 1)) / rows - extra) / CardNode.ASPECT;
+            cols = Math.max(1, (int) Math.floor((width + gap) / (w + SINGLE_PAD * 2 + gap)));
+        }
         final int size = Math.max(1, cols * rows);
         if (Math.abs(w - singleCardW) < 1 && size == singlePager.getPageSize()) {
             return;
@@ -1144,6 +1204,33 @@ public class QuestShopScreen extends StackPane {
         singlePager.goToItem(first);
         singlePager.setTotal(singlesShown.size());
         paintSingles();
+    }
+
+    /** Los pasos de tamanyo de las sueltas: 0 es "lo que quepa", como antes; cada uno, una fila menos. */
+    private static final int[] SINGLE_SIZES = {0, 1, 2, 3, 4};
+    public static final String SINGLES_SIZE = "quest.singlesSize";
+
+    private int singleSizeStep() {
+        // -Dneo.shop.singlesSize=N para capturas, sin tocar el ajuste guardado.
+        final int forced = Integer.getInteger("neo.shop.singlesSize", -1);
+        return Math.max(0, Math.min(SINGLE_SIZES.length - 1,
+                forced >= 0 ? forced : forge.neo.NeoSettings.getInt(SINGLES_SIZE, 0)));
+    }
+
+    private Button singleSizeButton(final String text, final int delta) {
+        final Button b = new Button(text);
+        b.getStyleClass().add("segment");
+        b.setMinWidth(Region.USE_PREF_SIZE);
+        b.setOnAction(e -> {
+            final int next = Math.max(0, Math.min(SINGLE_SIZES.length - 1, singleSizeStep() + delta));
+            if (next != singleSizeStep()) {
+                forge.neo.NeoSettings.setInt(SINGLES_SIZE, next);
+                forge.neo.NeoSettings.save();
+                singleCardW = -1;
+                fitSingles();
+            }
+        });
+        return b;
     }
 
     private Region singleTile(final PaperCard card) {
