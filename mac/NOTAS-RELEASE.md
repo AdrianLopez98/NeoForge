@@ -1,12 +1,8 @@
-**NeoForge para macOS 1.0.61 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.62 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Contadores explicados**: en la carta ampliada, cada contador con su nombre entero y, al hacer clic, lo que hace.
-- **Tierras que entrarían giradas**: su resaltado de «se puede jugar» va discontinuo.
-- **Draft y sellado**: el evento en curso arriba y los terminados en un grupo aparte.
-- **Brackets**: el calculado empieza en 2, como los preconstruidos.
-- **Tienda de la Quest**: tamaño de las sueltas con «−» y «+», y las cartas se ven nítidas al cambiar de página.
-- Al día con Forge.
+- **Arreglado**: algunas partidas se colgaban o se cortaban en la 1.0.61 por el resaltado de las tierras que entrarían giradas.
+- Y lo de la 1.0.61: contadores explicados, tierras que entrarían giradas con resaltado discontinuo, draft y sellado ordenados, brackets desde 2 y tamaño en la tienda de la Quest.
 
 Descarga el `.dmg` de tu Mac:
 

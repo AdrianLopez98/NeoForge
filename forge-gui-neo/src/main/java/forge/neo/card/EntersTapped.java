@@ -42,18 +42,55 @@ public final class EntersTapped {
     private EntersTapped() {
     }
 
-    /** Por id de carta, de la partida en curso (la de {@link AffectedBy}). */
+    /**
+     * Por id de carta: lo que dejo {@link #scan} en el hilo de la partida.
+     *
+     * <p><b>No pregunta al motor</b>, y es a proposito. La cuenta de
+     * {@link #now} pasa por {@code ReplacementHandler.getReplacementList}, que
+     * llama a {@code checkStaticAbilities}: reescribe las estaticas y congela
+     * el Tracker. Hecha desde el hilo de interfaz (PC) o el reloj de Android
+     * mientras la partida sigue, mataba la partida con una
+     * {@code ConcurrentModificationException} en {@code Tracker.unfreeze} o en
+     * {@code StaticEffects.clearStaticEffects} (Discord e itch.io, 21-11-2026,
+     * la 1.0.61 recien salida; las trampas conocidas, el fallo de la 1.0.43).
+     */
     public static boolean ofId(final int cardId) {
-        final Game g = AffectedBy.current();
-        if (g == null) {
-            return false;
+        final Scan s = last;
+        return s != null && s.game == AffectedBy.current() && s.ids.contains(cardId);
+    }
+
+    private record Scan(Game game, java.util.Set<Integer> ids) {
+    }
+
+    private static volatile Scan last;
+
+    /**
+     * La cuenta, para las tierras de {@code you} fuera del campo. <b>Solo
+     * desde el hilo de la partida</b>: lo llama {@code SafeActions.Guarded}
+     * al empezar cada prioridad, junto a improvisar y convocar.
+     */
+    public static void scan(final Player you) {
+        if (you == null || you.getGame() == null) {
+            return;
         }
+        final java.util.Set<Integer> ids = new java.util.HashSet<>();
         try {
-            final Card card = g.findById(cardId);
-            return card != null && now(card);
+            for (final ZoneType z : new ZoneType[] {ZoneType.Hand, ZoneType.Graveyard, ZoneType.Exile,
+                    ZoneType.Command, ZoneType.Library}) {
+                for (final Card c : you.getCardsIn(z)) {
+                    // De la biblioteca, solo la de arriba (Courser of Kruphix y compania).
+                    if (z == ZoneType.Library && c != you.getCardsIn(ZoneType.Library).get(0)) {
+                        break;
+                    }
+                    if (c.isLand() && now(c)) {
+                        ids.add(c.getId());
+                    }
+                }
+            }
         } catch (final RuntimeException e) {
-            return false;
+            // Sin marca, como antes.
         }
+        last = new Scan(you.getGame(), java.util.Set.copyOf(ids));
     }
 
     /** Si {@code land}, jugada ahora desde donde esta, entraria girada. */

@@ -466,6 +466,11 @@ public final class SafeActions {
                 all.addAll(anyType);
                 overlooked = List.copyOf(all);
             }
+            // Las tierras que entrarian giradas: aqui, en el hilo de la
+            // partida. Desde la interfaz mataba la partida (EntersTapped.ofId).
+            if ("true".equalsIgnoreCase(highlights)) {
+                forge.neo.card.EntersTapped.scan(getPlayer());
+            }
             hiddenMana = "true".equalsIgnoreCase(autoPass)
                     && (HiddenMana.evaluate(getPlayer()).holds()
                         || XTargets.evaluate(getPlayer()).holds()
