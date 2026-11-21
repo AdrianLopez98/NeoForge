@@ -1,8 +1,9 @@
-**NeoForge para macOS 1.0.62 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.63 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Arreglado**: algunas partidas se colgaban o se cortaban en la 1.0.61 por el resaltado de las tierras que entrarían giradas.
-- Y lo de la 1.0.61: contadores explicados, tierras que entrarían giradas con resaltado discontinuo, draft y sellado ordenados, brackets desde 2 y tamaño en la tienda de la Quest.
+- **Quest**: sobre de consolación al perder en cualquier dificultad (opción en Ajustes, apagada de fábrica).
+- **Renombrar un mazo** desde la lista de mazos, sin abrir el editor: «Renombrar» debajo de «Borrar».
+- Por dentro: la batería de pruebas ahora juega partidas enteras con la mesa de verdad, para que no se vuelva a colar algo como lo de la 1.0.61.
 
 Descarga el `.dmg` de tu Mac:
 

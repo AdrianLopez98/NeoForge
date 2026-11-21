@@ -1346,6 +1346,17 @@ public class SettingsPanel extends VBox {
                     NeoSettings.save();
                 }));
 
+        // --- el sobre de consolacion al perder, en cualquier dificultad (Quest) ---
+        //
+        // Forge solo lo da en Facil; apagado de fabrica para que todo siga como
+        // en Forge. Ver NeoQuestPrize.isDue.
+        getChildren().add(toggleRow(NeoText.get("settings.lossBooster"),
+                NeoSettings.getBool(forge.neo.quest.NeoQuestPrize.LOSS_ANY_DIFFICULTY, false),
+                on -> {
+                    NeoSettings.setBool(forge.neo.quest.NeoQuestPrize.LOSS_ANY_DIFFICULTY, on);
+                    NeoSettings.save();
+                }));
+
         // --- el trofeo: una carta del mazo del rival al ganar (Quest) ---
         //
         // Encendido de fabrica (Ana, 21-10-2026); quien prefiera los premios

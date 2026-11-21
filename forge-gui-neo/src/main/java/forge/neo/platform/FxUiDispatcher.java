@@ -78,10 +78,19 @@ public final class FxUiDispatcher implements UiDispatcher {
         }
     }
 
+    /** Las excepciones del hilo de interfaz que se han tragado aqui. Lo mira GamesCheck. */
+    private static final java.util.concurrent.atomic.AtomicInteger ERRORS =
+            new java.util.concurrent.atomic.AtomicInteger();
+
+    public static int errors() {
+        return ERRORS.get();
+    }
+
     private static void safe(final Runnable task) {
         try {
             task.run();
         } catch (final Exception e) {
+            ERRORS.incrementAndGet();
             System.err.println("[neo-fx] exception on the UI thread: " + e);
             e.printStackTrace();
         }

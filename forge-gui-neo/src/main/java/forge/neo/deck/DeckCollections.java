@@ -230,6 +230,44 @@ public final class DeckCollections {
      * @param own  si el mazo es tuyo (si hay que borrar el de origen)
      * @return null si ha ido bien, o la clave de texto del problema
      */
+    /**
+     * <b>Renombrar un mazo tuyo sin abrir el editor</b> (Discord, 21-11-2026),
+     * en su sitio: su coleccion ({@code in}) o "Mis mazos" ({@code in} null).
+     * Como "Renombrar" + "Guardar" en el editor ({@code DeckEditor.save}): se
+     * guarda con el nombre nuevo en el MISMO almacen y se borra el viejo. La
+     * marca de bracket va por nombre: se lleva al nuevo. Si el nombre ya es de
+     * otro mazo, NO se pisa. Lo usan el PC ({@code HomeScreen}) y Android.
+     *
+     * @return null si ha ido bien (o no habia nada que hacer), o la clave de
+     *         {@code NeoText} del problema, con el nombre nuevo de argumento
+     */
+    public static synchronized String renameDeck(final NeoFormat format, final String in,
+                                                 final Deck deck, final String name) {
+        final String to = name == null ? "" : name.trim();
+        if (deck == null || to.isEmpty() || to.equals(deck.getName())) {
+            return null;
+        }
+        final IStorage<Deck> store = in == null ? format.storage() : storage(format, in);
+        if (store == null) {
+            return "home.collection.error.disk";
+        }
+        if (store.contains(to)) {
+            return "deck.rename.taken";
+        }
+        final String from = deck.getName();
+        final Integer bracket = DeckBracket.marked(format, from);
+        store.add(new Deck(deck, to));
+        if (!store.contains(to)) {
+            return "home.collection.error.disk";
+        }
+        store.delete(from);
+        if (bracket != null) {
+            DeckBracket.mark(format, from, null);
+            DeckBracket.mark(format, to, bracket);
+        }
+        return null;
+    }
+
     public static synchronized String move(final NeoFormat format, final Deck deck,
                                            final String from, final boolean own,
                                            final String to) {

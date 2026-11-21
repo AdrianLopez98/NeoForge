@@ -132,12 +132,18 @@ public final class NeoQuestPrize {
      * cuenta con las victorias de ANTES de anotar esta, que es como lo hace
      * {@code QuestWinLoseController}.
      */
+    /** Ajuste: sobre de consolacion al perder en cualquier dificultad, no solo en Facil. */
+    public static final String LOSS_ANY_DIFFICULTY = "quest.lossBoosterAnyDifficulty";
+
     public static boolean isDue(final boolean won) {
         if (!NeoQuest.isActive()) {
             return false;
         }
         final int difficulty = FModel.getQuest().getAchievements().getDifficulty();
-        if (!won && difficulty != 0) {
+        // Al perder, Forge solo da sobre en Facil. LOSS_ANY_DIFFICULTY (Ajustes,
+        // apagado de fabrica) lo da en todas, con la misma cadencia: pedido en
+        // Discord el 21-11-2026, "it helps with the early struggle".
+        if (!won && difficulty != 0 && !forge.neo.NeoSettings.getBool(LOSS_ANY_DIFFICULTY, false)) {
             return false;
         }
         final int outcome = won ? NeoQuest.wins() : NeoQuest.losses();

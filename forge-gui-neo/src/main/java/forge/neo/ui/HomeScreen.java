@@ -444,6 +444,7 @@ et}) y no se tocan.
         if (forcedCollection != null && collections.containsKey(forcedCollection)) {
             showCollection(forcedCollection);
             select(source().isEmpty() ? null : source().get(0));
+            maybeShowDeleteTest();
             return;
         }
         if (lastViewFormat == format && lastViewTab != null
@@ -1700,6 +1701,14 @@ et}) y no se tocan.
                     showMoveMenu(deck, anchor);
                 });
             }
+            // Renombrar sin abrir el editor (Discord, 21-11-2026): solo los
+            // tuyos, y donde el nombre se puede cambiar (no un evento de draft).
+            if (canRename(deck)) {
+                tile.setOnRename(() -> {
+                    select(deck);
+                    askRename(deck);
+                });
+            }
             tiles.add(tile);
             grid.getChildren().add(tile);
         }
@@ -1757,6 +1766,20 @@ et}) y no se tocan.
      */
     private void maybeShowDeleteTest() {
         maybeImportTest();
+        // -Dneo.home.renameTo=X (con -Dneo.home.renameAt=ms, 1500 si no):
+        // renombra el mazo elegido a X por el mismo camino que el OK del
+        // dialogo. SOLO con un -Dneo.dataDir de prueba: cambia el disco.
+        final String renameTo = System.getProperty("neo.home.renameTo");
+        if (renameTo != null && selected != null && canRename(selected)) {
+            final javafx.animation.PauseTransition r = new javafx.animation.PauseTransition(
+                    javafx.util.Duration.millis(Long.getLong("neo.home.renameAt", 1500L)));
+            r.setOnFinished(e -> {
+                System.out.println("[renombrar] " + selected.getName() + " -> " + renameTo);
+                renameDeck(selected, renameTo);
+                System.out.println("[renombrar] elegido ahora: " + (selected == null ? "-" : selected.getName()));
+            });
+            r.play();
+        }
         // -Dneo.home.bracketMenuAt=N: abre el menu del bracket del primer mazo
         // (o -Dneo.home.bracketWhyAt=N, el porque), para capturarlos.
         final long menuAt = Long.getLong("neo.home.bracketMenuAt", -1L);
@@ -1818,6 +1841,61 @@ et}) y no se tocan.
     /** Si el mazo lleva papelera: tuyo, de una coleccion tuya o bajado de internet. */
     private boolean canDelete(final Deck deck) {
         return format.canDelete(deck) || collectionOf(deck) != null || isNet(deck);
+    }
+
+    /** Si este mazo se puede renombrar desde aqui: uno tuyo, en un formato que lo deje. */
+    private boolean canRename(final Deck deck) {
+        if (isNet(deck) || !contextFor(deck).canRename()) {
+            return false;
+        }
+        return collectionOf(deck) != null || mine.stream().anyMatch(d -> d == deck);
+    }
+
+    private void askRename(final Deck deck) {
+        overlay.setOnBackgroundClick(overlay::hide);
+        overlay.show(TextDialog.line(NeoText.get("deck.name.title"), NeoText.get("deck.name.hint"),
+                deck.getName(), name -> {
+                    overlay.hide();
+                    renameDeck(deck, name);
+                }, overlay::hide));
+    }
+
+    /**
+     * Le cambia el nombre en su sitio ({@code DeckCollections.renameDeck}: el
+     * mismo almacen, la marca de bracket con el, y sin pisar otro mazo) y
+     * pone el renombrado en las listas en lugar del viejo.
+     */
+    private void renameDeck(final Deck deck, final String name) {
+        final String to = name == null ? "" : name.trim();
+        final String from = deck.getName();
+        if (to.isEmpty() || to.equals(from)) {
+            return;
+        }
+        final String in = collectionOf(deck);
+        final String problem = forge.neo.deck.DeckCollections.renameDeck(format, in, deck, to);
+        if (problem != null) {
+            showProblem(NeoText.get(problem, to));
+            return;
+        }
+        final forge.util.storage.IStorage<Deck> store = in == null
+                ? format.storage() : forge.neo.deck.DeckCollections.storage(format, in);
+        final Deck renamed = store == null ? null : store.get(to);
+        if (renamed == null) {
+            return;
+        }
+        // Las listas, por objeto (Deck.equals compara el NOMBRE).
+        if (in != null && collections.get(in) != null) {
+            collections.get(in).removeIf(d -> d == deck);
+            collections.get(in).add(renamed);
+        } else {
+            mine.removeIf(d -> d == deck);
+            mine.add(renamed);
+        }
+        decks.removeIf(d -> d == deck);
+        decks.add(renamed);
+        selected = renamed;
+        retitleTabs();
+        fillGrid();
     }
 
     private boolean isNet(final Deck deck) {

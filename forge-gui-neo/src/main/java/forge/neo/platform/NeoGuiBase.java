@@ -386,6 +386,7 @@ public class NeoGuiBase implements IGuiBase {
      */
     @Override
     public void showBugReportDialog(final String title, final String text, final boolean exitBtn) {
+        BUG_REPORTS.incrementAndGet();
         System.err.println("[neo] " + title);
         System.err.println(text);
 
@@ -417,6 +418,14 @@ public class NeoGuiBase implements IGuiBase {
                 }
             }
         }
+    }
+
+    /** Los informes de error del motor desde que arranco el proceso. Lo mira GamesCheck. */
+    private static final java.util.concurrent.atomic.AtomicInteger BUG_REPORTS =
+            new java.util.concurrent.atomic.AtomicInteger();
+
+    public static int bugReports() {
+        return BUG_REPORTS.get();
     }
 
     /** Aviso de "el hilo de la partida se ha muerto". Lo pone la pantalla. */

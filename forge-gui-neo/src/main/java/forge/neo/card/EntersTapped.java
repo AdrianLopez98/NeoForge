@@ -98,6 +98,10 @@ public final class EntersTapped {
         if (land == null || !land.isLand() || land.getZone() == null) {
             return false;
         }
+        // Solo desde el hilo de la partida: lo que sigue pregunta al motor.
+        if (!forge.neo.match.EngineThread.check("EntersTapped")) {
+            return false;
+        }
         final Game game = land.getGame();
         final Player you = land.getController();
         if (game == null || you == null) {

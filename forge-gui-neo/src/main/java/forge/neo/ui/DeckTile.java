@@ -156,6 +156,53 @@ public final class DeckTile extends VBox {
         if (mover != null) {
             mover.setVisible(isHover() || selected);
         }
+        if (renamer != null) {
+            renamer.setVisible(isHover() || selected);
+        }
+    }
+
+    private Button renamer;
+
+    /**
+     * Pone "Renombrar" DEBAJO DE LA PAPELERA, en la columna de la derecha
+     * (Discord, 21-11-2026: <i>"rename deck option directly on the deck
+     * collection page"</i>). No en medio de "Mover" y "Borrar": en una baldosa
+     * estrecha (Steam Deck) las tres palabras en fila se pisaban, y un lapiz en
+     * vez de la palabra no se dibuja en todas las fuentes. Se ve cuando se ve
+     * la papelera. Llamar DESPUES de {@link #setOnDelete}.
+     */
+    public void setOnRename(final Runnable onRename) {
+        if (onRename == null || !(getChildren().get(0) instanceof StackPane box)) {
+            return;
+        }
+        renamer = new Button(NeoText.get("deck.rename"));
+        renamer.getStyleClass().addAll("deck-tile-bin", "deck-tile-rename");
+        renamer.setId("deck-tile-rename");
+        renamer.setFocusTraversable(false);
+        renamer.setVisible(false);
+        renamer.setMinSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+        renamer.setOnAction(e -> onRename.run());
+        renamer.addEventHandler(javafx.scene.input.MouseEvent.MOUSE_CLICKED,
+                javafx.event.Event::consume);
+
+        // La papelera y esto, en una columna arriba a la derecha. La columna no
+        // se queda con los clics de lo que tiene debajo (la carta).
+        final javafx.scene.layout.VBox column = new javafx.scene.layout.VBox(4);
+        column.setAlignment(Pos.TOP_RIGHT);
+        column.setPickOnBounds(false);
+        column.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+        if (bin != null) {
+            box.getChildren().remove(bin);
+            column.getChildren().add(bin);
+        }
+        column.getChildren().add(renamer);
+        StackPane.setAlignment(column, Pos.TOP_RIGHT);
+        StackPane.setMargin(column, new Insets(6));
+        box.getChildren().add(column);
+
+        if (bin == null && mover == null) {
+            hoverProperty().addListener((o, was, now) -> updateBin());
+        }
     }
 
     private Button mover;

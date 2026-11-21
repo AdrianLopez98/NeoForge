@@ -192,8 +192,11 @@ public final class NeoMain {
         //    el mismo proceso sin perder el cerrojo original — ver su
         //    javadoc, "el cerrojo vive mientras viva el canal".)
 
+        //    gamescheck juega con la mesa de verdad: su hilo de interfaz tiene
+        //    que ser el de JavaFX, como en la app (con el de consola, la mesa se
+        //    pintaria desde un hilo que no es el suyo y la prueba mentiria).
         GuiBase.setInterface(new NeoGuiBase(
-                windowed ? new FxUiDispatcher() : new ConsoleUiDispatcher()));
+                windowed || "gamescheck".equals(cmd) ? new FxUiDispatcher() : new ConsoleUiDispatcher()));
         System.out.println("[1/2] IGuiBase registered -> NeoGuiBase ("
                 + (windowed ? "JavaFX thread" : "dedicated thread") + ")");
 
@@ -526,6 +529,18 @@ public final class NeoMain {
                 // vale ahi (Desert y el final del combate). Ver PhaseOnlyAbilities.
                 banner("Auto-pass: lo que solo se puede activar en una fase");
                 forge.neo.match.PhaseStopCheck.run();
+                break;
+            case "gamescheck":
+                // Partidas enteras con la mesa de verdad y un jugador: lo que
+                // la bateria no hacia y por eso dejo pasar la 1.0.61. Ver GamesCheck.
+                banner("Partidas enteras: Commander a cuatro con la mesa de verdad");
+                try {
+                    forge.neo.match.GamesCheck.run();
+                } catch (final RuntimeException e) {
+                    throw e;
+                } catch (final Exception e) {
+                    throw new IllegalStateException(e);
+                }
                 break;
             case "leakcheck":
                 // Varias partidas seguidas en la misma escena, y que las
