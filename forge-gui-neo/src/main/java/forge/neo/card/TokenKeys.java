@@ -63,7 +63,10 @@ public final class TokenKeys {
             }
             CardEdition best = null;
             for (final CardEdition e : data.getEditions()) {
-                if (e.getType() == CardEdition.Type.CUSTOM_SET || e.getTokens().get(tokenName).isEmpty()) {
+                // En [tokens] o en [other]: Forge pasa a veces una ficha de una
+                // lista a la otra (el Gingerbrute de FRC, #13008, 22-11-2026).
+                if (e.getType() == CardEdition.Type.CUSTOM_SET
+                        || e.getTokens().get(tokenName).isEmpty() && e.findOther(tokenName) == null) {
                     continue;
                 }
                 if (best == null || e.getDate().after(best.getDate())) {
