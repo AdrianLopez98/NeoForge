@@ -59,6 +59,7 @@ public class CardStackNode extends Pane {
         final double w = width <= 0 ? Double.MAX_VALUE : width;
         if (w != visibleWidth) {
             visibleWidth = w;
+            layoutAutoTap();
             requestLayout();
         }
     }
@@ -102,6 +103,59 @@ public class CardStackNode extends Pane {
         front.translateYProperty().addListener((o, a, b) -> followFront());
 
         setCardWidth(cardWidth);
+
+        // Apilado, lo enganchado se abre en abanico al pasar el raton (ver
+        // AttachFan). Solo en la mesa: fuera de ella no hay abanico.
+        front.hoverProperty().addListener((o, was, is) -> {
+            if (!stacked() || attachments.isEmpty()) {
+                return;
+            }
+            final AttachFan fan = fan();
+            if (fan != null) {
+                if (is) {
+                    fan.open(this);
+                } else {
+                    fan.leaving(this);
+                }
+            }
+        });
+    }
+
+    /** El abanico de la mesa en la que esta esta pila, si esta en una. */
+    private AttachFan fan() {
+        for (javafx.scene.Parent p = getParent(); p != null; p = p.getParent()) {
+            if (p instanceof TableScreen t) {
+                return t.attachFan();
+            }
+        }
+        return null;
+    }
+
+    /** Lo enganchado esta prestado al abanico ({@link AttachFan}). */
+    private boolean lent;
+
+    /**
+     * Presta lo enganchado al abanico: salen de esta pila y las pone el. Vacio
+     * si no va apilado o no hay nada.
+     */
+    List<CardNode> lendAttachments() {
+        if (lent || !stacked() || attachments.isEmpty()) {
+            return List.of();
+        }
+        lent = true;
+        getChildren().removeAll(attachments);
+        return new ArrayList<>(attachments);
+    }
+
+    /** Y las devuelve: vuelven escondidas detras de la carta. */
+    void takeBackAttachments(final List<CardNode> nodes) {
+        lent = false;
+        for (final CardNode n : nodes) {
+            if (attachments.contains(n) && n.getParent() == null) {
+                getChildren().add(n);
+            }
+        }
+        layoutAttachments();
     }
 
     /**
@@ -153,6 +207,15 @@ public class CardStackNode extends Pane {
         // en CADA aviso del motor, o sea decenas de veces por turno: recrear la
         // carta cada vez pierde la imagen ya descargada y reinicia sus
         // animaciones. Es la regla de rendimiento de las notas de diseño.
+        if (lent && !sameCards(now)) {
+            // Ha cambiado lo que lleva encima con el abanico abierto: se
+            // cierra (devuelve las viejas) antes de rehacerlas.
+            final AttachFan fan = fan();
+            if (fan != null) {
+                fan.close();
+            }
+            lent = false;
+        }
         if (sameCards(now)) {
             for (int i = 0; i < attachments.size(); i++) {
                 attachments.get(i).setCard(now.get(i));
@@ -273,9 +336,12 @@ public class CardStackNode extends Pane {
         if (stacked()) {
             // Apilado: lo enganchado no se ve y no ocupa NADA fuera de la
             // carta. Se dibuja detras (los bordes asomando) y se dice cuanto
-            // hay. Para verlo o elegirlo, el contador.
+            // hay. Para verlo o elegirlo, el contador (o el abanico al pasar
+            // el raton, y entonces no se tocan: las tiene prestadas el).
             for (final CardNode a : attachments) {
-                a.setVisible(false);
+                if (!lent) {
+                    a.setVisible(false);
+                }
                 a.setManaged(false);
             }
             front.setBottomInset(0);
@@ -415,6 +481,62 @@ public class CardStackNode extends Pane {
     }
 
     /**
+     * Cuantas de esta pila giraria el boton "Auto" (Discord, 22-11-2026, con
+     * una maqueta: "*1" encima de cada tierra en vez de la lista en texto). El
+     * borde ambar de una pila de ocho Montanyas no dice si gira una o las ocho;
+     * esto si. En medio de lo que se ve de la carta, que en una tierra no tapa
+     * nada que haya que leer. 0 lo quita. Lo pone {@code TableScreen.setActionable}.
+     */
+    public void setAutoTapCount(final int n) {
+        if (n == autoTapCount) {
+            return;
+        }
+        autoTapCount = n;
+        if (n <= 0) {
+            if (autoTap != null) {
+                autoTap.setVisible(false);
+            }
+            return;
+        }
+        if (autoTap == null) {
+            autoTap = new Label();
+            autoTap.getStyleClass().add("stack-auto-tap");
+            autoTap.setAlignment(Pos.CENTER);
+            autoTap.setMouseTransparent(true);
+            autoTap.setViewOrder(-2);
+            getChildren().add(autoTap);
+        }
+        autoTap.setText("×" + n);
+        autoTap.setVisible(true);
+        layoutAutoTap();
+    }
+
+    /** Cuantas giraria "Auto" de esta pila (0 = ninguna). Para las pruebas. */
+    public int getAutoTapCount() {
+        return autoTap != null && autoTap.isVisible() ? autoTapCount : 0;
+    }
+
+    private Label autoTap;
+    private int autoTapCount;
+
+    private void layoutAutoTap() {
+        if (autoTap == null || !autoTap.isVisible()) {
+            return;
+        }
+        final double w = cardWidth;
+        final double h = w * CardNode.ASPECT;
+        final double badge = Math.max(18, w * 0.30);
+        final double badgeW = badge * Math.max(1, 0.42 * autoTap.getText().length());
+        autoTap.setStyle("-fx-font-size:" + (badge * 0.62) + "px;");
+        autoTap.setMinSize(badgeW, badge * 0.78);
+        autoTap.setPrefSize(badgeW, badge * 0.78);
+        autoTap.resize(badgeW, badge * 0.78);
+        final double seen = visibleWidth > 0 ? Math.min(w, visibleWidth) : w;
+        autoTap.setLayoutX(Math.max(0, (seen - badgeW) / 2));
+        autoTap.setLayoutY((h - badge * 0.78) / 2);
+    }
+
+    /**
      * Todas las cartas de la pila, la de delante la primera. Para el "xN"
      * clicable: con un clic en el contador atacan todas, como en Arena
      * (Discord, 17-10-2026: <i>"clicking the upper right corner number (x5)
@@ -497,5 +619,6 @@ public class CardStackNode extends Pane {
         resize(w, h);
         layoutAttachments();
         layoutAttachPile();
+        layoutAutoTap();
     }
 }

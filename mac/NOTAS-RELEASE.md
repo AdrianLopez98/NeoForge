@@ -1,9 +1,10 @@
-**NeoForge para macOS 1.0.63 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.64 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Quest**: sobre de consolación al perder en cualquier dificultad (opción en Ajustes, apagada de fábrica).
-- **Renombrar un mazo** desde la lista de mazos, sin abrir el editor: «Renombrar» debajo de «Borrar».
-- Por dentro: la batería de pruebas ahora juega partidas enteras con la mesa de verdad, para que no se vuelva a colar algo como lo de la 1.0.61.
+- **Duplicar un mazo y notas de mazo** desde la lista de mazos: «Más…» trae Renombrar, Duplicar y Notas. Las notas se leen al pasar el ratón por el mazo.
+- **Auras y equipos apilados**: con el ajuste de llevarlos detrás de la carta, al pasar el ratón por la criatura se abren en abanico y se clican directamente.
+- **Lo que giraría «Auto»**, contado en la mesa: «×N» en cada carta o pila que se giraría.
+- Forge al día: cartas nuevas y arreglos del motor y de la IA.
 
 Descarga el `.dmg` de tu Mac:
 

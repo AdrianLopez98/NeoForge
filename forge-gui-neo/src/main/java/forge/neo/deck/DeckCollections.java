@@ -268,6 +268,76 @@ public final class DeckCollections {
         return null;
     }
 
+    /**
+     * Una copia del mazo con otro nombre (Discord, 22-11-2026: <i>"a duplicate
+     * button with following rename prompt to duplicate the deck in the current
+     * collection"</i>), para probar cambios sin perder el bueno. Va al MISMO
+     * almacen si es tuyo ({@code own}); uno de Forge o de internet, a "Mis
+     * mazos" del formato, que es donde se puede tocar. Lleva su marca de
+     * bracket y sus notas (el comentario viaja con {@code new Deck(deck, to)}).
+     * Nunca pisa otro mazo. Devuelve null si ha ido bien, o la clave del
+     * problema ({@code deck.rename.taken} con el nombre).
+     */
+    public static synchronized String duplicateDeck(final NeoFormat format, final String in,
+                                                    final boolean own, final Deck deck,
+                                                    final String name) {
+        final String to = name == null ? "" : name.trim();
+        if (deck == null || to.isEmpty()) {
+            return "home.collection.error.disk";
+        }
+        final IStorage<Deck> store = !own || in == null ? format.storage() : storage(format, in);
+        if (store == null) {
+            return "home.collection.error.disk";
+        }
+        if (store.contains(to)) {
+            return "deck.rename.taken";
+        }
+        store.add(new Deck(deck, to));
+        if (!store.contains(to)) {
+            return "home.collection.error.disk";
+        }
+        final Integer bracket = DeckBracket.marked(format, deck.getName());
+        if (bracket != null) {
+            DeckBracket.mark(format, to, bracket);
+        }
+        return null;
+    }
+
+    /** El nombre que se ofrece para la copia: "X (2)", o el siguiente libre. */
+    public static synchronized String duplicateName(final NeoFormat format, final String in,
+                                                    final boolean own, final Deck deck) {
+        final IStorage<Deck> store = !own || in == null ? format.storage() : storage(format, in);
+        final String base = deck == null ? "" : deck.getName();
+        if (store == null) {
+            return base + " (2)";
+        }
+        // Si ya es una copia ("X (3)"), la siguiente parte de "X", no de "X (3) (2)".
+        final String root = base.replaceFirst("\\s\\(\\d+\\)$", "");
+        if (!store.contains(root + " (2)")) {
+            return root + " (2)";
+        }
+        return freeName(store, root);
+    }
+
+    /**
+     * Guarda las notas del mazo en su sitio ({@link DeckNotes}): se le pone el
+     * comentario y se vuelve a escribir el {@code .dck} en el mismo almacen.
+     * Solo para un mazo tuyo. Devuelve null o la clave del problema.
+     */
+    public static synchronized String saveNotes(final NeoFormat format, final String in,
+                                                final Deck deck, final String notes) {
+        if (deck == null) {
+            return "home.collection.error.disk";
+        }
+        final IStorage<Deck> store = in == null ? format.storage() : storage(format, in);
+        if (store == null) {
+            return "home.collection.error.disk";
+        }
+        DeckNotes.set(deck, notes);
+        store.add(deck);
+        return null;
+    }
+
     public static synchronized String move(final NeoFormat format, final Deck deck,
                                            final String from, final boolean own,
                                            final String to) {

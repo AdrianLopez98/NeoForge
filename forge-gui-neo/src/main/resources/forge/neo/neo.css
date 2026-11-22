@@ -3620,6 +3620,15 @@
     -fx-effect: dropshadow(gaussian, -neo-warn, 10, 0.4, 0, 0);
 }
 
+/* Cuantas de un MONTON giraria "Auto" (Discord, 22-11-2026): el borde ambar
+   de una pila de ocho Montanyas no dice si gira una o las ocho. */
+.stack-auto-tap {
+    -fx-background-color: -neo-warn;
+    -fx-text-fill: #12161C;
+    -fx-font-weight: bold;
+    -fx-background-radius: 4;
+}
+
 /* Desplazada de fase: esta en la mesa pero es como si no estuviera */
 .card:phased {
     -fx-opacity: 0.42;

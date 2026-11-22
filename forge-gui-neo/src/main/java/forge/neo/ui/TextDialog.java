@@ -74,6 +74,31 @@ public final class TextDialog {
         return box;
     }
 
+    /**
+     * Las notas de un mazo ({@code forge.neo.deck.DeckNotes}): texto libre que
+     * se lee como un parrafo (con saltos de linea, partido a lo ancho) y el
+     * cursor al final, para seguir escribiendo. No se selecciona todo como en
+     * {@link #block}: ahi se pega una lista entera; aqui se anyade una linea.
+     */
+    public static Region notes(final String title, final String prompt, final String initial,
+                               final Consumer<String> onAccept, final Runnable onCancel) {
+        final TextArea area = new TextArea(initial == null ? "" : initial);
+        area.getStyleClass().add("text-input");
+        area.setPrefRowCount(10);
+        area.setPrefColumnCount(46);
+        area.setWrapText(true);
+        area.setTextFormatter(new javafx.scene.control.TextFormatter<>(
+                c -> c.getControlNewText().length() <= forge.neo.deck.DeckNotes.MAX ? c : null));
+
+        final Region box = wrap(title, prompt, area,
+                () -> accept(area.getText(), onAccept), onCancel, NeoText.get("common.save"));
+        javafx.application.Platform.runLater(() -> {
+            area.requestFocus();
+            area.positionCaret(area.getLength());
+        });
+        return box;
+    }
+
     /** Un bloque: para pegar o copiar una decklist entera. */
     public static Region block(final String title, final String prompt, final String initial,
                                final String acceptLabel,

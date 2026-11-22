@@ -112,6 +112,16 @@ public class TableScreen extends Pane {
     private final CombatOverlay combatOverlay = new CombatOverlay();
     /** Los destellos de "esto acaba de recibir". Ver {@link ImpactLayer}. */
     private final ImpactLayer impactLayer = new ImpactLayer();
+
+    /**
+     * Lo enganchado a una carta, abierto al pasar el raton (modo apilado). Por
+     * encima de la mesa y por debajo de los dialogos. Ver {@link AttachFan}.
+     */
+    private final AttachFan attachFan = new AttachFan();
+
+    public AttachFan attachFan() {
+        return attachFan;
+    }
     private final Overlay overlay = new Overlay();
     private final PromptBanner promptBanner;
     private final TurnBanner turnBanner;
@@ -525,7 +535,7 @@ public class TableScreen extends Pane {
         spotlight.setFill(javafx.scene.paint.Color.TRANSPARENT);
 
         getChildren().addAll(opponentTabs, opponentBar, viewport,
-                selfBar, hand, commandZone, phaseRail, side, combatOverlay, impactLayer, logButton, turnButton, viewButton, menuButton, chatButton, macroRecordButton, macroPlayButton, cooldownBadge,
+                selfBar, hand, commandZone, phaseRail, side, combatOverlay, impactLayer, attachFan, logButton, turnButton, viewButton, menuButton, chatButton, macroRecordButton, macroPlayButton, cooldownBadge,
                 stackChip, promptBanner, notices, turnBanner, coinFlip, diceRoll, playerDetails, zoomBadge, macroBadge, spotlight,
                 handPeek, overlay, menuOverlay, zoomOverlay, curtain);
         curtain.getStyleClass().add("hotseat-curtain");
@@ -4787,7 +4797,27 @@ public class TableScreen extends Pane {
         this.actionable = strength;
         for (final CardNode n : everyNode()) {
             final CardView cv = n.getCard();
-            final int s = cv == null || strength == null ? 0 : strength.applyAsInt(cv);
+            int s = cv == null || strength == null ? 0 : strength.applyAsInt(cv);
+            // UNA PILA DE IGUALES: el motor marca cartas sueltas, y la que
+            // "Auto" giraria puede ser la tercera de ocho Montanyas, no la de
+            // delante. La pila se pinta con lo mas fuerte de sus cartas y lleva
+            // cuantas giraria (Discord, 22-11-2026).
+            if (n.getParent() instanceof CardStackNode stack && stack.getFront() == n
+                    && stack.getStackSize() > 1 && strength != null) {
+                int planned = 0;
+                for (final CardView m : stack.getMembers()) {
+                    final int ms = m == null ? 0 : strength.applyAsInt(m);
+                    s = Math.max(s, ms);
+                    if (ms >= 2) {
+                        planned++;
+                    }
+                }
+                stack.setAutoTapCount(planned);
+            } else if (n.getParent() instanceof CardStackNode stack && stack.getFront() == n) {
+                // Suelta, su "x1" (como Android, decision 712: "counting above
+                // the lands that are about to be tapped").
+                stack.setAutoTapCount(strength != null && s >= 2 ? 1 : 0);
+            }
             n.setActionable(s);
             // Una tierra jugable que entraria girada ahora mismo: discontinua.
             n.setEntersTapped(s >= 1 && entersTapped(cv));

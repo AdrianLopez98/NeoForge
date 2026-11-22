@@ -1701,13 +1701,18 @@ et}) y no se tocan.
                     showMoveMenu(deck, anchor);
                 });
             }
-            // Renombrar sin abrir el editor (Discord, 21-11-2026): solo los
-            // tuyos, y donde el nombre se puede cambiar (no un evento de draft).
-            if (canRename(deck)) {
-                tile.setOnRename(() -> {
+            // "Mas...": renombrar, duplicar y notas sin abrir el editor
+            // (Discord, 21 y 22-11-2026). Duplicar vale tambien para uno de
+            // Forge (la copia va a "Mis mazos"); renombrar y notas, solo los
+            // tuyos. Nada de esto en draft y sellado (no hay colecciones).
+            if (canRename(deck) || canDuplicate(deck)) {
+                tile.setOnMore(anchor -> {
                     select(deck);
-                    askRename(deck);
+                    showMoreMenu(deck, anchor);
                 });
+            }
+            if (canRename(deck)) {
+                tile.setNotes(forge.neo.deck.DeckNotes.of(deck));
             }
             tiles.add(tile);
             grid.getChildren().add(tile);
@@ -1780,6 +1785,44 @@ et}) y no se tocan.
             });
             r.play();
         }
+        // -Dneo.home.duplicateTo=X / -Dneo.home.notesSet=texto (| = salto):
+        // duplica el elegido o le pone notas por el camino del dialogo. CAMBIAN
+        // EL DISCO: solo con un -Dneo.dataDir de prueba. -Dneo.home.moreMenuAt=ms
+        // abre el menu "Mas..." del elegido y -Dneo.home.notesDialogAt=ms el
+        // dialogo de notas, para capturarlos.
+        final String dupTo = System.getProperty("neo.home.duplicateTo");
+        final String notesSet = System.getProperty("neo.home.notesSet");
+        final long moreAt = Long.getLong("neo.home.moreMenuAt", -1L);
+        final long notesAt = Long.getLong("neo.home.notesDialogAt", -1L);
+        if ((dupTo != null || notesSet != null || moreAt >= 0 || notesAt >= 0) && selected != null) {
+            final javafx.animation.PauseTransition d = new javafx.animation.PauseTransition(
+                    javafx.util.Duration.millis(Math.max(1500, Math.max(moreAt, notesAt))));
+            d.setOnFinished(e -> {
+                if (notesSet != null && canRename(selected)) {
+                    saveNotes(selected, notesSet.replace("|", "\n"));
+                    System.out.println("[notas] " + selected.getName() + ": "
+                            + forge.neo.deck.DeckNotes.of(selected).replace("\n", "|"));
+                }
+                if (dupTo != null && canDuplicate(selected)) {
+                    System.out.println("[duplicar] " + selected.getName() + " -> " + dupTo);
+                    duplicateDeck(selected, dupTo);
+                    System.out.println("[duplicar] elegido ahora: " + selected.getName()
+                            + " notas=" + forge.neo.deck.DeckNotes.of(selected).replace("\n", "|"));
+                }
+                if (notesAt >= 0 && canRename(selected)) {
+                    askNotes(selected);
+                } else if (moreAt >= 0) {
+                    final DeckTile t = tiles.stream().filter(x -> x.getDeck() == selected)
+                            .findFirst().orElse(null);
+                    final javafx.scene.Node b = t == null ? null : t.lookup("#deck-tile-more");
+                    if (b != null) {
+                        b.setVisible(true);
+                        showMoreMenu(selected, b);
+                    }
+                }
+            });
+            d.play();
+        }
         // -Dneo.home.bracketMenuAt=N: abre el menu del bracket del primer mazo
         // (o -Dneo.home.bracketWhyAt=N, el porque), para capturarlos.
         final long menuAt = Long.getLong("neo.home.bracketMenuAt", -1L);
@@ -1849,6 +1892,110 @@ et}) y no se tocan.
             return false;
         }
         return collectionOf(deck) != null || mine.stream().anyMatch(d -> d == deck);
+    }
+
+    /** Si se puede duplicar desde aqui: donde hay colecciones, y no uno de internet. */
+    private boolean canDuplicate(final Deck deck) {
+        return deck != null && forge.neo.deck.DeckCollections.isSupported(format) && !isNet(deck);
+    }
+
+    /**
+     * El menu de "Mas..." de una baldosa: Renombrar, Duplicar y Notas. Lo que
+     * no aplica a ese mazo no sale (un preconstruido de Forge solo se duplica).
+     */
+    private void showMoreMenu(final Deck deck, final javafx.scene.Node anchor) {
+        final javafx.scene.control.ContextMenu menu = new javafx.scene.control.ContextMenu();
+        menu.getStyleClass().add("card-menu");
+        if (canRename(deck)) {
+            final javafx.scene.control.MenuItem rename = new javafx.scene.control.MenuItem(
+                    NeoText.get("deck.rename") + "\u2026");
+            rename.setOnAction(e -> askRename(deck));
+            menu.getItems().add(rename);
+        }
+        if (canDuplicate(deck)) {
+            final javafx.scene.control.MenuItem dup = new javafx.scene.control.MenuItem(
+                    NeoText.get("deck.duplicate") + "\u2026");
+            dup.setOnAction(e -> askDuplicate(deck));
+            menu.getItems().add(dup);
+        }
+        if (canRename(deck)) {
+            final javafx.scene.control.MenuItem notes = new javafx.scene.control.MenuItem(
+                    NeoText.get("deck.notes") + "\u2026");
+            notes.setOnAction(e -> askNotes(deck));
+            menu.getItems().add(notes);
+        }
+        menu.show(anchor, javafx.geometry.Side.BOTTOM, 0, 4);
+    }
+
+    private void askDuplicate(final Deck deck) {
+        final boolean own = isOwn(deck);
+        final String in = own ? collectionOf(deck) : null;
+        overlay.setOnBackgroundClick(overlay::hide);
+        overlay.show(TextDialog.line(NeoText.get("deck.duplicate.title"),
+                NeoText.get(own ? "deck.duplicate.hint" : "deck.duplicate.hintStock"),
+                forge.neo.deck.DeckCollections.duplicateName(format, in, own, deck), name -> {
+                    overlay.hide();
+                    duplicateDeck(deck, name);
+                }, overlay::hide));
+    }
+
+    /**
+     * Una copia en el mismo sitio ({@code DeckCollections.duplicateDeck}), o
+     * en "Mis mazos" si el original es de Forge, y la deja elegida.
+     */
+    private void duplicateDeck(final Deck deck, final String name) {
+        final String to = name == null ? "" : name.trim();
+        if (to.isEmpty()) {
+            return;
+        }
+        final boolean own = isOwn(deck);
+        final String in = own ? collectionOf(deck) : null;
+        final String problem = forge.neo.deck.DeckCollections.duplicateDeck(format, in, own, deck, to);
+        if (problem != null) {
+            showProblem(NeoText.get(problem, to));
+            return;
+        }
+        final forge.util.storage.IStorage<Deck> store = in == null
+                ? format.storage() : forge.neo.deck.DeckCollections.storage(format, in);
+        final Deck copy = store == null ? null : store.get(to);
+        if (copy == null) {
+            return;
+        }
+        if (in != null && collections.get(in) != null) {
+            collections.get(in).add(copy);
+        } else {
+            mine.add(copy);
+        }
+        decks.add(copy);
+        if (!own && showing != Tab.MINE) {
+            // La copia de uno de Forge va a "Mis mazos": se va alli a verla.
+            showing = Tab.MINE;
+            collection = null;
+            rebuildTabRow();
+            pager.reset();
+        }
+        selected = copy;
+        retitleTabs();
+        fillGrid();
+        Toast.show(NeoText.get("deck.duplicate.done", to));
+    }
+
+    private void askNotes(final Deck deck) {
+        overlay.setOnBackgroundClick(null);
+        overlay.show(TextDialog.notes(NeoText.get("deck.notes.title", deck.getName()),
+                NeoText.get("deck.notes.hint"), forge.neo.deck.DeckNotes.of(deck), text -> {
+                    overlay.hide();
+                    saveNotes(deck, text);
+                }, overlay::hide));
+    }
+
+    private void saveNotes(final Deck deck, final String text) {
+        final String problem = forge.neo.deck.DeckCollections.saveNotes(format, collectionOf(deck), deck, text);
+        if (problem != null) {
+            showProblem(NeoText.get(problem, deck.getName()));
+            return;
+        }
+        fillGrid();
     }
 
     private void askRename(final Deck deck) {

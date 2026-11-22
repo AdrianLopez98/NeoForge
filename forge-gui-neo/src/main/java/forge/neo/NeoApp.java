@@ -2734,6 +2734,28 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             t.play();
         }
 
+        // Abre el abanico de lo enganchado (modo apilado) en la primera carta
+        // que lleve algo encima, como al pasarle el raton. Se queda abierto
+        // para la foto: solo se cierra al salir el raton.
+        if (args.contains("--attach-fan-test")) {
+            final PauseTransition t = new PauseTransition(Duration.millis(
+                    Long.getLong("neo.attach.testAt", 1500L)));
+            t.setOnFinished(e -> {
+                final java.util.Set<javafx.scene.Node> badges =
+                        scene.getRoot().lookupAll(".attach-count");
+                if (badges.isEmpty() || table == null
+                        || !(badges.iterator().next().getParent() instanceof forge.neo.ui.CardStackNode stack)) {
+                    System.out.println("[abanico] no hay nada enganchado apilado en pantalla");
+                    return;
+                }
+                table.attachFan().open(stack);
+                System.out.println("[abanico] abierto con " + table.attachFan().cards().size()
+                        + " carta(s): " + table.attachFan().cards().stream()
+                        .map(c -> String.valueOf(c.getCard())).toList());
+            });
+            t.play();
+        }
+
         // El boton "Equipar" de la carta ampliada, por el camino entero y en
         // partida de verdad: se espera a que un equipo tuyo lo ofrezca (con
         // --rig=Skullclamp;...), se amplia, se PULSA el boton y se mira que

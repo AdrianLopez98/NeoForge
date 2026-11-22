@@ -164,24 +164,26 @@ public final class DeckTile extends VBox {
     private Button renamer;
 
     /**
-     * Pone "Renombrar" DEBAJO DE LA PAPELERA, en la columna de la derecha
-     * (Discord, 21-11-2026: <i>"rename deck option directly on the deck
-     * collection page"</i>). No en medio de "Mover" y "Borrar": en una baldosa
-     * estrecha (Steam Deck) las tres palabras en fila se pisaban, y un lapiz en
-     * vez de la palabra no se dibuja en todas las fuentes. Se ve cuando se ve
-     * la papelera. Llamar DESPUES de {@link #setOnDelete}.
+     * Pone "Mas..." DEBAJO DE LA PAPELERA, en la columna de la derecha: abre
+     * el menu con Renombrar, Duplicar y Notas (Discord, 21 y 22-11-2026). Un
+     * boton y no tres: encima de una carta, cuatro palabras se comian el arte,
+     * y en una baldosa estrecha (Steam Deck) se pisaban. Borrar se queda
+     * aparte, arriba: lo que no se deshace no va en el mismo menu que lo que si
+     * (principio 6b). Le pasa el propio boton a quien lo llama, que es donde se
+     * ancla el menu. Se ve cuando se ve la papelera. Llamar DESPUES de
+     * {@link #setOnDelete}.
      */
-    public void setOnRename(final Runnable onRename) {
-        if (onRename == null || !(getChildren().get(0) instanceof StackPane box)) {
+    public void setOnMore(final java.util.function.Consumer<javafx.scene.Node> onMore) {
+        if (onMore == null || !(getChildren().get(0) instanceof StackPane box)) {
             return;
         }
-        renamer = new Button(NeoText.get("deck.rename"));
+        renamer = new Button(NeoText.get("deck.tileMore"));
         renamer.getStyleClass().addAll("deck-tile-bin", "deck-tile-rename");
-        renamer.setId("deck-tile-rename");
+        renamer.setId("deck-tile-more");
         renamer.setFocusTraversable(false);
         renamer.setVisible(false);
         renamer.setMinSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
-        renamer.setOnAction(e -> onRename.run());
+        renamer.setOnAction(e -> onMore.accept(renamer));
         renamer.addEventHandler(javafx.scene.input.MouseEvent.MOUSE_CLICKED,
                 javafx.event.Event::consume);
 
@@ -206,6 +208,23 @@ public final class DeckTile extends VBox {
     }
 
     private Button mover;
+
+    /**
+     * Las notas del mazo ({@code forge.neo.deck.DeckNotes}), al pasar el raton
+     * por la baldosa, en un globo: se leen sin abrir nada. Vacio, sin globo.
+     */
+    public void setNotes(final String notes) {
+        if (notes == null || notes.isBlank()) {
+            return;
+        }
+        final javafx.scene.control.Tooltip tip = new javafx.scene.control.Tooltip(
+                NeoText.get("deck.notes") + "\n" + notes);
+        tip.setWrapText(true);
+        tip.setMaxWidth(UiScale.px(420));
+        tip.setShowDelay(javafx.util.Duration.millis(400));
+        tip.setShowDuration(javafx.util.Duration.INDEFINITE);
+        javafx.scene.control.Tooltip.install(this, tip);
+    }
 
     /**
      * Pone "Mover" en la esquina de enfrente de la papelera: llevar el mazo a
