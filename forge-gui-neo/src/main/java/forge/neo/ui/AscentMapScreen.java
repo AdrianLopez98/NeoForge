@@ -389,7 +389,11 @@ public class AscentMapScreen extends StackPane {
 
         final Label q = new Label(NeoText.get("ascent.shield.broke.title"));
         q.getStyleClass().add("ascent-info-title");
-        final Label d = new Label(NeoText.get("ascent.shield.broke.text", life));
+        // Con la casilla de escudos, que sepa que viene otro (AscentRun#hasWards).
+        final AscentRun run = AscentRun.current();
+        final boolean another = run != null && run.hasWards() && run.getAct() < AscentRun.ACTS;
+        final Label d = new Label(NeoText.get("ascent.shield.broke.text", life)
+                + (another ? " " + NeoText.get("ascent.shield.broke.next") : ""));
         d.getStyleClass().add("ascent-info-text");
         d.setWrapText(true);
         d.setMaxWidth(UiScale.px(420));

@@ -252,6 +252,7 @@ public class DeckBuilderScreen extends StackPane {
      * insignia, y en Commander no los hay (principio 1).
      */
     private final Button spellButton = new Button(NeoText.get("deck.pickSignature"));
+    private final Button notesButton = new Button(NeoText.get("deck.notes"));
 
     /**
      * Espera antes de buscar mientras se teclea.
@@ -323,6 +324,26 @@ public class DeckBuilderScreen extends StackPane {
         final boolean copyable = editor.getFormat().canCopy();
         copy.setVisible(copyable);
         copy.setManaged(copyable);
+        // NOTAS (Discord, 23-11-2026): las mismas del menu "Mas..." del inicio,
+        // tambien aqui. Donde no se renombra no salen: el mazo de un sellado
+        // usa ese comentario para sus temas del Jumpstart (ver DeckNotes).
+        notesButton.getStyleClass().add("btn-secondary");
+        notesButton.setId("builder-notes");
+        notesButton.setMinWidth(Region.USE_PREF_SIZE);
+        notesButton.setOnAction(e -> askNotes());
+        notesButton.setVisible(renameable);
+        notesButton.setManaged(renameable);
+        refreshNotesButton();
+        // Solo pruebas: -Dneo.builder.notes=texto se las pone (sin guardar; |
+        // es un salto de linea), y con -Dneo.builder.notesOpen=true abre el dialogo.
+        final String testNotes = System.getProperty("neo.builder.notes");
+        if (testNotes != null && renameable) {
+            editor.setNotes(testNotes.replace("|", "\n"));
+            refreshNotesButton();
+            if (Boolean.getBoolean("neo.builder.notesOpen")) {
+                javafx.application.Platform.runLater(this::askNotes);
+            }
+        }
 
         status.getStyleClass().add("home-summary");
         // Una linea y punto: es un resumen. Lo que venga del motor puede tener
@@ -377,7 +398,7 @@ public class DeckBuilderScreen extends StackPane {
             refreshCatalogue();
         });
         refreshHouseRulesButton();
-        final HBox row = new HBox(14, identity, rename, copy, foilAllButton, sleeveButton, views);
+        final HBox row = new HBox(14, identity, rename, copy, notesButton, foilAllButton, sleeveButton, views);
         if (editor.getFormat().allowsHouseRules()) {
             row.getChildren().add(row.getChildren().indexOf(sleeveButton) + 1, houseRulesButton);
         }
@@ -2152,9 +2173,14 @@ public class DeckBuilderScreen extends StackPane {
             // buscar comandantes con "defender" solo encontraba el nombre).
             // Lo que no pinta nada es "solo lo que cabe": pregunta por la
             // identidad del comandante, que es lo que se esta eligiendo.
+            // Todos, sin cortar en FETCH_LIMIT (Discord, 23-11-2026: en Android
+            // solo salian los 60 primeros, todos con A; aqui se cortaba igual en
+            // mil, por la G, y el contador decia "1000 cartas" como si no hubiera
+            // mas). El paginador ya ensenya de pagina en pagina, y la lista sale
+            // de un solo recorrido del indice: traerlos todos no cuesta nada.
             catalogueHits = pickingSpell
-                    ? editor.signatureCandidates(query, FETCH_LIMIT, fine, searchRules)
-                    : editor.commanderCandidates(query, FETCH_LIMIT, fine, searchRules);
+                    ? editor.signatureCandidates(query, Integer.MAX_VALUE, fine, searchRules)
+                    : editor.commanderCandidates(query, Integer.MAX_VALUE, fine, searchRules);
             catalogueTotal = catalogueHits.size();
         } else {
             // Una sola pasada por el catalogo para las cartas Y el total.
@@ -4093,6 +4119,24 @@ public class DeckBuilderScreen extends StackPane {
      * Guardar una copia: pide el nombre ("Nombre (2)" de entrada), la guarda y
      * sigue editando la copia. El original no se toca.
      */
+    private void askNotes() {
+        overlay.setOnBackgroundClick(null);
+        overlay.show(TextDialog.notes(NeoText.get("deck.notes.title", editor.getName()),
+                NeoText.get("deck.notes.hint"), editor.getNotes(), text -> {
+                    overlay.hide();
+                    editor.setNotes(text);
+                    refreshNotesButton();
+                    refreshDeck();
+                }, overlay::hide));
+    }
+
+    /** Con notas, el boton lo dice y las ensenya al pasar el raton. */
+    private void refreshNotesButton() {
+        final String notes = editor.getNotes();
+        notesButton.setText(NeoText.get("deck.notes") + (notes.isBlank() ? "" : " •"));
+        notesButton.setTooltip(notes.isBlank() ? null : new javafx.scene.control.Tooltip(notes));
+    }
+
     private void askCopyName() {
         overlay.show(TextDialog.line(NeoText.get("deck.copy.title"),
                 NeoText.get("deck.copy.hint"),

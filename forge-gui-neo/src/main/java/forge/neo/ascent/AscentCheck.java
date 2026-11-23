@@ -112,6 +112,7 @@ public final class AscentCheck {
             descanso();
             tienda();
             escudo();
+            escudosDeSalida();
             eventos();
             planos();
             resumen();
@@ -4496,6 +4497,81 @@ public final class AscentCheck {
         } finally {
             run.discard();
         }
+    }
+
+    /**
+     * <b>La casilla de escudos</b> ({@link AscentRun#hasWards}, Discord
+     * 23-11-2026): un escudo al empezar y otro al empezar los actos 2 y 3 si
+     * el anterior se rompio. Que va en el codigo, que no se apila, que sigue
+     * sin salvar contra un jefe y que sobrevive a guardar y recargar.
+     */
+    private static void escudosDeSalida() {
+        final java.time.LocalDate dia = java.time.LocalDate.of(2026, 11, 23);
+        final AscentSeed.Recipe con = AscentSeed.fresh(AscentRun.Mode.STANDARD, 0, AscentSeedDeck.NO_COLOURS,
+                null, AscentPool.ALL).withWards(true);
+        final AscentSeed.Parsed leido = AscentSeed.parse(con.code());
+        final AscentSeed.Parsed sin = AscentSeed.parse(con.withWards(false).code());
+        check(con.code().contains("-WD-") && leido.ok() && leido.recipe.wards && leido.recipe.seed == con.seed
+                        && leido.recipe.withDraft(true).wards && leido.recipe.withCopies(true).wards
+                        && sin.ok() && !sin.recipe.wards && !sin.recipe.code().contains("WD")
+                        && !AscentSeed.daily(dia).wards && !AscentSeed.weekly(dia).wards,
+                "escudos: el codigo lleva WD (" + con.code() + "), se lee igual y los retos no la llevan");
+
+        final AscentRun run;
+        try {
+            run = AscentRun.begin(AscentRun.Mode.STANDARD, 0, 20, null, null, AscentSeedDeck.NO_COLOURS,
+                    AscentPool.ALL, false, false, true);
+        } catch (final RuntimeException e) {
+            fail("escudos: no se ha podido empezar la run: " + e);
+            return;
+        }
+        try {
+            check(run.hasWards() && run.getCode().contains("-WD-"), "escudos: la run va con escudos y su codigo lo dice");
+            check(countShields(run) == 1 && run.getShieldsBroken() == 0, "escudos: empiezas con uno");
+            final AscentNode normal = firstOfKind(run, AscentNode.Kind.COMBAT);
+            check(AscentBattle.shieldSaves(run, normal, true, false)
+                            && !AscentBattle.shieldSaves(run, run.map().boss(), true, false),
+                    "escudos: salva de un duelo, no del jefe");
+            check(AscentRun.current() != null && AscentRun.current().hasWards()
+                    && countShields(AscentRun.current()) == 1, "escudos: guardar y recargar los conserva");
+
+            run.recordLife(0);
+            AscentBattle.breakShield(run);
+            check(countShields(run) == 0, "escudos: roto en el acto 1, ya no lo llevas");
+            run.nextAct();
+            check(run.getAct() == 2 && countShields(run) == 1, "escudos: al empezar el acto 2 te dan otro");
+            run.nextAct();
+            check(run.getAct() == 3 && countShields(run) == 1, "escudos: sin romperlo, en el acto 3 sigue uno (no se apilan)");
+            run.recordLife(0);
+            AscentBattle.breakShield(run);
+            check(run.getShieldsBroken() == 2 && countShields(run) == 0, "escudos: roto en el acto 3, se apunta el segundo");
+            check(!run.nextAct() && countShields(run) == 0,
+                    "escudos: despues del acto 3 no hay acto nuevo ni escudo nuevo");
+        } finally {
+            run.discard();
+        }
+
+        final AscentRun plain = demoRun(AscentRun.Mode.STANDARD);
+        if (plain != null) {
+            try {
+                check(!plain.hasWards() && countShields(plain) == 0 && !plain.getCode().contains("WD"),
+                        "escudos: sin la casilla, no empiezas con ninguno");
+                plain.nextAct();
+                check(countShields(plain) == 0, "escudos: sin la casilla, el acto 2 tampoco da uno");
+            } finally {
+                plain.discard();
+            }
+        }
+    }
+
+    private static int countShields(final AscentRun run) {
+        int n = 0;
+        for (final AscentRelic r : run.relics()) {
+            if (AscentRelics.isShield(r)) {
+                n++;
+            }
+        }
+        return n;
     }
 
     private static void check(final boolean good, final String msg) {

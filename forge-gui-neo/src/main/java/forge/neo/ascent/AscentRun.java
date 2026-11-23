@@ -134,6 +134,16 @@ public final class AscentRun {
      */
     private boolean copies;
 
+    /**
+     * <b>Con escudos</b> ({@link AscentSeed.Recipe#wards}, Discord,
+     * 23-11-2026): empiezas con un <i>Shattering Ward</i> y, si se te ha roto,
+     * te dan otro al empezar los actos 2 y 3 ({@link #grantWard}). Ana dijo no
+     * a las vidas (dejan caminos sin salida y el modo no esta hecho para
+     * ganarlo siempre); esto es el escudo de siempre, que no salva contra un
+     * jefe, garantizado si se pide. Las runs de antes, {@code false}.
+     */
+    private boolean wards;
+
     private AscentRun() {
     }
 
@@ -229,6 +239,7 @@ public final class AscentRun {
         // Lo quitado es de la run: una nueva empieza sin nada (ver save()).
         NeoSettings.set(PREFIX + "cut", null);
         NeoSettings.set(PREFIX + "relicsGone", null);
+        NeoSettings.set(PREFIX + "shieldsBroken", null);
         run.save();
         return run;
     }
@@ -274,6 +285,7 @@ public final class AscentRun {
         run.fromCode = NeoSettings.getBool(PREFIX + "fromCode", false);
         run.melee = run.mode == Mode.COMMANDER && NeoSettings.getBool(PREFIX + "melee", false);
         run.copies = run.mode == Mode.COMMANDER && NeoSettings.getBool(PREFIX + "copies", false);
+        run.wards = NeoSettings.getBool(PREFIX + "wards", false);
         return run;
     }
 
@@ -313,6 +325,7 @@ public final class AscentRun {
         NeoSettings.set(PREFIX + "fromCode", fromCode ? "true" : null);
         NeoSettings.set(PREFIX + "melee", melee ? "true" : null);
         NeoSettings.set(PREFIX + "copies", copies ? "true" : null);
+        NeoSettings.set(PREFIX + "wards", wards ? "true" : null);
         NeoSettings.set(PREFIX + "fighting", fighting);
         NeoSettings.save();
     }
@@ -376,11 +389,19 @@ public final class AscentRun {
                                   final forge.item.PaperCard commander, final forge.item.PaperCard partner,
                                   final byte colours, final AscentPool pool, final boolean melee,
                                   final boolean copies) {
+        return begin(mode, ascension, maxLife, commander, partner, colours, pool, melee, copies, false);
+    }
+
+    /** Igual, con o sin escudos ({@link #hasWards}). */
+    public static AscentRun begin(final Mode mode, final int ascension, final int maxLife,
+                                  final forge.item.PaperCard commander, final forge.item.PaperCard partner,
+                                  final byte colours, final AscentPool pool, final boolean melee,
+                                  final boolean copies, final boolean wards) {
         // La unica entrada AL AZAR: todas las demas son de una receta dada.
         return begin(AscentSeed.fresh(mode, ascension, colours,
                 commander == null ? null : commander.getName(),
                 commander == null || partner == null ? null : partner.getName(), pool, melee)
-                .withCopies(copies), maxLife, false);
+                .withCopies(copies).withWards(wards), maxLife, false);
     }
 
     /** Una run desde su receta, con la vida de su modo (40 en Commander, 20 en Estandar). */
@@ -465,7 +486,9 @@ public final class AscentRun {
         run.fromCode = fromCode;
         run.melee = recipe.melee;
         run.copies = recipe.copies;
+        run.wards = recipe.wards;
         run.save();
+        run.grantWard();
         System.out.println("[ascenso] run nueva con el codigo " + run.code
                 + (fromCode ? " (de un codigo o un reto: no sube la Ascension)" : ""));
         return run;
@@ -519,8 +542,8 @@ public final class AscentRun {
     }
 
     /**
-     * Cuantas veces se ha roto el escudo en esta run (0 o 1: solo se ofrece
-     * uno). Lo leen el resumen y {@code ascentcheck}.
+     * Cuantas veces se ha roto el escudo en esta run (0 o 1 sin la casilla de
+     * escudos; con ella, hasta uno por acto). Lo leen el resumen y {@code ascentcheck}.
      */
     public int getShieldsBroken() {
         return NeoSettings.getInt(PREFIX + "shieldsBroken", 0);
@@ -571,7 +594,7 @@ public final class AscentRun {
         }
         for (final String k : new String[]{"mode", "seed", "act", "life", "maxLife",
                 "credits", "ascension", "deck", "node", "cleared", "relics", "cut", "pool",
-                "endless", "won", "code", "fromCode", "melee", "copies", "relicsGone", "fighting"}) {
+                "endless", "won", "code", "fromCode", "melee", "copies", "wards", "relicsGone", "shieldsBroken", "fighting"}) {
             NeoSettings.set(PREFIX + k, null);
         }
         NeoSettings.setBool(ACTIVE, false);
@@ -728,7 +751,40 @@ public final class AscentRun {
         // volveriamos a tener dos cambios de acto que no hacen lo mismo.
         life = maxLife;
         save();
+        // Con escudos, el de este acto si el anterior se rompio (actos 2 y 3).
+        grantWard();
         return true;
+    }
+
+    /** Hasta que acto se repone el escudo con la casilla: el modo infinito, no. */
+    static final int WARD_LAST_ACT = 3;
+
+    /**
+     * Con la casilla de escudos ({@link #hasWards}), te da un <i>Shattering
+     * Ward</i> si no llevas ya uno: al empezar la run y al empezar los actos 2
+     * y 3. No se apilan (uno sin romper sigue siendo el de este acto) y en el
+     * modo infinito no se repone. Lo llaman {@code started} y {@link #nextAct}.
+     *
+     * @return {@code true} si te lo ha dado
+     */
+    boolean grantWard() {
+        if (!wards || act > WARD_LAST_ACT) {
+            return false;
+        }
+        return addRelic(AscentRelics.byId(AscentRelics.SHIELD));
+    }
+
+    /**
+     * Si la run va <b>con escudos</b>: un <i>Shattering Ward</i> al empezar y
+     * otro al empezar los actos 2 y 3 si se rompio ({@link #grantWard}).
+     */
+    public boolean hasWards() {
+        return wards;
+    }
+
+    /** Solo para los comprobadores: poner o quitar los escudos sin pasar por una receta. */
+    void setWardsForTest(final boolean on) {
+        wards = on;
     }
 
     // ------------------------------------------------------------------

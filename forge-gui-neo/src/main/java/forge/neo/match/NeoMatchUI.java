@@ -9745,8 +9745,8 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
 
     @Override
     public List<CardView> manipulateCardList(final String title, final Iterable<CardView> cards,
-                                             final Iterable<CardView> manipulable, final boolean toTop,
-                                             final boolean toBottom, final boolean toAnywhere) {
+                                             final Iterable<CardView> manipulable,
+                                             final forge.game.zone.ZoneType secondPile) {
         final List<CardView> out = new ArrayList<>();
         if (cards != null) {
             cards.forEach(out::add);

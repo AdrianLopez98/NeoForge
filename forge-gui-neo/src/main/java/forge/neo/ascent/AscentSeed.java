@@ -118,24 +118,34 @@ public final class AscentSeed {
          * sin ella es de una copia, como todos los de antes.
          */
         public final boolean copies;
+        /**
+         * <b>Con escudos</b> (Discord, 23-11-2026: <i>"have you considered
+         * putting a lives system into place?"</i>): empiezas con un
+         * <i>Shattering Ward</i> ({@link AscentRelics#SHIELD}) y, si se te ha
+         * roto, te dan otro al empezar los actos 2 y 3. Va en el codigo como
+         * {@code WD}: la misma semilla con o sin escudos no es la misma run.
+         * Los retos no la llevan. Los dos modos.
+         */
+        public final boolean wards;
 
         public Recipe(final AscentRun.Mode mode, final int ascension, final byte colours,
                       final String commander, final AscentPool pool, final long seed,
                       final String version) {
-            this(mode, ascension, colours, commander, null, null, null, pool, seed, version, false, false, false);
+            this(mode, ascension, colours, commander, null, null, null, pool, seed, version, false, false, false, false);
         }
 
         public Recipe(final AscentRun.Mode mode, final int ascension, final byte colours,
                       final String commander, final String partner, final AscentPool pool,
                       final long seed, final String version) {
             this(mode, ascension, colours, commander, null, partner, null, pool, seed, version, false, false,
-                    false);
+                    false, false);
         }
 
         Recipe(final AscentRun.Mode mode, final int ascension, final byte colours,
                final String commander, final String commanderHash, final String partner,
                final String partnerHash, final AscentPool pool, final long seed, final String version,
-               final boolean melee, final boolean draft, final boolean copies) {
+               final boolean melee, final boolean draft, final boolean copies,
+               final boolean wards) {
             this.mode = mode == null ? AscentRun.Mode.STANDARD : mode;
             this.ascension = Math.max(0, ascension);
             this.colours = this.mode == AscentRun.Mode.STANDARD ? colours : AscentSeedDeck.NO_COLOURS;
@@ -154,24 +164,31 @@ public final class AscentSeed {
             this.draft = this.mode == AscentRun.Mode.STANDARD && draft;
             // Las copias son de Commander: Estandar ya deja cuatro.
             this.copies = this.mode == AscentRun.Mode.COMMANDER && copies;
+            this.wards = wards;
         }
 
         /** La misma receta, con o sin mesas de cuatro. */
         public Recipe withMelee(final boolean on) {
             return new Recipe(mode, ascension, colours, commander, commanderHash, partner, partnerHash,
-                    pool, seed, version, on, draft, copies);
+                    pool, seed, version, on, draft, copies, wards);
+        }
+
+        /** La misma receta, con o sin escudos ({@link #wards}). */
+        public Recipe withWards(final boolean on) {
+            return new Recipe(mode, ascension, colours, commander, commanderHash, partner, partnerHash,
+                    pool, seed, version, melee, draft, copies, on);
         }
 
         /** La misma receta, con o sin copias (solo Commander). */
         public Recipe withCopies(final boolean on) {
             return new Recipe(mode, ascension, colours, commander, commanderHash, partner, partnerHash,
-                    pool, seed, version, melee, draft, on);
+                    pool, seed, version, melee, draft, on, wards);
         }
 
         /** La misma receta, con el mazo de salida drafteado o generado (solo Estandar). */
         public Recipe withDraft(final boolean on) {
             return new Recipe(mode, ascension, on ? AscentSeedDeck.NO_COLOURS : colours, commander, commanderHash,
-                    partner, partnerHash, pool, seed, version, melee, on, copies);
+                    partner, partnerHash, pool, seed, version, melee, on, copies, wards);
         }
 
         /** El comandante va en el codigo (el jugador lo eligio, no lo sorteo la semilla). */
@@ -203,7 +220,7 @@ public final class AscentSeed {
         /** Igual, con companero de mando. */
         public Recipe withDeck(final byte ownColours, final String ownCommander, final String ownPartner) {
             return new Recipe(mode, ascension, draft ? AscentSeedDeck.NO_COLOURS : ownColours, ownCommander, null,
-                    ownPartner, null, pool, seed, version, melee, draft, copies);
+                    ownPartner, null, pool, seed, version, melee, draft, copies, wards);
         }
 
         /** Hecho con la misma version que esta jugando. */
@@ -419,6 +436,10 @@ public final class AscentSeed {
             // Igual: dos letras, sin WUBRG ni forma de Ascension.
             parts.add("2C");
         }
+        if (r.wards) {
+            // Igual: dos letras que no son un color (la D no es de WUBRG).
+            parts.add("WD");
+        }
         if (r.mode == AscentRun.Mode.STANDARD && r.colours != AscentSeedDeck.NO_COLOURS) {
             parts.add(colourLetters(r.colours));
         }
@@ -483,6 +504,7 @@ public final class AscentSeed {
         boolean melee = false;
         boolean draft = false;
         boolean copies = false;
+        boolean wards = false;
         final StringBuilder halves = new StringBuilder();
         for (final String token : text.split("-")) {
             if (token.isEmpty()) {
@@ -499,6 +521,8 @@ public final class AscentSeed {
                 draft = true;
             } else if ("2C".equals(up)) {
                 copies = true;
+            } else if ("WD".equals(up)) {
+                wards = true;
             } else if (up.matches("A\\d{1,2}")) {
                 ascension = Integer.parseInt(up.substring(1));
             } else if (up.startsWith("@") && up.length() > 1) {
@@ -545,7 +569,7 @@ public final class AscentSeed {
             return new Parsed(null, "ascent.seed.err.bad");
         }
         return new Parsed(new Recipe(mode, ascension, colours, null, hash, null, partnerHash, pool, seed, version,
-                melee, draft, copies), null);
+                melee, draft, copies, wards), null);
     }
 
     /** Ocho letras de base 32. */

@@ -96,6 +96,13 @@ public class AscentSetupScreen extends StackPane {
             start(mode, commander, partner, ascension, colours, pool, melee);
         }
 
+        /** Igual, con o sin escudos ({@link AscentRun#hasWards}). */
+        default void start(final AscentRun.Mode mode, final PaperCard commander, final PaperCard partner,
+                           final int ascension, final byte colours, final forge.neo.ascent.AscentPool pool,
+                           final boolean melee, final boolean copies, final boolean wards) {
+            start(mode, commander, partner, ascension, colours, pool, melee, copies);
+        }
+
         /**
          * Draftear el mazo de salida y empezar la run (Estandar, {@link forge.neo.ascent.AscentDraft}).
          * La run no existe hasta acabar el draft: salirse no cuesta nada.
@@ -150,6 +157,15 @@ public class AscentSetupScreen extends StackPane {
      */
     private boolean copies = forge.neo.NeoSettings.getBool(COPIES_SETTING, false)
             || Boolean.getBoolean("neo.ascent.setupCopies");
+    /** Donde se recuerda la casilla de escudos. Sin {@code ascent.}: eso es la run. */
+    private static final String WARDS_SETTING = "ascentSetup.wards";
+
+    /**
+     * Empezar con un escudo y reponerlo en los actos 2 y 3 (Discord,
+     * 23-11-2026). {@code -Dneo.ascent.setupWards=true} la deja puesta.
+     */
+    private boolean wards = forge.neo.NeoSettings.getBool(WARDS_SETTING, false)
+            || Boolean.getBoolean("neo.ascent.setupWards");
     /** Donde se recuerda si el mazo de salida se draftea. */
     private static final String DRAFT_SETTING = "ascentSetup.draft";
 
@@ -419,7 +435,7 @@ public class AscentSetupScreen extends StackPane {
     private void startNow() {
         if (seedSource == SeedSource.RANDOM && mode == AscentRun.Mode.STANDARD && draftStart) {
             actions.startDraft(AscentSeed.fresh(mode, ascension, AscentSeedDeck.NO_COLOURS, null, pool())
-                    .withDraft(true));
+                    .withDraft(true).withWards(wards));
         } else if (seedSource == SeedSource.RANDOM) {
             // "Que elija el juego" con filtros de color: uno de los que dejan
             // (Discord, 12-11-2026). Sin filtros, como siempre: lo sortea la run.
@@ -428,7 +444,7 @@ public class AscentSetupScreen extends StackPane {
                 picked = colourFilter.pickRandom(commanders());
             }
             actions.start(mode, picked, commander == null ? null : partner, ascension, colours, pool(),
-                    mode == AscentRun.Mode.COMMANDER && melee, mode == AscentRun.Mode.COMMANDER && copies);
+                    mode == AscentRun.Mode.COMMANDER && melee, mode == AscentRun.Mode.COMMANDER && copies, wards);
         } else {
             final AscentSeed.Recipe r = recipe();
             if (r != null && seedProblem() == null) {
@@ -568,6 +584,9 @@ public class AscentSetupScreen extends StackPane {
         }
         if (r.copies) {
             box.getChildren().add(line(NeoText.get("ascent.seed.sum.copies", AscentRewards.COPIES)));
+        }
+        if (r.wards) {
+            box.getChildren().add(line(NeoText.get("ascent.seed.sum.wards")));
         }
         if (seedSource == SeedSource.CODE && ownDeck) {
             // El mazo lo eliges debajo: aqui no se dice el del codigo.
@@ -836,6 +855,9 @@ public class AscentSetupScreen extends StackPane {
             }
         }
 
+        // Los escudos, en los dos modos: no cambian el mazo, solo cuanto perdona la run.
+        content.getChildren().add(wardsRow());
+
         if (AscentUnlocks.maxAscension() > 0) {
             // Solo se ensenya si hay algo que elegir: una fila con un unico
             // boton pulsado no es una pregunta, es ruido.
@@ -895,6 +917,30 @@ public class AscentSetupScreen extends StackPane {
             forge.neo.NeoSettings.save();
         });
         final VBox out = new VBox(6, box, line(NeoText.get("ascent.setup.copies.desc", AscentRewards.COPIES)));
+        out.setAlignment(Pos.CENTER);
+        return out;
+    }
+
+    /**
+     * <b>Empezar con un escudo</b> (Discord, 23-11-2026: <i>"have you
+     * considered putting a lives system into place?"</i>). Ana: vidas no, pero
+     * el escudo de siempre garantizado si se pide. Casilla como la de copias,
+     * apagada de fabrica y recordada.
+     */
+    private Region wardsRow() {
+        final javafx.scene.control.CheckBox box =
+                new javafx.scene.control.CheckBox(NeoText.get("ascent.setup.wards"));
+        box.setId("ascent-wards");
+        box.getStyleClass().add("ascent-remember");
+        box.setWrapText(true);
+        box.setMaxWidth(UiScale.px(620));
+        box.setSelected(wards);
+        box.selectedProperty().addListener((obs, was, now) -> {
+            wards = now;
+            forge.neo.NeoSettings.setBool(WARDS_SETTING, now);
+            forge.neo.NeoSettings.save();
+        });
+        final VBox out = new VBox(6, box, line(NeoText.get("ascent.setup.wards.desc")));
         out.setAlignment(Pos.CENTER);
         return out;
     }

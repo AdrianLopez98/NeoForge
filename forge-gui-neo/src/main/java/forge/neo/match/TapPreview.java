@@ -42,8 +42,16 @@ import forge.game.zone.ZoneType;
  * ({@link AffordableX#asksWhilePaying}); aqui, ademas, saldria un dialogo al
  * pasar el raton. Esos casos se descartan ANTES de calcular.
  *
- * <p>Hilo: el de interfaz, con el motor parado en tu prioridad (es cuando se
- * comprueba). Es el mismo sitio donde Forge calcula la suya.
+ * <p>⚠️ <b>Hilo: el de la partida</b> ({@link #scan}, al empezar cada prioridad
+ * tuya), y la mesa solo LEE lo que dejo ({@link #of}). Hasta la 1.0.64 se
+ * calculaba en el hilo de interfaz al pasar el raton (o con la carta bajo el
+ * dedo en Android), "con el motor parado en tu prioridad"... salvo que no
+ * siempre lo estaba: acabas de jugar una tierra, la mano se recoloca bajo el
+ * raton y el {@code canPlay} de aqui se cruza con el {@code moveToPlay} de la
+ * partida. {@code checkStaticAbilities} desde los dos hilos a la vez y la
+ * partida muere con un {@code ConcurrentModificationException} en
+ * {@code StaticEffects.clearStaticEffects} (registro de un jugador, 23-11-2026;
+ * la misma familia que la 1.0.43 y la 1.0.61, ver {@link EngineThread}).
  */
 public final class TapPreview {
 
@@ -77,26 +85,58 @@ public final class TapPreview {
         return of(view, card).ids();
     }
 
-    /** La prevision entera, con el "depende" (ver {@link Kind}). */
+    /**
+     * La prevision entera, con el "depende" (ver {@link Kind}). <b>No pregunta
+     * al motor</b>: lee lo que dejo {@link #scan} en el hilo de la partida, asi
+     * que se puede llamar desde cualquier hilo.
+     */
     public static Preview of(final GameView view, final CardView card) {
-        try {
-            return compute(view, card);
-        } catch (final RuntimeException e) {
-            // Es una pista: si algo revienta, no hay pista.
+        final Scan s = last;
+        if (s == null || view == null || card == null || s.game != view.getGame()) {
             return Preview.NOTHING;
         }
+        return s.byId.getOrDefault(card.getId(), Preview.NOTHING);
     }
 
-    private static Preview compute(final GameView view, final CardView card) {
-        if (view == null || card == null) {
-            return Preview.NOTHING;
+    private record Scan(Game game, java.util.Map<Integer, Preview> byId) {
+    }
+
+    private static volatile Scan last;
+
+    /**
+     * Las previsiones de todo lo que {@code you} tiene en la mano y en el
+     * mando. <b>Solo desde el hilo de la partida</b>: lo llama
+     * {@code SafeActions.Guarded} al empezar cada prioridad, junto a
+     * {@code EntersTapped}. Fuera de el no calcula nada (ver {@link EngineThread}).
+     */
+    public static void scan(final Player you) {
+        if (you == null || you.getGame() == null || !EngineThread.check("TapPreview")) {
+            return;
         }
-        final Game game = view.getGame();
-        if (game == null) {
-            return Preview.NOTHING;
+        final java.util.Map<Integer, Preview> byId = new java.util.HashMap<>();
+        for (final ZoneType z : new ZoneType[] {ZoneType.Hand, ZoneType.Command}) {
+            for (final Card c : you.getCardsIn(z)) {
+                Preview p;
+                try {
+                    p = compute(c);
+                } catch (final RuntimeException e) {
+                    // Es una pista: si algo revienta, no hay pista.
+                    p = Preview.NOTHING;
+                }
+                if (p.kind() != Kind.NONE) {
+                    byId.put(c.getId(), p);
+                }
+            }
         }
-        final Card c = game.findById(card.getId());
+        last = new Scan(you.getGame(), java.util.Map.copyOf(byId));
+    }
+
+    private static Preview compute(final Card c) {
         if (c == null || c.isLand()) {
+            return Preview.NOTHING;
+        }
+        final Game game = c.getGame();
+        if (game == null) {
             return Preview.NOTHING;
         }
         final Zone zone = c.getZone();

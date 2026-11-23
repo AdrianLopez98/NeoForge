@@ -319,6 +319,7 @@ public class DraftScreen extends BorderPane {
         // espera. Y NO se da el draft por terminado — en red eso lo dice el
         // anfitrion cuando manda el pool, no la ausencia de sobre.
         if (draft.waiting()) {
+            shownPack = null;
             pack.getChildren().clear();
             waitingBox.setVisible(true);
             seats.getChildren().clear();
@@ -328,7 +329,9 @@ public class DraftScreen extends BorderPane {
                 seats.getChildren().add(l);
             }
             progress.setText(progressText());
-            refreshPicked();
+            if (draft.picked().size() != shownPicked) {
+                refreshPicked();
+            }
             return;
         }
         waitingBox.setVisible(false);
@@ -348,6 +351,19 @@ public class DraftScreen extends BorderPane {
         final boolean opening = draft.pickNumber() == 1;
 
         progress.setText(progressText());
+
+        // EL MISMO SOBRE NO SE VUELVE A REPARTIR (Discord, 23-11-2026: en red
+        // "the cards are flashing in and out all the time"). En red esto se
+        // llama cada segundo por la cuenta atras, y cada vez que otro asiento
+        // elige; rehacer la rejilla era repetir la animacion de reparto una vez
+        // por segundo. Y mientras vuela un pick, tampoco: el sobre se apaga y
+        // el siguiente lo pinta el propio pick al aterrizar.
+        final List<Object> key = List.of(draft.round(), draft.pickNumber(),
+                List.copyOf(draft.currentCards()));
+        if (picking || key.equals(shownPack)) {
+            return;
+        }
+        shownPack = key;
 
         pack.getChildren().clear();
         if (draft.round() != biggestPackRound) {
@@ -383,6 +399,12 @@ public class DraftScreen extends BorderPane {
 
         refreshPicked();
     }
+
+    /** El sobre que hay pintado (ronda, pick, cartas): si no cambia, no se repinta. */
+    private List<Object> shownPack;
+
+    /** Cuantos picks habia en la tira la ultima vez que se pinto. */
+    private int shownPicked = -1;
 
     /** Las columnas de ahora: las elige layoutChildren segun el hueco. */
     private int columns = 5;
@@ -453,6 +475,7 @@ public class DraftScreen extends BorderPane {
      */
     private void refreshPicked() {
         final List<PaperCard> mine = draft.picked();
+        shownPicked = mine.size();
         // Los picks nuevos entran al mazo, como en Forge. Las basicas no:
         // casi nunca se cogen para jugarlas, y el mazo se llenaria de ruido.
         pool.notePicks(mine);

@@ -1,9 +1,11 @@
-**NeoForge para macOS 1.0.64 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.65 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Duplicar un mazo y notas de mazo** desde la lista de mazos: «Más…» trae Renombrar, Duplicar y Notas. Las notas se leen al pasar el ratón por el mazo.
-- **Auras y equipos apilados**: con el ajuste de llevarlos detrás de la carta, al pasar el ratón por la criatura se abren en abanico y se clican directamente.
-- **Lo que giraría «Auto»**, contado en la mesa: «×N» en cada carta o pila que se giraría.
+- **Ascenso: «Empezar con un Shattering Ward»**: casilla nueva al montar la run. Empiezas con el escudo y, si se rompe, te dan otro al empezar los actos 2 y 3. Nunca salva contra un jefe.
+- **Todos los comandantes en el constructor**: la lista ya no se corta en 1.000.
+- **Notas del mazo también desde el constructor**, con un botón en la cabecera.
+- **Library of Leng** (y los reemplazos opcionales) enseñan la carta por la que preguntan.
+- El draft en red ya no parpadea, y arreglado un cierre raro al jugar una tierra con el ratón sobre la mano.
 - Forge al día: cartas nuevas y arreglos del motor y de la IA.
 
 Descarga el `.dmg` de tu Mac:

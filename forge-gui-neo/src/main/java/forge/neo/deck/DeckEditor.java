@@ -364,6 +364,24 @@ public final class DeckEditor {
         return deck;
     }
 
+    /**
+     * Las notas del mazo ({@link DeckNotes}). Se ponen en el mazo que se esta
+     * editando y se escriben con el resto al guardar, como el nombre (Discord,
+     * 23-11-2026: <i>"add the note button also to the deck build view"</i>).
+     */
+    public String getNotes() {
+        return DeckNotes.of(deck);
+    }
+
+    public void setNotes(final String notes) {
+        final String clean = notes == null ? "" : notes.strip();
+        if (clean.equals(getNotes().strip())) {
+            return;
+        }
+        DeckNotes.set(deck, clean);
+        dirty = true;
+    }
+
     /** Si esta carta es la portada elegida del mazo. Ver {@link DeckCover}. */
     public boolean isCover(final PaperCard card) {
         return DeckCover.isCover(deck, card);

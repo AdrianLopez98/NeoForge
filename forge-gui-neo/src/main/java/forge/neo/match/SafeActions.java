@@ -406,6 +406,37 @@ public final class SafeActions {
             return owner.macros();
         }
 
+        /**
+         * Un reemplazo opcional ("puedes ... en vez de"), con la carta a la que
+         * le pasa <b>delante</b>.
+         *
+         * <p>Discord, 23-11-2026, con Library of Leng y Queen Kayla bin-Kroog:
+         * <i>"it doesn't tell you which one is going to the top"</i>. Forge
+         * pregunta "¿Aplicar el efecto de reemplazo de Library of Leng?" una
+         * vez por carta descartada, y la pregunta ({@code InputConfirm}) solo
+         * ensenya la carta del reemplazo, no la que se descarta: con cinco
+         * descartes eran cinco preguntas iguales. La carta afectada ya llega
+         * aqui ({@code affected}); se ensenya en la pregunta con carta de
+         * siempre ({@code IGuiGame.confirm}, el mismo camino que usa Forge en
+         * movil, asi que vale para PC, Android y el otro lado de la red).
+         *
+         * <p>Solo si la carta se puede ver (no una de la biblioteca de nadie) y
+         * no se esta reproduciendo una macro, que contesta el {@code InputConfirm}.
+         */
+        @Override
+        public boolean confirmReplacementEffect(final forge.game.replacement.ReplacementEffect replacementEffect,
+                                                final SpellAbility effectSA,
+                                                final forge.game.GameEntity affected, final String question) {
+            if (!(affected instanceof forge.game.card.Card c) || question == null
+                    || macros().isReplaying() || getGui() == null
+                    || !c.getView().canBeShownTo(getPlayer().getView())) {
+                return super.confirmReplacementEffect(replacementEffect, effectSA, affected, question);
+            }
+            final forge.util.Localizer l = forge.util.Localizer.getInstance();
+            return getGui().confirm(c.getView(), question, true,
+                    new java.util.ArrayList<>(List.of(l.getMessage("lblYes"), l.getMessage("lblNo"))));
+        }
+
         /** Mulligan amistoso: la pregunta no avisa de que haya que devolver nada. Ver {@link FriendlyMulligan}. */
         @Override
         public boolean mulliganKeepHand(final Player firstPlayer, final int cardsToReturn) {
@@ -471,6 +502,10 @@ public final class SafeActions {
             if ("true".equalsIgnoreCase(highlights)) {
                 forge.neo.card.EntersTapped.scan(getPlayer());
             }
+            // Y lo que giraria "Auto" por cada carta de la mano: la mesa solo lo
+            // lee al pasar el raton. Calculado alli, se cruzaba con la partida
+            // (TapPreview, registro de un jugador del 23-11-2026).
+            TapPreview.scan(getPlayer());
             hiddenMana = "true".equalsIgnoreCase(autoPass)
                     && (HiddenMana.evaluate(getPlayer()).holds()
                         || XTargets.evaluate(getPlayer()).holds()
