@@ -67,6 +67,7 @@ public class NeoApp extends Application implements SettingsPanel.Host {
     private final NeoAppDraft draft = new NeoAppDraft(this);
     private final NeoAppQuest questApp = new NeoAppQuest(this);
     private final NeoAppAscent ascent = new NeoAppAscent(this);
+    private final NeoAppRogue rogue = new NeoAppRogue(this);
 
     /**
      * Si la partida en curso es un nodo de una run de Ascenso.
@@ -1307,6 +1308,11 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             // El descanso, a media vida: con la vida llena el boton de curarse
             // sale deshabilitado y no se ve lo que hay que ver.
             ascent.showMock("rest");
+        } else if (args.contains("--rogue")) {
+            // Rogue Commander, igual que su casilla del menu. Con
+            // -Dneo.rogue.autoStart=true y sin run, empieza una (solo capturas,
+            // y siempre con -Dneo.dataDir: empezar una run borra las guardadas).
+            rogue.showRogue();
         } else if (args.contains("--ascent-setup")) {
             // La pantalla de MONTAR la run, siempre, aunque haya una a medias.
             // --ascent no vale para capturarla: con una run guardada entra a
@@ -4256,6 +4262,11 @@ public class NeoApp extends Application implements SettingsPanel.Host {
             @Override
             public void ascent() {
                 ascent.showAscent();
+            }
+
+            @Override
+            public void rogue() {
+                NeoApp.this.rogue.showRogue();
             }
 
             @Override

@@ -187,7 +187,7 @@ public final class ManaIcons {
                     : l.getMaxWidth() > 0 && l.getMaxWidth() < 1e5 ? l.getMaxWidth() : -1;
             if (w > 0) {
                 w -= l.snappedLeftInset() + l.snappedRightInset();
-                if (lead != null) {
+                if (lead != null && !Boolean.TRUE.equals(lead.getProperties().get(NumberedChoice.DROPPED))) {
                     w -= lead.prefWidth(-1) + l.getGraphicTextGap();
                 }
             }
@@ -200,21 +200,25 @@ public final class ManaIcons {
         };
         final Runnable refresh = () -> {
             final String text = l.getText();
+            // La pista de tecla que NumberedChoice ha quitado (fuera de la mesa)
+            // no se devuelve: ver NumberedChoice.DROPPED.
+            final Node keep = lead != null && Boolean.TRUE.equals(lead.getProperties().get(NumberedChoice.DROPPED))
+                ? null : lead;
             if (!ManaSymbols.enabled() || !ManaSymbols.hasSymbols(text)) {
-                if (l.getGraphic() != lead) {
+                if (l.getGraphic() != keep) {
                     if (box != null) {
                         box.getChildren().clear();
                     }
-                    l.setGraphic(lead);
+                    l.setGraphic(keep);
                     l.setContentDisplay(plain);
                 }
                 return;
             }
             fill(flow, text, l.getFont(), l.getTextFill());
             flow.setTextAlignment(l.getTextAlignment());
-            if (box != null) {
+            if (box != null && keep != null) {
                 box.setSpacing(l.getGraphicTextGap());
-                box.getChildren().setAll(lead, flow);
+                box.getChildren().setAll(keep, flow);
                 l.setGraphic(box);
             } else {
                 l.setGraphic(flow);

@@ -71,6 +71,13 @@ public final class NeoGame {
          * no, rendirse ante un rival dificil seria saltarse el nodo gratis.
          */
         public boolean youConceded;
+        /**
+         * La partida ya terminada, tomada ANTES de cerrar la interfaz. La pide
+         * Rogue Commander: su logica de premios ({@code RogueWinLoseController})
+         * lee el resultado, la vida y las zonas del jugador de aqui. Los demas
+         * modos no la miran.
+         */
+        public forge.game.GameView lastGame;
 
         Result(final boolean completed, final int turns, final int decisions, final String winner,
                final NeoMatchUI.Exit exit, final int yourLife) {
@@ -577,6 +584,7 @@ public final class NeoGame {
         } catch (final RuntimeException e) {
             // Sin partido que leer, sin ganador: cuenta como no terminado.
         }
+        final forge.game.GameView lastGame = gui.getGameView();
         gui.shutdown();
         // Se acabo el mazo en juego: si se dejara puesto, el siguiente puzzle o
         // el siguiente duelo de la aventura heredarian su funda.
@@ -584,6 +592,7 @@ public final class NeoGame {
         final Result out = new Result(completed, turns, gui.getDecisionCount(), winner, exit, yourLife,
                 matchWinner, games);
         out.youConceded = conceded;
+        out.lastGame = lastGame;
         return out;
     }
 

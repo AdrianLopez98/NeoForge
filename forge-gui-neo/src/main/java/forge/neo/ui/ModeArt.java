@@ -74,7 +74,8 @@ public final class ModeArt {
         PUZZLES(U, new Color[] {U, B}),
         LIBRARY(U, new Color[] {W, U}),
         LOOK(GOLD, new Color[] {U, G}),
-        ACHIEVEMENTS(GOLD, new Color[] {W, B});
+        ACHIEVEMENTS(GOLD, new Color[] {W, B}),
+        ROGUE(U, new Color[] {U, B, R});
 
         private final Color ink;
         private final Color[] colors;
@@ -132,6 +133,7 @@ public final class ModeArt {
             case LIBRARY -> book(t);
             case LOOK -> palette(t);
             case ACHIEVEMENTS -> trophy(t);
+            case ROGUE -> portal(t);
             default -> {
             }
         }
@@ -382,6 +384,22 @@ public final class ModeArt {
         poly(t, 0, -0.30, 0.06, 0, -0.06, 0);
         fillPath(t, t.outline);
         dot(t, t.bg, t.s * 0.03, 0, 0);
+    }
+
+    /**
+     * Rogue Commander: una carta de plano apaisada con un portal, y encima la
+     * ruta de la run (tres paradas). Los planos son lo que distingue sus duelos.
+     */
+    private static void portal(final Pen t) {
+        card(t, 0, 0.12, 0.84, 0.58);
+        ring(t, t.outline, t.s * 0.17, 0, 0.12, t.line);
+        ring(t, t.outline(0.5), t.s * 0.09, 0, 0.12, t.thin);
+        dot(t, t.outline, t.s * 0.035, 0, 0.12);
+        line(t, t.outline(0.6), -0.26, -0.30, 0, -0.40, t.thin);
+        line(t, t.outline(0.6), 0, -0.40, 0.26, -0.30, t.thin);
+        dot(t, t.outline, t.s * 0.04, -0.26, -0.30);
+        dot(t, t.outline, t.s * 0.04, 0, -0.40);
+        dot(t, t.outline, t.s * 0.04, 0.26, -0.30);
     }
 
     /** Draft: tres cartas en abanico, que es como se pasan los sobres. */

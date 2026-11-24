@@ -242,6 +242,10 @@ public final class CommanderDraftCheck {
         //    way to play a commander cube?"). Ver CommanderCubeDraft.
         cubeAsCommander();
 
+        // 8. Un rival con comandante INCOLORO: el motor no sabe montarle el
+        //    mazo y antes se perdia el draft entero al guardarlo.
+        colorlessCommander();
+
         if (Boolean.getBoolean("neo.cmddraft.keep")) {
             // Para capturar el editor: el draft se queda, con el comandante y el
             // mazo puestos, como evento en curso (run.cmd ui --draft-deck).
@@ -319,6 +323,186 @@ public final class CommanderDraftCheck {
                 forge.neo.match.NeoFormat.DRAFT, List.of(group.getAiDecks().get(0)), 1, CommanderDraft.seating());
         check(r != null && r.turns > 0, "y se juega una partida con el (" + (r == null ? "-" : r.turns + " turnos") + ")");
         FModel.getDecks().getDraft().delete(CUBE_NAME);
+    }
+
+    /**
+     * Un rival con comandante INCOLORO (24-11-2026, cerrando la 1.0.65: la
+     * bateria fallo una vez con "Add Lands to empty deck list!" al guardar el
+     * draft del Legendary Cube). La IA fija sus colores a la identidad del
+     * comandante, y con un artefacto legendario el constructor de Forge cuenta
+     * cero simbolos de color y revienta. En el cubo depende de que sobre le
+     * toque a cada IA; aqui se provoca siempre:
+     *
+     * <ol>
+     * <li>un asiento suelto con Memnarch de comandante y un pool con algo de
+     *     color: el motor revienta y {@link NeoDraft#rivalDeck} le da otro
+     *     comandante de su pool;</li>
+     * <li>uno con todo incoloro: mazo a mano con Yermos;</li>
+     * <li>y entero, por el camino del jugador: un cubo de solo artefactos
+     *     incoloros, drafteado como Commander Draft y guardado.</li>
+     * </ol>
+     */
+    private static void colorlessCommander() {
+        final forge.card.CardDb db = FModel.getMagicDb().getCommonCards();
+        final PaperCard memnarch = db.getCard("Memnarch");
+        final List<String> colourless = List.of("Sol Ring", "Mind Stone", "Arcane Signet", "Wayfarer's Bauble",
+                "Myr Retriever", "Ornithopter", "Steel Overseer", "Solemn Simulacrum", "Burnished Hart",
+                "Palladium Myr", "Pilgrim's Eye", "Wurmcoil Engine");
+        final List<String> coloured = List.of("Krenko, Mob Boss", "Goblin Guide", "Lightning Bolt",
+                "Mogg Fanatic", "Raging Goblin", "Shock", "Lava Spike", "Goblin Bushwhacker");
+
+        // 1 y 2: asientos sueltos, sin draft detras
+        for (final boolean withColour : new boolean[] {true, false}) {
+            final forge.gamemodes.limited.CommanderLimitedPlayerAI seat =
+                    new forge.gamemodes.limited.CommanderLimitedPlayerAI(1, null);
+            seat.receiveOpenedPack(new forge.gamemodes.limited.DraftPack(new java.util.ArrayList<>(List.of(memnarch)), 1));
+            final PaperCard pickedCommander = seat.chooseCard();
+            final forge.deck.CardPool pool = seat.getDeck().getOrCreate(DeckSection.Sideboard);
+            pool.add(memnarch);
+            for (final String n : colourless) {
+                pool.add(db.getCard(n));
+            }
+            if (withColour) {
+                for (final String n : coloured) {
+                    pool.add(db.getCard(n));
+                }
+            }
+            final String what = withColour ? "con algo de color en el pool" : "con todo el pool incoloro";
+            boolean engineFails;
+            try {
+                seat.buildDeck(null);
+                engineFails = false;
+            } catch (final RuntimeException e) {
+                engineFails = "Add Lands to empty deck list!".equals(e.getMessage());
+            }
+            // Que el motor reviente depende del pool (con estas cartas solo
+            // revienta el todo incoloro); el que tiene que salir siempre en rojo
+            // si se rompe es el cubo de abajo, que lo provoca en los siete.
+            System.out.println(engineFails
+                    ? "  (el motor sigue reventando con Memnarch de comandante, " + what + ")"
+                    : "  (el motor monta solo el mazo de Memnarch, " + what + ": no hace falta el de repuesto)");
+            final int before = NeoDraft.FALLBACKS.get();
+            final Deck d = NeoDraft.rivalDeck(seat, null, 1);
+            final forge.deck.CardPool cmd = d.get(DeckSection.Commander);
+            int lands = 0;
+            for (final java.util.Map.Entry<PaperCard, Integer> e : d.getMain()) {
+                if (e.getKey().getRules().getType().isLand()) {
+                    lands += e.getValue();
+                }
+            }
+            final int total = d.getMain().countAll() + (cmd == null ? 0 : cmd.countAll());
+            final boolean ok = memnarch.equals(pickedCommander) && cmd != null && !cmd.isEmpty()
+                    && lands > 0 && total >= 40
+                    && (!engineFails || NeoDraft.FALLBACKS.get() == before + 1)
+                    && (withColour || !engineFails || cmd.contains(memnarch));
+            check(ok, "comandante incoloro, " + what + ": el rival sale con mazo (" + (cmd == null ? "-" : cmd.toFlatList())
+                    + ", " + total + " cartas, " + lands + " tierras)");
+        }
+
+        // 3: el camino del jugador, con un cubo de solo incoloros
+        final String before = System.getProperty("neo.cubes.dir");
+        final java.io.File dir;
+        try {
+            dir = java.nio.file.Files.createTempDirectory("neo-cubo-incoloro").toFile();
+        } catch (final java.io.IOException e) {
+            check(false, "no se ha podido crear la carpeta del cubo incoloro: " + e);
+            return;
+        }
+        System.setProperty("neo.cubes.dir", dir.getPath());
+        final String saved = "neo-cmdcubecheck-incoloro";
+        try {
+            final List<PaperCard> legends = new java.util.ArrayList<>();
+            final List<PaperCard> rest = new java.util.ArrayList<>();
+            for (final PaperCard c : db.getUniqueCards()) {
+                final forge.card.CardRules r = c.getRules();
+                if (!r.getColorIdentity().isColorless() || r.getType().isLand() || !r.getType().isArtifact()
+                        || c.getName().contains("//") || c.getName().startsWith("A-")) {
+                    continue;
+                }
+                (r.canBeCommander() ? legends : rest).add(c);
+            }
+            final java.util.Comparator<PaperCard> byName = java.util.Comparator.comparing(PaperCard::getName);
+            legends.sort(byName);
+            rest.sort(byName);
+            final StringBuilder dck = new StringBuilder("[metadata]\nName=Cubo incoloro NeoForge\n[Main]\n");
+            int n = 0;
+            for (final PaperCard c : legends) {
+                if (n >= 150) {
+                    break;
+                }
+                dck.append("1 ").append(c.getName()).append('\n');
+                n++;
+            }
+            for (final PaperCard c : rest) {
+                if (n >= 360) {
+                    break;
+                }
+                dck.append("1 ").append(c.getName()).append('\n');
+                n++;
+            }
+            final String cubeName;
+            try {
+                cubeName = CubeCobra.save("zz-incoloro", dck.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            } catch (final CubeCobra.ImportException e) {
+                check(false, "el cubo incoloro no se ha guardado: " + e);
+                return;
+            }
+            final NeoDraft draft = NeoDraft.startCube(cubeName, true);
+            check(draft != null, "un cubo de solo artefactos incoloros arranca como Commander Draft (" + n + " cartas)");
+            if (draft == null) {
+                return;
+            }
+            int picks = 0;
+            while (!draft.isDone() && picks < 400) {
+                final List<PaperCard> pack = draft.currentCards();
+                if (pack.isEmpty()) {
+                    break;
+                }
+                draft.pick(pack.get(0));
+                picks++;
+            }
+            if (FModel.getDecks().getDraft().contains(saved)) {
+                FModel.getDecks().getDraft().delete(saved);
+            }
+            final int fallbacksBefore = NeoDraft.FALLBACKS.get();
+            DeckGroup group = null;
+            try {
+                group = draft.save(saved);
+            } catch (final RuntimeException e) {
+                check(false, "guardar el draft del cubo incoloro revienta: " + e);
+                return;
+            }
+            final int fell = NeoDraft.FALLBACKS.get() - fallbacksBefore;
+            int good = 0;
+            for (final Deck ai : group.getAiDecks()) {
+                final forge.deck.CardPool cmd = ai.get(DeckSection.Commander);
+                if (cmd != null && !cmd.isEmpty() && ai.getMain().countAll() >= 40) {
+                    good++;
+                }
+            }
+            check(FModel.getDecks().getDraft().contains(saved) && good == group.getAiDecks().size() && good > 0,
+                    "y se guarda, con los " + good + " de " + group.getAiDecks().size()
+                            + " rivales con comandante y mazo (" + fell + " montados de repuesto)");
+            final forge.neo.match.NeoGame.Result r = forge.neo.match.NeoGame.play(group.getAiDecks().get(0), 1,
+                    forge.neo.match.NeoMatchUI.Mode.AUTO_PLAY, 30, false, null, null, true,
+                    forge.neo.match.NeoFormat.DRAFT, List.of(group.getAiDecks().get(1)), 1, CommanderDraft.seating());
+            check(r != null && r.turns > 0, "y dos de esos mazos juegan una partida ("
+                    + (r == null ? "-" : r.turns + " turnos") + ")");
+        } finally {
+            if (FModel.getDecks().getDraft().contains(saved)) {
+                FModel.getDecks().getDraft().delete(saved);
+            }
+            if (before == null) {
+                System.clearProperty("neo.cubes.dir");
+            } else {
+                System.setProperty("neo.cubes.dir", before);
+            }
+            final java.io.File[] left = dir.listFiles();
+            for (final java.io.File f : left == null ? new java.io.File[0] : left) {
+                f.delete();
+            }
+            dir.delete();
+        }
     }
 
     private static void finish() {

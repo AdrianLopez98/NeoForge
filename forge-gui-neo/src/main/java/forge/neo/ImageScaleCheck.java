@@ -101,6 +101,9 @@ public final class ImageScaleCheck {
         //    Scryfall trae transparencia y se volvia a escribir en JPG.
         savingKeepsTheBytes();
         planesInEveryQuality();
+        // 10. La imagen de relleno de Scryfall ("Localized Image Not
+        //     Available"), 24-11-2026. Ver forge.neo.card.LocalizedPlaceholder.
+        localizedPlaceholders();
 
         System.out.println();
         System.out.printf(Locale.ROOT, "  %d bien, %d mal%n", passed, failed);
@@ -194,6 +197,176 @@ public final class ImageScaleCheck {
                 deleteTree(root);
             }
         }
+    }
+
+    /**
+     * La imagen de relleno de Scryfall: la ficha (JSON) y los pixeles. Sin red
+     * ni imagenes de Scryfall: la carta de relleno se fabrica aqui pintando la
+     * misma mascara que busca el detector sobre un dibujo cualquiera.
+     *
+     * <p>Con {@code -Dneo.placeholder.scan=<carpeta>} cuenta ademas las de
+     * relleno de una cache DE VERDAD (por ejemplo {@code pics/cards-es}), sin
+     * quitar ni marcar nada.
+     */
+    private static void localizedPlaceholders() {
+        // La ficha.
+        check(forge.neo.card.LocalizedPlaceholder.isNotAvailable("{\"image_status\":\"placeholder\"}")
+                && forge.neo.card.LocalizedPlaceholder.isNotAvailable("{\"image_status\":\"missing\"}"),
+                "una ficha 'placeholder' o 'missing' no es la carta traducida");
+        check(!forge.neo.card.LocalizedPlaceholder.isNotAvailable("{\"image_status\":\"lowres\"}")
+                && !forge.neo.card.LocalizedPlaceholder.isNotAvailable("{\"image_status\":\"highres_scan\"}")
+                && !forge.neo.card.LocalizedPlaceholder.isNotAvailable("no es json")
+                && !forge.neo.card.LocalizedPlaceholder.isNotAvailable(null),
+                "'lowres', 'highres_scan' o una ficha que no se entiende si cuentan (no se marca nada por dudar)");
+        final String single = "{\"image_uris\":{\"normal\":\"https://cards.scryfall.io/normal/front/a/b/x.jpg?1\"}}";
+        final String faces = "{\"card_faces\":[{\"image_uris\":{\"normal\":\"https://c/f.jpg\"}},"
+                + "{\"image_uris\":{\"normal\":\"https://c/b.jpg\"}}]}";
+        check("https://cards.scryfall.io/normal/front/a/b/x.jpg?1".equals(
+                        forge.neo.card.LocalizedPlaceholder.imageUrl(single, true)),
+                "la imagen de una carta de una cara sale de image_uris (tambien si se pide 'back')");
+        check("https://c/f.jpg".equals(forge.neo.card.LocalizedPlaceholder.imageUrl(faces, false))
+                        && "https://c/b.jpg".equals(forge.neo.card.LocalizedPlaceholder.imageUrl(faces, true)),
+                "la de dos caras, de card_faces: la primera o la segunda");
+        check(forge.neo.card.LocalizedPlaceholder.imageUrl("{}", false) == null
+                        && forge.neo.card.LocalizedPlaceholder.imageUrl(
+                                "{\"image_uris\":{\"normal\":\"file:///c:/x.jpg\"}}", false) == null,
+                "sin url (o con una que no es https) no se inventa ninguna");
+
+        // Los pixeles.
+        final java.awt.image.BufferedImage maskImg;
+        try (java.io.InputStream in = ImageScaleCheck.class
+                .getResourceAsStream("/forge/neo/card/localized-placeholder-mask.png")) {
+            maskImg = in == null ? null : javax.imageio.ImageIO.read(in);
+        } catch (final java.io.IOException e) {
+            check(false, "leer la mascara: " + e);
+            return;
+        }
+        check(maskImg != null && maskImg.getWidth() == 245 && maskImg.getHeight() == 72,
+                "la mascara viaja en el jar (245x72)");
+        if (maskImg == null) {
+            return;
+        }
+        final java.awt.image.BufferedImage real = artwork(488, 680, 11);
+        final java.awt.image.BufferedImage fake = artwork(488, 680, 11);
+        for (int y = 0; y < maskImg.getHeight(); y++) {
+            for (int x = 0; x < maskImg.getWidth(); x++) {
+                final int kind = maskImg.getRaster().getSample(x, y, 0);
+                final int px = 150 + x;
+                final int py = 233 + y;
+                if (kind == 255) {
+                    fake.setRGB(px, py, 0xF5F5F5);
+                } else if (kind == 0) {
+                    final int c = fake.getRGB(px, py);
+                    final int r = ((c >> 16) & 0xff) / 4;
+                    final int g = ((c >> 8) & 0xff) / 4;
+                    final int b = (c & 0xff) / 4;
+                    fake.setRGB(px, py, (r << 16) | (g << 8) | b);
+                }
+            }
+        }
+        check(forge.neo.card.LocalizedPlaceholder.looksLikePlaceholder(fake),
+                "una carta con la banda 'Localized Image Not Available' se reconoce");
+        check(!forge.neo.card.LocalizedPlaceholder.looksLikePlaceholder(real),
+                "la misma carta sin la banda, no");
+        check(!forge.neo.card.LocalizedPlaceholder.looksLikePlaceholder(flat(488, 680, 0xFFFFFF))
+                        && !forge.neo.card.LocalizedPlaceholder.looksLikePlaceholder(flat(488, 680, 0x101010)),
+                "ni una carta toda blanca (las letras si, el fondo no) ni una toda negra (al reves)");
+        check(!forge.neo.card.LocalizedPlaceholder.looksLikePlaceholder(flat(680, 488, 0x101010)),
+                "una imagen tumbada no tiene forma de carta: no se mira");
+
+        // Del disco: la carpeta se repasa, se quita la de relleno con su marca
+        // de "no hay" y la buena se queda.
+        java.io.File dir = null;
+        try {
+            dir = java.nio.file.Files.createTempDirectory("neo-placeholder").toFile();
+            final java.io.File set = new java.io.File(dir, "4E");
+            set.mkdirs();
+            final java.io.File bad = new java.io.File(set, "Abomination.fullborder.jpg");
+            final java.io.File good = new java.io.File(set, "Balance.fullborder.jpg");
+            javax.imageio.ImageIO.write(fake, "jpg", bad);
+            javax.imageio.ImageIO.write(real, "jpg", good);
+            // Y una "grande" (672x936): con la banda, pero reescalada. El arte
+            // traducido se baja siempre en 488x680, asi que otro tamanyo no se
+            // mira: mejor dejar una de relleno que quitar una buena.
+            final java.awt.image.BufferedImage big = new java.awt.image.BufferedImage(672, 936,
+                    java.awt.image.BufferedImage.TYPE_INT_RGB);
+            final java.awt.Graphics2D g2 = big.createGraphics();
+            g2.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
+                    java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g2.drawImage(fake, 0, 0, 672, 936, null);
+            g2.dispose();
+            final java.io.File large = new java.io.File(set, "Armageddon.fullborder.jpg");
+            javax.imageio.ImageIO.write(big, "jpg", large);
+            check(forge.neo.card.LocalizedPlaceholder.looksLikePlaceholder(bad)
+                            && !forge.neo.card.LocalizedPlaceholder.looksLikePlaceholder(good)
+                            && !forge.neo.card.LocalizedPlaceholder.looksLikePlaceholder(large),
+                    "en JPG, leyendo solo la franja: la de relleno si, la buena no, y otro tamanyo no se mira");
+            final int[] dry = forge.neo.card.LocalizedPlaceholder.sweep(dir, true);
+            check(dry[0] == 3 && dry[1] == 1 && bad.exists() && large.exists()
+                            && !forge.neo.card.LocalizedPlaceholder.isSwept(dir),
+                    "contar en seco no quita nada ni deja la marca (" + dry[0] + " miradas, " + dry[1] + " de relleno)");
+            final int[] wet = forge.neo.card.LocalizedPlaceholder.sweep(dir, false);
+            check(wet[1] == 1 && !bad.exists() && good.exists() && large.exists()
+                            && new java.io.File(bad.getPath() + ".none").exists()
+                            && !new java.io.File(good.getPath() + ".none").exists()
+                            && forge.neo.card.LocalizedPlaceholder.isSwept(dir),
+                    "el repaso quita las de relleno, les deja su '.none' (se vera la inglesa) y marca la carpeta");
+            check(new java.io.File(bad.getPath() + ".placeholder").isFile()
+                            && !new java.io.File(good.getPath() + ".placeholder").exists(),
+                    "la de relleno queda APARTADA (.placeholder): sin red y sin la inglesa, mejor eso que nada");
+            final int[] again = forge.neo.card.LocalizedPlaceholder.sweep(dir, true);
+            check(again[0] == 2 && again[1] == 0,
+                    "lo apartado no se vuelve a contar (" + again[0] + " miradas, " + again[1] + " de relleno)");
+        } catch (final java.io.IOException | RuntimeException e) {
+            check(false, "repasar una carpeta sin excepciones: " + e);
+        } finally {
+            if (dir != null) {
+                deleteTree(dir);
+            }
+        }
+
+        final String scan = System.getProperty("neo.placeholder.scan");
+        if (scan != null && !scan.isEmpty()) {
+            final long t0 = System.currentTimeMillis();
+            final int[] counts = forge.neo.card.LocalizedPlaceholder.sweep(new java.io.File(scan), true);
+            System.out.printf(Locale.ROOT, "    ...  %s: %d de relleno de %d cartas (%d ms, sin tocar nada)%n",
+                    scan, counts[1], counts[0], System.currentTimeMillis() - t0);
+        }
+    }
+
+    /** Un "dibujo" cualquiera: manchas de color suaves y algo de ruido, con semilla. */
+    private static java.awt.image.BufferedImage artwork(final int w, final int h, final long seed) {
+        final Random rnd = new Random(seed);
+        final java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(w, h,
+                java.awt.image.BufferedImage.TYPE_INT_RGB);
+        final double fx = 0.01 + rnd.nextDouble() * 0.03;
+        final double fy = 0.01 + rnd.nextDouble() * 0.03;
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                final int base = (int) (120 + 70 * Math.sin(x * fx) * Math.cos(y * fy));
+                final int n = rnd.nextInt(30) - 15;
+                final int r = clamp(base + n);
+                final int g = clamp(base - 20 + n);
+                final int b = clamp(base + 25 - n);
+                img.setRGB(x, y, (r << 16) | (g << 8) | b);
+            }
+        }
+        return img;
+    }
+
+    private static java.awt.image.BufferedImage flat(final int w, final int h, final int rgb) {
+        final java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(w, h,
+                java.awt.image.BufferedImage.TYPE_INT_RGB);
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                img.setRGB(x, y, rgb);
+            }
+        }
+        return img;
+    }
+
+    private static int clamp(final int v) {
+        return v < 0 ? 0 : v > 255 ? 255 : v;
     }
 
     private static void deleteTree(final java.io.File f) {

@@ -83,6 +83,24 @@ public final class OwnImage {
     }
 
     /**
+     * El fichero de la imagen propia de esa clave, o {@code null} si no la
+     * hay. Quien pinta tiene que mirarlo ANTES que nada (Discord, 24-11-2026:
+     * <i>"tried putting a png on a card and it didnt do anything"</i>): la
+     * propia va a la carpeta normal, y la impresion en alta o maxima calidad
+     * ({@code ImageQuality}) o traducida, si estaba bajada, vive en otra y
+     * ganaba.
+     */
+    public static File ownFile(final String imageKey) {
+        for (final String ext : EXTENSIONS) {
+            final File t = target(imageKey, ext);
+            if (t != null && t.isFile() && markerOf(t).isFile()) {
+                return t;
+            }
+        }
+        return null;
+    }
+
+    /**
      * Pone la imagen propia. Lo que habia (la bajada, en .jpg o .png) se
      * APARTA, no se borra, para poder volver con {@link #restore} sin internet;
      * y se aparta la de las dos extensiones, porque si quedara un .jpg al lado

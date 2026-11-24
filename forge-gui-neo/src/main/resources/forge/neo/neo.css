@@ -4290,8 +4290,10 @@
 }
 .table-root .action-bar {
     -fx-background-color: linear-gradient(to bottom, #222c34, #121a22);
-    -fx-border-color: #9c7a48; -fx-border-width: 1;
-    -fx-background-radius: 4; -fx-border-radius: 4;
+    /* Dos trazos de 1, el de dentro transparente: el mismo grueso que el rojo
+       de :awaiting (ver alli), para que la caja no cambie de alto. */
+    -fx-border-color: #9c7a48, transparent; -fx-border-width: 1, 1; -fx-border-insets: 0, 1;
+    -fx-background-radius: 4; -fx-border-radius: 4, 3;
 }
 .table-root .action-bar .btn-primary {
     -fx-background-color: linear-gradient(to bottom, #e4ac5c, #a96129);
@@ -4304,7 +4306,17 @@
 /* Te toca a ti (ActionBar.AWAITING, Discord 12-11-2026): el motor espera algo
    tuyo. Rojo porque lo pidio el jugador y porque el ambar ya es el borde de
    siempre de esta barra: no se distinguiria. */
-.action-bar:awaiting, .table-root .action-bar:awaiting, .action-bar:inline:awaiting {
+/* ⚠️ El grosor NO puede cambiar con el estado: el borde cuenta en el alto de la
+   caja, y con la columna plegada esa caja decide el alto de la fila de tu
+   barra, o sea el reparto de TODA la mesa. Con 1 px normal y 2 en rojo, la mesa
+   entera se recolocaba a cada prioridad (Discord, 24-11-2026, video en 32:9).
+   Por eso la caja normal lleva ya dos trazos de 1 (el de dentro transparente)
+   y la roja los mismos dos, en rojo: 2 px en los dos casos. */
+.table-root .action-bar:awaiting {
+    -fx-border-color: #D9534F, #D9534F; -fx-border-width: 1, 1; -fx-border-insets: 0, 1;
+    -fx-effect: dropshadow(gaussian, rgba(217,83,79,.55), 16, .25, 0, 0);
+}
+.action-bar:awaiting, .action-bar:inline:awaiting {
     -fx-border-color: #D9534F; -fx-border-width: 2;
     -fx-effect: dropshadow(gaussian, rgba(217,83,79,.55), 16, .25, 0, 0);
 }
@@ -4728,3 +4740,164 @@
     -fx-stroke-width: 0.9;
     -fx-stroke-type: outside;
 }
+
+/* ================================================================
+   Rogue Commander (el modo de Forge, #12841). Todo bajo .rogue-*:
+   ninguna regla de aqui toca otra pantalla.
+   ================================================================ */
+.rogue-screen {
+    -fx-background-color:
+        radial-gradient(center 50% 30%, radius 90%, #18202B 0%, -neo-table-deep 100%);
+}
+.rogue-title { -fx-font-size: 1.85em; -fx-font-weight: 700; -fx-text-fill: -neo-text; }
+.rogue-commander-name { -fx-font-size: 1.45em; -fx-font-weight: 700; -fx-text-fill: -neo-text; }
+.rogue-hint { -fx-text-fill: -neo-text-dim; -fx-font-size: 0.92em; }
+.rogue-themes { -fx-text-fill: #C9B37E; }
+.rogue-section { -fx-text-fill: #D7B057; -fx-font-weight: 700; -fx-font-size: 1.05em; }
+.rogue-level { -fx-font-weight: 700; -fx-text-fill: -neo-text; -fx-padding: 0 6 0 6; }
+.rogue-check { -fx-text-fill: -neo-text; }
+
+.rogue-status {
+    -fx-background-color: linear-gradient(to bottom, rgba(27,33,42,.96), rgba(18,22,28,.86));
+    -fx-border-color: transparent transparent -neo-line transparent;
+    -fx-border-width: 0 0 1 0;
+}
+.rogue-bottom {
+    -fx-background-color: linear-gradient(to top, rgba(11,14,19,.97), rgba(18,22,28,.82));
+    -fx-border-color: -neo-line transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+}
+.rogue-stat { -fx-font-size: 1.1em; -fx-font-weight: 600; -fx-text-fill: -neo-text; }
+.rogue-life { -fx-text-fill: #E5776F; }
+.rogue-gold, .rogue-cost { -fx-text-fill: #E3B954; -fx-font-weight: 700; }
+.rogue-echo { -fx-text-fill: #8FC3F0; }
+.rogue-spark { -fx-text-fill: #F0A05A; }
+.rogue-energy { -fx-text-fill: #7ED0A4; }
+.rogue-credits { -fx-text-fill: #C9B8E8; }
+
+.rogue-pill {
+    -fx-background-color: rgba(35,43,54,.92);
+    -fx-background-radius: 10;
+    -fx-border-color: -neo-line;
+    -fx-border-radius: 10;
+    -fx-padding: 3 9 3 9;
+    -fx-font-size: 0.86em;
+    -fx-text-fill: -neo-text;
+}
+.rogue-pill-beta { -fx-border-color: -neo-warn; -fx-text-fill: #F1CB7B; }
+/* La cara de quien habla en un dialogo de Rogue (NPC o Teferi). */
+.rogue-talk-face {
+    -fx-background-color: -neo-panel-hi; -fx-background-radius: 8;
+    -fx-border-color: -neo-line; -fx-border-radius: 8; -fx-padding: 4;
+}
+/* La "i" del inicio de Rogue: un circulo pequenyo con la letra en cursiva. */
+.rogue-info-button {
+    -fx-background-radius: 999; -fx-border-radius: 999;
+    -fx-min-width: 2.4em; -fx-min-height: 2.4em; -fx-pref-width: 2.4em; -fx-pref-height: 2.4em;
+    -fx-padding: 0; -fx-font-weight: 700; -fx-font-style: italic; -fx-font-family: "Georgia";
+}
+.rogue-pill-descension { -fx-border-color: #B36A6A; -fx-text-fill: #F0A8A8; }
+.rogue-pill-endless { -fx-border-color: #7F70C9; -fx-text-fill: #C8BDF7; }
+.rogue-pill-carry { -fx-border-color: #7FA36B; -fx-text-fill: #CDE6BD; }
+
+.rogue-map-scroll, .rogue-scroll, .rogue-carousel {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+}
+.rogue-map-scroll > .viewport, .rogue-scroll > .viewport, .rogue-carousel > .viewport {
+    -fx-background-color: transparent;
+}
+
+/* Los nodos del mapa, como los de Forge (NodePanel): sin fondo, y el marco
+   lo dibuja RogueMapScreen encima (colores y grosores de Forge, crecidos con
+   UiScale; una forma y no un borde de CSS, para no cambiar ningun tamanyo). */
+.rogue-node-name { -fx-text-fill: -neo-text; }
+.rogue-node-life { -fx-text-fill: -neo-text; -fx-font-weight: 700; -fx-font-size: 1.077em; }
+.rogue-edge-line { -fx-stroke: rgba(141,154,171,.7); -fx-fill: transparent; -fx-stroke-line-cap: butt; }
+/* El dorso de un comandante bloqueado en el inicio (RogueStartScreen). */
+.rogue-facedown {
+    -fx-background-color: linear-gradient(to bottom right, #2A3342, #161C25);
+    -fx-background-radius: 6;
+    -fx-border-color: #3A4556;
+    -fx-border-radius: 6;
+}
+.rogue-facedown-mark { -fx-font-size: 2.4em; -fx-font-weight: 700; -fx-text-fill: #5D6B80; }
+
+/* Sin tope de ancho en px: cada dialogo de Rogue mide su ancho con UiScale.px y
+   pone su maximo en el preferido. Un -fx-max-width aqui gana a esos setters (la
+   hoja de estilos manda sobre el codigo en JavaFX) y no crece con la pantalla: a
+   4K el Bazaar salia con tres cartas por fila y barra (24-11-2026). */
+.rogue-dialog { }
+.rogue-choice {
+    -fx-background-color: -neo-panel-hi;
+    -fx-background-radius: 8;
+    -fx-border-color: -neo-line;
+    -fx-border-radius: 8;
+    -fx-padding: 9 14 9 14;
+}
+.rogue-choice:hover { -fx-border-color: #E3B954; }
+.rogue-choice:disabled { -fx-opacity: .5; }
+.rogue-choice:pressed { -fx-background-color: #2B3442; }
+.rogue-choice-label { -fx-font-weight: 700; -fx-text-fill: -neo-text; -fx-font-size: 1.02em; }
+.rogue-choice-desc { -fx-text-fill: -neo-text-dim; }
+.rogue-talk-text { -fx-font-size: 1.1em; -fx-line-spacing: 3; }
+.rogue-tab { -fx-background-radius: 6; }
+
+.rogue-offer {
+    -fx-padding: 6;
+    -fx-background-radius: 8;
+    -fx-border-color: transparent;
+    -fx-border-width: 2;
+    -fx-border-radius: 8;
+}
+.rogue-offer:hover { -fx-border-color: #8FA8C8; }
+.rogue-offer-picked {
+    -fx-border-color: #E3B954;
+    -fx-background-color: rgba(227,185,84,.12);
+}
+.rogue-price { -fx-font-weight: 700; }
+.rogue-price-normal { -fx-text-fill: #E3B954; }
+.rogue-price-discount { -fx-text-fill: -neo-valid; }
+
+.rogue-commander-tile {
+    -fx-padding: 6;
+    -fx-background-radius: 10;
+    -fx-border-color: transparent;
+    -fx-border-width: 3;
+    -fx-border-radius: 10;
+}
+.rogue-commander-tile:hover { -fx-border-color: #8FA8C8; }
+.rogue-commander-selected {
+    -fx-border-color: #E3B954;
+    -fx-effect: dropshadow(gaussian, rgba(227,185,84,.6), 20, .3, 0, 0);
+}
+.rogue-commander-locked { -fx-opacity: .75; }
+
+.rogue-panel {
+    -fx-background-color: rgba(27,33,42,.95);
+    -fx-background-radius: 8;
+    -fx-border-color: -neo-line;
+    -fx-border-radius: 8;
+}
+.rogue-aether-active { -fx-border-color: -neo-valid; -fx-border-width: 2; }
+.rogue-aether-upgrade { -fx-border-color: #E3B954; -fx-border-width: 2; }
+.rogue-won { -fx-text-fill: -neo-valid; }
+.rogue-lost { -fx-text-fill: -neo-danger; }
+.rogue-abandoned { -fx-text-fill: -neo-text-dim; }
+.rogue-carousel > .scroll-bar, .rogue-scroll > .scroll-bar, .rogue-map-scroll > .scroll-bar {
+    -fx-background-color: transparent;
+}
+.rogue-carousel > .scroll-bar:horizontal, .rogue-scroll > .scroll-bar:horizontal { -fx-pref-height: 9; }
+.rogue-scroll > .scroll-bar:vertical, .rogue-map-scroll > .scroll-bar:vertical { -fx-pref-width: 9; }
+.rogue-carousel > .scroll-bar > .thumb, .rogue-scroll > .scroll-bar > .thumb, .rogue-map-scroll > .scroll-bar > .thumb {
+    -fx-background-color: -neo-line;
+    -fx-background-radius: 4;
+}
+.rogue-carousel > .scroll-bar > .thumb:hover, .rogue-scroll > .scroll-bar > .thumb:hover,
+.rogue-map-scroll > .scroll-bar > .thumb:hover { -fx-background-color: -neo-text-dim; }
+.rogue-carousel > .scroll-bar > .increment-button, .rogue-carousel > .scroll-bar > .decrement-button,
+.rogue-scroll > .scroll-bar > .increment-button, .rogue-scroll > .scroll-bar > .decrement-button,
+.rogue-map-scroll > .scroll-bar > .increment-button, .rogue-map-scroll > .scroll-bar > .decrement-button {
+    -fx-pref-height: 0; -fx-pref-width: 0; -fx-opacity: 0;
+}
+.rogue-carousel > .corner, .rogue-scroll > .corner, .rogue-map-scroll > .corner { -fx-background-color: transparent; }

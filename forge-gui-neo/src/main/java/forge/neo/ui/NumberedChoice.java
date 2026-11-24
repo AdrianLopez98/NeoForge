@@ -51,6 +51,15 @@ public interface NumberedChoice {
      * sale nunca. Y en un {@code runLater}, porque esto llega a mitad de meter
      * el dialogo en la escena.
      */
+    /**
+     * La marca de una pista quitada (fuera de la mesa). {@code ManaIcons} la
+     * mira para no volver a ponerla: se la guardaba al decorar el boton y la
+     * devolvia en cada cambio de color del texto (o sea, al pasar el raton), y
+     * el boton crecia y encogia con el "2" apareciendo y yendose (Ana,
+     * 24-11-2026, la pregunta de abandonar la run de Rogue).
+     */
+    String DROPPED = "neo.keyHint.dropped";
+
     static Label hint(final int n) {
         final Label l = new Label(String.valueOf(n));
         l.getStyleClass().add("key-hint");
@@ -59,6 +68,7 @@ public interface NumberedChoice {
             if (now == null || inTableDialogs(l)) {
                 return;
             }
+            l.getProperties().put(DROPPED, Boolean.TRUE);
             final javafx.scene.Parent owner = l.getParent();
             if (owner instanceof javafx.scene.control.Labeled labeled) {
                 javafx.application.Platform.runLater(() -> {

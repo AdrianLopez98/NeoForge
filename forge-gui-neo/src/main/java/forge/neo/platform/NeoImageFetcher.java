@@ -17,6 +17,7 @@ import forge.localinstance.properties.ForgeConstants;
 import forge.localinstance.properties.ForgePreferences;
 import forge.model.FModel;
 import forge.neo.card.CardArt;
+import forge.neo.card.LocalizedPlaceholder;
 import forge.util.ImageFetcher;
 import forge.util.ImageUtil;
 import forge.util.ScryfallRateLimiter;
@@ -192,30 +193,102 @@ public class NeoImageFetcher extends ImageFetcher {
         final String url = ForgeConstants.URL_PIC_SCRYFALL_DOWNLOAD
                 + ImageUtil.getScryfallDownloadUrl(card, face, edition.getScryfallCode(), lang, false);
 
+        final boolean back = url.contains("&face=back");
         ThreadUtil.getServicePool().submit(() -> {
-            boolean ok = false;
+            Boolean ok = null;
             try {
-                ok = doFetch(url, dest.getPath(), null);
-            } catch (final IOException e) {
-                if (DEBUG) {
-                    System.out.println("[neo-img] " + lang + ": fallo " + url + " -> " + e);
-                }
+                ok = fetchLocalizedNow(url, back, dest);
             } catch (final RuntimeException e) {
                 System.err.println("[neo-img] error pidiendo " + url + ": " + e);
             }
-            if (!ok && !ScryfallRateLimiter.isCoolingDown()) {
+            if (Boolean.FALSE.equals(ok)) {
                 // Que una carta no exista en este idioma es lo normal, no un
-                // error. Se anota para no volver a preguntarlo cada arranque —
-                // pero NO si lo que ha pasado es que nos han cortado, porque
-                // entonces no sabemos nada de esta carta.
+                // error. Se anota para no volver a preguntarlo cada arranque.
+                // Solo cuando Scryfall LO HA DICHO: sin red, con un 429 o un
+                // 5xx no sabemos nada de esta carta (antes un fallo de red la
+                // marcaba para siempre), y se vuelve a preguntar otro arranque.
                 CardArt.markMissing(filename);
             }
             if (DEBUG) {
                 System.out.println("[neo-img] " + lang + ": "
-                        + (ok ? "OK " : "no hay ") + filename);
+                        + (ok == null ? "no se sabe " : ok ? "OK " : "no hay ") + filename);
             }
             whenDone.run();
         });
+    }
+
+    /**
+     * Baja la traducida PREGUNTANDO ANTES por su ficha (24-11-2026).
+     *
+     * <p>Scryfall tiene ficha de muchas impresiones traducidas sin escaneo, y a
+     * {@code format=image} les contesta con la carta INGLESA y una banda que
+     * dice <i>"Localized Image Not Available"</i>: un 302 y un 200 como los de
+     * una imagen buena. Lo unico que lo dice es el {@code image_status} de la
+     * ficha. Asi que se pide la ficha ({@code format=json}, la misma peticion a
+     * la API que antes) y la imagen sale de su {@code image_uris}, que es la
+     * CDN y no gasta cupo. Y por si acaso, lo bajado se mira tambien por los
+     * pixeles. Ver {@link LocalizedPlaceholder}.
+     *
+     * @return {@code true} guardada; {@code false} Scryfall no la tiene en ese
+     *         idioma (404, ficha de relleno o imagen de relleno); {@code null}
+     *         no se sabe (sin red, 429, 5xx...)
+     */
+    private Boolean fetchLocalizedNow(final String imageUrl, final boolean back, final File dest) {
+        final String jsonUrl = imageUrl.replace("format=image", "format=json");
+        if (ScryfallRateLimiter.shouldSkip(jsonUrl)) {
+            return null;
+        }
+        final String json;
+        try {
+            ScryfallRateLimiter.acquire(jsonUrl);
+            final HttpURLConnection http = (HttpURLConnection) new URL(jsonUrl).openConnection();
+            http.setRequestProperty("Accept", "application/json");
+            http.setRequestProperty("User-Agent", forge.neo.platform.NeoUserAgent.get());
+            http.setConnectTimeout(10_000);
+            http.setReadTimeout(20_000);
+            final int code = http.getResponseCode();
+            if (code == HttpURLConnection.HTTP_NOT_FOUND) {
+                http.disconnect();
+                return false;
+            }
+            if (code != HttpURLConnection.HTTP_OK) {
+                if (code == 429) {
+                    System.err.println("[neo] Scryfall nos ha limitado. Pausando descargas.");
+                    noteOurCooldown(ScryfallRateLimiter.parseRetryAfterSeconds(
+                            http.getHeaderField("Retry-After")));
+                    ScryfallRateLimiter.noteIfRateLimited(code, jsonUrl,
+                            http.getHeaderField("Retry-After"));
+                }
+                http.disconnect();
+                return null;
+            }
+            try (InputStream in = http.getInputStream()) {
+                json = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            }
+        } catch (final IOException e) {
+            if (DEBUG) {
+                System.out.println("[neo-img] ficha " + jsonUrl + " -> " + e);
+            }
+            return null;
+        }
+        if (LocalizedPlaceholder.isNotAvailable(json)) {
+            return false;
+        }
+        // Sin url en la ficha (no deberia pasar) se pide como siempre, por la API.
+        final String cdn = LocalizedPlaceholder.imageUrl(json, back);
+        final boolean saved;
+        try {
+            saved = doFetch(cdn != null ? cdn : imageUrl, dest.getPath(), null);
+        } catch (final IOException e) {
+            if (DEBUG) {
+                System.out.println("[neo-img] fallo " + (cdn != null ? cdn : imageUrl) + " -> " + e);
+            }
+            return null;
+        }
+        if (!saved) {
+            return null;
+        }
+        return LocalizedPlaceholder.discardIfPlaceholder(dest) ? Boolean.FALSE : Boolean.TRUE;
     }
 
     /**

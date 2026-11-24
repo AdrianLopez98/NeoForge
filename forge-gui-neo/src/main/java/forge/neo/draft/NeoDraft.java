@@ -5,13 +5,18 @@ import java.util.List;
 import java.util.Map;
 
 import forge.card.CardEdition;
+import forge.card.ColorSet;
 import forge.deck.CardPool;
 import forge.deck.Deck;
 import forge.deck.DeckGroup;
 import forge.deck.DeckSection;
 import forge.gamemodes.limited.BoosterDraft;
+import forge.gamemodes.limited.CommanderDeckColors;
+import forge.gamemodes.limited.CommanderDraftDeckBuilder;
+import forge.gamemodes.limited.CommanderLimitedPlayerAI;
 import forge.gamemodes.limited.IBoosterDraft;
 import forge.gamemodes.limited.LimitedPlayer;
+import forge.gamemodes.limited.LimitedPlayerAI;
 import forge.gamemodes.limited.LimitedPoolType;
 import forge.item.PaperCard;
 import forge.model.CardBlock;
@@ -446,7 +451,7 @@ public final class NeoDraft implements PackSource {
     public DeckGroup toGroup(final String name) {
         draft.postDraftActions();
 
-        final Deck[] ai = draft.getComputerDecks();
+        final Deck[] ai = rivalDecks(draft);
         final LimitedPlayer[] rivals = draft.getOpposingPlayers();
         for (int i = 0; i < ai.length && i < rivals.length; i++) {
             ai[i].setDraftNotes(rivals[i].getSerializedDraftNotes());
@@ -481,6 +486,215 @@ public final class NeoDraft implements PackSource {
         group.setHumanDeck(mine);
         group.addAiDecks(ai);
         return group;
+    }
+
+    /**
+     * Los mazos de los rivales, <b>uno a uno</b>: lo mismo que
+     * {@code getComputerDecks()}, pero si el motor no sabe montar el de UN
+     * asiento, ese asiento lleva otro mazo hecho con su pool y el draft se
+     * guarda igual.
+     *
+     * <p>Por que (24-11-2026, cerrando la 1.0.65): en un Commander Draft la IA
+     * se queda con el primer legendario que pueda ser comandante y fija sus
+     * colores a su identidad. Si es <b>incoloro</b> (un artefacto legendario:
+     * pasa en el Legendary Cube o en cualquier cubo con artefactos), el
+     * constructor de Forge solo admite cartas incoloras, cuenta cero simbolos
+     * de color y {@code LimitedDeckBuilder.addLands} revienta con
+     * "Add Lands to empty deck list!" (su propio TODO lo dice). Y
+     * {@code getComputerDecks} monta los siete de un tiron: un asiento roto
+     * tiraba los siete — y con ellos el guardado entero, o sea los 45 picks
+     * del jugador, porque "Aceptar" y "Cancelar" del nombre llaman los dos a
+     * {@link #save} y fallaban igual una y otra vez. Ver las trampas conocidas.
+     *
+     * <p>El orden es el de {@code getOpposingPlayers()}, el mismo que el de
+     * {@code getComputerDecks()} (y del que depende {@link DraftSeats}).
+     */
+    static Deck[] rivalDecks(final IBoosterDraft draft) {
+        final LimitedPlayer[] rivals = draft.getOpposingPlayers();
+        for (final LimitedPlayer p : rivals) {
+            if (!(p instanceof LimitedPlayerAI)) {
+                return draft.getComputerDecks();
+            }
+        }
+        final CardEdition land = IBoosterDraft.LAND_SET_CODE[0];
+        final String landCode = land == null ? null : land.getCode();
+        final Deck[] out = new Deck[rivals.length];
+        for (int i = 0; i < rivals.length; i++) {
+            out[i] = rivalDeck((LimitedPlayerAI) rivals[i], landCode, i + 1);
+        }
+        return out;
+    }
+
+    /** El mazo de un rival: el del motor, y si revienta, {@link #fallbackDeck}. Nunca null. */
+    static Deck rivalDeck(final LimitedPlayerAI seat, final String landCode, final int seatNo) {
+        try {
+            final Deck built = seat.buildDeck(landCode);
+            if (built != null && !built.getMain().isEmpty()) {
+                return built;
+            }
+        } catch (final RuntimeException e) {
+            FALLBACKS.incrementAndGet();
+            System.err.println("[draft] el motor no ha podido montar el mazo del rival " + seatNo
+                    + " (" + e.getMessage() + "): se le monta otro con su pool");
+        }
+        return fallbackDeck(seat, landCode);
+    }
+
+    /** Cuantas veces ha hecho falta {@link #fallbackDeck}: lo mira CommanderDraftCheck. */
+    static final java.util.concurrent.atomic.AtomicInteger FALLBACKS = new java.util.concurrent.atomic.AtomicInteger();
+
+    private static final int CMD_DECK = 60;
+    private static final int CMD_LANDS = 24;
+
+    /**
+     * Un mazo para el asiento cuyo mazo no ha sabido montar el motor, con
+     * <b>sus</b> cartas: sigues jugando contra lo que draftearon a tu lado.
+     *
+     * <ol>
+     * <li>Commander Draft: otro comandante <b>con color</b> de su pool, y el
+     *     mazo lo monta el propio motor alrededor de el.</li>
+     * <li>Si no hay ninguno (un pool todo incoloro), a mano: su comandante,
+     *     las cartas de su identidad y tierras basicas — Yermos si es incoloro.</li>
+     * <li>Sin Commander: el "Montar solo" del editor ({@link LimitedAutoBuild}).</li>
+     * </ol>
+     */
+    static Deck fallbackDeck(final LimitedPlayerAI seat, final String landCode) {
+        final List<PaperCard> pool = new ArrayList<>(seat.getDeck().getOrCreate(DeckSection.Sideboard).toFlatList());
+        if (seat instanceof CommanderLimitedPlayerAI cmd) {
+            int tries = 0;
+            for (final PaperCard cand : colouredCommanders(pool)) {
+                if (tries++ >= 5) {
+                    break;
+                }
+                final List<PaperCard> rest = new ArrayList<>(pool);
+                rest.remove(cand);
+                try {
+                    final Deck d = new CommanderDraftDeckBuilder(rest, new CommanderDeckColors(), cand, null)
+                            .buildDeck(landCode);
+                    if (d != null && !d.getMain().isEmpty()) {
+                        return d;
+                    }
+                } catch (final RuntimeException ignored) {
+                    // el siguiente candidato
+                }
+            }
+            return handBuiltCommanderDeck(cmd, pool, landCode);
+        }
+        final Deck d = new Deck("Draft");
+        final CardPool main = LimitedAutoBuild.build(pool, landCode);
+        final List<PaperCard> side = new ArrayList<>(pool);
+        if (main != null) {
+            for (final Map.Entry<PaperCard, Integer> e : main) {
+                d.getMain().add(e.getKey(), e.getValue());
+                for (int i = 0; i < e.getValue(); i++) {
+                    side.remove(e.getKey());
+                }
+            }
+        } else {
+            d.getMain().add(pool);
+            side.clear();
+            addBasics(d.getMain(), ColorSet.WUBRG, 17, landCode);
+        }
+        d.getOrCreate(DeckSection.Sideboard).add(side);
+        return d;
+    }
+
+    /** Los comandantes con color del pool, el que mas cartas del pool admite primero. */
+    private static List<PaperCard> colouredCommanders(final List<PaperCard> pool) {
+        final List<PaperCard> out = new ArrayList<>();
+        for (final PaperCard c : pool) {
+            if (c.getRules().canBeCommander() && !c.getRules().getColorIdentity().isColorless() && !out.contains(c)) {
+                out.add(c);
+            }
+        }
+        out.sort((a, b) -> Integer.compare(fits(pool, b.getRules().getColorIdentity()),
+                fits(pool, a.getRules().getColorIdentity())));
+        return out;
+    }
+
+    private static int fits(final List<PaperCard> pool, final ColorSet identity) {
+        int n = 0;
+        for (final PaperCard c : pool) {
+            if (identity.containsAllColorsFrom(c.getRules().getColorIdentity().getColor())) {
+                n++;
+            }
+        }
+        return n;
+    }
+
+    private static Deck handBuiltCommanderDeck(final CommanderLimitedPlayerAI seat, final List<PaperCard> pool,
+                                               final String landCode) {
+        PaperCard commander = seat.getCommander();
+        final PaperCard partner = seat.getPartner();
+        if (commander == null) {
+            for (final PaperCard c : pool) {
+                if (c.getRules().canBeCommander()) {
+                    commander = c;
+                    break;
+                }
+            }
+        }
+        final Deck d = new Deck(commander == null ? "Commander Draft" : commander.getName() + " Commander Draft");
+        final List<PaperCard> rest = new ArrayList<>(pool);
+        ColorSet identity = ColorSet.WUBRG;
+        int target = CMD_DECK;
+        if (commander != null) {
+            rest.remove(commander);
+            d.getOrCreate(DeckSection.Commander).add(commander);
+            identity = commander.getRules().getColorIdentity();
+            target--;
+            if (partner != null) {
+                rest.remove(partner);
+                d.getOrCreate(DeckSection.Commander).add(partner);
+                identity = ColorSet.combine(identity, partner.getRules().getColorIdentity());
+                target--;
+            }
+        }
+        final CardPool main = d.getMain();
+        int spells = 0;
+        for (final java.util.Iterator<PaperCard> it = rest.iterator(); it.hasNext() && spells < target - CMD_LANDS;) {
+            final PaperCard c = it.next();
+            if (!c.getRules().getType().isBasicLand()
+                    && identity.containsAllColorsFrom(c.getRules().getColorIdentity().getColor())) {
+                main.add(c);
+                it.remove();
+                spells++;
+            }
+        }
+        addBasics(main, identity, target - spells, landCode);
+        d.getOrCreate(DeckSection.Sideboard).add(rest);
+        return d;
+    }
+
+    /**
+     * {@code count} basicas repartidas entre los colores; sin color, Yermos
+     * (y si la base no los tuviera, Llanuras: un coste generico se paga con
+     * cualquier cosa).
+     */
+    private static void addBasics(final CardPool main, final ColorSet colours, final int count, final String landCode) {
+        final List<PaperCard> basics = new ArrayList<>();
+        for (final forge.card.MagicColor.Color c : colours.getOrderedColors()) {
+            final PaperCard b = basic(c.getBasicLandType(), landCode);
+            if (b != null) {
+                basics.add(b);
+            }
+        }
+        if (basics.isEmpty()) {
+            final PaperCard wastes = basic("Wastes", landCode);
+            basics.add(wastes != null ? wastes : basic("Plains", landCode));
+        }
+        for (int i = 0; i < count; i++) {
+            main.add(basics.get(i % basics.size()));
+        }
+    }
+
+    private static PaperCard basic(final String name, final String landCode) {
+        final forge.card.CardDb db = FModel.getMagicDb().getCommonCards();
+        PaperCard p = landCode == null ? null : db.getCard(name, landCode);
+        if (p == null) {
+            p = db.getCard(name);
+        }
+        return p;
     }
 
     /**

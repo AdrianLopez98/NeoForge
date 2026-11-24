@@ -150,7 +150,34 @@ public final class CardArt {
      */
     private static File missMarker(final String filename) {
         final File image = fileFor(filename);
-        return image == null ? null : new File(image.getPath() + ".none");
+        return image == null ? null : missMarkerFor(image);
+    }
+
+    /**
+     * La marca de "no esta en este idioma" de una imagen ya situada. La usa
+     * {@link LocalizedPlaceholder} al quitar una imagen de relleno de Scryfall.
+     */
+    public static File missMarkerFor(final File image) {
+        return new File(image.getPath() + ".none");
+    }
+
+    /**
+     * Donde se aparta la imagen de relleno de Scryfall de esa carta (la inglesa
+     * con la banda "Localized Image Not Available"): el respaldo de ultimo
+     * recurso, por si no hay otra. Ver {@link LocalizedPlaceholder#discard}.
+     */
+    public static File placeholderFor(final File image) {
+        return new File(image.getPath() + ".placeholder");
+    }
+
+    /** La imagen de relleno apartada de esa carta, si la hay. */
+    public static File placeholderOf(final String filename) {
+        final File image = fileFor(filename);
+        if (image == null) {
+            return null;
+        }
+        final File aside = placeholderFor(image);
+        return aside.isFile() ? aside : null;
     }
 
     /** Si ya sabemos que esta carta no esta en este idioma. */

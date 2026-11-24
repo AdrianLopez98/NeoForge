@@ -1,11 +1,10 @@
-**NeoForge para macOS 1.0.65 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.66 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Ascenso: «Empezar con un Shattering Ward»**: casilla nueva al montar la run. Empiezas con el escudo y, si se rompe, te dan otro al empezar los actos 2 y 3. Nunca salva contra un jefe.
-- **Todos los comandantes en el constructor**: la lista ya no se corta en 1.000.
-- **Notas del mazo también desde el constructor**, con un botón en la cabecera.
-- **Library of Leng** (y los reemplazos opcionales) enseñan la carta por la que preguntan.
-- El draft en red ya no parpadea, y arreglado un cierre raro al jugar una tierra con el ratón sobre la mano.
+- **La mesa ya no cambia de tamaño a cada rato**: con la columna de la derecha plegada se recolocaba entera con cada prioridad o cada vez que entraba algo en el stack.
+- **«Usar mi propia imagen» se ve siempre**, aunque esa carta ya estuviera bajada en alta calidad o en tu idioma.
+- **Un Commander Draft de cubo ya no se pierde al guardarlo** cuando una IA se quedaba con un comandante incoloro.
+- Los botones de las preguntas ya no cambian de tamaño al pasar el ratón.
 - Forge al día: cartas nuevas y arreglos del motor y de la IA.
 
 Descarga el `.dmg` de tu Mac:

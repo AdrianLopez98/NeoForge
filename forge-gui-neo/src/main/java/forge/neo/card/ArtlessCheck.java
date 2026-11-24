@@ -162,7 +162,13 @@ public final class ArtlessCheck {
                     "una imagen propia se copia y el juego la encuentra (" + written + ")",
                     "la imagen propia no se encuentra: antes=" + before + " despues=" + after + " en " + written);
             check(OwnImage.isOwn(key), "y queda marcada como tuya", "no queda marcada como propia");
+            // Lo que CardImages.load mira ANTES que la calidad elegida y la
+            // traducida (Discord, 24-11-2026: con la impresion en alta bajada,
+            // la propia no se veia).
+            check(written != null && written.equals(OwnImage.ownFile(key)),
+                    "y es la que se pinta antes que ninguna (ownFile)", "ownFile da " + OwnImage.ownFile(key));
             OwnImage.restore(key);
+            check(OwnImage.ownFile(key) == null, "sin la propia, ownFile no da nada", "ownFile sigue dando algo");
             check(written != null && !written.exists() && !OwnImage.isOwn(key),
                     "volver a la original la quita (no habia otra)", "la propia sigue ahi tras volver");
 

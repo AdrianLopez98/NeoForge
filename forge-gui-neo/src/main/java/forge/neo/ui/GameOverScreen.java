@@ -283,6 +283,8 @@ public class GameOverScreen extends VBox {
                 return "over.lobby";
             case REPLAY:
                 return "over.replay";
+            case ROGUE:
+                return "over.rogue";
             default:
                 return "over.menu";
         }

@@ -169,7 +169,15 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
          * los dos botones son Pausa y Velocidad ({@code ReplayPlayer}), salir es
          * cerrarla, y el final tiene un solo boton, "cerrar la repeticion".
          */
-        REPLAY
+        REPLAY,
+        /**
+         * Duelo de Rogue Commander (el modo de Forge, #12841). Un solo boton,
+         * "continuar": lo que pasa despues (premios, revivir, fin de la run) lo
+         * decide la logica de Forge DESPUES de cerrar la partida, asi que aqui
+         * no se puede saber si "terminar la run" seria verdad. Sin cambiar la
+         * regla de mulligan (eso es de ASCENT).
+         */
+        ROGUE
     }
 
     private volatile Ending ending = Ending.NORMAL;

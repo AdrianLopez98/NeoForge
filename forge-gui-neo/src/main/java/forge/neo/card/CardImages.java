@@ -182,8 +182,40 @@ public final class CardImages {
             return null;
         }
         final File f = CardArt.fileFor(toFilename(imageKey));
-        return f != null && f.exists() ? f : null;
+        if (f == null || !f.exists()) {
+            return null;
+        }
+        if (CardArt.missMarkerFor(f).exists()) {
+            // Marcada como "no hay en este idioma" y aun asi el fichero sigue:
+            // una de relleno que no se pudo apartar (un antivirus la tenia
+            // abierta). No se ensenya; el repaso lo volvera a intentar.
+            return null;
+        }
+        // LA IMAGEN DE RELLENO DE SCRYFALL (24-11-2026): hasta hoy se guardaba
+        // como si fuera la traducida ("Localized Image Not Available" encima de
+        // la inglesa; 676 de 3.899 en la cache del autor).  Hasta que la carpeta
+        // este repasada entera (en segundo plano, una vez), cada carta se mira
+        // antes de ensenyarla, y una sola vez por sesion.  computeIfAbsent: dos
+        // hilos con la misma carta esperan al primero en vez de pintarla los
+        // dos sin mirar.  Ver LocalizedPlaceholder.
+        final File dir = CardArt.dir();
+        if (!LocalizedPlaceholder.isSwept(dir)) {
+            LocalizedPlaceholder.sweepInBackground(dir);
+            // f.exists() DENTRO: si el repaso la acaba de apartar entre medias,
+            // looksLikePlaceholder diria "no" (no hay fichero) y se devolveria
+            // una ruta que ya no existe.
+            final boolean real = LOCALIZED_CHECKED.computeIfAbsent(f.getPath(),
+                    p -> f.exists() && !LocalizedPlaceholder.discardIfPlaceholder(f));
+            if (!real) {
+                // Quitada: se ve la inglesa (y ya tiene su marca de "no hay").
+                return f.exists() && !LocalizedPlaceholder.looksLikePlaceholder(f) ? f : null;
+            }
+        }
+        return f;
     }
+
+    /** Traducidas ya miradas en esta sesion: ruta -> si es la carta de verdad. */
+    private static final java.util.Map<String, Boolean> LOCALIZED_CHECKED = new ConcurrentHashMap<>();
 
     /** Cartas a las que ya se les ha pedido el arte traducido en esta sesion. */
     private static final Set<String> LOCALIZED_ASKED = ConcurrentHashMap.newKeySet();
@@ -492,6 +524,14 @@ public final class CardImages {
                     decode(imageKey, own);
                     return;
                 }
+                // La que has puesto con "Usar mi propia imagen", tambien antes
+                // que la calidad elegida y que la traducida (OwnImage.ownFile).
+                final File chosen = imageKey.startsWith(ImageKeys.CARD_PREFIX)
+                        || imageKey.startsWith(ImageKeys.TOKEN_PREFIX) ? OwnImage.ownFile(imageKey) : null;
+                if (chosen != null) {
+                    decode(imageKey, chosen);
+                    return;
+                }
                 final File localized = findLocalized(imageKey);
                 if (localized != null) {
                     decode(imageKey, localized);
@@ -553,6 +593,18 @@ public final class CardImages {
                 if (cannotBeDownloaded(imageKey)) {
                     PENDING.remove(imageKey);
                     NO_IMAGE.add(imageKey);
+                    return;
+                }
+                // Ni traducida ni inglesa ni arte sin conexion: la de relleno de
+                // Scryfall que se aparto (la inglesa con la banda "Localized
+                // Image Not Available") se lee, y es mejor que una carta en
+                // blanco sin red. Se ensenya mientras se pide la inglesa, que la
+                // pisa al llegar. Ver LocalizedPlaceholder.discard.
+                final File aside = CardArt.isLocalized() && imageKey.startsWith(ImageKeys.CARD_PREFIX)
+                        ? CardArt.placeholderOf(toFilename(imageKey)) : null;
+                if (aside != null) {
+                    decode(imageKey, aside);
+                    requestDownload(imageKey);
                     return;
                 }
                 if (askLocalized) {
@@ -737,6 +789,12 @@ public final class CardImages {
         final String name = toFilename(imageKey);
         if (name == null || name.isEmpty()) {
             return null;
+        }
+        // Una propia gana tambien a lo que acaba de bajar (una descarga que
+        // estaba en marcha cuando la pusiste no la pisa). Ver OwnImage.ownFile.
+        final File own = imageKey.startsWith(ImageKeys.CARD_PREFIX) ? OwnImage.ownFile(imageKey) : null;
+        if (own != null) {
+            return own;
         }
         // Por calidades, como load(): la elegida primero. Solo en la normal,
         // en "alta" la imagen recien bajada (que doFetch deja en cards-large)

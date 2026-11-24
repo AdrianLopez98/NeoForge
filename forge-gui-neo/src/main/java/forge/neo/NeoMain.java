@@ -463,6 +463,10 @@ public final class NeoMain {
                 banner("Mana de cualquier tipo: lo robado brilla");
                 forge.neo.match.AnyTypeCheck.run();
                 break;
+            case "roguecheck":
+                banner("Rogue Commander: una run de punta a punta");
+                forge.neo.rogue.RogueCheck.run();
+                break;
             case "ascentdraftcheck":
                 banner("Ascenso: el mazo de salida drafteado de sobres");
                 forge.neo.ascent.AscentDraftCheck.run();

@@ -52,6 +52,10 @@ public class MainMenu extends BorderPane {
          * combates y el editor de mazos de NeoForge. Se abre en su propio
          * proceso; ver {@code forge.neo.adventure.AdventureLauncher}.
          */
+        /** Rogue Commander (solo Windows). */
+        default void rogue() {
+        }
+
         default void adventure() {
         }
 
@@ -220,6 +224,14 @@ public class MainMenu extends BorderPane {
             if (forge.neo.adventure.AdventureLauncher.takeAutoLaunch()) {
                 javafx.application.Platform.runLater(actions::adventure);
             }
+        }
+
+        // ROGUE COMMANDER (el modo de Forge, #12841), detras de la Aventura: es
+        // de Forge y esta en pruebas (lo dice la casilla). Solo en Windows, como
+        // pidio Ana (24-11-2026): en Mac y Linux no se ha probado.
+        if (!forge.neo.platform.NeoOs.MAC && !forge.neo.platform.NeoOs.LINUX) {
+            tile("rogue", modeCard(ModeArt.Mode.ROGUE, NeoText.get("menu.rogue"),
+                    NeoText.get("menu.rogue.desc"), NeoText.get("menu.rogue.note"), true, actions::rogue));
         }
 
         // "Otros formatos": Modern, Pioneer, Pauper... Responden la MISMA

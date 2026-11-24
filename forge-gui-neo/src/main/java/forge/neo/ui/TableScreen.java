@@ -761,7 +761,7 @@ public class TableScreen extends Pane {
         double chipW = 0;
         if (folded) {
             abW = Math.min(UiScale.px(620), Math.max(UiScale.px(400), contentW * 0.40));
-            abH = actionBar.prefHeight(abW);
+            abH = steadyActionBarH.of(actionBar.prefHeight(abW), abW);
             chipW = stackChip.prefWidth(-1);
             selfBar.setRightReserve(abW + chipW + PAD * 3);
         }
@@ -875,6 +875,7 @@ public class TableScreen extends Pane {
         for (final PlayerBar b : oppBars) {
             oppBarH = Math.max(oppBarH, b.prefHeight(seatW));
         }
+        oppBarH = steadyOppBarH.of(oppBarH, seatW * 10 + oppBars.size());
         // Junto a la mano: la ficha va despues de la columna de botones de la
         // esquina (registro, turno, pausa...), que es de donde empieza la mano.
         final double cardX = PAD + mbW + PAD;
@@ -884,7 +885,8 @@ public class TableScreen extends Pane {
                 ? Math.min(contentW * 0.36, Math.max(UiScale.px(300), selfBar.prefWidth(-1) + 4))
                 : 0;
         final double cardH = barBesideHand ? selfBar.prefHeight(cardW) : 0;
-        final double selfBarH = barBesideHand ? 0 : Math.max(selfBar.prefHeight(contentW), abH);
+        final double selfBarH = barBesideHand ? 0
+                : steadySelfBarH.of(Math.max(selfBar.prefHeight(contentW), abH), contentW * 10 + (folded ? 1 : 0));
         double handH = Math.min(hand.prefHeight(contentW), h * 0.205);
         // La ficha cabe entera en la fila de la mano: si es mas alta, la fila crece.
         handH = Math.max(handH, cardH);
@@ -892,7 +894,8 @@ public class TableScreen extends Pane {
         // Si la ventana es baja, la mano cede altura antes que los campos:
         // es mejor ver la mesa entera con la mano un poco recortada que al
         // reves.
-        final double fixed = coachH + phaseRail.arenaHeight(contentW) + tabsH + oppBarH + selfBarH + LINE_H;
+        final double railH = steadyRailH.of(phaseRail.arenaHeight(contentW), contentW);
+        final double fixed = coachH + railH + tabsH + oppBarH + selfBarH + LINE_H;
         final double minFields = cardWidth * 1.2;
         if (fixed + handH + minFields > h) {
             handH = Math.max(cardWidth * 0.7, h - fixed - minFields);
@@ -904,7 +907,7 @@ public class TableScreen extends Pane {
         final double oppH = multi ? fieldsH * MULTI_OPP_SHARE : fieldsH / 2.0;
         final double selfH = fieldsH - oppH;
 
-        final double phaseH = phaseRail.arenaHeight(contentW);
+        final double phaseH = railH;
         phaseRail.resizeRelocate(0, coachH, contentW, phaseH);
         double y = coachH + phaseH;
         if (tabsH > 0) {
@@ -1373,6 +1376,41 @@ public class TableScreen extends Pane {
         applyBoardTransform();
         gesture(Gesture.BOARD_ZOOM);
     }
+
+    /**
+     * UN ALTO QUE SOLO CRECE (Discord, 24-11-2026, con video: <i>"the UI keeps
+     * moving around and resizing itself for no reason"</i>). Las filas de
+     * arriba y de abajo se cobran su alto ANTES de repartir el resto entre las
+     * mesas, asi que si ese alto cambia, cambian TODAS las cartas. Y cambiaba
+     * a cada rato sin que el jugador hiciera nada: con la columna plegada el
+     * prompt va en la fila de tu barra, y desde la 1.0.53 (12-11-2026) su borde
+     * pasaba de 1 a 2 px cada vez que te tocaba (el rojo de :awaiting, ya
+     * igualado en neo.css), ademas de pasar de una linea ("Waiting for...") a
+     * tres ("Audrey plays / Turn 27 / On the stack: 2"); y las
+     * barras de los rivales, al tercio de ancho, saltan de linea segun los
+     * chips que lleven (TURN, "1 spell"...). Ahora cada fila recuerda lo mas
+     * alto que ha necesitado con ese ancho y no vuelve a encoger: se reparte
+     * una vez y se queda quieta. Con otro ancho (otra ventana, otro numero de
+     * rivales) se vuelve a medir.
+     */
+    private static final class SteadyHeight {
+        private double max;
+        private double key = Double.NaN;
+
+        double of(final double now, final double widthKey) {
+            if (Math.abs(widthKey - key) > 0.5) {
+                key = widthKey;
+                max = 0;
+            }
+            max = Math.max(max, now);
+            return max;
+        }
+    }
+
+    private final SteadyHeight steadyActionBarH = new SteadyHeight();
+    private final SteadyHeight steadyOppBarH = new SteadyHeight();
+    private final SteadyHeight steadySelfBarH = new SteadyHeight();
+    private final SteadyHeight steadyRailH = new SteadyHeight();
 
     /** Vuelve a la mesa entera. */
     public void resetBoardZoom() {
