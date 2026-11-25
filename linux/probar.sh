@@ -91,7 +91,7 @@ echo "== 2b. Rogue Commander: una run sin ventana (roguecheck)"
 # una run de verdad, con un duelo ganado y otro perdido.
 # roguecheck borra las runs guardadas y solo corre con los datos de la bateria;
 # aqui la maquina es de usar y tirar (y el paquete ya esta hecho): se le deja.
-timeout 900 env JAVA_TOOL_OPTIONS="-Dneo.rogue.realData=true" \n    "${PANTALLA[@]}" "$BIN" roguecheck > "$OUT/roguecheck.log" 2>&1
+timeout 900 env JAVA_TOOL_OPTIONS="-Dneo.rogue.realData=true" "${PANTALLA[@]}" "$BIN" roguecheck > "$OUT/roguecheck.log" 2>&1
 tail -8 "$OUT/roguecheck.log"
 if ! grep -Eq ' 0 mal' "$OUT/roguecheck.log"; then
     echo "::error::roguecheck no ha pasado con el paquete de Linux"
