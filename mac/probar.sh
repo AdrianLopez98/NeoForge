@@ -73,7 +73,9 @@ fi
 echo "== 2b. Rogue Commander: una run sin ventana (roguecheck)"
 # Desde la 1.0.67 el modo tambien sale en Mac (antes solo Windows y Android):
 # una run de verdad, con un duelo ganado y otro perdido.
-con_limite 900 "$BIN" roguecheck > "$OUT/roguecheck.log" 2>&1
+# roguecheck borra las runs guardadas y solo corre con los datos de la bateria;
+# aqui la maquina es de usar y tirar (y el paquete ya esta hecho): se le deja.
+con_limite 900 env JAVA_TOOL_OPTIONS="-Dneo.rogue.realData=true" "$BIN" roguecheck > "$OUT/roguecheck.log" 2>&1
 tail -8 "$OUT/roguecheck.log"
 if ! grep -Eq ' 0 mal' "$OUT/roguecheck.log"; then
     echo "::error::roguecheck no ha pasado con el paquete de Mac"
