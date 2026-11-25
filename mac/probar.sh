@@ -70,6 +70,16 @@ if [ ! -s "$OUT/inicio.png" ]; then
     fallos=$((fallos + 1))
 fi
 
+echo "== 2b. Rogue Commander: una run sin ventana (roguecheck)"
+# Desde la 1.0.67 el modo tambien sale en Mac (antes solo Windows y Android):
+# una run de verdad, con un duelo ganado y otro perdido.
+con_limite 900 "$BIN" roguecheck > "$OUT/roguecheck.log" 2>&1
+tail -8 "$OUT/roguecheck.log"
+if ! grep -Eq ' 0 mal' "$OUT/roguecheck.log"; then
+    echo "::error::roguecheck no ha pasado con el paquete de Mac"
+    fallos=$((fallos + 1))
+fi
+
 echo "== 3. Una partida contra la IA"
 con_limite 900 "$BIN" ui --live --auto --snapshot="$OUT/partida.png" --wait=90 > "$OUT/partida.log" 2>&1
 tail -15 "$OUT/partida.log"
