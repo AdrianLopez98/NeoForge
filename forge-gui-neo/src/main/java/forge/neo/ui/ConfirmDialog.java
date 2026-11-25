@@ -119,6 +119,13 @@ public class ConfirmDialog extends VBox implements NumberedChoice {
         // sea una linea, y todos los dialogos cortos saldrian gigantes.
         sp.setPrefHeight(Region.USE_COMPUTED_SIZE);
         sp.prefViewportHeightProperty().bind(msg.heightProperty());
+        // Y de ancho, el del texto con su tope: el visor pedia el del texto
+        // en UNA linea (el pref del Label no mira su maximo), y con un texto
+        // largo el dialogo se estiraba hasta los bordes de la pantalla con el
+        // texto en un tercio (Discord, 25-11-2026: las novedades a 4K).
+        sp.prefViewportWidthProperty().bind(javafx.beans.binding.Bindings.createDoubleBinding(
+                () -> Math.min(msg.prefWidth(-1), msg.getMaxWidth()),
+                msg.textProperty(), msg.fontProperty(), msg.maxWidthProperty(), msg.graphicProperty()));
         return sp;
     }
 }

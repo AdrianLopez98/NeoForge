@@ -6,7 +6,6 @@ import forge.item.PaperCard;
 import forge.neo.NeoText;
 import forge.neo.card.CardNode;
 import forge.neo.rogue.RogueDeckRules;
-import java.util.ArrayList;
 import java.util.List;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -73,21 +72,56 @@ public final class RogueDeckScreen extends RogueScreen {
         final Label hint = new Label(NeoText.get("rogue.deck.hint"));
         hint.getStyleClass().add("rogue-hint");
         hint.setWrapText(true);
-        final VBox head = new VBox(4, title, hint);
+        // Ordenado como el mazo de Ascenso (Discord, 25-11-2026: "I see no logic
+        // in how cards are"): por coste o por tipo, con su rotulo en cada grupo
+        // y la cuenta por tipo. Es la MISMA preferencia (AscentDecks.byType),
+        // porque AscentDeckView la lee por dentro: una propia dejaria los
+        // botones diciendo una cosa y la rejilla haciendo otra.
+        final List<PaperCard> main = run.getCurrentDeck().getMain().toFlatList();
+        final Label types = new Label(forge.neo.ascent.AscentDecks.typeLine(main));
+        types.getStyleClass().add("rogue-hint");
+        types.setWrapText(true);
+        final HBox order = new HBox(8, sortButton(false), sortButton(true));
+        order.setAlignment(Pos.CENTER_LEFT);
+        final HBox typesRow = new HBox(14, types, order);
+        typesRow.setAlignment(Pos.CENTER_LEFT);
+        final VBox head = new VBox(4, title, hint, typesRow);
         head.setPadding(new Insets(14, 22, 6, 22));
         layout.setTop(head);
 
-        final List<PaperCard> cards = new ArrayList<>(run.getCurrentDeck().getCommanders());
-        cards.addAll(run.getCurrentDeck().getMain().toFlatList());
-        final AscentDeckView view = new AscentDeckView(cards, cardWidth * 0.8, this::askRemove);
+        // El comandante, aparte y a la izquierda (como en Ascenso): metido en la
+        // lista caia en "Coste 4" entre las demas, y no se puede quitar.
+        final AscentDeckView view = new AscentDeckView(main, cardWidth * 0.8, this::askRemove);
+        final BorderPane deckPane = new BorderPane(view);
+        final VBox commanders = new VBox(8);
+        commanders.setAlignment(Pos.TOP_CENTER);
+        commanders.setPadding(new Insets(4, 14, 0, 22));
+        for (final PaperCard c : run.getCurrentDeck().getCommanders()) {
+            final CardNode node = new CardNode(cardWidth * 0.9);
+            node.setRotationEnabled(false);
+            node.setCard(CardView.getCardForUi(c));
+            commanders.getChildren().add(node);
+        }
+        if (!commanders.getChildren().isEmpty()) {
+            final Label cmdLabel = new Label(NeoText.get("commander.yours").toUpperCase());
+            cmdLabel.getStyleClass().add("rogue-section");
+            commanders.getChildren().add(0, cmdLabel);
+            deckPane.setLeft(commanders);
+        }
 
-        final HBox lands = new HBox(10);
-        lands.setAlignment(Pos.CENTER_LEFT);
+        // Lo que se puede anyadir (las basicas) A LA IZQUIERDA y el mazo a la
+        // derecha, como un constructor (Discord, 25-11-2026: "splitting a
+        // widescreen top to bottom doesn't make much sense"). Abajo, la tira
+        // le quitaba al mazo una fila entera de alto.
+        final double landW = cardWidth * 0.55;
+        final javafx.scene.layout.FlowPane lands = new javafx.scene.layout.FlowPane(10, 10);
+        lands.setPrefWrapLength(landW * 2 + 10);
+        lands.setAlignment(Pos.TOP_CENTER);
         final Label addLabel = new Label(NeoText.get("rogue.deck.addBasic"));
         addLabel.getStyleClass().add("rogue-section");
-        lands.getChildren().add(addLabel);
+        addLabel.setWrapText(true);
         for (final PaperCard land : rules.basicLands()) {
-            final CardNode node = new CardNode(cardWidth * 0.55);
+            final CardNode node = new CardNode(landW);
             node.setRotationEnabled(false);
             node.setCard(CardView.getCardForUi(land));
             node.setCursor(javafx.scene.Cursor.HAND);
@@ -99,22 +133,41 @@ public final class RogueDeckScreen extends RogueScreen {
             lands.getChildren().add(node);
         }
         final javafx.scene.control.ScrollPane landStrip = new javafx.scene.control.ScrollPane(lands);
-        landStrip.setFitToHeight(true);
-        landStrip.setVbarPolicy(javafx.scene.control.ScrollPane.ScrollBarPolicy.NEVER);
+        landStrip.setFitToWidth(true);
+        landStrip.setHbarPolicy(javafx.scene.control.ScrollPane.ScrollBarPolicy.NEVER);
         landStrip.getStyleClass().add("rogue-scroll");
-        landStrip.setPadding(new Insets(6, 22, 6, 22));
-        // Su alto, entero: si no, la lista del mazo (que crece) la aplasta y las
-        // basicas salian diminutas y cortadas.
-        final double landH = cardWidth * 0.55 * CardNode.ASPECT + UiScale.px(40);
-        landStrip.setMinHeight(landH);
-        landStrip.setPrefHeight(landH);
-
-        final VBox center = new VBox(8, view, landStrip);
-        VBox.setVgrow(view, Priority.ALWAYS);
-        layout.setCenter(center);
+        // Su ancho, entero: dos columnas de basicas y la barra de desplazar.
+        final double landColW = landW * 2 + 10 + UiScale.px(24);
+        landStrip.setMinWidth(landColW);
+        landStrip.setPrefWidth(landColW);
+        landStrip.setMaxWidth(landColW);
+        final VBox landColumn = new VBox(8, addLabel, landStrip);
+        landColumn.setPadding(new Insets(6, 8, 6, 22));
+        landColumn.setMaxWidth(landColW + UiScale.px(30));
+        addLabel.setMaxWidth(landColW);
+        VBox.setVgrow(landStrip, Priority.ALWAYS);
+        layout.setLeft(landColumn);
+        layout.setCenter(deckPane);
 
         credits.setText(NeoText.get("rogue.credits", run.getRemovalCredits()));
         undo.setDisable(!rules.canUndo());
+    }
+
+    /** Por coste / Por tipo: el elegido, marcado. Cambiarlo guarda y rehace la pantalla. */
+    private Button sortButton(final boolean byType) {
+        final Button b = new Button(NeoText.get(byType ? "ascent.deck.sortType" : "ascent.deck.sortCost"));
+        b.setId(byType ? "rogue-sort-type" : "rogue-sort-cost");
+        // Su ancho, entero: la linea de tipos de al lado lo estrujaba ("Por coste" cortado a 1440).
+        b.setMinWidth(Region.USE_PREF_SIZE);
+        final boolean on = forge.neo.ascent.AscentDecks.byType() == byType;
+        b.getStyleClass().add(on ? "btn-primary" : "btn-secondary");
+        b.setOnAction(e -> {
+            if (!on) {
+                forge.neo.ascent.AscentDecks.setByType(byType);
+                refresh();
+            }
+        });
+        return b;
     }
 
     private void askRemove(final PaperCard card) {

@@ -1363,7 +1363,15 @@ final class NeoAppDebug {
         if (theirs.size() > 1 && mine.size() > 1) {
             links.add(new Object[] {mine.get(1), theirs.get(1), CombatOverlay.Kind.TARGET});
         }
+        // Un segundo bloqueo, para ver dos parejas a la vez y la del foco.
+        if (theirs.size() > 2 && mine.size() > 2) {
+            links.add(new Object[] {theirs.get(2), mine.get(2), CombatOverlay.Kind.BLOCK});
+        }
         app.table.setCombatLinks(links);
+        // -Dneo.arrows.focusTest=true: como con el raton sobre el primer bloqueador.
+        if (Boolean.getBoolean("neo.arrows.focusTest") && !theirs.isEmpty()) {
+            app.table.focusCombatForTest(theirs.get(0));
+        }
         app.table.setPrompt("Maqueta con flechas de combate (--mock-combat).");
     }
 

@@ -122,6 +122,32 @@ public final class RogueSession {
         return run;
     }
 
+    /**
+     * Un duelo de un nodo del mapa que no ha empezado o no ha acabado: la run
+     * vuelve a como estaba en su ultimo guardado, como Forge desde #13023
+     * ("charges and event effects are spent before a match exists, so the
+     * last save is the only state to return to"). Si no, al volver a entrar se
+     * sumarian otra vez los efectos Wrathful/Cursed del Planebound. Un duelo
+     * que sale de un evento (nodo temporal, fuera del camino) no se toca: el
+     * evento sigue con la run en la mano y la guardaria encima.
+     */
+    void reloadAfterBrokenDuel(final RogueRun run, final forge.gamemodes.rogue.path.RoguePathNode node) {
+        if (run == null || run != currentRun || run.getPath() == null || !run.getPath().getNodes().contains(node)) {
+            return;
+        }
+        try {
+            run.setHostedMatch(null);
+            final RogueRun saved = RogueIO.loadRun(RogueIO.getRogueFile(run));
+            if (saved != null) {
+                run.getRunTimer().stop();
+                saved.getRunTimer().start();
+                currentRun = saved;
+            }
+        } catch (final RuntimeException e) {
+            Logger.error(e, "Could not reload the Rogue run after a broken duel");
+        }
+    }
+
     /** Solo la que hay en memoria, sin mirar el disco. */
     public static RogueRun inMemory() {
         return currentRun;
@@ -532,7 +558,14 @@ public final class RogueSession {
         // NEOFORGE: sin AvatarSelector para "Chosen One" (se queda la cara del mazo)
 
         RogueMetaProgress progress = RogueMetaProgress.getInstance();
-        abandonPreviousRuns(progress);
+        // Forge #13023: las runs a abandonar se apuntan y se paran YA, pero no se
+        // borran hasta que la nueva este guardada ("until the new run is on
+        // disk, a start that is cut short must leave the old one").
+        List<RogueRun> runsToAbandon = continuableRunsToAbandon();
+        for (RogueRun run : runsToAbandon) {
+            run.getRunTimer().stop();
+        }
+        RogueRun previousRun = currentRun;
 
         // Create new run and snapshot active Aetherworks
         RogueRun newRun = new RogueRun(runDeck);
@@ -545,11 +578,17 @@ public final class RogueSession {
 
         // NEOFORGE: la run es la actual ANTES de los efectos de salida, que
         // pueden preguntar (y las preguntas necesitan la run para el mazo).
+        // Si algo revienta antes de guardarla, se vuelve a la de antes.
         currentRun = newRun;
 
-        // Generate path and apply run start effects
-        RoguePathGenerator.generateRandomPath(newRun);
-        applyRunStartEffectsAndNpcBoon(newRun, progress);
+        try {
+            // Generate path and apply run start effects
+            RoguePathGenerator.generateRandomPath(newRun);
+            applyRunStartEffectsAndNpcBoon(newRun, progress);
+        } catch (RuntimeException e) {
+            currentRun = previousRun;
+            throw e;
+        }
 
         // Generate unique name for the run (used as filename)
         String runName = (custom ? runDeck.getName().replaceAll("[^a-zA-Z0-9_-]", "_")
@@ -559,8 +598,9 @@ public final class RogueSession {
         // Track meta progress
         RogueStats.fireOnRunStarted(newRun, progress);
 
-        // Save the run
+        // Save the run, y solo entonces se van las de antes (Forge #13023)
         RogueIO.saveRun(newRun);
+        abandonPreviousRuns(runsToAbandon, newRun, progress);
         return newRun;
     }
 
@@ -629,17 +669,18 @@ public final class RogueSession {
         return !continuableRunsToAbandon().isEmpty();
     }
 
-    private void abandonPreviousRuns(RogueMetaProgress progress) {
+    private static void abandonPreviousRuns(List<RogueRun> runsToAbandon, RogueRun newRun,
+                                            RogueMetaProgress progress) {
         // NEOFORGE: la confirmacion la hace la pantalla antes (hasRunToAbandon)
-        for (RogueRun run : continuableRunsToAbandon()) {
-            run.getRunTimer().stop();
+        for (RogueRun run : runsToAbandon) {
             progress.addRunHistoryEntry(RogueRunHistoryEntry.fromRun(run, "ABANDONED", ""));
         }
 
         for (RogueRun old : RogueIO.loadAllRuns()) {
-            RogueIO.deleteRun(old);
+            if (!old.getName().equals(newRun.getName())) {
+                RogueIO.deleteRun(old);
+            }
         }
-        currentRun = null;
     }
 
     void applyRunStartEffectsAndNpcBoon(RogueRun newRun, RogueMetaProgress progress) {

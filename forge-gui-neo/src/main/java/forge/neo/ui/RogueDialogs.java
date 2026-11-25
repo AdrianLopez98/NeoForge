@@ -330,7 +330,8 @@ public final class RogueDialogs implements RoguePrompts {
 
     @Override
     public List<PaperCard> cardReward(final String title, final List<PaperCard> cards, final int maxPicks,
-                                      final String rerollLabel, final boolean rerollEnabled, final int gold) {
+                                      final String rerollLabel, final int rerollCost,
+                                      final boolean rerollEnabled, final int gold) {
         final RogueRun run = forge.neo.rogue.RogueSession.inMemory();
         final Object got = ask(done -> {
             final ChoiceDialog<PaperCard> dialog = new ChoiceDialog<>(

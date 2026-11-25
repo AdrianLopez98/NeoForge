@@ -131,7 +131,7 @@ final class NeoAppRogue {
         final java.util.List<forge.item.PaperCard> some = new java.util.ArrayList<>(pool.subList(0, Math.min(7, pool.size())));
         switch (what) {
             case "reward" -> dialogs.cardReward(Localizer.getInstance().getMessage("lblRogueChooseRewards"), some, 3,
-                "Reroll: 2", true, 8);
+                "Reroll: 2", 2, true, 8);
             case "choose" -> dialogs.chooseCards(Localizer.getInstance().getMessage("lblRogueCardSelection"),
                 Localizer.getInstance().getMessage("lblRogueChooseOneToRemove"), some, 1, 1, run, null);
             case "bazaar" -> {

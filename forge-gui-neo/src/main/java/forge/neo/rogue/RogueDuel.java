@@ -27,7 +27,7 @@ import forge.player.GamePlayerUtil;
 import forge.util.Localizer;
 import java.util.ArrayList;
 import java.util.EnumSet;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import org.tinylog.Logger;
@@ -115,6 +115,7 @@ class RogueDuel {
         // nodo como estaba. Es la misma regla que Ascenso (NeoAppAscent.fight).
         if (lastGame == null || lastGame.getOutcome() == null) {
             map.setInMatch(false);
+            map.reloadAfterBrokenDuel(currentRun, node);
             map.prompts().message(forge.neo.NeoText.get("rogue.duel.broken.title"),
                 forge.neo.NeoText.get("rogue.duel.broken"));
             return;
@@ -201,7 +202,7 @@ class RogueDuel {
         }
 
         List<RoguePrompts.Section> lines = new ArrayList<>();
-        Set<WrathfulEffect> usedWrathfulEffect = new HashSet<>();
+        Set<WrathfulEffect> usedWrathfulEffect = new LinkedHashSet<>();
         for (int i = 0; i < wrathfulCount; i++) {
             WrathfulEffect w = WrathfulEffect.getRandomExcluding(usedWrathfulEffect);
             usedWrathfulEffect.add(w);
@@ -209,7 +210,7 @@ class RogueDuel {
             lines.add(new RoguePrompts.Section(w.getDisplayName(), w.getDescription()));
         }
 
-        Set<CursedEffect> usedCursedEffect = new HashSet<>();
+        Set<CursedEffect> usedCursedEffect = new LinkedHashSet<>();
         for (int i = 0; i < cursedCount; i++) {
             CursedEffect c = CursedEffect.getRandomExcluding(usedCursedEffect);
             usedCursedEffect.add(c);

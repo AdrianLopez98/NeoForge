@@ -83,9 +83,11 @@ public interface RoguePrompts {
     /**
      * Los premios de cartas ({@code CardRewardHelper.RewardDialog}): las
      * elegidas, o {@code null} para volver a tirar.
+     * {@code rerollCost} es el oro de la siguiente tirada (0 si es gratis;
+     * Forge lo pasa aparte desde #13023).
      */
     List<PaperCard> cardReward(String title, List<PaperCard> cards, int maxPicks,
-                               String rerollLabel, boolean rerollEnabled, int gold);
+                               String rerollLabel, int rerollCost, boolean rerollEnabled, int gold);
 
     /**
      * Elegir cartas de una lista ({@code CardSelectionDialog}): entre

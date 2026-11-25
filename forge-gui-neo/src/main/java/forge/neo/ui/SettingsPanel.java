@@ -1285,6 +1285,17 @@ public class SettingsPanel extends VBox {
         }
         getChildren().add(colorRow);
 
+        // --- el color de las flechas de combate (Discord, 25-11-2026) ---
+        getChildren().add(arrowColorRow(true));
+        getChildren().add(arrowColorRow(false));
+        final Label arrowNote = new Label(NeoText.get("settings.arrowColor.tip") + " "
+                + NeoText.get("settings.arrowColor.hover"));
+        arrowNote.getStyleClass().add("settings-note");
+        arrowNote.setWrapText(true);
+        arrowNote.setMaxWidth(UiScale.px(560));
+        arrowNote.setMinHeight(Region.USE_PREF_SIZE);
+        getChildren().add(arrowNote);
+
         final Label bigNote = new Label(NeoText.get("settings.bigHoverCard.note"));
         bigNote.getStyleClass().add("settings-note");
         bigNote.setWrapText(true);
@@ -1331,6 +1342,27 @@ public class SettingsPanel extends VBox {
         // --- las cartas prohibidas de cada formato (Discord, 26-10-2026) ---
         getChildren().add(section(NeoText.get("banlist.section")));
         getChildren().add(new BanListEditor());
+        // --- las cartas custom en los mazos (Discord, 25-11-2026: "it says
+        // 'enable custom cards in forge preferences to use this deck'... I
+        // couldn't find the option") ---
+        //
+        // Es la preferencia de Forge (ALLOW_CUSTOM_CARDS_IN_DECKS_CONFORMANCE),
+        // la misma casilla que sus dos GUIs. El motor la lee UNA vez al
+        // arrancar (StaticData no tiene setter): vale al volver a abrir.
+        getChildren().add(toggleRow(NeoText.get("settings.customCards"),
+                forge.model.FModel.getPreferences().getPrefBoolean(
+                        forge.localinstance.properties.ForgePreferences.FPref.ALLOW_CUSTOM_CARDS_IN_DECKS_CONFORMANCE),
+                on -> {
+                    forge.model.FModel.getPreferences().setPref(
+                            forge.localinstance.properties.ForgePreferences.FPref.ALLOW_CUSTOM_CARDS_IN_DECKS_CONFORMANCE, on);
+                    forge.model.FModel.getPreferences().save();
+                }));
+        final Label customNote = new Label(NeoText.get("settings.customCards.note"));
+        customNote.getStyleClass().add("settings-note");
+        customNote.setWrapText(true);
+        customNote.setMaxWidth(UiScale.px(560));
+        customNote.setMinHeight(Region.USE_PREF_SIZE);
+        getChildren().add(customNote);
         getChildren().add(section(NeoText.get("settings.modesSection")));
 
         // --- vender solas las repetidas (aventura) ---
@@ -2635,6 +2667,52 @@ public class SettingsPanel extends VBox {
     private static String qualityNote(final forge.neo.card.ImageQuality q) {
         return NeoText.get("settings.art.quality.note." + q.scryfall) + " "
                 + NeoText.get("settings.art.quality.applies");
+    }
+
+    /**
+     * El color de una clase de flecha de combate (ataque o bloqueo): el de
+     * fabrica, los de la lista y "Personalizado" con su selector, como el
+     * color de lo que puedes jugar. La mesa lo lee al pintar: vale al momento.
+     */
+    private static HBox arrowColorRow(final boolean attack) {
+        final String[] keys = NeoSettings.ARROW_COLOR_KEYS;
+        final String[] labels = new String[keys.length + 1];
+        for (int i = 0; i < keys.length; i++) {
+            labels[i] = NeoText.get(i <= 1 ? "settings.arrowColor." + keys[i] : "settings.actionableColor." + keys[i]);
+        }
+        labels[NeoSettings.ARROW_CUSTOM_INDEX] = NeoText.get("settings.actionableColor.custom");
+        final String key = attack ? NeoSettings.ATTACK_ARROW_COLOR : NeoSettings.BLOCK_ARROW_COLOR;
+        final HBox row = choiceRow(NeoText.get(attack ? "settings.attackArrowColor" : "settings.blockArrowColor"),
+                labels, labels[NeoSettings.arrowColorIndex(attack)], v -> {
+                    for (int i = 0; i < labels.length; i++) {
+                        if (labels[i].equals(v)) {
+                            NeoSettings.setInt(key, i);
+                        }
+                    }
+                    NeoSettings.save();
+                });
+        final javafx.scene.control.ColorPicker picker = new javafx.scene.control.ColorPicker(
+                javafx.scene.paint.Color.web(NeoSettings.arrowCustom(attack)));
+        picker.getStyleClass().add("settings-color");
+        for (final javafx.scene.Node n : row.getChildren()) {
+            if (n instanceof javafx.scene.layout.FlowPane buttons) {
+                buttons.getChildren().add(picker);
+                picker.setOnAction(e -> {
+                    final javafx.scene.paint.Color c = picker.getValue();
+                    NeoSettings.setArrowCustom(attack, String.format(java.util.Locale.ROOT, "#%02X%02X%02X",
+                            Math.round(c.getRed() * 255), Math.round(c.getGreen() * 255),
+                            Math.round(c.getBlue() * 255)));
+                    NeoSettings.save();
+                    for (final javafx.scene.Node b : buttons.getChildren()) {
+                        if (b instanceof Button button) {
+                            button.pseudoClassStateChanged(SELECTED,
+                                    labels[NeoSettings.ARROW_CUSTOM_INDEX].equals(button.getText()));
+                        }
+                    }
+                });
+            }
+        }
+        return row;
     }
 
     private static HBox choiceRow(final String caption, final String[] values,

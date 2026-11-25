@@ -2128,9 +2128,57 @@ public class TableScreen extends Pane {
         applyDetailSetting();
         detail.show(n.getCard());
         showBigCard(n);
+        focusCombat(n);
         if (onCardHover != null) {
             onCardHover.accept(n);
         }
+    }
+
+    /** Solo pruebas (-Dneo.arrows.focusTest): el foco de las flechas sin raton. */
+    public void focusCombatForTest(final Object entity) {
+        combatOverlay.setFocus(entity);
+    }
+
+    /** La carta que enciende su pareja de combate (CombatOverlay.setFocus). */
+    private CardNode combatFocusOf;
+
+    /**
+     * Con el raton sobre una carta del combate, su pareja (atacante y
+     * bloqueadores) se ve entera y el resto de flechas se apaga (Discord,
+     * 25-11-2026: <i>"I find blocking very confusing"</i>). Se suelta al salir
+     * de la carta o si la carta se va de la escena.
+     */
+    private void focusCombat(final CardNode n) {
+        // Con el foco de prueba puesto (-Dneo.arrows.focusName), el raton de
+        // los clics simulados no lo pisa.
+        if (n == null || n == combatFocusOf || System.getProperty("neo.arrows.focusName") != null) {
+            return;
+        }
+        combatFocusOf = n;
+        combatOverlay.setFocus(n.getCard());
+        // Los dos oyentes se quitan juntos, salga como salga: si no, cada
+        // vuelta del raton a la misma carta dejaria uno mas colgado de ella.
+        final Runnable[] release = new Runnable[1];
+        final javafx.beans.value.ChangeListener<Boolean> out = (o, was, is) -> {
+            if (!is) {
+                release[0].run();
+            }
+        };
+        final javafx.beans.value.ChangeListener<javafx.scene.Scene> gone = (o, was, is) -> {
+            if (is == null) {
+                release[0].run();
+            }
+        };
+        release[0] = () -> {
+            n.hoverProperty().removeListener(out);
+            n.sceneProperty().removeListener(gone);
+            if (combatFocusOf == n) {
+                combatFocusOf = null;
+                combatOverlay.setFocus(null);
+            }
+        };
+        n.hoverProperty().addListener(out);
+        n.sceneProperty().addListener(gone);
     }
 
     // ---------------------------------------------------------------
@@ -5526,6 +5574,19 @@ public class TableScreen extends Pane {
      */
     public void setCombatLinks(final List<Object[]> links) {
         combatOverlay.setLinks(links);
+        // Solo pruebas: -Dneo.arrows.focusName=Carta, como con el raton encima.
+        final String focusName = System.getProperty("neo.arrows.focusName");
+        if (focusName != null && links != null) {
+            for (final Object[] t : links) {
+                for (int i = 0; i < 2 && t != null && i < t.length; i++) {
+                    if (t[i] instanceof CardView cv && cv.getCurrentState() != null
+                            && focusName.equals(cv.getCurrentState().getName())) {
+                        combatOverlay.setFocus(cv);
+                        return;
+                    }
+                }
+            }
+        }
     }
 
     /** Cuantas flechas hay ahora mismo. Solo para verificar con capturas. */

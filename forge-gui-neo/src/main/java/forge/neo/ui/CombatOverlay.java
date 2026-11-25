@@ -28,8 +28,9 @@ import javafx.scene.shape.StrokeLineCap;
  *   <li><b>Curva, no recta.</b> Una Bezier con la panza hacia fuera separa
  *       visualmente flechas que salen del mismo sitio. Con lineas rectas, seis
  *       atacantes contra el mismo jugador son un borron.</li>
- *   <li><b>Color por significado.</b> Rojo = ataque, azul = bloqueo, ambar =
- *       objetivo de un hechizo. Se distingue sin leer nada.</li>
+ *   <li><b>Color por significado.</b> Rojo = ataque, dorado = bloqueo (como
+ *       Arena, y Ajustes deja elegir los dos), ambar = objetivo de un
+ *       hechizo. Se distingue sin leer nada.</li>
  *   <li><b>La punta toca el borde de la carta</b>, no su centro: asi se ve a
  *       quien apunta aunque las cartas esten solapadas.</li>
  * </ol>
@@ -79,6 +80,14 @@ public class CombatOverlay extends Pane {
     private double dragX;
     private double dragY;
     private boolean dragValid;
+
+    /**
+     * La carta bajo el raton (25-11-2026, Discord: <i>"I find blocking very
+     * confusing"</i>). Si esta en el combate, su pareja se pinta entera y el
+     * resto de flechas se apaga: con seis atacantes y cuatro bloqueos se ve de
+     * un vistazo quien para a quien.
+     */
+    private Object focus;
 
     private final AnimationTimer pulse = new AnimationTimer() {
         @Override
@@ -175,6 +184,20 @@ public class CombatOverlay extends Pane {
         this.dragValid = valid;
     }
 
+    /**
+     * La carta bajo el raton, o null. Solo cambia el dibujo: la capa sigue
+     * siendo transparente al raton.
+     */
+    public void setFocus(final Object entity) {
+        if (DEBUG) {
+            System.out.println("[flecha] foco " + entity);
+        }
+        this.focus = entity;
+        if (running) {
+            draw();
+        }
+    }
+
     public void endDrag() {
         this.dragSource = null;
         sync();
@@ -223,26 +246,114 @@ public class CombatOverlay extends Pane {
             return;
         }
 
+        // Los atacantes que alguien bloquea: su flecha al jugador se apaga (ya
+        // no llega) y deja que se lea la del bloqueo, que es la que importa.
+        final List<Object> blocked = new ArrayList<>();
         for (final Link link : links) {
-            final Bounds a = locator.boundsOf(link.from);
-            final Bounds b = locator.boundsOf(link.to);
-            if (a == null || b == null) {
-                continue;
+            if (link.kind == Kind.BLOCK) {
+                blocked.add(link.to);
             }
-            if (DEBUG) {
-                System.out.printf("[flecha] %s  %s -> %s   %s => %s%n", link.kind,
-                        link.from, link.to, fmt(a), fmt(b));
+        }
+        final List<Link> lit = litBy(focus);
+        // El latido de lo que entra sin bloquear, como Android (decision 646).
+        final double pulse = 0.5 + 0.5 * Math.sin(System.nanoTime() / 1.0e9 * Math.PI / 1.1);
+        final Color attack = colorOf(Kind.ATTACK);
+        final Color block = colorOf(Kind.BLOCK);
+
+        // Primero objetivos y ataques; los bloqueos los ultimos, por encima.
+        for (int pass = 0; pass < 2; pass++) {
+            for (final Link link : links) {
+                if ((link.kind == Kind.BLOCK) != (pass == 1)) {
+                    continue;
+                }
+                final Bounds a = locator.boundsOf(link.from);
+                final Bounds b = locator.boundsOf(link.to);
+                if (a == null || b == null) {
+                    continue;
+                }
+                if (DEBUG) {
+                    System.out.printf("[flecha] %s  %s -> %s   %s => %s%n", link.kind,
+                            link.from, link.to, fmt(a), fmt(b));
+                }
+                final double dim = lit == null || lit.contains(link) ? 1 : 0.18;
+                switch (link.kind) {
+                    case ATTACK -> {
+                        if (containsSame(blocked, link.from)) {
+                            arrow(g, a, b, attack.deriveColor(0, 1, 1, 0.40 * dim), 2.2, true);
+                        } else {
+                            arrow(g, a, b, attack.deriveColor(0, 1, 1, (0.72 + 0.28 * pulse) * dim), 4.5, true);
+                        }
+                    }
+                    case BLOCK -> blockArrow(g, a, b, block.deriveColor(0, 1, 1, dim));
+                    default -> arrow(g, a, b, colorOf(link.kind).deriveColor(0, 1, 1, dim), widthOf(link.kind), true);
+                }
             }
-            arrow(g, a, b, colorOf(link.kind), widthOf(link.kind));
         }
 
         if (dragSource != null) {
             final Color c = dragValid ? Color.web("#4FB477") : Color.web("#4A9BE0");
             final Bounds a = locator.boundsOf(dragSource);
             if (a != null) {
-                arrowTo(g, centerX(a), centerY(a), dragX, dragY, c, 4.5);
+                arrowTo(g, centerX(a), centerY(a), dragX, dragY, c, 4.5, true);
             }
         }
+    }
+
+    /**
+     * Las flechas que se ven enteras con {@code focus} bajo el raton, o null si
+     * no toca a ninguna (entonces se ven todas). Un atacante enciende su ataque
+     * y sus bloqueos; un bloqueador, los de cada atacante que bloquea (asi se
+     * ven tambien los demas que paran a ese mismo); y un objetivo de hechizo,
+     * su flecha.
+     */
+    private List<Link> litBy(final Object focus) {
+        if (focus == null) {
+            return null;
+        }
+        final List<Object> attackers = new ArrayList<>();
+        for (final Link l : links) {
+            if (l.kind == Kind.ATTACK && same(l.from, focus)) {
+                attackers.add(l.from);
+            } else if (l.kind == Kind.BLOCK && (same(l.from, focus) || same(l.to, focus))) {
+                attackers.add(l.to);
+            }
+        }
+        final List<Link> out = new ArrayList<>();
+        for (final Link l : links) {
+            final boolean mine = switch (l.kind) {
+                case ATTACK -> containsSame(attackers, l.from);
+                case BLOCK -> containsSame(attackers, l.to);
+                default -> same(l.from, focus) || same(l.to, focus);
+            };
+            if (mine) {
+                out.add(l);
+            }
+        }
+        return out.isEmpty() ? null : out;
+    }
+
+    /**
+     * La misma entidad aunque sean dos objetos: el motor rehace sus
+     * {@code CardView} y la carta bajo el raton puede no ser la instancia de la
+     * flecha.
+     */
+    private static boolean same(final Object a, final Object b) {
+        if (a == b) {
+            return true;
+        }
+        if (a instanceof forge.game.card.CardView ca && b instanceof forge.game.card.CardView cb) {
+            return ca.getId() == cb.getId();
+        }
+        return a != null && a.equals(b);
+    }
+
+    private static boolean containsSame(final List<Object> list, final Object o) {
+        for (final Object x : list) {
+            if (same(x, o)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Traza las coordenadas de cada flecha. Se enciende con -Dneo.arrows.debug=true */
@@ -256,13 +367,21 @@ public class CombatOverlay extends Pane {
     private static Color colorOf(final Kind kind) {
         switch (kind) {
             case ATTACK:
-                return Color.web("#D9534F");
+                return safeColor(forge.neo.NeoSettings.arrowColor(true), "#D9534F");
             case BLOCK:
-                return Color.web("#4A9BE0");
+                return safeColor(forge.neo.NeoSettings.arrowColor(false), "#F2C14E");
             case TARGET:
                 return Color.web("#E0A63C");
             default:
                 return Color.web("#4FB477");
+        }
+    }
+
+    private static Color safeColor(final String hex, final String fallback) {
+        try {
+            return Color.web(hex);
+        } catch (final RuntimeException e) {
+            return Color.web(fallback);
         }
     }
 
@@ -283,14 +402,48 @@ public class CombatOverlay extends Pane {
      * salga del centro de la carta ni la punta se meta dentro del destino.
      */
     private void arrow(final GraphicsContext g, final Bounds from, final Bounds to,
-                       final Color color, final double width) {
+                       final Color color, final double width, final boolean fade) {
         final double x1 = centerX(from);
         final double y1 = centerY(from);
         final double x2 = centerX(to);
         final double y2 = centerY(to);
         final double[] start = edgePoint(from, x2, y2);
         final double[] end = edgePoint(to, x1, y1);
-        arrowTo(g, start[0], start[1], end[0], end[1], color, width);
+        arrowTo(g, start[0], start[1], end[0], end[1], color, width, fade);
+    }
+
+    /**
+     * LA FLECHA DEL BLOQUEO, como la de Android (sus decisiones 214 y 646):
+     * solida de punta a punta, mas gruesa, con un halo de su color y un
+     * contorno oscuro, y en S por el hueco entre las dos filas, entrando de
+     * frente en su atacante. Antes era azul y nacia casi transparente: con el
+     * bloqueador justo debajo de su atacante quedaba un trazo de un dedo que
+     * no se veia (Discord, 25-11-2026, con capturas).
+     */
+    private void blockArrow(final GraphicsContext g, final Bounds from, final Bounds to, final Color color) {
+        final double sy;
+        final double ey;
+        if (from.getMinY() >= to.getMaxY() + 4) {
+            sy = from.getMinY();
+            ey = to.getMaxY();
+        } else if (from.getMaxY() + 4 <= to.getMinY()) {
+            sy = from.getMaxY();
+            ey = to.getMinY();
+        } else {
+            // Sin hueco entre las dos (misma fila): la curva de siempre.
+            final double[] start = edgePoint(from, centerX(to), centerY(to));
+            strokeArrow(g, start[0], start[1], centerX(to), centerY(to), null, color, 5.5, false, true);
+            return;
+        }
+        // La punta, en el CENTRO del atacante y no en su borde (Ana,
+        // 25-11-2026): con el bloqueador justo debajo de su atacante la flecha
+        // hasta el borde medía un dedo; hasta el centro recorre media carta y
+        // se ve sin duda a cual para. El codo sigue en el hueco entre las filas.
+        final double sx = centerX(from);
+        final double ex = centerX(to);
+        final double mid = (sy + ey) / 2;
+        strokeArrow(g, sx, sy, ex, centerY(to), new double[] {sx, mid, ex, mid},
+                color, 5.5, false, true);
     }
 
     /**
@@ -319,54 +472,92 @@ public class CombatOverlay extends Pane {
     /** Curva Bezier con punta. La panza hace legibles varias flechas juntas. */
     private void arrowTo(final GraphicsContext g, final double x1, final double y1,
                          final double x2, final double y2,
-                         final Color color, final double width) {
+                         final Color color, final double width, final boolean fade) {
+        strokeArrow(g, x1, y1, x2, y2, null, color, width, fade, false);
+    }
+
+    /**
+     * Pinta la flecha. Sin {@code elbow}, una cuadratica con la panza hacia
+     * fuera; con el, una cubica por esos dos puntos de control. {@code fade}:
+     * casi transparente en el origen y solida en la punta (dice el sentido sin
+     * buscar la cabeza). {@code halo}: resplandor ancho de su color y contorno
+     * oscuro debajo, para que se lea encima del arte.
+     */
+    private void strokeArrow(final GraphicsContext g, final double x1, final double y1,
+                             final double x2, final double y2, final double[] elbow,
+                             final Color color, final double width, final boolean fade,
+                             final boolean halo) {
         final double dx = x2 - x1;
         final double dy = y2 - y1;
         final double len = Math.hypot(dx, dy);
         if (len < 4) {
             return;
         }
-
-        // Control desplazado en perpendicular: curva suave y constante.
-        final double bulge = Math.min(70, len * 0.22);
-        final double nx = -dy / len;
-        final double ny = dx / len;
-        final double cx = (x1 + x2) / 2 + nx * bulge;
-        final double cy = (y1 + y2) / 2 + ny * bulge;
-
-        // Degradado: casi transparente en el origen, solido en la punta. Deja
-        // claro el sentido de la flecha sin tener que buscar la cabeza.
-        g.setStroke(new LinearGradient(x1, y1, x2, y2, false, CycleMethod.NO_CYCLE,
-                new Stop(0, color.deriveColor(0, 1, 1, 0.25)),
-                new Stop(1, color)));
-        g.setLineWidth(width);
-        g.setLineCap(StrokeLineCap.ROUND);
+        // El punto desde el que llega la curva a la punta (orienta la cabeza).
+        final double hx;
+        final double hy;
         g.beginPath();
         g.moveTo(x1, y1);
-        g.quadraticCurveTo(cx, cy, x2, y2);
+        if (elbow != null) {
+            g.bezierCurveTo(elbow[0], elbow[1], elbow[2], elbow[3], x2, y2);
+            hx = elbow[2];
+            hy = elbow[3];
+        } else {
+            // Control desplazado en perpendicular: curva suave y constante.
+            final double bulge = Math.min(70, len * 0.22);
+            final double cx = (x1 + x2) / 2 + -dy / len * bulge;
+            final double cy = (y1 + y2) / 2 + dx / len * bulge;
+            g.quadraticCurveTo(cx, cy, x2, y2);
+            hx = cx;
+            hy = cy;
+        }
+        g.setLineCap(StrokeLineCap.ROUND);
+        if (halo) {
+            g.setStroke(color.deriveColor(0, 1, 1, 0.20));
+            g.setLineWidth(width * 3.6);
+            g.stroke();
+            g.setStroke(Color.rgb(12, 15, 20, 0.80 * color.getOpacity()));
+            g.setLineWidth(width + 3.5);
+            g.stroke();
+        }
+        if (fade) {
+            g.setStroke(new LinearGradient(x1, y1, x2, y2, false, CycleMethod.NO_CYCLE,
+                    new Stop(0, color.deriveColor(0, 1, 1, 0.25)),
+                    new Stop(1, color)));
+        } else {
+            g.setStroke(color);
+        }
+        g.setLineWidth(width);
         g.stroke();
 
-        // La punta se orienta con la tangente de la curva en el final, que en
-        // una cuadratica es la direccion desde el punto de control.
-        final double tx = x2 - cx;
-        final double ty = y2 - cy;
-        final double tl = Math.hypot(tx, ty);
+        // La punta se orienta con la tangente de la curva en el final, que es
+        // la direccion desde el ultimo punto de control.
+        double tx = x2 - hx;
+        double ty = y2 - hy;
+        double tl = Math.hypot(tx, ty);
         if (tl < 0.01) {
-            return;
+            tx = dx;
+            ty = dy;
+            tl = len;
         }
         final double ux = tx / tl;
         final double uy = ty / tl;
-        final double head = width * 3.2;
+        final double head = width * (halo ? 2.6 : 3.2);
         final double px = -uy;
         final double py = ux;
 
-        g.setFill(color);
         g.beginPath();
         g.moveTo(x2, y2);
         g.lineTo(x2 - ux * head + px * head * 0.55, y2 - uy * head + py * head * 0.55);
         g.lineTo(x2 - ux * head * 0.62, y2 - uy * head * 0.62);
         g.lineTo(x2 - ux * head - px * head * 0.55, y2 - uy * head - py * head * 0.55);
         g.closePath();
+        if (halo) {
+            g.setStroke(Color.rgb(12, 15, 20, 0.80 * color.getOpacity()));
+            g.setLineWidth(3);
+            g.stroke();
+        }
+        g.setFill(color);
         g.fill();
     }
 }

@@ -128,6 +128,7 @@ public final class RogueStartRules {
         if (disabledMods.contains(m)) {
             return false;
         }
+        final boolean wasGenerated = generatedCommander();
         if (on) {
             checkedMods.add(m);
             for (final CustomRunModification other : CustomRunModification.values()) {
@@ -146,6 +147,13 @@ public final class RogueStartRules {
                     disabledMods.add(other);
                 } else {
                     disabledMods.remove(other);
+                    // Forge (RogueStart.toggle, igual que el Swing de antes): si el
+                    // comandante generado se va, se van tambien las que traia; si
+                    // no, la run empezaria con Random Start y Random Rewards que
+                    // nadie ha marcado.
+                    if (wasGenerated || m.isGeneratedCommander()) {
+                        checkedMods.remove(other);
+                    }
                 }
             }
         }

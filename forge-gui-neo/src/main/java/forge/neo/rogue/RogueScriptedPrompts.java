@@ -43,7 +43,8 @@ public final class RogueScriptedPrompts implements RoguePrompts {
 
     @Override
     public List<PaperCard> cardReward(final String title, final List<PaperCard> cards, final int maxPicks,
-                                      final String rerollLabel, final boolean rerollEnabled, final int gold) {
+                                      final String rerollLabel, final int rerollCost,
+                                      final boolean rerollEnabled, final int gold) {
         final List<PaperCard> out = new ArrayList<>(cards.subList(0, Math.min(maxPicks, cards.size())));
         rewardPicks += out.size();
         return out;

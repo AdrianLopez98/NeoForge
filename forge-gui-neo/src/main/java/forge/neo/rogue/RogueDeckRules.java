@@ -1,7 +1,5 @@
 package forge.neo.rogue;
 
-import forge.card.MagicColor;
-import forge.gamemodes.rogue.RogueConfig;
 import forge.gamemodes.rogue.RogueIO;
 import forge.gamemodes.rogue.RogueRun;
 import forge.item.PaperCard;
@@ -9,27 +7,24 @@ import forge.localinstance.achievements.RogueCommanderAchievements;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Las reglas del mazo DURANTE una run, como las aplica Forge en
- * {@code CEditorRogue} (forge-gui-desktop):
+ * {@code CEditorRogue} (forge-gui-desktop) y, desde Forge #13023,
+ * {@code RogueDeckEdits} y {@code RogueRun.basicLands} (forge-gui):
  * <ul>
  *   <li>tierras basicas: las que quieras, de la edicion del comandante y de
  *       sus colores (y Wastes si es incoloro o el mazo las lleva);</li>
  *   <li>quitar una carta que no es tierra basica gasta un credito de
  *       eliminacion, y sin creditos no se puede;</li>
  *   <li>deshacer devuelve la carta y el credito;</li>
- *   <li>cada quitar se guarda en el acto; al salir del editor, guardar y
+ *   <li>cada anyadir, quitar y deshacer se guarda en el acto; al salir del editor, guardar y
  *       evaluar logros.</li>
  * </ul>
  * Sin JavaFX: la pantalla solo llama. Ver {@link RogueSources}.
  */
 public final class RogueDeckRules {
-
-    private static final String WASTES = "Wastes";
 
     private record Undo(boolean add, PaperCard card, int credits) {
     }
@@ -41,60 +36,29 @@ public final class RogueDeckRules {
         this.run = run;
     }
 
-    /** Las basicas que se pueden anyadir ({@code CEditorRogue}, el pool infinito). */
+    /**
+     * Las basicas que se pueden anyadir (el pool infinito). Desde Forge #13023
+     * lo calcula el propio {@code RogueRun}, para las dos interfaces de Forge.
+     */
     public List<PaperCard> basicLands() {
-        final List<PaperCard> pool = new ArrayList<>();
         if (run.getSelectedRogueDeck() == null || run.getSelectedRogueDeck().getStartDeck() == null
                 || run.getSelectedRogueDeck().getStartDeck().getCommanders().isEmpty()) {
-            return pool;
+            return new ArrayList<>();
         }
-        PaperCard commanderCard = run.getSelectedRogueDeck().getStartDeck().getCommanders().get(0);
-        String selectedEdition = RogueConfig.getBasicLandEdition(
-            run.getSelectedRogueDeck().getLandEdition(), commanderCard);
-
-        List<PaperCard> preferredSetBasics = RogueConfig.getBasicLandsFromEdition(selectedEdition);
-        List<PaperCard> filteredCandidates = new ArrayList<>(
-            run.filterCardsByCommanderColorIdentity(preferredSetBasics));
-        pool.addAll(filteredCandidates);
-
-        Set<String> presentBasicLandTypes = new LinkedHashSet<>();
-        for (PaperCard card : filteredCandidates) {
-            presentBasicLandTypes.add(card.getName());
-        }
-        for (String requiredBasicLandType : requiredBasicLandTypes()) {
-            if (presentBasicLandTypes.contains(requiredBasicLandType)) {
-                continue;
-            }
-            PaperCard fallbackCard = RogueConfig.getFallbackBasicLandPrint(requiredBasicLandType);
-            if (fallbackCard != null) {
-                pool.add(fallbackCard);
-                presentBasicLandTypes.add(requiredBasicLandType);
-            }
-        }
-        return pool;
+        return run.basicLands();
     }
 
-    private Set<String> requiredBasicLandTypes() {
-        Set<String> required = new LinkedHashSet<>();
-        int colorIdentity = run.getCommanderColorIdentityMask();
-        if ((colorIdentity & MagicColor.WHITE) != 0) { required.add("Plains"); }
-        if ((colorIdentity & MagicColor.BLUE) != 0) { required.add("Island"); }
-        if ((colorIdentity & MagicColor.BLACK) != 0) { required.add("Swamp"); }
-        if ((colorIdentity & MagicColor.RED) != 0) { required.add("Mountain"); }
-        if ((colorIdentity & MagicColor.GREEN) != 0) { required.add("Forest"); }
-        if (colorIdentity == 0 || run.getSelectedRogueDeck().shouldIncludeColorlessBasics()) {
-            required.add(WASTES);
-        }
-        return required;
-    }
-
-    /** Anyadir una basica ({@code onAddItems}: solo basicas). No guarda, como Forge. */
+    /**
+     * Anyadir una basica ({@code onAddItems}: solo basicas) y guardar, como
+     * Forge desde #13023 ({@code RogueDeckEdits.added}).
+     */
     public boolean add(final PaperCard card) {
         if (card == null || !card.getRules().getType().isBasicLand()) {
             return false;
         }
         run.getCurrentDeck().getMain().add(card);
         undo.push(new Undo(true, card, 0));
+        RogueIO.saveRun(run);
         return true;
     }
 

@@ -1028,6 +1028,59 @@ public final class NeoSettings {
         }
     }
 
+    /**
+     * EL COLOR DE LAS FLECHAS DE COMBATE (Discord, 25-11-2026: <i>"I find
+     * blocking very confusing"</i>, <i>"it just need a thicker color like
+     * yellow ... or maybe add a custom color picker"</i>). Una por clase de
+     * flecha, ataque y bloqueo, con la misma lista de colores y el indice
+     * {@link #ARROW_CUSTOM_INDEX} para el personalizado. Las mismas claves en
+     * Android, que las lee de aqui.
+     */
+    public static final String ATTACK_ARROW_COLOR = "attackArrowColor";
+    public static final String ATTACK_ARROW_CUSTOM = "attackArrowCustom";
+    public static final String BLOCK_ARROW_COLOR = "blockArrowColor";
+    public static final String BLOCK_ARROW_CUSTOM = "blockArrowCustom";
+
+    /**
+     * El 0 es "el de fabrica" de cada una: rojo el ataque y DORADO el bloqueo,
+     * como en Arena y como Android desde su decision 646 (el azul de antes se
+     * perdia contra la linea de combate y el arte de las cartas).
+     */
+    public static final String[] ARROW_COLOR_KEYS = {"default", "red", "yellow", "blue", "white", "pink", "lime"};
+    public static final String[] ARROW_COLORS = {null, "#E5484D", "#FFE14D", "#4DD9FF", "#FFFFFF", "#FF6FD8", "#B8FF3C"};
+    public static final String ATTACK_ARROW_DEFAULT = "#D9534F";
+    public static final String BLOCK_ARROW_DEFAULT = "#F2C14E";
+    public static final int ARROW_CUSTOM_INDEX = ARROW_COLORS.length;
+
+    public static int arrowColorIndex(final boolean attack) {
+        return Math.max(0, Math.min(ARROW_CUSTOM_INDEX,
+                getInt(attack ? ATTACK_ARROW_COLOR : BLOCK_ARROW_COLOR, 0)));
+    }
+
+    /** El color de esa flecha en {@code #RRGGBB}. */
+    public static String arrowColor(final boolean attack) {
+        final int i = arrowColorIndex(attack);
+        if (i == ARROW_CUSTOM_INDEX) {
+            return arrowCustom(attack);
+        }
+        return i == 0 ? (attack ? ATTACK_ARROW_DEFAULT : BLOCK_ARROW_DEFAULT) : ARROW_COLORS[i];
+    }
+
+    /** El personalizado de esa flecha, o el de fabrica si no hay ninguno valido. */
+    public static String arrowCustom(final boolean attack) {
+        final String hex = hexColor(get(attack ? ATTACK_ARROW_CUSTOM : BLOCK_ARROW_CUSTOM, ""));
+        return hex != null ? hex : attack ? ATTACK_ARROW_DEFAULT : BLOCK_ARROW_DEFAULT;
+    }
+
+    /** Guarda el personalizado y lo deja elegido. Lo que no sea un color no se guarda. */
+    public static void setArrowCustom(final boolean attack, final String color) {
+        final String hex = hexColor(color);
+        if (hex != null) {
+            set(attack ? ATTACK_ARROW_CUSTOM : BLOCK_ARROW_CUSTOM, hex);
+            setInt(attack ? ATTACK_ARROW_COLOR : BLOCK_ARROW_COLOR, ARROW_CUSTOM_INDEX);
+        }
+    }
+
     /** {@code #RRGGBB} en mayusculas, o null. Acepta {@code RRGGBB}, {@code #RRGGBBAA} y {@code 0xRRGGBBAA}. */
     public static String hexColor(final String s) {
         if (s == null) {

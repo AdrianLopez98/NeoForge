@@ -15,9 +15,12 @@ import java.util.Map;
  *
  * <p>La logica del modo esta en {@code forge-gui/gamemodes/rogue} y la usamos
  * tal cual: sus arreglos llegan solos con cada rebase. Pero una parte de la
- * logica vive en las pantallas Swing de {@code forge-gui-desktop} (los
+ * logica vivia en las pantallas Swing de {@code forge-gui-desktop} (los
  * "helpers" de cada nodo, el inicio de la run, el reparto de premios), y esa la
- * hemos copiado a {@code forge.neo.rogue}. Si Card-Forge la cambia, el rebase
+ * copiamos a {@code forge.neo.rogue}. Desde Forge #13023 (25-11-2026) esa
+ * logica esta en {@code forge-gui/gamemodes/rogue/flow} sin Swing
+ * ({@code RogueFlow} con una interfaz {@code RogueDecisions}); nuestras copias
+ * siguen siendo las nuestras, y se vigila el original nuevo. Si Card-Forge la cambia, el rebase
  * NO avisa: la copia se quedaria vieja sin decir nada.
  *
  * <p>Por eso {@code roguecheck} compara la huella de cada original con la de
@@ -35,21 +38,31 @@ public final class RogueSources {
     static final Map<String, String[]> COPIED = new LinkedHashMap<>();
 
     private static final String D = "forge-gui-desktop/src/main/java/forge/screens/home/rogue/";
+    private static final String F = "forge-gui/src/main/java/forge/gamemodes/rogue/flow/";
 
     static {
-        put(D + "NodeBazaarHelper.java", "4b1e22ad02b876b8d4c86356710c729e29cedaf5578a76eede955671fae8f73a", "RogueBazaar");
-        put(D + "NodeChestHelper.java", "ffba2a8ce8736d8c271b93c68cc0a2e43100323256f247177222a68407bc075a", "RogueChest");
-        put(D + "NodeEventHelper.java", "afc78a83fb08f353307e564272ea825085a066286c326dc82b13000529b29c45", "RogueEvents");
-        put(D + "NodeSanctumHelper.java", "cfb4784c17607a3cc15a5672a9acfbc60a8e2e13e79ded4ec9706f855e9b15c8", "RogueSanctum");
-        put(D + "NodeEffectResultHelper.java", "0333280db82342e83b427016730658ad0190cae5f7807db65190c86d342bf745", "RogueEffectResults");
-        put(D + "EffectResultHelper.java", "a84cfbcca8e47badeb5e071ecb63119c662b012676e7bca1dbe4c158c00ca375", "RogueCardEffects");
-        put(D + "NodePlaneboundHelper.java", "78ea426c83c4a7fdd7c0ea6c384adb38619131cca37928842f52e41028372f27", "RogueDuel");
+        // Desde Forge #13023 (25-11-2026) los helpers de cada nodo viven en
+        // forge-gui/gamemodes/rogue/flow, ya sin Swing (RogueDecisions).
+        put(F + "NodeBazaarHelper.java", "ed840f23b16a31339c39e2a4aacd6c914f6be239ba5e5b0449618ec3e1da6093", "RogueBazaar");
+        put(F + "NodeChestHelper.java", "e740ba19ffc3248ca73a8706b336fd89f927c8d354be7484a0cd854fb90297de", "RogueChest");
+        put(F + "NodeEventHelper.java", "789f1e29c40782e09219dcbb050727fd363d66c6df4579567aaac91eafacbbb2", "RogueEvents");
+        put(F + "NodeSanctumHelper.java", "d4b16825498e43d5d3af16c405595627355e9def47311604aa6ac4ca8f3cf9eb", "RogueSanctum");
+        put(F + "NodeEffectResultHelper.java", "db18bf0e21dd4a04085efad70eb8857d08c2da4d36e9a91a7836f221a4d94e8a", "RogueEffectResults");
+        put(F + "EffectResultHelper.java", "af2c722feebe633374470cfaf33c4104daa8d9e48287a0654df47e565452989c", "RogueCardEffects");
+        put(F + "NodePlaneboundHelper.java", "bcc282ae211176fe233c2769471e687308ed7cebf2e1eddc05346aaa70f64d51", "RogueDuel");
         put("forge-gui-desktop/src/main/java/forge/screens/match/RogueWinLose.java",
-            "6eb34ee7407c397a74752914e2c5f5d7ecfdcfc1b3a239a47989f92b68e350e4", "RogueDuel");
-        put(D + "CSubmenuRogueMap.java", "e7b258de3e54dd808cef98ddd610f5fb6c08c57099817582d29b44399d794e9c", "RogueSession");
-        put(D + "CSubmenuRogueStart.java", "6df7608a1e5c9b2bc27e42cbe7f7e73478001f3cfe5655f4cd23a07c49d42b11", "RogueSession");
-        put(D + "PathVisualizerPanel.java", "a93b6a4ba211b7ff9d4154de6f9b8478fced57abbb5d2b4adfcaeab11bad7955",
+            "9c57d0852736eddb07dd765f67517a98fc4befa3957688baeef01fb9e7ea0bb7", "RogueDuel");
+        // El flujo de la run (mapa, nodos, fin de partida) y el inicio: antes en
+        // CSubmenuRogueMap/Start de Swing, desde #13023 en RogueFlow/RogueStart.
+        put(F + "RogueFlow.java", "fa5b717a5a10753cd8ef60987904d721a17140ffb925bbe933e41d9275f9a645", "RogueSession y RogueDuel");
+        put(F + "RogueStart.java", "cfa99375656bcc6064fa610445b102daa2afc5b169b6a1c56130a9e2c1468851", "RogueSession y RogueStartRules");
+        put(D + "CSubmenuRogueMap.java", "7b43507ad56bb03bb9afaf2a1ca5503abfd3bfac96161368590032e2504c6e85", "RogueSession");
+        put(D + "CSubmenuRogueStart.java", "08fde8917d631e86158045b08b0036de9bab310d7713c2fee356154a6ae6fb09", "RogueSession");
+        put(D + "PathVisualizerPanel.java", "527326a9cffd96fd479230e4f8682bbbca7db064e23fbe4a4461d73097d9fd5f",
             "RogueMapModel, RoguePathLayout y ui.RogueMapScreen");
+        // Que nodos salen boca abajo: desde #13023 lo calcula RoguePath.isFaceDown.
+        put("forge-gui/src/main/java/forge/gamemodes/rogue/path/RoguePath.java",
+            "197020f8de6343ec96a535cdceb28ce104b1116d44c6c1c231c9e1052b22cce5", "RogueMapModel");
         // El dibujo de cada nodo del mapa (24-11-2026: fiel al de Forge).
         put(D + "NodePanel.java", "56c2aa85cc070307d7839a4095453a3bb31fe95f18b5530a15eee4ac60fd9b73", "ui.RogueMapScreen");
         put(D + "NodeCircularPanel.java", "dbfcfb6c761ee28f6fe1c6f06a77af1e26b9613294c25a797b011a419a9f1e3e", "ui.RogueMapScreen");
@@ -61,12 +74,14 @@ public final class RogueSources {
         put(D + "NodeEventPanel.java", "80f3f8038dd1cc0a117c8d4c2667d10639670db8a9f0e26bba981187622aa27e", "ui.RogueNodeIcons");
         // Las reglas que Forge tiene en sus pantallas (24-11-2026, para Android).
         put(D + "VSubmenuRogueStart.java", "f0c7917821324ae6f3d4246e346ef36856c986f56f9552b8d8066e5a383d2b69", "RogueStartRules");
-        put(D + "CSubmenuRogueAether.java", "310e366b965c6e4336cf4564f912314289608586f3dedb5d9d5d35619f1d3e11", "RogueMeta");
-        put(D + "VSubmenuRogueAether.java", "88f6d65766a243a49a06d5d87476ed568d117abbd1adc03c8586845ea93076ac", "RogueMeta");
-        put(D + "VSubmenuRogueHistory.java", "c67aedeb02abd60ad17558f5fa6c8c69b762d565403b4f09d01850e83af091f1", "RogueMeta");
+        put(D + "CSubmenuRogueAether.java", "92a74bacea0c7da68cd511f4c1e957a3e80e92293e36071792743d893d4ea133", "RogueMeta");
+        put(D + "VSubmenuRogueAether.java", "e315e66dc9add0a0024e419a110b5550ab66b78b85ee980803adeaccc41090d1", "RogueMeta");
+        put(D + "VSubmenuRogueHistory.java", "efc05429dee69ca9c27551a563e3094836090141ecf2d88effd0481a804cc670", "RogueMeta");
         put(D + "CommanderSelectionDialog.java", "d38ef779556616b8c3ecba4e95e2bc02c2940a33a11a81a15ce1c1fc52926ef6", "RogueSession");
         put("forge-gui-desktop/src/main/java/forge/screens/deckeditor/controllers/CEditorRogue.java",
-            "02c6ebd1ee92917c69e00479296b3c35c60c2f929968bbc5e25c973f42f7eaff", "RogueDeckRules");
+            "dc9c5307cfef2d0962b9a36cdce8e0c8a0b6a5e872885009c80aa01064e7c81c", "RogueDeckRules");
+        put("forge-gui/src/main/java/forge/gamemodes/rogue/RogueDeckEdits.java",
+            "e3a47c35174d224cf41746102c5bf53c8eb7ee8d2eab503fe20c3d4649b51fa0", "RogueDeckRules");
     }
 
     private static void put(final String original, final String sha, final String copy) {
