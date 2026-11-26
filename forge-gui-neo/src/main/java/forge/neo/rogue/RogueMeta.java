@@ -77,10 +77,14 @@ public final class RogueMeta {
     public static List<String> details(final RogueRunHistoryEntry e) {
         final Localizer l = Localizer.getInstance();
         final List<String> out = new ArrayList<>();
+        // Quien cayo o quien te gano: solo en una victoria o una derrota. Una run
+        // abandonada no lleva linea (Forge, RogueRunHistoryEntry.getOutcomeDetail
+        // desde #13085; antes salia "Defeated by" con cualquier nombre).
         final String who = e.getBossOrDefeatedBy();
-        if (who != null && !who.isBlank()) {
-            out.add(l.getMessage(VICTORY.equals(e.getOutcome())
-                ? "lblRogueHistoryBossSlain" : "lblRogueHistoryDefeatedBy", who));
+        final String key = VICTORY.equals(e.getOutcome()) ? "lblRogueHistoryBossSlain"
+            : DEFEAT.equals(e.getOutcome()) ? "lblRogueHistoryDefeatedBy" : null;
+        if (key != null && who != null && !who.isBlank()) {
+            out.add(l.getMessage(key, who));
         }
         out.add(RogueText.clean(l.getMessage("lblRogueHistoryTimestamp",
             e.getTimestamp(), e.getFormattedRunTime())));

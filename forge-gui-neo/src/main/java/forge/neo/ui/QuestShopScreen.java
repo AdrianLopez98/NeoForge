@@ -1060,6 +1060,7 @@ public class QuestShopScreen extends StackPane {
             final byte colour = masks[i];
             final Button b = new Button(letters[i]);
             b.getStyleClass().addAll("segment", "colour-filter", "mana-" + letters[i].toLowerCase(Locale.ROOT));
+            ManaIcons.symbolize(b, letters[i]);
             b.setMinWidth(Region.USE_PREF_SIZE);
             b.setOnAction(e -> {
                 if (!singleColours.remove(colour)) {

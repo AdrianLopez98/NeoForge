@@ -25,6 +25,8 @@ public final class RogueScriptedPrompts implements RoguePrompts {
     public int lastBazaarItems;
     public int lastChestChoices;
     public boolean lastRestEnabled;
+    /** Lo que se va ensenyando, en orden (para mirar que el duelo de un evento va despues). */
+    public final List<String> trace = new ArrayList<>();
 
     @Override
     public void message(final String title, final String text) {
@@ -39,6 +41,7 @@ public final class RogueScriptedPrompts implements RoguePrompts {
     @Override
     public void result(final String title, final String text, final List<Section> sections) {
         System.out.println("    [resultado] " + title + (text == null ? "" : ": " + text));
+        trace.add("resultado");
     }
 
     @Override

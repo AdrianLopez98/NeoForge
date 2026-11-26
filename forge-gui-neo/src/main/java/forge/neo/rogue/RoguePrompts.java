@@ -97,6 +97,20 @@ public interface RoguePrompts {
     List<PaperCard> chooseCards(String title, String subtitle, List<PaperCard> cards, int min, int max,
                                 RogueRun run, Function<List<PaperCard>, Deck> preview);
 
+    /**
+     * En que orden se ENSENYAN las cartas de {@link #chooseCards}: por tipo, como
+     * el editor de mazos, y luego por coste. Es el de Forge en las dos interfaces
+     * ({@code CardSelectionDialog} siempre; desde #13085 lo comparten como
+     * {@code RogueDecisions.CardChoice.shown}). Lo usan la pantalla de PC y la de
+     * Android; la logica sigue recibiendo las mismas cartas.
+     */
+    static List<PaperCard> shown(final List<PaperCard> cards) {
+        final List<PaperCard> shown = new java.util.ArrayList<>(cards);
+        shown.sort(java.util.Comparator.comparingInt(forge.gamemodes.rogue.CodexHelper::codexCardTypeOrder)
+            .thenComparingInt(c -> c.getRules().getManaCost().getCMC()));
+        return shown;
+    }
+
     /** Un NPC habla y, si trae opciones, se elige una ({@code NPCDialog}). */
     NpcAnswer npc(NPCContext ctx, int rerolls);
 

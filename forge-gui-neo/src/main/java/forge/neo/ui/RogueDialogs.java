@@ -379,7 +379,8 @@ public final class RogueDialogs implements RoguePrompts {
         final List<PaperCard> got = ask(done -> {
             final String heading = subtitle == null || subtitle.isBlank() ? clean(title)
                 : clean(title) + " · " + clean(subtitle);
-            final ChoiceDialog<PaperCard> dialog = new ChoiceDialog<>(heading, cards, min, max,
+            final ChoiceDialog<PaperCard> dialog = new ChoiceDialog<>(heading,
+                forge.neo.rogue.RoguePrompts.shown(cards), min, max,
                 PaperCard::getName, cw(), done);
             final RogueRun deckRun = run != null ? run : forge.neo.rogue.RogueSession.inMemory();
             if (deckRun != null && deckRun.getCurrentDeck() != null) {

@@ -331,6 +331,64 @@ public final class RogueCheck {
                 && !h2.isEmpty() && "ABANDONED".equals(h2.get(h2.size() - 1).getOutcome()),
             "abandonada: borrada y en el historial", "abandonar no la borra o no la apunta");
 
+        System.out.println("  El orden de las cartas a elegir (como Forge: tipo y luego coste)");
+        final List<forge.item.PaperCard> pool = new ArrayList<>(run.getCurrentDeck().getMain().toFlatList());
+        java.util.Collections.reverse(pool);
+        final List<forge.item.PaperCard> shown = RoguePrompts.shown(pool);
+        boolean sorted = shown.size() == pool.size() && shown.containsAll(pool);
+        for (int i = 1; sorted && i < shown.size(); i++) {
+            final int t0 = forge.gamemodes.rogue.CodexHelper.codexCardTypeOrder(shown.get(i - 1));
+            final int t1 = forge.gamemodes.rogue.CodexHelper.codexCardTypeOrder(shown.get(i));
+            sorted = t0 < t1 || t0 == t1 && shown.get(i - 1).getRules().getManaCost().getCMC()
+                <= shown.get(i).getRules().getManaCost().getCMC();
+        }
+        check(sorted, shown.size() + " cartas del mazo, en el orden de Forge",
+            "RoguePrompts.shown no ordena por tipo y coste, o pierde cartas");
+
+        System.out.println("  Un evento que lleva a un duelo (AMBUSH, \"Fight\")");
+        // Como Forge desde #13023 (1.0.68): el evento termina entero y DESPUES
+        // se juega el duelo. Y si ese duelo no llega a acabar, la run vuelve a
+        // su ultimo guardado. La mesa de aqui apunta el duelo y "no acaba".
+        final RogueScriptedPrompts traced = new RogueScriptedPrompts();
+        final RogueSession ambushSession = new RogueSession(traced, seats -> {
+            // Si el evento sigue en la pila, el duelo se esta jugando DENTRO de el
+            boolean insideEvent = false;
+            for (final StackTraceElement f : Thread.currentThread().getStackTrace()) {
+                insideEvent |= f.getClassName().equals(RogueEvents.class.getName());
+            }
+            traced.trace.add(insideEvent ? "duelo dentro del evento" : "duelo");
+            return null;
+        });
+        // Henzie cambia CUALQUIER evento por uno de sus contratos cuando su nivel
+        // es 2, 5... (HenzieEncounter.onBeforeEvent), y su nivel sale de lo que
+        // haya pasado antes en esta prueba: a veces no habia emboscada ni duelo
+        // (rojo un dia si y otro no). Durante esta prueba, a 0.
+        final RogueMetaProgress meta = RogueMetaProgress.getInstance();
+        final String henzie = forge.gamemodes.rogue.npc.NPC.HENZIE.id;
+        final int henzieLevel = meta.getNPCLevel(henzie);
+        meta.setNPCLevel(henzie, 0);
+        final RogueRun ambushRun = ambushSession.beginNewRun(
+            new RogueSession.StartOptions(unlocked.get(0), false, List.of(), 0));
+        if (ambushRun != null) {
+            final int goldSaved = ambushRun.getCurrentGold();
+            final NodeEvent ambush = new NodeEvent();
+            ambush.setEvent(RogueEvent.AMBUSH);
+            ambushSession.enterForTest(ambush);
+            check(traced.trace.contains("duelo") && !traced.trace.contains("duelo dentro del evento"),
+                "el duelo se juega cuando el evento ya ha terminado " + traced.trace,
+                "el duelo del evento no va despues del evento " + traced.trace);
+            final RogueRun reloaded = RogueSession.inMemory();
+            check(reloaded != null && reloaded != ambushRun && reloaded.getName().equals(ambushRun.getName())
+                    && reloaded.getCurrentGold() == goldSaved && !ambush.isCompleted(),
+                "el duelo que no acaba devuelve la run a su ultimo guardado",
+                "tras un duelo de evento que no acaba la run no vuelve al guardado (misma="
+                    + (reloaded == ambushRun) + ")");
+            RogueSession.abandon();
+        } else {
+            check(false, "", "no se ha podido empezar la run del evento");
+        }
+        meta.setNPCLevel(henzie, henzieLevel);
+
         finish();
     }
 

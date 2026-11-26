@@ -1319,6 +1319,7 @@ public class DeckBuilderScreen extends StackPane {
                                      final boolean colourless) {
         final Button b = new Button(letter);
         b.getStyleClass().addAll("segment", "colour-filter", style);
+        ManaIcons.symbolize(b, letter);
         b.setTooltip(new javafx.scene.control.Tooltip(tip));
         b.setOnAction(e -> {
             final boolean on;
@@ -1465,6 +1466,7 @@ public class DeckBuilderScreen extends StackPane {
     private Button colourFilter(final String letter, final byte colour) {
         final Button b = new Button(letter);
         b.getStyleClass().addAll("segment", "colour-filter", "mana-" + letter.toLowerCase(java.util.Locale.ROOT));
+        ManaIcons.symbolize(b, letter);
         b.setOnAction(e -> {
             if (colours.contains(colour)) {
                 colours.remove(Byte.valueOf(colour));
@@ -1759,6 +1761,7 @@ public class DeckBuilderScreen extends StackPane {
             final Button b = new Button(letters[i]);
             b.getStyleClass().addAll("segment", "colour-filter",
                     "mana-" + letters[i].toLowerCase(java.util.Locale.ROOT));
+            ManaIcons.symbolize(b, letters[i]);
             b.setOnAction(e -> {
                 if (!deckColours.remove(colour)) {
                     deckColours.add(colour);
@@ -1772,6 +1775,7 @@ public class DeckBuilderScreen extends StackPane {
         // que se repasa cuando sobra o falta mana.
         final Button colourless = new Button("C");
         colourless.getStyleClass().addAll("segment", "colour-filter", "mana-c");
+        ManaIcons.symbolize(colourless, "C");
         colourless.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("deck.colorless")));
         colourless.setOnAction(e -> {
             deckColourless = !deckColourless;

@@ -1,11 +1,9 @@
-**NeoForge para macOS 1.0.67 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.68 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **Rogue Commander, también en Mac.** Hasta ahora solo salía en Windows.
-- **Los bloqueos se ven**: la flecha de bloqueo es dorada, más gruesa y llega al centro del atacante; la de un atacante bloqueado se apaga, y al pasar el ratón por una criatura en combate se ven solo su atacante y sus bloqueadores. El color de las dos flechas se elige en Ajustes.
-- **«Permitir cartas personalizadas en los mazos»**, ahora en Ajustes → Modos.
-- **El mazo de Rogue Commander, ordenado** por coste o por tipo, con las tierras básicas a la izquierda.
-- La ventana de novedades ya no se estira de lado a lado en pantallas grandes.
+- **«Resolve all» y el pase automático ya no paran en «Got it»** cuando un disparo tuyo revela una carta (por ejemplo, varios Coiling Oracle): sale un aviso que se va solo y queda en el registro.
+- **Símbolos de maná en los filtros de color** del selector de mazos, el constructor y los demás filtros.
+- **Rogue Commander:** el duelo que sale de un evento o un cofre empieza cuando el evento ha terminado, y las cartas a elegir salen ordenadas por tipo y coste, como en Forge.
 - Forge al día: cartas nuevas y arreglos del motor, de la IA y de Rogue Commander.
 
 Descarga el `.dmg` de tu Mac:

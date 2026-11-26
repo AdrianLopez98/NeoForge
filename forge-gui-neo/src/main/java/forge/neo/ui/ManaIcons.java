@@ -60,6 +60,25 @@ public final class ManaIcons {
         }).orElse(null);
     }
 
+    /**
+     * Un FILTRO DE COLOR con el simbolo de mana de Forge en vez de la letra
+     * (Discord, 26-11-2026: <i>"Can mana symbols also be displayed on this
+     * interface?"</i>; en Android, su decision 733). La letra se queda como
+     * texto del boton (lo que lo busque por texto sigue funcionando) y solo
+     * se ve el dibujo. Sin el ajuste de simbolos, o sin simbolo para esa
+     * letra ("M" de multicolor), el boton se queda como estaba. Apagado, el
+     * dibujo va medio transparente ({@code .colour-filter-icon} en neo.css).
+     */
+    public static void symbolize(final javafx.scene.control.Labeled b, final String letter) {
+        final ImageView v = view(letter, UiScale.px(16));
+        if (v == null) {
+            return;
+        }
+        v.getStyleClass().add("colour-filter-icon");
+        b.setGraphic(v);
+        b.setContentDisplay(javafx.scene.control.ContentDisplay.GRAPHIC_ONLY);
+    }
+
     /** Un icono a {@code size} px, o null. */
     public static ImageView view(final String token, final double size) {
         final Image img = icon(token);

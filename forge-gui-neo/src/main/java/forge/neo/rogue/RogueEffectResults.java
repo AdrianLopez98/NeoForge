@@ -86,7 +86,8 @@ class RogueEffectResults {
             node -> node.getRowIndex() >= resetFromRow,
             node -> node.setCompleted(false));
         currentRun.setCurrentNodeIndex(ctx.moveNodeIndex);
-        map.enterNode();
+        // Forge #13023: el nodo de destino, con su duelo solo apuntado
+        map.enterNodeInner();
         return RogueSession.Outcome.DO_NOT_COMPLETE_NODE;
     }
 
@@ -102,7 +103,8 @@ class RogueEffectResults {
 
         NodePlanebound tempNode = new NodePlanebound(ctx.planebound);
         tempNode.setRowIndex(sourceNode.getRowIndex());
-        planeboundHelper.handlePlaneboundNode(tempNode, currentRun);
+        // Forge #13023: se apunta y se juega cuando el evento ha terminado
+        map.battle(tempNode);
         return RogueSession.Outcome.DO_NOT_COMPLETE_NODE;
     }
 }

@@ -127,12 +127,13 @@ public final class RogueSession {
      * vuelve a como estaba en su ultimo guardado, como Forge desde #13023
      * ("charges and event effects are spent before a match exists, so the
      * last save is the only state to return to"). Si no, al volver a entrar se
-     * sumarian otra vez los efectos Wrathful/Cursed del Planebound. Un duelo
-     * que sale de un evento (nodo temporal, fuera del camino) no se toca: el
-     * evento sigue con la run en la mano y la guardaria encima.
+     * sumarian otra vez los efectos Wrathful/Cursed del Planebound. Vale
+     * tambien para el duelo que sale de un evento o un cofre: desde la 1.0.68
+     * se juega cuando el evento ya ha terminado ({@link #battle}), asi que
+     * nadie se queda con la run vieja en la mano.
      */
     void reloadAfterBrokenDuel(final RogueRun run, final forge.gamemodes.rogue.path.RoguePathNode node) {
-        if (run == null || run != currentRun || run.getPath() == null || !run.getPath().getNodes().contains(node)) {
+        if (run == null || run != currentRun) {
             return;
         }
         try {
@@ -299,8 +300,41 @@ public final class RogueSession {
     // CSubmenuRogueMap
     // ------------------------------------------------------------------
 
-    /** {@code CSubmenuRogueMap.enterNode}. */
+    /**
+     * El duelo que toca, apuntado y sin jugar todavia ({@code RogueFlow.battle},
+     * Forge #13023): un evento o un cofre que lleva a un Planebound termina
+     * ENTERO (sus NPC, su resultado) y solo entonces se juega el duelo. Antes
+     * se jugaba en medio del evento, y lo que el evento ensenyaba despues
+     * salia despues de la partida (o con la run ya acabada).
+     */
+    private NodePlanebound pendingBattle;
+
+    /** {@code RogueFlow.battle}: el duelo empieza cuando el nodo ha terminado todo lo demas. */
+    void battle(final NodePlanebound node) {
+        pendingBattle = node;
+    }
+
+    /** {@code RogueFlow.enter}: entra en el nodo actual y, al acabar, juega el duelo apuntado. */
     public void enterNode() {
+        pendingBattle = null;
+        enterNodeInner();
+        playPendingBattle();
+    }
+
+    private void playPendingBattle() {
+        final NodePlanebound battle = pendingBattle;
+        pendingBattle = null;
+        if (battle != null && currentRun != null) {
+            planeboundHelper.handlePlaneboundNode(battle, currentRun);
+        }
+    }
+
+    /**
+     * {@code RogueFlow.enterNode} (antes {@code CSubmenuRogueMap.enterNode}):
+     * lo que hace el nodo, con el duelo solo apuntado. Lo llama tambien un
+     * efecto MOVE, que salta a otro nodo desde dentro de un evento.
+     */
+    void enterNodeInner() {
         RogueRun run = currentRun;
         if (run == null) {
             return;
@@ -315,7 +349,7 @@ public final class RogueSession {
 
         // Handle different node types
         if (node instanceof NodePlanebound nodePlanebound) {
-            planeboundHelper.handlePlaneboundNode(nodePlanebound, run);
+            battle(nodePlanebound);
         } else if (node instanceof NodeSanctum nodeSanctum) {
             sanctumHelper.handleSanctumNode(nodeSanctum, run);
         } else if (node instanceof NodeBazaar nodeBazaar) {
@@ -330,6 +364,12 @@ public final class RogueSession {
     /** Solo pruebas ({@code roguecheck} y la sonda de Android): entrar en un nodo hecho a mano, como si fuera el actual. */
     public void enterForTest(final RoguePathNode node) {
         RogueRun run = currentRun;
+        pendingBattle = null;
+        enterForTestInner(node, run);
+        playPendingBattle();
+    }
+
+    private void enterForTestInner(final RoguePathNode node, final RogueRun run) {
         if (node instanceof NodeSanctum nodeSanctum) {
             sanctumHelper.handleSanctumNode(nodeSanctum, run);
         } else if (node instanceof NodeBazaar nodeBazaar) {

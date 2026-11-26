@@ -97,6 +97,7 @@ final class CommanderColourFilter {
             final String letter = i < AscentSetupScreen.COLOUR_ORDER.length ? AscentSetupScreen.COLOUR_LETTERS[i] : "C";
             final Button b = new Button(letter);
             b.getStyleClass().addAll("segment", "colour-filter", "mana-" + letter.toLowerCase(Locale.ROOT));
+            ManaIcons.symbolize(b, letter);
             final boolean on = identity != CommanderSearch.ANY_IDENTITY
                     && (c == 0 ? identity == 0 : (identity & c) != 0);
             if (on) {

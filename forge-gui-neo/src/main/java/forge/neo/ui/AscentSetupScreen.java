@@ -1477,6 +1477,7 @@ public class AscentSetupScreen extends StackPane {
             final Button b = new Button(letter);
             b.getStyleClass().addAll("segment", "colour-filter",
                     "mana-" + letter.toLowerCase(java.util.Locale.ROOT));
+            ManaIcons.symbolize(b, letter);
             if ((colours & c) != 0) {
                 b.getStyleClass().add("colour-filter-on");
             }

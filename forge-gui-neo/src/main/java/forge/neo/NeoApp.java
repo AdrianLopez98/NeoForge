@@ -3156,9 +3156,13 @@ public class NeoApp extends Application implements SettingsPanel.Host {
         // pinte en UNA fila, que salga "Resolverlo todo (6)", y que con UN clic
         // se resuelvan todos (+6 vidas) sin volver a tocar OK.
         // -Dneo.resolveall.stop=group se para con los seis en el stack.
+        // -Dneo.resolveall.card=Coiling Oracle: en vez de osos, criaturas que
+        // REVELAN al entrar (Discord, 26-11-2026): cada revelacion pedia su
+        // "Entendido" en mitad del "Resolverlo todo". Ver match.AutoReveal.
         if (args.contains("--resolveall-test")) {
             final String stopAt = System.getProperty("neo.resolveall.stop", "");
             final int copies = Integer.getInteger("neo.resolveall.copies", 6);
+            final String creature = System.getProperty("neo.resolveall.card", "Grizzly Bears");
             final boolean cancelIt = Boolean.getBoolean("neo.resolveall.cancel");
             final int[] step = {0};
             final int[] lifeBefore = {0};
@@ -3229,15 +3233,25 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                                 forge.model.FModel.getMagicDb().getCommonCards().getCard("Soul Warden"), owner);
                         g.getAction().moveToPlay(g.getAction().moveToHand(warden, null), owner, null, null);
                         g.getTriggerHandler().runWaitingTriggers();
+                        if (!"Grizzly Bears".equals(creature)) {
+                            // Lo que revelen: osos encima de la biblioteca, que
+                            // van a la mano sin preguntar nada (una tierra al
+                            // azar podia traer su "Scry 1").
+                            for (int i = 0; i < copies; i++) {
+                                g.getAction().moveToLibrary(forge.game.card.Card.fromPaperCard(
+                                        forge.model.FModel.getMagicDb().getCommonCards()
+                                                .getCard("Grizzly Bears"), owner), 0, null);
+                            }
+                        }
                         for (int i = 0; i < copies; i++) {
                             final forge.game.card.Card bear = forge.game.card.Card.fromPaperCard(
-                                    forge.model.FModel.getMagicDb().getCommonCards().getCard("Grizzly Bears"), owner);
+                                    forge.model.FModel.getMagicDb().getCommonCards().getCard(creature), owner);
                             g.getAction().moveToPlay(g.getAction().moveToHand(bear, null), owner, null, null);
                         }
                         g.getTriggerHandler().runWaitingTriggers();
                         g.getStack().addAllTriggeredAbilitiesToStack();
                     });
-                    System.out.println("[resolver] Soul Warden y " + copies + " osos entran en tu campo");
+                    System.out.println("[resolver] Soul Warden y " + copies + " x " + creature + " entran en tu campo");
                     return;
                 }
                 if (step[0] == 1) {
@@ -3281,7 +3295,14 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                         return;
                     }
                     lifeBefore[0] = me.getLife();
-                    expected[0] = g.getStack().size();
+                    // Las vidas que se esperan: una por disparo de Soul Warden
+                    // (con Coiling Oracle tambien estan los suyos).
+                    expected[0] = 0;
+                    for (final forge.game.spellability.SpellAbilityStackInstance si : g.getStack()) {
+                        if ("Soul Warden".equals(si.getSourceCard().getName())) {
+                            expected[0]++;
+                        }
+                    }
                     step[0] = 2;
                     table.getActionBar().clickResolveAll();
                     return;
@@ -3322,7 +3343,18 @@ public class NeoApp extends Application implements SettingsPanel.Host {
                         final int gained = me.getLife() - lifeBefore[0];
                         final int copiesLeft = expected[0];
                         final boolean flag = forge.neo.match.NeoMatchUI.resolvingStack(human);
-                        System.out.println("[resolver] " + (gained == copiesLeft ? "RESUELTO" : "FALLO")
+                        // Con Coiling Oracle: cada uno revelo un oso y se lo llevo
+                        // a la mano, sin un solo "Entendido" (el FALLO de arriba).
+                        int revealed = 0;
+                        for (final forge.game.card.Card c : me.getCardsIn(forge.game.zone.ZoneType.Hand)) {
+                            if ("Grizzly Bears".equals(c.getName())) {
+                                revealed++;
+                            }
+                        }
+                        final boolean revealsOk = "Grizzly Bears".equals(creature) || revealed == copies;
+                        System.out.println("[resolver] " + (gained == copiesLeft && revealsOk ? "RESUELTO" : "FALLO")
+                                + ("Grizzly Bears".equals(creature) ? ""
+                                        : " | reveladas a la mano " + revealed + " de " + copies)
                                 + " | vidas ganadas " + gained + " de " + copiesLeft
                                 + " | marca puesta al acabar: " + flag
                                 + " | boton ahora: " + table.getActionBar().resolveAllText());

@@ -4615,6 +4615,21 @@ public class NeoMatchUI extends NetworkGuiGame implements OverlookedSink {
     @Override
     public <T> void reveal(final String message, final List<T> items) {
         hideRevealedCards();
+        // Si lo que se resuelve es tuyo y lo has puesto en automatico, sin
+        // "Entendido": un aviso que se va solo, y lo revelado ya esta en el
+        // registro. Ver AutoReveal.
+        if (interactive() && items != null && !items.isEmpty()
+                && AutoReveal.skipDialog(getGameController(), getGameView(), localPlayerView())) {
+            final List<String> names = new ArrayList<>();
+            for (final T o : items) {
+                names.add(o instanceof CardView ? forge.neo.card.CardText.nameOf((CardView) o) : defaultLabel(o));
+            }
+            final String text = (message == null || message.isBlank() ? "" : message + ": ")
+                    + String.join(", ", names);
+            trace("revelado sin dialogo (en automatico): %s", text);
+            uiRunLater(() -> table.showNotice(text));
+            return;
+        }
         super.reveal(message, items);
     }
 

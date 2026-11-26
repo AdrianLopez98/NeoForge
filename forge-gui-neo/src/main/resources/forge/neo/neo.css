@@ -2683,6 +2683,12 @@
 .colour-filter.mana-g:selected { -fx-background-color: #7FBE94; -fx-text-fill: #12161C; }
 .colour-filter.mana-c:selected { -fx-background-color: #BDC5CC; -fx-text-fill: #12161C; }
 .colour-filter.mana-m:selected { -fx-background-color: #E0C46C; -fx-text-fill: #12161C; }
+/* Con el simbolo de mana en vez de la letra (ManaIcons.symbolize, Discord
+   26-11-2026): apagado, el dibujo medio transparente, como la letra va en su
+   color sobre fondo oscuro; encendido, entero sobre el fondo de su color. */
+.colour-filter .colour-filter-icon { -fx-opacity: 0.55; }
+.colour-filter:selected .colour-filter-icon,
+.colour-filter.colour-filter-on .colour-filter-icon { -fx-opacity: 1; }
 
 .mana-curve {
     -fx-background-color: -neo-table-deep;

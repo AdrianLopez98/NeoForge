@@ -244,6 +244,7 @@ et}) y no se tocan.
             final Button b = new Button(letters[i]);
             b.getStyleClass().addAll("segment", "colour-filter",
                     "mana-" + letters[i].toLowerCase(java.util.Locale.ROOT));
+            ManaIcons.symbolize(b, letters[i]);
             b.setId("home-colour-" + letters[i].toLowerCase(java.util.Locale.ROOT));
             b.setMinWidth(Region.USE_PREF_SIZE);
             b.setTooltip(new javafx.scene.control.Tooltip(NeoText.get("home.colour.tip")));

@@ -229,8 +229,10 @@ public final class CardFilterBar {
     }
 
     private Button colour(final String letter, final byte colour) {
-        return flip(letter, colours, colour, "colour-filter",
+        final Button b = flip(letter, colours, colour, "colour-filter",
                 "mana-" + letter.toLowerCase(java.util.Locale.ROOT));
+        ManaIcons.symbolize(b, letter);
+        return b;
     }
 
     private Button rarity(final String letter, final CardRarity rarity) {
