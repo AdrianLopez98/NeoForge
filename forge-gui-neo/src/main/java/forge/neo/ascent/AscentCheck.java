@@ -5379,6 +5379,45 @@ public final class AscentCheck {
                     + ", vacio " + empty + ", Marvel " + marvelOk + " (" + zen.serialize() + ")");
         }
 
+        // Las Un-sets (Discord, 27-11-2026): se eligen una a una, el desde/hasta
+        // no las mete salvo que se pida, solo Un-sets avisa sin impedir, y las
+        // pegatinas, Attractions y Contraptions no entran en el pozo.
+        final boolean pickable = AscentPool.pickableEditions().stream().anyMatch(e -> "UGL".equals(e.getCode()))
+                && AscentPool.editions().stream().noneMatch(e -> "UGL".equals(e.getCode()));
+        final AscentPool plainRange = AscentPool.range("MIR", "USG");
+        final AscentPool unRange = AscentPool.range("MIR", "USG", true);
+        final boolean rangeUn = !plainRange.codes().contains("UGL") && unRange.codes().contains("UGL")
+                && AscentPool.parse(unRange.serialize()).equals(unRange) && unRange.serialize().endsWith(":un")
+                && !AscentPool.parse(plainRange.serialize()).withUn;
+        final boolean warn = AscentPool.sets(java.util.Arrays.asList("UST")).warning() != null
+                && AscentPool.sets(java.util.Arrays.asList("FDN", "UST")).warning() == null
+                && plainRange.warning() == null;
+        final AscentPool unf = AscentPool.sets(java.util.Arrays.asList("FDN", "UNF"));
+        PaperCard piece = null;
+        PaperCard plainUn = null;
+        for (final PaperCard p : FModel.getMagicDb().getCommonCards().getAllCards()) {
+            if (!"UNF".equals(p.getEdition())) {
+                continue;
+            }
+            if (piece == null && AscentPool.needsUnPieces(p)) {
+                piece = p;
+            } else if (plainUn == null && !AscentPool.needsUnPieces(p) && p.getRules() != null
+                    && !p.getRules().getType().isLand()) {
+                plainUn = p;
+            }
+        }
+        final boolean pieces = piece != null && !unf.allows(piece) && plainUn != null && unf.allows(plainUn);
+        final boolean unPlayable = unf.problem(AscentRun.Mode.COMMANDER) == null
+                && unf.problem(AscentRun.Mode.STANDARD) == null;
+        if (pickable && rangeUn && warn && pieces && unPlayable) {
+            ok("Un-sets: se eligen una a una y no en el desde/hasta salvo con la casilla (Mirage-Urza's Saga + Un"
+                    + " mete Unglued); solo Un-sets avisa; " + piece.getName() + " fuera del pozo y "
+                    + plainUn.getName() + " dentro; Foundations + Unfinity se juega (" + unf.spellCount() + " cartas)");
+        } else {
+            fail("Un-sets: elegibles " + pickable + ", rango " + rangeUn + ", aviso " + warn + ", piezas " + pieces
+                    + " (" + piece + " / " + plainUn + "), jugable " + unPlayable);
+        }
+
         // Una expansion al azar (Discord, 08-10-2026): siempre una que de para
         // una run en los dos modos, y otro toque da otra.
         final java.util.Random dice = new java.util.Random(8);

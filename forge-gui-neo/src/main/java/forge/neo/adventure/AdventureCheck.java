@@ -36,7 +36,7 @@ public final class AdventureCheck {
     }
 
     /** Huella del original copiado. Actualizar al volver a copiar. */
-    static final String DUEL_SCENE_SHA256 = "a5d738cbd237c9ee3b172dd42c82f4bc24d5b0eef6cf89174ad622dfcb9bd89f";
+    static final String DUEL_SCENE_SHA256 = "bd744517ff00b9c46c0762bec43f36eacc78768943fc79ee9cbaab9e2edf2a71";
     static final String DECK_EDIT_SCENE_SHA256 = "facd2fe22237a3dabc2d45c2a6574d20ae246e4d2892ae7c3da36ed74778f4b3";
 
     private static int ok;

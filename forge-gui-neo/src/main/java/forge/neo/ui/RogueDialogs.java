@@ -200,6 +200,61 @@ public final class RogueDialogs implements RoguePrompts {
         void onPick(final Runnable action) {
             this.pick = action;
         }
+
+        /**
+         * Las pastillas de lo que nombra la opcion ({@link forge.neo.rogue.RoguePreviews}):
+         * una carta se amplia y una palabra despliega su explicacion debajo.
+         * <b>Tocarlas no elige la opcion</b> (el evento se consume): es la forma
+         * de mirar antes de elegir con el dedo, donde no hay "pasar el raton"
+         * (Discord, 27-11-2026, pantalla tactil). Con raton, la palabra lleva
+         * ademas su explicacion al pasar por encima.
+         */
+        void addPreviews(final List<forge.neo.rogue.RoguePreviews.Item> items) {
+            addPreviewsTo(this, items);
+        }
+    }
+
+    /** Las pastillas de {@link Choice#addPreviews}, en cualquier caja (tambien el texto de un evento). */
+    static void addPreviewsTo(final VBox box, final List<forge.neo.rogue.RoguePreviews.Item> items) {
+        if (items == null || items.isEmpty()) {
+            return;
+        }
+        final javafx.scene.layout.FlowPane chips = new javafx.scene.layout.FlowPane(6, 6);
+        chips.getStyleClass().add("rogue-chips");
+        final Label hint = new Label();
+        hint.getStyleClass().add("rogue-chip-hint");
+        hint.setWrapText(true);
+        hint.setVisible(false);
+        hint.setManaged(false);
+        final String[] open = {null};
+        for (final forge.neo.rogue.RoguePreviews.Item it : items) {
+            final Label chip = new Label((it.isCard() ? "▣ " : "? ") + it.title);
+            chip.getStyleClass().addAll("rogue-chip", it.isCard() ? "rogue-chip-card" : "rogue-chip-word");
+            chip.setCursor(javafx.scene.Cursor.HAND);
+            if (!it.isCard()) {
+                Tooltip.install(chip, new Tooltip(it.hint));
+            }
+            // Se consume al pulsar Y al soltar: la opcion de debajo elige con el
+            // click, y su :pressed no debe encenderse por tocar la pastilla.
+            chip.addEventHandler(javafx.scene.input.MouseEvent.MOUSE_PRESSED, javafx.event.Event::consume);
+            chip.setOnMouseClicked(e -> {
+                e.consume();
+                if (it.isCard()) {
+                    CardZoom.show(chip, CardView.getCardForUi(it.card));
+                } else if (it.title.equals(open[0])) {
+                    open[0] = null;
+                    hint.setVisible(false);
+                    hint.setManaged(false);
+                } else {
+                    open[0] = it.title;
+                    hint.setText(it.title + ": " + it.hint);
+                    hint.setVisible(true);
+                    hint.setManaged(true);
+                }
+            });
+            chips.getChildren().add(chip);
+        }
+        box.getChildren().addAll(chips, hint);
     }
     private static Button button(final String text, final String style, final Runnable action) {
         final Button b = new Button(text);
@@ -466,6 +521,7 @@ public final class RogueDialogs implements RoguePrompts {
             }
             for (final NPCContext.NPCChoice c : choices) {
                 final Choice b = choice(c.label(), c.npcEffect() == null ? null : c.npcEffect().getDescription());
+                b.addPreviews(forge.neo.rogue.RoguePreviews.of(c.npcEffect()));
                 b.onPick(() -> done.accept(new NpcAnswer(false, c.npcEffect())));
                 options.getChildren().add(b);
             }
@@ -483,6 +539,11 @@ public final class RogueDialogs implements RoguePrompts {
         final EventAnswer got = ask(done -> {
             final VBox box = dialogBox(event.getDisplayName());
             box.getChildren().add(text(event.getDescription()));
+            final VBox about = new VBox(6);
+            addPreviewsTo(about, forge.neo.rogue.RoguePreviews.of(event.getPreviewReferences()));
+            if (!about.getChildren().isEmpty()) {
+                box.getChildren().add(about);
+            }
             final VBox options = new VBox(8);
             for (final RogueEvent.EventChoice c : event.getChoices()) {
                 final Choice b = choice(c.label(), c.effect().getDescription());
@@ -494,6 +555,7 @@ public final class RogueDialogs implements RoguePrompts {
                         b.addLine(why);
                     }
                 }
+                b.addPreviews(forge.neo.rogue.RoguePreviews.of(c.effect()));
                 b.onPick(() -> done.accept(new EventAnswer(false, c)));
                 options.getChildren().add(b);
             }
@@ -542,6 +604,7 @@ public final class RogueDialogs implements RoguePrompts {
         }
         final Choice b = choice(effect.getDisplayName(), effect.getDescription(), 270);
         b.setMaxWidth(UiScale.px(300));
+        b.addPreviews(forge.neo.rogue.RoguePreviews.of(effect));
         b.onPick(pick);
         v.getChildren().add(b);
         v.setMaxWidth(UiScale.px(320));
@@ -701,15 +764,19 @@ public final class RogueDialogs implements RoguePrompts {
             final Choice rest = choice(l.getMessage("lblRogueRest"), offer.restEnabled()
                 ? offer.restDescription() : offer.restDescription() + "\n" + clean(offer.restDisabledReason()));
             rest.setDisable(!offer.restEnabled());
+            rest.addPreviews(forge.neo.rogue.RoguePreviews.ofText(offer.restDescription()));
             rest.onPick(() -> done.accept(new SanctumAnswer(SanctumPick.HEAL, null)));
             final Choice cook = choice(l.getMessage("lblRogueCook"), l.getMessage("lblRogueCookDescription", "{{Item}}"));
+            cook.addPreviews(forge.neo.rogue.RoguePreviews.ofText(l.getMessage("lblRogueCookDescription", "{{Item}}")));
             cook.onPick(() -> done.accept(new SanctumAnswer(SanctumPick.COOK, null)));
             final Choice reflect = choice(l.getMessage("lblRogueReflect"),
                 l.getMessage("lblRogueReflectDescription", "{{Removal Credits}}"));
+            reflect.addPreviews(forge.neo.rogue.RoguePreviews.ofText(l.getMessage("lblRogueReflectDescription", "{{Removal Credits}}")));
             reflect.onPick(() -> done.accept(new SanctumAnswer(SanctumPick.REFLECT, null)));
             final VBox options = new VBox(8, rest, cook, reflect);
             for (final SanctumContext.SanctumChoice c : offer.extraChoices()) {
                 final Choice b = choice(c.label(), c.description());
+                b.addPreviews(forge.neo.rogue.RoguePreviews.ofText(c.description()));
                 b.onPick(() -> done.accept(new SanctumAnswer(SanctumPick.CUSTOM, c)));
                 options.getChildren().add(b);
             }

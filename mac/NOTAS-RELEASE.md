@@ -1,10 +1,10 @@
-**NeoForge para macOS 1.0.68 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
+**NeoForge para macOS 1.0.69 (beta).** El mismo número que en itch.io, en PC, Mac, Linux y Android.
 
 Novedades:
-- **«Resolve all» y el pase automático ya no paran en «Got it»** cuando un disparo tuyo revela una carta (por ejemplo, varios Coiling Oracle): sale un aviso que se va solo y queda en el registro.
-- **Símbolos de maná en los filtros de color** del selector de mazos, el constructor y los demás filtros.
-- **Rogue Commander:** el duelo que sale de un evento o un cofre empieza cuando el evento ha terminado, y las cartas a elegir salen ordenadas por tipo y coste, como en Forge.
-- Forge al día: cartas nuevas y arreglos del motor, de la IA y de Rogue Commander.
+- **Rogue Commander: lo que nombra cada opción se puede mirar antes de elegirla.** Los rasgos, las cartas y las palabras del modo (Wound, Fellow, Item…) salen como pastillas: tócalas para ver la carta o qué significa la palabra, sin elegir la opción.
+- **Ascenso: las Un-sets (borde plateado).** Unglued, Unstable, Unfinity, Unknown Event y las demás se pueden elegir una a una en un bloque a medida; el desde/hasta solo las mete con la casilla nueva, y avisa si el bloque solo lleva Un-sets.
+- **Importar de Archidekt en texto plano** encuentra el comandante en la última línea y deja las hojas de pegatinas, Attractions y Contraptions en su sección.
+- Forge al día: cartas nuevas y arreglos del motor y de la IA.
 
 Descarga el `.dmg` de tu Mac:
 

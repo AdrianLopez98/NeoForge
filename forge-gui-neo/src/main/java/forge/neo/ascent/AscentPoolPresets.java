@@ -86,7 +86,9 @@ public final class AscentPoolPresets {
             return "";
         }
         if (pool.kind == AscentPool.Kind.RANGE) {
-            return pool.from + " – " + pool.to;
+            // "+ Un" si lleva tambien las Un-sets: si no, dos rangos iguales
+            // (con y sin) saldrian con la misma pastilla.
+            return pool.from + " – " + pool.to + (pool.withUn ? " + Un" : "");
         }
         return pool.sets == null ? "" : String.join(" · ", pool.sets);
     }

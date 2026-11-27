@@ -227,6 +227,8 @@ public class AscentSetupScreen extends StackPane {
     private forge.neo.ascent.AscentPool.Kind poolKind;
     private String poolFrom;
     private String poolTo;
+    /** En el desde/hasta: si entran tambien las Un-sets de esas fechas (apagado de fabrica). */
+    private boolean poolWithUn;
     /** Las expansiones elegidas una a una (un bloque a medida). */
     private final List<String> poolSets = new java.util.ArrayList<>();
 
@@ -237,6 +239,7 @@ public class AscentSetupScreen extends StackPane {
         if (preset.kind == forge.neo.ascent.AscentPool.Kind.RANGE) {
             poolFrom = preset.from;
             poolTo = preset.to;
+            poolWithUn = preset.withUn;
         } else if (preset.kind == forge.neo.ascent.AscentPool.Kind.SET) {
             poolSets.addAll(preset.sets);
         }
@@ -249,7 +252,7 @@ public class AscentSetupScreen extends StackPane {
     private forge.neo.ascent.AscentPool pool() {
         switch (poolKind) {
             case RANGE:
-                return forge.neo.ascent.AscentPool.range(poolFrom, poolTo);
+                return forge.neo.ascent.AscentPool.range(poolFrom, poolTo, poolWithUn);
             case SET:
                 return forge.neo.ascent.AscentPool.sets(poolSets);
             default:
@@ -1675,10 +1678,23 @@ public class AscentSetupScreen extends StackPane {
             }));
             pick.setAlignment(Pos.CENTER);
             box.getChildren().add(pick);
+            // Las Un-sets de esas fechas, solo si se piden (Discord, 27-11-2026).
+            final javafx.scene.control.CheckBox un = new javafx.scene.control.CheckBox(
+                    NeoText.get("ascent.pool.includeUn"));
+            un.setId("ascent-pool-include-un");
+            un.getStyleClass().add("ascent-info-text");
+            un.setSelected(poolWithUn);
+            un.setOnAction(e -> {
+                poolWithUn = un.isSelected();
+                poolChanged();
+            });
+            final HBox unRow = new HBox(un);
+            unRow.setAlignment(Pos.CENTER);
+            box.getChildren().add(unRow);
         } else if (poolKind == forge.neo.ascent.AscentPool.Kind.SET) {
             // Un bloque a medida (Discord, 03-10-2026): se anyaden con el
             // desplegable y cada una sale como una pastilla; clicarla la quita.
-            final Region adder = editionBox(null, c -> {
+            final Region adder = editionBox(null, true, c -> {
                 if (!poolSets.contains(c)) {
                     poolSets.add(c);
                     poolChanged();
@@ -1718,6 +1734,16 @@ public class AscentSetupScreen extends StackPane {
             info.setWrapText(true);
             info.setMaxWidth(UiScale.px(620));
             box.getChildren().add(info);
+            // Solo Un-sets: se avisa, pero se deja empezar (es cosa del jugador).
+            final String warn = p.warning();
+            if (warn != null) {
+                final Label w = new Label(NeoText.get(warn));
+                w.setId("ascent-pool-warning");
+                w.getStyleClass().add("ascent-info-duel");
+                w.setWrapText(true);
+                w.setMaxWidth(UiScale.px(620));
+                box.getChildren().add(w);
+            }
             // Guardarla, si vale para una run y no esta ya.
             if (problem == null && forge.neo.ascent.AscentPoolPresets.canSave(p)) {
                 final Button save = choice(NeoText.get("ascent.pool.save"), false);
@@ -1739,6 +1765,7 @@ public class AscentSetupScreen extends StackPane {
         if (p.kind == forge.neo.ascent.AscentPool.Kind.RANGE) {
             poolFrom = p.from;
             poolTo = p.to;
+            poolWithUn = p.withUn;
         } else if (p.kind == forge.neo.ascent.AscentPool.Kind.SET) {
             poolSets.addAll(p.sets);
         }
@@ -1769,9 +1796,19 @@ public class AscentSetupScreen extends StackPane {
 
     /** Un desplegable de expansiones, de la mas vieja a la mas nueva. */
     private Region editionBox(final String selected, final java.util.function.Consumer<String> onPick) {
+        return editionBox(selected, false, onPick);
+    }
+
+    /**
+     * Con {@code withUn}, tambien las Un-sets: solo para el bloque a medida
+     * ({@code AscentPool.pickableEditions}); el desde/hasta no las ofrece.
+     */
+    private Region editionBox(final String selected, final boolean withUn,
+                              final java.util.function.Consumer<String> onPick) {
         final javafx.scene.control.ComboBox<forge.card.CardEdition> box = new javafx.scene.control.ComboBox<>();
         box.getStyleClass().add("team-combo");
-        box.getItems().addAll(forge.neo.ascent.AscentPool.editions());
+        box.getItems().addAll(withUn ? forge.neo.ascent.AscentPool.pickableEditions()
+                : forge.neo.ascent.AscentPool.editions());
         box.setVisibleRowCount(16);
         box.setPrefWidth(UiScale.px(300));
         box.setConverter(new javafx.util.StringConverter<>() {

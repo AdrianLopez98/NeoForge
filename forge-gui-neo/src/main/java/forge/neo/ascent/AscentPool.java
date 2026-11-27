@@ -103,20 +103,39 @@ public final class AscentPool {
      * los otros dos.
      */
     public final List<String> sets;
+    /**
+     * En {@link Kind#RANGE}: si entran tambien las expansiones de broma (las
+     * "Un-sets", {@code CardEdition.Type.FUNNY}) de esas fechas. Apagado de
+     * fabrica: un "de Mirage a Urza's Saga" no puede meter Unglued sin que
+     * nadie lo pida (Discord, 27-11-2026: <i>"by default, exclude them from
+     * the From/To option but have a check box for including unsets"</i>).
+     */
+    public final boolean withUn;
 
     private AscentPool(final Kind kind, final String from, final String to) {
-        this(kind, from, to, Collections.<String>emptyList());
+        this(kind, from, to, Collections.<String>emptyList(), false);
     }
 
     private AscentPool(final Kind kind, final String from, final String to, final List<String> sets) {
+        this(kind, from, to, sets, false);
+    }
+
+    private AscentPool(final Kind kind, final String from, final String to, final List<String> sets,
+                       final boolean withUn) {
         this.kind = kind;
         this.from = from;
         this.to = to;
         this.sets = Collections.unmodifiableList(sets);
+        this.withUn = withUn;
     }
 
     /** De la expansion {@code from} a la {@code to}, las dos incluidas (en cualquier orden). */
     public static AscentPool range(final String from, final String to) {
+        return range(from, to, false);
+    }
+
+    /** Como {@link #range(String, String)}, y con {@code withUn} tambien las Un-sets de esas fechas. */
+    public static AscentPool range(final String from, final String to, final boolean withUn) {
         if (from == null || to == null) {
             return ALL;
         }
@@ -124,9 +143,9 @@ public final class AscentPool {
         final CardEdition b = edition(to);
         if (a != null && b != null && a.getDate() != null && b.getDate() != null
                 && a.getDate().after(b.getDate())) {
-            return new AscentPool(Kind.RANGE, to, from);
+            return new AscentPool(Kind.RANGE, to, from, Collections.<String>emptyList(), withUn);
         }
-        return new AscentPool(Kind.RANGE, from, to);
+        return new AscentPool(Kind.RANGE, from, to, Collections.<String>emptyList(), withUn);
     }
 
     public static AscentPool set(final String code) {
@@ -162,7 +181,7 @@ public final class AscentPool {
     public String serialize() {
         switch (kind) {
             case RANGE:
-                return "range:" + from + ":" + to;
+                return "range:" + from + ":" + to + (withUn ? ":un" : "");
             case SET:
                 return "set:" + String.join(",", sets);
             default:
@@ -184,6 +203,9 @@ public final class AscentPool {
         final String[] parts = raw.trim().split(":");
         if ("range".equals(parts[0]) && parts.length == 3) {
             return range(parts[1], parts[2]);
+        }
+        if ("range".equals(parts[0]) && parts.length == 4 && "un".equals(parts[3])) {
+            return range(parts[1], parts[2], true);
         }
         if ("set".equals(parts[0]) && parts.length == 2) {
             return sets(java.util.Arrays.asList(parts[1].split(",")));
@@ -215,14 +237,53 @@ public final class AscentPool {
      * como se lee un "desde / hasta"). Solo las que cuentan y traen cartas.
      */
     public static List<CardEdition> editions() {
+        return editions(false);
+    }
+
+    /**
+     * Las que se ofrecen para elegir una a una: las de {@link #editions()} y
+     * ademas las de broma (las "Un-sets": Unglued, Unstable, Unfinity, Unknown
+     * Event...). Discord, 27-11-2026: <i>"just having them as options in the
+     * specific set selector... Then it's up to the player"</i>. Solo para el
+     * bloque a medida; el desde/hasta y el sorteo siguen sin ellas.
+     */
+    public static List<CardEdition> pickableEditions() {
+        return editions(true);
+    }
+
+    private static List<CardEdition> editions(final boolean withUn) {
         final List<CardEdition> out = new ArrayList<>();
         for (final CardEdition ed : FModel.getMagicDb().getEditions()) {
-            if (COUNTED.contains(ed.getType()) && ed.getDate() != null && !ed.getAllCardsInSet().isEmpty()) {
+            if ((COUNTED.contains(ed.getType()) || (withUn && ed.getType() == CardEdition.Type.FUNNY))
+                    && ed.getDate() != null && !ed.getAllCardsInSet().isEmpty()) {
                 out.add(ed);
             }
         }
         out.sort(Comparator.comparing(CardEdition::getDate).thenComparing(CardEdition::getCode));
         return out;
+    }
+
+    /** Si es una expansion de broma (Un-set). */
+    public static boolean isUn(final String code) {
+        final CardEdition ed = edition(code);
+        return ed != null && ed.getType() == CardEdition.Type.FUNNY;
+    }
+
+    /**
+     * Un aviso, no un impedimento: el bloque a medida solo tiene Un-sets
+     * (<i>"a warning ... if they don't pick normal sets"</i>). La run se puede
+     * empezar igual. La clave del texto, o null si no hay nada que avisar.
+     */
+    public String warning() {
+        if (kind != Kind.SET || sets.isEmpty()) {
+            return null;
+        }
+        for (final String c : sets) {
+            if (!isUn(c)) {
+                return null;
+            }
+        }
+        return "ascent.pool.warn.onlyUn";
     }
 
     /**
@@ -320,7 +381,8 @@ public final class AscentPool {
             final Date end = b.getDate();
             for (final CardEdition ed : FModel.getMagicDb().getEditions()) {
                 final Date d = ed.getDate();
-                if (d != null && COUNTED.contains(ed.getType()) && !d.before(start) && !d.after(end)) {
+                if (d != null && (COUNTED.contains(ed.getType()) || (withUn && ed.getType() == CardEdition.Type.FUNNY))
+                        && !d.before(start) && !d.after(end)) {
                     out.add(ed.getCode());
                 }
             }
@@ -359,7 +421,7 @@ public final class AscentPool {
         final Set<String> codes = codes();
         final Map<String, Date> dates = new HashMap<>();
         for (final PaperCard p : FModel.getMagicDb().getCommonCards().getAllCards()) {
-            if (!codes.contains(p.getEdition()) || p.getName().startsWith("A-") || isAnte(p)) {
+            if (!codes.contains(p.getEdition()) || p.getName().startsWith("A-") || isAnte(p) || needsUnPieces(p)) {
                 continue;
             }
             final CardEdition ed = edition(p.getEdition());
@@ -408,6 +470,35 @@ public final class AscentPool {
             return false;
         }
         return false;
+    }
+
+    /**
+     * <b>Las cartas de las Un-sets que no son cartas de Magic normales</b>: las
+     * hojas de pegatinas, las Attractions y las Contraptions (van en un mazo
+     * aparte que una run de Ascenso no tiene), y las que nombran esas piezas en
+     * su texto ("put a sticker", "open an Attraction"), que sin ellas no hacen
+     * nada. Fuera del pozo: como premio serian una carta muerta (Ana,
+     * 27-11-2026: que estas cartas no rompan la partida ni salgan injugables).
+     */
+    public static boolean needsUnPieces(final PaperCard p) {
+        try {
+            final forge.card.CardRules r = p.getRules();
+            if (r == null) {
+                return false;
+            }
+            final forge.card.CardTypeView t = r.getType();
+            if (t != null && (t.isStickers() || t.isAttraction() || t.isContraption())) {
+                return true;
+            }
+            final String oracle = r.getOracleText();
+            if (oracle == null) {
+                return false;
+            }
+            final String o = oracle.toLowerCase(java.util.Locale.ROOT);
+            return o.contains("sticker") || o.contains("attraction") || o.contains("contraption");
+        } catch (final RuntimeException e) {
+            return false;
+        }
     }
 
     private static final String ANTE_KEYWORD =

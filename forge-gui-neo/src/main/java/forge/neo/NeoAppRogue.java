@@ -118,7 +118,7 @@ final class NeoAppRogue {
     }
 
     /**
-     * Solo capturas: -Dneo.rogue.mock=reward|choose|bazaar|chest|event|sanctum|npc
+     * Solo capturas: -Dneo.rogue.mock=reward|choose|bazaar|chest|event|sanctum|npc|boons
      * abre ese dialogo sobre la run, con datos de verdad, sin jugar hasta el.
      * Lo que se conteste se tira (no toca la run).
      */
@@ -126,6 +126,31 @@ final class NeoAppRogue {
         final String what = System.getProperty("neo.rogue.mock", "");
         if (what.isEmpty()) {
             return;
+        }
+        // -Dneo.rogue.mock.tap=card|word: a los 4 s pulsa la primera pastilla de
+        // ese tipo (RoguePreviews), para ver en la captura que abre la carta o la
+        // explicacion SIN elegir la opcion (el dialogo sigue abierto).
+        final String tap = System.getProperty("neo.rogue.mock.tap", "");
+        if (!tap.isEmpty()) {
+            final Thread t = new Thread(() -> {
+                try {
+                    Thread.sleep(4000);
+                } catch (final InterruptedException e) {
+                    return;
+                }
+                Platform.runLater(() -> {
+                    final javafx.scene.Node n = app.scene.getRoot().lookup(".rogue-chip-" + tap);
+                    System.out.println("[rogue-mock] pastilla " + tap + ": " + (n == null ? "no hay" : "pulsada"));
+                    if (n != null) {
+                        javafx.event.Event.fireEvent(n, new javafx.scene.input.MouseEvent(
+                            javafx.scene.input.MouseEvent.MOUSE_CLICKED, 0, 0, 0, 0,
+                            javafx.scene.input.MouseButton.PRIMARY, 1, false, false, false, false,
+                            true, false, false, true, false, false, null));
+                    }
+                });
+            }, "rogue-mock-tap");
+            t.setDaemon(true);
+            t.start();
         }
         final java.util.List<forge.item.PaperCard> pool = run.getSelectedRogueDeck().getRewardPoolCards();
         final java.util.List<forge.item.PaperCard> some = new java.util.ArrayList<>(pool.subList(0, Math.min(7, pool.size())));
@@ -151,6 +176,21 @@ final class NeoAppRogue {
                 Localizer.getInstance().getMessage("lblRogueGainLifeAndCureWounds", 5, "{{Wound}}"), true, null,
                 java.util.List.of()), run);
             case "npc" -> dialogs.tutorial(forge.gamemodes.rogue.RogueTutorial.BAZAAR);
+            // Las bendiciones que ofrece un NPC (la "habilidad del principio de
+            // la run"), con las pastillas de lo que nombra cada una.
+            case "boons" -> {
+                // Tres efectos con carta de efecto, a mano: con datos de prueba
+                // (NPC a nivel 0) buildOfferingBoonsContext no ofrece ninguno.
+                final java.util.List<forge.gamemodes.rogue.npc.NPCContext.NPCChoice> choices = new java.util.ArrayList<>();
+                for (final forge.gamemodes.rogue.effect.NPCEffect e : forge.gamemodes.rogue.effect.NPCEffect.values()) {
+                    if (choices.size() < 3 && !forge.neo.rogue.RoguePreviews.of(e).isEmpty()) {
+                        choices.add(new forge.gamemodes.rogue.npc.NPCContext.NPCChoice(e.getDisplayName(), e));
+                    }
+                }
+                dialogs.npc(new forge.gamemodes.rogue.npc.NPCContext(forge.gamemodes.rogue.npc.NPC.TEFERI,
+                    java.util.List.of("Choose your boon."), choices, null, null), 1);
+                System.out.println("[rogue-mock] bendicion elegida (el dialogo se ha cerrado)");
+            }
             case "deck" -> Platform.runLater(() -> {
                 if (shown() instanceof RogueMapScreen map) {
                     map.pressDeck();

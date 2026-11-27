@@ -1763,9 +1763,11 @@ public final class QuestCheck {
             }
 
             final int shopBefore = NeoQuestShop.wantedInShop();
-            NeoQuest.engine().getCards().getShopList().add(otherArt, 1);
+            // En el stock guardado (getAssets): desde Forge #13079 getCards().getShopList()
+            // es una COPIA sin las cartas ocultas, y anyadir ahi no llega a la tienda.
+            NeoQuest.engine().getAssets().getShopList().add(otherArt, 1);
             final int shopAfter = NeoQuestShop.wantedInShop();
-            NeoQuest.engine().getCards().getShopList().remove(otherArt, 1);
+            NeoQuest.engine().getAssets().getShopList().remove(otherArt, 1);
             ck.accept("con otra impresion a la venta (" + want.getEdition() + "#" + want.getArtIndex() + " -> "
                     + otherArt.getEdition() + "#" + otherArt.getArtIndex()
                     + "), el aviso de la tienda la cuenta (" + shopBefore + " -> " + shopAfter + ")",

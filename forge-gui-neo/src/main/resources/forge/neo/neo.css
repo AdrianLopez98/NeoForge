@@ -4852,6 +4852,22 @@
 .rogue-choice:pressed { -fx-background-color: #2B3442; }
 .rogue-choice-label { -fx-font-weight: 700; -fx-text-fill: -neo-text; -fx-font-size: 1.02em; }
 .rogue-choice-desc { -fx-text-fill: -neo-text-dim; }
+/* Las pastillas de lo que nombra una opcion (RoguePreviews, Discord 27-11-2026:
+   con el dedo no hay "pasar el raton"). Tocarlas no elige la opcion. */
+.rogue-chips { -fx-padding: 4 0 0 0; }
+.rogue-chip {
+    -fx-background-color: #232B36;
+    -fx-background-radius: 999;
+    -fx-border-color: -neo-line;
+    -fx-border-radius: 999;
+    -fx-padding: 3 10 3 10;
+    -fx-font-size: .92em;
+    -fx-text-fill: -neo-text;
+}
+.rogue-chip-card { -fx-border-color: #4A9BE0; }
+.rogue-chip-word { -fx-border-color: #E0A63C; }
+.rogue-chip:hover { -fx-background-color: #2C3542; }
+.rogue-chip-hint { -fx-text-fill: -neo-text-dim; -fx-font-size: .92em; -fx-padding: 2 0 0 2; }
 .rogue-talk-text { -fx-font-size: 1.1em; -fx-line-spacing: 3; }
 .rogue-tab { -fx-background-radius: 6; }
 

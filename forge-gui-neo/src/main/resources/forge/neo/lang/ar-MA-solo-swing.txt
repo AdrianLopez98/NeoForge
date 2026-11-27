@@ -663,6 +663,7 @@ lblRogueJournalTemporalAnchor
 lblRogueJournalTutorials
 lblRogueKeepNpcLevel
 lblRogueLevel
+lblRogueLifeRestoredByEffect
 lblRogueLifeTotal
 lblRogueLocked
 lblRogueLockedCommander
@@ -800,6 +801,7 @@ lblRogueVariableCardSelectionCount
 lblRogueVictoryReward
 lblRogueViewMap
 lblRogueWon
+lblRogueWonAtLowLife
 lblRogueWound
 lblRogueWoundGained
 lblRogueWrathful

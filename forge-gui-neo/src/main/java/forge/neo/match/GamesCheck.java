@@ -115,8 +115,31 @@ public final class GamesCheck {
         for (int i = 0; i < games; i++) {
             final List<Deck> pick = new ArrayList<>(precons);
             java.util.Collections.shuffle(pick, random);
-            final Deck yours = pick.get(0);
-            final List<Deck> rivals = List.of(pick.get(1), pick.get(2), pick.get(3));
+            Deck yours = pick.get(0);
+            List<Deck> rivals = List.of(pick.get(1), pick.get(2), pick.get(3));
+            // -Dneo.games.pool=set:UNF,UST,...: los cuatro mazos convertidos a
+            // ese pozo de Ascenso (AscentPool.restrict), para ver que una partida
+            // con esas cartas (las Un-sets, 27-11-2026) se juega entera sin romper.
+            final String poolSpec = System.getProperty("neo.games.pool", "");
+            if (!poolSpec.isEmpty()) {
+                final forge.neo.ascent.AscentPool pool = forge.neo.ascent.AscentPool.parse(poolSpec);
+                final java.util.function.Function<Deck, Deck> conv =
+                        d -> pool.restrict(d, forge.neo.ascent.AscentRun.Mode.COMMANDER, random);
+                yours = conv.apply(yours);
+                rivals = List.of(conv.apply(rivals.get(0)), conv.apply(rivals.get(1)), conv.apply(rivals.get(2)));
+                int un = 0;
+                int all = 0;
+                for (final Deck d : List.of(yours, rivals.get(0), rivals.get(1), rivals.get(2))) {
+                    for (final var e : d.getMain()) {
+                        all += e.getValue();
+                        if (forge.neo.ascent.AscentPool.isUn(e.getKey().getEdition())) {
+                            un += e.getValue();
+                        }
+                    }
+                }
+                System.out.printf(Locale.ROOT, "  Pozo %s: %d de %d cartas de los cuatro mazos son de Un-sets%n",
+                        poolSpec, un, all);
+            }
             System.out.printf(Locale.ROOT, "  Partida %d: %s contra %s, %s y %s%n", i + 1, yours.getName(),
                     rivals.get(0).getName(), rivals.get(1).getName(), rivals.get(2).getName());
 

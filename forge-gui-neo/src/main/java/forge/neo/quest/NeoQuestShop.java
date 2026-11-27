@@ -102,11 +102,18 @@ public final class NeoQuestShop {
                 || e.getBorderColor() == CardEdition.BorderColor.SILVER);
     }
 
-    /** Si al arrancar se cargaron las cartas no legales (lo lee {@code FModel} una vez). */
+    /**
+     * Si se ven las cartas de broma (Un-sets). Hasta Forge #13079 (27-11-2026)
+     * era la preferencia "cargar cartas no legales"; ahora se cargan siempre y
+     * el jugador las quita con su lista de expansiones excluidas, por la
+     * etiqueta {@code Funny} ({@code UI_EXCLUDED_SETS}, que lee
+     * {@code SetExclusions}). Sin la etiqueta en la lista, se ven.
+     */
     private static boolean funnyCardsLoaded() {
         try {
-            return FModel.getPreferences().getPrefBoolean(
-                    forge.localinstance.properties.ForgePreferences.FPref.UI_LOAD_NONLEGAL_CARDS);
+            final java.util.Set<String> entries = FModel.getPreferences().getPrefSet(
+                    forge.localinstance.properties.ForgePreferences.FPref.UI_EXCLUDED_SETS);
+            return !new forge.card.SetExclusions(entries).getTags().contains(CardEdition.FUNNY_TAG);
         } catch (final RuntimeException e) {
             return true;
         }

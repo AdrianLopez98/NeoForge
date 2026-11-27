@@ -180,8 +180,97 @@ public final class DeckImporter {
         if (deck != null) {
             companionsBackToSideboard(deck, text);
             tidyCommandZone(deck);
+            specialCardsToTheirSection(deck);
+            commanderFromLastLines(deck, text);
         }
         return new Result(deck, accepted, unknown, problems);
+    }
+
+    /**
+     * <b>Las hojas de pegatinas, las Attractions y las Contraptions, a su
+     * seccion</b> (Discord, 27-11-2026, un mazo de Archidekt en texto plano).
+     * Las listas las traen mezcladas con el mazo, y el lector (que solo admite
+     * Main, Sideboard y Commander) las dejaba en el principal: 110 "cartas"
+     * en un mazo de 100. Su seccion la dice Forge ({@code DeckSection.matchingSection}).
+     */
+    static void specialCardsToTheirSection(final Deck deck) {
+        if (deck == null || !deck.has(DeckSection.Main)) {
+            return;
+        }
+        final forge.deck.CardPool main = deck.get(DeckSection.Main);
+        for (final java.util.Map.Entry<forge.item.PaperCard, Integer> e : entries(main)) {
+            final DeckSection to = DeckSection.matchingSection(e.getKey());
+            if (to == DeckSection.Attractions || to == DeckSection.Contraptions || to == DeckSection.Stickers) {
+                main.remove(e.getKey(), e.getValue());
+                deck.getOrCreate(to).add(e.getKey(), e.getValue());
+            }
+        }
+    }
+
+    /**
+     * <b>El comandante en la ultima linea, sin linea en blanco ni encabezado</b>
+     * (Discord, 27-11-2026: Archidekt, "Plain text"). Moxfield lo separa con una
+     * linea en blanco y eso ya se entiende ({@link #withSectionHeaders}); esta
+     * lista lo pone al final sin mas, y el mazo se quedaba sin comandante.
+     *
+     * <p>Solo si no hay ya comandante, si la ultima linea (o las dos ultimas, una
+     * pareja) puede ser comandante y si con ella el mazo suma justo 100. Asi un
+     * mazo de 60 que acabe en una legendaria no cambia.
+     */
+    static void commanderFromLastLines(final Deck deck, final String text) {
+        if (deck == null || text == null || deck.has(DeckSection.Commander) || !deck.has(DeckSection.Main)) {
+            return;
+        }
+        final forge.deck.CardPool main = deck.get(DeckSection.Main);
+        if (main.countAll() != 100) {
+            return;
+        }
+        final List<String> names = new java.util.ArrayList<>();
+        for (final String raw : text.split("\r?\n")) {
+            final String line = raw.trim();
+            if (!line.isEmpty() && !DeckRecognizer.isDeckSectionName(line)) {
+                names.add(cardName(line));
+            }
+        }
+        // La ultima que sea una carta del principal (las pegatinas ya no estan).
+        final List<forge.item.PaperCard> tail = new java.util.ArrayList<>();
+        for (int i = names.size() - 1; i >= 0 && tail.size() < 2; i--) {
+            final forge.item.PaperCard c = findByName(main, names.get(i));
+            if (c == null) {
+                continue; // una pegatina u otra cosa que no esta en el principal
+            }
+            if (!canSitInCommandZone(c)) {
+                break;
+            }
+            tail.add(c);
+        }
+        if (tail.isEmpty()) {
+            return;
+        }
+        // Una sola, o dos si las dos pueden ir juntas en la zona de mando.
+        final forge.deck.CardPool zone = deck.getOrCreate(DeckSection.Commander);
+        final forge.item.PaperCard first = tail.get(0);
+        main.remove(first, 1);
+        zone.add(first, 1);
+        if (tail.size() == 2 && forge.deck.DeckFormat.Commander.getDeckConformanceProblem(deck) != null) {
+            final forge.item.PaperCard second = tail.get(1);
+            main.remove(second, 1);
+            zone.add(second, 1);
+            if (forge.deck.DeckFormat.Commander.getDeckConformanceProblem(deck) != null) {
+                // Las dos juntas tampoco: se deja solo la ultima, como venia.
+                zone.remove(second, 1);
+                main.add(second, 1);
+            }
+        }
+    }
+
+    private static forge.item.PaperCard findByName(final forge.deck.CardPool pool, final String name) {
+        for (final java.util.Map.Entry<forge.item.PaperCard, Integer> e : pool) {
+            if (e.getKey().getName().equalsIgnoreCase(name)) {
+                return e.getKey();
+            }
+        }
+        return null;
     }
 
     /**
